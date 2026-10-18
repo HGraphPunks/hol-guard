@@ -264,10 +264,14 @@ def run_native_hook_pipeline(
     from ..runtime.contained_completion import completed_output_artifact
 
     runtime_artifact = completed_output_artifact(
-        runtime_artifact, payload=payload, harness=args.harness,
-        workspace=runtime_workspace, guard_home=context.guard_home,
+        runtime_artifact,
+        payload=payload,
+        harness=args.harness,
+        workspace=runtime_workspace,
+        guard_home=context.guard_home,
         native_edge=edge_result if isinstance(edge_result, Mapping) else None,
-        has_data_flow=bool(data_flow_signals), config=config,
+        has_data_flow=bool(data_flow_signals),
+        config=config,
     )
     result = run_native_claude_permission_request(
         args,

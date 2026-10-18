@@ -16,47 +16,54 @@ from codex_plugin_scanner.guard.models import GuardArtifact
 from codex_plugin_scanner.guard.runtime import contained_completion as module
 
 
-@pytest.mark.parametrize('status', [0, 1])
+@pytest.mark.parametrize("status", [0, 1])
 def test_workspace_authorized_stderr_duplication_keeps_completed_output(case, monkeypatch, status):
     from codex_plugin_scanner.guard.runtime import contained_test_hook as hook
     from codex_plugin_scanner.guard.runtime.restricted_workspace import receipt_matches
 
     artifact, payload, options, _ = case
-    command = payload['tool_input']['command'] + ' 2>&1'
-    payload['tool_input'] = {'command': command}
-    options['payload']['tool_input'] = dict(payload['tool_input'])
-    options['payload']['is_error'] = status != 0
-    text = module.output_text(status, 'actual output', 'actual diagnostic')
-    options['payload']['tool_response'] = [{'type': 'text', 'text': text}]
-    options['native_edge']['reviewed_output_sha256'] = hashlib.sha256(text.encode()).hexdigest()
+    command = payload["tool_input"]["command"] + " 2>&1"
+    payload["tool_input"] = {"command": command}
+    options["payload"]["tool_input"] = dict(payload["tool_input"])
+    options["payload"]["is_error"] = status != 0
+    text = module.output_text(status, "actual output", "actual diagnostic")
+    options["payload"]["tool_response"] = [{"type": "text", "text": text}]
+    options["native_edge"]["reviewed_output_sha256"] = hashlib.sha256(text.encode()).hexdigest()
     authorized = []
 
     def authorize(original):
-        authorized.append(original['tool_input']['command'])
-        return {'decision': 'deny', 'policy_action': 'sandbox-required',
-                'reason_code': 'native_workspace_containment_required',
-                'required_execution_profile': 'workspace-contained-v1',
-                'command_binding_digest': hashlib.sha256(
-                    original['tool_input']['command'].encode()).hexdigest()}
+        authorized.append(original["tool_input"]["command"])
+        return {
+            "decision": "deny",
+            "policy_action": "sandbox-required",
+            "reason_code": "native_workspace_containment_required",
+            "required_execution_profile": "workspace-contained-v1",
+            "command_binding_digest": hashlib.sha256(original["tool_input"]["command"].encode()).hexdigest(),
+        }
 
     def backend(original, *, authorize, first_receipt, **kwargs):
         second = authorize(original)
         assert receipt_matches(second)
-        assert second['command_binding_digest'] == first_receipt['command_binding_digest']
-        print('actual output', end='')
-        print('actual diagnostic', end='', file=module.sys.stderr)
+        assert second["command_binding_digest"] == first_receipt["command_binding_digest"]
+        print("actual output", end="")
+        print("actual diagnostic", end="", file=module.sys.stderr)
         return status
 
-    monkeypatch.setattr(hook, 'run_workspace_contained', backend)
+    monkeypatch.setattr(hook, "run_workspace_contained", backend)
     result = module.run_with_completion(
-        lambda callback: hook.run_authorized_contained_test(payload,
-            workspace=options['workspace'], authorize=callback, timeout_seconds=10),
-        authorize=authorize, payload=payload, harness='omp',
-        workspace=options['workspace'], guard_home=options['guard_home'])
+        lambda callback: hook.run_authorized_contained_test(
+            payload, workspace=options["workspace"], authorize=callback, timeout_seconds=10
+        ),
+        authorize=authorize,
+        payload=payload,
+        harness="omp",
+        workspace=options["workspace"],
+        guard_home=options["guard_home"],
+    )
     assert result == status
     completed = module.completed_output_artifact(artifact, **options)
-    assert completed is not artifact, 'completed original input lost its private output proof'
-    assert completed.metadata['contained_completion_schema'] == module.SCHEMA
+    assert completed is not artifact, "completed original input lost its private output proof"
+    assert completed.metadata["contained_completion_schema"] == module.SCHEMA
     assert authorized == [command, command]
     assert module.completed_output_artifact(artifact, **options) is artifact
 
@@ -95,12 +102,15 @@ def case(tmp_path, monkeypatch, request):
     )
     if request.param == "execution":
         payload["tool_input"] = {"command": "/usr/bin/node --test tests/node-control.test.cjs"}
-        artifact = replace(artifact, metadata={
-            **artifact.metadata,
-            "action_class": "local script execution shell command",
-            "risk_classes": ["execution"],
-            "reason_code": "shell_local_script_execution_review",
-        })
+        artifact = replace(
+            artifact,
+            metadata={
+                **artifact.metadata,
+                "action_class": "local script execution shell command",
+                "risk_classes": ["execution"],
+                "reason_code": "shell_local_script_execution_review",
+            },
+        )
     post = {
         **deepcopy(payload),
         "hook_event_name": "PostToolUse",
@@ -120,7 +130,7 @@ def case(tmp_path, monkeypatch, request):
         "guard_home": home,
         "native_edge": edge,
         "has_data_flow": False,
-        "config": GuardConfig(guard_home=home,workspace=workspace),
+        "config": GuardConfig(guard_home=home, workspace=workspace),
     }
 
     def record(**changes):
@@ -220,10 +230,15 @@ def test_explicit_current_blocks_sensitive_or_compound_artifacts_stay(case, meta
 @pytest.mark.parametrize("reason", [None, "shell_sensitive_execution", "", True])
 def test_local_script_completion_requires_exact_default_reason(case, reason):
     artifact, _, options, record = case
-    artifact = replace(artifact, metadata={
-        **artifact.metadata, "action_class": "local script execution shell command",
-        "risk_classes": ["execution"], "reason_code": reason,
-    })
+    artifact = replace(
+        artifact,
+        metadata={
+            **artifact.metadata,
+            "action_class": "local script execution shell command",
+            "risk_classes": ["execution"],
+            "reason_code": reason,
+        },
+    )
     assert record()
     assert module.completed_output_artifact(artifact, **options) is artifact
 
@@ -366,14 +381,14 @@ def test_explicit_artifact_policy_override_stays_bound_to_same_identity(case):
     assert config.resolve_action_override("omp", completed.artifact_id, completed.publisher) == "block"
 
 
-@pytest.mark.parametrize('action',['block','require-reapproval','review','sandbox-required'])
-@pytest.mark.parametrize('scope',['global','harness'])
-def test_explicit_risk_policy_is_never_erased_by_completed_proof(case,action,scope):
-    artifact,_,options,record=case
+@pytest.mark.parametrize("action", ["block", "require-reapproval", "review", "sandbox-required"])
+@pytest.mark.parametrize("scope", ["global", "harness"])
+def test_explicit_risk_policy_is_never_erased_by_completed_proof(case, action, scope):
+    artifact, _, options, record = case
     assert record()
-    risk = artifact.metadata['risk_classes'][0]
-    if scope=='global':
-        options['config']=replace(options['config'],risk_actions={risk:action})
+    risk = artifact.metadata["risk_classes"][0]
+    if scope == "global":
+        options["config"] = replace(options["config"], risk_actions={risk: action})
     else:
-        options['config']=replace(options['config'],harness_risk_actions={'omp':{risk:action}})
-    assert module.completed_output_artifact(artifact,**options) is artifact
+        options["config"] = replace(options["config"], harness_risk_actions={"omp": {risk: action}})
+    assert module.completed_output_artifact(artifact, **options) is artifact

@@ -307,7 +307,7 @@ def completed_output_artifact(
         return artifact
     # Explicit risk policy is still an operator decision, even after execution.
     # Changing the stage's default must not erase a configured stronger action.
-    for actions in (config.risk_actions or {},(config.harness_risk_actions or {}).get(harness,{}) or {}):
+    for actions in (config.risk_actions or {}, (config.harness_risk_actions or {}).get(harness, {}) or {}):
         if risk in actions and actions[risk] not in {"allow", "warn"}:
             return artifact
     content = payload.get("tool_response")

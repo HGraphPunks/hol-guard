@@ -183,7 +183,11 @@ class TestKimiInstallUninstall:
         assert "# END HOL GUARD MANAGED HOOKS" in text
         hooks = tomllib.loads(text)["hooks"]
         assert {hook["event"] for hook in hooks} == {
-            "PreToolUse", "UserPromptSubmit", "PostToolUse", "SessionStart", "Stop"
+            "PreToolUse",
+            "UserPromptSubmit",
+            "PostToolUse",
+            "SessionStart",
+            "Stop",
         }
         assert all(hook["timeout"] == 30 for hook in hooks)
         commands = {hook["command"] for hook in hooks}
