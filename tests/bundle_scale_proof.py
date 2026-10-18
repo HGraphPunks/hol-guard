@@ -46,8 +46,8 @@ def snapshot(source, core, destination, scale):
     # plus genuine authored MCP records with unique package launch identities.
     command = json.loads((source / "contributions/command-sources/command.noodle.json").read_bytes())
     mcp = json.loads((source / "contributions/mcp-servers/mcp.x-reader.json").read_bytes())
-    command_count = len(list((source / "contributions/command-sources").glob("*.json")))
-    mcp_count = len(list((source / "contributions/mcp-servers").glob("*.json")))
+    command_count = len(list((source / "contributions/command-sources").glob("command.*.json")))
+    mcp_count = len(list((source / "contributions/mcp-servers").glob("mcp.*.json")))
     for number in range(command_count * (scale - 1)):
         name = f"bundlescale{number:06}"
         value = json.loads(json.dumps(command).replace("noodle", name))
