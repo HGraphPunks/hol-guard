@@ -79,6 +79,8 @@ from ..package_firewall_action_rate_limit import PackageFirewallActionRateLimite
 from ..path_resolution_cache import cached_realpath
 from ..runtime.approval_attention import ApprovalAttentionCoordinator
 from ..runtime.cloud_review_sync import CloudReviewSyncWorker, start_cloud_sync_sync_worker, stop_cloud_sync_sync_worker
+from ..runtime.command_extensions import CommandSafetyExtensionRegistry
+from ..runtime.extension_control_authority import ExtensionControlAuthorityView
 from ..runtime.extension_control_runtime import (
     ExtensionControlRuntime,
     ExtensionControlRuntimeSnapshot,
@@ -546,7 +548,7 @@ class _GuardDaemonHTTPServer(BoundedThreadingHTTPServer):
             self.store.migrate_installed_command_pack_authority()
             _, control_registry, _ = capture(self.store)
             self.extension_control_runtime = ExtensionControlRuntime(
-                self.store.read_extension_control_authority_for_registry(control_registry)
+                self._startup_extension_control_view(control_registry)
             )
             self.extension_control_api = ExtensionControlApiService(
                 store=self.store,
@@ -586,9 +588,47 @@ class _GuardDaemonHTTPServer(BoundedThreadingHTTPServer):
                 self.codex_binding_capture_writer.stop_capture()
             raise
 
+    def _startup_extension_control_view(
+        self, registry: CommandSafetyExtensionRegistry
+    ) -> ExtensionControlAuthorityView:
+        """Read the authority for startup without letting a busy lease stop the daemon.
+
+        A lease timeout reports that the authority was not read, never that it
+        is unhealthy, so this falls back to the shared lease that a reader can
+        always join. Only if that is unobtainable too does the daemon start on
+        a view with no layers, which the next refresh replaces. Refusing to
+        start would take the hook worker down with it, and a daemon that is not
+        there protects nothing.
+
+        Both attempts take the same exclusive entry gate, so they share one
+        acquisition budget rather than waiting it twice in sequence. The
+        exclusive attempt gets half of it, which leaves the shared fallback a
+        span to run in instead of arriving after the budget is already spent.
+        """
+
+        from ..native_command_control_authority_io import (
+            AUTHORITY_LOCK_TIMEOUT_SECONDS,
+            NativeCommandControlAuthorityUnavailableError,
+            NativeCommandControlMutationRequiredError,
+        )
+
+        deadline = time.monotonic() + AUTHORITY_LOCK_TIMEOUT_SECONDS
+        with suppress(NativeCommandControlAuthorityUnavailableError):
+            return self.store.read_extension_control_authority_for_registry(
+                registry, lock_timeout_seconds=AUTHORITY_LOCK_TIMEOUT_SECONDS / 2
+            )
+        remaining = deadline - time.monotonic()
+        if remaining > 0.0:
+            with suppress(NativeCommandControlAuthorityUnavailableError, NativeCommandControlMutationRequiredError):
+                return self.store.read_extension_control_authority_for_registry(
+                    registry, read_only=True, lock_timeout_seconds=remaining
+                )
+        return self.store.extension_control_authority_unreadable_view(registry.catalog_digest)
+
     def refresh_extension_control_runtime(self) -> ExtensionControlRuntimeSnapshot:
         from ..catalog_delivery.projection import capture, require_current
         from ..native_command_control_authority_io import (
+            NativeCommandControlAuthorityUnavailableError,
             NativeCommandControlMutationRequiredError,
             hold_command_control_authority_lock,
         )
@@ -602,12 +642,17 @@ class _GuardDaemonHTTPServer(BoundedThreadingHTTPServer):
                 return self.extension_control_runtime.refresh(view)
 
         try:
-            return read(shared=True)
-        except NativeCommandControlMutationRequiredError:
-            # Release the shared read before a migration takes an exclusive
-            # lease and re-verifies authority. Routine refreshes must coexist
-            # with the native decision's shared mutation fence.
-            return read(shared=False)
+            try:
+                return read(shared=True)
+            except NativeCommandControlMutationRequiredError:
+                # Release the shared lease before migration and recapture the
+                # active projection under the exclusive mutation fence.
+                return read(shared=False)
+        except NativeCommandControlAuthorityUnavailableError:
+            # Nothing was read, so there is nothing to refresh from. Keeping the
+            # snapshot already installed beats replacing a known authority with
+            # the absence of a reading.
+            return self.extension_control_runtime.current()
 
     def process_request(self, request: Any, client_address: Any) -> None:
         request_socket = cast(socket.socket, request)

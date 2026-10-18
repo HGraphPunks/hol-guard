@@ -92,6 +92,16 @@ def migrate_installed(store, authority):
         write(store, result["record"])
 
 
+def migration_retained(store):
+    """Authenticate a no-op startup under SH without creating keys or secrets."""
+    floor = read(store)
+    if floor is None:
+        return False
+    stamp = _stamp(store)
+    result = lifecycle.invoke("migrate", key=_key(store, create=False).hex(), floor=floor, stamp=stamp)
+    return result == {"record": floor, "stamp": stamp}
+
+
 def check(store, captured, next_record):
     require_exclusive_command_control_mutation_lease(store.guard_home)
     observed, _ = inspect(store)

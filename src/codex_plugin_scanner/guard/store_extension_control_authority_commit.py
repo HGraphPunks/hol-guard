@@ -54,6 +54,9 @@ class ExtensionControlAuthorityCommitMixin:
         installed = load_installed_bundle()
         if installed is None:
             return
+        with self._extension_control_authority_lock(shared=True):
+            if lifecycle_store.migration_retained(self):
+                return
         with self._extension_control_authority_lock():
             with self._connect() as connection:
                 ensure_extension_control_authority_schema(connection)
