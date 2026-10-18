@@ -75,6 +75,9 @@ class ParsedManagedControlsPolicy:
     managed_global_lockdown: bool
     rule_targets: tuple[ExtensionRuleTargets, ...]
     delegated_targets: tuple[DelegatedExtensionTarget, ...]
+    cloud_projection_json: str | None = None
+    cloud_projection_digest: str | None = None
+    cloud_enforcement_digest: str | None = None
 
     @property
     def has_extension_semantics(self) -> bool:
@@ -102,6 +105,7 @@ def parse_managed_controls_policy_fields(
     negotiated_capabilities: frozenset[str],
     package_firewall_supported: bool = False,
     guard_home: Path | None = None,
+    cloud_view: dict[str, object] | None = None,
 ) -> ParsedManagedControlsPolicy:
     """Parse signed policy Extension fields after envelope authenticity is established."""
 
@@ -114,21 +118,28 @@ def parse_managed_controls_policy_fields(
     capabilities = set(negotiated_capabilities)
     if package_firewall_supported:
         capabilities.add(PACKAGE_FIREWALL_CAPABILITY)
+    request = {
+        "document": _projected_document(document),
+        "capabilities": sorted(capabilities),
+        "catalog": _catalog(registry),
+    }
+    if cloud_view is not None:
+        request.update(
+            {
+                "cloud_view": cloud_view,
+                "enforcement_catalog_digest": registry.catalog_digest,
+                "projection": {"version": 2, "catalog_digest": registry.catalog_digest},
+            }
+        )
     result = native_context_digest(
         "managed_controls_policy_fields",
-        {
-            "request": {
-                "document": _projected_document(document),
-                "capabilities": sorted(capabilities),
-                "catalog": _catalog(registry),
-            }
-        },
+        {"request": request},
         guard_home=_resolve_digest_home(guard_home),
     )
     if not isinstance(result, dict) or result.get("status") != "ok":
         raise _unavailable()
     answer = result.get("managed_controls_policy_fields")
-    if not isinstance(answer, dict) or len(answer) != 1:
+    if not isinstance(answer, dict) or set(answer) not in ({"ok"}, {"error"}, {"ok", "projection"}):
         raise _unavailable()
     refusal = answer.get("error")
     if refusal is not None:
@@ -139,7 +150,24 @@ def parse_managed_controls_policy_fields(
     if not isinstance(parsed, dict) or set(parsed) != _ANSWER_KEYS:
         raise _unavailable()
     try:
-        return _parsed(parsed, registry)
+        result = _parsed(parsed, registry)
+        if cloud_view is not None:
+            from dataclasses import replace
+
+            proof = answer.get("projection")
+            if (
+                not isinstance(proof, dict)
+                or not isinstance(proof.get("canonical_json"), str)
+                or not isinstance(proof.get("digest"), str)
+            ):
+                raise _unavailable()
+            result = replace(
+                result,
+                cloud_projection_json=proof["canonical_json"],
+                cloud_projection_digest=proof["digest"],
+                cloud_enforcement_digest=registry.catalog_digest,
+            )
+        return result
     except (KeyError, TypeError, ValueError) as error:
         raise _unavailable() from error
 

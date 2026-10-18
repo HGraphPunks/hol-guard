@@ -18,16 +18,15 @@ from ..managed_controls_policy_fields import ManagedControlsPolicyError, ParsedM
 from ..policy_bundle_delivery import validated_managed_policy_delivery
 from ..policy_bundle_v2 import POLICY_BUNDLE_V2_CONTRACT
 from ..store_custom_extension_continuity import CustomExtensionContinuityMutation
-from .command_extensions import BUILT_IN_COMMAND_EXTENSION_REGISTRY
 from .custom_extension_continuity import (
     CUSTOM_EXTENSION_CONTINUITY_FIELD,
     CUSTOM_EXTENSION_CONTINUITY_SCHEMA_V2,
     CustomExtensionContinuityError,
     prepare_verified_custom_extension_continuity,
 )
+from .extension_catalog_completion import current_catalog_registry
 from .extension_catalog_sync import (
     MANAGED_CONTROLS_RUNTIME_CAPABILITIES,
-    build_builtin_extension_catalog_wire,
     build_managed_controls_runtime_posture,
 )
 from .extension_control_authority import AuthorityHealth, ExtensionControlAuthorityView
@@ -35,6 +34,26 @@ from .extension_control_runtime import ExtensionControlRuntimeSnapshot
 
 if TYPE_CHECKING:
     from ..store import GuardStore
+
+
+def _registry_for_home(guard_home):
+    if guard_home is None:
+        raise ManagedControlsPolicyError("policy_local_view_invalid", "Explicit Guard home required.")
+    from ..store import GuardStore
+
+    return current_catalog_registry(GuardStore(guard_home))
+
+
+def _registry_for_policy(policy_bundle, guard_home):
+    from ..managed_controls_policy_fields import _without_extension_fields
+
+    document = policy_bundle.get("payload")
+    if isinstance(document, dict) and _without_extension_fields(document):
+        # No Extension identity is consumed or advertised on this legacy path.
+        from .command_extensions import BUILT_IN_COMMAND_EXTENSION_REGISTRY
+
+        return BUILT_IN_COMMAND_EXTENSION_REGISTRY
+    return _registry_for_home(guard_home)
 
 
 def effective_managed_controls_for_activation(
@@ -55,9 +74,10 @@ def effective_managed_controls_for_activation(
     try:
         parsed = parsed_managed_controls_from_validated_policy_bundle(
             activation_bundle,
-            registry=BUILT_IN_COMMAND_EXTENSION_REGISTRY,
+            registry=current_catalog_registry(store),
             negotiated_capabilities=capabilities,
             guard_home=store.guard_home,
+            runtime_summary=store.get_sync_payload("runtime_session_summary"),
         )
     except ManagedControlsPolicyError as error:
         return None, capabilities, error.code
@@ -106,6 +126,8 @@ def validated_managed_controls_candidate(
     workspace_id: str | None,
     device_id: str,
     runtime_summary: object,
+    guard_home=None,
+    registry=None,
 ) -> tuple[
     dict[str, object] | None,
     ParsedManagedControlsPolicy | None,
@@ -121,13 +143,17 @@ def validated_managed_controls_candidate(
     try:
         parsed = parsed_managed_controls_from_validated_policy_bundle(
             policy_bundle,
-            registry=BUILT_IN_COMMAND_EXTENSION_REGISTRY,
+            registry=registry if registry is not None else _registry_for_policy(policy_bundle, guard_home),
             negotiated_capabilities=negotiated_capabilities,
+            guard_home=guard_home,
+            runtime_summary=runtime_summary if isinstance(runtime_summary, dict) else None,
         )
     except ManagedControlsPolicyError as error:
         return None, None, None, error.code, True
     candidate = parsed if parsed.has_extension_semantics else None
     delivery_catalog_digest = delivery_payload.get("catalogDigest") if isinstance(delivery_payload, dict) else None
+    if parsed.cloud_enforcement_digest is not None and delivery_catalog_digest != parsed.cloud_enforcement_digest:
+        return None, None, None, "policy_enforcement_digest_mismatch", True
     delivery, error = validated_managed_policy_delivery(
         policy_bundle=policy_bundle,
         delivery_field_provided=delivery_field_provided,
@@ -157,23 +183,76 @@ def managed_controls_runtime_sync_posture(
     flags = ManagedControlsFeatureFlags.from_environment()
     if not flags.catalog_sync:
         return {}
+    from .extension_catalog_pages import CAPABILITY
+    from .extension_catalog_provider import prepare_installed_catalog_view, remember_view
+    from .extension_catalog_sync import ExtensionCatalogLimitError, build_v1_catalog_from_view
+
     try:
-        catalog = build_builtin_extension_catalog_wire(
+        registry = current_catalog_registry(store)
+        view = prepare_installed_catalog_view(
+            store.guard_home,
+            registry=registry,
             guard_version=__version__,
             generated_at=generated_at,
         )
-    except (TypeError, ValueError):
+    except ImportError as error:
+        raise RuntimeError("Native complete catalog discovery factory is unavailable") from error
+    except (OSError, RuntimeError, TypeError, ValueError):
+        # The active registry can be sparse. Its availability does not prove
+        # complete discovery, including during staged factory integration.
         return {"managedControlsCapabilities": []}
-    protected, authority_revision, managed_revision, effective_digest = _authority_posture(store, flags=flags)
-    return dict(
-        build_managed_controls_runtime_posture(
-            catalog_digest=catalog["catalogDigest"],
-            extension_authority_revision=authority_revision,
-            managed_extension_authority_revision=managed_revision,
-            effective_projection_digest=effective_digest,
-            capabilities=flags.runtime_capabilities(protected_authority=protected),
-        )
-    )
+    view = remember_view(view)
+    manifest = view.manifest
+    v2: dict[str, object] = {
+        "extensionCatalogViewDigest": manifest["catalogDigest"],
+        "extensionCatalogEnforcementDigest": manifest["enforcementCatalogDigest"],
+        "extensionCatalogGeneratedAt": manifest["generatedAt"],
+        "extensionControlSchemaVersions": [manifest["controlSchemaVersion"]],
+    }
+    try:
+        catalog = build_v1_catalog_from_view(view)
+    except ExtensionCatalogLimitError:
+        # Complete discovery identity is never substituted for a legacy digest.
+        catalog = None
+    except (OSError, RuntimeError, TypeError, ValueError):
+        # Native cache/resident loss is not a usable complete observation.
+        return {"managedControlsCapabilities": []}
+    from ..native_command_control_authority_io import hold_command_control_authority_lock
+    from .managed_controls_cloud import policy_view_ready
+
+    legacy = {} if catalog is None else {"extensionCatalogDigest": catalog["catalogDigest"]}
+    metadata_posture = {**v2, **legacy, "managedControlsCapabilities": [CAPABILITY]}
+    try:
+        if current_catalog_registry(store).catalog_digest != registry.catalog_digest:
+            return {"managedControlsCapabilities": []}
+        summary = getattr(store, "get_sync_payload", lambda _: None)("runtime_session_summary")
+        if not isinstance(summary, dict) or "policyMetadataIdentity" not in summary:
+            return metadata_posture
+        # Recheck discovery, the native stamp and committed enforcement while
+        # excluding a concurrent activation through readiness construction.
+        with hold_command_control_authority_lock(store.guard_home, shared=True):
+            current = current_catalog_registry(store)
+            if current.catalog_digest != registry.catalog_digest:
+                return {"managedControlsCapabilities": []}
+            if not policy_view_ready(store=store, registry=current):
+                return metadata_posture
+            protected, authority_revision, managed_revision, effective_digest = _authority_posture(store, flags=flags)
+            posture = dict(
+                build_managed_controls_runtime_posture(
+                    catalog_digest=None if catalog is None else catalog["catalogDigest"],
+                    extension_authority_revision=authority_revision,
+                    managed_extension_authority_revision=managed_revision,
+                    effective_projection_digest=effective_digest,
+                    capabilities=flags.runtime_capabilities(protected_authority=protected),
+                )
+            )
+            posture.update(v2)
+            capabilities = posture["managedControlsCapabilities"]
+            assert isinstance(capabilities, list)
+            posture["managedControlsCapabilities"] = [*capabilities, CAPABILITY]
+            return posture
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return {"managedControlsCapabilities": []}
 
 
 def apply_custom_extension_continuity_from_sync(
@@ -238,7 +317,7 @@ def extension_authority_is_protected(store: GuardStore) -> bool:
 
 def _read_protected_authority(store: GuardStore) -> ExtensionControlAuthorityView | None:
     try:
-        authority = store.read_extension_control_authority_for_registry(BUILT_IN_COMMAND_EXTENSION_REGISTRY)
+        authority = store.read_extension_control_authority_for_registry(current_catalog_registry(store), read_only=True)
     except (RuntimeError, TypeError, ValueError):
         return None
     return authority if authority.health is AuthorityHealth.PROTECTED else None

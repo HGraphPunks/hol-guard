@@ -1,73 +1,13 @@
 use super::*;
 use base64::{engine::general_purpose::STANDARD, Engine};
-use std::{fs, path::PathBuf};
+use std::fs;
 
 #[path = "native_command_program_collection_reader_tests.rs"]
 mod collection_reader_tests;
 #[path = "native_command_program_pack_cache_tests.rs"]
 mod pack_cache_tests;
 
-fn frame(stream: &mut Vec<u8>, bytes: &[u8]) {
-    stream.extend((bytes.len() as u32).to_be_bytes());
-    stream.extend(bytes);
-}
-
-fn sources() -> Vec<(Value, Vec<u8>)> {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
-    let mut result = Vec::new();
-    for (directory, kind) in [("command-sources", "command"), ("mcp-servers", "mcp")] {
-        let mut paths: Vec<_> = fs::read_dir(root.join("contributions").join(directory))
-            .unwrap()
-            .map(|entry| entry.unwrap().path())
-            .filter(|path| {
-                path.extension().is_some_and(|value| value == "json")
-                    && path.file_name().unwrap() != "migration-manifest.json"
-            })
-            .collect();
-        paths.sort();
-        for path in paths {
-            let bytes = fs::read(&path).unwrap();
-            let value: Value = serde_json::from_slice(&bytes).unwrap();
-            let id = if kind == "command" {
-                value["extension"]["extension_id"]
-                    .as_str()
-                    .unwrap()
-                    .to_owned()
-            } else {
-                format!(
-                    "command.mcp-{}",
-                    value["id"].as_str().unwrap().strip_prefix("mcp.").unwrap()
-                )
-            };
-            let binding: Value = serde_json::from_slice(
-                &fs::read(root.join(format!("contracts/extensions/trust/{id}.v1.json"))).unwrap(),
-            )
-            .unwrap();
-            let mut trust = json!({"schemaVersion":"guard.extension-trust-class-map.v1", "publishers":{
-                "hol":{"id":"hol", "displayName":"Hashgraph Online"}, "hol-curated":{"id":"hol-curated", "displayName":"HOL curated library"}},
-                "classes":{"first-party":[], "trusted-library":[], "external":[]}});
-            trust["classes"][binding["trustClass"].as_str().unwrap()] = json!([id]);
-            result.push((json!({"kind":kind, "trust":trust}), bytes));
-        }
-    }
-    result
-}
-
-fn stream(sources: &[(Value, Vec<u8>)]) -> Vec<u8> {
-    let mut stream = b"HGPS\x01".to_vec();
-    frame(
-        &mut stream,
-        &serde_json::to_vec(
-            &json!({"schema":"guard.command-pack-source-stream.v1", "count":sources.len()}),
-        )
-        .unwrap(),
-    );
-    for (metadata, bytes) in sources {
-        frame(&mut stream, &serde_json::to_vec(metadata).unwrap());
-        frame(&mut stream, bytes);
-    }
-    stream
-}
+use crate::native_command_program::authored_test_support::{sources, stream};
 
 #[test]
 fn complete_release_is_deterministic_and_reconstructs_exact_native_programs() {

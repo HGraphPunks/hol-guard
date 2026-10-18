@@ -10,6 +10,7 @@ from typing import cast
 from .managed_controls_policy_fields import (
     ManagedControlsPolicyError,
     ParsedManagedControlsPolicy,
+    _without_extension_fields,
     is_mapping,
     parse_managed_controls_policy_fields,
 )
@@ -98,6 +99,13 @@ def signed_cloud_extension_projection_json(
 ) -> str:
     """Return the canonical signed-Cloud projection for the observed wire catalog."""
 
+    if parsed.cloud_projection_json is not None:
+        if catalog_digest != parsed.cloud_enforcement_digest:
+            raise ManagedControlsPolicyError(
+                "policy_enforcement_digest_mismatch", "Cloud policy enforcement identity changed."
+            )
+        return parsed.cloud_projection_json
+
     signed_layers = ()
     if parsed.signed_cloud_layer is not None:
         layer = parsed.signed_cloud_layer
@@ -141,6 +149,13 @@ def signed_cloud_extension_projection_digest(
 ) -> str:
     """Hash the canonical signed-Cloud projection for the observed wire catalog."""
 
+    if parsed.cloud_projection_digest is not None:
+        if catalog_digest != parsed.cloud_enforcement_digest:
+            raise ManagedControlsPolicyError(
+                "policy_enforcement_digest_mismatch", "Cloud policy enforcement identity changed."
+            )
+        return parsed.cloud_projection_digest
+
     canonical = signed_cloud_extension_projection_json(parsed, catalog_digest=catalog_digest)
     return f"sha256:{hashlib.sha256(canonical.encode('utf-8')).hexdigest()}"
 
@@ -152,18 +167,42 @@ def parsed_managed_controls_from_validated_policy_bundle(
     negotiated_capabilities: frozenset[str],
     package_firewall_supported: bool = False,
     guard_home: Path | None = None,
+    runtime_summary: dict[str, object] | None = None,
 ):
     """Parse Extension semantics from an already authenticated v2 envelope."""
 
     payload = policy_bundle.get("payload")
     if not is_mapping(payload):
         raise ManagedControlsPolicyError("invalid_policy_document", "Signed policy payload must be an object.")
+    cloud_view = None
+    if (
+        not _without_extension_fields(payload)
+        and runtime_summary is not None
+        and "extension-catalog.v2" in (runtime_summary.get("managedControlsCapabilities") or [])
+    ):
+        if guard_home is None:
+            raise ManagedControlsPolicyError("policy_local_view_missing", "An explicit local policy view is required.")
+        from .runtime.managed_controls_cloud import local_policy_view
+
+        try:
+            cloud_view = local_policy_view(guard_home=guard_home, runtime_summary=runtime_summary, registry=registry)
+            if cloud_view["identity"].get("workspaceId") != policy_bundle.get("workspaceId"):
+                raise ManagedControlsPolicyError(
+                    "policy_observation_identity_mismatch", "Policy workspace identity changed."
+                )
+        except ManagedControlsPolicyError:
+            raise
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as error:
+            raise ManagedControlsPolicyError(
+                "policy_local_view_invalid", "The local policy view could not be authenticated."
+            ) from error
     return parse_managed_controls_policy_fields(
         payload,
         registry=registry,
         negotiated_capabilities=negotiated_capabilities,
         package_firewall_supported=package_firewall_supported,
         guard_home=guard_home,
+        cloud_view=cloud_view,
     )
 
 

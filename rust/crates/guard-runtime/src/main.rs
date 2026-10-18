@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 #![recursion_limit = "512"]
 
+mod active_pack_security;
 mod adapter_inventory;
 #[cfg(all(test, unix))]
 mod adapter_vectors_tests;
@@ -423,6 +424,8 @@ mod hook_direct;
 mod hook_direct_counters;
 mod hook_direct_evidence;
 mod hook_env_stamp;
+mod pack_lifecycle;
+mod pack_preparation;
 // The seams the evidence writer runs on. Each is reached through
 // hook_evidence_writer_op; the readers also have their own tests.
 #[allow(dead_code)]

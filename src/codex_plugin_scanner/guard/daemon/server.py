@@ -79,7 +79,6 @@ from ..package_firewall_action_rate_limit import PackageFirewallActionRateLimite
 from ..path_resolution_cache import cached_realpath
 from ..runtime.approval_attention import ApprovalAttentionCoordinator
 from ..runtime.cloud_review_sync import CloudReviewSyncWorker, start_cloud_sync_sync_worker, stop_cloud_sync_sync_worker
-from ..runtime.command_extensions import BUILT_IN_COMMAND_EXTENSION_REGISTRY
 from ..runtime.extension_control_runtime import (
     ExtensionControlRuntime,
     ExtensionControlRuntimeSnapshot,
@@ -542,12 +541,16 @@ class _GuardDaemonHTTPServer(BoundedThreadingHTTPServer):
                 capture_writer=self.codex_binding_capture_writer,
             )
             bind_hook_counter_sink(self.hook_worker, getattr(self, "diagnostics", None))
+            from ..catalog_delivery.projection import capture
+
+            self.store.migrate_installed_command_pack_authority()
+            _, control_registry, _ = capture(self.store)
             self.extension_control_runtime = ExtensionControlRuntime(
-                self.store.read_extension_control_authority_for_registry(BUILT_IN_COMMAND_EXTENSION_REGISTRY)
+                self.store.read_extension_control_authority_for_registry(control_registry)
             )
             self.extension_control_api = ExtensionControlApiService(
                 store=self.store,
-                registry=BUILT_IN_COMMAND_EXTENSION_REGISTRY,
+                registry=control_registry,
                 runtime=self.extension_control_runtime,
             )
             self.local_cli_api = LocalCliApiService(store=self.store)
@@ -584,18 +587,27 @@ class _GuardDaemonHTTPServer(BoundedThreadingHTTPServer):
             raise
 
     def refresh_extension_control_runtime(self) -> ExtensionControlRuntimeSnapshot:
-        from ..native_command_control_authority_io import NativeCommandControlMutationRequiredError
+        from ..catalog_delivery.projection import capture, require_current
+        from ..native_command_control_authority_io import (
+            NativeCommandControlMutationRequiredError,
+            hold_command_control_authority_lock,
+        )
+        from ..native_command_control_authority_store import _key
+
+        def read(*, shared: bool) -> ExtensionControlRuntimeSnapshot:
+            _, registry, activation_digest = capture(self.store)
+            with hold_command_control_authority_lock(self.store.guard_home, shared=shared):
+                require_current(self.store, _key(self.store), activation_digest)
+                view = self.store.read_extension_control_authority_for_registry(registry, read_only=shared)
+                return self.extension_control_runtime.refresh(view)
 
         try:
-            view = self.store.read_extension_control_authority_for_registry(
-                BUILT_IN_COMMAND_EXTENSION_REGISTRY, read_only=True
-            )
+            return read(shared=True)
         except NativeCommandControlMutationRequiredError:
             # Release the shared read before a migration takes an exclusive
             # lease and re-verifies authority. Routine refreshes must coexist
             # with the native decision's shared mutation fence.
-            view = self.store.read_extension_control_authority_for_registry(BUILT_IN_COMMAND_EXTENSION_REGISTRY)
-        return self.extension_control_runtime.refresh(view)
+            return read(shared=False)
 
     def process_request(self, request: Any, client_address: Any) -> None:
         request_socket = cast(socket.socket, request)
@@ -3959,11 +3971,32 @@ class GuardDaemonServer:
         self._extension_control_refresh_thread.start()
 
     def _refresh_extension_control_loop(self) -> None:
+        next_security_refresh = 0.0
         while not self._shutdown_started.wait(self._extension_control_refresh_interval_seconds):
+            periodic = time.monotonic() >= next_security_refresh
             try:
+                if periodic:
+                    from ..catalog_delivery.active_security import observe
+                    from ..catalog_delivery.discovery_ready import request_refresh
+
+                    next_security_refresh = time.monotonic() + 300.0
+                    # Security observation must not wait for complete discovery
+                    # traversal. The latter has its own bounded background slot.
+                    try:
+                        observe(self._server.store)
+                    finally:
+                        request_refresh(self._server.store.guard_home, store=self._server.store)
                 _ = self._server.refresh_extension_control_runtime()
             except Exception:
                 _LOGGER.exception("Failed to refresh resident extension-control authority")
+            if periodic:
+                try:
+                    from ..catalog_delivery.cache_io import cleanup
+
+                    self._server.extension_control_api.expire_prepared_cache_leases()
+                    cleanup(self._server.store)
+                except Exception:
+                    _LOGGER.exception("Failed to clean the command-pack cache")
 
     def _start_aibom_inventory_refresh(self) -> None:
         if self._aibom_refresh_interval_seconds is None or self._aibom_refresh_interval_seconds <= 0:

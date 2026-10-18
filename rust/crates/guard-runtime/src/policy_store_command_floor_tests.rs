@@ -14,6 +14,7 @@ pub(super) fn control_snapshot(
 ) -> PolicySnapshotV3 {
     let program = guard_command::native_command_program::packaged_command_program().unwrap();
     let mut binding = NativeCommandControlBindingV1 {
+        active_security_digest: None,
         schema: NATIVE_COMMAND_CONTROL_BINDING_SCHEMA.into(),
         authority: Some(guard_contracts::NativeCommandControlAuthorityV1 {
             epoch: 1,

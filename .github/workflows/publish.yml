@@ -692,6 +692,7 @@ jobs:
       - name: Build Guard package (hol-guard)
         env:
           HOL_GUARD_BUILD_SOURCE_COMPILER: rust/target/release/guard-command-source
+          HOL_GUARD_BUNDLE_ASSET_OUTPUT: ${{ github.workspace }}/installed-bundle-assets
         run: |
           cp pyproject.toml pyproject.toml.bak
           python3 - <<'PY'
@@ -774,6 +775,12 @@ jobs:
         with:
           name: distribution-sha256
           path: distribution-sha256.txt
+      - name: Retain immutable optional installed data
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: installed-bundle-assets
+          path: installed-bundle-assets/
+          if-no-files-found: error
       - name: Upload installed canary subject
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -1057,13 +1064,53 @@ jobs:
           path: native-dist/*.whl
           if-no-files-found: error
 
+  publish-installed-bundle-assets:
+    name: Publish package-pinned immutable data before installable packages
+    needs: build
+    if: >-
+      needs.build.result == 'success' &&
+      (github.event_name != 'pull_request' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(github.event.pull_request.labels.*.name, 'publish-testpypi-canary')))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+          ref: ${{ needs.build.outputs.source_sha }}
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: installed-bundle-assets
+          path: installed-bundle-assets/
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: distributions
+          path: dist/
+      - name: Verify and publish every immutable data release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          wheels=(dist/hol_guard-*-py3-none-any.whl)
+          test "${#wheels[@]}" -eq 1
+          python scripts/publish_installed_bundle_assets.py --directory installed-bundle-assets \
+            --wheel "${wheels[0]}" --source-sha "$SOURCE_SHA"
+
   assemble-native-guard-distributions:
     name: Assemble native Guard distributions
     if: >-
       always() && !cancelled() &&
       needs.build.result == 'success' &&
-      needs.build-native-guard-wheels.result == 'success'
-    needs: [build, build-native-guard-wheels]
+      needs.build-native-guard-wheels.result == 'success' &&
+      needs.publish-installed-bundle-assets.result == 'success'
+    needs: [build, build-native-guard-wheels, publish-installed-bundle-assets]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

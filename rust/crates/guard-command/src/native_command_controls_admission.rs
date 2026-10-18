@@ -2,6 +2,15 @@
 use super::*;
 
 impl CompiledNativeCommandControls {
+    pub fn new(binding: &NativeCommandControlBindingV1) -> Result<Self, &'static str> {
+        Self::for_program(binding, packaged_command_program()?)
+    }
+
+    /// The authority health the bound control program reported.
+    pub fn health(&self) -> &str {
+        &self.binding.health
+    }
+
     pub(crate) fn for_program(
         binding: &NativeCommandControlBindingV1,
         program: Arc<NativeCommandProgram>,

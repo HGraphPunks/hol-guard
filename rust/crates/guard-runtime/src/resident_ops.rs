@@ -550,6 +550,18 @@ pub(crate) fn evaluate_resident_bytes(
             ResidentOperationV1::CatalogRead(request) => encode_response(
                 &guard_command::catalog_read_model::evaluate_catalog_read(&request),
             ),
+            ResidentOperationV1::CatalogReadV2(request) => encode_response(
+                &guard_command::catalog_read_model::discovery::evaluate(&request),
+            ),
+            ResidentOperationV1::CatalogPrepareV1(request) => {
+                encode_response(&guard_command::catalog_prepare::evaluate(request))
+            }
+            ResidentOperationV1::CatalogReadPreparedV1(request) => {
+                encode_response(&guard_command::catalog_prepare::read(&request))
+            }
+            ResidentOperationV1::CloudCatalog(request) => encode_response(
+                &guard_command::cloud_catalog::evaluate(&request),
+            ),
             // Untrusted Cloud discovery bytes are validated and projected
             // here; the daemon adapter only moves bytes (no Python fallback).
             ResidentOperationV1::DiscoveryPlacementProject(request) => {
@@ -591,6 +603,9 @@ pub(crate) fn evaluate_resident_bytes(
 /// The Guard home an operation acts on, for operations that open per-home state.
 fn operation_guard_home(operation: &ResidentOperationV1) -> Option<&str> {
     match operation {
+        ResidentOperationV1::CatalogReadV2(request) => request.guard_home.to_str(),
+        ResidentOperationV1::CatalogPrepareV1(request) => request.guard_home.to_str(),
+        ResidentOperationV1::CatalogReadPreparedV1(request) => request.guard_home.to_str(),
         ResidentOperationV1::ArchiveAcquisition(request) => Some(&request.guard_home),
         ResidentOperationV1::HookDirect(request) => Some(&request.guard_home),
         ResidentOperationV1::HookDirectEvidenceDrain(request) => Some(&request.guard_home),

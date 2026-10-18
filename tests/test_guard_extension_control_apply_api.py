@@ -31,6 +31,13 @@ from codex_plugin_scanner.guard.store import GuardStore
 from tests.test_guard_extension_control_api import _mutation_payload, _service
 
 
+@pytest.fixture(autouse=True)
+def legacy_pack_authority(monkeypatch):
+    # This store double models the legacy control transaction, without a pack
+    # database. Prepared candidates have their own integration tests.
+    monkeypatch.setattr(extension_control_api_module, "prepare_candidate", lambda *args, **kwargs: None)
+
+
 @dataclass
 class _FakeProof:
     proof_id: str = "proof-1"

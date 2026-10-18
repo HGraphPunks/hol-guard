@@ -31,18 +31,11 @@ pub struct CompiledNativeCommandControls {
     explicitly_enabled_permissions: BTreeSet<String>,
     global_block: bool,
     rule_indices: BTreeMap<String, usize>,
+    quarantine_index: Option<CommandCandidateIndex>,
+    quarantine_pending: bool,
 }
 
 impl CompiledNativeCommandControls {
-    pub fn new(binding: &NativeCommandControlBindingV1) -> Result<Self, &'static str> {
-        Self::for_program(binding, packaged_command_program()?)
-    }
-
-    /// The authority health the bound control program reported.
-    pub fn health(&self) -> &str {
-        &self.binding.health
-    }
-
     fn for_program_inner(
         binding: &NativeCommandControlBindingV1,
         program: Arc<NativeCommandProgram>,
@@ -185,6 +178,8 @@ impl CompiledNativeCommandControls {
             explicitly_enabled_permissions,
             global_block,
             rule_indices,
+            quarantine_index: None,
+            quarantine_pending: false,
         })
     }
 
@@ -400,6 +395,7 @@ impl CompiledNativeCommandControls {
             reason = "native_command_extension_evaluation_failed";
         }
         strengthen(&mut result, floor, reason);
+        self.enforce_quarantine(command, tool, &mut result);
         floor::explain_expired_deadline(&mut result, deadline);
         let global_lockdown = self
             .binding
@@ -460,6 +456,8 @@ impl CompiledNativeCommandControls {
 
 #[path = "native_command_delegated.rs"]
 mod delegated;
+#[path = "native_command_quarantine.rs"]
+mod quarantine;
 pub(crate) use delegated::normalized_tool;
 
 #[path = "native_command_controls_floor.rs"]

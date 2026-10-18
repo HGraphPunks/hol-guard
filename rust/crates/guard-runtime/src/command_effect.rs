@@ -297,6 +297,7 @@ mod tests {
             controls: Vec::new(),
         };
         let mut binding = NativeCommandControlBindingV1 {
+            active_security_digest: None,
             schema: guard_contracts::NATIVE_COMMAND_CONTROL_BINDING_SCHEMA.to_owned(),
             program_digest: digest64(0x11),
             catalog_digest: digest64(0xaa),

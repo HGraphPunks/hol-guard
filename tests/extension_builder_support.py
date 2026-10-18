@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import shutil
+import sys
 from pathlib import Path
 from typing import Any, Literal
 
@@ -24,7 +26,15 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 def use_built_native_source_compiler(monkeypatch: Any) -> None:
     """Route builder unit tests through the explicitly built native compiler."""
 
+    if os.environ.get("HOL_GUARD_TEST_USE_INSTALLED") == "1":
+        assert Path(native_source_compiler.__file__).is_relative_to(Path(sys.prefix))
+        return  # Exercise the installed factory rather than a checkout compiler.
     candidates = [
+        *(
+            [Path(os.environ["HOL_GUARD_BUILD_SOURCE_COMPILER"])]
+            if os.environ.get("HOL_GUARD_BUILD_SOURCE_COMPILER")
+            else []
+        ),
         REPOSITORY / "rust/target/release/guard-command-source",
         REPOSITORY / "rust/target/release/guard-command-source.exe",
         REPOSITORY / "rust/target/debug/guard-command-source",

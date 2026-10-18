@@ -41,7 +41,7 @@ fn read(path: &Path) -> Result<Vec<u8>, &'static str> {
 }
 
 impl NativeCommandProgram {
-    pub(crate) fn from_pack_cache(
+    pub fn from_pack_cache(
         directory: &Path,
         expected_program: &str,
         budget: PackAdmissionBudget,

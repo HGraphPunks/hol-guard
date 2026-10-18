@@ -6,9 +6,13 @@ from ..managed_controls_policy_bundle import (
     parsed_managed_controls_from_validated_policy_bundle,
     signed_cloud_extension_projection_digest,
 )
-from ..managed_controls_policy_fields import ManagedControlsPolicyError, ParsedManagedControlsPolicy
+from ..managed_controls_policy_fields import (
+    ManagedControlsPolicyError,
+    ParsedManagedControlsPolicy,
+    _without_extension_fields,
+)
 from ..policy_bundle_delivery import validated_managed_policy_delivery
-from ..runtime.command_extensions import BUILT_IN_COMMAND_EXTENSION_REGISTRY
+from ..runtime.extension_catalog_completion import current_catalog_registry
 from ..runtime.extension_catalog_handshake import runtime_summary_device_id
 from ..runtime.runner import _managed_controls_negotiated_capabilities
 from ..store import GuardStore
@@ -27,12 +31,17 @@ def daemon_managed_controls_candidate(
     str | None,
 ]:
     capabilities = _managed_controls_negotiated_capabilities(store, payload)
+    runtime_summary = getattr(store, "get_sync_payload", lambda _key: None)("runtime_session_summary")
+    document = policy_bundle.get("payload")
+    if isinstance(document, dict) and _without_extension_fields(document):
+        return None, capabilities, None, None
     try:
         policy = parsed_managed_controls_from_validated_policy_bundle(
             policy_bundle,
-            registry=BUILT_IN_COMMAND_EXTENSION_REGISTRY,
+            registry=current_catalog_registry(store),
             negotiated_capabilities=capabilities,
             guard_home=store.guard_home,
+            runtime_summary=runtime_summary if isinstance(runtime_summary, dict) else None,
         )
     except ManagedControlsPolicyError as error:
         return None, capabilities, None, error.code
@@ -40,6 +49,8 @@ def daemon_managed_controls_candidate(
         return None, capabilities, None, None
     delivery_payload = payload.get("policyBundleDelivery")
     delivery_catalog_digest = delivery_payload.get("catalogDigest") if isinstance(delivery_payload, dict) else None
+    if policy.cloud_enforcement_digest is not None and delivery_catalog_digest != policy.cloud_enforcement_digest:
+        return None, capabilities, None, "policy_enforcement_digest_mismatch"
     projection_digest = (
         signed_cloud_extension_projection_digest(
             policy,
@@ -48,7 +59,6 @@ def daemon_managed_controls_candidate(
         if isinstance(delivery_catalog_digest, str)
         else None
     )
-    runtime_summary = store.get_sync_payload("runtime_session_summary")
     delivery, error = validated_managed_policy_delivery(
         policy_bundle=policy_bundle,
         delivery_field_provided="policyBundleDelivery" in payload,

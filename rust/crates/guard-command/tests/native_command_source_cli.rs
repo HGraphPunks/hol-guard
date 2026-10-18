@@ -23,9 +23,11 @@ fn request() -> Vec<u8> {
         "/trust-class-map.v1.json"
     )))
     .unwrap();
+    let built: Value = serde_json::from_slice(&invoke(&["export-built"], &[]).stdout).unwrap();
     serde_json::to_vec(&json!({
         "schema":"guard.command-extension-build.v1",
-        "sources":[source], "trust":trust, "base":"packaged"
+        "sources":[source], "trust":trust, "base":"packaged",
+        "validation_base":{"catalog":built["catalog"], "programs":[]}
     }))
     .unwrap()
 }
@@ -36,10 +38,7 @@ fn offline_cli_exports_build_derived_trust_without_stdin() {
     assert!(output.status.success());
     let trust: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(trust["schemaVersion"], "guard.extension-trust-class-map.v1");
-    assert!(trust["classes"]["external"]
-        .as_array()
-        .unwrap()
-        .contains(&json!("command.noodle")));
+    assert!(trust["classes"]["external"].as_array().unwrap().is_empty());
     assert!(trust["classes"]["first-party"]
         .as_array()
         .unwrap()

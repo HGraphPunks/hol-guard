@@ -12,6 +12,7 @@ import argparse
 import json
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -165,7 +166,18 @@ def _run(command: list[str], *, input_bytes: bytes | None = None) -> bytes:
 
 def _validate_fixture(compiler: Path, path: Path) -> str:
     fixture = _load_object(path)
-    result = _run([str(compiler), "test"], input_bytes=path.read_bytes())
+    sys.path.insert(0, str(ROOT / "src"))
+    from codex_plugin_scanner.guard.extension_builder.bundle_baseline import authoring_request
+
+    with tempfile.TemporaryDirectory(prefix="hol-guard-prepare-context-") as scratch:
+        request = authoring_request(
+            "test",
+            fixture,
+            compiler,
+            installed=False,
+            cache_directory=Path(scratch).resolve(strict=True),
+        )
+        result = _run([str(compiler), "test"], input_bytes=json.dumps(request).encode())
     try:
         payload = json.loads(result)
     except json.JSONDecodeError as error:

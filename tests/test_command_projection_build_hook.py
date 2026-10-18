@@ -32,6 +32,12 @@ def hook(monkeypatch, tmp_path):
     archive.write_projection_manifest = lambda root, **kwargs: None
     archive.verify_projection_manifest = lambda root: None
     monkeypatch.setattr(module, "_archive_support", lambda: archive)
+    bundle = types.SimpleNamespace(
+        DIRECTORY="contracts/extensions/command-pack-bundle",
+        MANIFEST="contracts/extensions/command-pack-bundle-build.v1.json",
+        prepare=lambda root, **kwargs: (root / "bundle", root / "bundle-manifest", None),
+    )
+    monkeypatch.setattr(module, "_bundle_support", lambda: bundle)
     instance = module.CommandProjectionBuildHook()
     instance.archive_test_support = archive
     instance.root = str(tmp_path)
@@ -85,6 +91,12 @@ def test_package_build_stages_and_verifies_before_registering_absent_outputs(hoo
     )
     if target == "sdist":
         expected.add(hook.archive_test_support.MANIFEST)
+        expected.add("contracts/extensions/command-pack-bundle-build.v1.json")
+    expected.add(
+        "contracts/extensions/command-pack-bundle"
+        if target == "sdist"
+        else "codex_plugin_scanner/guard/contracts/data/extensions/command-pack-bundle"
+    )
     assert set(data["force_include"].values()) == expected
 
 
@@ -114,6 +126,16 @@ def test_pinned_compiler_is_used_for_generation_and_strict_check(hook, monkeypat
     monkeypatch.setattr(subprocess, "run", lambda command, **kwargs: calls.append(command))
     hook.initialize("standard", {"force_include": {}})
     assert all(command[command.index("--compiler") + 1] == compiler for command in calls)
+
+
+def test_core_manifest_selects_bounded_projections(hook, monkeypatch):
+    manifest = Path(hook.root) / "contracts/extensions/core-defaults.v1.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text("{}")
+    calls = []
+    monkeypatch.setattr(subprocess, "run", lambda command, **kwargs: calls.append(command))
+    hook.initialize("standard", {"force_include": {}})
+    assert all("--projections-only" in command for command in calls)
 
 
 def test_frozen_source_archive_uses_verified_projections_without_rust(hook, monkeypatch):

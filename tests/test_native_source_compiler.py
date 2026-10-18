@@ -17,6 +17,11 @@ def _isolate_native_compiler_override(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.delenv("HOL_GUARD_NATIVE_SOURCE_COMPILER", raising=False)
     monkeypatch.delenv("HOL_GUARD_NATIVE_TEST_SOURCE_COMPILER", raising=False)
+    # These tests isolate executable identity/transport from bundle traversal.
+    # The real bundle/context checks are exercised in the authoring tests.
+    from codex_plugin_scanner.guard.extension_builder import bundle_baseline
+
+    monkeypatch.setattr(bundle_baseline, "validation_base", lambda *args, **kwargs: {"catalog": [], "programs": []})
 
 
 def _fake_compiler(tmp_path: Path, *, output: dict[str, object] | None = None) -> Path:
@@ -261,7 +266,7 @@ def test_packaged_compact_validation_requires_matching_compilation_proof(
         return 0, json.dumps(compiled if arguments[1] == "compile" else compact).encode(), b""
 
     monkeypatch.setattr(compiler, "_run_bounded", respond)
-    build = {"base": "packaged"}
+    build = {"base": "packaged", "validation_base": {"catalog": [], "programs": []}}
     request = {"build": build, "cases": []} if operation in {"test", "compare"} else build
     if mismatch is not None:
         with pytest.raises(compiler.NativeSourceCompilerError, match=r"identit|program digest"):
