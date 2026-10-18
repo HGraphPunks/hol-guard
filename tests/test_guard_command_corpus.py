@@ -72,7 +72,7 @@ _WORKFLOW_FAMILIES = {
 _NATIVE_PAIR_MINIMUM_ACTIONS = {
     "p-navigation-boundary": ("allow", "allow"),
     "p-source-boundary": ("allow", "review"),
-    "p-typescript-source": ("review", "review"),
+    "p-typescript-source": ("sandbox-required", "review"),
     "p-git-history": ("review", "review"),
     "p-github-mutation-impact": ("review", "review"),
     "p-package-operation": ("review", "review"),
