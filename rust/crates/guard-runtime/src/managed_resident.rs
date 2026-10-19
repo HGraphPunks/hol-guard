@@ -147,31 +147,6 @@ fn combine_liveness(
     combined
 }
 
-/// Take the startup lock clients spawn under, waiting out a start that is
-/// already under way. Best effort: a lock that cannot be had leaves the probe
-/// as it was, bounded by its own timeout.
-fn hold_startup_for_quiesce(
-    state_base: &Path,
-    digest: &str,
-) -> Option<crate::resident_state::StartupLock> {
-    let deadline = Instant::now() + MANAGED_STOP_TIMEOUT;
-    loop {
-        if let Ok(Some(lock)) = crate::resident_state::acquire_startup_lock(state_base) {
-            return Some(lock);
-        }
-        if matches!(
-            crate::resident_state::clear_stale_startup_lock(state_base, digest),
-            Ok(true)
-        ) {
-            continue;
-        }
-        if Instant::now() >= deadline {
-            return None;
-        }
-        thread::sleep(CLIENT_RETRY_DELAY);
-    }
-}
-
 pub(crate) fn stop_managed(state_base: &Path, retire_clients: bool) -> Result<(), String> {
     // Materialize the current runtime scope even when no resident state is
     // present.  This keeps the stop command's authenticated, private-home
@@ -213,11 +188,8 @@ pub(crate) fn stop_managed(state_base: &Path, retire_clients: bool) -> Result<()
         containment::wait_for_stop_containment(&scope, &digest, deadline, &process_ids)?;
         // The children are gone; wait for the supervisors that reaped them to
         // finish writing before the budget is cleared and the scope is read
-        // as final. Hold the home-wide startup lock a client takes before it
-        // spawns, so no new supervisor can claim the scope while the probe
-        // waits and keep it claimed for its resident's whole life.
-        let _startup = hold_startup_for_quiesce(state_base, &digest);
-        exit_record::wait_for_supervisor_quiesce(&scope)?;
+        // as final, with no new supervisor let in while the probe waits.
+        exit_record::quiesce_under_startup_lock(state_base, &digest, &scope)?;
         let _ = restart_budget::clear(&scope);
         return Ok(());
     }

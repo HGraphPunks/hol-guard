@@ -90,6 +90,43 @@ fn open_hold_file(scope: &Path) -> Result<File, String> {
     Ok(file)
 }
 
+/// Quiesce the scope while holding the home-wide startup lock a client takes
+/// before it spawns, so no new supervisor can claim the scope while the probe
+/// waits and keep it claimed for its resident's whole life.
+pub(super) fn quiesce_under_startup_lock(
+    state_base: &Path,
+    digest: &str,
+    scope: &Path,
+) -> Result<(), String> {
+    let _startup = hold_startup_for_quiesce(state_base, digest);
+    wait_for_supervisor_quiesce(scope)
+}
+
+/// Take the startup lock clients spawn under, waiting out a start that is
+/// already under way. Best effort: a lock that cannot be had leaves the probe
+/// as it was, bounded by its own timeout.
+fn hold_startup_for_quiesce(
+    state_base: &Path,
+    digest: &str,
+) -> Option<crate::resident_state::StartupLock> {
+    let deadline = Instant::now() + super::MANAGED_STOP_TIMEOUT;
+    loop {
+        if let Ok(Some(lock)) = crate::resident_state::acquire_startup_lock(state_base) {
+            return Some(lock);
+        }
+        if matches!(
+            crate::resident_state::clear_stale_startup_lock(state_base, digest),
+            Ok(true)
+        ) {
+            continue;
+        }
+        if Instant::now() >= deadline {
+            return None;
+        }
+        std::thread::sleep(super::CLIENT_RETRY_DELAY);
+    }
+}
+
 /// Wait until no supervisor is writing in this scope any more. The caller has
 /// already proved the serving children are gone; this proves the processes
 /// that reap them have finished their records, so the scope can be read as
