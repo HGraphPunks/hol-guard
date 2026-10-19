@@ -3,7 +3,7 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -38,15 +38,41 @@ class ExecutorImageTests(unittest.TestCase):
             receipt=controller/'executor-image.json'
             receipt.write_text(json.dumps({'image_id':'sha256:'+'a'*64,'sources':sources}))
             observation=[{'Id':'a'*64,'Os':'linux','Architecture':'arm64'}]
-            with patch.object(module,'run',return_value=json.dumps(observation).encode()):
+            present=SimpleNamespace(returncode=0,stdout=b'',stderr=b'')
+            with patch.object(module,'run',return_value=json.dumps(observation).encode()), \
+                 patch.object(module.subprocess,'run',return_value=present):
                 self.assertEqual(module.image(controller,lambda *a,**k:None),'sha256:'+'a'*64)
             observation[0]['Architecture']='amd64'
-            with patch.object(module,'run',return_value=json.dumps(observation).encode()),self.assertRaises(ValueError):
+            with patch.object(module,'run',return_value=json.dumps(observation).encode()), \
+                 patch.object(module.subprocess,'run',return_value=present),self.assertRaises(ValueError):
                 module.image(controller,lambda *a,**k:None)
             (context/'malloc_policy.c').write_text('changed')
             with patch.object(module,'run') as run,self.assertRaises(ValueError):
                 module.image(controller,lambda *a,**k:None)
             run.assert_not_called()
+
+    def test_missing_retained_image_is_rebuilt_only_at_its_original_id(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            controller=Path(temporary);context=controller/'ci/gauntlet/control_plane/allocator-image'
+            context.mkdir(parents=True)
+            names=('Executor.Dockerfile','malloc_policy.c','malloc.preload')
+            for name in names:(context/name).write_bytes(name.encode())
+            sources={name:hashlib.sha256((context/name).read_bytes()).hexdigest() for name in names}
+            identifier='sha256:'+'a'*64
+            receipt=controller/'executor-image.json'
+            receipt.write_text(json.dumps({'image_id':identifier,'sources':sources}))
+            absent=SimpleNamespace(returncode=1,stdout=b'',stderr=b'')
+            observed=json.dumps([{'Id':identifier,'Os':'linux','Architecture':'arm64'}]).encode()
+            with patch.object(module.subprocess,'run',return_value=absent), \
+                 patch.object(module,'run',side_effect=[identifier.encode()+b'\n',observed]) as run:
+                self.assertEqual(module.image(controller,lambda *a,**k:None),identifier)
+            self.assertEqual(run.call_count,2)
+            self.assertIn('--network=none',run.call_args_list[0].args[0])
+            self.assertEqual(json.loads(receipt.read_text())['image_id'],identifier)
+            with patch.object(module.subprocess,'run',return_value=absent), \
+                 patch.object(module,'run',return_value=('sha256:'+'b'*64).encode()), \
+                 self.assertRaisesRegex(ValueError,'differs from retained identity'):
+                module.image(controller,lambda *a,**k:None)
 
     def test_new_template_and_artifacts_preserve_original_baseline_bytes(self):
         with tempfile.TemporaryDirectory() as temporary:

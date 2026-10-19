@@ -58,6 +58,23 @@ def image(controller, trusted):
             identifier='sha256:'+identifier
     if not re.fullmatch('sha256:[0-9a-f]{64}',identifier):
         raise ValueError('exact allocator image identity required')
+    if receipt.exists():
+        present=subprocess.run(['/usr/bin/podman','image','exists',identifier],
+                               capture_output=True,timeout=75,
+                               env={'PATH':'/usr/bin:/bin','HOME':'/root'})
+        if len(present.stdout)>1024**2 or len(present.stderr)>1024**2:
+            raise ValueError('bounded trusted executor image probe required')
+        if present.returncode==1:
+            # Podman may evict an unused image while the immutable receipt is
+            # retained. Rebuild only from the already verified, offline inputs.
+            rebuilt=run(['/usr/bin/podman','build','--quiet','--pull=never',
+                         '--network=none','--timestamp=0',
+                         '--file',str(context/'Executor.Dockerfile'),str(context)]).decode().strip()
+            if rebuilt.removeprefix('sha256:')!=identifier[7:]:
+                raise ValueError('recreated allocator image differs from retained identity')
+        elif present.returncode!=0:
+            raise RuntimeError('Trusted executor image probe failed: '
+                               +present.stderr.decode(errors='replace')[-4000:])
     observed=json.loads(run(['/usr/bin/podman','image','inspect',identifier]))
     if (len(observed)!=1 or observed[0]['Id'].removeprefix('sha256:')!=identifier[7:]
             or observed[0]['Os']!='linux' or observed[0]['Architecture']!='arm64'):
