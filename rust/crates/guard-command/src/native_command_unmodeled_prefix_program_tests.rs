@@ -161,6 +161,28 @@ fn an_env_without_a_program_launches_nothing() {
     }
 }
 
+/// `-S`/`--split-string` carries its program inside its own value, so the
+/// whole launch arrives as one dash-prefixed word. An option scan that skipped
+/// whatever it did not recognise would read these as environment dumps and
+/// offer a shell launch an approval, so every option but the ones known to run
+/// nothing says a program runs.
+#[test]
+fn an_env_that_carries_its_program_in_an_option_launches_it() {
+    for command in [
+        "env -S bash",
+        "env -Sbash",
+        "env --split-string=sh",
+        "env --split-string 'sh -c id'",
+        "env -iS'sh -c id'",
+        "env -C /tmp",
+        "env --chdir=/tmp",
+        "env -P /opt/bin",
+        "env --unknown-option",
+    ] {
+        assert!(dumps(command), "{command}");
+    }
+}
+
 fn dumps(command: &str) -> bool {
     command_reads_a_program_file(command)
 }

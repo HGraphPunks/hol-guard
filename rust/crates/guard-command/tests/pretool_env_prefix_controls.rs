@@ -360,12 +360,22 @@ fn an_env_that_names_no_program_is_reviewed_rather_than_refused() {
     }
 
     // An `env` that does name a program still runs whatever that program is,
-    // so the prefix keeps the evaluation failure it arrived with.
-    let result = evaluate(&root, "env -i sh -c 'echo hi'");
-    assert_eq!(
-        (result.minimum_action.as_str(), result.reason_code.as_str()),
-        ("block", "native_command_extension_evaluation_failed"),
-        "{}",
-        result.reason
-    );
+    // so the prefix keeps the evaluation failure it arrived with. `-S` and
+    // `--split-string` carry the program inside the option's own value, so the
+    // launch arrives as one dash-prefixed word and must be read as a launch.
+    for command in [
+        "env -i sh -c 'echo hi'",
+        "env -S bash",
+        "env -Sbash",
+        "env --split-string=sh",
+        "env -iS'sh -c id'",
+    ] {
+        let result = evaluate(&root, command);
+        assert_eq!(
+            (result.minimum_action.as_str(), result.reason_code.as_str()),
+            ("block", "native_command_extension_evaluation_failed"),
+            "{command}: {}",
+            result.reason
+        );
+    }
 }

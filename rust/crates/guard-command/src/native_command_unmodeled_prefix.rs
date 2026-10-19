@@ -235,9 +235,16 @@ fn reads_a_program_file(words: &[&str], index: usize) -> bool {
 /// reviewed rather than allowed; what changes is that it can be reviewed.
 ///
 /// `env` spends a positional only on the program, so the first word that is
-/// not one of its own options is that program. `-u`/`--unset` carries the
-/// name it removes, and the caller has already dropped the `NAME=value`
-/// assignments, which stand before the program in any case.
+/// not one of its own options is that program. The caller has already dropped
+/// the `NAME=value` assignments, which stand before the program in any case.
+///
+/// Only the options that are known to run nothing count as a dump; every other
+/// option says a program runs. `-S`/`--split-string` carries its program in
+/// its own value, so `env -Sbash`, `env --split-string=sh` and the cluster
+/// `env -iS'sh -c id'` are all shell launches spelled as a single
+/// dash-prefixed word, and a scan that skipped unrecognised options would read
+/// them as harmless dumps and offer them an approval. `-C`/`--chdir` and `-P`
+/// locate a program rather than describe one, so they are read the same way.
 fn env_runs_a_program(words: &[&str]) -> bool {
     let mut index = 0;
     while let Some(word) = words.get(index) {
@@ -247,11 +254,41 @@ fn env_runs_a_program(words: &[&str]) -> bool {
         if !word.starts_with('-') || *word == "-" {
             return true;
         }
-        // The split spelling `-u NAME` spends the next word; `-uNAME` and
-        // `--unset=NAME` carry it themselves.
-        index += 1 + usize::from(*word == "-u" || *word == "--unset");
+        match env_option(word) {
+            None => return true,
+            // A split value spends the next word; an attached one carries its own.
+            Some(spends_a_word) => index += 1 + usize::from(spends_a_word),
+        }
     }
     false
+}
+
+/// Whether this option leaves `env` printing its environment, and if so whether
+/// its value is the next word. `None` means the option runs a program.
+fn env_option(word: &str) -> Option<bool> {
+    if let Some(long) = word.strip_prefix("--") {
+        let (name, attached) = match long.split_once('=') {
+            Some((name, _)) => (name, true),
+            None => (long, false),
+        };
+        return match name {
+            "ignore-environment" | "null" | "debug" | "help" | "version" => Some(false),
+            "unset" => Some(!attached),
+            _ => None,
+        };
+    }
+    let mut characters = word[1..].chars();
+    while let Some(letter) = characters.next() {
+        match letter {
+            // Value-less flags; the cluster continues after them.
+            'i' | '0' | 'v' => {}
+            // `-u NAME` takes the rest of the cluster, or the next word when
+            // the cluster ends here.
+            'u' => return Some(characters.next().is_none()),
+            _ => return None,
+        }
+    }
+    Some(false)
 }
 
 /// A word naming a file an interpreter reads, rather than a program on the
