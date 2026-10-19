@@ -168,7 +168,11 @@ pub(super) fn pull_inert(
     // hooks directory below the repository may be a tracked one it adds a hook
     // to, however the user's configuration spells it. Only a directory that
     // resolves outside the checkout is not.
+    // `git merge` and `git pull` honour `pager.<command>`, which may name a
+    // program Git starts when the output is a terminal.
     !routed
+        && !pager_enabled(effective, "merge")
+        && !(pull.fetches && pager_enabled(effective, "pull"))
         && !repository_lfs_program(repository)
         && !repository.contains_key("core.hookspath")
         && effective.get("core.hookspath").is_none_or(|values| {
@@ -226,6 +230,14 @@ pub(in crate::pretool) fn repository_lfs_program(repository: &GitConfig) -> bool
                 || key.starts_with("lfs.customtransfer.")
                 || key.ends_with(".standalonetransferagent"))
     })
+}
+
+/// Whether `pager.<command>` turns a pager on, or names a program, for that
+/// Git command.
+pub(in crate::pretool) fn pager_enabled(effective: &GitConfig, command: &str) -> bool {
+    effective
+        .get(&format!("pager.{command}"))
+        .is_some_and(|values| values.iter().any(|value| !disabled(value)))
 }
 
 pub(in crate::pretool) fn disabled(value: &str) -> bool {

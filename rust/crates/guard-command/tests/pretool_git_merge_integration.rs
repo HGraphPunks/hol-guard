@@ -302,6 +302,12 @@ fn a_fast_forward_merge_of_origin_is_a_proven_refresh() {
     let split = "git fetch origin && git merge --ff-only origin/main";
     session.config(&["branch.fix/report-lane.remote", "origin"]);
     session.config(&["branch.fix/report-lane.merge", "refs/heads/fix/report-lane"]);
+    // A fetch of the branch records its remote-tracking ref.
+    git(
+        &session.home,
+        &session.primary,
+        &["update-ref", "refs/remotes/origin/fix/report-lane", "HEAD"],
+    );
     for command in [
         merge.to_owned(),
         split.to_owned(),

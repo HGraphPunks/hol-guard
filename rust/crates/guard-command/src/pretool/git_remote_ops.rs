@@ -164,7 +164,23 @@ pub(super) fn settle_fast_forward(
             Some((_, Some(shape))) if !shape.fetches
         )
     });
-    if !merges {
+    // Only the merge rule's own review is lifted: another rule, a permission
+    // the user keeps under review or an uncertain match keeps its verdict.
+    let Some(extensions) = result.command_extensions.as_ref() else {
+        return;
+    };
+    if !merges
+        || extensions.binding.uncertainty_count != 0
+        || extensions.evaluation_error.is_some()
+        || !extensions.permission_observations.is_empty()
+        || !extensions.observations.iter().all(|observation| {
+            observation.uncertainty_reasons.is_empty()
+                && matches!(
+                    observation.rule_id.as_str(),
+                    "command.git.merge" | "command.git.fetch" | "command.git.pull"
+                )
+        })
+    {
         return;
     }
     let Some((reason_code, reason)) =
@@ -217,11 +233,23 @@ fn proven(
     deadline: Option<Instant>,
     execution_environment: Option<&guard_contracts::GuardExecutionEnvironmentV1>,
 ) -> bool {
+    // The one argument after `merge` that is not an option names its target.
+    let target = upstream
+        .filter(|shape| !shape.fetches)
+        .and_then(|_| {
+            segment
+                .arguments
+                .iter()
+                .rev()
+                .find(|argument| !argument.starts_with('-'))
+        })
+        .map(String::as_str);
     let proven = super::git_probe::memoized(memo_key(segment, context), || {
         Some(prove(
             segment.executable.as_deref()?,
             leading,
             upstream,
+            target,
             context,
             deadline,
             execution_environment,
@@ -326,6 +354,7 @@ fn prove(
     executable: &str,
     leading: &[String],
     upstream: Option<pull::Pull>,
+    target: Option<&str>,
     context: super::PathContext<'_>,
     deadline: Option<Instant>,
     execution_environment: Option<&guard_contracts::GuardExecutionEnvironmentV1>,
@@ -343,25 +372,17 @@ fn prove(
         return false;
     };
     if let Some(shape) = upstream.filter(|shape| !shape.fetches) {
-        return fast_forward_inert(&effective, &repository, shape, &probe);
-    }
-    let urls = effective
-        .get("remote.origin.url")
-        .map_or(&[][..], Vec::as_slice);
-    if urls.is_empty()
-        || !urls.iter().all(|url| {
-            config::rewritten_remote_url(&effective, url.trim())
-                .is_some_and(|url| config::safe_github_remote_url(&url))
-        })
-        || config::fetch_config_routes_execution(&effective)
-        || !probe.credential_helpers_trusted(&config::credential_helpers(&effective))
-    {
-        return false;
+        // Git LFS smudges the pointers a fast-forward checks out from the
+        // endpoint it derives from origin, with the credentials Git hands it,
+        // so with LFS on the merge needs the fetch's transport proof too.
+        let lfs = effective.keys().any(|key| key.starts_with("filter.lfs."));
+        return target.is_some_and(|target| tracks_origin(&probe, target))
+            && (!lfs || transport_proven(&effective, &repository, &probe))
+            && fast_forward_inert(&effective, &repository, shape, &probe);
     }
     // Initialized submodules are fetched on demand with their own config
     // and hooks, which this probe does not read.
-    !config::config_weakens_transport(&effective)
-        && !config::repository_config_routes_transport(&repository)
+    transport_proven(&effective, &repository, &probe)
         && !effective.keys().any(|key| key.starts_with("submodule."))
         && probe.hooks_inert_in_a_stable_tree([
             "pre-auto-gc",
@@ -369,6 +390,49 @@ fn prove(
             "post-fetch",
         ])
         && upstream.is_none_or(|shape| pull::pull_inert(&effective, &repository, shape, &probe))
+}
+
+/// The network half of the proof: every origin URL reaches GitHub, no
+/// configuration routes the transport through a program, credential helpers
+/// are trusted, and no `pager.fetch` names a program for the fetch's output.
+fn transport_proven(
+    effective: &config::GitConfig,
+    repository: &config::GitConfig,
+    probe: &Probe,
+) -> bool {
+    let urls = effective
+        .get("remote.origin.url")
+        .map_or(&[][..], Vec::as_slice);
+    !urls.is_empty()
+        && urls.iter().all(|url| {
+            config::rewritten_remote_url(effective, url.trim())
+                .is_some_and(|url| config::safe_github_remote_url(&url))
+        })
+        && !config::fetch_config_routes_execution(effective)
+        && probe.credential_helpers_trusted(&config::credential_helpers(effective))
+        && !config::config_weakens_transport(effective)
+        && !config::repository_config_routes_transport(repository)
+        && !pull::pager_enabled(effective, "fetch")
+}
+
+/// Whether Git resolves the merge target to origin's remote-tracking ref,
+/// rather than a ref such as a tag or local branch spelled `origin/<branch>`
+/// that Git would pick first.
+fn tracks_origin(probe: &Probe, target: &str) -> bool {
+    let Some(full) = probe.text(&[
+        "rev-parse",
+        "--verify",
+        "--quiet",
+        "--symbolic-full-name",
+        target,
+    ]) else {
+        return false;
+    };
+    if target.starts_with("origin/") {
+        full == format!("refs/remotes/{target}")
+    } else {
+        full.starts_with("refs/remotes/origin/")
+    }
 }
 
 /// The work tree half of the pull proof, for a fast-forward merge that
