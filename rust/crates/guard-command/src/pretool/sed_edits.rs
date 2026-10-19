@@ -85,6 +85,7 @@ fn scratch_edit_safe(
     super::chain_temporary::peers_only(model)
         && in_place_edit_with(&segment.arguments, true).is_some_and(|edit| {
             edit.backup_suffix.is_none()
+                && script_operand_is_no_file(edit.script_operand, context.cwd)
                 && edit.targets.iter().all(|target| {
                     super::chain_temporary::temporary_file_target(
                         target,
@@ -94,6 +95,23 @@ fn scratch_edit_safe(
                         .is_ok_and(|metadata| executable(&metadata))
                 })
         })
+}
+
+/// GNU sed opens the script of `-i '' SCRIPT FILE` as a file, and no target
+/// check covers it. BSD sed (the macOS default) reads it as the script, and on
+/// any host a script that names no file leaves nothing to rewrite.
+fn script_operand_is_no_file(script: Option<&str>, cwd: Option<&str>) -> bool {
+    let Some(script) = script else {
+        return true;
+    };
+    if cfg!(target_os = "macos") {
+        return true;
+    }
+    let Some(cwd) = cwd.filter(|cwd| std::path::Path::new(cwd).is_absolute()) else {
+        return false;
+    };
+    std::fs::symlink_metadata(std::path::Path::new(cwd).join(script))
+        .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
 }
 
 /// A whole `sed` segment, generic checks included, that the native proof
@@ -161,6 +179,9 @@ pub(super) fn in_place_segment(segment: &crate::CommandSegmentV1) -> bool {
 pub(super) struct InPlaceEdit<'a> {
     pub(super) targets: &'a [String],
     pub(super) backup_suffix: Option<&'a str>,
+    /// The script, when it follows an empty suffix argument. GNU sed reads
+    /// that argument as an empty script and this one as a file to rewrite.
+    pub(super) script_operand: Option<&'a str>,
 }
 
 pub(super) fn in_place_edit(arguments: &[String]) -> Option<InPlaceEdit<'_>> {
@@ -199,6 +220,7 @@ fn in_place_edit_with(arguments: &[String], scratch: bool) -> Option<InPlaceEdit
         rest = &rest[1..];
     }
     let mut scripts: Vec<&str> = Vec::new();
+    let mut script_operand = None;
     while let [flag, script, tail @ ..] = rest {
         if flag != "-e" {
             break;
@@ -224,6 +246,7 @@ fn in_place_edit_with(arguments: &[String], scratch: bool) -> Option<InPlaceEdit
             return None;
         }
         scripts.push(script);
+        script_operand = empty_suffix.then_some(script.as_str());
         rest = tail;
     } else if !portable && scripts.len() != 1 {
         // After a bare `-i`, BSD sed takes the first `-e` as the suffix and
@@ -242,6 +265,7 @@ fn in_place_edit_with(arguments: &[String], scratch: bool) -> Option<InPlaceEdit
     (targets_plain && scripts.iter().all(inert)).then_some(InPlaceEdit {
         targets: rest,
         backup_suffix,
+        script_operand,
     })
 }
 

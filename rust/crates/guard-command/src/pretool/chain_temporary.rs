@@ -153,6 +153,43 @@ pub(super) fn created_scratch_directories(
         .flat_map(|segment| segment.arguments.iter())
         .filter(|argument| !argument.starts_with('-'))
         .filter(|argument| absent_temporary_read_target(argument, context.home_dir, context.cwd))
+        .filter(|argument| private_scratch_parent(argument, context.home_dir))
         .map(PathBuf::from)
         .collect()
+}
+
+/// The parent of a directory the chain creates is an existing directory the
+/// user owns that no one else can write, and not the shared `/tmp` or
+/// `/var/tmp` root. Another user could create the same name in a shared root
+/// before the chain runs, and `mkdir -p` would accept it silently, so a copy
+/// into it could follow a link the other user planted.
+#[cfg(unix)]
+fn private_scratch_parent(argument: &str, home_dir: Option<&str>) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    let Some(owner) = home_dir
+        .and_then(|home| std::fs::metadata(home).ok())
+        .map(|metadata| metadata.uid())
+    else {
+        return false;
+    };
+    let Some(parent) = Path::new(argument)
+        .parent()
+        .and_then(|parent| std::fs::canonicalize(parent).ok())
+    else {
+        return false;
+    };
+    let shared = ["/tmp", "/var/tmp"]
+        .iter()
+        .filter_map(|root| std::fs::canonicalize(root).ok())
+        .any(|root| root == parent);
+    !shared
+        && parent.metadata().is_ok_and(|metadata| {
+            metadata.is_dir() && metadata.uid() == owner && metadata.mode() & 0o022 == 0
+        })
+}
+
+#[cfg(not(unix))]
+fn private_scratch_parent(_argument: &str, _home_dir: Option<&str>) -> bool {
+    false
 }

@@ -176,3 +176,45 @@ fn scratch_edits_keep_link_target_and_script_boundaries() {
         assert!(!permitted(&fixture, &command), "{command}");
     }
 }
+
+/// Another user could create `/tmp/<name>` before the chain runs, and
+/// `mkdir -p` accepts it silently, so a copy into a directory made directly
+/// under a shared root stays reviewed. A private parent keeps the copy quiet.
+#[test]
+fn a_directory_made_under_a_shared_root_keeps_review() {
+    let fixture = fixture("shared-root");
+    let scratch = fixture.scratch.display();
+    let id = format!(
+        "{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .subsec_nanos()
+    );
+    for root in ["/tmp", "/var/tmp"] {
+        let shared = format!("{root}/hg-shared-{id}");
+        let command = format!("mkdir -p {shared} && cp {scratch}/a.ts {shared}/index.ts");
+        assert!(!permitted(&fixture, &command), "{command}");
+        assert!(!Path::new(&shared).exists(), "{shared}");
+    }
+    let private = format!("mkdir -p {scratch}/pkg && cp {scratch}/a.ts {scratch}/pkg/index.ts");
+    assert!(permitted(&fixture, &private), "{private}");
+}
+
+/// GNU sed reads the script of `-i '' SCRIPT FILE` as a file, so a file of
+/// that name in the working directory would be rewritten without a check.
+/// BSD sed reads it as the script.
+#[test]
+fn an_existing_file_named_like_the_script_keeps_review_on_gnu_sed() {
+    let fixture = fixture("script-file");
+    let scratch = fixture.scratch.display();
+    let command = format!("sed -i '' 's|a = 1|a = 2|' {scratch}/a.ts");
+    assert!(permitted(&fixture, &command), "{command}");
+    std::fs::write(fixture.project.join("s|a = 1|a = 2|"), "x\n").unwrap();
+    assert_eq!(
+        permitted(&fixture, &command),
+        cfg!(target_os = "macos"),
+        "{command}"
+    );
+}
