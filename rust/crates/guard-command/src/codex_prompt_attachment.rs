@@ -25,6 +25,11 @@ use crate::prompt_analysis::{
     extract_prompt_requests, trailing_secret_read_state, GuardRunPromptArtifact,
 };
 
+/// `_trailing_secret_read_state`'s answer carried from one window to the next:
+/// how many sentences back the read intent sits, and whether it was a positive
+/// one. `None` is a window that ends with no read intent to carry.
+type TrailingReadState = Option<(u8, bool)>;
+
 /// `_ATTACHMENT_SCAN_CHUNK_BYTES`.
 const CHUNK_BYTES: usize = 64 * 1024;
 /// `_ATTACHMENT_SCAN_MAX_BYTES`.
@@ -129,7 +134,7 @@ fn scan_attachment(
     let mut overlap = String::new();
     let mut guarded: Vec<String> = Vec::new();
     let mut cache: HashMap<(usize, [u8; 32]), Vec<String>> = HashMap::new();
-    let mut inherited: Option<(u8, bool)> = None;
+    let mut inherited: TrailingReadState = None;
     let mut total: u64 = 0;
     let mut chunk = vec![0u8; CHUNK_BYTES];
     loop {
@@ -172,8 +177,8 @@ fn scan_attachment(
 fn classify_window(
     window: &str,
     cache: &mut HashMap<(usize, [u8; 32]), Vec<String>>,
-    inherited: Option<(u8, bool)>,
-) -> Result<(Vec<String>, Option<(u8, bool)>), ()> {
+    inherited: TrailingReadState,
+) -> Result<(Vec<String>, TrailingReadState), ()> {
     let mut classes = cached_classes(window, cache)?;
     let prefix = inherited.map_or(String::new(), |(distance, positive)| {
         let verb = if positive { "Read" } else { "Do not read" };
