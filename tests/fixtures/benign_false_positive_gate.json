@@ -7653,7 +7653,7 @@
       "tool_input": {
         "command": "git merge --ff-only origin/main"
       },
-      "cwd": "org_app",
+      "cwd": "org_wt",
       "expect": "allow"
     },
     {
@@ -7670,7 +7670,7 @@
       "tool_input": {
         "command": "git log --oneline -1"
       },
-      "cwd": "org_app",
+      "cwd": "org_wt",
       "expect": "allow"
     },
     {
@@ -7687,7 +7687,7 @@
       "tool_input": {
         "command": "git fetch origin && git merge --ff-only origin/main"
       },
-      "cwd": "org_app",
+      "cwd": "org_wt",
       "expect": "allow"
     },
     {
@@ -7704,7 +7704,7 @@
       "tool_input": {
         "command": "git fetch origin main && git merge --ff-only origin/main 2>&1 | tail -3"
       },
-      "cwd": "org_app",
+      "cwd": "org_wt",
       "expect": "allow"
     },
     {
