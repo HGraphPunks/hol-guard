@@ -292,3 +292,58 @@ def test_pub_self_mod_hides_the_alias_like_a_private_one(tmp_path: Path) -> None
     result = build_report(repo, scope_path)
     unwired = {item["path"].rsplit("/", 1)[1] for item in result["rust"]["unwired_files"]}
     assert "kept.rs" in unwired
+
+
+def test_a_pub_mod_reaches_as_far_as_its_restricted_parent_does(tmp_path: Path) -> None:
+    """``pub mod`` under ``pub(super) mod`` is nameable where that parent is."""
+    repo, scope_path = _repo(tmp_path, _scope())
+    source = repo / CRATES / "bin" / "src"
+    _write(
+        source / "main.rs",
+        "mod wired;\nmod chained;\nmod orphan;\nmod unused_name;\nmod outer;\nmod sibling;\n"
+        "fn main() {\n    wired::run();\n    sibling::call();\n    lib::shared::answer();\n}\n",
+    )
+    # ``middle`` is declared ``pub(super)`` in outer.rs, so the crate root may
+    # name it; ``deep`` is ``pub`` inside middle.rs, so it reaches just as far.
+    _write(source / "outer.rs", "pub(super) mod middle;\n")
+    _write(source / "outer" / "middle.rs", "pub mod deep;\n")
+    _write(source / "outer" / "middle" / "deep.rs", "fn go() -> u8 {\n    1\n}\n")
+    _write(source / "sibling.rs", "pub fn call() -> u8 {\n    super::outer::middle::deep::go()\n}\n")
+    result = build_report(repo, scope_path)
+    wired = {item["path"].rsplit("/", 1)[1] for item in result["rust"]["files"]}
+    assert "deep.rs" in wired
+
+
+def test_pub_in_crate_reaches_the_crate_root_like_pub_crate(tmp_path: Path) -> None:
+    """``pub(in crate) mod`` is another spelling of ``pub(crate) mod``."""
+    repo, scope_path = _repo(tmp_path, _scope())
+    source = repo / CRATES / "bin" / "src"
+    _write(
+        source / "main.rs",
+        "mod wired;\nmod chained;\nmod orphan;\nmod unused_name;\nmod outer;\nmod sibling;\n"
+        "fn main() {\n    wired::run();\n    sibling::call();\n    lib::shared::answer();\n}\n",
+    )
+    _write(source / "outer.rs", "pub(super) mod middle;\n")
+    _write(source / "outer" / "middle.rs", "pub(in crate) mod deep;\n")
+    _write(source / "outer" / "middle" / "deep.rs", "fn go() -> u8 {\n    1\n}\n")
+    _write(source / "sibling.rs", "pub fn call() -> u8 {\n    super::outer::middle::deep::go()\n}\n")
+    result = build_report(repo, scope_path)
+    wired = {item["path"].rsplit("/", 1)[1] for item in result["rust"]["files"]}
+    assert "deep.rs" in wired
+
+
+def test_pub_in_self_hides_the_alias_like_a_private_one(tmp_path: Path) -> None:
+    """``pub(in self) mod`` is another spelling of ``pub(self) mod``."""
+    repo, scope_path = _repo(tmp_path, _scope())
+    source = repo / CRATES / "bin" / "src"
+    _write(
+        source / "main.rs",
+        "mod wired;\nmod chained;\nmod orphan;\nmod unused_name;\nmod holder;\nmod sibling;\n"
+        "fn main() {\n    wired::run();\n    sibling::call();\n    lib::shared::answer();\n}\n",
+    )
+    _write(source / "holder.rs", "pub(in self) mod kept;\n")
+    _write(source / "holder" / "kept.rs", "fn go() -> u8 {\n    1\n}\n")
+    _write(source / "sibling.rs", "pub fn call() -> u8 {\n    super::holder::kept::go()\n}\n")
+    result = build_report(repo, scope_path)
+    unwired = {item["path"].rsplit("/", 1)[1] for item in result["rust"]["unwired_files"]}
+    assert "kept.rs" in unwired
