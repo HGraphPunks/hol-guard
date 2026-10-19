@@ -6,6 +6,7 @@
 
 #![forbid(unsafe_code)]
 
+use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::os::unix::fs::MetadataExt;
@@ -24,10 +25,11 @@ pub(crate) const FEATURE: &str = "mcp-task-write-budget-v1";
 const REQUEST_SCHEMA: &str = "guard-mcp-write-budget-claim-request.v1";
 const RESULT_SCHEMA: &str = "guard-mcp-write-budget-claim-result.v1";
 const POLICY_SCHEMA: &str = "guard-mcp-task-write-budget.v1";
-const STATE_SCHEMA: &str = "guard-mcp-task-write-budget-state.v1";
+const STATE_SCHEMA: &str = "guard-mcp-task-write-budget-state.v2";
 const POLICY_NAME: &str = "mcp-task-write-budget.json";
 const LOCK_NAME: &str = "mcp-task-write-budget.lock";
 const STATE_NAME: &str = "mcp-task-write-budget-state.json";
+const STATE_MAX_BYTES: u64 = 65_536;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -36,6 +38,7 @@ pub(crate) struct ClaimRequest {
     request_id: String,
     pub(crate) guard_home: String,
     tool_name: String,
+    arguments: serde_json::Value,
 }
 
 #[derive(Deserialize)]
@@ -44,6 +47,10 @@ struct Policy {
     schema: String,
     max_writes: u32,
     read_only_tools: Vec<String>,
+    #[serde(default)]
+    reserved_record_ids: Vec<String>,
+    #[serde(default)]
+    required_source_ids: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -52,6 +59,13 @@ struct State {
     schema: String,
     policy_sha256: String,
     claimed_writes: u32,
+    cited_source_ids: Vec<String>,
+}
+
+enum ClaimOutcome {
+    Claimed(u32),
+    Exhausted,
+    MissingSources(Vec<String>),
 }
 
 fn directory_flags() -> OFlag {
@@ -114,17 +128,16 @@ fn policy(home: &File) -> Result<Option<(Policy, String)>, ()> {
     let parsed: Policy = serde_json::from_slice(&raw).map_err(|_| ())?;
     if parsed.schema != POLICY_SCHEMA
         || !(1..=1000).contains(&parsed.max_writes)
-        || parsed.read_only_tools.len() > 128
-        || parsed.read_only_tools.iter().any(|name| {
-            name.is_empty() || name.len() > 256 || name.bytes().any(|c| !valid_name_byte(c))
-        })
+        || !valid_names(&parsed.read_only_tools)
+        || !valid_names(&parsed.reserved_record_ids)
+        || !valid_names(&parsed.required_source_ids)
     {
         return Err(());
     }
-    let mut sorted = parsed.read_only_tools.clone();
-    sorted.sort();
-    sorted.dedup();
-    if sorted.len() != parsed.read_only_tools.len() {
+    if !unique(&parsed.read_only_tools)
+        || !unique(&parsed.reserved_record_ids)
+        || !unique(&parsed.required_source_ids)
+    {
         return Err(());
     }
     Ok(Some((parsed, hex::encode(Sha256::digest(raw)))))
@@ -132,6 +145,47 @@ fn policy(home: &File) -> Result<Option<(Policy, String)>, ()> {
 
 fn valid_name_byte(c: u8) -> bool {
     c.is_ascii_alphanumeric() || matches!(c, b'.' | b'_' | b'-' | b'/' | b':')
+}
+
+fn valid_names(names: &[String]) -> bool {
+    names.len() <= 128 && names.iter().all(|name| {
+        !name.is_empty() && name.len() <= 256 && name.bytes().all(valid_name_byte)
+    })
+}
+
+fn unique(names: &[String]) -> bool {
+    names.iter().collect::<BTreeSet<_>>().len() == names.len()
+}
+
+fn cited_sources(tool_name: &str, arguments: &serde_json::Value) -> Vec<String> {
+    let Some(data) = arguments.get("data") else { return Vec::new() };
+    let artifact = if tool_name.ends_with(".update") {
+        data.get("notes").or_else(|| data.get("internal_notes"))
+            .and_then(serde_json::Value::as_array)
+            .and_then(|notes| notes.last())
+            .unwrap_or(data)
+    } else {
+        data
+    };
+    let (Some(ids), Some(versions)) = (
+        artifact.get("source_ids").and_then(serde_json::Value::as_array),
+        artifact.get("source_versions").and_then(serde_json::Value::as_object),
+    ) else { return Vec::new() };
+    if ids.len() > 128 || ids.len() != versions.len() {
+        return Vec::new();
+    }
+    let mut cited = Vec::new();
+    for item in ids {
+        let Some(id) = item.as_str() else { return Vec::new() };
+        if id.is_empty() || id.len() > 256 || !id.bytes().all(valid_name_byte)
+            || versions.get(id).and_then(serde_json::Value::as_u64).is_none_or(|v| v == 0)
+        {
+            return Vec::new();
+        }
+        cited.push(id.to_owned());
+    }
+    if !unique(&cited) { return Vec::new() }
+    cited
 }
 
 fn state_file(home: &File) -> Option<(File, bool)> {
@@ -142,10 +196,11 @@ fn state_file(home: &File) -> Option<(File, bool)> {
         Err(_) => return None,
     };
     let file = File::from(fd);
-    regular_private(&file, 8192).then_some((file, new))
+    regular_private(&file, STATE_MAX_BYTES).then_some((file, new))
 }
 
-fn claim(home: &File, digest: &str, maximum: u32) -> Option<(bool, u32)> {
+fn claim(home: &File, digest: &str, maximum: u32,
+         cited: &[String], required: &[String]) -> Option<ClaimOutcome> {
     let lock = File::from(
         openat(
             home,
@@ -164,53 +219,77 @@ fn claim(home: &File, digest: &str, maximum: u32) -> Option<(bool, u32)> {
             schema: STATE_SCHEMA.into(),
             policy_sha256: digest.into(),
             claimed_writes: 0,
+            cited_source_ids: Vec::new(),
         }
     } else {
-        let raw = read_bounded(&mut file, 8192)?;
+        let raw = read_bounded(&mut file, STATE_MAX_BYTES)?;
         serde_json::from_slice::<State>(&raw).ok()?
     };
     if state.schema != STATE_SCHEMA
         || state.policy_sha256 != digest
         || state.claimed_writes > maximum
+        || !valid_names(&state.cited_source_ids)
+        || !unique(&state.cited_source_ids)
     {
         return None;
     }
     if state.claimed_writes == maximum {
-        return Some((false, 0));
+        return Some(ClaimOutcome::Exhausted);
+    }
+    let mut sources: BTreeSet<String> = state.cited_source_ids.into_iter().collect();
+    sources.extend(cited.iter().cloned());
+    if state.claimed_writes + 1 == maximum {
+        let missing: Vec<String> = required.iter()
+            .filter(|id| !sources.contains(*id)).cloned().collect();
+        if !missing.is_empty() {
+            return Some(ClaimOutcome::MissingSources(missing));
+        }
     }
     state.claimed_writes += 1;
+    state.cited_source_ids = sources.into_iter().collect();
     let raw = serde_json::to_vec(&state).ok()?;
     file.seek(SeekFrom::Start(0)).ok()?;
     file.set_len(0).ok()?;
     file.write_all(&raw).ok()?;
     file.sync_all().ok()?;
-    Some((true, maximum - state.claimed_writes))
+    Some(ClaimOutcome::Claimed(maximum - state.claimed_writes))
 }
 
 pub(crate) fn evaluate(request: &ClaimRequest) -> Result<Vec<u8>, String> {
-    let (decision, reason, remaining) = if request.schema != REQUEST_SCHEMA
+    let (decision, reason, remaining, missing_source_ids) = if request.schema != REQUEST_SCHEMA
         || request.request_id.is_empty()
         || request.request_id.len() > 128
         || request.tool_name.is_empty()
         || request.tool_name.len() > 256
         || request.tool_name.bytes().any(|c| !valid_name_byte(c))
     {
-        ("block", "invalid_request", None)
+        ("block", "invalid_request", None, Vec::new())
     } else if let Some(home) = private_home(Path::new(&request.guard_home)) {
         match policy(&home) {
-            Ok(None) => ("inactive", "no_policy", None),
+            Ok(None) => ("inactive", "no_policy", None, Vec::new()),
             Ok(Some((policy, _))) if policy.read_only_tools.contains(&request.tool_name) => {
-                ("allow", "read_only", None)
+                ("allow", "read_only", None, Vec::new())
             }
-            Ok(Some((policy, digest))) => match claim(&home, &digest, policy.max_writes) {
-                Some((true, remaining)) => ("allow", "claimed", Some(remaining)),
-                Some((false, _)) => ("block", "write_budget_exhausted", Some(0)),
-                None => ("block", "budget_state_invalid", None),
-            },
-            Err(()) => ("block", "policy_invalid", None),
+            Ok(Some((_policy, _))) if !request.arguments.is_object() => {
+                ("block", "invalid_arguments", None, Vec::new())
+            }
+            Ok(Some((policy, digest))) if request.tool_name.ends_with(".create")
+                || request.tool_name.ends_with(".create_draft")
+                || request.tool_name.ends_with(".post") => {
+                let reserved = request.arguments.get("record_id")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|id| policy.reserved_record_ids.iter().any(|held| held == id));
+                if reserved {
+                    ("block", "record_id_reserved", None, Vec::new())
+                } else {
+                    claim_decision(&home, &policy, &digest, request)
+                }
+            }
+            Ok(Some((policy, digest))) => claim_decision(&home, &policy, &digest, request),
+            Err(()) => ("block", "policy_invalid", None, Vec::new()),
         }
     } else {
-        ("block", "guard_home_invalid", None)
+        ("block", "guard_home_invalid", None, Vec::new())
     };
     crate::encode_response(&json!({
         "schema": RESULT_SCHEMA,
@@ -219,7 +298,20 @@ pub(crate) fn evaluate(request: &ClaimRequest) -> Result<Vec<u8>, String> {
         "decision": decision,
         "reason": reason,
         "remaining": remaining,
+        "missing_source_ids": missing_source_ids,
     }))
+}
+
+fn claim_decision(home: &File, policy: &Policy, digest: &str, request: &ClaimRequest)
+    -> (&'static str, &'static str, Option<u32>, Vec<String>) {
+    let cited = cited_sources(&request.tool_name, &request.arguments);
+    match claim(home, digest, policy.max_writes, &cited, &policy.required_source_ids) {
+        Some(ClaimOutcome::Claimed(remaining)) => ("allow", "claimed", Some(remaining), Vec::new()),
+        Some(ClaimOutcome::Exhausted) => ("block", "write_budget_exhausted", Some(0), Vec::new()),
+        Some(ClaimOutcome::MissingSources(missing)) =>
+            ("block", "required_source_references_missing", None, missing),
+        None => ("block", "budget_state_invalid", None, Vec::new()),
+    }
 }
 
 #[cfg(test)]
@@ -249,6 +341,7 @@ mod tests {
                 request_id: "test-claim".into(),
                 guard_home: path.to_str().unwrap().into(),
                 tool_name: "crm.update".into(),
+                arguments: json!({"record_id": "contact-a", "data": {}}),
             },
         )
     }
@@ -302,5 +395,49 @@ mod tests {
             })
             .collect();
         assert_eq!(threads.into_iter().map(|thread| thread.join().unwrap()).filter(|allowed| *allowed).count(), 2);
+    }
+
+    #[test]
+    fn reserved_create_id_is_blocked_without_spending_a_write() {
+        let (_root, mut request) = setup();
+        let path = Path::new(&request.guard_home).join(POLICY_NAME);
+        std::fs::write(&path, serde_json::to_vec(&json!({
+            "schema": POLICY_SCHEMA, "max_writes": 2,
+            "read_only_tools": ["crm.read"],
+            "reserved_record_ids": ["lead-a"],
+        })).unwrap()).unwrap();
+        request.tool_name = "mail.create_draft".into();
+        request.arguments = json!({"record_id": "lead-a", "data": {}});
+        assert_eq!(decision(&request)["reason"], "record_id_reserved");
+        request.arguments["record_id"] = json!("draft-a");
+        assert_eq!(decision(&request)["remaining"], 1);
+    }
+
+    #[test]
+    fn final_write_requires_trusted_provenance_coverage() {
+        let (_root, mut request) = setup();
+        let path = Path::new(&request.guard_home).join(POLICY_NAME);
+        std::fs::write(&path, serde_json::to_vec(&json!({
+            "schema": POLICY_SCHEMA, "max_writes": 2,
+            "read_only_tools": ["crm.read"],
+            "required_source_ids": ["contact-c"],
+        })).unwrap()).unwrap();
+        request.arguments = json!({"record_id": "contact-a", "data": {"notes": [{
+            "source_ids": ["contact-a"], "source_versions": {"contact-a": 1}
+        }]}});
+        assert_eq!(decision(&request)["remaining"], 1);
+        request.tool_name = "mail.create_draft".into();
+        request.arguments = json!({"record_id": "draft-a", "data": {
+            "source_ids": ["contact-b"], "source_versions": {"contact-b": 1}
+        }});
+        let blocked = decision(&request);
+        assert_eq!(blocked["reason"], "required_source_references_missing");
+        assert_eq!(blocked["missing_source_ids"], json!(["contact-c"]));
+        request.arguments["data"] = json!({
+            "source_ids": ["contact-b", "contact-c"],
+            "source_versions": {"contact-b": 1, "contact-c": 1}
+        });
+        assert_eq!(decision(&request)["remaining"], 0);
+        assert_eq!(decision(&request)["reason"], "write_budget_exhausted");
     }
 }

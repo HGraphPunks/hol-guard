@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from .native_context import ensure_resident_prerequisite
@@ -15,7 +17,8 @@ _RESULT_SCHEMA = "guard-mcp-write-budget-claim-result.v1"
 _DECISIONS = frozenset({"inactive", "allow", "block"})
 _REASONS = frozenset({
     "no_policy", "read_only", "claimed", "invalid_request", "write_budget_exhausted",
-    "budget_state_invalid", "policy_invalid", "guard_home_invalid",
+    "budget_state_invalid", "policy_invalid", "guard_home_invalid", "invalid_arguments",
+    "record_id_reserved", "required_source_references_missing",
 })
 
 
@@ -23,9 +26,35 @@ class NativeMcpWriteBudgetError(ValueError):
     """No bound native answer; the MCP call must not reach its server."""
 
 
-def claim_mcp_write_budget(*, guard_home: Path, tool_name: str) -> tuple[str, str]:
+def shallow_tool_argument_problem(tool_definition: dict[str, Any], arguments: object) -> str | None:
+    """Catch definite top-level schema errors before a fail-closed write claim."""
+    schema = tool_definition.get("inputSchema")
+    if not isinstance(schema, dict) or schema.get("type") != "object":
+        return None
+    properties = schema.get("properties")
+    required = schema.get("required", [])
+    if (not isinstance(properties, dict) or len(properties) > 128
+            or not isinstance(required, list) or len(required) > 128
+            or any(not isinstance(name, str) for name in required)):
+        return None
+    if not isinstance(arguments, dict):
+        return "tool arguments must be an object"
+    safe = re.compile(r"[A-Za-z0-9_.-]{1,64}\Z")
+    missing = sorted(name for name in required if name not in arguments and safe.fullmatch(name))
+    if missing:
+        return f"required tool argument missing: {missing[0]}"
+    if schema.get("additionalProperties") is False:
+        extra = sorted(name for name in arguments if name not in properties
+                       and isinstance(name, str) and safe.fullmatch(name))
+        if extra:
+            return f"unexpected tool argument: {extra[0]}"
+    return None
+
+
+def claim_mcp_write_budget(*, guard_home: Path, tool_name: str,
+                           arguments: object) -> tuple[str, str, tuple[str, ...]]:
     if os.name != "posix":
-        return "inactive", "no_policy"
+        return "inactive", "no_policy", ()
     request_id = f"mcp-write-budget-{uuid4().hex}"
     if not ensure_resident_prerequisite(guard_home):
         raise NativeMcpWriteBudgetError("resident prerequisite unavailable")
@@ -36,6 +65,7 @@ def claim_mcp_write_budget(*, guard_home: Path, tool_name: str) -> tuple[str, st
             "request_id": request_id,
             "guard_home": str(guard_home),
             "tool_name": tool_name,
+            "arguments": arguments,
         },
         guard_home=guard_home,
         timeout_seconds=5,
@@ -44,16 +74,24 @@ def claim_mcp_write_budget(*, guard_home: Path, tool_name: str) -> tuple[str, st
     )
     if (
         reply is None
-        or set(reply) != {"schema", "request_id", "status", "decision", "reason", "remaining"}
+        or set(reply) != {"schema", "request_id", "status", "decision", "reason", "remaining",
+                          "missing_source_ids"}
         or reply.get("request_id") != request_id
         or reply.get("status") != "ok"
         or reply.get("decision") not in _DECISIONS
         or reply.get("reason") not in _REASONS
         or not (reply.get("remaining") is None or type(reply.get("remaining")) is int)
+        or not isinstance(reply.get("missing_source_ids"), list)
+        or len(reply["missing_source_ids"]) > 128
+        or any(not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_.:/-]{1,256}", value)
+               for value in reply["missing_source_ids"])
     ):
         raise NativeMcpWriteBudgetError("native mutation-budget answer invalid")
     decision = reply["decision"]
     reason = reply["reason"]
     if (decision == "inactive") != (reason == "no_policy"):
         raise NativeMcpWriteBudgetError("native mutation-budget answer inconsistent")
-    return decision, reason
+    missing = tuple(reply["missing_source_ids"])
+    if bool(missing) != (reason == "required_source_references_missing"):
+        raise NativeMcpWriteBudgetError("native mutation-budget provenance answer inconsistent")
+    return decision, reason, missing
