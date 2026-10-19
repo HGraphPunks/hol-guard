@@ -17,6 +17,8 @@ use crate::CanonicalCommandV1;
 
 #[path = "native_command_controls_admission.rs"]
 mod admission;
+#[path = "native_command_controls_mcp.rs"]
+mod mcp;
 #[path = "native_command_controls_risk.rs"]
 mod risk;
 

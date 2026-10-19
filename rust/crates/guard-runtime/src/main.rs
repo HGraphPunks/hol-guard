@@ -192,6 +192,8 @@ mod continuation_grants;
 mod continuation_lineage;
 mod continuation_metadata;
 mod continuation_store;
+#[cfg(test)]
+mod contributed_mcp_catalog_test_support;
 mod contributed_mcp_decision_op;
 mod copilot_detect;
 #[cfg(all(test, unix))]

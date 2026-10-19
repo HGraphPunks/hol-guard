@@ -315,7 +315,7 @@ fn native_preparation_and_reads_scale_166_1660_16600() {
             assert_ne!(renewed.token, request.handle.token);
             assert_eq!(read(&request).http_status, 304);
         }
-        eprintln!("native-discovery-fast-scale count={count} fetched_objects={fetches} prepare_ms={prepare_ms} read_ms={read_ms} row_bound={} ownership_scratch_files=1 retained_metadata_entries=1 object_bytes=65536 blob_bytes=8388608",count);
+        eprintln!("native-discovery-fast-scale count={count} fetched_objects={fetches} prepare_ms={prepare_ms} read_ms={read_ms} row_bound={count} ownership_scratch_files=1 retained_metadata_entries=1 object_bytes=65536 blob_bytes=8388608");
     }
 }
 
