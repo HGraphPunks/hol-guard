@@ -62,6 +62,7 @@ def admit_mcp_layers(store, layers):
     )
     from codex_plugin_scanner.guard.native_command_control_authority_store import _key
     from codex_plugin_scanner.guard.native_command_control_binding import build_native_command_control_binding
+    from codex_plugin_scanner.guard.native_policy_snapshot_publisher import provision_native_verifier_key_for_store
     from codex_plugin_scanner.guard.runtime.extension_control_authority import (
         AuthorityHealth,
         ExtensionControlAuthorityView,
@@ -89,6 +90,7 @@ def admit_mcp_layers(store, layers):
     store.guard_home = store.guard_home / ("mcp-policy-" + uuid4().hex)
     store.path = store.guard_home / "guard.db"
     real = GuardStore(store.guard_home)
+    provision_native_verifier_key_for_store(real)
     prepared = preparation.prepare(
         verified,
         enabled,

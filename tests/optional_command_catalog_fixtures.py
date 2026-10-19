@@ -169,8 +169,9 @@ def optional_command_catalog(request, monkeypatch, tmp_path):
             payload["command_model"] = model
             admitted = _BINDINGS[guard_home]
             evidence_binding = payload["command_extensions"]["binding"]
-            for field in ("program_digest", "catalog_digest", "trust_digest", "effective_digest"):
+            for field in ("program_digest", "catalog_digest", "trust_digest"):
                 assert evidence_binding[field] == admitted[field], field
+            assert evidence_binding["control_effective_digest"] == admitted["effective_digest"]
             rows.append(support.RealNativeReviewFixture(command, payload, snapshot))
         return tuple(rows)
 
