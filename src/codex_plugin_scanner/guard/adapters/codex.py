@@ -605,7 +605,7 @@ def _migrate_hooks_json_into_config(
     cleaned_json_hooks, _ = _remove_manifest_bound_hook_events(json_hooks, owned_bindings)
     legacy_bindings = _current_install_legacy_bindings(context, cleaned_json_hooks)
     cleaned_json_hooks, _ = _remove_manifest_bound_hook_events(cleaned_json_hooks, legacy_bindings)
-    self_bindings = _current_install_self_bindings(context, cleaned_json_hooks)
+    self_bindings = _current_install_self_bindings(context, cleaned_json_hooks, authenticated_bindings=owned_bindings)
     cleaned_json_hooks, _ = _remove_manifest_bound_hook_events(cleaned_json_hooks, self_bindings)
     source_hooks_enabled = _payload_has_hooks_feature_enabled(config_payload)
     changed = False
@@ -706,7 +706,7 @@ def _unmanaged_migration_payload(
     cleaned_hooks, _ = _remove_manifest_bound_hook_events(hooks, owned_bindings)
     legacy_bindings = _current_install_legacy_bindings(context, cleaned_hooks)
     cleaned_hooks, _ = _remove_manifest_bound_hook_events(cleaned_hooks, legacy_bindings)
-    self_bindings = _current_install_self_bindings(context, cleaned_hooks)
+    self_bindings = _current_install_self_bindings(context, cleaned_hooks, authenticated_bindings=owned_bindings)
     cleaned_hooks, _ = _remove_manifest_bound_hook_events(cleaned_hooks, self_bindings)
     return {"hooks": cleaned_hooks} if cleaned_hooks else {}
 
@@ -1994,7 +1994,7 @@ class CodexHarnessAdapter(HarnessAdapter):
         cleaned_hooks, _ = _remove_manifest_bound_hook_events(hooks, owned_bindings)
         legacy_bindings = _current_install_legacy_bindings(context, cleaned_hooks)
         cleaned_hooks, _ = _remove_manifest_bound_hook_events(cleaned_hooks, legacy_bindings)
-        self_bindings = _current_install_self_bindings(context, cleaned_hooks)
+        self_bindings = _current_install_self_bindings(context, cleaned_hooks, authenticated_bindings=owned_bindings)
         cleaned_hooks, _ = _remove_manifest_bound_hook_events(cleaned_hooks, self_bindings)
         install_managed_codex_hook_groups(
             cleaned_hooks,

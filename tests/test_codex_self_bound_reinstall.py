@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from codex_plugin_scanner.guard.adapters.base import HarnessContext
-from codex_plugin_scanner.guard.adapters.codex import CodexHarnessAdapter
+from codex_plugin_scanner.guard.adapters.codex import CodexHarnessAdapter, _unmanaged_migration_payload
 from codex_plugin_scanner.guard.codex_config import dump_toml, read_toml_payload
 from codex_plugin_scanner.guard.codex_hook_compatibility import NATIVE_CODEX_HOOK_COMMAND
 from codex_plugin_scanner.guard.codex_hook_self_binding import (
@@ -305,3 +305,28 @@ def test_a_stale_generation_is_still_claimed_alongside_a_recorded_command(tmp_pa
     claimed = self_bound_hook_bindings(hooks, guard_home=guard_home, recorded_commands=[recorded])
 
     assert [binding["handler"]["command"] for binding in claimed] == [stale]
+
+
+def test_the_migration_path_holds_back_a_recorded_command_too(tmp_path):
+    """The holdback belongs to every path that rewrites hooks, not only the report.
+
+    Reporting an edited handler and then stripping it on the way to writing
+    would leave the refusal true and the configuration changed anyway, so the
+    paths that mutate hooks derive the recorded commands from the same
+    authenticated manifest the inventory reads.
+    """
+
+    guard_home = tmp_path / "guard-home"
+    guard_home.mkdir()
+    command = _bridge_launch(_PACKAGED_BRIDGE, guard_home)
+    handler = {"type": "command", "command": command}
+    hooks = {"PreToolUse": [{"matcher": "*", "hooks": [handler]}]}
+    context = HarnessContext(home_dir=tmp_path / "home", workspace_dir=None, guard_home=guard_home)
+    # The manifest records this command, but under the matcher Guard wrote.
+    # The file now carries a different one: an edit made outside Guard.
+    recorded = [{"event": "PreToolUse", "group": {"matcher": "Bash", "hooks": [handler]}, "handler": dict(handler)}]
+
+    assert _unmanaged_migration_payload({"hooks": hooks}, context=context, owned_bindings=()) == {}
+    preserved = _unmanaged_migration_payload({"hooks": hooks}, context=context, owned_bindings=recorded)
+
+    assert preserved == {"hooks": hooks}
