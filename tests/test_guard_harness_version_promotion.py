@@ -102,6 +102,20 @@ def test_other_versions_are_kept_and_stale_ones_pruned_on_request() -> None:
     assert [record["harness_version"] for record in _records(pruned)] == ["18.21.0"]
 
 
+def test_repromoting_replaces_a_prefixed_record_of_the_same_version() -> None:
+    first = _promote(_base())
+    _records(first)[0]["harness_version"] = "v18.20.0"
+    parse_manifest(first)
+    second = _promote(first)
+    assert [record["harness_version"] for record in _records(second)] == ["18.20.0"]
+
+
+def test_pruning_keeps_a_record_whose_guard_version_differs_only_by_prefix() -> None:
+    first = _promote(_base(), guard_version=f"v{GUARD}")
+    pruned = _promote(first, harness_version="18.21.0", prune_stale=True)
+    assert {record["harness_version"] for record in _records(pruned)} == {"18.20.0", "18.21.0"}
+
+
 def test_revision_restarts_on_a_new_day() -> None:
     assert next_revision("2026-10-16.4", "2026-10-20") == "2026-10-20.1"
     assert next_revision("2026-10-20.1", "2026-10-20") == "2026-10-20.2"

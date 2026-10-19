@@ -40,6 +40,11 @@ def next_revision(current: str, today: str) -> str:
     return f"{today}.1"
 
 
+def _canonical_version(value: object) -> str | None:
+    parsed = parse_version(value) if isinstance(value, str) else None
+    return parsed.canonical if parsed is not None else None
+
+
 def promote(
     payload: dict[str, object],
     *,
@@ -77,12 +82,14 @@ def promote(
         "evidence_reference": evidence_reference,
         "observed_at": observed_at,
     }
+    # Compare the forms the runtime compares, so a "v"-prefixed record is
+    # replaced rather than left beside its re-promotion as a duplicate.
     kept = [
         item
         for item in target["records"]  # type: ignore[union-attr]
         if isinstance(item, dict)
-        and item.get("harness_version") != version.canonical
-        and not (prune_stale and item.get("guard_version") != guard_version)
+        and _canonical_version(item.get("harness_version")) != version.canonical
+        and not (prune_stale and _canonical_version(item.get("guard_version")) != _canonical_version(guard_version))
     ]
     promoted = json.loads(json.dumps(payload))
     for entry in promoted["harnesses"]:
