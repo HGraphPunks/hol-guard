@@ -3640,6 +3640,108 @@
       "expect": "allow"
     },
     {
+      "id": "git-cd-fork-status-then-log",
+      "fix_area": "shell",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "cd ${WORKTREE} && git status --short; git log --oneline -3"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
+      "id": "git-cd-fork-piped-log-then-status",
+      "fix_area": "shell",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "cd ${WORKTREE} && git log --oneline -3 | head -2; git status --short"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
+      "id": "git-cd-fork-listing-then-log",
+      "fix_area": "shell",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "cd ${WORKTREE} && ls; git log --oneline -3"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
+      "id": "git-cd-fork-log-or-show",
+      "fix_area": "shell",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "cd ${WORKTREE} && git log -1 --oneline || git show --stat HEAD"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
+      "id": "git-cd-fork-diff-status-from-nonrepo-parent",
+      "fix_area": "shell",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "cd ${TMP_ORG}/app && git diff --stat | head; git status --short | head -10"
+      },
+      "cwd": "tmp_org",
+      "expect": "allow"
+    },
+    {
+      "id": "git-cd-fork-status-revparse-from-nonrepo-parent",
+      "fix_area": "shell",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "cd ${TMP_ORG_WT} && git status --short | head -5; git rev-parse HEAD"
+      },
+      "cwd": "tmp_org",
+      "expect": "allow"
+    },
+    {
       "id": "git-cd-worktree-diff-check",
       "fix_area": "shell",
       "harnesses": [
@@ -12382,6 +12484,108 @@
       "expect": "not_allow"
     },
     {
+      "id": "session-ln-s-node-modules-into-local-clone",
+      "fix_area": "queue",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "ln -s ${ORG}/app-portal/node_modules ${ORG_CLONE}/node_modules"
+      },
+      "cwd": "org_clone",
+      "expect": "allow"
+    },
+    {
+      "id": "session-ln-s-node-modules-into-local-clone-from-original",
+      "fix_area": "queue",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "ln -s ${ORG}/app-portal/node_modules ${ORG_CLONE}/node_modules"
+      },
+      "cwd": "org_app",
+      "expect": "allow"
+    },
+    {
+      "id": "session-ln-s-node-modules-into-local-clone-ls-grep",
+      "fix_area": "queue",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "ln -s ${ORG}/app-portal/node_modules ${ORG_CLONE}/node_modules && ls -la ${ORG_CLONE}/ | grep node_module"
+      },
+      "cwd": "org_clone",
+      "expect": "allow"
+    },
+    {
+      "id": "neg-ln-s-ssh-into-local-clone",
+      "fix_area": "negative",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "ln -s ${HOME}/.ssh ${ORG_CLONE}/ssh-link"
+      },
+      "cwd": "org_clone",
+      "expect": "not_allow"
+    },
+    {
+      "id": "neg-ln-sf-node-modules-into-local-clone-replace",
+      "fix_area": "negative",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "ln -sf ${ORG}/app-portal/node_modules ${ORG_CLONE}/node_modules"
+      },
+      "cwd": "org_clone",
+      "expect": "not_allow"
+    },
+    {
+      "id": "neg-ln-s-node-modules-into-unrelated-repository",
+      "fix_area": "negative",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "ln -s ${ORG}/app-portal/node_modules ${PARENT}/deps-link"
+      },
+      "cwd": "org_app",
+      "expect": "not_allow"
+    },
+    {
       "id": "session-gh-api-short-jq-tag-sha",
       "fix_area": "gh",
       "harnesses": [
@@ -13581,6 +13785,57 @@
         "command": "git stash show --stat"
       },
       "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
+      "id": "git-stash-list-from-nonrepo-parent",
+      "fix_area": "git",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "cd ${TMP_ORG}/app && git stash list | head -3"
+      },
+      "cwd": "tmp_org",
+      "expect": "allow"
+    },
+    {
+      "id": "git-stash-show-entry-from-nonrepo-parent",
+      "fix_area": "git",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "cd ${TMP_ORG}/app && git stash show -p stash@{0}"
+      },
+      "cwd": "tmp_org",
+      "expect": "allow"
+    },
+    {
+      "id": "git-stash-list-status-show-from-nonrepo-parent",
+      "fix_area": "git",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "cd ${TMP_ORG}/app && git stash list | head -3 && git status --porcelain | wc -l && git stash show -p stash@{0}"
+      },
+      "cwd": "tmp_org",
       "expect": "allow"
     },
     {
@@ -14985,6 +15240,54 @@
       "tool": "shell",
       "tool_input": {
         "command": "cat > ~/.codex/hooks.json <<'EOF'\n{}\nEOF"
+      },
+      "cwd": "worktree",
+      "expect": "not_allow"
+    },
+    {
+      "id": "queue-scratch-dd-byte-slice-od",
+      "fix_area": "queue",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "dd if=${PRIVATE_TMP}/notes.txt bs=1 skip=0 count=100 2>/dev/null | od -c | head -3"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
+      "id": "neg-dd-to-home-dotfile",
+      "fix_area": "negative",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "dd if=${PRIVATE_TMP}/notes.txt of=${HOME}/.zshrc bs=1 count=4"
+      },
+      "cwd": "worktree",
+      "expect": "not_allow"
+    },
+    {
+      "id": "neg-dd-credential-input",
+      "fix_area": "negative",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "dd if=${HOME}/.ssh/id_rsa bs=1 count=20 2>/dev/null | od -c | head -3"
       },
       "cwd": "worktree",
       "expect": "not_allow"

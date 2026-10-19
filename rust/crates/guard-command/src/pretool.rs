@@ -34,6 +34,7 @@ pub struct PathContext<'a> {
 
 mod contained_wrapper;
 pub(crate) mod curl_reads;
+pub(crate) mod dd_reads;
 mod digest_reads;
 pub(crate) mod docker_reads;
 mod docker_start;
@@ -61,6 +62,7 @@ mod brace_words;
 mod brew_reads;
 mod bun_eval;
 mod chain_temporary;
+mod clone_siblings;
 mod compound_reason;
 mod fanout_reads;
 mod find_reads;
@@ -82,6 +84,7 @@ mod git_reads;
 mod git_ref_listings;
 mod git_rev_list;
 mod git_search_text;
+pub(crate) mod git_stash_reads;
 pub(crate) mod git_tag_listing;
 mod repo_create_reason;
 mod root_removal;

@@ -2,11 +2,11 @@
 //! `node_modules` between checkouts of one repository. The link path must be
 //! a non-hidden name directly inside a verified workspace checkout, and the
 //! target an existing, non-hidden directory of another checkout with the same
-//! Git common directory, or inside the working directory. The name is free,
-//! or already a directory `ln` writes the link inside under the target's own
-//! base name, which must be free there. A symbolic link runs nothing; these
-//! bounds keep it from replacing any existing path or exposing data outside
-//! the repository.
+//! Git common directory, of a separate clone of the same repository, or
+//! inside the working directory. The name is free, or already a directory
+//! `ln` writes the link inside under the target's own base name, which must
+//! be free there. A symbolic link runs nothing; these bounds keep it from
+//! replacing any existing path or exposing data outside the repository.
 
 use std::fs;
 use std::path::{Component, Path, PathBuf};
@@ -105,7 +105,9 @@ pub(super) fn safe_symlink_arguments(
             });
             visible
                 && !relative.as_os_str().is_empty()
-                && ((common == link_common && root != parent) || target.starts_with(&cwd))
+                && ((common == link_common && root != parent)
+                    || target.starts_with(&cwd)
+                    || super::clone_siblings::related_clones(&root, &parent))
         }
         None => false,
     }
@@ -171,15 +173,27 @@ fn fresh_link(link: &str, target: &str, cwd: &Path) -> Option<(PathBuf, PathBuf,
 }
 
 /// The common directory of the checkout rooted exactly at `root`: a verified
-/// linked worktree, or a primary checkout inside the working directory.
+/// linked worktree, or a primary checkout inside the working directory or
+/// cloned from the repository the working directory belongs to.
 fn checkout_common_directory(root: &Path, cwd: &Path) -> Option<PathBuf> {
     let marker = fs::symlink_metadata(root.join(".git")).ok()?;
     if marker.is_file() {
         let common = super::worktree_writes::linked_worktree_common_dir(root)?;
         return (common.parent() != Some(root)).then_some(common);
     }
-    if marker.is_dir() && !marker.file_type().is_symlink() && root.starts_with(cwd) {
+    if marker.is_dir()
+        && !marker.file_type().is_symlink()
+        && (root.starts_with(cwd) || clone_of_workspace(root, cwd))
+    {
         return fs::canonicalize(root.join(".git")).ok();
     }
     None
+}
+
+/// Whether `root` is the checkout holding `cwd` (the command runs in one of
+/// its subdirectories) or a separate clone of that checkout's repository.
+fn clone_of_workspace(root: &Path, cwd: &Path) -> bool {
+    super::worktree_writes::repository_common_directory(cwd).is_some_and(|(workspace, _)| {
+        workspace == root || super::clone_siblings::related_clones(&workspace, root)
+    })
 }
