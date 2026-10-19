@@ -93,9 +93,7 @@ fn private_home(path: &Path) -> Option<File> {
     home.metadata()
         .ok()
         .filter(|info| {
-            info.is_dir()
-                && info.uid() == Uid::current().as_raw()
-                && info.mode() & 0o7777 == 0o700
+            info.is_dir() && info.uid() == Uid::current().as_raw() && info.mode() & 0o7777 == 0o700
         })
         .map(|_| home)
 }
@@ -158,9 +156,10 @@ fn valid_name_byte(c: u8) -> bool {
 }
 
 fn valid_names(names: &[String]) -> bool {
-    names.len() <= 128 && names.iter().all(|name| {
-        !name.is_empty() && name.len() <= 256 && name.bytes().all(valid_name_byte)
-    })
+    names.len() <= 128
+        && names
+            .iter()
+            .all(|name| !name.is_empty() && name.len() <= 256 && name.bytes().all(valid_name_byte))
 }
 
 fn unique(names: &[String]) -> bool {
@@ -168,9 +167,12 @@ fn unique(names: &[String]) -> bool {
 }
 
 fn cited_sources(tool_name: &str, arguments: &serde_json::Value) -> Vec<String> {
-    let Some(data) = arguments.get("data") else { return Vec::new() };
+    let Some(data) = arguments.get("data") else {
+        return Vec::new();
+    };
     let artifact = if tool_name.ends_with(".update") {
-        data.get("notes").or_else(|| data.get("internal_notes"))
+        data.get("notes")
+            .or_else(|| data.get("internal_notes"))
             .and_then(serde_json::Value::as_array)
             .and_then(|notes| notes.last())
             .unwrap_or(data)
@@ -178,29 +180,49 @@ fn cited_sources(tool_name: &str, arguments: &serde_json::Value) -> Vec<String> 
         data
     };
     let (Some(ids), Some(versions)) = (
-        artifact.get("source_ids").and_then(serde_json::Value::as_array),
-        artifact.get("source_versions").and_then(serde_json::Value::as_object),
-    ) else { return Vec::new() };
+        artifact
+            .get("source_ids")
+            .and_then(serde_json::Value::as_array),
+        artifact
+            .get("source_versions")
+            .and_then(serde_json::Value::as_object),
+    ) else {
+        return Vec::new();
+    };
     if ids.len() > 128 || ids.len() != versions.len() {
         return Vec::new();
     }
     let mut cited = Vec::new();
     for item in ids {
-        let Some(id) = item.as_str() else { return Vec::new() };
-        if id.is_empty() || id.len() > 256 || !id.bytes().all(valid_name_byte)
-            || versions.get(id).and_then(serde_json::Value::as_u64).is_none_or(|v| v == 0)
+        let Some(id) = item.as_str() else {
+            return Vec::new();
+        };
+        if id.is_empty()
+            || id.len() > 256
+            || !id.bytes().all(valid_name_byte)
+            || versions
+                .get(id)
+                .and_then(serde_json::Value::as_u64)
+                .is_none_or(|v| v == 0)
         {
             return Vec::new();
         }
         cited.push(id.to_owned());
     }
-    if !unique(&cited) { return Vec::new() }
+    if !unique(&cited) {
+        return Vec::new();
+    }
     cited
 }
 
 fn state_file(home: &File) -> Option<(File, bool)> {
     let flags = OFlag::O_RDWR | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
-    let (fd, new) = match openat(home, STATE_NAME, flags | OFlag::O_CREAT | OFlag::O_EXCL, Mode::from_bits_truncate(0o600)) {
+    let (fd, new) = match openat(
+        home,
+        STATE_NAME,
+        flags | OFlag::O_CREAT | OFlag::O_EXCL,
+        Mode::from_bits_truncate(0o600),
+    ) {
         Ok(fd) => (fd, true),
         Err(Errno::EEXIST) => (openat(home, STATE_NAME, flags, Mode::empty()).ok()?, false),
         Err(_) => return None,
@@ -209,8 +231,15 @@ fn state_file(home: &File) -> Option<(File, bool)> {
     regular_private(&file, STATE_MAX_BYTES).then_some((file, new))
 }
 
-fn claim(home: &File, digest: &str, maximum: u32, tool_name: &str,
-         tool_limit: Option<u32>, cited: &[String], required: &[String]) -> Option<ClaimOutcome> {
+fn claim(
+    home: &File,
+    digest: &str,
+    maximum: u32,
+    tool_name: &str,
+    tool_limit: Option<u32>,
+    cited: &[String],
+    required: &[String],
+) -> Option<ClaimOutcome> {
     let lock = File::from(
         openat(
             home,
@@ -245,7 +274,11 @@ fn claim(home: &File, digest: &str, maximum: u32, tool_name: &str,
         || state.claimed_by_tool.iter().any(|(name, count)| {
             !valid_names(std::slice::from_ref(name)) || *count == 0 || *count > maximum
         })
-        || state.claimed_by_tool.values().map(|value| u64::from(*value)).sum::<u64>()
+        || state
+            .claimed_by_tool
+            .values()
+            .map(|value| u64::from(*value))
+            .sum::<u64>()
             != u64::from(state.claimed_writes)
     {
         return None;
@@ -253,20 +286,28 @@ fn claim(home: &File, digest: &str, maximum: u32, tool_name: &str,
     if state.claimed_writes == maximum {
         return Some(ClaimOutcome::Exhausted);
     }
-    if tool_limit.is_some_and(|limit| state.claimed_by_tool.get(tool_name).copied().unwrap_or(0) >= limit) {
+    if tool_limit
+        .is_some_and(|limit| state.claimed_by_tool.get(tool_name).copied().unwrap_or(0) >= limit)
+    {
         return Some(ClaimOutcome::ToolExhausted);
     }
     let mut sources: BTreeSet<String> = state.cited_source_ids.into_iter().collect();
     sources.extend(cited.iter().cloned());
     if state.claimed_writes + 1 == maximum {
-        let missing: Vec<String> = required.iter()
-            .filter(|id| !sources.contains(*id)).cloned().collect();
+        let missing: Vec<String> = required
+            .iter()
+            .filter(|id| !sources.contains(*id))
+            .cloned()
+            .collect();
         if !missing.is_empty() {
             return Some(ClaimOutcome::MissingSources(missing));
         }
     }
     state.claimed_writes += 1;
-    *state.claimed_by_tool.entry(tool_name.to_owned()).or_insert(0) += 1;
+    *state
+        .claimed_by_tool
+        .entry(tool_name.to_owned())
+        .or_insert(0) += 1;
     state.cited_source_ids = sources.into_iter().collect();
     let raw = serde_json::to_vec(&state).ok()?;
     file.seek(SeekFrom::Start(0)).ok()?;
@@ -294,10 +335,14 @@ pub(crate) fn evaluate(request: &ClaimRequest) -> Result<Vec<u8>, String> {
             Ok(Some((_policy, _))) if !request.arguments.is_object() => {
                 ("block", "invalid_arguments", None, Vec::new())
             }
-            Ok(Some((policy, digest))) if request.tool_name.ends_with(".create")
-                || request.tool_name.ends_with(".create_draft")
-                || request.tool_name.ends_with(".post") => {
-                let reserved = request.arguments.get("record_id")
+            Ok(Some((policy, digest)))
+                if request.tool_name.ends_with(".create")
+                    || request.tool_name.ends_with(".create_draft")
+                    || request.tool_name.ends_with(".post") =>
+            {
+                let reserved = request
+                    .arguments
+                    .get("record_id")
                     .and_then(serde_json::Value::as_str)
                     .is_some_and(|id| policy.reserved_record_ids.iter().any(|held| held == id));
                 if reserved {
@@ -323,8 +368,12 @@ pub(crate) fn evaluate(request: &ClaimRequest) -> Result<Vec<u8>, String> {
     }))
 }
 
-fn claim_decision(home: &File, policy: &Policy, digest: &str, request: &ClaimRequest)
-    -> (&'static str, &'static str, Option<u32>, Vec<String>) {
+fn claim_decision(
+    home: &File,
+    policy: &Policy,
+    digest: &str,
+    request: &ClaimRequest,
+) -> (&'static str, &'static str, Option<u32>, Vec<String>) {
     let tool_limit = if policy.tool_write_limits.is_empty() {
         None
     } else if let Some(limit) = policy.tool_write_limits.get(&request.tool_name) {
@@ -333,13 +382,23 @@ fn claim_decision(home: &File, policy: &Policy, digest: &str, request: &ClaimReq
         return ("block", "tool_not_authorized", None, Vec::new());
     };
     let cited = cited_sources(&request.tool_name, &request.arguments);
-    match claim(home, digest, policy.max_writes, &request.tool_name,
-                tool_limit, &cited, &policy.required_source_ids) {
+    match claim(
+        home,
+        digest,
+        policy.max_writes,
+        &request.tool_name,
+        tool_limit,
+        &cited,
+        &policy.required_source_ids,
+    ) {
         Some(ClaimOutcome::Claimed(remaining)) => ("allow", "claimed", Some(remaining), Vec::new()),
         Some(ClaimOutcome::Exhausted) => ("block", "write_budget_exhausted", Some(0), Vec::new()),
-        Some(ClaimOutcome::MissingSources(missing)) =>
-            ("block", "required_source_references_missing", None, missing),
-        Some(ClaimOutcome::ToolExhausted) => ("block", "tool_write_limit_exhausted", None, Vec::new()),
+        Some(ClaimOutcome::MissingSources(missing)) => {
+            ("block", "required_source_references_missing", None, missing)
+        }
+        Some(ClaimOutcome::ToolExhausted) => {
+            ("block", "tool_write_limit_exhausted", None, Vec::new())
+        }
         None => ("block", "budget_state_invalid", None, Vec::new()),
     }
 }
@@ -425,18 +484,30 @@ mod tests {
                 std::thread::spawn(move || decision(&request)["decision"] == "allow")
             })
             .collect();
-        assert_eq!(threads.into_iter().map(|thread| thread.join().unwrap()).filter(|allowed| *allowed).count(), 2);
+        assert_eq!(
+            threads
+                .into_iter()
+                .map(|thread| thread.join().unwrap())
+                .filter(|allowed| *allowed)
+                .count(),
+            2
+        );
     }
 
     #[test]
     fn reserved_create_id_is_blocked_without_spending_a_write() {
         let (_root, mut request) = setup();
         let path = Path::new(&request.guard_home).join(POLICY_NAME);
-        std::fs::write(&path, serde_json::to_vec(&json!({
-            "schema": POLICY_SCHEMA, "max_writes": 2,
-            "read_only_tools": ["crm.read"],
-            "reserved_record_ids": ["lead-a"],
-        })).unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            serde_json::to_vec(&json!({
+                "schema": POLICY_SCHEMA, "max_writes": 2,
+                "read_only_tools": ["crm.read"],
+                "reserved_record_ids": ["lead-a"],
+            }))
+            .unwrap(),
+        )
+        .unwrap();
         request.tool_name = "mail.create_draft".into();
         request.arguments = json!({"record_id": "lead-a", "data": {}});
         assert_eq!(decision(&request)["reason"], "record_id_reserved");
@@ -448,11 +519,16 @@ mod tests {
     fn final_write_requires_trusted_provenance_coverage() {
         let (_root, mut request) = setup();
         let path = Path::new(&request.guard_home).join(POLICY_NAME);
-        std::fs::write(&path, serde_json::to_vec(&json!({
-            "schema": POLICY_SCHEMA, "max_writes": 2,
-            "read_only_tools": ["crm.read"],
-            "required_source_ids": ["contact-c"],
-        })).unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            serde_json::to_vec(&json!({
+                "schema": POLICY_SCHEMA, "max_writes": 2,
+                "read_only_tools": ["crm.read"],
+                "required_source_ids": ["contact-c"],
+            }))
+            .unwrap(),
+        )
+        .unwrap();
         request.arguments = json!({"record_id": "contact-a", "data": {"notes": [{
             "source_ids": ["contact-a"], "source_versions": {"contact-a": 1}
         }]}});
@@ -476,11 +552,16 @@ mod tests {
     fn tool_limits_reserve_draft_slots_from_extra_crm_updates() {
         let (_root, mut request) = setup();
         let path = Path::new(&request.guard_home).join(POLICY_NAME);
-        std::fs::write(&path, serde_json::to_vec(&json!({
-            "schema": POLICY_SCHEMA, "max_writes": 4,
-            "read_only_tools": ["crm.read"],
-            "tool_write_limits": {"crm.update": 2, "mail.create_draft": 2},
-        })).unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            serde_json::to_vec(&json!({
+                "schema": POLICY_SCHEMA, "max_writes": 4,
+                "read_only_tools": ["crm.read"],
+                "tool_write_limits": {"crm.update": 2, "mail.create_draft": 2},
+            }))
+            .unwrap(),
+        )
+        .unwrap();
         request.tool_name = "mail.send".into();
         assert_eq!(decision(&request)["reason"], "tool_not_authorized");
         request.tool_name = "crm.update".into();

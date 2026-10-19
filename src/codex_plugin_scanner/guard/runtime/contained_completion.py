@@ -22,6 +22,7 @@ from collections.abc import Callable, Mapping
 from contextlib import redirect_stderr, redirect_stdout, suppress
 from dataclasses import replace
 from pathlib import Path
+from typing import TextIO, cast
 
 from ..config import GuardConfig
 from ..models import GuardArtifact
@@ -66,7 +67,7 @@ def _binding(payload: Mapping[str, object], harness: str, workspace: Path) -> st
     append(harness)
     append(str(workspace.resolve(strict=True)))
     for name in ("session_id", "tool_call_id", "config_path"):
-        append(fields[name])
+        append(cast(str, fields[name]))
     append(tool_input["command"])
     if environment is None:
         raw.append(0)
@@ -117,7 +118,7 @@ def output_text(exit_code: int, stdout: str, stderr: str) -> str:
 class CompletionCapture(io.TextIOBase):
     """Forward normal CLI output while retaining bounded exact text for a digest."""
 
-    def __init__(self, stream: io.TextIOBase):
+    def __init__(self, stream: TextIO):
         self.stream = stream
         self.parts: list[str] = []
         self.size = 0
@@ -292,9 +293,9 @@ def completed_output_artifact(
 
 
 def run_with_completion(
-    run: Callable[[Callable], int],
+    run: Callable[[Callable[[dict[str, object]], object]], int],
     *,
-    authorize: Callable,
+    authorize: Callable[[dict[str, object]], object],
     payload: Mapping[str, object],
     harness: str,
     workspace: Path,
@@ -307,7 +308,7 @@ def run_with_completion(
         return run(authorize)
     receipts: list[str] = []
 
-    def checked(original):
+    def checked(original: dict[str, object]) -> object:
         answer = authorize(original)
         if (
             receipt_matches(answer)
