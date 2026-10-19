@@ -80,6 +80,19 @@ pub struct CodexPromptFileScopeV1 {
     pub deadline_ms: u64,
 }
 
+/// The Codex attachment scan's scope: the prompt text, the caller's home
+/// directory the managed attachment root sits under, and the configuration
+/// path the artifact records.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CodexPromptAttachmentScopeV1 {
+    pub prompt_text: String,
+    pub home_dir: String,
+    pub config_path: String,
+    /// Budget for the streaming scan, bounded again by the op.
+    pub deadline_ms: u64,
+}
+
 /// One post-tool hook payload projection: the commands, tool input and
 /// collected response text the credential-output review reads.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -112,6 +125,10 @@ pub enum CodexToolOutputActionV1 {
     /// The credential-looking prompt-file artifact (`value`): the prompt asks
     /// the harness to read a local dotfile whose content scans as credentials.
     PromptCredentialFile(CodexPromptFileScopeV1),
+    /// The guarded-instruction Codex attachment artifact (`value`): the prompt
+    /// names a file under the managed attachment root whose text carries
+    /// instructions Guard holds for review.
+    PromptAttachment(CodexPromptAttachmentScopeV1),
 }
 
 /// Observed caller facts.

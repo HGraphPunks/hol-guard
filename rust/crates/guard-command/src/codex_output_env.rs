@@ -178,6 +178,24 @@ pub trait InspectionHost {
     fn file_text_prefix(&self, _path: &str, _max_bytes: usize) -> Option<String> {
         None
     }
+    /// Whether any component of `path` below `base_dir` is a symbolic link
+    /// (`_path_contains_symlink`). A host that cannot answer reports `true`,
+    /// so an unverifiable attachment path is held rather than opened.
+    fn path_contains_symlink(&self, _path: &str, _base_dir: &str) -> bool {
+        true
+    }
+    /// A reader over the managed attachment named by `relative` under
+    /// `attachment_root`, opened without following links at any component and
+    /// verified to be a regular file. `None` is every `OSError` the Python
+    /// scan turns into an unscanned-attachment artifact, and a host without a
+    /// filesystem service.
+    fn attachment_reader(
+        &self,
+        _attachment_root: &str,
+        _relative: &[String],
+    ) -> Option<Box<dyn std::io::Read + '_>> {
+        None
+    }
 }
 
 /// Per-request context.

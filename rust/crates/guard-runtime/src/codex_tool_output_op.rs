@@ -190,6 +190,112 @@ impl InspectionHost for ResidentInspectionHost<'_> {
         file.take(max_bytes as u64).read_to_end(&mut bytes).ok()?;
         Some(guard_command::codex_prompt_credential_file::decode_ignoring_errors(&bytes))
     }
+
+    fn path_contains_symlink(&self, path: &str, base_dir: &str) -> bool {
+        let base = std::path::Path::new(base_dir);
+        let Ok(relative) = std::path::Path::new(path).strip_prefix(base) else {
+            // Not under the root it was measured against: refuse rather than
+            // walk a path that could leave it.
+            return true;
+        };
+        let mut candidate = base.to_path_buf();
+        for part in relative.components() {
+            let std::path::Component::Normal(name) = part else {
+                continue;
+            };
+            candidate.push(name);
+            match std::fs::symlink_metadata(&candidate) {
+                Ok(metadata) => {
+                    if metadata.file_type().is_symlink() {
+                        return true;
+                    }
+                }
+                Err(_) => return true,
+            }
+        }
+        false
+    }
+
+    #[cfg(unix)]
+    fn attachment_reader(
+        &self,
+        attachment_root: &str,
+        relative: &[String],
+    ) -> Option<Box<dyn std::io::Read + '_>> {
+        use std::os::unix::fs::MetadataExt;
+
+        use nix::fcntl::{open, openat, OFlag};
+        use nix::sys::stat::Mode;
+
+        let (last, parents) = relative.split_last()?;
+        if relative
+            .iter()
+            .any(|part| part.is_empty() || part == "." || part == "..")
+        {
+            return None;
+        }
+        let directory_flags =
+            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+        let resolved_root = std::fs::canonicalize(attachment_root).ok()?;
+        let root = std::fs::File::from(open(attachment_root, directory_flags, Mode::empty()).ok()?);
+        // The descriptor the walk starts from has to be the resolved root
+        // itself; an intermediate component of the spelling may have been
+        // retargeted while it was opened.
+        let opened = root.metadata().ok()?;
+        let expected = std::fs::symlink_metadata(&resolved_root).ok()?;
+        if opened.dev() != expected.dev() || opened.ino() != expected.ino() {
+            return None;
+        }
+        let mut directory = std::os::fd::OwnedFd::from(root);
+        for part in parents {
+            directory = openat(&directory, part.as_str(), directory_flags, Mode::empty()).ok()?;
+        }
+        let file = std::fs::File::from(
+            openat(
+                &directory,
+                last.as_str(),
+                OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+                Mode::empty(),
+            )
+            .ok()?,
+        );
+        if !file.metadata().ok()?.is_file() {
+            return None;
+        }
+        Some(Box::new(file))
+    }
+
+    /// Without `openat` the walk cannot be descriptor-relative, so the opened
+    /// path is resolved once and required to stay under the resolved root,
+    /// which is the branch CPython takes on the same platforms.
+    #[cfg(not(unix))]
+    fn attachment_reader(
+        &self,
+        attachment_root: &str,
+        relative: &[String],
+    ) -> Option<Box<dyn std::io::Read + '_>> {
+        if relative.is_empty()
+            || relative
+                .iter()
+                .any(|part| part.is_empty() || part == "." || part == "..")
+        {
+            return None;
+        }
+        let resolved_root = std::fs::canonicalize(attachment_root).ok()?;
+        let mut candidate = std::path::PathBuf::from(attachment_root);
+        for part in relative {
+            candidate.push(part);
+        }
+        let resolved = std::fs::canonicalize(&candidate).ok()?;
+        if !resolved.starts_with(&resolved_root) {
+            return None;
+        }
+        let file = std::fs::File::open(&resolved).ok()?;
+        if !file.metadata().ok()?.is_file() {
+            return None;
+        }
+        Some(Box::new(file))
+    }
 }
 
 fn request_digest(request: &CodexToolOutputRequestV1) -> Result<String, &'static str> {
@@ -250,6 +356,11 @@ fn action_is_bounded(action: &CodexToolOutputActionV1) -> bool {
         Action::PromptCredentialFile(scope) => {
             text_is_bounded(&scope.prompt_text)
                 && option_path_is_bounded(&scope.cwd)
+                && path_is_bounded(&scope.config_path)
+        }
+        Action::PromptAttachment(scope) => {
+            text_is_bounded(&scope.prompt_text)
+                && path_is_bounded(&scope.home_dir)
                 && path_is_bounded(&scope.config_path)
         }
     }

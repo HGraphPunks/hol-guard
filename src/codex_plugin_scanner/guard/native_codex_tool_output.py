@@ -139,6 +139,15 @@ def codex_tool_output_native(
                     "deadline_ms": int(deadline_ms),
                 }
             )
+        elif kind == "prompt_attachment":
+            action.update(
+                {
+                    "prompt_text": prompt_text or "",
+                    "home_dir": str(home_dir or ""),
+                    "config_path": str(config_path or ""),
+                    "deadline_ms": int(deadline_ms),
+                }
+            )
         elif kind in {"git_pathspec_identity", "local_content_tail", "git_metadata"}:
             action.update({"command": command, "cwd": _anchored(cwd)})
         else:
