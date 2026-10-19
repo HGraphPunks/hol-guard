@@ -56,8 +56,7 @@ def root():
     }
 
 
-@pytest.fixture
-def package(tmp_path, monkeypatch):
+def _use_native_metadata_compiler(monkeypatch):
     # Synthetic release bytes remain fixture IO; the candidate native validator
     # authenticates their manifests, executable digest and complete Root.
     binary_path = Path(
@@ -69,6 +68,11 @@ def package(tmp_path, monkeypatch):
         "run_source_compiler",
         lambda operation, request: native_source_compiler.run_source_compiler(operation, request, compiler=binary_path),
     )
+
+
+@pytest.fixture
+def package(tmp_path, monkeypatch):
+    _use_native_metadata_compiler(monkeypatch)
     monkeypatch.setattr(installed, "_package", lambda: tmp_path)
     directory = tmp_path / "guard/contracts/data/extensions/command-pack-bundle"
     directory.mkdir(parents=True)
@@ -271,6 +275,7 @@ def test_preparation_io_reuses_one_container_and_still_checks_each_member(packag
 
 @pytest.mark.parametrize("fault", [None, "engine", "source", "executable-engine"])
 def test_native_wheel_binds_both_manifests_and_executable(tmp_path, monkeypatch, fault):
+    _use_native_metadata_compiler(monkeypatch)
     from scripts import build_native_hol_guard_wheel as builder
     from scripts.native_wheel_metadata import ROOT
 
