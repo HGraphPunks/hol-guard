@@ -55,12 +55,10 @@ def test_recorded_expectations_cover_every_state_lockdown_and_action() -> None:
 @pytest.mark.parametrize("lockdown", [False, True])
 def test_resident_matches_the_recorded_expectations_for_every_bundled_package(lockdown: bool) -> None:
     mismatches: list[str] = []
-    shared_home = _AuthorityStore()  # one resident for the whole matrix
     for mcp_id, command, package, tool, state in _package_cases():
         catalog_id = "command." + mcp_id.replace(".", "-")
         layer = _layer(ControlLayerKind.LOCAL_ADMIN, catalog_id, ControlState.ENABLED, lockdown=lockdown)
         store = _AuthorityStore((layer,))
-        store.guard_home, store.path = shared_home.guard_home, shared_home.path
         artifact = _artifact(_identity(command, package), tool)
         for action in _ACTIONS:
             expected = expected_decision(state, lockdown, action)

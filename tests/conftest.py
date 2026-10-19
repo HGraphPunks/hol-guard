@@ -24,6 +24,7 @@ pytest_plugins = [
     "tests.approval_reuse_fixtures",
     "tests.native_runtime_fixtures",
     "tests.native_resident_teardown",
+    "tests.optional_command_catalog_fixtures",
 ]
 
 SRC_PATH = Path(__file__).resolve().parents[1] / "src"
