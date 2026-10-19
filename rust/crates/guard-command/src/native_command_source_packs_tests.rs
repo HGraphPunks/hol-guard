@@ -12,31 +12,46 @@ use crate::native_command_program::authored_test_support::{sources, stream};
 #[test]
 fn complete_release_is_deterministic_and_reconstructs_exact_native_programs() {
     let mut sources = sources();
-    let mut trust = sources[0].0["trust"].clone();
-    for ids in trust["classes"].as_object_mut().unwrap().values_mut() {
-        *ids = json!([]);
-    }
-    let mut commands = Vec::new();
-    let mut servers = Vec::new();
+    let mut documents = BTreeMap::new();
     for (metadata, source) in &sources {
-        if metadata["kind"] == "command" {
-            commands.push(source.as_slice());
+        let document: SourceDocument = if metadata["kind"] == "command" {
+            serde_json::from_slice(source).unwrap()
         } else {
-            servers.push(source.as_slice());
-        }
-        for (class, ids) in metadata["trust"]["classes"].as_object().unwrap() {
-            trust["classes"][class]
-                .as_array_mut()
-                .unwrap()
-                .extend(ids.as_array().unwrap().iter().cloned());
-        }
+            mcp::lower(source).unwrap().document
+        };
+        assert!(documents
+            .insert(document.extension.extension_id.clone(), document)
+            .is_none());
     }
-    let legacy = catalog::compile_catalog_with_mcp(
-        &commands,
-        &servers,
-        &serde_json::to_vec(&trust).unwrap(),
-    )
-    .unwrap();
+    let extension_ids = documents.keys().cloned().collect();
+    let permission_ids = documents
+        .values()
+        .flat_map(|document| &document.extension.permissions)
+        .map(|permission| permission.permission_id.clone())
+        .collect();
+    // Independent per-pack lowering retains native bounds while the streamed
+    // compiler validates every source and the complete relationship interface.
+    let expected: BTreeMap<_, _> = sources
+        .iter()
+        .map(|(metadata, source)| {
+            let (commands, servers) = if metadata["kind"] == "command" {
+                (vec![source.as_slice()], vec![])
+            } else {
+                (vec![], vec![source.as_slice()])
+            };
+            let pack = catalog::compile_pack(
+                &commands,
+                &servers,
+                &serde_json::to_vec(&metadata["trust"]).unwrap(),
+                (&extension_ids, &permission_ids),
+            )
+            .unwrap();
+            (
+                pack.catalog[0]["extension_id"].as_str().unwrap().to_owned(),
+                pack,
+            )
+        })
+        .collect();
     let mut bytes = Vec::new();
     let root = compile_pack_stream(stream(&sources).as_slice(), &mut bytes).unwrap();
     sources.reverse();
@@ -61,8 +76,9 @@ fn complete_release_is_deterministic_and_reconstructs_exact_native_programs() {
     fn visit(
         reference: objects::ObjectRef,
         fetch: &mut impl FnMut(&str) -> Result<Vec<u8>, &'static str>,
-        count: &mut usize,
-        legacy: &super::super::CompiledSourceCatalog,
+        seen: &mut BTreeSet<String>,
+        expected: &BTreeMap<String, super::super::CompiledSourceCatalog>,
+        interfaces: (&BTreeSet<String>, &BTreeSet<String>),
     ) {
         let page: Value =
             serde_json::from_slice(&objects::read_blob(&reference, fetch).unwrap()).unwrap();
@@ -71,12 +87,19 @@ fn complete_release_is_deterministic_and_reconstructs_exact_native_programs() {
                 visit(
                     serde_json::from_value(child[2].clone()).unwrap(),
                     fetch,
-                    count,
-                    legacy,
+                    seen,
+                    expected,
+                    interfaces,
                 );
             }
         } else {
             for entry in page["entries"].as_array().unwrap() {
+                let id = entry[0].as_str().unwrap();
+                assert!(
+                    seen.insert(id.to_owned()),
+                    "duplicate pack in release index"
+                );
+                let expected_pack = &expected[id];
                 let manifest: Value = serde_json::from_slice(
                     &objects::read_blob(&serde_json::from_value(entry[1].clone()).unwrap(), fetch)
                         .unwrap(),
@@ -97,19 +120,10 @@ fn complete_release_is_deterministic_and_reconstructs_exact_native_programs() {
                     )
                     .unwrap();
                 }
-                for (id, node) in program["nodes"].as_object().unwrap() {
-                    assert_eq!(Some(node), legacy.program["nodes"].get(id));
-                }
-                for rule in program["rules"].as_array().unwrap() {
-                    assert_eq!(
-                        Some(rule),
-                        legacy.program["rules"]
-                            .as_array()
-                            .unwrap()
-                            .iter()
-                            .find(|candidate| candidate["rule_id"] == rule["rule_id"])
-                    );
-                }
+                assert_eq!(
+                    program, expected_pack.program,
+                    "exact native program for {id}"
+                );
                 let catalog: Value = serde_json::from_slice(
                     &objects::read_blob(
                         &serde_json::from_value(manifest["catalog"].clone()).unwrap(),
@@ -118,17 +132,7 @@ fn complete_release_is_deterministic_and_reconstructs_exact_native_programs() {
                     .unwrap(),
                 )
                 .unwrap();
-                for row in catalog.as_array().unwrap() {
-                    assert_eq!(
-                        Some(row),
-                        legacy
-                            .catalog
-                            .as_array()
-                            .unwrap()
-                            .iter()
-                            .find(|candidate| candidate["extension_id"] == row["extension_id"])
-                    );
-                }
+                assert_eq!(catalog, expected_pack.catalog, "exact catalog for {id}");
                 let descriptors: Value = serde_json::from_slice(
                     &objects::read_blob(
                         &serde_json::from_value(manifest["descriptors"].clone()).unwrap(),
@@ -137,14 +141,14 @@ fn complete_release_is_deterministic_and_reconstructs_exact_native_programs() {
                     .unwrap(),
                 )
                 .unwrap();
-                for descriptor in descriptors.as_array().unwrap() {
-                    assert!(
-                        legacy.descriptors.contains(descriptor),
-                        "public contribution descriptor must remain byte-equivalent"
-                    );
-                }
-                super::super::super::NativeCommandProgram::validate_compiler_pack(
+                assert_eq!(
+                    descriptors,
+                    json!(expected_pack.descriptors),
+                    "exact descriptors for {id}"
+                );
+                super::super::super::NativeCommandProgram::validate_compiler_pack_with_interfaces(
                     &serde_json::to_vec(&program).unwrap(),
+                    interfaces,
                 )
                 .unwrap();
                 let own = program["extensions"]
@@ -156,18 +160,19 @@ fn complete_release_is_deterministic_and_reconstructs_exact_native_programs() {
                 if own["trust_class"] == "external" {
                     assert_eq!(own["activation"], "opt-in");
                 }
-                *count += 1;
             }
         }
     }
-    let mut count = 0;
+    let mut seen = BTreeSet::new();
     visit(
         serde_json::from_value(root["index"].clone()).unwrap(),
         &mut fetch,
-        &mut count,
-        &legacy,
+        &mut seen,
+        &expected,
+        (&extension_ids, &permission_ids),
     );
-    assert_eq!(count, sources.len());
+    assert_eq!(seen, extension_ids);
+    assert_eq!(seen.len(), sources.len());
 }
 
 #[test]

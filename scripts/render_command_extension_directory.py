@@ -48,13 +48,13 @@ CORE_EXTENSION_IDS = frozenset(
 @lru_cache(maxsize=1)
 def native_extensions():
     spec = importlib.util.spec_from_file_location(
-        "directory_render_native_inventory", Path(__file__).with_name("export_extension_directory.py")
+        "directory_render_native_inventory", Path(__file__).with_name("native_directory_inventory.py")
     )
     if spec is None or spec.loader is None:
         raise ValueError("Canonical native directory producer is unavailable")
-    exporter = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(exporter)
-    return exporter.native_extensions()
+    inventory = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(inventory)
+    return inventory.native_extensions()
 
 
 def _category(extension_id: str) -> str:
@@ -77,11 +77,11 @@ def _protection_model(extension: CommandSafetyExtension) -> str:
     return "Built in"
 
 
-def render_catalog() -> str:
+def render_catalog(*, extensions=None) -> str:
     """Return the deterministic Markdown catalog for the native authoring inventory."""
 
     grouped: dict[str, list[CommandSafetyExtension]] = {category: [] for category in CATEGORY_ORDER}
-    for extension in native_extensions():
+    for extension in native_extensions() if extensions is None else extensions:
         grouped[_category(extension.extension_id)].append(extension)
 
     sections: list[str] = []
@@ -102,14 +102,14 @@ def render_catalog() -> str:
     return "\n\n".join(sections)
 
 
-def render_document(current: str) -> str:
+def render_document(current: str, *, extensions=None) -> str:
     """Replace the generated catalog while preserving hand-authored guidance."""
 
     if current.count(START_MARKER) != 1 or current.count(END_MARKER) != 1:
         raise ValueError("Extension directory must contain exactly one generated marker pair")
     prefix, remainder = current.split(START_MARKER, 1)
     _generated, suffix = remainder.split(END_MARKER, 1)
-    return f"{prefix}{START_MARKER}\n\n{render_catalog()}\n\n{END_MARKER}{suffix}"
+    return f"{prefix}{START_MARKER}\n\n{render_catalog(extensions=extensions)}\n\n{END_MARKER}{suffix}"
 
 
 def main(argv: list[str] | None = None) -> int:

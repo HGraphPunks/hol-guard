@@ -38,7 +38,7 @@ def test_release_publication_reuses_one_hashed_build_artifact() -> None:
     )
     assert "--require-release-root" in native_pin["run"]
     assert "needs.build.outputs.channel != 'canary'" in str(native_pin.get("if", ""))
-    alpha_needs = ["build", "reserve-alpha-tag", "assemble-native-guard-distributions"]
+    alpha_needs = ["build", "reserve-alpha-tag", "assemble-native-guard-distributions", "publish-main-assets"]
     assert jobs["publish-alpha-testpypi"]["needs"] == alpha_needs
     assert jobs["publish-alpha-pypi"]["needs"] == alpha_needs
     assemble = jobs["assemble-native-guard-distributions"]

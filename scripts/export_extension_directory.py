@@ -298,11 +298,11 @@ def _render(payload: dict[str, object]) -> str:
     return rendered
 
 
-def render_directories(root: Path = ROOT) -> dict[Path, str]:
+def render_directories(root: Path = ROOT, *, extensions=None) -> dict[Path, str]:
     """Render both public versions from one validated source snapshot."""
 
     sources, listing_sources, command_sources = _snapshot(root)
-    v1 = _export_directory(sources, listing_sources)
+    v1 = _export_directory(sources, listing_sources, extensions=extensions)
     v2 = _export_directory_v2(v1, sources, listing_sources, command_sources)
     return {OUTPUT_V1: _render(v1), OUTPUT_V2: _render(v2)}
 

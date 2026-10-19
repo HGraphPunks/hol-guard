@@ -380,10 +380,8 @@ def exercise(root: Path, target: Path, results: list[dict[str, object]]) -> None
     verify()
     require(export() == baseline and not descriptor.exists(), "source removal did not restore the original inventory")
     record("source_only_remove")
-    run([sys.executable, "scripts/export_extension_directory.py"], root, env)
-    run([sys.executable, "scripts/render_command_extension_directory.py"], root, env)
-    run([sys.executable, "scripts/export_extension_directory.py", "--check"], root, env)
-    run([sys.executable, "scripts/render_command_extension_directory.py", "--check"], root, env)
+    run([sys.executable, "scripts/prepare_extension_directory.py", "--compiler", str(compiler)], root, env)
+    run([sys.executable, "scripts/prepare_extension_directory.py", "--compiler", str(compiler), "--check"], root, env)
     require(
         all(digest(path) == value for path, value in preserved.items()), "an unrelated fixture or test was rewritten"
     )

@@ -151,6 +151,9 @@ def delivery(inventory, tmp_path, monkeypatch):
     monkeypatch.setattr(release_transport, "managed_urlopen", mirror)
     monkeypatch.setattr(transport, "_NATIVE_PACKAGE", inventory["native"])
     monkeypatch.setattr(transport, "_PACKAGED_PROGRAM", inventory["program"])
+    # This fixture exercises installed compiler identity, not checkout overrides.
+    monkeypatch.delenv("HOL_GUARD_NATIVE_SOURCE_COMPILER", raising=False)
+    monkeypatch.delenv("HOL_GUARD_NATIVE_TEST_SOURCE_COMPILER", raising=False)
     monkeypatch.setattr(installed_bundle, "_package", lambda: inventory["package"])
     version = transport.metadata.version
     monkeypatch.setattr(transport.metadata, "version", lambda n: "3.50.0a1" if n == "hol-guard" else version(n))

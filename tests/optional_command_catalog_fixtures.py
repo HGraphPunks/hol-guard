@@ -13,9 +13,13 @@ import pytest
 
 COMMAND_MODULES = {
     "test_retired_command_extension_continuity",
+    "test_syngraphe_safe_evidence",
     *(
         f"test_guard_command_{name}_extensions"
-        for name in ("agentbridge", "blitcp", "digline", "ollama", "tui_runner", "skill_sunset")
+        for name in (
+            "agentbridge", "blitcp", "digline", "noodle", "ollama", "probe",
+            "remote", "repo2nb", "tui_runner", "skill_sunset", "vttforge",
+        )
     ),
 }
 
@@ -39,7 +43,7 @@ def optional_command_catalog(request, monkeypatch, tmp_path):
     if module not in COMMAND_MODULES:
         return
 
-    from codex_plugin_scanner.guard import native_pretool
+    from codex_plugin_scanner.guard import native_command_model, native_hook_edge, native_policy_snapshot
     from codex_plugin_scanner.guard.catalog_delivery import preparation
     from codex_plugin_scanner.guard.runtime import command_evaluation
     from codex_plugin_scanner.guard.runtime.extension_control_authority import (
@@ -60,8 +64,7 @@ def optional_command_catalog(request, monkeypatch, tmp_path):
     from tests import native_command_test_support as support
     from tests.mcp_policy_native_fixture import _BINDINGS
 
-    delivery = request.getfixturevalue("mcp_policy_delivery")
-    monkeypatch.setattr(mcp_policy_catalog_fixture, "_DELIVERY", [delivery])
+    delivery = []
     original_prepare = preparation.prepare
 
     def private_prepare(verified, enabled, directory, **kwargs):
@@ -74,6 +77,15 @@ def optional_command_catalog(request, monkeypatch, tmp_path):
         return original_prepare(verified, enabled, directory, **kwargs)
 
     monkeypatch.setattr(preparation, "prepare", private_prepare)
+    published_snapshots = {}
+    original_snapshot = native_policy_snapshot.native_policy_snapshot_v3
+
+    def capture_snapshot(**kwargs):
+        snapshot = original_snapshot(**kwargs)
+        published_snapshots[kwargs["guard_home"]] = snapshot
+        return snapshot
+
+    monkeypatch.setattr(native_policy_snapshot, "native_policy_snapshot_v3", capture_snapshot)
     monkeypatch.setattr(command_evaluation, "BUILT_IN_COMMAND_EXTENSION_REGISTRY", catalog)
     monkeypatch.setattr(command_extension_contracts, "BUILT_IN_COMMAND_EXTENSION_REGISTRY", catalog)
     monkeypatch.setattr(support, "BUILT_IN_COMMAND_EXTENSION_REGISTRY", catalog)
@@ -98,6 +110,9 @@ def optional_command_catalog(request, monkeypatch, tmp_path):
     ):
         assert not managed_controls and not managed_global_lockdown
         assert health is AuthorityHealth.PROTECTED
+        if not delivery:
+            delivery.append(request.getfixturevalue("mcp_policy_delivery"))
+            monkeypatch.setattr(mcp_policy_catalog_fixture, "_DELIVERY", delivery)
         key = (controls, global_lockdown)
         if key not in homes:
             layer = ExtensionControlLayer(
@@ -130,12 +145,28 @@ def optional_command_catalog(request, monkeypatch, tmp_path):
         current[0] = guard_home
         rows = []
         for command in commands:
-            payload = native_pretool.review_pre_tool_native(
-                command, guard_home=guard_home, cwd=cwd, home_dir=home_dir,
-                execution_environment=support._native_test_execution_environment(home_dir) if home_dir else None,
-                timeout_seconds=10,
+            shell_home = home_dir or guard_home
+            edge = native_hook_edge.review_raw_hook_native(
+                payload={
+                    "tool_name": "Bash",
+                    "tool_input": {"command": command},
+                    "guard_execution_environment": support._native_test_execution_environment(shell_home),
+                },
+                harness="claude-code",
+                event="PreToolUse",
+                guard_home=guard_home,
+                cwd=cwd,
+                home_dir=shell_home,
+                source_ref_external_allowed=False,
+                observe_mode=False,
+                deadline=None,
+                policy_snapshot=published_snapshots[guard_home],
             )
-            assert payload is not None, "authenticated optional command resident unavailable"
+            assert edge is not None, "authenticated optional command resident unavailable"
+            payload = dict(edge["result"])
+            model = native_command_model.review_command_model_native(command, guard_home=guard_home)
+            assert model is not None, "native command model unavailable"
+            payload["command_model"] = model
             admitted = _BINDINGS[guard_home]
             evidence_binding = payload["command_extensions"]["binding"]
             for field in ("program_digest", "catalog_digest", "trust_digest", "effective_digest"):

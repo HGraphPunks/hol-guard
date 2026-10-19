@@ -1256,12 +1256,13 @@ jobs:
   publish-testpypi:
     name: Publish PR canary to TestPyPI
     if: >-
+      needs.publish-main-assets.result == 'success' &&
       always() && !cancelled() && needs.build.result == 'success' && needs.assemble-native-guard-distributions.result == 'success' &&
       vars.PR_CANARY_PUBLISHING_ENABLED == 'true' &&
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       contains(github.event.pull_request.labels.*.name, 'publish-testpypi-canary')
-    needs: [build, assemble-native-guard-distributions]
+    needs: [build, assemble-native-guard-distributions, publish-main-assets]
     runs-on: ubuntu-latest
     environment: testpypi
     permissions:
@@ -1575,6 +1576,7 @@ jobs:
   publish-alpha-testpypi:
     name: Verify alpha artifact on TestPyPI
     if: >-
+      needs.publish-main-assets.result == 'success' &&
       always() &&
       vars.RELEASE_PUBLISHING_ENABLED == 'true' &&
       vars.ALPHA_TESTPYPI_ENABLED == 'true' &&
@@ -1586,7 +1588,7 @@ jobs:
         (github.event_name == 'workflow_dispatch' && github.run_attempt == 1) ||
         (github.event_name == 'push' && github.ref == 'refs/heads/release/3.0')
       )
-    needs: [build, reserve-alpha-tag, assemble-native-guard-distributions]
+    needs: [build, reserve-alpha-tag, assemble-native-guard-distributions, publish-main-assets]
     runs-on: ubuntu-latest
     environment: testpypi
     permissions:
@@ -1700,6 +1702,7 @@ jobs:
   publish-alpha-pypi:
     name: Publish alpha to PyPI
     if: >-
+      needs.publish-main-assets.result == 'success' &&
       always() &&
       vars.RELEASE_PUBLISHING_ENABLED == 'true' &&
       needs.build.result == 'success' &&
@@ -1710,7 +1713,7 @@ jobs:
         (github.event_name == 'workflow_dispatch' && github.run_attempt == 1) ||
         (github.event_name == 'push' && github.ref == 'refs/heads/release/3.0')
       )
-    needs: [build, reserve-alpha-tag, assemble-native-guard-distributions]
+    needs: [build, reserve-alpha-tag, assemble-native-guard-distributions, publish-main-assets]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -1912,6 +1915,7 @@ jobs:
   publish-main-testpypi:
     name: Verify main artifact on TestPyPI
     if: >-
+      needs.publish-main-assets.result == 'success' &&
       always() &&
       vars.RELEASE_PUBLISHING_ENABLED == 'true' &&
       vars.MAIN_TESTPYPI_ENABLED == 'true' &&
@@ -1923,7 +1927,7 @@ jobs:
       needs.build.result == 'success' &&
       needs.assemble-native-guard-distributions.result == 'success' &&
       needs.build.outputs.channel == 'stable'
-    needs: [build, assemble-native-guard-distributions]
+    needs: [build, assemble-native-guard-distributions, publish-main-assets]
     runs-on: ubuntu-latest
     environment: testpypi
     permissions:
@@ -2105,6 +2109,7 @@ jobs:
   publish-main-pypi:
     name: Publish main release to PyPI
     if: >-
+      needs.publish-main-assets.result == 'success' &&
       always() &&
       vars.RELEASE_PUBLISHING_ENABLED == 'true' &&
       github.event_name == 'workflow_dispatch' &&
@@ -2116,7 +2121,7 @@ jobs:
       needs.assemble-native-guard-distributions.result == 'success' &&
       needs.reserve-main-tag.result == 'success' &&
       needs.build.outputs.channel == 'stable'
-    needs: [build, assemble-native-guard-distributions, reserve-main-tag]
+    needs: [build, assemble-native-guard-distributions, reserve-main-tag, publish-main-assets]
     outputs:
       pypi_deferred: ${{ steps.pypi_quota.outputs.blocked }}
     runs-on: ubuntu-latest
@@ -2396,20 +2401,20 @@ jobs:
           fi
 
   publish-main-assets:
-    name: Publish verified main release assets
+    name: Publish and verify native assets before registries
     if: >-
-      always() &&
-      vars.RELEASE_PUBLISHING_ENABLED == 'true' &&
-      github.event_name == 'workflow_dispatch' &&
-      github.run_attempt == 1 &&
-      (github.ref == 'refs/heads/main' || github.ref == format('refs/tags/v{0}', github.event.inputs.release_version)) &&
-      github.event.inputs.release_channel == 'stable' &&
-      github.event.inputs.release_train == 'main' &&
+      always() && !cancelled() &&
       needs.build.result == 'success' &&
       needs.assemble-native-guard-distributions.result == 'success' &&
-      needs.reserve-main-tag.result == 'success' &&
-      needs.build.outputs.channel == 'stable'
-    needs: [build, assemble-native-guard-distributions, reserve-main-tag]
+      (
+        (needs.build.outputs.channel == 'stable' && needs.reserve-main-tag.result == 'success') ||
+        (needs.build.outputs.channel == 'alpha' && needs.reserve-alpha-tag.result == 'success') ||
+        (needs.build.outputs.channel == 'canary' && github.event_name == 'pull_request' &&
+         github.event.pull_request.head.repo.full_name == github.repository &&
+         contains(github.event.pull_request.labels.*.name, 'publish-testpypi-canary') &&
+         vars.PR_CANARY_PUBLISHING_ENABLED == 'true')
+      )
+    needs: [build, assemble-native-guard-distributions, reserve-main-tag, reserve-alpha-tag]
     runs-on: ubuntu-latest
     outputs:
       core_ready: ${{ steps.core-inputs.outputs.core_ready }}
@@ -2424,6 +2429,9 @@ jobs:
           fetch-depth: 0
           filter: blob:none
           ref: ${{ github.sha }}
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884
+        with:
+          version: "0.9.26"
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: distributions-native
@@ -2449,13 +2457,14 @@ jobs:
         env:
           VERSION: ${{ needs.build.outputs.version }}
         run: cp "${{ steps.provenance.outputs.bundle-path }}" "dist/hol-guard-v${VERSION}.intoto.jsonl"
-      - name: Publish immutable package inputs for Desktop signing
+      - name: Publish and remotely verify immutable package inputs
         id: core-inputs
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.build.outputs.version }}
           SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
-        run: python scripts/release/publish_core_inputs.py --directory dist
+          CHANNEL: ${{ needs.build.outputs.channel }}
+        run: uv run --no-project --with packaging==25.0 python -m scripts.release.publish_core_inputs --directory dist
       - name: Retain exact provenance for final release verification
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
@@ -2658,6 +2667,9 @@ jobs:
             if [[ -s "$RUNNER_TEMP/release-notes.md" ]]; then
               gh release edit "$tag" --notes-file "$RUNNER_TEMP/release-notes.md"
             fi
+            if [[ "$RELEASE_REPAIR" != "true" ]]; then
+              gh release edit "$tag" --latest
+            fi
             exit 0
           fi
           body_file="$RUNNER_TEMP/release-notes.md"
@@ -2821,8 +2833,8 @@ jobs:
           SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
         run: python3 scripts/ci/generate_release_notes.py --version "$VERSION" --channel "$CHANNEL" --repo "$GITHUB_REPOSITORY" --source-sha "$SOURCE_SHA" --output "$RUNNER_TEMP/release-notes.md"
       - name: Wait for the PyPI publication to succeed
-        # Attestation and release notes overlap PyPI publication; the prerelease is
-        # still created only after "Publish alpha to PyPI" succeeds in this run attempt.
+        # Native assets are already public through publish-main-assets. Final release
+        # notes are applied only after registry publication succeeds in this attempt.
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/release/wait_for_run_job.py --job-name "Publish alpha to PyPI"
@@ -2875,6 +2887,8 @@ jobs:
               GH_TOKEN="$WORKFLOW_GH_TOKEN" gh attestation verify "$remote_file" --repo "$GITHUB_REPOSITORY" \
                 --bundle "$bundle" --source-digest "$SOURCE_SHA" >/dev/null
             done
+            [[ -s "$RUNNER_TEMP/release-notes.md" ]]
+            gh release edit "$tag" --title "Guard ${VERSION} alpha" --notes-file "$RUNNER_TEMP/release-notes.md"
             exit 0
           fi
           body_file="$RUNNER_TEMP/release-notes.md"

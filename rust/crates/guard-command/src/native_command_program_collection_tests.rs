@@ -5,7 +5,7 @@ use serde_json::json;
 mod scale_tests;
 
 fn source() -> Value {
-    crate::native_command_program::authored_test_support::full_catalog()
+    crate::native_command_program::authored_test_support::bounded_catalog()
         .program
         .clone()
 }
@@ -158,7 +158,8 @@ fn defaults(source: &Value) -> BTreeSet<String> {
 fn default_collection_excludes_unselected_payload_and_preserves_observations() {
     let source = source();
     let ids = defaults(&source);
-    let oracle = crate::native_command_program::authored_test_support::full_program();
+    let oracle =
+        NativeCommandProgram::from_packaged_bytes(&serde_json::to_vec(&source).unwrap()).unwrap();
     let collection = NativeCommandProgram::combine_admitted_packs(selected(&source, &ids)).unwrap();
     assert!(collection.extensions.len() < oracle.extensions.len());
     assert!(collection.nodes.len() < oracle.nodes.len());

@@ -11,7 +11,7 @@ import pytest
 
 from codex_plugin_scanner.guard.extension_builder.errors import BuilderError
 from tests.extension_builder_support import REPOSITORY
-from tests.support.extension_directory import copy_projected_contribution_sources
+from tests.support.extension_directory import bounded_extensions, copy_projected_contribution_sources
 
 spec = importlib.util.spec_from_file_location(
     "guard_directory_export", REPOSITORY / "scripts/export_extension_directory.py"
@@ -22,19 +22,27 @@ sys.modules[spec.name] = exporter
 spec.loader.exec_module(exporter)
 
 
-def test_export_is_deterministic() -> None:
-    first = exporter.render_directory()
-    assert first == exporter.render_directory()
+@pytest.fixture(autouse=True)
+def legacy_inventory(monkeypatch):
+    monkeypatch.setattr(exporter, "native_extensions", bounded_extensions)
+
+
+def test_export_is_deterministic(tmp_path: Path) -> None:
+    root = copy_sources(tmp_path)
+    first = exporter.render_directory(root)
+    assert first == exporter.render_directory(root)
     payload = json.loads(first)
     assert payload["schemaVersion"] == "guard.extension-directory.v1"
     ids = [row["id"] for row in payload["entries"]]
     assert ids == sorted(set(ids))
-    v2 = exporter.render_directory_v2()
-    assert v2 == exporter.render_directory_v2()
+    v2 = exporter.render_directory_v2(root)
+    assert v2 == exporter.render_directory_v2(root)
     assert json.loads(v2)["schemaVersion"] == "guard.extension-directory.v2"
 
 
-def test_paired_directory_render_uses_one_validated_source_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_paired_directory_render_uses_one_validated_source_snapshot(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     source_calls = 0
     listing_calls = 0
     original_sources = exporter._sources
@@ -54,7 +62,7 @@ def test_paired_directory_render_uses_one_validated_source_snapshot(monkeypatch:
 
     monkeypatch.setattr(exporter, "_sources", sources)
     monkeypatch.setattr(exporter, "_listings", listings)
-    rendered = exporter.render_directories()
+    rendered = exporter.render_directories(copy_sources(tmp_path))
     assert (source_calls, listing_calls) == (1, 1)
     v1 = json.loads(rendered[exporter.OUTPUT_V1])
     v2 = json.loads(rendered[exporter.OUTPUT_V2])

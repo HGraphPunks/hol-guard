@@ -3,9 +3,12 @@
 //! The authoring script checks these only in the nightly extension builder, so
 //! an evaluator change could leave a fixture's expectation stale until then.
 
-use guard_command::native_command_program::source::{compile_catalog_with_mcp, run_fixtures};
+use base64::{engine::general_purpose::STANDARD, Engine};
+use guard_command::native_command_program::source::{
+    compile_pack_stream, lookup_pack, read_pack_blob, run_fixtures,
+};
 use serde_json::{json, Value};
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
 fn fixture_paths() -> Vec<PathBuf> {
     let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../tests/fixtures");
@@ -52,6 +55,20 @@ fn validation_catalog() -> Value {
     for class in trust["classes"].as_object_mut().unwrap().values_mut() {
         *class = json!([]);
     }
+    fn frame(stream: &mut Vec<u8>, bytes: &[u8]) {
+        stream.extend((bytes.len() as u32).to_be_bytes());
+        stream.extend(bytes);
+    }
+    let count = commands.len() + servers.len();
+    let mut stream = b"HGPS\x01".to_vec();
+    frame(
+        &mut stream,
+        &serde_json::to_vec(&json!({
+            "schema":"guard.command-pack-source-stream.v1", "count":count
+        }))
+        .unwrap(),
+    );
+    let mut ids = Vec::new();
     for (mcp, bytes) in commands
         .iter()
         .map(|bytes| (false, bytes))
@@ -79,24 +96,65 @@ fn validation_catalog() -> Value {
         .unwrap();
         assert_eq!(binding["schemaVersion"], "guard.extension-trust-binding.v1");
         assert_eq!(binding["extension"], id);
-        trust["classes"][binding["trustClass"].as_str().unwrap()]
-            .as_array_mut()
-            .unwrap()
-            .push(json!(id));
+        let mut source_trust = trust.clone();
+        source_trust["classes"][binding["trustClass"].as_str().unwrap()] = json!([id]);
+        frame(
+            &mut stream,
+            &serde_json::to_vec(&json!({
+                "kind":if mcp { "mcp" } else { "command" }, "trust":source_trust
+            }))
+            .unwrap(),
+        );
+        frame(&mut stream, bytes);
+        ids.push(id);
     }
-    let command_records = commands.iter().map(Vec::as_slice).collect::<Vec<_>>();
-    let server_records = servers.iter().map(Vec::as_slice).collect::<Vec<_>>();
-    let compiled = compile_catalog_with_mcp(
-        &command_records,
-        &server_records,
-        &serde_json::to_vec(&trust).unwrap(),
-    )
-    .expect("canonical native catalog validates before fixture simulation");
-    assert_eq!(
-        compiled.catalog.as_array().unwrap().len(),
-        commands.len() + servers.len()
-    );
-    compiled.catalog
+    // Validate the complete release through the production pack compiler; the
+    // fixture interface needs metadata, never a monolithic native program.
+    let mut output = Vec::new();
+    let release = compile_pack_stream(stream.as_slice(), &mut output)
+        .expect("canonical native release validates before fixture simulation");
+    assert_eq!(release["extensions"], count);
+    let objects: BTreeMap<String, Vec<u8>> = output
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            let row: Value = serde_json::from_slice(line).unwrap();
+            (
+                row["sha256"].as_str().unwrap().to_owned(),
+                STANDARD.decode(row["data"].as_str().unwrap()).unwrap(),
+            )
+        })
+        .collect();
+    let mut fetch = |id: &str| {
+        objects
+            .get(id)
+            .cloned()
+            .ok_or("missing fixture pack object")
+    };
+    let index = serde_json::from_value(release["index"].clone()).unwrap();
+    let mut catalog = BTreeMap::new();
+    for id in ids {
+        let reference = lookup_pack(&index, count, &id, &mut fetch)
+            .unwrap()
+            .unwrap();
+        let manifest: Value =
+            serde_json::from_slice(&read_pack_blob(&reference, &mut fetch).unwrap()).unwrap();
+        let rows: Vec<Value> = serde_json::from_slice(
+            &read_pack_blob(
+                &serde_json::from_value(manifest["catalog"].clone()).unwrap(),
+                &mut fetch,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["extension_id"], id);
+        assert!(catalog
+            .insert(id, rows.into_iter().next().unwrap())
+            .is_none());
+    }
+    assert_eq!(catalog.len(), count);
+    Value::Array(catalog.into_values().collect())
 }
 
 #[test]

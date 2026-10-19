@@ -279,7 +279,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             for extension_id in sorted(public_ids):
                 projection.extend(["--publish-descriptor", extension_id])
-        directory = [sys.executable, str(ROOT / "scripts/export_extension_directory.py")]
+        directory = [sys.executable, str(ROOT / "scripts/prepare_extension_directory.py"), "--compiler", str(compiler)]
         if args.check:
             projection.append("--check")
             directory.append("--check")
