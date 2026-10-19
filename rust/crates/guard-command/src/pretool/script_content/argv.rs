@@ -53,6 +53,19 @@ pub(crate) fn argv_script(argv: &[String], cwd: Option<&Path>) -> ArgvScript {
     let Some((language, operand, path)) = script_operand(segment, cwd) else {
         return ArgvScript::NotAScript;
     };
+    // The script must be the launcher's first argument (after `run` for bun
+    // and deno). An option before it can load code (`-r`, `--import`,
+    // `--preload`) or an environment file (`--env-file`) that this scan never
+    // reads, so such a launch keeps the command-line scan.
+    let Some(index) = script_index(segment, operand) else {
+        return ArgvScript::NotAScript;
+    };
+    let after = &segment.arguments[index + 1..];
+    // An argument naming a shell or an interpreter is a command the script
+    // may run (`cross-env X=1 sh -c …`, a spawn runner), not its data.
+    if after.iter().any(|argument| names_a_program(argument)) {
+        return ArgvScript::NotAScript;
+    }
     let Some(path) = path else {
         return ArgvScript::Unreadable;
     };
@@ -69,15 +82,55 @@ pub(crate) fn argv_script(argv: &[String], cwd: Option<&Path>) -> ArgvScript {
         };
         credential_store |= CREDENTIAL_STORE.is_match(&code);
     }
-    let after = segment
-        .arguments
-        .iter()
-        .position(|argument| argument == operand)
-        .map_or(&[][..], |index| &segment.arguments[index + 1..]);
     ArgvScript::Read {
         exfiltrates: network && credential_store,
         arguments: after.to_vec(),
     }
+}
+
+/// Shells and interpreters, and the launchers that run one.
+const PROGRAMS: &[&str] = &[
+    "sh",
+    "bash",
+    "zsh",
+    "dash",
+    "ksh",
+    "fish",
+    "pwsh",
+    "powershell",
+    "cmd",
+    "node",
+    "nodejs",
+    "bun",
+    "bunx",
+    "deno",
+    "tsx",
+    "npx",
+    "python",
+    "python3",
+    "perl",
+    "ruby",
+    "php",
+    "env",
+    "xargs",
+    "eval",
+    "exec",
+];
+
+fn names_a_program(argument: &str) -> bool {
+    let name = super::super::executable_basename(argument).to_ascii_lowercase();
+    let name = name.strip_suffix(".exe").unwrap_or(&name);
+    PROGRAMS.contains(&name) || name.starts_with("python3.")
+}
+
+/// Where the script operand sits: first, or after `run` for bun and deno.
+fn script_index(segment: &crate::CommandSegmentV1, operand: &str) -> Option<usize> {
+    let name = super::super::executable_basename(segment.executable.as_deref()?);
+    let index = match segment.arguments.first() {
+        Some(run) if run == "run" && matches!(name, "bun" | "deno") => 1,
+        _ => 0,
+    };
+    (segment.arguments.get(index).map(String::as_str) == Some(operand)).then_some(index)
 }
 
 /// The script `segment` launches, its operand and its readable file. A Node

@@ -69,8 +69,9 @@ def native_protect_request(
         "guard_home": "",
         "store_path": str(store_path) if store_path is not None else None,
         "command": [str(item) for item in command],
-        # A custom command that launches a relative script is read from here.
-        "cwd": str(cwd) if cwd is not None else None,
+        # A custom command that launches a relative script is read from here;
+        # the resident reads a script only against an absolute directory.
+        "cwd": str(Path(cwd).absolute()) if cwd is not None else None,
     }
     try:
         home = _resolve_digest_home(guard_home)
