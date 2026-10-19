@@ -137,8 +137,10 @@ export default function (api: any) {
           }
           const input = JSON.parse(snapshot.serialized).tool_input;
           originalInputs.set(event.toolCallId, input);
+          // The native sink may use its full 300s budget plus capture time.
+          // Keep OMP's own Bash deadline beyond that bounded relay window.
           const transport = { ...input, command: '/usr/bin/python3 /runtime/public/contained_exec_relay.py --token '
-            + response.execution_token };
+            + response.execution_token, timeout: 360 };
           const transportJson = canonical(transport);
           presentations.set(event.toolCallId, { sessionId: request.session_id, inputJson, transportJson });
           presentationBytes += Buffer.byteLength(inputJson) + Buffer.byteLength(transportJson);

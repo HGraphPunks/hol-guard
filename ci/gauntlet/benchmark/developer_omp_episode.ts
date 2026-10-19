@@ -134,6 +134,17 @@ async function main() {
   if (cfgExtensionHandlersToolCallTimeoutMs.get(settings) !== 380_000) {
     throw new Error('actual OMP tool_call timeout differs from contained execution budget');
   }
+  // The SDK otherwise backgrounds a long Bash call while NativeHook is still
+  // executing it. The next model turn can then outlive the private hook plane
+  // without the mandatory native Post receipt. Keep each call foregrounded.
+  const { cfgBashAutoBackgroundEnabled } =
+    await import(join(config.sdkRoot, 'src/exec/settings.ts'));
+  const { cfgAsyncEnabled } = await import(join(config.sdkRoot, 'src/tools/settings.ts'));
+  cfgBashAutoBackgroundEnabled.override(settings, false);
+  cfgAsyncEnabled.override(settings, false);
+  if (cfgBashAutoBackgroundEnabled.get(settings) !== false || cfgAsyncEnabled.get(settings) !== false) {
+    throw new Error('actual OMP Bash execution must remain foregrounded for native Post review');
+  }
   const registry = new sdk.ModelRegistry(auth, join(config.agentDir, 'models.yml'), { settings });
   registry.registerProvider('benchmark-local', {
     baseUrl: 'http://127.0.0.1:8001/v1', api: 'openai-completions', authHeader: false,
