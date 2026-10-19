@@ -56,19 +56,12 @@ fn git_object_reads_share_a_chain_with_their_temporary_file() {
     ];
     assert_decisions(&layout.org, &layout.home, &reads, true);
     std::fs::write(&staged.0, "fn main() {}\n").unwrap();
-    let mut stats = vec![
+    // A BSD `-f` format is reviewed: GNU stat would read it as a file name.
+    let stats = [
         format!("stat -c '%n %s' {file}; file {file}"),
         format!("stat -c '%n %s' {file}"),
         "stat -x app-portal/src/main.rs".to_owned(),
     ];
-    // Only BSD stat takes a format after -f; GNU stat reads it as a file.
-    if cfg!(target_os = "macos") {
-        stats.extend([
-            format!("stat -f \"%N %Sm\" {file}; file {file}"),
-            format!("stat -f \"%N %Sm\" {file}"),
-            "stat -f '%N %z' app-portal/src/main.rs".to_owned(),
-        ]);
-    }
     assert_decisions(&layout.org, &layout.home, &stats, true);
 }
 

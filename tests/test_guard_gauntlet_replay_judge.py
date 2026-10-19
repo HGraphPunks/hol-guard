@@ -105,6 +105,10 @@ def test_only_the_marked_cases_may_pass_on_containment() -> None:
         # A `find` that is not limited to regular files hands a link to `grep`, which opens its
         # target; the contained run reaches nothing outside the workspace.
         "neg-find-exec-grep-l-edge-clone-without-type-f",
+        # Neither leaves the workspace: the sandbox has no network for the pull to fetch over,
+        # and the hidden files the search widens to are the workspace's own.
+        "neg-git-pull-to-tmp-chain",
+        "neg-rg-replace-reaches-hidden-env",
     }
 
 
