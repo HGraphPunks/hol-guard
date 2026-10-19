@@ -380,6 +380,7 @@ fn derive(workspace: &str) -> Mirror<Option<String>> {
     };
     let key = cache::Key::new(
         python_strip(workspace),
+        &path,
         &repository.git_dir,
         &repository.config,
         &repository.head_log,

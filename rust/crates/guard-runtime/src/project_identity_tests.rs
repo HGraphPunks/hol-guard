@@ -215,6 +215,39 @@ fn workspaces_reached_through_a_symlink_resolve_to_their_real_path() {
     fs::remove_dir_all(&root).ok();
 }
 
+/// The identity records the workspace's path inside the repository, so a
+/// link retargeted to another directory of the same repository has to be
+/// read again rather than answered from the entry kept under its spelling.
+#[cfg(unix)]
+#[test]
+fn a_retargeted_link_is_not_answered_from_the_first_directory() {
+    let root = scratch("retargeted");
+    repository(&root);
+    for name in ["first", "second"] {
+        fs::create_dir_all(root.join(name)).expect("workspace dir");
+    }
+    let link = root.join("link");
+    std::os::unix::fs::symlink(root.join("first"), &link).expect("symlink");
+    let workspace = link.to_str().expect("utf-8").to_owned();
+
+    let PortableIdentity::Identity(first) = resolve(&workspace) else {
+        panic!("the repository resolves");
+    };
+    // Nothing the Git metadata prints has moved, so only the resolved path
+    // keeps the second directory from reading the first one's identity.
+    fs::remove_file(&link).expect("link");
+    std::os::unix::fs::symlink(root.join("second"), &link).expect("symlink");
+    let PortableIdentity::Identity(second) = resolve(&workspace) else {
+        panic!("the repository resolves");
+    };
+    assert_ne!(first, second);
+    assert_eq!(
+        resolve(root.join("second").to_str().expect("utf-8")),
+        PortableIdentity::Identity(second)
+    );
+    fs::remove_dir_all(&root).ok();
+}
+
 #[test]
 fn reflog_lines_split_like_splitlines() {
     let remote = "https://github.com/example/repo.git";
