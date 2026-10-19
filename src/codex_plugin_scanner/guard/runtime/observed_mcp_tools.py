@@ -91,7 +91,9 @@ def observed_mcp_tool(
     if canonical_harness is None:
         return None
     harness = canonical_harness
-    if harness in _FLATTENED_NAME_HARNESSES:
+    # A `__` after the server is the boundary every harness marks itself, so it
+    # keeps its established parse; only an unmarked name needs the servers.
+    if harness in _FLATTENED_NAME_HARNESSES and "__" not in tool_name[5:]:
         flattened = _flattened_tool(harness, tool_name, configured_servers)
         if flattened is not None:
             return flattened
@@ -120,17 +122,24 @@ def observed_mcp_tool(
 
 def _flattened_tool(harness: str, tool_name: str, configured_servers: Sequence[str]) -> ObservedMcpTool | None:
     rest = tool_name[5:]
-    flattened = sorted(
-        {(name.replace("-", "_"), name) for name in configured_servers if _TOKEN.fullmatch(name)},
-        key=lambda pair: (-len(pair[0]), pair[0], pair[1]),
+    owners: dict[str, set[str]] = {}
+    for name in configured_servers:
+        if _TOKEN.fullmatch(name):
+            owners.setdefault(name.replace("-", "_"), set()).add(name)
+    # Names that flatten alike (`foo-bar`, `foo_bar`) cannot be told apart from
+    # a call, so neither owns it.
+    candidates = sorted(
+        ((flat, next(iter(names))) for flat, names in owners.items() if len(names) == 1 and not flat.endswith("_")),
+        key=lambda pair: (-len(pair[0]), pair[0]),
     )
-    for flat, name in flattened:
+    for flat, name in candidates:
         name_part = rest[len(flat) + 1 :]
-        # An empty or underscore-led remainder is not a tool name here; the
-        # ordinary double-underscore parse handles `mcp__<server>__<tool>`.
+        # An empty or underscore-led remainder is not a tool name here.
         if not rest.startswith(flat + "_") or not name_part or name_part.startswith("_"):
             continue
-        namespace = "mcp__" + flat + "__"
+        # The namespace keeps the configured spelling, as a configured remote
+        # server's does, so both resolve to one connector.
+        namespace = "mcp__" + name + "__"
         if len(name_part) > 120 or len(namespace) > 155 or not _TOKEN.fullmatch(name_part):
             continue
         return ObservedMcpTool(

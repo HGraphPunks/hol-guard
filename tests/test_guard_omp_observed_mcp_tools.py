@@ -89,7 +89,7 @@ def test_omp_flattened_name_splits_against_configured_server() -> None:
     assert tool is not None
     assert (tool.server_name, tool.name) == ("truenas-pilot", "status")
     assert tool.harness == "omp"
-    assert tool.namespace == "mcp__truenas_pilot__"
+    assert tool.namespace == "mcp__truenas-pilot__"
     assert tool.qualified_name == "mcp__truenas_pilot_status"
 
 
@@ -130,6 +130,46 @@ def test_omp_double_underscore_name_still_splits_as_before() -> None:
     assert tool is not None
     assert (tool.server_name, tool.name) == ("truenas", "status")
     assert tool.namespace == "mcp__truenas__"
+
+
+def test_omp_double_underscore_name_is_not_taken_by_a_shorter_configured_server() -> None:
+    tool = observed_mcp_tool("omp", "mcp__truenas_pilot__status", ["truenas"])
+
+    assert tool is not None
+    assert (tool.server_name, tool.name, tool.namespace) == ("truenas_pilot", "status", "mcp__truenas_pilot__")
+
+
+def test_omp_server_ending_in_underscore_does_not_capture_double_underscore_names() -> None:
+    tool = observed_mcp_tool("omp", "mcp__foo__tool", ["foo_"])
+
+    assert tool is not None
+    assert (tool.server_name, tool.namespace) == ("foo", "mcp__foo__")
+    assert observed_mcp_tool("omp", "mcp__foo_tool", ["foo_"]) is None
+
+
+def test_omp_names_that_flatten_alike_belong_to_neither_server() -> None:
+    assert observed_mcp_tool("omp", "mcp__foo_bar_tool", ["foo-bar", "foo_bar"]) is None
+
+
+def test_omp_flattened_name_shares_a_connector_with_its_configured_remote_server() -> None:
+    from codex_plugin_scanner.guard.adapters.harness_mcp_remote import _remote_server
+
+    remote = _remote_server(
+        GuardArtifact(
+            artifact_id="omp:mcp:truenas-pilot",
+            name="truenas-pilot",
+            harness="omp",
+            artifact_type="mcp_server",
+            source_scope="global",
+            config_path="mcp.json",
+            url="https://pilot.example.com/mcp",
+        )
+    )
+    observed = observed_mcp_tool("omp", "mcp__truenas_pilot_status", ["truenas-pilot"])
+
+    assert remote is not None and observed is not None
+    assert remote.tool.namespace == observed.namespace
+    assert remote.tool.identity.cli_id == observed.identity.cli_id
 
 
 def test_other_harnesses_never_use_configured_servers_to_split() -> None:

@@ -929,6 +929,7 @@ class LocalCliApiService:
         except (OSError, RuntimeError, TypeError, ValueError, KeyError, UnicodeError, sqlite3.Error):
             # A failed read leaves no remote snapshot to reconcile against.
             self._remote_discovery_cache = None
+            self._configured_names = {}
             if strict:
                 raise DiscoveryStageError("configured_host_scan_failed") from None
             return ()
