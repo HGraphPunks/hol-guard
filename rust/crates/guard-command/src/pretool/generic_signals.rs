@@ -16,6 +16,42 @@ pub(crate) const EMBEDDED_ARGUMENT_KEYS: [&str; 12] = [
     "params",
 ];
 
+/// Every key whose value may name a file the tool reads or writes.
+const PATH_KEYS: [&str; 11] = [
+    "path",
+    "paths",
+    "file",
+    "files",
+    "file_path",
+    "filePath",
+    "file_paths",
+    "target_file",
+    "targetFile",
+    "target_directory",
+    "targetDirectory",
+];
+
+/// Whether the payload names its targets and that list is empty, which is a
+/// request to read nothing. A payload with no path key at all is a different
+/// case: the target may sit under a key this extractor does not read, so it
+/// must not pass as an empty request.
+fn empty_path_collection(maps: &[&Map<String, Value>]) -> bool {
+    let mut present = false;
+    for record in maps {
+        for key in PATH_KEYS {
+            let Some(value) = record.get(key) else {
+                continue;
+            };
+            present = true;
+            match value {
+                Value::Array(items) if items.is_empty() => {}
+                _ => return false,
+            }
+        }
+    }
+    present
+}
+
 pub(crate) fn extract_generic_signals(
     payload: &Value,
 ) -> Result<GenericSignals, GenericExtractionError> {
@@ -53,22 +89,7 @@ pub(crate) fn extract_generic_signals(
     }
     let command = collect_commands(&maps)?;
     let tool_name = collect_tool_names(payload)?;
-    let mut path_values = collect_key_strings(
-        &maps,
-        &[
-            "path",
-            "paths",
-            "file",
-            "files",
-            "file_path",
-            "filePath",
-            "file_paths",
-            "target_file",
-            "targetFile",
-            "target_directory",
-            "targetDirectory",
-        ],
-    )?;
+    let mut path_values = collect_key_strings(&maps, &PATH_KEYS)?;
     // Adapter aliases can repeat one target; distinct targets must still
     // prevent the single-file benign proof.
     path_values.sort();
@@ -137,6 +158,7 @@ pub(crate) fn extract_generic_signals(
         tool_name,
         package_present: !package_values.is_empty(),
         package_values,
+        empty_read_request: path_values.is_empty() && empty_path_collection(&maps),
         path_values,
         url_values,
         request_body_or_method: request_body_or_method(&maps),

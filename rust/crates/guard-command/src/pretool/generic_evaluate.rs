@@ -301,6 +301,23 @@ pub(super) fn evaluate_signals(
             "This Oh My Pi read selector is outside the bounded native proof and requires review.",
         );
     }
+    // A read that names its targets and names none of them opens no file, so
+    // there is nothing to prove safe and nothing to protect. Cline's install
+    // canary sends exactly this shape, and reviewing it asks the user to
+    // approve a call that reads nothing.
+    if action_type == PreToolActionTypeV1::FileRead
+        && signals.empty_read_request
+        && !signals.sensitive_target
+        && signals.url_values.is_empty()
+        && signals.command.is_none()
+    {
+        return generic_result(
+            action,
+            "allow",
+            "native_empty_file_read_request",
+            "This read names no file to open, so it reads nothing.",
+        );
+    }
     if action_type == PreToolActionTypeV1::FileRead
         && !signals.sensitive_target
         && signals.url_values.is_empty()
