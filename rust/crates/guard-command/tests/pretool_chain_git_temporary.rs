@@ -7,8 +7,8 @@
 //! Working-tree Git commands, execution sinks, `cd`, hidden and credential
 //! paths keep their review.
 
-use crate::pretool_home_layout_reads::{assert_decision, layout};
-use std::path::PathBuf;
+use crate::pretool_home_layout_reads::{decide, layout};
+use std::path::{Path, PathBuf};
 
 struct Temporary(PathBuf);
 
@@ -16,6 +16,19 @@ impl Drop for Temporary {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.0);
     }
+}
+
+/// Check every command before failing, so one run reports each mismatch.
+fn assert_decisions(cwd: &Path, home: &Path, commands: &[String], allowed: bool) {
+    let mismatches: Vec<String> = commands
+        .iter()
+        .filter_map(|command| {
+            let result = decide(cwd, home, command);
+            ((result.decision == "allow") != allowed)
+                .then(|| format!("{command}: {} {}", result.decision, result.reason_code))
+        })
+        .collect();
+    assert!(mismatches.is_empty(), "{mismatches:#?}");
 }
 
 fn temporary(name: &str) -> Temporary {
@@ -32,7 +45,7 @@ fn git_object_reads_share_a_chain_with_their_temporary_file() {
     let layout = layout("git-temporary");
     let staged = temporary("allowed");
     let file = staged.0.display();
-    for command in [
+    let reads = [
         format!("git -C app-portal show HEAD:src/main.rs > {file} && wc -l {file}"),
         format!("git -C app-portal show HEAD:src/main.rs > {file}; wc -l {file}"),
         format!("git -C app-portal log --oneline -3 > {file} && head -2 {file}"),
@@ -40,19 +53,23 @@ fn git_object_reads_share_a_chain_with_their_temporary_file() {
         format!(
             "git -C app-portal show HEAD:src/main.rs > {file} && grep -n main {file} | head -5"
         ),
-    ] {
-        assert_decision(&layout.org, &layout.home, &command, true);
-    }
+    ];
+    assert_decisions(&layout.org, &layout.home, &reads, true);
     std::fs::write(&staged.0, "fn main() {}\n").unwrap();
-    for command in [
-        format!("stat -f \"%N %Sm\" {file}; file {file}"),
-        format!("stat -f \"%N %Sm\" {file}"),
+    let mut stats = vec![
+        format!("stat -c '%n %s' {file}; file {file}"),
         format!("stat -c '%n %s' {file}"),
-        "stat -f '%N %z' app-portal/src/main.rs".to_owned(),
         "stat -x app-portal/src/main.rs".to_owned(),
-    ] {
-        assert_decision(&layout.org, &layout.home, &command, true);
+    ];
+    // Only BSD stat takes a format after -f; GNU stat reads it as a file.
+    if cfg!(target_os = "macos") {
+        stats.extend([
+            format!("stat -f \"%N %Sm\" {file}; file {file}"),
+            format!("stat -f \"%N %Sm\" {file}"),
+            "stat -f '%N %z' app-portal/src/main.rs".to_owned(),
+        ]);
     }
+    assert_decisions(&layout.org, &layout.home, &stats, true);
 }
 
 #[test]
@@ -64,9 +81,10 @@ fn temporary_git_chains_keep_working_tree_sink_and_path_boundaries() {
     std::fs::write(layout.home.join(".ssh/id_rsa"), "synthetic key\n").unwrap();
     std::fs::write(layout.org.join("app-portal/.env"), "TOKEN=synthetic\n").unwrap();
     let home = layout.home.display();
-    for command in [
+    let reviewed = [
         // Working-tree Git commands and a write flag stay out of the chain.
-        format!("git -C app-portal status --short > {file}; cat {file}"),
+        // (`git status` is left out: this harness enables its permission.)
+        format!("git -C app-portal pull --ff-only > {file}; cat {file}"),
         format!("git -C app-portal checkout -b other > {file}; cat {file}"),
         format!("git -C app-portal diff --output={file}.out > {file}; wc -l {file}"),
         // The saved text reaches an execution sink, or the chain re-anchors.
@@ -85,7 +103,6 @@ fn temporary_git_chains_keep_working_tree_sink_and_path_boundaries() {
         "stat -f '%N'".to_owned(),
         "stat --file-system app-portal/src/main.rs".to_owned(),
         "stat -f '%N' $(cat app-portal/src/main.rs)".to_owned(),
-    ] {
-        assert_decision(&layout.org, &layout.home, &command, false);
-    }
+    ];
+    assert_decisions(&layout.org, &layout.home, &reviewed, false);
 }
