@@ -1,0 +1,10 @@
+[package]
+name = "gauntlet-contracts"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+description = "Bounded, canonical JSON contracts for the HOL Guard Gauntlet migration"
+
+[dependencies]
+serde_json = "=1.0.151"
+sha2 = "=0.10.9"
