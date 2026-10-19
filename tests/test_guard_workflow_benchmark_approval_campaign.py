@@ -2,6 +2,7 @@
 import base64
 import copy
 import json
+import stat
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -29,7 +30,7 @@ RUNTIME = {'bun': '/public/bun', 'sdk_root': '/public/sdk', 'model_id': 'local-m
 def negative_scheduling_callback(**kwargs):
     """No model messages/effects are generated; test only the driver handoff."""
     root = kwargs['root']
-    root.mkdir()
+    root.mkdir(mode=0o700)
     variant = next(v for v in load_approval_variants() if v['id'] == kwargs['variant_id'])
     initial = load_fixture(variant['workflow_id'])
     key = Ed25519PrivateKey.generate()
@@ -96,11 +97,31 @@ def test_negative_scheduling_retains_context_and_independent_resume_rejects_tamp
     assert report['model_tokens'] == 0 and report['model_usage_known'] is False
     hashes = audit_approval_attempt(path, report)
     assert {'preparation-state.json', 'approval-context.json', 'approval-claims.json'} <= hashes.keys()
+    assert stat.S_IMODE((path / 'preparation-state.json').stat().st_mode) == 0o600
     state = json.loads((path / 'preparation-state.json').read_text())
     state['records'][0]['version'] += 1
     (path / 'preparation-state.json').write_text(canonical_json(state))
     with pytest.raises(ValueError, match='state/context/claims'):
         audit_approval_attempt(path, report)
+
+
+def test_approval_evidence_writer_refuses_shared_or_symlinked_attempt_directory(tmp_path):
+    from ci.gauntlet.benchmark.approval_campaign import _write
+
+    shared = tmp_path / 'shared'
+    shared.mkdir(mode=0o755)
+    shared.chmod(0o755)
+    with pytest.raises(ValueError, match='owner-only'):
+        _write(shared / 'approval-state.json', {'synthetic': True})
+    assert not (shared / 'approval-state.json').exists()
+
+    private = tmp_path / 'private'
+    private.mkdir(mode=0o700)
+    alias = tmp_path / 'alias'
+    alias.symlink_to(private, target_is_directory=True)
+    with pytest.raises(ValueError, match='owner-only'):
+        _write(alias / 'approval-state.json', {'synthetic': True})
+    assert not (private / 'approval-state.json').exists()
 
 
 def test_resume_recomputes_oracle_instead_of_trusting_retained_success(tmp_path):

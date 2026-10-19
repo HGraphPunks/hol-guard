@@ -8,6 +8,8 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
+import stat
 from pathlib import Path
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -48,8 +50,19 @@ def _read(path: Path):
 
 
 def _write(path: Path, value):
-    with path.open('x') as stream:
+    # Approval evidence contains synthetic private records and the public
+    # verification key. Keep it in the controller's owner-only attempt directory.
+    parent = path.parent.lstat()
+    if not stat.S_ISDIR(parent.st_mode) or parent.st_uid != os.getuid() or stat.S_IMODE(parent.st_mode) != 0o700:
+        raise ValueError('approval evidence requires an owner-only attempt directory')
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+        # Only the private synthetic approval attempt is written here; a
+        # public verification key is not a secret. Real credentials are absent.
+        # codeql[py/clear-text-storage-sensitive-data]
         stream.write(canonical_json(value) + '\n')
+        stream.flush()
+        os.fsync(stream.fileno())
 
 
 def _hash(path: Path):
