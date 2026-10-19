@@ -29,7 +29,7 @@ const POLICY_NAME: &str = "mcp-task-write-budget.json";
 const LOCK_NAME: &str = "mcp-task-write-budget.lock";
 const STATE_NAME: &str = "mcp-task-write-budget-state.json";
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct ClaimRequest {
     schema: String,
