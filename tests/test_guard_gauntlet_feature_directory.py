@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -27,7 +28,7 @@ def _git(path: Path, home: Path, *args: str) -> str:
     environment = {
         "HOME": str(home),
         "GIT_CONFIG_NOSYSTEM": "1",
-        "PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin",
+        "PATH": os.environ.get("PATH", ""),
     }
     result = subprocess.run(
         ["git", "-C", str(path), *args], env=environment, check=True, capture_output=True, text=True
