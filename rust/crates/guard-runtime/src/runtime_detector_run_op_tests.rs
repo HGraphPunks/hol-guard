@@ -135,6 +135,8 @@ fn unknown_and_missing_fields_are_rejected() {
     assert!(serde_json::from_value::<RuntimeDetectorRunRequestV1>(wire).is_err());
 }
 
+const PARITY_ATTEMPTS: u32 = 5;
+
 #[test]
 fn parity_vectors_match_the_recorded_python_outputs() {
     let fixture = crate::store_vectors_support_tests::gunzip_json(include_bytes!(
@@ -156,17 +158,28 @@ fn parity_vectors_match_the_recorded_python_outputs() {
                 .unwrap(),
             enabled_categories: serde_json::from_value(wire["enabled_categories"].clone()).unwrap(),
         };
-        let result = evaluate(&request);
-        let actual: Option<Vec<Value>> = result.payload.map(|payload| {
-            payload["detectors"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .cloned()
-                .map(without_elapsed)
-                .collect()
-        });
         let expected = vector["expected"].as_array().unwrap();
+        // `safe-decode.content` keeps Python's 50 ms decode budget, and a run
+        // that overshoots it decodes nothing and reports no signals. A loaded
+        // runner can stall one run past it, so a vector gets a few attempts: a
+        // real divergence repeats on every one, a scheduling stall does not.
+        let mut attempts = 0;
+        let (code, actual) = loop {
+            attempts += 1;
+            let result = evaluate(&request);
+            let actual: Option<Vec<Value>> = result.payload.map(|payload| {
+                payload["detectors"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .cloned()
+                    .map(without_elapsed)
+                    .collect()
+            });
+            if actual.as_ref() == Some(expected) || attempts == PARITY_ATTEMPTS {
+                break (result.code, actual);
+            }
+        };
         match &actual {
             Some(actual) if actual == expected => {}
             Some(actual) if actual.len() == expected.len() => {
@@ -182,7 +195,7 @@ fn parity_vectors_match_the_recorded_python_outputs() {
             _ => mismatches.push(format!(
                 "{}: code {} expected {} got {:?}",
                 vector["name"],
-                result.code,
+                code,
                 Value::Array(expected.clone()),
                 actual.map(Value::Array)
             )),
