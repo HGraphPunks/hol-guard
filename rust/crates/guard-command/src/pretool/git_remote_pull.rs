@@ -170,9 +170,10 @@ pub(super) fn pull_inert(
     // resolves outside the checkout is not.
     // `git merge` and `git pull` honour `pager.<command>`, which may name a
     // program Git starts when the output is a terminal.
+    let paged =
+        pager_enabled(effective, "merge") || (pull.fetches && pager_enabled(effective, "pull"));
     !routed
-        && !pager_enabled(effective, "merge")
-        && !(pull.fetches && pager_enabled(effective, "pull"))
+        && !paged
         && !repository_lfs_program(repository)
         && !repository.contains_key("core.hookspath")
         && effective.get("core.hookspath").is_none_or(|values| {
