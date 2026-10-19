@@ -228,3 +228,18 @@ fn an_older_run_that_writes_late_does_not_hide_a_newer_runs_failure() {
     );
     fs::remove_dir_all(scope).expect("remove failure-log test scope");
 }
+
+#[test]
+fn an_empty_record_does_not_hold_off_an_earlier_runs_failure() {
+    // Taking the record's lock opens it, which creates an empty file stamped
+    // now. That file is no later run's record.
+    let scope = temp_scope("empty-record");
+    drop(open_record(&scope).expect("open record"));
+    let started = std::time::SystemTime::now() - std::time::Duration::from_secs(10);
+    write_run_unless_superseded(&scope, b"failure\n", None, started);
+    assert_eq!(
+        fs::read_to_string(ResidentFailureLog::path(&scope)).expect("read record"),
+        "failure\n"
+    );
+    fs::remove_dir_all(scope).expect("remove failure-log test scope");
+}

@@ -72,19 +72,7 @@ impl ResidentFailureLog {
     }
 
     fn create(&self) -> Option<File> {
-        let private_root = crate::resident_state::private_root_for_scope(&self.scope).ok()?;
-        let path = Self::path(&self.scope);
-        #[cfg(windows)]
-        let mut file = {
-            let (file, directory_binding) =
-                crate::resident_state::private_lock_file(&path, &private_root).ok()?;
-            // The supervisor must not hold a directory barrier for the
-            // resident's lifetime; other clients still bind this ancestry.
-            drop(directory_binding);
-            file
-        };
-        #[cfg(not(windows))]
-        let mut file = crate::resident_state::private_lock_file(&path, &private_root).ok()?;
+        let mut file = open_record(&self.scope)?;
         file.set_len(0).ok()?;
         file.rewind().ok()?;
         Some(file)
@@ -117,6 +105,24 @@ impl ResidentFailureLog {
     }
 }
 
+/// Open the scope's record without truncating it.
+fn open_record(scope: &Path) -> Option<File> {
+    let private_root = crate::resident_state::private_root_for_scope(scope).ok()?;
+    let path = ResidentFailureLog::path(scope);
+    #[cfg(windows)]
+    let file = {
+        let (file, directory_binding) =
+            crate::resident_state::private_lock_file(&path, &private_root).ok()?;
+        // The supervisor must not hold a directory barrier for the
+        // resident's lifetime; other clients still bind this ancestry.
+        drop(directory_binding);
+        file
+    };
+    #[cfg(not(windows))]
+    let file = crate::resident_state::private_lock_file(&path, &private_root).ok()?;
+    Some(file)
+}
+
 /// Read a resident's stderr to end of file, keeping at most the bytes the
 /// record can hold. The pipe is drained past that bound so a resident never
 /// blocks on a stderr write that nobody is reading, and the bytes are held
@@ -144,27 +150,27 @@ pub(crate) fn collect_resident_stderr(mut reader: impl Read) -> Vec<u8> {
 /// Publish one run with no ordering check.
 #[cfg(test)]
 pub(crate) fn write_run(scope: &Path, stderr: &[u8], note: Option<&str>) {
-    let _ = publish_run(scope, stderr, note);
+    let _ = publish_run(ResidentFailureLog::for_scope(scope), stderr, note);
 }
 
 /// Publish one supervised run: the resident's stderr, then the supervisor's
 /// own classification of the exit. The note is written from space reserved
 /// for it, so a resident that floods stderr cannot push the one line that
 /// explains the exit out of the record.
-fn publish_run(scope: &Path, stderr: &[u8], note: Option<&str>) -> Option<ResidentFailureLog> {
+fn publish_run(
+    mut record: ResidentFailureLog,
+    stderr: &[u8],
+    note: Option<&str>,
+) -> ResidentFailureLog {
     let reserved = note.map_or(0, |note| note.len() + 1);
     let kept = MAX_RESIDENT_FAILURE_BYTES
         .saturating_sub(reserved)
         .min(stderr.len());
-    if kept == 0 && note.is_none() {
-        return None;
-    }
-    let mut record = ResidentFailureLog::for_scope(scope);
     record.append(&stderr[..kept]);
     if let Some(note) = note {
         record.note(note);
     }
-    Some(record)
+    record
 }
 
 /// Publish one supervised run unless a later run has already published its
@@ -177,19 +183,45 @@ fn publish_run(scope: &Path, stderr: &[u8], note: Option<&str>) -> Option<Reside
 /// takes its run's start as its modification time. Otherwise an older run
 /// that writes late, after a newer run has started, would make that newer
 /// run's own failure look superseded.
+///
+/// The check, the rewrite and the timestamp all happen under one exclusive
+/// lock on the record, so two supervisors finishing together cannot both
+/// pass the check and let the older one overwrite the newer record. The
+/// lock goes with the handle when this returns.
 pub(crate) fn write_run_unless_superseded(
     scope: &Path,
     stderr: &[u8],
     note: Option<&str>,
     run_started: SystemTime,
 ) {
-    let superseded = std::fs::symlink_metadata(ResidentFailureLog::path(scope))
-        .and_then(|metadata| metadata.modified())
-        .is_ok_and(|recorded_run| recorded_run > run_started);
-    if superseded {
+    if stderr.is_empty() && note.is_none() {
+        // A clean run leaves the previous failure in place.
         return;
     }
-    if let Some(file) = publish_run(scope, stderr, note).and_then(|record| record.file) {
+    let Some(mut file) = open_record(scope) else {
+        return;
+    };
+    if fs2::FileExt::lock_exclusive(&file).is_err() {
+        return;
+    }
+    // Opening may have just created the file, and a published record is
+    // never empty, so only a non-empty record can be a later run's.
+    let superseded = file.metadata().is_ok_and(|metadata| {
+        metadata.len() > 0
+            && metadata
+                .modified()
+                .is_ok_and(|recorded_run| recorded_run > run_started)
+    });
+    if superseded || file.set_len(0).is_err() || file.rewind().is_err() {
+        return;
+    }
+    let record = ResidentFailureLog {
+        scope: scope.to_owned(),
+        file: Some(file),
+        written: 0,
+        refused: false,
+    };
+    if let Some(file) = publish_run(record, stderr, note).file {
         let _ = file.set_modified(run_started);
     }
 }
