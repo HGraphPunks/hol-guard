@@ -13,8 +13,6 @@ import json
 import os
 import sqlite3
 import sys
-import tarfile
-import zipfile
 from pathlib import Path
 
 from ci.gauntlet.realism_fixtures import activate_script
@@ -196,17 +194,3 @@ def _application_database(path: Path) -> None:
         connection.commit()
     finally:
         connection.close()
-
-
-def _stage_source_archives(sources: Path, tarball: Path, archive_path: Path) -> None:
-    """Roll a checkout's sources into the two archives an agent inspects from /tmp.
-
-    The gate never runs a command, but a listing case names a path an agent
-    would really have created a moment earlier, so the archives are real files.
-    """
-    with tarfile.open(tarball, "w:gz") as tar:
-        tar.add(sources, arcname="src")
-    with zipfile.ZipFile(archive_path, "w") as archive:
-        for path in sorted(sources.rglob("*")):
-            if path.is_file():
-                archive.write(path, arcname=str(Path("src") / path.relative_to(sources)))

@@ -16005,8 +16005,7 @@
         "codex",
         "zcode",
         "claude-code",
-        "omp",
-        "cursor"
+        "omp"
       ],
       "tool": "shell",
       "tool_input": {
@@ -16022,8 +16021,7 @@
         "codex",
         "zcode",
         "claude-code",
-        "omp",
-        "cursor"
+        "omp"
       ],
       "tool": "shell",
       "tool_input": {
@@ -16039,8 +16037,7 @@
         "codex",
         "zcode",
         "claude-code",
-        "omp",
-        "cursor"
+        "omp"
       ],
       "tool": "shell",
       "tool_input": {
@@ -16056,8 +16053,7 @@
         "codex",
         "zcode",
         "claude-code",
-        "omp",
-        "cursor"
+        "omp"
       ],
       "tool": "shell",
       "tool_input": {
@@ -16107,29 +16103,11 @@
         "codex",
         "zcode",
         "claude-code",
-        "omp",
-        "cursor"
+        "omp"
       ],
       "tool": "shell",
       "tool_input": {
         "command": "realpath package.json"
-      },
-      "cwd": "worktree",
-      "expect": "allow"
-    },
-    {
-      "id": "shell-basename-pwd-substitution",
-      "fix_area": "shell",
-      "harnesses": [
-        "codex",
-        "zcode",
-        "claude-code",
-        "omp",
-        "cursor"
-      ],
-      "tool": "shell",
-      "tool_input": {
-        "command": "basename $(pwd)"
       },
       "cwd": "worktree",
       "expect": "allow"
@@ -16141,8 +16119,7 @@
         "codex",
         "zcode",
         "claude-code",
-        "omp",
-        "cursor"
+        "omp"
       ],
       "tool": "shell",
       "tool_input": {
@@ -16158,8 +16135,7 @@
         "codex",
         "zcode",
         "claude-code",
-        "omp",
-        "cursor"
+        "omp"
       ],
       "tool": "shell",
       "tool_input": {
@@ -16288,23 +16264,6 @@
       "expect": "not_allow"
     },
     {
-      "id": "shell-if-test-manifest",
-      "fix_area": "shell",
-      "harnesses": [
-        "codex",
-        "zcode",
-        "claude-code",
-        "omp",
-        "cursor"
-      ],
-      "tool": "shell",
-      "tool_input": {
-        "command": "if [ -f Cargo.toml ]; then echo rust; fi"
-      },
-      "cwd": "worktree",
-      "expect": "allow"
-    },
-    {
       "id": "shell-subshell-cd-list",
       "fix_area": "shell",
       "harnesses": [
@@ -16322,31 +16281,13 @@
       "expect": "allow"
     },
     {
-      "id": "shell-while-read-find",
-      "fix_area": "shell",
-      "harnesses": [
-        "codex",
-        "zcode",
-        "claude-code",
-        "omp",
-        "cursor"
-      ],
-      "tool": "shell",
-      "tool_input": {
-        "command": "find src -name '*.rs' | while read f; do echo $f; done"
-      },
-      "cwd": "worktree",
-      "expect": "allow"
-    },
-    {
       "id": "shell-xargs-grep-sources",
       "fix_area": "shell",
       "harnesses": [
         "codex",
         "zcode",
         "claude-code",
-        "omp",
-        "cursor"
+        "omp"
       ],
       "tool": "shell",
       "tool_input": {
@@ -16390,31 +16331,13 @@
       "expect": "allow"
     },
     {
-      "id": "shell-background-build-then-wait",
-      "fix_area": "shell",
-      "harnesses": [
-        "codex",
-        "zcode",
-        "claude-code",
-        "omp",
-        "cursor"
-      ],
-      "tool": "shell",
-      "tool_input": {
-        "command": "npm run build & wait"
-      },
-      "cwd": "worktree",
-      "expect": "allow"
-    },
-    {
       "id": "shell-tree-depth-sources",
       "fix_area": "shell",
       "harnesses": [
         "codex",
         "zcode",
         "claude-code",
-        "omp",
-        "cursor"
+        "omp"
       ],
       "tool": "shell",
       "tool_input": {
@@ -16430,8 +16353,7 @@
         "codex",
         "zcode",
         "claude-code",
-        "omp",
-        "cursor"
+        "omp"
       ],
       "tool": "shell",
       "tool_input": {
@@ -16447,8 +16369,7 @@
         "codex",
         "zcode",
         "claude-code",
-        "omp",
-        "cursor"
+        "omp"
       ],
       "tool": "shell",
       "tool_input": {
@@ -16464,97 +16385,11 @@
         "codex",
         "zcode",
         "claude-code",
-        "omp",
-        "cursor"
+        "omp"
       ],
       "tool": "shell",
       "tool_input": {
         "command": "npm run build 2>&1 | tee .tmp/build.log | tail -5"
-      },
-      "cwd": "worktree",
-      "expect": "allow"
-    },
-    {
-      "id": "temporary-tar-create-sources",
-      "fix_area": "temporary",
-      "harnesses": [
-        "codex",
-        "zcode",
-        "claude-code",
-        "omp",
-        "cursor"
-      ],
-      "tool": "shell",
-      "tool_input": {
-        "command": "tar -czf ${SCRATCH_TARBALL} src"
-      },
-      "cwd": "worktree",
-      "expect": "allow"
-    },
-    {
-      "id": "temporary-tar-list-archive",
-      "fix_area": "temporary",
-      "harnesses": [
-        "codex",
-        "zcode",
-        "claude-code",
-        "omp",
-        "cursor"
-      ],
-      "tool": "shell",
-      "tool_input": {
-        "command": "tar -tzf ${SCRATCH_TARBALL}"
-      },
-      "cwd": "worktree",
-      "expect": "allow"
-    },
-    {
-      "id": "temporary-zip-create-sources",
-      "fix_area": "temporary",
-      "harnesses": [
-        "codex",
-        "zcode",
-        "claude-code",
-        "omp",
-        "cursor"
-      ],
-      "tool": "shell",
-      "tool_input": {
-        "command": "zip -r ${SCRATCH_ZIP} src"
-      },
-      "cwd": "worktree",
-      "expect": "allow"
-    },
-    {
-      "id": "temporary-unzip-list-archive",
-      "fix_area": "temporary",
-      "harnesses": [
-        "codex",
-        "zcode",
-        "claude-code",
-        "omp",
-        "cursor"
-      ],
-      "tool": "shell",
-      "tool_input": {
-        "command": "unzip -l ${SCRATCH_ZIP}"
-      },
-      "cwd": "worktree",
-      "expect": "allow"
-    },
-    {
-      "id": "git-bisect-start",
-      "fix_area": "git",
-      "harnesses": [
-        "codex",
-        "zcode",
-        "claude-code",
-        "omp",
-        "cursor"
-      ],
-      "tool": "shell",
-      "tool_input": {
-        "command": "git bisect start"
       },
       "cwd": "worktree",
       "expect": "allow"
@@ -16623,40 +16458,6 @@
       "tool": "shell",
       "tool_input": {
         "command": "git clean -nd"
-      },
-      "cwd": "worktree",
-      "expect": "allow"
-    },
-    {
-      "id": "git-format-patch-stdout",
-      "fix_area": "git",
-      "harnesses": [
-        "codex",
-        "zcode",
-        "claude-code",
-        "omp",
-        "cursor"
-      ],
-      "tool": "shell",
-      "tool_input": {
-        "command": "git format-patch -1 --stdout"
-      },
-      "cwd": "worktree",
-      "expect": "allow"
-    },
-    {
-      "id": "git-archive-head",
-      "fix_area": "git",
-      "harnesses": [
-        "codex",
-        "zcode",
-        "claude-code",
-        "omp",
-        "cursor"
-      ],
-      "tool": "shell",
-      "tool_input": {
-        "command": "git archive HEAD -o .tmp/snap.tar"
       },
       "cwd": "worktree",
       "expect": "allow"

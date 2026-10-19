@@ -63,7 +63,6 @@ from tests.benign_fp_gate_projects import (
     _node_package,
     _node_toolchain,
     _python_toolchain,
-    _stage_source_archives,
     _write,
 )
 
@@ -101,8 +100,6 @@ class BenignFixture:
         shutil.rmtree(self.stage, ignore_errors=True)
         self.scratch_copy.unlink(missing_ok=True)
         self.scratch_patch.unlink(missing_ok=True)
-        self.scratch_tarball.unlink(missing_ok=True)
-        self.scratch_zip.unlink(missing_ok=True)
 
     @property
     def scratch_patch(self) -> Path:
@@ -113,16 +110,6 @@ class BenignFixture:
     def scratch_copy(self) -> Path:
         """A saved file straight in /tmp, next to the scratch leaf, that a chain may inspect."""
         return Path(f"{self.scratch}-report-main.ts")
-
-    @property
-    def scratch_tarball(self) -> Path:
-        """An archive of the worktree's sources an agent already rolled up in /tmp."""
-        return Path(f"{self.scratch}-src.tar.gz")
-
-    @property
-    def scratch_zip(self) -> Path:
-        """The same snapshot in the other format, for the `unzip -l` spelling."""
-        return Path(f"{self.scratch}-src.zip")
 
     @property
     def contained_requests(self) -> Path:
@@ -147,8 +134,6 @@ class BenignFixture:
             # The live Gauntlet's fixture root and its fresh scratch leaf directly in /tmp.
             "${GAUNTLET_ROOT}": str(self.tmp_org.parent),
             "${SCRATCH}": str(self.scratch),
-            "${SCRATCH_TARBALL}": str(self.scratch_tarball),
-            "${SCRATCH_ZIP}": str(self.scratch_zip),
             "${FEATURE_APP}": str(feature_app_path(self.home)),
             # Private directory directly in /tmp holding the files a case stages before its commands.
             "${STAGE}": str(self.stage),
@@ -537,7 +522,6 @@ def build_fixture(root: Path) -> BenignFixture:
         stage,
     )
     _write(fixture.scratch_copy, "export const reportWindow = 'report-window-marker';\n")
-    _stage_source_archives(fixture.worktree / "src", fixture.scratch_tarball, fixture.scratch_zip)
     _write(
         fixture.scratch_patch,
         "diff --git a/src/report.ts b/src/report.ts\n--- a/src/report.ts\n+++ b/src/report.ts\n"
