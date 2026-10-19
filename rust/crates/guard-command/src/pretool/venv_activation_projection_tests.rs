@@ -304,3 +304,48 @@ export PS1
     );
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// A `_OLD_` copy holds what the variable had. One holding a place of its own
+/// would be installed by the restore the script ends with, so the projection
+/// reads what the copy was given, not only the name it was given under.
+#[test]
+fn a_saved_copy_holding_another_place_is_not_projected() {
+    let root = root("saved");
+    for extra in [
+        "_OLD_VIRTUAL_PATH=\"/attacker/tools:$PATH\"\nPATH=\"$_OLD_VIRTUAL_PATH\"\n",
+        "_OLD_VIRTUAL_PYTHONHOME=/attacker/payload\nPYTHONHOME=\"$_OLD_VIRTUAL_PYTHONHOME\"\n",
+        "PATH=\"${_OLD_VIRTUAL_PATH:-}:/attacker/tools\"\n",
+    ] {
+        let script = format!("{}{extra}", activation(&root));
+        environment(&root, true, &script, &["pytest"]);
+        assert_eq!(
+            projected(&root, "source .venv/bin/activate && pytest -q"),
+            None,
+            "{extra}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// An assignment the shell runs that this scan would read as something else
+/// is a setting nobody judged, so the projection refuses rather than skip it.
+#[test]
+fn an_assignment_the_scan_cannot_read_is_not_projected() {
+    let root = root("hidden");
+    for extra in [
+        "LD_PRELOAD+=/attacker/hook.so\n",
+        "export VIRTUAL_ENV;PYTHONPATH=/attacker/modules\n",
+        "true;source /attacker/more\n",
+        "VIRTUAL_ENV=$(dirname /attacker/place)\n",
+        "SCRIPT_PATH=/attacker/place\nVIRTUAL_ENV=$(dirname \"$SCRIPT_PATH\")\n",
+    ] {
+        let script = format!("{}{extra}", activation(&root));
+        environment(&root, true, &script, &["pytest"]);
+        assert_eq!(
+            projected(&root, "source .venv/bin/activate && pytest -q"),
+            None,
+            "{extra}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}

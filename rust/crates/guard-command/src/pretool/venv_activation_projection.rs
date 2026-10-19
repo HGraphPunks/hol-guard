@@ -66,17 +66,56 @@ fn activation_setting(name: &str) -> bool {
 }
 
 /// The name a word assigns, or `None` when the word is not an assignment.
+/// `NAME+=value` appends, which is an assignment the shell runs like any
+/// other, so the name in front of it is the one to judge.
 fn assigned_name(word: &str) -> Option<&str> {
-    let name = word.split('=').next()?;
+    let (head, _) = word.split_once('=')?;
+    let name = head.strip_suffix('+').unwrap_or(head);
     let mut characters = name.chars();
     let first = characters.next()?;
     if !(first.is_ascii_alphabetic() || first == '_')
         || !characters.all(|c| c.is_ascii_alphanumeric() || c == '_')
-        || name.len() == word.len()
     {
         return None;
     }
     Some(name)
+}
+
+/// Whether a word's text before its `=` reads as a variable's name without
+/// being one this scan can judge, which is a name it must not skip over.
+fn unreadable_assignment(word: &str) -> bool {
+    word.split_once('=')
+        .is_some_and(|(head, _)| head.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_'))
+        && assigned_name(word).is_none()
+}
+
+/// The saved copy a `$_OLD_…` reference reads back, or `None` when the value
+/// is anything else. A restore is exactly the reference: a value with more
+/// after it puts whatever that is into the variable too.
+fn saved_reference(value: &str) -> Option<&str> {
+    let rest = value.strip_prefix('$')?;
+    let name = match rest.strip_prefix('{') {
+        Some(inner) => inner.strip_suffix('}')?.trim_end_matches([':', '-']),
+        None => rest,
+    };
+    (name.starts_with("_OLD_") && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'))
+        .then_some(name)
+}
+
+/// Whether a `_OLD_…` assignment saves the current value of the variable it
+/// is named for, which is all a generated script writes one for. A saved copy
+/// holding anything else is a place the restore would later install.
+fn saves_current(name: &str, value: &str) -> bool {
+    let saved = name.strip_prefix("_OLD_").unwrap_or(name);
+    let saved = saved.strip_prefix("VIRTUAL_").unwrap_or(saved);
+    [
+        format!("${saved}"),
+        format!("${{{saved}}}"),
+        format!("${{{saved}-}}"),
+        format!("${{{saved}:-}}"),
+    ]
+    .iter()
+    .any(|form| form == value)
 }
 
 /// What an assignment's value is worth reading as: the rest of its line up to
@@ -94,13 +133,26 @@ fn assigned_value(line: &str, from: usize) -> String {
         .to_owned()
 }
 
-/// The words of a line with the offset each one starts at.
-fn words(line: &str) -> impl Iterator<Item = (usize, &str)> + '_ {
-    line.split_whitespace().scan(0usize, |cursor, word| {
-        let start = line[*cursor..].find(word).unwrap_or_default() + *cursor;
-        *cursor = start + word.len();
-        Some((start, word))
-    })
+/// The words of a line with the offset each one starts at. A shell separator
+/// ends a word the way whitespace does, so `true;source other` and
+/// `export VIRTUAL_ENV;PYTHONPATH=/elsewhere` are read as the two commands
+/// the shell runs rather than as one word that assigns nothing.
+fn words(line: &str) -> Vec<(usize, &str)> {
+    let mut words = Vec::new();
+    let mut word = None;
+    for (index, character) in line.char_indices() {
+        if character.is_whitespace() || matches!(character, ';' | '&' | '|' | '(' | ')') {
+            if let Some(start) = word.take() {
+                words.push((start, &line[start..index]));
+            }
+        } else if word.is_none() {
+            word = Some(index);
+        }
+    }
+    if let Some(start) = word {
+        words.push((start, &line[start..]));
+    }
+    words
 }
 
 /// Whether a `PATH` segment is the shell's own `PATH` rather than a place of
@@ -141,7 +193,7 @@ enum Prepended {
 }
 
 fn path_assignment(value: &str, binaries: &Path, home: Option<&str>) -> Option<Prepended> {
-    if value.starts_with("$_OLD_") || value.starts_with("${_OLD_") {
+    if saved_reference(value).is_some() {
         return Some(Prepended::Restored);
     }
     let mut segments = value.split(':');
@@ -158,36 +210,43 @@ fn path_assignment(value: &str, binaries: &Path, home: Option<&str>) -> Option<P
     (std::fs::canonicalize(with_home(first, home)).ok()? == binaries).then_some(Prepended::Binaries)
 }
 
-/// Whether a value names no absolute place but this environment's root. A
-/// relative step is read as the script locating itself, and more than one
-/// would walk out of the environment.
-fn names_no_other_place(value: &str, root: &Path) -> bool {
-    value.matches("..").count() <= 1
-        && value
-            .split(|c: char| c.is_whitespace() || matches!(c, '(' | ')'))
-            .filter(|piece| piece.starts_with('/'))
-            .all(|piece| {
-                std::fs::canonicalize(piece)
-                    .map(|path| path == root)
-                    .unwrap_or(true)
-            })
+/// The absolute places a value names, which is where it could point the
+/// variable other than at this environment.
+fn places(value: &str) -> impl Iterator<Item = &str> {
+    value
+        .split(|c: char| c.is_whitespace() || matches!(c, '(' | ')'))
+        // `$(dirname "$0")/..` leaves a piece that is a step rather than a
+        // place: only one with a name of its own points anywhere.
+        .filter(|piece| piece.starts_with('/') && piece.chars().any(|c| c != '/' && c != '.'))
 }
 
 /// Where a `VIRTUAL_ENV` assignment leaves the variable: `Some(true)` at this
 /// environment's root, `Some(false)` somewhere that does not exist, `None`
-/// derived from the value already there. A value naming another place that
-/// does exist refuses the projection outright, because the `PATH` built from
-/// it would put that place in front of the command.
+/// derived from the value already there. A value naming another place refuses
+/// the projection outright, because the `PATH` built from it would put that
+/// place in front of the command.
 fn environment_assignment(value: &str, root: &Path, home: Option<&str>) -> Option<Option<bool>> {
     let value = &with_home(value, home);
-    if !names_no_other_place(value, root) {
+    // A relative step is the script walking up out of its own `bin`; more
+    // than one would walk out of the environment.
+    if value.matches("..").count() > 1 {
         return None;
     }
     if value.contains("$VIRTUAL_ENV") || value.contains("${VIRTUAL_ENV") {
-        return Some(None);
+        // Built on the value the lines before it left, so it names no place
+        // of its own, and it may not add one.
+        return places(value).next().is_none().then_some(None);
     }
     if value.contains("dirname") || value.contains("SCRIPT_PATH") || value.contains("BASH_SOURCE") {
-        return Some(Some(true));
+        // The script locating itself. Every absolute place it names has to be
+        // this environment, including one that is not there to check.
+        return places(value)
+            .all(|piece| {
+                std::fs::canonicalize(piece)
+                    .map(|path| path == root)
+                    .unwrap_or(false)
+            })
+            .then_some(Some(true));
     }
     if value.is_empty() || value.contains('$') || value.contains('`') {
         return None;
@@ -226,12 +285,15 @@ fn activation_settings(
                 return None;
             }
             let Some(name) = assigned_name(word) else {
+                if unreadable_assignment(word) {
+                    return None;
+                }
                 continue;
             };
             if !activation_setting(name) {
                 return None;
             }
-            let value = assigned_value(line, start + name.len() + 1);
+            let value = assigned_value(line, start + word.find('=')? + 1);
             match name {
                 "PATH" => match path_assignment(&value, binaries, home)? {
                     Prepended::Restored => {}
@@ -246,7 +308,19 @@ fn activation_settings(
                 // Restoring the saved home is what a generated script does
                 // with it; setting one chooses the interpreter's own library.
                 "PYTHONHOME" => {
-                    if !value.starts_with("$_OLD_") && !value.starts_with("${_OLD_") {
+                    saved_reference(&value)?;
+                }
+                // The path the script reads its own place out of, which it
+                // takes from the shell rather than naming.
+                "SCRIPT_PATH" => {
+                    if !value.contains("BASH_SOURCE") && !value.contains("$0") {
+                        return None;
+                    }
+                }
+                // A saved copy holds what the variable had. One holding
+                // anything else is a place the restore would install.
+                saved if saved.starts_with("_OLD_") => {
+                    if !saves_current(saved, &value) {
                         return None;
                     }
                 }
