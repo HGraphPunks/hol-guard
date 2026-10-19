@@ -41,8 +41,8 @@ const SUPERVISOR_QUIESCE_RETRY_DELAY: Duration = Duration::from_millis(10);
 /// This must outlast everything a supervisor still does while holding the
 /// scope, not just the writes themselves: it waits up to
 /// `MANAGED_STOP_TIMEOUT` for the child's stderr, because a grandchild can
-/// keep that pipe open after the resident is gone, and the restart budget
-/// then takes its own bounded lock wait. Bounding the stop by
+/// keep that pipe open after the resident is gone, and the failure record
+/// and the restart budget then take their own bounded lock waits. Bounding the stop by
 /// `MANAGED_STOP_TIMEOUT` alone would race that ordinary tail and report a
 /// resident that has in fact stopped as still running.
 #[cfg(windows)]

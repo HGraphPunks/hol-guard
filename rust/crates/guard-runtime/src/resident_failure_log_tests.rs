@@ -243,3 +243,18 @@ fn an_empty_record_does_not_hold_off_an_earlier_runs_failure() {
     );
     fs::remove_dir_all(scope).expect("remove failure-log test scope");
 }
+
+#[test]
+fn a_record_held_by_another_writer_is_skipped_rather_than_waited_on() {
+    let scope = temp_scope("held-record");
+    let holder = open_record(&scope).expect("open record");
+    fs2::FileExt::lock_exclusive(&holder).expect("hold record");
+    let started = std::time::SystemTime::now() - std::time::Duration::from_secs(10);
+    write_run_unless_superseded(&scope, b"failure\n", None, started);
+    drop(holder);
+    assert_eq!(
+        fs::read_to_string(ResidentFailureLog::path(&scope)).expect("read record"),
+        ""
+    );
+    fs::remove_dir_all(scope).expect("remove failure-log test scope");
+}

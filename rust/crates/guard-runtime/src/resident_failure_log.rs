@@ -18,7 +18,7 @@ use std::fs::File;
 use std::io::Read;
 use std::io::{Seek, Write};
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 /// One supervisor-owned file per runtime scope, beside `restart-budget.json`
 /// in `<guard-home>/native-runtime/resident-v3-<digest>/`.
@@ -29,6 +29,12 @@ pub(crate) const RESIDENT_FAILURE_FILE_NAME: &str = "resident-stderr.v1.log";
 const MAX_RESIDENT_FAILURE_BYTES: usize = 64 * 1024;
 #[cfg(not(windows))]
 const DRAIN_CHUNK_BYTES: usize = 4096;
+/// Another supervisor holds the record only while it rewrites at most
+/// `MAX_RESIDENT_FAILURE_BYTES`. A record still locked after these retries is
+/// skipped: the supervisor must go on to release its restart charge and its
+/// exit hold, and a Windows stop waits on that hold.
+const RECORD_LOCK_RETRY_DELAY: Duration = Duration::from_millis(10);
+const RECORD_LOCK_RETRIES: u32 = 20;
 
 /// The record of one supervised resident run. Nothing is created until the
 /// run has something to report, so a resident that starts, serves and exits
@@ -201,7 +207,7 @@ pub(crate) fn write_run_unless_superseded(
     let Some(mut file) = open_record(scope) else {
         return;
     };
-    if fs2::FileExt::lock_exclusive(&file).is_err() {
+    if !lock_record(&file) {
         return;
     }
     // Opening may have just created the file, and a published record is
@@ -215,15 +221,23 @@ pub(crate) fn write_run_unless_superseded(
     if superseded || file.set_len(0).is_err() || file.rewind().is_err() {
         return;
     }
-    let record = ResidentFailureLog {
-        scope: scope.to_owned(),
-        file: Some(file),
-        written: 0,
-        refused: false,
-    };
+    let mut record = ResidentFailureLog::for_scope(scope);
+    record.file = Some(file);
     if let Some(file) = publish_run(record, stderr, note).file {
         let _ = file.set_modified(run_started);
     }
+}
+
+fn lock_record(file: &File) -> bool {
+    for attempt in 0..=RECORD_LOCK_RETRIES {
+        if fs2::FileExt::try_lock_exclusive(file).is_ok() {
+            return true;
+        }
+        if attempt < RECORD_LOCK_RETRIES {
+            std::thread::sleep(RECORD_LOCK_RETRY_DELAY);
+        }
+    }
+    false
 }
 
 #[cfg(test)]
