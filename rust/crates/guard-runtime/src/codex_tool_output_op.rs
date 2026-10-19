@@ -174,6 +174,22 @@ impl InspectionHost for ResidentInspectionHost<'_> {
     fn git_object_existence_query(&self, command: &str, cwd: &str) -> bool {
         self.svc_object_existence(command, cwd)
     }
+
+    fn is_regular_file(&self, path: &str) -> bool {
+        std::path::Path::new(path).is_file()
+    }
+
+    fn file_text_prefix(&self, path: &str, max_bytes: usize) -> Option<String> {
+        use std::io::Read;
+
+        let file = std::fs::File::open(path).ok()?;
+        if !file.metadata().ok()?.is_file() {
+            return None;
+        }
+        let mut bytes = Vec::new();
+        file.take(max_bytes as u64).read_to_end(&mut bytes).ok()?;
+        Some(guard_command::codex_prompt_credential_file::decode_ignoring_errors(&bytes))
+    }
 }
 
 fn request_digest(request: &CodexToolOutputRequestV1) -> Result<String, &'static str> {
@@ -231,6 +247,11 @@ fn action_is_bounded(action: &CodexToolOutputActionV1) -> bool {
         }
         // The canonical digest already bounds the whole body.
         Action::PostToolOutput(_) => true,
+        Action::PromptCredentialFile(scope) => {
+            text_is_bounded(&scope.prompt_text)
+                && option_path_is_bounded(&scope.cwd)
+                && path_is_bounded(&scope.config_path)
+        }
     }
 }
 

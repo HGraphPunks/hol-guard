@@ -165,6 +165,19 @@ pub trait InspectionHost {
     fn real_path(&self, _path: &str) -> Option<String> {
         None
     }
+    /// `Path(path).is_file()` on the caller's filesystem, with the `OSError`
+    /// Python suppresses reported as "not a file". Hosts without a filesystem
+    /// service answer `false`, so nothing is scanned that cannot be opened.
+    fn is_regular_file(&self, _path: &str) -> bool {
+        false
+    }
+    /// The first `max_bytes` of a regular file decoded as
+    /// `handle.read(max_bytes).decode("utf-8", errors="ignore")`. `None` is
+    /// the `OSError` Python suppresses, a path that is not a regular file, or
+    /// a host without a read service.
+    fn file_text_prefix(&self, _path: &str, _max_bytes: usize) -> Option<String> {
+        None
+    }
 }
 
 /// Per-request context.

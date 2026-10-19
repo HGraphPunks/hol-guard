@@ -67,6 +67,19 @@ pub struct CodexCommandTextV1 {
     pub command: String,
 }
 
+/// One prompt reviewed for a credential-looking local file it names: the
+/// prompt text, the working directory relative names resolve against, and the
+/// configuration path the artifact records.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CodexPromptFileScopeV1 {
+    pub prompt_text: String,
+    pub cwd: Option<String>,
+    pub config_path: String,
+    /// Budget for the content scan, bounded again by the op.
+    pub deadline_ms: u64,
+}
+
 /// One post-tool hook payload projection: the commands, tool input and
 /// collected response text the credential-output review reads.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -96,6 +109,9 @@ pub enum CodexToolOutputActionV1 {
     GitMetadata(CodexCommandCwdV1),
     /// The credential-looking post-tool output artifact (`value`).
     PostToolOutput(CodexPostToolOutputV1),
+    /// The credential-looking prompt-file artifact (`value`): the prompt asks
+    /// the harness to read a local dotfile whose content scans as credentials.
+    PromptCredentialFile(CodexPromptFileScopeV1),
 }
 
 /// Observed caller facts.
