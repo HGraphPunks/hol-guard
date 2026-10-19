@@ -436,10 +436,9 @@ fn evaluate_envelope(
         return contained;
     }
     // Activating a virtualenv exports settings and runs nothing else, so the
-    // command after it carries the verdict. Only an allow or a containment
-    // verdict is taken from the projected command: a review there is the
-    // answer the full command already has, and the unprojected pass keeps its
-    // own reasons for it.
+    // command after it carries the verdict, as an inert environment prefix
+    // does: the unprojected pass fails only on the `source` itself. A rule
+    // that gates the plain form keeps its fail-closed answer for this one.
     if let Some(projected) = signals
         .command
         .as_deref()
@@ -466,6 +465,7 @@ fn evaluate_envelope(
                 || (projected.minimum_action == "sandbox-required"
                     && crate::hook_responses::contained_execution_profile(&projected.reason_code)
                         .is_some())
+                || !extension_rule_matched(&projected)
             {
                 return projected;
             }
@@ -859,7 +859,7 @@ fn evaluate_envelope(
             .unwrap_or_else(|| "HOL Guard requires review because this Git read may execute a configured helper, or its effective configuration could not be verified.".into());
     }
     let contained_test_reason = command_model.and_then(|model| {
-        super::restricted_tests::package_script::contained_test_reason(
+        super::restricted_test_commands::package_script::contained_test_reason(
             model,
             super::PathContext {
                 home_dir,
@@ -936,7 +936,7 @@ fn evaluate_envelope(
                     .permission_observations
                     .iter()
                     .all(|observation| {
-                        super::restricted_tests::package_permission_contained(
+                        super::restricted_test_commands::package_permission_contained(
                             contained_test_reason,
                             command_model,
                         ) && observation.extension_id == "command.package.node"
