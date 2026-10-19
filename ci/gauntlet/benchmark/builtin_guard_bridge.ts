@@ -8,6 +8,10 @@ import { createConnection } from 'node:net';
 const SOCKET = '/runtime/guard-hook/hook.sock';
 const LIMIT = 1024 * 1024;
 const BUILTINS = new Set(['read', 'write', 'edit', 'bash']);
+const REVIEW_TIMEOUT_MS = 35_000;
+// A bash PreToolUse review may execute a contained command for up to 300s.
+// Keep the transport deadline below OMP's configured 380s handler deadline.
+const CONTAINED_REVIEW_TIMEOUT_MS = 360_000;
 
 function canonical(value: any): string {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
@@ -60,7 +64,7 @@ function capture(event: any, ctx: any, hookEvent = 'PreToolUse', originalInput?:
   return { serialized, requestDigest: createHash('sha256').update(serialized).digest('hex') };
 }
 
-function relay(serialized: string, signal?: AbortSignal): Promise<any> {
+function relay(serialized: string, signal?: AbortSignal, timeoutMs = REVIEW_TIMEOUT_MS): Promise<any> {
   return new Promise((resolve, reject) => {
     let bytes = Buffer.alloc(0), settled = false;
     const socket = createConnection({ path: SOCKET });
@@ -74,7 +78,7 @@ function relay(serialized: string, signal?: AbortSignal): Promise<any> {
     const aborted = () => finish(new Error('actual SDK hook cancelled before execution'));
     signal?.addEventListener('abort', aborted, { once: true });
     if (signal?.aborted) return aborted();
-    socket.setTimeout(35000, () => finish(new Error('controller NativeHook deadline exceeded')));
+    socket.setTimeout(timeoutMs, () => finish(new Error('controller NativeHook deadline exceeded')));
     socket.on('error', error => finish(error));
     socket.on('connect', () => socket.write(serialized + '\n'));
     socket.on('data', chunk => {
@@ -108,7 +112,8 @@ export default function (api: any) {
           || presentations.size >= 512 || presentationBytes + Buffer.byteLength(inputJson) * 2 + 512 > 8 * LIMIT)) {
         return { block: true, reason: 'Contained command presentation capacity or call identity exhausted before review.' };
       }
-      const response = await relay(snapshot.serialized, ctx.signal);
+      const response = await relay(snapshot.serialized, ctx.signal,
+        event.toolName === 'bash' ? CONTAINED_REVIEW_TIMEOUT_MS : REVIEW_TIMEOUT_MS);
       if (ctx.signal?.aborted || capture(event, ctx).serialized !== snapshot.serialized) {
         return { block: true, reason: 'Actual SDK input/context changed while NativeHook reviewed it.' };
       }

@@ -125,6 +125,15 @@ async function main() {
   const sdk = await import(join(config.sdkRoot, 'src/index.ts'));
   const auth = await sdk.AuthStorage.create(join(config.agentDir, 'benchmark-auth.db'));
   const settings = await sdk.Settings.init({ cwd: config.workspace, agentDir: config.agentDir, inMemory: true });
+  // Native contained execution can run for 300s plus controller capture and
+  // cleanup. OMP's default 30s tool_call cap otherwise aborts the Guard hook
+  // while the verified product command is still running.
+  const { cfgExtensionHandlersToolCallTimeoutMs } =
+    await import(join(config.sdkRoot, 'src/extensibility/settings.ts'));
+  cfgExtensionHandlersToolCallTimeoutMs.override(settings, 380_000);
+  if (cfgExtensionHandlersToolCallTimeoutMs.get(settings) !== 380_000) {
+    throw new Error('actual OMP tool_call timeout differs from contained execution budget');
+  }
   const registry = new sdk.ModelRegistry(auth, join(config.agentDir, 'models.yml'), { settings });
   registry.registerProvider('benchmark-local', {
     baseUrl: 'http://127.0.0.1:8001/v1', api: 'openai-completions', authHeader: false,
