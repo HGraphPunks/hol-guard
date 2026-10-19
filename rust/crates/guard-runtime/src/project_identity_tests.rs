@@ -161,27 +161,57 @@ fn a_cache_hit_never_skips_the_ancestor_walk() {
 
 #[cfg(unix)]
 #[test]
-fn workspaces_resolve_would_rewrite_are_unknown() {
+fn workspaces_resolve_rewrites_read_as_the_directory_they_name() {
     let root = scratch("rewrite");
     repository(&root);
     let canonical = root.to_str().expect("utf-8");
-    assert!(matches!(resolve(canonical), PortableIdentity::Identity(_)));
-    assert!(matches!(
+    let identity = match resolve(canonical) {
+        PortableIdentity::Identity(identity) => identity,
+        other => panic!("canonical workspace: {other:?}"),
+    };
+    assert_eq!(
         resolve(&format!("  {canonical}\n")),
-        PortableIdentity::Identity(_)
-    ));
-    assert_eq!(resolve(&format!("{canonical}/")), PortableIdentity::Unknown);
+        PortableIdentity::Identity(identity.clone())
+    );
+    // `resolve(strict=False)` drops a trailing separator and a dot segment,
+    // so both name the same repository rather than deferring the call.
+    assert_eq!(
+        resolve(&format!("{canonical}/")),
+        PortableIdentity::Identity(identity.clone())
+    );
     assert_eq!(
         resolve(&format!("{canonical}/./")),
-        PortableIdentity::Unknown
+        PortableIdentity::Identity(identity)
     );
+    // `expanduser` rewrites a `~` name and a relative name resolves against
+    // the reader's own directory, neither of which is reproduced here.
     assert_eq!(resolve("~/repository"), PortableIdentity::Unknown);
     assert_eq!(resolve("relative/repository"), PortableIdentity::Unknown);
+    // A name that does not exist is resolved by Python without reading it,
+    // and would be discovered against the repository above it.
     assert_eq!(
         resolve(&format!("{canonical}/missing")),
         PortableIdentity::Unknown
     );
     assert_eq!(resolve("   "), PortableIdentity::Absent);
+    fs::remove_dir_all(&root).ok();
+}
+
+/// A workspace reached through a symlink is the directory it resolves to,
+/// so a relayed call for such a path no longer hands off to the proxy.
+#[cfg(unix)]
+#[test]
+fn workspaces_reached_through_a_symlink_resolve_to_their_real_path() {
+    let root = scratch("symlinked");
+    let real = root.join("repository");
+    fs::create_dir_all(&real).expect("repository dir");
+    repository(&real);
+    let link = root.join("link");
+    std::os::unix::fs::symlink(&real, &link).expect("symlink");
+
+    let direct = resolve(real.to_str().expect("utf-8"));
+    assert!(matches!(direct, PortableIdentity::Identity(_)));
+    assert_eq!(resolve(link.to_str().expect("utf-8")), direct);
     fs::remove_dir_all(&root).ok();
 }
 
