@@ -351,6 +351,7 @@ mod tests {
 
     fn setup() -> (tempfile::TempDir, ClaimRequest) {
         let root = tempfile::tempdir().unwrap();
+        std::fs::set_permissions(root.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
         let path = root.path().canonicalize().unwrap();
         let file = path.join(POLICY_NAME);
         std::fs::write(
