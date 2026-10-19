@@ -176,6 +176,9 @@ pub(super) fn evaluate(input: &Value) -> Result<Value, String> {
     if kind == "migrate" {
         return migration::migrate(input, &key);
     }
+    if kind == "legacy-pending" {
+        return migration::recover(input, &key);
+    }
     if kind == "enroll" {
         // Only the installed capability adapter exposes this under an exclusive
         // lease. Ordinary preparation cannot enroll/recreate protected state.

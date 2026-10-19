@@ -140,6 +140,17 @@ def finish(store, connection, transition):
         raise NativePolicySnapshotError("native_command_pack_transition_unanchored")
     key = _key(store)
     header, link = _verified_pending(row, transition, key)
+    if "lifecycle_before" not in link:
+        from . import lifecycle
+
+        link.update(
+            lifecycle.invoke(
+                "legacy-pending",
+                key=key.hex(),
+                floor=lifecycle_store.read(store),
+                **lifecycle_store.legacy_evidence(store, connection),
+            )
+        )
     draft = object.__new__(ActivationDraft)
     for name, value in {
         "directory": directory_for_store(store),
@@ -178,12 +189,12 @@ def _verify_pending(row, transition, key):
         "catalog_digest": transition["catalog_digest"],
         "pack_record_digest": row["record_digest"],
     }
+    lifecycle_fields = {"lifecycle_before", "lifecycle_after"} if "lifecycle_before" in link else set()
     if set(link) != {
         "authority_schema_version",
         "purpose",
         "admitted_at",
-        "lifecycle_before",
-        "lifecycle_after",
+        *lifecycle_fields,
         *({"security_digest"} if "security_digest" in link else set()),
         *expected,
     } or any(link[name] != value for name, value in expected.items()):

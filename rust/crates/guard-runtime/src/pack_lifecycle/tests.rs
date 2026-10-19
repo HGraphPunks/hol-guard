@@ -189,6 +189,164 @@ fn migration_retains_authenticated_floor_and_never_repairs_stamped_loss() {
     assert!(evaluate(&forged).is_err());
 }
 
+fn legacy_envelope(mut value: Value, key: &[u8], purpose: &str) -> Value {
+    use hmac::{Hmac, Mac};
+    use sha2::{Digest, Sha256};
+    value["authority_schema_version"] = json!(1);
+    value["purpose"] = json!(purpose);
+    let data = serde_json::to_string(&value).unwrap();
+    let mut derive = Hmac::<Sha256>::new_from_slice(key).unwrap();
+    derive.update(b"hol-guard.extension-control-authority.v1\0");
+    derive.update(purpose.as_bytes());
+    let mut mac = Hmac::<Sha256>::new_from_slice(&derive.finalize().into_bytes()).unwrap();
+    mac.update(data.as_bytes());
+    json!({"record":data,"digest":hex::encode(Sha256::digest(data.as_bytes())),"mac":hex::encode(mac.finalize().into_bytes())})
+}
+
+fn legacy_pending() -> Value {
+    let key = [7u8; 32];
+    let authority = [8u8; 32];
+    let snapshot = legacy_envelope(
+        json!({"revision":0,"catalog_digest":"c".repeat(64)}),
+        &authority,
+        "extension-control.snapshot",
+    );
+    let activation = legacy_envelope(
+        json!({"schema":"guard.command-pack-activation.v1","revision":1,
+        "previous_digest":null,"catalog_digest":"c".repeat(64),"source_sha":"a".repeat(40),
+        "engine":"1".repeat(64),"root_digest":"6".repeat(64),"publication_id":"100.7",
+        "authority_epoch":5,"revocation_epoch":8,"issued_at":1000,"expires_at":2000}),
+        &key,
+        "command-pack-activation.v1",
+    );
+    let next = legacy_envelope(
+        json!({"revision":1,"previous_digest":snapshot["digest"],
+        "catalog_digest":"c".repeat(64),"command_pack_record_digest":activation["digest"]}),
+        &authority,
+        "extension-control.snapshot",
+    );
+    let transition = legacy_envelope(
+        json!({"revision":1,"previous_revision":0,"previous_digest":snapshot["digest"],
+        "snapshot_digest":next["digest"],"catalog_digest":"c".repeat(64),"phase":"prepared",
+        "command_pack_record_digest":activation["digest"]}),
+        &authority,
+        "extension-control.transition",
+    );
+    let link = legacy_envelope(
+        json!({"control_revision":1,"snapshot_digest":next["digest"],
+        "catalog_digest":"c".repeat(64),"pack_record_digest":activation["digest"],"admitted_at":1500}),
+        &key,
+        "command-pack-control-transition.v1",
+    );
+    json!({"key":hex::encode(key),"legacy_key":hex::encode(authority),"legacy_snapshot":snapshot,
+        "legacy_anchor":legacy_envelope(json!({"revision":1,"snapshot_digest":next["digest"],"phase":"anchored"}), &authority, "extension-control.anchor"),
+        "legacy_next_snapshot":next,"legacy_transition":transition,"legacy_pending":{"activation":activation,"link":link},
+        "legacy_activation":null,"legacy_history":[]})
+}
+
+#[test]
+fn previous_writer_pending_migrates_and_recovers_offline_without_lowering_floors() {
+    let key = [7u8; 32];
+    let mut request = legacy_pending();
+    let migrated = migration::admit(&request, &key, installed()).unwrap();
+    let floor = decode(migrated["record"].as_str().unwrap(), &key).unwrap();
+    assert_eq!((floor.authority, floor.revocation), (5, 8));
+    assert_eq!(floor.remote.as_ref().unwrap().version, "100.7");
+    assert_eq!(floor.installed, Some(installed()));
+    request["kind"] = json!("legacy-pending");
+    request["floor"] = migrated["record"].clone();
+    assert_eq!(
+        evaluate(&request).unwrap()["lifecycle_after"],
+        migrated["record"]
+    );
+    let mut higher = floor.clone();
+    higher.remote.as_mut().unwrap().version = "100.8".into();
+    request["floor"] = json!(encode(&higher, &key).unwrap());
+    assert_eq!(
+        evaluate(&request).unwrap_err(),
+        "pack_lifecycle_legacy_below_floor"
+    );
+    request["floor"] = Value::Null;
+    assert!(evaluate(&request)
+        .unwrap_err()
+        .contains("protected_floor_missing"));
+}
+
+#[test]
+fn legacy_migration_rejects_tampered_unanchored_and_rebound_pending_evidence() {
+    let key = [7u8; 32];
+    for field in [
+        "legacy_anchor",
+        "legacy_snapshot",
+        "legacy_transition",
+        "legacy_next_snapshot",
+    ] {
+        let mut request = legacy_pending();
+        request[field]["mac"] = json!("0".repeat(64));
+        assert!(
+            migration::admit(&request, &key, installed()).is_err(),
+            "{field}"
+        );
+    }
+    for field in ["activation", "link"] {
+        let mut request = legacy_pending();
+        request["legacy_pending"][field]["mac"] = json!("0".repeat(64));
+        assert!(
+            migration::admit(&request, &key, installed()).is_err(),
+            "{field}"
+        );
+    }
+    let mut request = legacy_pending();
+    request["legacy_anchor"] = legacy_envelope(
+        json!({"revision":0,
+        "snapshot_digest":request["legacy_snapshot"]["digest"],"phase":"committed"}),
+        &[8u8; 32],
+        "extension-control.anchor",
+    );
+    assert!(migration::admit(&request, &key, installed()).is_err());
+    let mut request = legacy_pending();
+    request["legacy_pending"]["link"] = legacy_envelope(
+        json!({"control_revision":1,
+        "snapshot_digest":request["legacy_next_snapshot"]["digest"],"catalog_digest":"c".repeat(64),
+        "pack_record_digest":request["legacy_pending"]["activation"]["digest"],"admitted_at":2500}),
+        &key,
+        "command-pack-control-transition.v1",
+    );
+    assert!(migration::admit(&request, &key, installed()).is_err());
+}
+
+#[test]
+fn committed_legacy_activation_retains_floor_across_packless_controls() {
+    let key = [7u8; 32];
+    let mut request = legacy_pending();
+    request["legacy_activation"] = request["legacy_pending"]["activation"].clone();
+    request["legacy_pending"] = Value::Null;
+    let committed = request["legacy_next_snapshot"].clone();
+    let snapshot = legacy_envelope(
+        json!({"revision":2,"previous_digest":committed["digest"]}),
+        &[8u8; 32],
+        "extension-control.snapshot",
+    );
+    request["legacy_snapshot"] = snapshot.clone();
+    request["legacy_history"] = json!([committed]);
+    request["legacy_anchor"] = legacy_envelope(
+        json!({"revision":2,"snapshot_digest":snapshot["digest"],"phase":"committed"}),
+        &[8u8; 32],
+        "extension-control.anchor",
+    );
+    let result = migration::admit(&request, &key, installed()).unwrap();
+    assert_eq!(
+        decode(result["record"].as_str().unwrap(), &key)
+            .unwrap()
+            .remote
+            .unwrap()
+            .version,
+        "100.7"
+    );
+    request["legacy_activation"] = Value::Null;
+    assert!(migration::admit(&request, &key, installed()).is_err());
+}
+
 #[test]
 fn selection_uses_existing_composer_and_never_managed_opt_in() {
     let layer = |kind: &str, state: &str| {

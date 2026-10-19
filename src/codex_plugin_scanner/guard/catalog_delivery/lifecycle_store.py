@@ -66,30 +66,80 @@ def migrate_installed(store, authority):
     them exactly. Missing/corrupt stamped floors are never reconstructed.
     """
     require_exclusive_command_control_mutation_lease(store.guard_home)
-    import json
-
-    key = store._authority_key(required=False)
-    anchor = store._secret_store().get_secret(store._anchor_ref())
-    with store._connect() as connection:
-        row = connection.execute("select * from extension_control_authority_snapshot where singleton=1").fetchone()
-    from .activation_store import header_for_store
-
     result = lifecycle.invoke(
         "migrate",
         key=_key(store).hex(),
         floor=read(store),
         stamp=_stamp(store),
-        legacy_key=None if key is None else key.hex(),
-        legacy_anchor=None if anchor is None else json.loads(anchor),
-        legacy_snapshot=None
-        if row is None
-        else dict(record=row["snapshot_json"], digest=row["snapshot_digest"], mac=row["snapshot_mac"]),
-        legacy_activation=header_for_store(store, _key(store)),
+        **legacy_evidence(store),
         **lifecycle.release_evidence(authority),
     )
     if result["record"] is not None:
         _mark(store, result["stamp"])
         write(store, result["record"])
+
+
+def legacy_evidence(store, connection=None):
+    """Transport retained credential/SQL envelopes; native code binds them."""
+    import json
+
+    from . import activation_baseline, activation_store
+
+    if connection is None:
+        with store._connect() as opened:
+            return legacy_evidence(store, opened)
+    key = store._authority_key(required=False)
+    anchor = store._secret_store().get_secret(store._anchor_ref())
+    # This untrusted revision only selects SQL evidence. Rust authenticates the
+    # original protected envelope before giving any selected row authority.
+    observed_revision = None if anchor is None else json.loads(json.loads(anchor)["record"])["revision"]
+    row = connection.execute("select * from extension_control_authority_snapshot where singleton=1").fetchone()
+
+    def envelope(row, prefix):
+        return (
+            None
+            if row is None
+            else dict(record=row[prefix + "_json"], digest=row[prefix + "_digest"], mac=row[prefix + "_mac"])
+        )
+
+    active = activation_store._row(connection)
+    if active is not None and activation_baseline.is_baseline(active["record_json"]):
+        activation_baseline.verify(active, _key(store))
+        active = None
+    pending = transition = None
+    if (
+        observed_revision is not None
+        and connection.execute(
+            "select 1 from sqlite_master where type='table' and name='extension_command_pack_pending'"
+        ).fetchone()
+    ):
+        pending = connection.execute(
+            "select * from extension_command_pack_pending where control_revision=?", (observed_revision,)
+        ).fetchone()
+        if pending is not None:
+            transition = connection.execute(
+                "select * from extension_control_authority_transition where revision=?", (observed_revision,)
+            ).fetchone()
+    history = (
+        []
+        if row is None
+        else connection.execute(
+            "select * from extension_control_authority_transition where revision < ? order by revision desc",
+            (row["revision"],),
+        ).fetchall()
+    )
+    return dict(
+        legacy_key=None if key is None else key.hex(),
+        legacy_anchor=None if anchor is None else json.loads(anchor),
+        legacy_snapshot=envelope(row, "snapshot"),
+        legacy_activation=envelope(active, "record"),
+        legacy_history=[envelope(item, "snapshot") for item in history],
+        legacy_transition=envelope(transition, "transition"),
+        legacy_next_snapshot=envelope(transition, "snapshot"),
+        legacy_pending=None
+        if pending is None
+        else dict(activation=envelope(pending, "record"), link=envelope(pending, "link")),
+    )
 
 
 def migration_retained(store):
