@@ -20,7 +20,9 @@ use sha2::{Digest, Sha256};
 
 use crate::codex_output_env::Ctx;
 use crate::codex_output_py::PyPath;
-use crate::codex_prompt_credential_file::{has_read_verb, FINGERPRINT_LENGTH, PATH_TOKEN_PATTERN};
+use crate::codex_prompt_credential_file::{
+    compile, has_read_verb, FINGERPRINT_LENGTH, PATH_TOKEN_PATTERN,
+};
 use crate::prompt_analysis::{
     extract_prompt_requests, trailing_secret_read_state, GuardRunPromptArtifact,
 };
@@ -49,10 +51,9 @@ const MAX_DEADLINE_MS: u64 = 60_000;
 /// `_CODEX_ATTACHMENT_PATH_TOKEN_PATTERN`: the managed attachment prefix, then
 /// the ordinary prompt path tokens.
 static ATTACHMENT_PATH_TOKEN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!(
+    compile(&format!(
         r#"(?<![\w/.-])(?:\./)?\.codex/attachments/[^\s'"`<>|;(){{}}\[\]]{{1,512}}|{PATH_TOKEN_PATTERN}"#
     ))
-    .expect("attachment pattern is a compile-time constant")
 });
 
 /// `_codex_prompt_attachment_artifact`.
@@ -77,7 +78,17 @@ pub(crate) fn review_prompt_attachment(
         return None;
     }
     for found in ATTACHMENT_PATH_TOKEN.find_iter(prompt_text) {
-        let Ok(found) = found else { break };
+        let Ok(found) = found else {
+            // Every other way this walk can fail to read an attachment ends in
+            // the unscanned artifact, and a pattern that gives up part-way
+            // through the prompt is no different: the tokens past that point
+            // were never looked at, so the prompt is not known to be clean.
+            return Some(scan_failure(
+                "<prompt>",
+                "Guard could not verify the Codex attachment path.",
+                config_path,
+            ));
+        };
         let requested_path = found.as_str().trim_end_matches(|c| ".,:!?".contains(c));
         let Some(expanded) = ctx.expanduser(requested_path) else {
             continue;

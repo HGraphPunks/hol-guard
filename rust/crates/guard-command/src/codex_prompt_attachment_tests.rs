@@ -275,3 +275,15 @@ fn the_overlap_window_is_counted_in_characters_rather_than_bytes() {
     assert_eq!(tail("aé€", 9), "aé€");
     assert_eq!(tail("", 4), "");
 }
+
+#[test]
+fn a_long_prompt_does_not_exhaust_the_pattern_match_budget() {
+    // A harness hands over as much as a megabyte of pasted prompt. The default
+    // backtracking budget runs out well before that, which ended the token walk
+    // part-way through and left the rest of the prompt unread.
+    let prompt = "please read through the notes again. ".repeat(40_000);
+
+    assert!(super::ATTACHMENT_PATH_TOKEN
+        .find_iter(&prompt)
+        .all(|found| found.is_ok()));
+}

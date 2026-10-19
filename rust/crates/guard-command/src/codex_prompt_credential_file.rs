@@ -12,7 +12,7 @@
 use std::sync::LazyLock;
 use std::time::{Duration, Instant};
 
-use fancy_regex::Regex;
+use fancy_regex::{Regex, RegexBuilder};
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 
@@ -72,8 +72,18 @@ fn credential_content_found(content: &str, deadline: Instant) -> bool {
         .unwrap_or(false)
 }
 
-fn compile(pattern: &str) -> Regex {
-    Regex::new(pattern).expect("prompt-file pattern is a compile-time constant")
+/// Compile a prompt-file pattern. Both prompt scans walk whatever the user
+/// pasted, and a harness hands over as much as a megabyte of it. These
+/// patterns carry a one-character negative lookbehind, so matching runs on the
+/// backtracking engine and costs a few steps per character scanned: the
+/// default million-step budget runs out part-way through an ordinary long
+/// prompt, which would end the walk early. Hold them to a ceiling that a
+/// prompt-sized input cannot reach while still stopping a runaway.
+pub(crate) fn compile(pattern: &str) -> Regex {
+    RegexBuilder::new(pattern)
+        .backtrack_limit(100_000_000)
+        .build()
+        .expect("prompt-file pattern is a compile-time constant")
 }
 
 /// `_PROMPT_PATH_TOKEN_PATTERN`; the attachment scan builds its own pattern
@@ -256,6 +266,10 @@ pub(crate) fn review_prompt_credential_file(
     let deadline = Instant::now() + Duration::from_millis(deadline_ms.min(MAX_DEADLINE_MS));
     let cwd = cwd.map(PyPath::new);
     for found in PATH_TOKEN.find_iter(prompt_text) {
+        // A pattern that runs out of its backtracking budget ends the walk, as
+        // the deadline below does. This scan has no artifact for a prompt it
+        // could not finish reading, and inventing a credential-file review for
+        // a path it never resolved would name a file the prompt may not carry.
         let Ok(found) = found else { break };
         // Past the deadline the caller has already given up on this answer, so
         // nothing further is resolved or opened on its behalf. A prompt that
