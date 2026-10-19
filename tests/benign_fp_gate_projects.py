@@ -11,7 +11,10 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import sys
+import tarfile
+import zipfile
 from pathlib import Path
 
 from ci.gauntlet.realism_fixtures import activate_script
@@ -51,6 +54,8 @@ def _node_toolchain(workspace: Path, *, tools: bool = False) -> None:
     manifest = {"private": True, "scripts": scripts, "devDependencies": dependencies}
     _write(workspace / "package.json", json.dumps(manifest) + "\n")
     _write(workspace / "package-lock.json", json.dumps({"lockfileVersion": 3, "packages": locked}) + "\n")
+    # Agents reach for `yarn build` in a checkout that carries a yarn lockfile, not only `npm run`.
+    _write(workspace / "yarn.lock", _yarn_lockfile(packages))
     _write(workspace / "tests" / "sample.test.ts", "export const sample = 1;\n")
     for name, version in _NODE_PACKAGES.items():
         _node_package(workspace, name, version)
@@ -61,6 +66,15 @@ def _node_toolchain(workspace: Path, *, tools: bool = False) -> None:
     _write(workspace / "tsconfig.json", json.dumps({"compilerOptions": {"strict": True, "noEmit": True}}) + "\n")
     _write(workspace / "eslint.config.js", "export default [];\n")
     _write(workspace / ".prettierrc", "{}\n")
+
+
+def _yarn_lockfile(packages: dict[str, str]) -> str:
+    """A classic ``yarn.lock``, the file that makes ``yarn build`` the project's spelling."""
+    entries = [
+        f'"{name}@^{version}":\n  version "{version}"\n  resolved "https://registry.yarnpkg.com/{name}"\n'
+        for name, version in packages.items()
+    ]
+    return "# yarn lockfile v1\n\n" + "\n".join(entries)
 
 
 def _node_package(workspace: Path, name: str, version: str, binaries: tuple[str, ...] = ()) -> None:
@@ -132,6 +146,13 @@ def _build_toolchain(workspace: Path) -> None:
     _write(workspace / "main_test.go", 'package main\n\nimport "testing"\n\nfunc TestMain(t *testing.T) {}\n')
     _write(workspace / "Cargo.toml", '[package]\nname = "fixture"\nversion = "0.1.0"\nedition = "2021"\n')
     _write(workspace / "src" / "lib.rs", "pub fn fixture() -> u8 {\n    1\n}\n")
+    # `just` and `pre-commit` are the other two task runners agents drive from a checkout root.
+    _write(workspace / "justfile", "build:\n    npm run build\n\ntest:\n    npm test\n")
+    _write(
+        workspace / ".pre-commit-config.yaml",
+        "repos:\n  - repo: local\n    hooks:\n      - id: lint\n        name: lint\n"
+        "        entry: npm run lint\n        language: system\n",
+    )
 
 
 def _bun_lockfile(project: Path, packages: dict[str, str]) -> None:
@@ -163,3 +184,29 @@ def host_tool_path(home: Path, search_path: str) -> str:
             (directory / name).chmod(0o755)
     local_bin = home / ".local" / "bin"
     return os.pathsep.join([str(local_bin), str(node), search_path, str(bun)])
+
+
+def _application_database(path: Path) -> None:
+    """A real SQLite file, because an agent's `.tables` and `.schema` run against one."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT NOT NULL)")
+        connection.execute("CREATE TABLE sessions (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL)")
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def _stage_source_archives(sources: Path, tarball: Path, archive_path: Path) -> None:
+    """Roll a checkout's sources into the two archives an agent inspects from /tmp.
+
+    The gate never runs a command, but a listing case names a path an agent
+    would really have created a moment earlier, so the archives are real files.
+    """
+    with tarfile.open(tarball, "w:gz") as tar:
+        tar.add(sources, arcname="src")
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        for path in sorted(sources.rglob("*")):
+            if path.is_file():
+                archive.write(path, arcname=str(Path("src") / path.relative_to(sources)))

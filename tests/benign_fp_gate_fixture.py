@@ -57,11 +57,13 @@ from tests.benign_fp_gate_feature_app import build_feature_app, feature_app_path
 from tests.benign_fp_gate_projects import (
     _INSTALLED_PACKAGES,
     _NODE_PACKAGES,
+    _application_database,
     _build_toolchain,
     _bun_lockfile,
     _node_package,
     _node_toolchain,
     _python_toolchain,
+    _stage_source_archives,
     _write,
 )
 
@@ -99,6 +101,8 @@ class BenignFixture:
         shutil.rmtree(self.stage, ignore_errors=True)
         self.scratch_copy.unlink(missing_ok=True)
         self.scratch_patch.unlink(missing_ok=True)
+        self.scratch_tarball.unlink(missing_ok=True)
+        self.scratch_zip.unlink(missing_ok=True)
 
     @property
     def scratch_patch(self) -> Path:
@@ -109,6 +113,16 @@ class BenignFixture:
     def scratch_copy(self) -> Path:
         """A saved file straight in /tmp, next to the scratch leaf, that a chain may inspect."""
         return Path(f"{self.scratch}-report-main.ts")
+
+    @property
+    def scratch_tarball(self) -> Path:
+        """An archive of the worktree's sources an agent already rolled up in /tmp."""
+        return Path(f"{self.scratch}-src.tar.gz")
+
+    @property
+    def scratch_zip(self) -> Path:
+        """The same snapshot in the other format, for the `unzip -l` spelling."""
+        return Path(f"{self.scratch}-src.zip")
 
     @property
     def contained_requests(self) -> Path:
@@ -133,6 +147,8 @@ class BenignFixture:
             # The live Gauntlet's fixture root and its fresh scratch leaf directly in /tmp.
             "${GAUNTLET_ROOT}": str(self.tmp_org.parent),
             "${SCRATCH}": str(self.scratch),
+            "${SCRATCH_TARBALL}": str(self.scratch_tarball),
+            "${SCRATCH_ZIP}": str(self.scratch_zip),
             "${FEATURE_APP}": str(feature_app_path(self.home)),
             # Private directory directly in /tmp holding the files a case stages before its commands.
             "${STAGE}": str(self.stage),
@@ -333,6 +349,8 @@ def build_fixture(root: Path) -> BenignFixture:
     _write(worktree / "scripts" / "rebuild.sh", "#!/bin/sh\necho rebuilt\n")
     # Reply drafted for a PR review conversation, posted with `gh pr comment --body-file`.
     _write(worktree / ".tmp" / "body.md", "Fixed in the latest push; the parser now rejects empty input.\n")
+    # The application database a session opens with `sqlite3` to read its tables.
+    _application_database(worktree / ".tmp" / "app.db")
     # Worktree package borrowing the canonical checkout's installed node_modules through a symlink.
     _node_toolchain(parent / "dashboard")
     _write(worktree / "dashboard" / "package.json", (parent / "dashboard" / "package.json").read_text())
@@ -519,6 +537,7 @@ def build_fixture(root: Path) -> BenignFixture:
         stage,
     )
     _write(fixture.scratch_copy, "export const reportWindow = 'report-window-marker';\n")
+    _stage_source_archives(fixture.worktree / "src", fixture.scratch_tarball, fixture.scratch_zip)
     _write(
         fixture.scratch_patch,
         "diff --git a/src/report.ts b/src/report.ts\n--- a/src/report.ts\n+++ b/src/report.ts\n"
