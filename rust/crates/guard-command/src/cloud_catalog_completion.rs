@@ -28,7 +28,9 @@ fn pending(root: &Path, key: &hmac::Key, current_time: u64) -> Result<Vec<Value>
             .filter(|v| sha(v))
             .ok_or(Error::Invalid)?;
         let started = record["started"].as_u64().ok_or(Error::Invalid)?;
-        let age = current_time.checked_sub(started).ok_or(Error::Invalid)?;
+        let Some(age) = current_time.checked_sub(started) else {
+            continue;
+        };
         if age <= PENDING_COMPLETION_TTL {
             if live.iter().any(|other: &Value| other["nonce"] == nonce) {
                 return Err(Error::Invalid);
@@ -349,6 +351,17 @@ mod time_tests {
         assert!(pending(root, &key, started + PENDING_COMPLETION_TTL + 1)
             .unwrap()
             .is_empty());
+        let live = json!({"nonce":"b".repeat(64),"started":started});
+        save_pending(
+            root,
+            &[
+                json!({"nonce":"a".repeat(64),"started":started + PENDING_COMPLETION_TTL}),
+                live.clone(),
+            ],
+            &key,
+        )
+        .unwrap();
+        assert_eq!(pending(root, &key, started).unwrap(), vec![live]);
         std::fs::write(root.join("completion-pending.json"), b"{}").unwrap();
         assert!(pending(root, &key, started).is_err());
     }

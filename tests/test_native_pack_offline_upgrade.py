@@ -207,4 +207,6 @@ def test_real_packaged_cross_engine_and_changed_source_offline_api_upgrade(tmp_p
     # but cannot make its old-engine executable IR admissible in the new runtime.
     with pytest.raises(transport.NativeSourceCompilerError, match="command_pack_reuse_engine_invalid"):
         transport.check_pack_cache(old.directory, old.record()["program_digest"])
-    assert len(reports) == 3 and all(report["extensions"] > 0 for report in reports)
+    assert len(reports) == 3 and all(
+        report["extensions"] > 0 and report["profile"] == "complete-offline" for report in reports
+    )

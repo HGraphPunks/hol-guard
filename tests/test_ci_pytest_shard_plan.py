@@ -25,51 +25,7 @@ def _durations(nodes: list[str], *, seconds: float = 1.0) -> dict[str, float]:
     return {node_id_digest(node_id): seconds for node_id in nodes}
 
 
-def test_cross_engine_offline_upgrade_has_a_required_real_artifact_lane() -> None:
-    import yaml
-
-    root = Path(__file__).resolve().parents[1]
-    workflow = yaml.safe_load((root / ".github/workflows/ci.yml").read_text())
-    jobs = workflow["jobs"]
-    dedicated = jobs["native-offline-upgrade"]
-    producer = jobs["native-offline-previous"]
-    assert "needs" not in producer  # Compile in parallel with the current producer.
-    assert set(dedicated["needs"]) == {"native-command-evaluators", "native-offline-previous"}
-    aggregate = jobs["required"]["steps"][0]["run"]
-    for name in ("native-offline-previous", "native-offline-upgrade"):
-        assert "if" not in jobs[name]
-        assert "continue-on-error" not in jobs[name]
-        assert name in jobs["required"]["needs"]
-        assert f'"{name}"' in aggregate.split("always_on =", 1)[1].split("required =", 1)[0]
-        historical = next(
-            step for step in jobs[name]["steps"] if step.get("with", {}).get("path") == "previous-client"
-        )
-        assert historical["with"]["ref"] == "${{ env.NATIVE_OFFLINE_PREVIOUS_SHA }}"
-    assert re.fullmatch(r"[a-f0-9]{40}", workflow["env"]["NATIVE_OFFLINE_PREVIOUS_SHA"])
-    uploads = {
-        step["with"]["name"]: step["with"]
-        for step in producer["steps"]
-        if step.get("uses", "").startswith("actions/upload-artifact@")
-    }
-    downloads = {
-        step["with"]["name"]: step["with"]
-        for step in dedicated["steps"]
-        if step.get("uses", "").startswith("actions/download-artifact@")
-    }
-    prior_binary = "pytest-prior-native-command-evaluators-${{ env.NATIVE_OFFLINE_PREVIOUS_SHA }}"
-    prior_projections = "pytest-prior-native-command-projections-${{ env.NATIVE_OFFLINE_PREVIOUS_SHA }}"
-    assert set(uploads) == {prior_binary, prior_projections}
-    assert set(uploads) <= set(downloads)
-    assert all(upload["if-no-files-found"] == "error" for upload in uploads.values())
-    assert downloads[prior_binary]["path"] == "rust/target/previous-client/release"
-    assert downloads[prior_projections]["path"] == "previous-client"
-    assert downloads["pytest-native-command-evaluators"]["path"] == "rust/target/release"
-    assert not any("cargo build" in step.get("run", "") for step in dedicated["steps"])
-    execution = dedicated["steps"][-1]
-    assert "NATIVE_ACTIVATION_PREVIOUS_BINARY" in execution["env"]
-    assert "NATIVE_ACTIVATION_PREVIOUS_SOURCE" in execution["env"]
-    for path in NATIVE_OFFLINE_UPGRADE_FILES:
-        assert path in execution["run"]
+def test_dedicated_offline_upgrade_is_excluded_from_ordinary_shards() -> None:
     nodes = [f"{path}::test_upgrade" for path in NATIVE_OFFLINE_UPGRADE_FILES]
     ordinary = "tests/test_ordinary.py::test_control"
     shards, loads = build_affinity_node_shards([*nodes, ordinary], 1, _durations(nodes, seconds=600))

@@ -75,7 +75,10 @@ def initialize(tmp_path, monkeypatch):
         # builder; production admission remains the manifest-bound native check.
         with monkeypatch.context() as historical:
             historical.setattr(builder.packs.legacy, "implementation_digest", lambda: engine)
-            report = builder.build(binary, bundle, source, source_root=source_root)
+            # This fixture activates the prior release without network IO too.
+            # Its normal bundle omits optional archives, so export all of them.
+            report = builder.build(binary, bundle, source, source_root=source_root, offline=True)
+        assert report["profile"] == "complete-offline"
         reports.append(report)
         data = (bundle / MANIFEST).read_bytes()
         exported = json.loads(subprocess.check_output([str(binary), "export-built"]))

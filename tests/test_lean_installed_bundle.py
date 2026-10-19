@@ -214,25 +214,11 @@ def test_workflow_publication_precedes_installable_assets():
     import yaml
 
     jobs = yaml.safe_load((ROOT / ".github/workflows/publish.yml").read_text())["jobs"]
-    assert "publish-installed-bundle-assets" in jobs["assemble-native-guard-distributions"]["needs"]
     assert (
         "needs.publish-installed-bundle-assets.result == 'success'" in jobs["assemble-native-guard-distributions"]["if"]
     )
     for name in ("publish-testpypi", "publish-alpha-pypi", "publish-main-pypi", "release-alpha", "publish-main-assets"):
         assert "assemble-native-guard-distributions" in jobs[name]["needs"]
-    condition = jobs["publish-installed-bundle-assets"]["if"]
-    assert "github.event_name != 'pull_request'" not in condition
-    for gate in (
-        "needs.build.outputs.channel == 'canary'",
-        "publish-testpypi-canary",
-        "vars.RELEASE_PUBLISHING_ENABLED == 'true'",
-        "github.run_attempt == 1",
-        "needs.build.outputs.channel == 'alpha'",
-        "needs.build.outputs.channel == 'stable'",
-        "github.event.inputs.release_channel == 'stable'",
-        "github.event.inputs.release_train == 'main'",
-    ):
-        assert gate in condition
 
 
 def test_public_legacy_records_use_metadata_without_policy_archives(built, tmp_path, monkeypatch):

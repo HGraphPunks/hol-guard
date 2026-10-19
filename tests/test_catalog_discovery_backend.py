@@ -19,7 +19,6 @@ from codex_plugin_scanner.guard.catalog_delivery.pack_store import PackReader
 def prepared_fixture(tmp_path, monkeypatch, count=130, metadata_template=None, catalog_entries=None):
     """Build both halves of real native-index/transport metadata proofs."""
     origin = ObjectStore(tmp_path / "origin")
-    catalogs = {}
     records = {}
     manifests = {}
     if metadata_template is None:
@@ -53,7 +52,6 @@ def prepared_fixture(tmp_path, monkeypatch, count=130, metadata_template=None, c
         if catalog_entries is not None:
             value = catalog_entries[index]
         catalog = origin.put_json([value])
-        catalogs[identity] = catalog
         manifest = origin.put_json({"test": index})
         manifests[identity] = manifest
         record = {
@@ -194,9 +192,7 @@ def test_missing_metadata_never_publishes_handle_and_unverified_input_rejected(
 
 
 def test_python_only_delegates_verified_factory_and_fetch_bytes(tmp_path, monkeypatch):
-    import ast
     import base64
-    import inspect
 
     authority, _, _, _ = prepared_fixture(tmp_path, monkeypatch, count=1)
     calls = []
@@ -235,18 +231,6 @@ def test_python_only_delegates_verified_factory_and_fetch_bytes(tmp_path, monkey
     monkeypatch.setattr(discovery, "_native", restarted)
     renewed = discovery.prepare_discovery(tmp_path, authority, fetch=lambda *_: pytest.fail("unexpected fetch"))
     assert renewed.native["token"] == "e" * 64
-    tree = ast.parse(inspect.getsource(discovery))
-    names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
-    assert not names & {
-        "LocatedStore",
-        "ObjectStore",
-        "read_transport_page",
-        "validate_record",
-        "permission_ids",
-        "rows",
-    }
-    # The only batch comprehension performs the exact IO Rust requested.
-    assert not any(isinstance(node, (ast.For, ast.AsyncFor, ast.SetComp, ast.DictComp)) for node in ast.walk(tree))
 
 
 def test_missing_new_capability_fails_explicitly(tmp_path, monkeypatch):

@@ -339,16 +339,16 @@ class ExtensionControlApiService:
             raise ExtensionControlApiError(400, "layer_control_limit_exceeded")
         if sum(len(layer.controls) for layer in raw) > MAX_CONTROLS_TOTAL:
             raise ExtensionControlApiError(400, "control_limit_exceeded")
+        # Resolve authority before metadata preparation can perform transfer IO.
+        current = self._live_snapshot(read_only=True)
+        if current.health is not AuthorityHealth.PROTECTED:
+            raise ExtensionControlApiError(423, "authority_unavailable")
         try:
             targets = request_metadata(self._store, request_registry, raw)
         except (ValueError, OSError) as exc:
             raise ExtensionControlApiError(503, "pack_preparation_unavailable") from exc
         mutation = self._mutation_from_payload(payload, targets=targets)
-        # Resolve persisted managed layers without settling a catalog migration.
-        current = self._live_snapshot(read_only=True)
         proposed_layers = self._effective_layers_for_local_mutation(mutation.layers)
-        if current.health is not AuthorityHealth.PROTECTED:
-            raise ExtensionControlApiError(423, "authority_unavailable")
         if mutation.previous_revision != current.revision:
             raise ExtensionControlApiError(409, "revision_conflict")
         candidate = self._candidates.get_or_prepare(
