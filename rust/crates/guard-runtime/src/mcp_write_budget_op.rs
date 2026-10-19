@@ -38,6 +38,8 @@ pub(crate) struct ClaimRequest {
     request_id: String,
     pub(crate) guard_home: String,
     tool_name: String,
+    // The trusted proxy extracts these fields from the call it will forward.
+    // Large tool bodies never cross the resident protocol for this decision.
     arguments: serde_json::Value,
 }
 

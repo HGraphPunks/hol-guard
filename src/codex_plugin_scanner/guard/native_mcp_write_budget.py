@@ -52,6 +52,34 @@ def shallow_tool_argument_problem(tool_definition: dict[str, Any], arguments: ob
     return None
 
 
+def _budget_argument_projection(tool_name: str, arguments: object) -> object:
+    """Bound the resident request to fields used by its task policy."""
+    if not isinstance(arguments, dict):
+        return None
+    projected: dict[str, object] = {}
+    record_id = arguments.get("record_id")
+    if isinstance(record_id, str) and len(record_id) <= 256:
+        projected["record_id"] = record_id
+    data = arguments.get("data")
+    if not isinstance(data, dict):
+        return projected
+    artifact = data
+    if tool_name.endswith(".update"):
+        notes = data.get("notes", data.get("internal_notes"))
+        if isinstance(notes, list) and notes and isinstance(notes[-1], dict):
+            artifact = notes[-1]
+    ids, versions = artifact.get("source_ids"), artifact.get("source_versions")
+    if (isinstance(ids, list) and len(ids) <= 128
+            and all(isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_.:/-]{1,256}", value)
+                    for value in ids)
+            and isinstance(versions, dict) and len(versions) <= 128
+            and all(isinstance(key, str) and re.fullmatch(r"[A-Za-z0-9_.:/-]{1,256}", key)
+                    and type(value) is int and 1 <= value <= 2**63 - 1
+                    for key, value in versions.items())):
+        projected["data"] = {"source_ids": ids, "source_versions": versions}
+    return projected
+
+
 def claim_mcp_write_budget(*, guard_home: Path, tool_name: str,
                            arguments: object) -> tuple[str, str, tuple[str, ...]]:
     if os.name != "posix":
@@ -66,7 +94,7 @@ def claim_mcp_write_budget(*, guard_home: Path, tool_name: str,
             "request_id": request_id,
             "guard_home": str(guard_home),
             "tool_name": tool_name,
-            "arguments": arguments,
+            "arguments": _budget_argument_projection(tool_name, arguments),
         },
         guard_home=guard_home,
         timeout_seconds=5,
