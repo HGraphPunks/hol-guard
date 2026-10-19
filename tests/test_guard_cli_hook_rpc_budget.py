@@ -43,10 +43,17 @@ from tests.benign_fp_gate_projects import host_tool_path
 # must fold its work into these or memoize it for the invocation.
 _RESIDENT_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK = 24
 
-# Work that does not run on the hook's path and so does not scale with it: the
-# direct-hook evidence drain pages on its own wake-ups, and the policy snapshot
-# publisher runs on its own thread. Counting either would measure timing.
+# Work the hook does not drive request by request: the direct-hook evidence
+# drain pages on its own wake-ups and the snapshot publisher runs on its own
+# thread, so how often either lands in a batch is a matter of timing. They are
+# still on the hook's clock — a one-shot CLI hook starts a worker that waits
+# for the publisher to report ready and closes it afterwards — so they get a
+# ceiling of their own rather than an exemption. The slack above the hook's own
+# budget absorbs a thread that happens to run twice in one batch; it does not
+# absorb a port that adds a publication per request.
 _BACKGROUND_OPERATIONS = frozenset({"hook_direct_evidence_drain", "policy_snapshot_push"})
+
+_RESIDENT_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK_WITH_BACKGROUND = 28
 
 _BATCH = 3
 
@@ -63,10 +70,18 @@ def _hook_path_operations(log_path: Path) -> Counter[str]:
     return Counter(name for name in _measured_operations(log_path) if name not in _BACKGROUND_OPERATIONS)
 
 
-def _assert_round_trip_growth(samples: list[Counter[str]]) -> None:
+def _all_operations(log_path: Path) -> Counter[str]:
+    return Counter(_measured_operations(log_path))
+
+
+def _assert_growth_within(samples: list[Counter[str]], ceiling: int) -> None:
     for before, after in pairwise(samples):
         growth = after - before
-        assert sum(growth.values()) <= _BATCH * _RESIDENT_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK, growth
+        assert sum(growth.values()) <= _BATCH * ceiling, growth
+
+
+def _assert_round_trip_growth(samples: list[Counter[str]]) -> None:
+    _assert_growth_within(samples, _RESIDENT_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK)
 
 
 @pytest.fixture(scope="module")
@@ -109,7 +124,29 @@ def cli_hook_environment(tmp_path_factory: pytest.TempPathFactory) -> Iterator[t
             shutil.rmtree(root, ignore_errors=True)
 
 
+def _decision(response: dict[str, object]) -> str:
+    """The effective verdict in a claude-code hook response: allow, deny or ask."""
+
+    specific = response.get("hookSpecificOutput")
+    permission = specific.get("permissionDecision") if isinstance(specific, dict) else None
+    permission = permission or response.get("permission") or response.get("decision")
+    if response.get("continue") is False or response.get("policy_action") == "block":
+        return "deny"
+    if permission in {"deny", "block"}:
+        return "deny"
+    if permission == "ask":
+        return "ask"
+    return "allow"
+
+
 def _run_hook(fixture: BenignFixture, store: GuardStore, index: int) -> None:
+    """Run one hook and fail unless it reached the decision the budget measures.
+
+    A ceiling alone passes when a hook stops short: a regression that fails
+    closed after its first resident request spends fewer round trips, not more.
+    Each invocation has to come back a quiet allow for its requests to count.
+    """
+
     cwd = Path(str(fixture.cwd("worktree")))
     payload = {
         "hook_event_name": "PreToolUse",
@@ -121,7 +158,8 @@ def _run_hook(fixture: BenignFixture, store: GuardStore, index: int) -> None:
         "home_dir": str(fixture.home),
         "guard_execution_environment": collect_hook_execution_environment(),
     }
-    commands_hook._run_guard_hook_command(
+    output_stream = io.StringIO()
+    status = commands_hook._run_guard_hook_command(
         argparse.Namespace(
             artifact_id=None,
             artifact_name=None,
@@ -137,8 +175,13 @@ def _run_hook(fixture: BenignFixture, store: GuardStore, index: int) -> None:
         store=store,
         config=GuardConfig(guard_home=fixture.guard_home, workspace=fixture.worktree, default_action="review"),
         input_text=json.dumps(payload),
-        output_stream=io.StringIO(),
+        output_stream=output_stream,
     )
+    rendered = output_stream.getvalue().strip()
+    assert status == 0, f"hook {index} exited {status}: {rendered}"
+    response = json.loads(rendered) if rendered else {}
+    assert isinstance(response, dict), f"hook {index} wrote no response object: {rendered}"
+    assert _decision(response) == "allow", f"hook {index} did not allow: {rendered}"
 
 
 def test_cli_pre_tool_hook_resident_round_trips_per_request_are_bounded(
@@ -151,32 +194,67 @@ def test_cli_pre_tool_hook_resident_round_trips_per_request_are_bounded(
     for index in range(_BATCH):
         _run_hook(fixture, store, index)
     samples: list[Counter[str]] = [_hook_path_operations(log_path)]
+    everything: list[Counter[str]] = [_all_operations(log_path)]
     for batch in range(1, 4):
         for index in range(_BATCH):
             _run_hook(fixture, store, batch * _BATCH + index)
         samples.append(_hook_path_operations(log_path))
+        everything.append(_all_operations(log_path))
     assert sum(samples[0].values()) > 0, "no resident request was recorded"
     _assert_round_trip_growth(samples)
+    # Publication and the evidence drain are on the hook's clock too, so they
+    # answer to the looser ceiling rather than to none at all.
+    _assert_growth_within(everything, _RESIDENT_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK_WITH_BACKGROUND)
 
 
-@pytest.mark.parametrize("extra", ["none", "one", "per-request"])
-def test_growth_ignores_background_traffic_but_detects_an_extra_call(tmp_path: Path, extra: str) -> None:
-    """The measurement itself: background names never count, a new call does."""
+def _replay(log_path: Path, *, extra: bytes, batches: int = 3) -> tuple[list[Counter[str]], list[Counter[str]]]:
+    """Write a hook-shaped request log and sample it the way the budget does."""
 
-    log_path = tmp_path / "resident-requests.log"
     log_path.write_bytes(b"W\npolicy_snapshot_push\n")
     samples: list[Counter[str]] = [_hook_path_operations(log_path)]
-    for batch in range(3):
+    everything: list[Counter[str]] = [_all_operations(log_path)]
+    for batch in range(batches):
         with log_path.open("ab") as output:
             for index in range(_BATCH):
                 output.write(b"hook_decide\n" * _RESIDENT_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK)
                 output.write(b"hook_direct_evidence_drain\npolicy_snapshot_push\n")
-                if extra == "per-request" or (extra == "one" and batch == 1 and index == 0):
-                    output.write(b"hook_render\n")
+                if extra and (batch, index) >= (1, 0):
+                    output.write(extra)
         samples.append(_hook_path_operations(log_path))
+        everything.append(_all_operations(log_path))
+    return samples, everything
+
+
+@pytest.mark.parametrize("extra", ["none", "per-request"])
+def test_growth_tolerates_background_jitter_but_detects_an_extra_call(tmp_path: Path, extra: str) -> None:
+    """The measurement itself: a new call on the hook's path fails the budget."""
+
+    added = b"" if extra == "none" else b"hook_render\n"
+    samples, _ = _replay(tmp_path / "resident-requests.log", extra=added)
     assert sum(samples[0].values()) == 0
     if extra == "none":
         _assert_round_trip_growth(samples)
         return
     with pytest.raises(AssertionError):
         _assert_round_trip_growth(samples)
+
+
+@pytest.mark.parametrize("extra", ["none", "one-more-publication", "per-request"])
+def test_publication_growth_answers_to_the_background_ceiling(tmp_path: Path, extra: str) -> None:
+    """Publication is counted, with room for a thread that runs out of step.
+
+    The slack is deliberate: one extra push across a batch is timing, not a
+    port. Growth that tracks the request count exhausts it and fails.
+    """
+
+    added = {
+        "none": b"",
+        "one-more-publication": b"policy_snapshot_push\n",
+        "per-request": b"policy_snapshot_push\n" * 3,
+    }[extra]
+    _, everything = _replay(tmp_path / "resident-requests.log", extra=added)
+    if extra == "per-request":
+        with pytest.raises(AssertionError):
+            _assert_growth_within(everything, _RESIDENT_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK_WITH_BACKGROUND)
+        return
+    _assert_growth_within(everything, _RESIDENT_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK_WITH_BACKGROUND)
