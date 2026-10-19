@@ -55,6 +55,7 @@ from tests.benign_fp_gate_connectors import write_connectors
 from tests.benign_fp_gate_developer_checkout import head_commit, write_developer_checkout
 from tests.benign_fp_gate_feature_app import build_feature_app, feature_app_path
 from tests.benign_fp_gate_projects import (
+    COMMITTED_SOURCE,
     _INSTALLED_PACKAGES,
     _NODE_PACKAGES,
     _application_database,
@@ -315,6 +316,8 @@ def build_fixture(root: Path) -> BenignFixture:
     _git(parent, "init", "--quiet", "--initial-branch=main", home=home)
     _write(parent / "README.md", "# Parent\n")
     _write(parent / "src" / "one.ts", "export const one = 1;\n")
+    # The one committed file long enough for a range-limited read of its history.
+    _write(parent / "src" / "report-window.ts", COMMITTED_SOURCE)
     _write(parent / "src" / "password-reset-email.tsx", "export const Email = () => null;\n")
     _write(parent / "app" / "registry" / "[slug]" / "page.tsx", "export default function Page() { return null; }\n")
     _write(parent / ".agents" / "skills" / "x" / "SKILL.md", "---\nname: x\n---\nSynthetic skill body.\n")

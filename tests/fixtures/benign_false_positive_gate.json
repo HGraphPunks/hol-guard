@@ -16395,7 +16395,7 @@
       "expect": "allow"
     },
     {
-      "id": "git-blame-manifest-range",
+      "id": "git-blame-source-range",
       "fix_area": "git",
       "harnesses": [
         "codex",
@@ -16406,7 +16406,7 @@
       ],
       "tool": "shell",
       "tool_input": {
-        "command": "git blame -L1,20 package.json"
+        "command": "git blame -L1,20 src/report-window.ts"
       },
       "cwd": "worktree",
       "expect": "allow"

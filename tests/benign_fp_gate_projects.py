@@ -18,6 +18,37 @@ from pathlib import Path
 from ci.gauntlet.realism_fixtures import activate_script
 
 
+# A source file the parent repository commits before any worktree exists, so
+# the shapes that read a file's history have history to read. Every other file
+# the fixture commits is a line or two, and `git blame -L1,20` on a four-line
+# file fails for the range rather than for anything Guard decided, which would
+# let a blame case pass while proving nothing.
+COMMITTED_SOURCE = """export type ReportWindow = "24h" | "7d" | "30d";
+
+export interface ReportRequest {
+  window: ReportWindow;
+  workspaceId: string;
+  includeDrafts: boolean;
+}
+
+const WINDOW_HOURS: Record<ReportWindow, number> = {
+  "24h": 24,
+  "7d": 24 * 7,
+  "30d": 24 * 30,
+};
+
+export function windowStart(request: ReportRequest, now: Date): Date {
+  const hours = WINDOW_HOURS[request.window];
+  return new Date(now.getTime() - hours * 60 * 60 * 1000);
+}
+
+export function describe(request: ReportRequest): string {
+  const drafts = request.includeDrafts ? "with drafts" : "without drafts";
+  return `${request.workspaceId}: ${request.window} ${drafts}`;
+}
+"""
+
+
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
@@ -142,6 +173,10 @@ def _build_toolchain(workspace: Path) -> None:
     _write(workspace / "go.mod", "module example.invalid/fixture\n\ngo 1.23\n")
     _write(workspace / "main.go", 'package main\n\nfunc main() {\n\tprintln("fixture")\n}\n')
     _write(workspace / "main_test.go", 'package main\n\nimport "testing"\n\nfunc TestMain(t *testing.T) {}\n')
+    # Agents move entry points into `cmd/` constantly; the move is only a real
+    # shape when the destination directory already exists, because `mv` onto a
+    # missing path renames the file instead of moving it into a directory.
+    _write(workspace / "cmd" / "README.md", "Command entry points.\n")
     _write(workspace / "Cargo.toml", '[package]\nname = "fixture"\nversion = "0.1.0"\nedition = "2021"\n')
     _write(workspace / "src" / "lib.rs", "pub fn fixture() -> u8 {\n    1\n}\n")
     # `just` and `pre-commit` are the other two task runners agents drive from a checkout root.
