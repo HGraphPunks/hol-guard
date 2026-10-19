@@ -106,7 +106,8 @@ def _validate_record(value: object) -> Mapping[str, object]:
     validate_authority_binding(authority_binding(record))
     phase = record["phase"]
     if record["schema"] not in (AUTHORITY_SCHEMA, PACK_AUTHORITY_SCHEMA, SECURITY_AUTHORITY_SCHEMA) or phase not in (
-        "closed", "committed"
+        "closed",
+        "committed",
     ):
         raise _invalid()
     if phase == "closed":
@@ -123,8 +124,10 @@ def _record_mac(record: Mapping[str, object], verifier_key: bytes) -> str:
     if not isinstance(verifier_key, bytes) or len(verifier_key) != 32:
         raise _invalid()
     body = {name: value for name, value in record.items() if name != "mac"}
-    domain = SECURITY_AUTHORITY_DOMAIN if record["schema"] == SECURITY_AUTHORITY_SCHEMA else (
-        PACK_AUTHORITY_DOMAIN if record["schema"] == PACK_AUTHORITY_SCHEMA else AUTHORITY_DOMAIN
+    domain = (
+        SECURITY_AUTHORITY_DOMAIN
+        if record["schema"] == SECURITY_AUTHORITY_SCHEMA
+        else (PACK_AUTHORITY_DOMAIN if record["schema"] == PACK_AUTHORITY_SCHEMA else AUTHORITY_DOMAIN)
     )
     return hmac.new(verifier_key, domain + _canonical_json_bytes_v3(body), hashlib.sha256).hexdigest()
 

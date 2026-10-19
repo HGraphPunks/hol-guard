@@ -4105,10 +4105,15 @@ def _sync_extension_catalog_from_runtime_handshake(
         from .extension_catalog_completion import complete_authenticated_view
         from .extension_catalog_transfer import upload_url
 
-        result.update(complete_authenticated_view(
-            store=store, view=view, auth_context=auth_context,
-            url=upload_url(runtime_sync_url, signal.get("uploadPath")), send=send_page,
-        ))
+        result.update(
+            complete_authenticated_view(
+                store=store,
+                view=view,
+                auth_context=auth_context,
+                url=upload_url(runtime_sync_url, signal.get("uploadPath")),
+                send=send_page,
+            )
+        )
         return result
 
     summary, upload = prepare_extension_catalog_handshake(

@@ -10,8 +10,6 @@ from pathlib import Path
 import pytest
 
 from codex_plugin_scanner.guard.extension_builder.errors import BuilderError
-from codex_plugin_scanner.guard.runtime.command_extensions import BUILT_IN_COMMAND_EXTENSION_REGISTRY
-from codex_plugin_scanner.guard.runtime.extension_trust import trust_class_for
 from tests.extension_builder_support import REPOSITORY
 from tests.support.extension_directory import copy_projected_contribution_sources
 
@@ -67,12 +65,12 @@ def test_paired_directory_render_uses_one_validated_source_snapshot(monkeypatch:
 
 def test_every_native_extension_appears_once_with_unchanged_authority(tmp_path: Path) -> None:
     root = copy_sources(tmp_path)
-    native = {row.extension_id: row for row in BUILT_IN_COMMAND_EXTENSION_REGISTRY.extensions}
+    native = {row.extension_id: row for row in exporter.native_extensions()}
     entries = exporter.export_directory(root)["entries"]
     assert {row["runtimeExtensionId"] for row in entries} == set(native)
     for row in entries:
         extension = native[row["runtimeExtensionId"]]
-        assert row["trustClass"] == trust_class_for(extension.extension_id)
+        assert row["trustClass"] == extension.trust_class
         assert row["ruleCount"] == len(extension.rules)
         assert row["permissionCount"] == len(extension.permissions)
         assert len(row["operations"]) == len(extension.rules)
@@ -229,9 +227,7 @@ def test_directory_fixture_preserves_projected_authority_and_exporter_rejects_pe
     projected = tmp_path / "projected"
     copy_projected_contribution_sources(root, projected)
     entries = exporter.export_directory(projected)["entries"]
-    assert {row["runtimeExtensionId"] for row in entries} == {
-        row.extension_id for row in BUILT_IN_COMMAND_EXTENSION_REGISTRY.extensions
-    }
+    assert {row["runtimeExtensionId"] for row in entries} == {row.extension_id for row in exporter.native_extensions()}
     assert "mcp.pending-fixture" not in {row["id"] for row in entries}
     known = "contributions/mcp-servers/mcp.filesystem.json"
     assert (projected / known).read_bytes() == (root / known).read_bytes()

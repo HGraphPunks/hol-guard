@@ -96,7 +96,7 @@ def test_extension_directory_renders_all_canonical_sources(
     assert spec is not None and spec.loader is not None
     renderer = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(renderer)
-    monkeypatch.setattr(renderer, "BUILT_IN_COMMAND_EXTENSION_REGISTRY", registry)
+    monkeypatch.setattr(renderer, "native_extensions", lambda: registry.extensions)
     current = (ROOT / "docs/guard/extensions/README.md").read_text(encoding="utf-8")
     rendered = renderer.render_document(current)
     assert renderer.render_document(rendered) == rendered

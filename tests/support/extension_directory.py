@@ -1,16 +1,16 @@
-"""Directory behavior fixtures use sources covered by the loaded native registry."""
+"""Directory behavior fixtures use the validated native authoring inventory."""
 
 from __future__ import annotations
 
 import shutil
 from pathlib import Path
 
-from codex_plugin_scanner.guard.runtime.command_extensions import BUILT_IN_COMMAND_EXTENSION_REGISTRY
+from scripts.export_extension_directory import native_extensions
 
 
 def copy_projected_contribution_sources(source: Path, destination: Path) -> None:
     """Keep pending additions in contribution tests, outside projected-directory fixtures."""
-    catalog_ids = {row.extension_id for row in BUILT_IN_COMMAND_EXTENSION_REGISTRY.extensions}
+    catalog_ids = {row.extension_id for row in native_extensions()}
     for family, pattern in (
         ("extensions", "command.*.json"),
         ("mcp-servers", "mcp.*.json"),

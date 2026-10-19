@@ -599,7 +599,8 @@ class StorePolicyMixin:
                     )
                     if previous_active.get("catalogDigest") != managed_base_authority.catalog_digest:
                         composed = self._with_managed_controls_activation(
-                            managed_base_authority, current_manifest=current_manifest,
+                            managed_base_authority,
+                            current_manifest=current_manifest,
                         )
                         active_managed_layers = tuple(
                             layer for layer in composed.layers if layer.kind is ControlLayerKind.SIGNED_CLOUD
@@ -615,9 +616,14 @@ class StorePolicyMixin:
                     return reject("managed_controls_delivery_policy_missing", connection)
                 try:
                     cloud_valid = revalidate_cloud_policy(
-                        connection, policy=managed_controls_policy, policy_bundle=policy_bundle,
-                        guard_home=self.guard_home, registry=registry,
-                        capabilities=managed_controls_negotiated_capabilities, verdicts=verdicts)
+                        connection,
+                        policy=managed_controls_policy,
+                        policy_bundle=policy_bundle,
+                        guard_home=self.guard_home,
+                        registry=registry,
+                        capabilities=managed_controls_negotiated_capabilities,
+                        verdicts=verdicts,
+                    )
                 except ResidentVerdictRequiredError:
                     connection.rollback()
                     raise

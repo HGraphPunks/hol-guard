@@ -63,17 +63,31 @@ def run(home):
         event.write_bytes(encoded(payload))
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
-            result = main([
-                "guard", "hook", "--guard-home", str(home), "--home", str(home),
-                "--harness", "claude-code", "--event-file", str(event), "--json",
-            ])
+            result = main(
+                [
+                    "guard",
+                    "hook",
+                    "--guard-home",
+                    str(home),
+                    "--home",
+                    str(home),
+                    "--harness",
+                    "claude-code",
+                    "--event-file",
+                    str(event),
+                    "--json",
+                ]
+            )
         return dict(exit=result, output=json.loads(output.getvalue()))
 
     def retained_rows():
         with store._connect() as connection:
-            return [list(row) for row in connection.execute(
-                "select * from policy_decisions where reason = 'old-hook-fence-fixture' order by decision_id"
-            )]
+            return [
+                list(row)
+                for row in connection.execute(
+                    "select * from policy_decisions where reason = 'old-hook-fence-fixture' order by decision_id"
+                )
+            ]
 
     def verdict(result, expected):
         output = result["output"]
@@ -98,7 +112,7 @@ def run(home):
         program = publisher.current_snapshot()["command_extensions"]["program_digest"]
         before = hook()
         verdict(before, "allow")
-        print(json.dumps(dict(stage="before", result=before)), flush=True)
+        print(json.dumps(dict(stage="before", permission_decision="allow")), flush=True)
         core = hook("rm -rf /")
         verdict(core, "deny")
         with store._connect() as connection:
@@ -128,7 +142,7 @@ def run(home):
         for command in ("pwd", "rm -rf /", "pwd"):
             after = hook(command)
             verdict(after, "deny")
-            print(json.dumps(dict(stage="after", command=command, result=after)), flush=True)
+            print(json.dumps(dict(stage="after", command=command, permission_decision="deny")), flush=True)
             assert marker_path.read_bytes() == marker_bytes
         # A fresh old publisher must not reconstruct a legacy snapshot.
         cold = NativePolicySnapshotPublisher(store=store)
@@ -161,8 +175,9 @@ def run(home):
             assert str(error) == "native_command_control_authority_integrity_invalid", repr(error)
         else:
             raise AssertionError("old codec accepted v3 MAC domain for legacy body")
-        print(json.dumps(dict(stage="retained", actions=["managed:block", "local:allow"], core_before=core)),
-              flush=True)
+        print(
+            json.dumps(dict(stage="retained", actions=["managed:block", "local:allow"], core_before="deny")), flush=True
+        )
     finally:
         assert publisher.close()
         assert close_native_residents(home)

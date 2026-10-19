@@ -3,7 +3,8 @@
 //! The authoring script checks these only in the nightly extension builder, so
 //! an evaluator change could leave a fixture's expectation stale until then.
 
-use guard_command::native_command_program::source::run_fixtures;
+use guard_command::native_command_program::source::{compile_catalog_with_mcp, run_fixtures};
+use serde_json::{json, Value};
 use std::path::PathBuf;
 
 fn fixture_paths() -> Vec<PathBuf> {
@@ -23,6 +24,81 @@ fn fixture_paths() -> Vec<PathBuf> {
     paths
 }
 
+fn validation_catalog() -> Value {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let records = |directory: &str| {
+        let mut paths: Vec<_> = std::fs::read_dir(root.join(directory))
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| {
+                path.extension()
+                    .is_some_and(|extension| extension == "json")
+                    && path.file_name().unwrap() != "migration-manifest.json"
+            })
+            .collect();
+        paths.sort();
+        paths
+            .iter()
+            .map(|path| std::fs::read(path).unwrap())
+            .collect::<Vec<_>>()
+    };
+    let commands = records("contributions/command-sources");
+    let servers = records("contributions/mcp-servers");
+    let mut trust: Value = serde_json::from_slice(include_bytes!(concat!(
+        env!("OUT_DIR"),
+        "/trust-class-map.v1.json"
+    )))
+    .unwrap();
+    for class in trust["classes"].as_object_mut().unwrap().values_mut() {
+        *class = json!([]);
+    }
+    for (mcp, bytes) in commands
+        .iter()
+        .map(|bytes| (false, bytes))
+        .chain(servers.iter().map(|bytes| (true, bytes)))
+    {
+        let source: Value = serde_json::from_slice(bytes).unwrap();
+        let id = if mcp {
+            format!(
+                "command.mcp-{}",
+                source["id"].as_str().unwrap().strip_prefix("mcp.").unwrap()
+            )
+        } else {
+            source["extension"]["extension_id"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        };
+        let binding: Value = serde_json::from_slice(
+            &std::fs::read(
+                root.join("contracts/extensions/trust")
+                    .join(format!("{id}.v1.json")),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(binding["schemaVersion"], "guard.extension-trust-binding.v1");
+        assert_eq!(binding["extension"], id);
+        trust["classes"][binding["trustClass"].as_str().unwrap()]
+            .as_array_mut()
+            .unwrap()
+            .push(json!(id));
+    }
+    let command_records = commands.iter().map(Vec::as_slice).collect::<Vec<_>>();
+    let server_records = servers.iter().map(Vec::as_slice).collect::<Vec<_>>();
+    let compiled = compile_catalog_with_mcp(
+        &command_records,
+        &server_records,
+        &serde_json::to_vec(&trust).unwrap(),
+    )
+    .expect("canonical native catalog validates before fixture simulation");
+    assert_eq!(
+        compiled.catalog.as_array().unwrap().len(),
+        commands.len() + servers.len()
+    );
+    compiled.catalog
+}
+
 #[test]
 fn every_portable_command_source_fixture_passes() {
     let paths = fixture_paths();
@@ -30,10 +106,19 @@ fn every_portable_command_source_fixture_passes() {
         !paths.is_empty(),
         "no portable command-source fixtures found"
     );
+    let catalog = validation_catalog();
     let mut failures = Vec::new();
     for path in &paths {
         let name = path.file_name().unwrap().to_string_lossy().into_owned();
-        let result = match run_fixtures(&std::fs::read(path).unwrap()) {
+        let mut fixture: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+        if fixture["build"]["base"] == "packaged" {
+            fixture["build"]
+                .as_object_mut()
+                .unwrap()
+                .entry("validation_base")
+                .or_insert_with(|| json!({"catalog":catalog,"programs":[]}));
+        }
+        let result = match run_fixtures(&serde_json::to_vec(&fixture).unwrap()) {
             Ok(result) => result,
             Err(error) => {
                 failures.push(format!("{name}: {error}"));
