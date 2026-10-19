@@ -827,7 +827,7 @@ fn command_basename(word: &str) -> String {
 /// Comments and a function the file defines but nothing calls run nothing, so
 /// neither is part of the story: `command` is read too, because sourcing the
 /// file leaves its wrappers for the rest of the command to call.
-fn bounds_its_owners(text: &str, command: &str) -> bool {
+pub(crate) fn bounds_its_owners(text: &str, command: &str) -> bool {
     if text.contains("$'") || text.contains("$\"") {
         return false;
     }
