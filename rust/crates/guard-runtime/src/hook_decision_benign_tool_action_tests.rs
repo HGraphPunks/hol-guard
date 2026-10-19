@@ -14,11 +14,13 @@ use guard_contracts::{
 use serde_json::{json, Value};
 
 use crate::hook_decision_compose::compose;
-use crate::hook_decision_native_facts::{verdict_is_reusable, verdict_is_reusable_after};
+use crate::hook_decision_native_facts::{
+    verdict_handoff, verdict_is_recorded, verdict_is_recorded_after, VerdictHandoff,
+};
 use crate::sfrs_support::{replay_vectors, ReplayVector};
 
-/// The reusable-verdict table is one bounded table for the process, so a test
-/// that asserts what it holds runs alone among the tests that fill it.
+/// The verdict handoff is one slot for the process, so a test that asserts
+/// what it holds runs alone among the tests that fill it.
 static VERDICT_TABLE: Mutex<()> = Mutex::new(());
 
 fn verdict_table() -> MutexGuard<'static, ()> {
@@ -177,7 +179,7 @@ fn oversized_host_facts_are_not_benign() {
 }
 
 #[test]
-fn a_repeated_tool_action_reuses_one_verdict() {
+fn a_composition_hands_its_verdict_to_the_finalize_that_follows() {
     let _table = verdict_table();
     let (vectors, _root) = replay_vectors(ENTRIES, ENTRY);
     let vector = vectors
@@ -185,24 +187,75 @@ fn a_repeated_tool_action_reuses_one_verdict() {
         .find(|vector| !vector.host_dependent)
         .expect("a vector");
     let mut request = call(vector);
-    request.cwd = Some("/nonexistent/hol-guard-verdict-reuse/first".to_owned());
+    request.cwd = Some("/nonexistent/hol-guard-verdict-handoff/first".to_owned());
     let first = inputs(Some(request.clone()), "PreToolUse");
-    request.cwd = Some("/nonexistent/hol-guard-verdict-reuse/second".to_owned());
+    request.cwd = Some("/nonexistent/hol-guard-verdict-handoff/second".to_owned());
     let second = inputs(Some(request), "PreToolUse");
-    assert!(!verdict_is_reusable(&first));
-    let verdict = verified_benign(&first);
-    assert!(verdict_is_reusable(&first));
-    assert_eq!(verdict, verified_benign(&first));
-    // Another directory is another verdict; it never reuses this one.
-    assert!(!verdict_is_reusable(&second));
-    // The window bounds the reuse to the hook that opened it.
-    assert!(!verdict_is_reusable_after(&first, Duration::from_secs(3)));
+
+    let verdict = {
+        let _mode = verdict_handoff(VerdictHandoff::Record);
+        verified_benign(&first)
+    };
+    assert!(verdict_is_recorded(&first));
+    // Another directory composes to another verdict and can never take this one.
+    assert!(!verdict_is_recorded(&second));
+    // The window bounds the handoff to the hook that opened it.
+    assert!(!verdict_is_recorded_after(&first, Duration::from_secs(3)));
+
+    let taken = {
+        let _mode = verdict_handoff(VerdictHandoff::Take);
+        verified_benign(&first)
+    };
+    assert_eq!(verdict, taken);
+    // Taking empties the slot, so no verdict is ever read twice.
+    assert!(!verdict_is_recorded(&first));
+}
+
+#[test]
+fn a_later_composition_displaces_the_verdict_an_earlier_one_left() {
+    let _table = verdict_table();
+    let (vectors, _root) = replay_vectors(ENTRIES, ENTRY);
+    let vector = vectors
+        .iter()
+        .find(|vector| !vector.host_dependent)
+        .expect("a vector");
+    let mut request = call(vector);
+    request.cwd = Some("/nonexistent/hol-guard-verdict-displaced/first".to_owned());
+    let first = inputs(Some(request.clone()), "PreToolUse");
+    request.cwd = Some("/nonexistent/hol-guard-verdict-displaced/second".to_owned());
+    let second = inputs(Some(request), "PreToolUse");
+
+    let _mode = verdict_handoff(VerdictHandoff::Record);
+    let _ = verified_benign(&first);
+    assert!(verdict_is_recorded(&first));
+    // A later hook composes before it finalizes, so the slot never carries a
+    // verdict across the command that ran in between.
+    let _ = verified_benign(&second);
+    assert!(!verdict_is_recorded(&first));
+    assert!(verdict_is_recorded(&second));
+}
+
+#[test]
+fn a_composition_outside_the_two_queries_records_nothing() {
+    let _table = verdict_table();
+    let (vectors, _root) = replay_vectors(ENTRIES, ENTRY);
+    let vector = vectors
+        .iter()
+        .find(|vector| !vector.host_dependent)
+        .expect("a vector");
+    let mut request = call(vector);
+    request.cwd = Some("/nonexistent/hol-guard-verdict-off/only".to_owned());
+    let composed = inputs(Some(request.clone()), "PreToolUse");
+    // The default mode: any other caller of `compose` leaves nothing behind.
+    let _ = verified_benign(&composed);
+    assert!(!verdict_is_recorded(&composed));
 }
 
 #[test]
 fn a_request_free_composition_records_no_verdict() {
     let _table = verdict_table();
+    let _mode = verdict_handoff(VerdictHandoff::Record);
     let composed = inputs(None, "PreToolUse");
     assert!(!verified_benign(&composed));
-    assert!(!verdict_is_reusable(&composed));
+    assert!(!verdict_is_recorded(&composed));
 }

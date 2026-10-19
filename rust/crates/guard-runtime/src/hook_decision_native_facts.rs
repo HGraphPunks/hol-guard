@@ -4,6 +4,7 @@
 //! `native_request`; nothing here asks Python. A missing or oversized request
 //! is "not benign", so the configured default is never relaxed on bad input.
 
+use std::cell::Cell;
 use std::path::Path;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -65,69 +66,122 @@ pub(crate) fn benign_native_file_read(inputs: &HookCompositionInputsV1) -> bool 
     )
 }
 
-/// How long a tool-action verdict stays reusable, and how many are kept.
+/// Handing one composition's tool-action verdict to the composition that
+/// finishes the same hook.
 ///
-/// One hook asks for the same verdict twice: `compose_current` settles the
-/// current action, and `finalize` composes again over the same inputs to
-/// reach the final one. For a `git` command the verdict runs the native Git
-/// proofs, which spawn `git` to read the repository's effective
-/// configuration, so the second ask repeats every probe the first one made
-/// and costs as much.
+/// One hook asks for the verdict twice: `compose_current` settles the current
+/// action and `finalize` composes again over the same inputs to reach the
+/// final one. For a `git` command the verdict runs the native Git proofs,
+/// which spawn `git` to read the repository's effective configuration, so the
+/// second ask repeats every probe the first one made and costs as much.
 ///
-/// The verdict is a pure function of these inputs and of the repository state
-/// those proofs read, so the second ask may reuse the first. The key is the
-/// canonical digest of the whole input, so a different command, directory,
-/// environment or control snapshot never reuses a verdict; the window spans
-/// one hook and the table holds a handful of entries. Guard decides before
-/// the command runs and a review may sit for minutes, so the proofs already
-/// describe the repository as it was at the time of the check rather than at
-/// the time of the act; reusing one for the rest of the same hook does not
-/// widen that.
-const VERDICT_REUSE_WINDOW: Duration = Duration::from_secs(2);
-const VERDICT_REUSE_ENTRIES: usize = 8;
+/// What makes the second ask safe to answer from the first is that no tool
+/// has run in between: Guard has not decided yet, so the agent cannot have
+/// changed the repository the proofs read. That holds only inside one hook,
+/// so the handoff is built to be unusable outside one:
+///
+/// * only a `ComposeCurrent` query records, and only a `Finalize` query may
+///   take; every other caller computes and records nothing;
+/// * one slot, so a recording composition always displaces whatever the last
+///   one left, and a later hook's `ComposeCurrent` clears the slot before its
+///   own `Finalize` can read it;
+/// * taking empties the slot, matching key or not, so no verdict is ever read
+///   twice;
+/// * the key is the canonical digest of the whole input, so a different
+///   command, directory, environment or control snapshot can never take this
+///   verdict; and
+/// * an entry expires regardless, bounding anything the rules above miss.
+const VERDICT_HANDOFF_WINDOW: Duration = Duration::from_secs(2);
 
-static RECENT_VERDICTS: Mutex<Vec<(String, Instant, bool)>> = Mutex::new(Vec::new());
+/// Inputs whose canonical form is larger than this are not worth a key: the
+/// classifier rejects an oversized tool call as not benign anyway, so the
+/// handoff declines rather than encode megabytes to say so.
+const VERDICT_KEY_LIMIT: usize = 256 * 1024;
 
-/// Whether `inputs` would reuse a recorded verdict now, for tests that assert
-/// what the table holds without timing the proofs it saves.
-#[cfg(test)]
-pub(crate) fn verdict_is_reusable(inputs: &HookCompositionInputsV1) -> bool {
-    verdict_key(inputs).is_some_and(|key| reusable_verdict(&key, Instant::now()).is_some())
+/// What the composition running on this thread may do with the slot.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum VerdictHandoff {
+    /// Compute, and leave nothing behind. Every caller but the two queries.
+    Off,
+    /// Compute and record, displacing whatever the slot held.
+    Record,
+    /// Take this hook's own recorded verdict, else compute.
+    Take,
 }
 
-/// Whether `inputs` would still reuse one `after` has passed.
-#[cfg(test)]
-pub(crate) fn verdict_is_reusable_after(inputs: &HookCompositionInputsV1, after: Duration) -> bool {
-    verdict_key(inputs).is_some_and(|key| reusable_verdict(&key, Instant::now() + after).is_some())
+thread_local! {
+    static HANDOFF: Cell<VerdictHandoff> = const { Cell::new(VerdictHandoff::Off) };
 }
 
-/// The canonical digest of `inputs`, or `None` when it cannot be formed — in
-/// which case the verdict is computed and nothing is recorded.
+/// Restores the enclosing mode, so a query cannot leak its own onto the next
+/// request this thread serves.
+pub(crate) struct VerdictHandoffScope(VerdictHandoff);
+
+impl Drop for VerdictHandoffScope {
+    fn drop(&mut self) {
+        HANDOFF.with(|mode| mode.set(self.0));
+    }
+}
+
+pub(crate) fn verdict_handoff(mode: VerdictHandoff) -> VerdictHandoffScope {
+    VerdictHandoffScope(HANDOFF.with(|current| current.replace(mode)))
+}
+
+static RECORDED_VERDICT: Mutex<Option<(String, Instant, bool)>> = Mutex::new(None);
+
+/// Whether the slot holds a verdict for `inputs`, without taking it. For
+/// tests that assert what the handoff holds rather than time what it saves.
+#[cfg(test)]
+pub(crate) fn verdict_is_recorded_after(inputs: &HookCompositionInputsV1, after: Duration) -> bool {
+    let Some(key) = verdict_key(inputs) else {
+        return false;
+    };
+    let now = Instant::now() + after;
+    let Ok(slot) = RECORDED_VERDICT.lock() else {
+        return false;
+    };
+    slot.as_ref().is_some_and(|(entry, at, _)| {
+        entry == &key && now.duration_since(*at) < VERDICT_HANDOFF_WINDOW
+    })
+}
+
+#[cfg(test)]
+pub(crate) fn verdict_is_recorded(inputs: &HookCompositionInputsV1) -> bool {
+    verdict_is_recorded_after(inputs, Duration::ZERO)
+}
+
+/// The canonical digest of `inputs`, or `None` when it cannot be formed within
+/// the key limit — in which case the verdict is computed and nothing is
+/// recorded.
 fn verdict_key(inputs: &HookCompositionInputsV1) -> Option<String> {
     let material = serde_json::to_value(inputs).ok()?;
     let mut bytes = Vec::new();
-    crate::context_digest_json::write_canonical_json_with_limit(&material, &mut bytes, usize::MAX)
-        .ok()?;
+    crate::context_digest_json::write_canonical_json_with_limit(
+        &material,
+        &mut bytes,
+        VERDICT_KEY_LIMIT,
+    )
+    .ok()?;
     Some(guard_policy_snapshot::digest_bytes(&bytes))
 }
 
-fn reusable_verdict(key: &str, now: Instant) -> Option<bool> {
-    let recent = RECENT_VERDICTS.lock().ok()?;
-    recent
-        .iter()
-        .find(|(entry, at, _)| entry == key && now.duration_since(*at) < VERDICT_REUSE_WINDOW)
-        .map(|(_, _, verdict)| *verdict)
+/// Empties the slot and returns what it held, when that was this composition's
+/// own verdict and still inside the window.
+fn take_verdict(key: Option<&str>, now: Instant) -> Option<bool> {
+    let mut slot = RECORDED_VERDICT.lock().ok()?;
+    let held = slot.take()?;
+    let (entry, at, verdict) = held;
+    (Some(entry.as_str()) == key && now.duration_since(at) < VERDICT_HANDOFF_WINDOW)
+        .then_some(verdict)
 }
 
-fn record_verdict(key: String, now: Instant, verdict: bool) {
-    let Ok(mut recent) = RECENT_VERDICTS.lock() else {
+/// Replaces whatever the slot held. A composition with no usable key clears it
+/// rather than leaving the previous entry readable.
+fn record_verdict(key: Option<String>, now: Instant, verdict: bool) {
+    let Ok(mut slot) = RECORDED_VERDICT.lock() else {
         return;
     };
-    recent.retain(|(entry, at, _)| entry != &key && now.duration_since(*at) < VERDICT_REUSE_WINDOW);
-    recent.push((key, now, verdict));
-    while recent.len() > VERDICT_REUSE_ENTRIES {
-        recent.remove(0);
-    }
+    *slot = key.map(|key| (key, now, verdict));
 }
 
 /// `is_explicitly_benign_tool_action_request` for the hook's tool call.
@@ -135,19 +189,25 @@ fn record_verdict(key: String, now: Instant, verdict: bool) {
 /// The extension-control snapshot the transport saw is the one that applies;
 /// an unknown health value or any input that cannot be bounded is not benign.
 pub(crate) fn benign_tool_action(inputs: &HookCompositionInputsV1) -> bool {
-    // Without a request there is no proof to run and so nothing to reuse.
+    // Without a request there is no proof to run and so nothing to hand on.
     if inputs.native_request.is_none() {
         return false;
     }
+    let mode = HANDOFF.with(Cell::get);
+    if mode == VerdictHandoff::Off {
+        return compute_benign_tool_action(inputs);
+    }
     let now = Instant::now();
     let key = verdict_key(inputs);
-    if let Some(verdict) = key.as_deref().and_then(|key| reusable_verdict(key, now)) {
-        return verdict;
+    if mode == VerdictHandoff::Take {
+        // Empties the slot either way, so one verdict is never read twice.
+        return match take_verdict(key.as_deref(), now) {
+            Some(verdict) => verdict,
+            None => compute_benign_tool_action(inputs),
+        };
     }
     let verdict = compute_benign_tool_action(inputs);
-    if let Some(key) = key {
-        record_verdict(key, now, verdict);
-    }
+    record_verdict(key, now, verdict);
     verdict
 }
 
