@@ -3,6 +3,10 @@
 //! configuration proves `origin` is a GitHub HTTPS or SSH remote with no program,
 //! proxy or URL rewrite in the way, every credential helper resolves to a
 //! trusted executable, and no hook Git would start for the fetch can run.
+//!
+//! `git merge --ff-only origin/<branch>`, alone or after the refresh, is the
+//! pull split in two. It reaches no remote, so it needs only the work tree
+//! half of the pull proof: what a fast-forward checkout could start.
 
 use super::git_remote_config as config;
 use super::git_session_probe::Probe;
@@ -43,6 +47,11 @@ pub(super) fn exact_safe_command(
         ..context
     };
     let mut fetch_seen = false;
+    // One proven fast-forward merge may follow or stand in for the fetch;
+    // after it, the checkout may hold files the chain did not see.
+    let mut merged = false;
+    // A pull already fast-forwards; no merge pairs with it.
+    let mut pulled = false;
     // Whether the current pipeline starts with the proven fetch, as in
     // `git fetch origin main 2>&1 | tail -2`.
     let mut fetch_pipeline = false;
@@ -62,7 +71,15 @@ pub(super) fn exact_safe_command(
         let stripped = super::segment_proof::without_stderr_merge(segment);
         let candidate = stripped.as_ref().unwrap_or(segment);
         if let Some((leading, upstream)) = parse(candidate, context) {
-            if fetch_seen
+            let merge = upstream.is_some_and(|shape| !shape.fetches);
+            // Only `git fetch origin` then `git merge --ff-only origin/main`
+            // pair; a pull, a second fetch or a second merge stands alone.
+            let repeated = if merge {
+                merged || pulled
+            } else {
+                fetch_seen || merged
+            };
+            if repeated
                 || !proven(
                     candidate,
                     leading,
@@ -74,7 +91,12 @@ pub(super) fn exact_safe_command(
             {
                 return None;
             }
-            fetch_seen = true;
+            if merge {
+                merged = true;
+            } else {
+                fetch_seen = true;
+                pulled |= upstream.is_some();
+            }
             fetch_pipeline = true;
             continue;
         }
@@ -93,15 +115,21 @@ pub(super) fn exact_safe_command(
         {
             return None;
         }
-        if !super::segment_proof::exact_safe_segment_with_context(model, segment, false, context)
+        // A merge may check out a link to a file outside the checkout, which
+        // a read screened before it ran would then follow. Git reads take
+        // blobs from objects and never follow one.
+        if ((merged && !fetch_pipeline)
+            || !super::segment_proof::exact_safe_segment_with_context(
+                model, segment, false, context,
+            ))
             && !proven_read(model, index, context, deadline, execution_environment)
         {
             return None;
         }
     }
-    fetch_seen.then_some((
+    (fetch_seen || merged).then_some((
         "native_exact_safe_git_origin_refresh",
-        "The Rust command authority proved this fetch or pull reaches only a GitHub origin with trusted credential helpers, plain refspecs and no hooks, filters or transport programs.",
+        "The Rust command authority proved this fetch, pull or fast-forward of an origin branch starts no hook, filter or transport program, and any fetch reaches only a GitHub origin with trusted credential helpers and plain refspecs.",
     ))
 }
 
@@ -208,7 +236,7 @@ fn memo_key(
 }
 
 /// The leading `-C` routes of a refresh, with `None` for a fetch or the
-/// shape of a pull.
+/// shape of a pull or fast-forward merge.
 fn parse<'a>(
     segment: &'a CommandSegmentV1,
     context: super::PathContext<'_>,
@@ -242,6 +270,7 @@ fn parse<'a>(
             crate::command_compatibility::git_fetch_origin_shaped(rest).then_some((leading, None))
         }
         "pull" => Some((leading, Some(pull::shaped(rest)?))),
+        "merge" => Some((leading, Some(pull::fast_forward_merge(rest)?))),
         _ => None,
     }
 }
@@ -266,6 +295,9 @@ fn prove(
     let Some((effective, repository)) = probe.config() else {
         return false;
     };
+    if let Some(shape) = upstream.filter(|shape| !shape.fetches) {
+        return fast_forward_inert(&effective, &repository, shape, &probe);
+    }
     let urls = effective
         .get("remote.origin.url")
         .map_or(&[][..], Vec::as_slice);
@@ -290,4 +322,27 @@ fn prove(
             "post-fetch",
         ])
         && upstream.is_none_or(|shape| pull::pull_inert(&effective, &repository, shape, &probe))
+}
+
+/// The work tree half of the pull proof, for a fast-forward merge that
+/// fetches nothing: the checkout, ref update and automatic maintenance start
+/// no program. A partial clone would fetch the blobs it checks out from a
+/// remote this proof has not read, submodules carry their own hooks, and a
+/// virtual file system names a program Git runs on every index read.
+fn fast_forward_inert(
+    effective: &config::GitConfig,
+    repository: &config::GitConfig,
+    shape: pull::Pull,
+    probe: &Probe,
+) -> bool {
+    !effective.iter().any(|(key, values)| {
+        matches!(
+            key.as_str(),
+            "extensions.partialclone" | "core.virtualfilesystem"
+        ) || key.starts_with("submodule.")
+            || (key.starts_with("remote.")
+                && key.ends_with(".promisor")
+                && values.iter().any(|value| !pull::disabled(value)))
+    }) && probe.hooks_inert(["reference-transaction", "pre-auto-gc"])
+        && pull::pull_inert(effective, repository, shape, probe)
 }

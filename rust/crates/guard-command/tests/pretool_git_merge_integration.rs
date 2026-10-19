@@ -282,3 +282,148 @@ fn pulls_stay_refreshes_under_the_users_own_gpg_program() {
     assert_reviewed(&session, &pull, &cwd);
     assert_reviewed(&session, &fast_forward, &cwd);
 }
+
+/// `git fetch origin && git merge --ff-only origin/main` is a fast-forward
+/// pull split in two. The merge reaches no remote, so it needs only the work
+/// tree half of the pull proof, and a commit hook, commit signing or
+/// `pull.rebase` (which `git merge` never reads) leave it quiet.
+#[test]
+fn a_fast_forward_merge_of_origin_is_a_proven_refresh() {
+    let session = session("merge-fast-forward");
+    let primary = session.primary.clone();
+    let p = primary.display();
+    let merge = "git merge --ff-only origin/main";
+    let split = "git fetch origin && git merge --ff-only origin/main";
+    session.config(&["branch.main.remote", "origin"]);
+    session.config(&["branch.main.merge", "refs/heads/main"]);
+    for command in [
+        merge.to_owned(),
+        split.to_owned(),
+        "git fetch origin main && git merge --ff-only origin/main 2>&1 | tail -3".to_owned(),
+        "git merge -q --ff-only origin/main && git log --oneline -1".to_owned(),
+        "git merge --ff-only @{u}".to_owned(),
+        "git fetch origin && git merge --ff-only @{upstream}".to_owned(),
+    ] {
+        assert_allowed(&session, &command, &primary, REFRESH);
+    }
+    let org = session.org.clone();
+    for command in [
+        format!("git -C {p} merge --ff-only origin/main"),
+        format!("git -C {p} fetch origin && git -C {p} merge --ff-only origin/main"),
+    ] {
+        assert_allowed(&session, &command, &org, REFRESH);
+    }
+    // A linked worktree shares the main checkout's config and hooks.
+    let linked = session.worktree.display();
+    for command in [
+        format!("cd {linked} && git merge --ff-only origin/fix/report-lane"),
+        format!("cd {linked} && git fetch origin fix/report-lane && git merge --ff-only origin/fix/report-lane"),
+        format!("git -C {linked} merge --ff-only origin/main"),
+    ] {
+        assert_allowed(&session, &command, &org, REFRESH);
+    }
+    for (key, value) in [
+        ("pull.rebase", "true"),
+        ("branch.main.rebase", "true"),
+        ("commit.gpgsign", "true"),
+    ] {
+        session.config(&[key, value]);
+        assert_allowed(&session, split, &primary, REFRESH);
+        session.config(&["--unset-all", key]);
+    }
+    for hook in ["pre-commit", "commit-msg", "post-commit", "post-checkout"] {
+        let path = primary.join(".git/hooks").join(hook);
+        executable_hook(&path);
+        assert_allowed(&session, split, &primary, REFRESH);
+        std::fs::remove_file(path).unwrap();
+    }
+    for command in [
+        // Every option other than quiet keeps the review, as does a ref that
+        // is not origin's or a second merge or pull in the chain.
+        "git fetch origin && git merge origin/main",
+        "git fetch origin && git merge --ff origin/main",
+        "git fetch origin && git merge --ff-only --no-ff origin/main",
+        "git fetch origin && git merge --ff-only -s ours origin/main",
+        "git fetch origin && git merge --ff-only -X theirs origin/main",
+        "git fetch origin && git merge --ff-only --no-verify origin/main",
+        "git fetch origin && git merge --ff-only -S origin/main",
+        "git fetch origin && git merge --ff-only --squash origin/main",
+        "git fetch origin && git merge --ff-only --autostash origin/main",
+        "git fetch origin && git merge --ff-only --verify-signatures origin/main",
+        "git fetch origin && git merge --ff-only main",
+        "git fetch origin && git merge --ff-only upstream/main",
+        "git fetch origin && git merge --ff-only FETCH_HEAD",
+        "git fetch origin && git merge --ff-only origin/main@{1}",
+        "git fetch evil && git merge --ff-only origin/main",
+        "git fetch origin && git merge --ff-only origin/main && git merge --ff-only origin/next",
+        "git pull --ff-only && git merge --ff-only origin/main",
+        "git merge --ff-only origin/main && git fetch origin",
+        "git -c core.hooksPath=/tmp/hooks merge --ff-only origin/main",
+        "GIT_DIR=/tmp/other.git git merge --ff-only origin/main",
+        "git merge --ff-only origin/main | cat tracked.txt",
+        "git merge --ff-only -s ours origin/main",
+        "git merge --ff-only -X theirs origin/main",
+        "git merge --ff-only -S origin/main",
+        "git merge --ff-only --squash origin/main",
+    ] {
+        assert_reviewed(&session, command, &primary);
+    }
+    // A read screened before the merge could follow a link it checks out.
+    assert_ne!(
+        reason(
+            &session,
+            "git merge --ff-only origin/main && cat tracked.txt",
+            &primary
+        )
+        .as_deref(),
+        Some(REFRESH)
+    );
+    let elsewhere = session.org.display().to_string();
+    for (key, value) in [
+        ("core.fsmonitor", "/tmp/monitor"),
+        ("core.worktree", elsewhere.as_str()),
+        ("core.hooksPath", ".githooks"),
+        ("filter.fixture.smudge", "id"),
+        ("hook.post-merge.command", "id"),
+        ("merge.verifySignatures", "true"),
+        ("gpg.program", "/tmp/gpg"),
+        ("branch.main.mergeoptions", "--verify-signatures"),
+        ("remote.origin.promisor", "true"),
+        ("submodule.vendor.url", "https://github.com/acme/vendor.git"),
+        ("lfs.customtransfer.fixture.path", "/tmp/transfer"),
+    ] {
+        session.config(&[key, value]);
+        // The merge alone may still be a local write that proof settles.
+        assert_ne!(
+            reason(&session, merge, &primary).as_deref(),
+            Some(REFRESH),
+            "{key}"
+        );
+        assert_reviewed(&session, split, &primary);
+        session.config(&["--unset-all", key]);
+    }
+    // An automatic stash is reapplied with a merge, which runs the driver.
+    session.config(&["merge.fixture.driver", "sh -c id %O %A %B"]);
+    assert_allowed(&session, split, &primary, REFRESH);
+    session.config(&["merge.autoStash", "true"]);
+    assert_reviewed(&session, split, &primary);
+    session.config(&["--unset-all", "merge.autoStash"]);
+    session.config(&["--unset-all", "merge.fixture.driver"]);
+    // The upstream a bare `@{u}` names must be origin's.
+    session.config(&["branch.main.remote", "evil"]);
+    assert_reviewed(&session, "git merge --ff-only @{u}", &primary);
+    session.config(&["branch.main.remote", "origin"]);
+    for hook in [
+        "post-merge",
+        "post-index-change",
+        "reference-transaction",
+        "pre-auto-gc",
+    ] {
+        let path = primary.join(".git/hooks").join(hook);
+        executable_hook(&path);
+        assert_reviewed(&session, merge, &primary);
+        assert_reviewed(&session, split, &primary);
+        std::fs::remove_file(path).unwrap();
+    }
+    assert_allowed(&session, split, &primary, REFRESH);
+}
