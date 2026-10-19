@@ -317,8 +317,14 @@ impl InspectionHost for ResidentInspectionHost<'_> {
 
 fn request_digest(request: &CodexToolOutputRequestV1) -> Result<String, &'static str> {
     let material = serde_json::to_value(request).map_err(|_| INVALID)?;
+    // A harness accepts up to a megabyte of hook input, so a prompt review
+    // carries whatever the user pasted. Holding it to the ordinary request
+    // limit turned a long prompt into an invalid request, and a prompt review
+    // that cannot answer is a review the user did not need.
     let limit = match request.action {
-        CodexToolOutputActionV1::PostToolOutput(_) => CODEX_POST_TOOL_OUTPUT_MAX_BYTES,
+        CodexToolOutputActionV1::PostToolOutput(_)
+        | CodexToolOutputActionV1::PromptCredentialFile(_)
+        | CodexToolOutputActionV1::PromptAttachment(_) => CODEX_POST_TOOL_OUTPUT_MAX_BYTES,
         _ => CODEX_TOOL_OUTPUT_MAX_BYTES,
     };
     let mut bytes = Vec::new();
@@ -375,10 +381,10 @@ fn action_is_bounded(action: &CodexToolOutputActionV1) -> bool {
         Action::PromptCredentialFile(scope) => {
             option_path_is_bounded(&scope.cwd) && path_is_bounded(&scope.config_path)
         }
+        // Prose again, bounded by the canonical digest like the credential-file
+        // scan beside it.
         Action::PromptAttachment(scope) => {
-            text_is_bounded(&scope.prompt_text)
-                && path_is_bounded(&scope.home_dir)
-                && path_is_bounded(&scope.config_path)
+            path_is_bounded(&scope.home_dir) && path_is_bounded(&scope.config_path)
         }
     }
 }

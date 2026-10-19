@@ -83,10 +83,12 @@ def test_a_symlink_is_judged_by_the_name_it_resolves_to(tmp_path: Path) -> None:
 
 def test_a_prompt_larger_than_a_command_line_is_still_reviewed(tmp_path: Path) -> None:
     # Prompts carry pasted logs and diffs; a long one must not turn into a
-    # blocking "native runtime unavailable" artifact.
+    # blocking "native runtime unavailable" artifact. A harness accepts a
+    # megabyte of hook input, so the padding here passes the request digest's
+    # ordinary quarter-megabyte limit as a real pasted log would.
     (tmp_path / ".apitoken").write_text(_CREDENTIAL_TEXT, encoding="utf-8")
-    padding = "a line of pasted output that names nothing at all\n" * 3_000
+    padding = "a line of pasted output that names nothing at all\n" * 12_000
 
-    assert len(padding) > 64 * 1024
+    assert len(padding) > 256 * 1024
     assert _review(f"{padding}Read .apitoken please.", tmp_path) is not None
     assert _review(f"{padding}Rename .apitoken to something clearer.", tmp_path) is None

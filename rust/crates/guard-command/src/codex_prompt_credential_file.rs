@@ -257,6 +257,13 @@ pub(crate) fn review_prompt_credential_file(
     let cwd = cwd.map(PyPath::new);
     for found in PATH_TOKEN.find_iter(prompt_text) {
         let Ok(found) = found else { break };
+        // Past the deadline the caller has already given up on this answer, so
+        // nothing further is resolved or opened on its behalf. A prompt that
+        // names thousands of ordinary paths resolves every one of them, and
+        // those lookups are the slow part on a cold filesystem.
+        if Instant::now() >= deadline {
+            break;
+        }
         let requested_path = found.as_str();
         let Some(path) = resolve_scan_path(ctx, requested_path, cwd.as_ref()) else {
             continue;
@@ -264,11 +271,6 @@ pub(crate) fn review_prompt_credential_file(
         let name = path.name();
         if SKIP_BASENAMES.contains(&name) || !name.starts_with('.') || !looks_secret_bearing(name) {
             continue;
-        }
-        // Past the deadline the caller has already given up on this answer,
-        // so no further file is opened on its behalf.
-        if Instant::now() >= deadline {
-            break;
         }
         let normalized_path = path.to_string();
         if !ctx.host.is_regular_file(&normalized_path) {
