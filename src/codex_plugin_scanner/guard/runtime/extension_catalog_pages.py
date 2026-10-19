@@ -45,6 +45,10 @@ def native_call(home: Path, **request: object) -> dict[str, Any]:
     payload = reply.get("payload")
     if not isinstance(payload, dict) or "error" in reply:
         raise ValueError("Native complete catalog producer rejected metadata")
+    if "policy_error" in payload:
+        from ..managed_controls_policy_fields import ManagedControlsPolicyError
+
+        raise ManagedControlsPolicyError(payload["policy_error"], payload["message"])
     return payload
 
 

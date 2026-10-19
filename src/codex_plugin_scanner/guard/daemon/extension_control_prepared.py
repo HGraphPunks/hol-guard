@@ -86,9 +86,13 @@ def prepare_candidate(store, registry, mutation, effective_layers, *, managed_re
     if "lineage_source" in plan:
         plan = lifecycle.invoke("plan", **plan_input, ancestry=lifecycle.ancestry(floor, plan["lineage_source"]))
     if plan["profile"] == "committed-subset":
+        if previous is None:
+            raise ValueError("committed subset requires an existing activation")
         authority = previous
         engine = previous.engine
     elif plan["profile"] == "installed":
+        if installed is None:
+            raise ValueError("installed preparation authority is unavailable")
         authority = installed
         engine = installed.engine
     else:

@@ -15,6 +15,8 @@ pub mod completion;
 mod discovery;
 #[path = "cloud_catalog_policy.rs"]
 mod policy;
+#[path = "cloud_catalog_policy_view.rs"]
+mod policy_view;
 #[path = "cloud_catalog_projection.rs"]
 mod projection;
 pub use policy::select_policy_metadata;
@@ -285,6 +287,9 @@ fn flush(
 /// Shared CLI/resident interface. Drafts are bounded, private, and never visible
 /// as complete. Errors discard the draft; process restart requires preparation.
 pub fn evaluate(request: &Value) -> Value {
+    if request["action"] == "policy_view" {
+        return policy_view::evaluate(request);
+    }
     static DRAFTS: OnceLock<Mutex<Vec<(String, Builder)>>> = OnceLock::new();
     let result = (|| -> Result<Value> {
         let action = request["action"].as_str().ok_or(Error::Invalid)?;

@@ -130,8 +130,8 @@ fn evidence(input: &Value, key: &[u8]) -> Result<Vec<Identity>, String> {
             || link["catalog_digest"] != next["catalog_digest"]
             || link["pack_record_digest"] != *digest
             || header["catalog_digest"] != next["catalog_digest"]
-            || !header["issued_at"].as_u64().is_some_and(|n| n <= admitted)
-            || !header["expires_at"].as_u64().is_some_and(|n| admitted < n)
+            || header["issued_at"].as_u64().is_none_or(|n| n > admitted)
+            || header["expires_at"].as_u64().is_none_or(|n| admitted >= n)
         {
             return Err("pack_lifecycle_legacy_anchor_mismatch".into());
         }

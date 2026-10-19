@@ -30,6 +30,8 @@ def delivery(tmp_path, monkeypatch):
     fixture = Path(__file__).parent / "fixtures/extension-preparation-legacy.py.txt"
     exec(compile(fixture.read_text(), str(fixture), "exec"), namespace)
     namespace["PreparedCommandPacks"] = preparation.PreparedCommandPacks
+    namespace["UnavailablePackError"] = preparation.UnavailablePackError
+    namespace["cached_fetcher"] = lambda directory: preparation.cached_fetcher(directory)
     from codex_plugin_scanner.guard.catalog_delivery.cache_io import stage_archive
     from tests.native_activation_support import native
 

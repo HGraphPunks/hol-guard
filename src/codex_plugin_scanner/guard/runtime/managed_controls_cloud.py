@@ -10,7 +10,6 @@ import importlib
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ..managed_controls_policy_fields import ManagedControlsPolicyError
 from .extension_catalog_provider import observed_view
 
 
@@ -20,57 +19,30 @@ def local_policy_view(*, guard_home: Path, runtime_summary: dict[str, object], r
     The session adapter must retain the full authenticated observation identity;
     a response's selected metadata is never a substitute for that local binding.
     """
-    identity = runtime_summary.get("policyMetadataIdentity")
-    if not isinstance(identity, dict) or set(identity) != {"ownerUserId", "workspaceId", "deviceId", "runtimeId"}:
-        raise ManagedControlsPolicyError(
-            "policy_observation_identity_missing", "Authenticated policy observation identity is unavailable."
-        )
-    if identity.get("runtimeId") != runtime_summary.get("runtime_credential_id") or identity.get(
-        "deviceId"
-    ) != runtime_summary.get("runtime_device_id"):
-        raise ManagedControlsPolicyError(
-            "policy_observation_identity_mismatch", "Policy observation session identity changed."
-        )
-    observed_at = runtime_summary.get("policyMetadataObservedAt")
-    if not isinstance(observed_at, str) or not observed_at:
-        raise ManagedControlsPolicyError(
-            "policy_completed_observation_missing", "Authenticated completed observation time is unavailable."
-        )
     view = observed_view(runtime_summary, guard_home)
     discovery = importlib.import_module("..catalog_delivery.discovery", __package__)
     handle = discovery.require_handle(discovery.installed_discovery(guard_home), guard_home)
-    if (view.discovery_root, view.discovery_authority) != (handle.root, handle.authority):
-        raise ManagedControlsPolicyError("policy_local_view_invalid", "Policy discovery observation changed.")
-    manifest = view.manifest
-    if manifest["enforcementCatalogDigest"] != registry.catalog_digest:
-        raise ManagedControlsPolicyError("policy_enforcement_digest_mismatch", "Policy enforcement state changed.")
-    from .extension_catalog_completion import local_observation
     from .extension_catalog_pages import native_call
 
-    native_call(
+    return native_call(
         guard_home,
-        action="completion_read",
-        token=view.token,
-        observation=local_observation(view, registry),
-        identity=identity,
-        observed_at=observed_at,
-    )
-    return {
-        "guard_home": str(guard_home.absolute()),
-        "token": view.token,
-        "view_digest": manifest["catalogDigest"],
-        "identity": dict(identity),
-        "observed_at": observed_at,
-        "now": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "observation": {
-            "guard_home": str(guard_home.absolute()),
-            "discovery_root": handle.root,
-            "discovery_authority": handle.authority,
-            "enforcement_catalog_digest": registry.catalog_digest,
-            "guard_version": manifest["guardVersion"],
-            "generated_at": manifest["generatedAt"],
+        action="policy_view",
+        runtime_summary={
+            "policyMetadataIdentity": runtime_summary.get("policyMetadataIdentity"),
+            "policyMetadataObservedAt": runtime_summary.get("policyMetadataObservedAt"),
+            "runtime_credential_id": runtime_summary.get("runtime_credential_id"),
+            "runtime_device_id": runtime_summary.get("runtime_device_id"),
         },
-    }
+        view={
+            "token": view.token,
+            "manifest": view.manifest,
+            "discovery_root": view.discovery_root,
+            "discovery_authority": view.discovery_authority,
+        },
+        discovery={"root": handle.root, "authority": handle.authority},
+        enforcement_catalog_digest=registry.catalog_digest,
+        now=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    )
 
 
 def policy_view_ready(*, store, registry) -> bool:
