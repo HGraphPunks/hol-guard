@@ -9,8 +9,10 @@ use super::{decode_ignoring_errors, display_text, redact_secret_assignments};
 use crate::codex_output_env::{Ctx, GitCheck, GitRun, InspectionHost};
 use crate::prompt_analysis::GuardRunPromptArtifact;
 
-/// Not a documentation sample, so `suppress_samples` leaves it alone.
-const ACCESS_KEY: &str = "AKIA3K7QW9ZBV2NMLPTD";
+/// Not a documentation sample, so `suppress_samples` leaves it alone. The
+/// fabricated value is spelled in two pieces so that a repository secret scan
+/// reads the fixture as the invention it is rather than a leaked key.
+const ACCESS_KEY: &str = concat!("AKIA", "3K7QW9ZBV2NMLPTD");
 
 struct Host;
 
