@@ -21,6 +21,8 @@ def run(executable, payload):
         )
     except OSError as exc:
         raise ValueError("native transfer could not be started") from exc
+    assert process.stdin is not None and process.stdout is not None and process.stderr is not None
+    input_stream, output_stream, error_stream = process.stdin, process.stdout, process.stderr
     messages = queue.Queue()
     errors = bytearray()
     overflow = threading.Event()
@@ -28,7 +30,7 @@ def run(executable, payload):
     def output():
         consumed = 0
         try:
-            while line := process.stdout.readline(65537):
+            while line := output_stream.readline(65537):
                 consumed += len(line)
                 if len(line) > 65536 or consumed > transport._MAX_OUTPUT_BYTES:
                     overflow.set()
@@ -42,7 +44,7 @@ def run(executable, payload):
 
     def stderr():
         try:
-            while chunk := process.stderr.read(65536):
+            while chunk := error_stream.read(65536):
                 if len(errors) + len(chunk) > transport._MAX_STDERR_BYTES:
                     overflow.set()
                     process.kill()
@@ -53,8 +55,8 @@ def run(executable, payload):
 
     def stdin():
         try:
-            process.stdin.write(payload)
-            process.stdin.close()
+            input_stream.write(payload)
+            input_stream.close()
         except (OSError, ValueError):
             pass
 
@@ -100,7 +102,7 @@ def run(executable, payload):
         process.wait()
         for thread in threads:
             thread.join(timeout=1)
-        for stream in (process.stdin, process.stdout, process.stderr):
+        for stream in (input_stream, output_stream, error_stream):
             stream.close()
         for thread in threads:
             thread.join()

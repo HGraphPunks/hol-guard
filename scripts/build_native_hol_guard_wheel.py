@@ -20,6 +20,7 @@ import os
 import re
 import stat
 import subprocess as subprocess
+import sys
 import unicodedata
 import zipfile
 from dataclasses import dataclass
@@ -38,6 +39,8 @@ if __package__:
     )
     from .native_wheel_provenance import runtime_capabilities
 else:
+    # Isolated release assembly (-I -S) omits the script directory from sys.path.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
     from native_wheel_metadata import _record_content as _record_content
     from native_wheel_metadata import (
         binding,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from contextlib import contextmanager
+from typing import Any, cast
 
 from ..extension_builder import native_source_compiler as transport
 
@@ -16,13 +17,13 @@ def verified_preparation():
         raw = transport._verify_compiler(transport._NATIVE_PACKAGE / transport._COMPILER_NAME, manifest)
         with transport._verified_executable(raw) as executable:
 
-            def invoke(kind="preparation", **fields):
+            def invoke(kind="preparation", **fields) -> dict[str, Any]:
                 try:
                     request = json.dumps({"kind": kind, **fields}, sort_keys=True, separators=(",", ":")).encode()
                     code, stdout, stderr = transport._run_bounded(
                         [str(executable), "pack-lifecycle", "--stdin"], request, timeout=60
                     )
-                    return transport._decode_output(stdout, returncode=code, stderr=stderr)
+                    return cast(dict[str, Any], transport._decode_output(stdout, returncode=code, stderr=stderr))
                 except transport.NativeSourceCompilerError as exc:
                     raise ValueError(f"native_pack_lifecycle_unavailable: {exc}") from exc
 

@@ -14,7 +14,7 @@ import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .catalog_delivery.discovery import DiscoveryHandle
@@ -130,9 +130,9 @@ def native_catalog_read(
         return None
     deadline = time.monotonic() + timeout_seconds
     status = native_runtime_status(deadline_monotonic=deadline)
-    if not _supports_catalog_read(status) or status.identity is None:
+    if not _supports_catalog_read(status) or status.identity is None or status.capabilities is None:
         return None
-    envelope = {
+    envelope: dict[str, Any] = {
         "operation": "catalog_read",
         "request": {
             "schema": _REQUEST_SCHEMA,
@@ -143,6 +143,7 @@ def native_catalog_read(
         },
         "deadline_budget_ms": max(1, int((deadline - time.monotonic()) * 1000)),
     }
+    handle = discovery_handle
     if discovery_handle is not None and CATALOG_DISCOVERY_FEATURE not in status.capabilities.features:
         return None
     if CATALOG_DISCOVERY_FEATURE in status.capabilities.features:
@@ -193,7 +194,13 @@ def native_catalog_read(
     }:
         return NativeCatalogReadResult(status=503, error_code=CATALOG_READ_TRANSPORT_FAILED)
     result = _validated_result(decoded)
-    if result is not None and result.status == 503 and discovery_handle is None and "handle" in envelope["request"]:
+    if (
+        result is not None
+        and result.status == 503
+        and discovery_handle is None
+        and handle is not None
+        and "handle" in envelope["request"]
+    ):
         from .catalog_delivery.discovery_ready import invalidate
 
         invalidate(guard_home, handle)

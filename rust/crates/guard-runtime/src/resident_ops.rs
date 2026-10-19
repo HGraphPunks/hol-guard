@@ -607,6 +607,13 @@ pub(crate) fn evaluate_resident_bytes(
 /// The Guard home an operation acts on, for operations that open per-home state.
 fn operation_guard_home(operation: &ResidentOperationV1) -> Option<&str> {
     match operation {
+        ResidentOperationV1::CloudCatalog(request) => {
+            if request["action"] == "begin" {
+                request["observation"]["guard_home"].as_str()
+            } else {
+                request["guard_home"].as_str()
+            }
+        }
         ResidentOperationV1::CatalogReadV2(request) => request.guard_home.to_str(),
         ResidentOperationV1::CatalogPrepareV1(request) => request.guard_home.to_str(),
         ResidentOperationV1::CatalogReadPreparedV1(request) => request.guard_home.to_str(),

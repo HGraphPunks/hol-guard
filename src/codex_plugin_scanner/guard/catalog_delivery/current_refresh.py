@@ -7,6 +7,7 @@ the brief protected-cursor CAS lease. Failed preparation retains the old view.
 from __future__ import annotations
 
 import time
+from typing import Any
 
 from ..native_command_control_authority_store import _key
 from . import active_security, current_cache, lifecycle, lifecycle_store, transport
@@ -58,7 +59,7 @@ def refresh(store):
     # Known negative facts are committed/quarantined before staging metadata.
     active_security.observe_preparation(store, authority)
     captured = _capture(store)
-    fields = dict(publication=authority.data.decode(), now=time.time())
+    fields: dict[str, Any] = dict(publication=authority.data.decode(), now=time.time())
     while True:
         result = _invoke(store, captured, **fields)
         if "lineage_kind" not in result:

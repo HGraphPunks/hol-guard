@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 from contextlib import contextmanager
 from contextvars import ContextVar
+from pathlib import Path
+from typing import Any, cast
 
 from ..extension_builder import native_source_compiler as transport
 
-_EXECUTABLE = ContextVar("verified_pack_lifecycle_executable", default=None)
+_EXECUTABLE: ContextVar[Path | None] = ContextVar("verified_pack_lifecycle_executable", default=None)
 
 
 @contextmanager
@@ -30,7 +32,7 @@ def session():
         raise ValueError(f"native_pack_lifecycle_unavailable: {exc}") from exc
 
 
-def invoke(kind, **fields):
+def invoke(kind, **fields) -> dict[str, Any]:
     try:
         request = json.dumps({"kind": kind, **fields}, sort_keys=True, separators=(",", ":")).encode()
         with session():
@@ -38,7 +40,8 @@ def invoke(kind, **fields):
             code, stdout, stderr = transport._run_bounded(
                 [str(executable), "pack-lifecycle", "--stdin"], request, timeout=60
             )
-        return transport._decode_output(stdout, returncode=code, stderr=stderr)
+        # Rust validates each operation's record; this adapter transports heterogeneous JSON values.
+        return cast(dict[str, Any], transport._decode_output(stdout, returncode=code, stderr=stderr))
     except transport.NativeSourceCompilerError as exc:
         raise ValueError(f"native_pack_lifecycle_unavailable: {exc}") from exc
 

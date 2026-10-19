@@ -175,10 +175,12 @@ def parsed_managed_controls_from_validated_policy_bundle(
     if not is_mapping(payload):
         raise ManagedControlsPolicyError("invalid_policy_document", "Signed policy payload must be an object.")
     cloud_view = None
+    capabilities = runtime_summary.get("managedControlsCapabilities") if runtime_summary is not None else None
     if (
         not _without_extension_fields(payload)
         and runtime_summary is not None
-        and "extension-catalog.v2" in (runtime_summary.get("managedControlsCapabilities") or [])
+        and isinstance(capabilities, list)
+        and "extension-catalog.v2" in capabilities
     ):
         if guard_home is None:
             raise ManagedControlsPolicyError("policy_local_view_missing", "An explicit local policy view is required.")
@@ -186,7 +188,8 @@ def parsed_managed_controls_from_validated_policy_bundle(
 
         try:
             cloud_view = local_policy_view(guard_home=guard_home, runtime_summary=runtime_summary, registry=registry)
-            if cloud_view["identity"].get("workspaceId") != policy_bundle.get("workspaceId"):
+            identity = cloud_view["identity"]
+            if not isinstance(identity, dict) or identity.get("workspaceId") != policy_bundle.get("workspaceId"):
                 raise ManagedControlsPolicyError(
                     "policy_observation_identity_mismatch", "Policy workspace identity changed."
                 )

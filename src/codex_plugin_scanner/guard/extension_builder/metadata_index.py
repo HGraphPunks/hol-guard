@@ -23,10 +23,11 @@ def exchange(compiler, operation, records, directory, *, fetch=None, archive=Non
         timer.start()
         try:
             assert process.stdin is not None and process.stdout is not None
+            input_stream = process.stdin
 
             def send(value):
-                process.stdin.write(json.dumps(value, separators=(",", ":"), ensure_ascii=False).encode() + b"\n")
-                process.stdin.flush()
+                input_stream.write(json.dumps(value, separators=(",", ":"), ensure_ascii=False).encode() + b"\n")
+                input_stream.flush()
 
             failures = []
 

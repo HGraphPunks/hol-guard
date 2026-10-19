@@ -14,6 +14,12 @@ fn completion_is_bound_fresh_durable_and_rejects_races() {
     request["action"] = json!("completion_begin");
     let begun = evaluate(&request);
     assert!(begun.get("error").is_none(), "{begun}");
+    let overlapping = evaluate(&request);
+    assert!(overlapping.get("error").is_none(), "{overlapping}");
+    assert_ne!(
+        begun["payload"]["idempotencyKey"],
+        overlapping["payload"]["idempotencyKey"]
+    );
     let clock = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap();
@@ -84,6 +90,17 @@ fn completion_is_bound_fresh_durable_and_rejects_races() {
     );
     request["action"] = json!("completion_read");
     assert_eq!(evaluate(&request)["payload"], response["observation"]);
+    // An overlapping request must keep its own authenticated single-use nonce,
+    // even after the first response commits and its challenge is consumed.
+    request["action"] = json!("completion_accept");
+    request["response"]["observation"]["nonce"] = overlapping["payload"]["idempotencyKey"].clone();
+    assert!(evaluate(&request).get("error").is_none());
+    assert!(evaluate(&request).get("error").is_some());
+    request["action"] = json!("completion_read");
+    assert_eq!(
+        evaluate(&request)["payload"],
+        request["response"]["observation"]
+    );
     fs::write(
         home.path()
             .join("native-runtime/cloud-catalog/completion.json"),

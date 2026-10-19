@@ -72,12 +72,15 @@ def effective_managed_controls_for_activation(
         return candidate, candidate_capabilities, None
     capabilities = managed_controls_lkg_capabilities(store, activation_bundle)
     try:
+        runtime_summary = store.get_sync_payload("runtime_session_summary")
+        if runtime_summary is not None and not isinstance(runtime_summary, dict):
+            raise ManagedControlsPolicyError("policy_local_view_invalid", "Runtime session summary must be an object.")
         parsed = parsed_managed_controls_from_validated_policy_bundle(
             activation_bundle,
             registry=current_catalog_registry(store),
             negotiated_capabilities=capabilities,
             guard_home=store.guard_home,
-            runtime_summary=store.get_sync_payload("runtime_session_summary"),
+            runtime_summary=runtime_summary,
         )
     except ManagedControlsPolicyError as error:
         return None, capabilities, error.code

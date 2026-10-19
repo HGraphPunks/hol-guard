@@ -159,9 +159,6 @@ def test_true_legacy_absence_and_old_root_remain_compatible(package, tmp_path, m
 @pytest.mark.parametrize("archive", [False, True])
 def test_core_profile_omits_loose_metadata_and_descriptor_fingerprint(hook, monkeypatch, target, archive):
     root = Path(hook.root)
-    core = root / "contracts/extensions/core-defaults.v1.json"
-    core.parent.mkdir(parents=True)
-    core.write_text("{}")
     if archive:
         (root / "PKG-INFO").write_text("frozen")
     hook.target_name = target

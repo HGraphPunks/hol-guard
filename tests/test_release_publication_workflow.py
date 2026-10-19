@@ -42,7 +42,7 @@ def test_release_publication_reuses_one_hashed_build_artifact() -> None:
     assert jobs["publish-alpha-testpypi"]["needs"] == alpha_needs
     assert jobs["publish-alpha-pypi"]["needs"] == alpha_needs
     assemble = jobs["assemble-native-guard-distributions"]
-    assert assemble["needs"] == ["build", "build-native-guard-wheels"]
+    assert assemble["needs"] == ["build", "build-native-guard-wheels", "publish-installed-bundle-assets"]
     assert "needs.build.result == 'success'" in assemble["if"]
     assert "needs.build-native-guard-wheels.result == 'success'" in assemble["if"]
     native_if = jobs["build-native-guard-wheels"]["if"]

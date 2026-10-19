@@ -4,6 +4,54 @@ use super::*;
 use ring::hmac;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+const MAX_PENDING_COMPLETIONS: usize = 8;
+const PENDING_COMPLETION_TTL: u64 = 120_000_000;
+
+fn pending(root: &Path, key: &hmac::Key, current_time: u64) -> Result<Vec<Value>> {
+    if !root.join("completion-pending.json").try_exists()? {
+        return Ok(Vec::new());
+    }
+    let value = load(root, "completion-pending.json", key)?;
+    let records = match &value {
+        Value::Array(records) => records.as_slice(),
+        // Older clients persisted one authenticated challenge instead of a list.
+        Value::Object(_) => std::slice::from_ref(&value),
+        _ => return Err(Error::Invalid),
+    };
+    if records.len() > MAX_PENDING_COMPLETIONS {
+        return Err(Error::Invalid);
+    }
+    let mut live = Vec::new();
+    for record in records {
+        let nonce = record["nonce"]
+            .as_str()
+            .filter(|v| sha(v))
+            .ok_or(Error::Invalid)?;
+        let started = record["started"].as_u64().ok_or(Error::Invalid)?;
+        let age = current_time.checked_sub(started).ok_or(Error::Invalid)?;
+        if age <= PENDING_COMPLETION_TTL {
+            if live.iter().any(|other: &Value| other["nonce"] == nonce) {
+                return Err(Error::Invalid);
+            }
+            live.push(record.clone());
+        }
+    }
+    Ok(live)
+}
+
+fn save_pending(root: &Path, records: &[Value], key: &hmac::Key) -> Result<()> {
+    if records.is_empty() {
+        std::fs::remove_file(root.join("completion-pending.json"))?;
+        return Ok(());
+    }
+    let value = json!(records);
+    // Keep the existing authenticated-record read budget, including its MAC envelope.
+    if records.len() > MAX_PENDING_COMPLETIONS || encode(&value)?.len() > 16_000 {
+        return Err(Error::Unavailable);
+    }
+    save(root, "completion-pending.json", &value, key)
+}
+
 fn now() -> Result<u64> {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -165,6 +213,7 @@ pub fn evaluate(request: &Value) -> Result<Value> {
     fs2::FileExt::lock_exclusive(&lock)?;
     let key = key(&root)?;
     let record = current(request, &root)?;
+    let mut challenges = pending(&root, &key, now()?)?;
     if request["action"] == "completion_begin" {
         let origin = request["origin"].as_str().ok_or(Error::Invalid)?;
         let url = url::Url::parse(origin).map_err(|_| Error::Invalid)?;
@@ -179,13 +228,17 @@ pub fn evaluate(request: &Value) -> Result<Value> {
             return Err(Error::Invalid);
         }
         identity(&request["identity"])?;
+        if challenges.len() >= MAX_PENDING_COMPLETIONS {
+            return Err(Error::Unavailable);
+        }
         let mut nonce = [0; 32];
         getrandom::fill(&mut nonce).map_err(|_| Error::Unavailable)?;
         let nonce = hex::encode(nonce);
         let pending = json!({"nonce":nonce,"started":now()?,"origin":origin,
             "credential":request["credential_binding"],"identity":request["identity"],
             "token":request["token"],"observation":record["observation"]});
-        save(&root, "completion-pending.json", &pending, &key)?;
+        challenges.push(pending);
+        save_pending(&root, &challenges, &key)?;
         return Ok(
             json!({"operation":"observe","idempotencyKey":nonce,"manifest":record["manifest"]}),
         );
@@ -193,16 +246,24 @@ pub fn evaluate(request: &Value) -> Result<Value> {
     if request["action"] != "completion_accept" {
         return Err(Error::Invalid);
     }
-    let pending = load(&root, "completion-pending.json", &key)?;
     let response = &request["response"];
     let receipt = &response["observation"];
+    let nonce = receipt["nonce"]
+        .as_str()
+        .filter(|v| sha(v))
+        .ok_or(Error::Invalid)?;
+    let index = challenges
+        .iter()
+        .position(|pending| pending["nonce"] == nonce)
+        .ok_or(Error::Invalid)?;
+    let pending = &challenges[index];
     let manifest = &record["manifest"];
     let started = pending["started"].as_u64().ok_or(Error::Invalid)?;
     let current_time = now()?;
     let observed = micros(&receipt["observedAt"])?;
     if current_time
         .checked_sub(started)
-        .is_none_or(|age| age > 120_000_000)
+        .is_none_or(|age| age > PENDING_COMPLETION_TTL)
         // Date.toISOString rounds server timestamps down to milliseconds.
         || observed.saturating_add(999) < started
         || observed > current_time
@@ -235,13 +296,63 @@ pub fn evaluate(request: &Value) -> Result<Value> {
     let stamp = json!({"token":request["token"],"observation":record["observation"],"receipt":receipt,
             "origin":pending["origin"],"credential":pending["credential"]});
     save(&root, "completion.json", &stamp, &key)?;
-    std::fs::remove_file(root.join("completion-pending.json"))?;
+    challenges.remove(index);
+    save_pending(&root, &challenges, &key)?;
     Ok(receipt.clone())
 }
 
 #[cfg(test)]
 mod time_tests {
     use super::*;
+
+    #[test]
+    fn authenticated_single_pending_challenge_survives_upgrade_and_expires() {
+        let directory = tempfile::tempdir_in(std::env::temp_dir().canonicalize().unwrap()).unwrap();
+        let root = directory.path();
+        let key = hmac::Key::new(hmac::HMAC_SHA256, &[17; 32]);
+        let started = 1_000_000_000u64;
+        let record = json!({"nonce":"a".repeat(64),"started":started,
+            "origin":"https://example.com","credential":"b".repeat(64)});
+        save(root, "completion-pending.json", &record, &key).unwrap();
+        let records = pending(root, &key, started).unwrap();
+        assert_eq!(records, vec![record.clone()]);
+        save_pending(root, &records, &key).unwrap();
+        assert_eq!(
+            load(root, "completion-pending.json", &key).unwrap(),
+            json!([record])
+        );
+        assert!(pending(root, &key, started + PENDING_COMPLETION_TTL + 1)
+            .unwrap()
+            .is_empty());
+        save(root, "completion-pending.json", &json!({}), &key).unwrap();
+        assert!(pending(root, &key, started).is_err());
+    }
+
+    #[test]
+    fn pending_challenges_are_bounded_authenticated_and_expire() {
+        let directory = tempfile::tempdir_in(std::env::temp_dir().canonicalize().unwrap()).unwrap();
+        let root = directory.path();
+        let key = hmac::Key::new(hmac::HMAC_SHA256, &[17; 32]);
+        let started = 1_000_000_000u64;
+        let mut records: Vec<Value> = (0..MAX_PENDING_COMPLETIONS)
+            .map(|i| json!({"nonce":format!("{i:064x}"),"started":started}))
+            .collect();
+        save_pending(root, &records, &key).unwrap();
+        assert_eq!(pending(root, &key, started).unwrap(), records);
+        let before = std::fs::read(root.join("completion-pending.json")).unwrap();
+        records.push(json!({"nonce":"f".repeat(64),"started":started}));
+        assert!(save_pending(root, &records, &key).is_err());
+        assert_eq!(
+            std::fs::read(root.join("completion-pending.json")).unwrap(),
+            before
+        );
+        assert!(pending(root, &key, started + PENDING_COMPLETION_TTL + 1)
+            .unwrap()
+            .is_empty());
+        std::fs::write(root.join("completion-pending.json"), b"{}").unwrap();
+        assert!(pending(root, &key, started).is_err());
+    }
+
     #[test]
     fn observation_time_preserves_subsecond_precision() {
         let base = micros(&json!("2026-10-18T00:00:00Z")).unwrap();

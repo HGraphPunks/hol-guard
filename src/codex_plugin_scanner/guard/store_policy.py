@@ -46,6 +46,7 @@ from .store_policy_activation_preflight import (
 
 if TYPE_CHECKING:
     from .managed_controls_policy_fields import ParsedManagedControlsPolicy
+    from .store import GuardStore
 
 # ruff: noqa: F403,F405
 from .action_lattice import guard_action_severity
@@ -519,7 +520,7 @@ class StorePolicyMixin:
         self.read_extension_control_authority_for_registry(registry)
 
         with self._extension_control_authority_lock(), self._connect() as connection:
-            require_current(self, _key(self), activation_digest)
+            require_current(self, _key(cast("GuardStore", self)), activation_digest)
             self._invalidate_native_extension_control_policy()
             connection.execute("begin immediate")
             managed_base_authority = self._read_extension_control_authority_locked(

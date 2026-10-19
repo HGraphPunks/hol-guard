@@ -197,7 +197,7 @@ def _contribution_collisions(root: Path, metadata: Metadata) -> None:
         )
     except NativeSourceCompilerError as exc:
         raise conflict(
-            messages.get(exc.code, "The destination contribution inventory could not be validated.")
+            messages.get(exc.code or "", "The destination contribution inventory could not be validated.")
         ) from exc
 
 

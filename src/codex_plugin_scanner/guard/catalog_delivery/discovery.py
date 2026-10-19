@@ -13,6 +13,7 @@ from contextlib import suppress
 from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from ..file_identity import full_stat_identity
 from ..native_resident_client import native_resident_client_request
@@ -24,13 +25,13 @@ CAPABILITY = "catalog-prepare-v1"
 BATCH_CAPABILITY = "catalog-prepare-batch-v1"
 _lock = threading.Lock()
 _cached: tuple[Path, str, DiscoveryHandle] | None = None
-_transport: ContextVar[list | None] = ContextVar("catalog_preparation_transport", default=None)
+_transport: ContextVar[list[Any] | None] = ContextVar("catalog_preparation_transport", default=None)
 
 
 @dataclass(frozen=True, slots=True, init=False)
 class DiscoveryHandle:
     guard_home: Path
-    native: dict
+    native: dict[str, Any]
 
     def __new__(cls):
         raise TypeError("discovery handles must be prepared from authenticated metadata")

@@ -1069,9 +1069,37 @@ jobs:
     needs: build
     if: >-
       needs.build.result == 'success' &&
-      (github.event_name != 'pull_request' ||
-      (github.event.pull_request.head.repo.full_name == github.repository &&
-      contains(github.event.pull_request.labels.*.name, 'publish-testpypi-canary')))
+      (
+        (
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          contains(github.event.pull_request.labels.*.name, 'publish-testpypi-canary') &&
+          needs.build.outputs.channel == 'canary'
+        ) ||
+        (
+          vars.RELEASE_PUBLISHING_ENABLED == 'true' &&
+          github.run_attempt == 1 &&
+          (
+            (
+              needs.build.outputs.channel == 'alpha' &&
+              (
+                (github.event_name == 'push' && github.ref == 'refs/heads/release/3.0') ||
+                (
+                  github.event_name == 'workflow_dispatch' &&
+                  (github.event.inputs.release_train == '3.0' || github.event.inputs.release_train == 'main')
+                )
+              )
+            ) ||
+            (
+              needs.build.outputs.channel == 'stable' &&
+              github.event_name == 'workflow_dispatch' &&
+              (github.ref == 'refs/heads/main' || github.ref == format('refs/tags/v{0}', github.event.inputs.release_version)) &&
+              github.event.inputs.release_channel == 'stable' &&
+              github.event.inputs.release_train == 'main'
+            )
+          )
+        )
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: write
