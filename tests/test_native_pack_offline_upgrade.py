@@ -40,16 +40,30 @@ from tests.test_native_command_control_binding_publisher import (
 
 
 def test_real_packaged_cross_engine_and_changed_source_offline_api_upgrade(tmp_path, monkeypatch):
-    previous = Path(os.environ["NATIVE_ACTIVATION_PREVIOUS_BINARY"])
-    assert previous.is_file()
+    required = ("NATIVE_ACTIVATION_PREVIOUS_BINARY", "NATIVE_ACTIVATION_PREVIOUS_SOURCE")
+    missing = [name for name in required if not os.environ.get(name)]
+    assert not missing, (
+        "native-offline-upgrade requires a real matching prior client/native artifact pair; missing "
+        + ", ".join(missing)
+    )
+    previous = Path(os.environ["NATIVE_ACTIVATION_PREVIOUS_BINARY"]).resolve()
+    assert previous.is_file(), f"prior native binary is missing: {previous}"
     source_root = Path(__file__).resolve().parents[1]
     # The old ABI must be initialized by its matching client, before loading
     # current native preparation/security adapters. All state is disposable.
     previous_source = Path(os.environ["NATIVE_ACTIVATION_PREVIOUS_SOURCE"]).resolve()
+    assert (previous_source / "src/codex_plugin_scanner/guard/catalog_delivery/lifecycle.py").is_file()
+    previous_info = json.loads(subprocess.check_output([str(previous), "compiler-info"]))
+    current_info = json.loads(subprocess.check_output([str(BINARY), "compiler-info"]))
+    assert previous_info["implementation_digest"] != current_info["implementation_digest"], (
+        "offline upgrade proof requires distinct real previous and current engines"
+    )
     environment = dict(os.environ)
     environment.update(
         PYTHONPATH=os.pathsep.join([str(previous_source / "src"), str(previous_source)]),
         HOL_GUARD_NATIVE_BINARY=str(previous),
+        HOL_GUARD_NATIVE_SOURCE_COMPILER=str(previous),
+        HOL_GUARD_NATIVE_TEST_SOURCE_COMPILER=str(previous),
         HOL_GUARD_BUILD_SOURCE_COMPILER=str(previous),
         NATIVE_ACTIVATION_BINARY=str(previous),
     )

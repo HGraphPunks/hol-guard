@@ -32,7 +32,6 @@ from tests.guard_extension_control_authority_fixtures import _PASSWORD
 from tests.guard_extension_control_authority_fixtures import (
     _allow_local_terminal_confirmation as _allow_local_terminal_confirmation,
 )
-from tests.native_activation_support import BINARY
 from tests.test_native_command_control_binding_publisher import (
     _pinned_integrity_material_and_resident_key as _pinned_integrity_material_and_resident_key,
 )
@@ -109,10 +108,10 @@ def initialize(tmp_path, monkeypatch):
         return installed_bundle.load_installed_bundle()
 
     authority = install(previous, "3.49.0", "a" * 40)
-    # Frozen previous enrollment protocol: it did not yet return a stamp.
-    enrolled = lifecycle.invoke("enroll", key=_key(store).hex(), **lifecycle.release_evidence(authority))
+    # Use the pinned historical client's actual enrollment protocol, including
+    # its protected enrollment stamp. Never synthesize a prior engine record.
     with hold_command_control_authority_lock(store.guard_home):
-        lifecycle_store.write(store, enrolled["record"])
+        lifecycle_store.enroll_installed(store, authority)
     registry = BUILT_IN_COMMAND_EXTENSION_REGISTRY
     view = store.read_extension_control_authority_for_registry(registry, read_only=True)
     service = ExtensionControlApiService(store=store, registry=registry, runtime=ExtensionControlRuntime(view))
@@ -149,7 +148,7 @@ def initialize(tmp_path, monkeypatch):
     old = apply("previous-release")
     old_identity = lifecycle.installed_identity(authority)
     assert "command.agentbridge" in old.selected
-    before, floor = lifecycle_store.inspect(store)
+    before, _floor = lifecycle_store.inspect(store)
     remote_identity = {**old_identity, "profile": "remote", "version": "100.7"}
     remote_floor = lifecycle.invoke("transition", key=_key(store).hex(), floor=before, candidate=remote_identity)[
         "record"
@@ -168,6 +167,7 @@ def initialize(tmp_path, monkeypatch):
 
 if __name__ == "__main__":
     import sys
+
     from codex_plugin_scanner.guard.native_resident_client import close_native_residents
 
     fixture_home = Path(sys.argv[1]).resolve()
