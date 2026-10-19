@@ -62,7 +62,11 @@ def test_lane_catalog_carries_the_pinned_reworded_unbindable_and_environment_dum
     # and the agent had no way forward. This lane is the only one that tells an
     # unapprovable refusal apart from a review: a case that is merely stopped
     # passes every single-shot lane.
-    assert by_id["approved-retry-environment-dump"].commands == ("env",)
+    # `env -i` clears the environment rather than printing it: the harness CLI
+    # is handed its own provider login and its tool children inherit it, and
+    # this lane's transcripts are packed into the public evidence bundle, so
+    # the case must not ask a model to print the environment it runs in.
+    assert by_id["approved-retry-environment-dump"].commands == ("env -i",)
 
 
 def test_core_catalog_never_carries_the_lane_oracle():

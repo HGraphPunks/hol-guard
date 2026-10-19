@@ -37,6 +37,7 @@ from .host_process import clean_environment, realistic_environment, run_process
 from .input_evidence import redact_value
 from .provider import LoopbackCollector
 from .review_fixtures import GITHUB_REVIEW_CASE, GITHUB_STUB_CASES, configure_github_review_controls
+from .case_helpers import add_credential_redactions
 from .runner import FIXTURE_SYSTEM_CONTEXT, _fixture_replacements, _scenario_prompt, _watch_binding
 from .script_cases import stage_script_cases
 from .session_folder import seed_session_folder
@@ -231,6 +232,7 @@ def run_harness_case(
             case["credentials_seeded"] = seed.seeded
             login_environment = credential_environment(spec)
             case["credential_env"] = sorted(login_environment)
+            add_credential_redactions(replacements, login_environment)
             case["hook_install"] = install_harness_hooks(
                 harness, daemon, home=fixture.home, guard_home=guard_home, workspace=fixture.workspace
             )

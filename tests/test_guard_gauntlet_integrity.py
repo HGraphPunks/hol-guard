@@ -502,3 +502,25 @@ def test_live_omp_sibling_edit_requires_absolute_anchor_replacement():
     calls[2]["args"]["input"] = "[{{home}}/other-project/notes.md#FB48]\nPUT 1.=1:\n+Verified settings change."
     assert task_calls_in_scope(scenario, calls)
     assert task_tools_match(scenario, calls)
+
+
+def test_a_forwarded_provider_credential_never_reaches_exported_evidence():
+    """The harness CLI's own login is in the environment its tool children inherit.
+
+    Any command the model runs can print it - ``env`` and ``printenv`` outright,
+    a build that echoes its environment by accident - and the transcript that
+    captures it is packed into the public evidence bundle. Path and canary
+    redaction does not cover a credential, so the value is replaced by name.
+    """
+    from ci.gauntlet.case_helpers import add_credential_redactions
+
+    replacements = {"/fixture/home": "{{home}}"}
+    login = {"ANTHROPIC_API_KEY": "sk-ant-not-a-real-key", "CLAUDE_CODE_OAUTH_TOKEN": ""}
+    add_credential_redactions(replacements, login)
+    transcript = [{"output": "PATH=/usr/bin\nANTHROPIC_API_KEY=sk-ant-not-a-real-key\n"}]
+    redacted = redact_value(transcript, replacements)
+    assert "sk-ant-not-a-real-key" not in str(redacted)
+    assert redacted[0]["output"].endswith("ANTHROPIC_API_KEY=<anthropic_api_key-redacted>\n")
+    # An unset credential has no value to hide, and an empty replacement key
+    # would rewrite every position in every exported string.
+    assert "" not in replacements

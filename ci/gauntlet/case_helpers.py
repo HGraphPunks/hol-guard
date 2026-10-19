@@ -108,6 +108,22 @@ def _fixture_replacements(fixture: Fixture) -> dict[str, str]:
     return replacements
 
 
+def add_credential_redactions(replacements: dict[str, str], login_environment: dict[str, str]) -> None:
+    """Hide the provider credentials the harness is handed from every exported transcript.
+
+    The harness CLI needs its own login, and its tool children inherit that
+    environment, so any command the model runs can print a live key into the
+    transcript: ``env`` and ``printenv`` say so outright, but so does a build
+    that echoes its environment or a tool that reports its configuration. The
+    case JSON those transcripts land in is packed into the public evidence
+    bundle, so the value has to be unreadable before it is written, not merely
+    unlikely to appear.
+    """
+    for name, value in login_environment.items():
+        if value:
+            replacements[value] = f"<{name.lower()}-redacted>"
+
+
 def read_case_logs(
     case: dict[str, Any], raw_log: Path, guard_log: Path, replacements: dict[str, str], host_log: Path | None = None
 ) -> None:
