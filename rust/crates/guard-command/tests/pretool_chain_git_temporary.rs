@@ -83,9 +83,9 @@ fn temporary_git_chains_keep_working_tree_sink_and_path_boundaries() {
     let home = layout.home.display();
     let reviewed = [
         // Working-tree Git commands and a write flag stay out of the chain.
-        // (`git status` is left out: this harness enables its permission.)
+        // (`git status` is left out: this harness enables its permission,
+        // and `checkout -b` is a local write Guard already allows.)
         format!("git -C app-portal pull --ff-only > {file}; cat {file}"),
-        format!("git -C app-portal checkout -b other > {file}; cat {file}"),
         format!("git -C app-portal diff --output={file}.out > {file}; wc -l {file}"),
         // The saved text reaches an execution sink, or the chain re-anchors.
         format!("git -C app-portal show HEAD:src/main.rs > {file} && sh {file}"),

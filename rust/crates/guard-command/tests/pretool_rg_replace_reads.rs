@@ -55,7 +55,9 @@ fn replace_and_grep_only_filters_do_not_clear_the_operand_proof() {
         format!("rg -n fixture {child}/.env -r | head -3"),
         format!("rg -rn fixture {child}/.env | head -3"),
         format!("rg -n fixture {child} --include='*.rs' --hidden | head -3"),
-        format!("rg -n fixture {child}/src -r --no-ignore | head -3"),
+        // rg takes the next word as -r's value even when it starts with a
+        // dash, so the widening flag has to follow a value to be a flag.
+        format!("rg -n fixture {child}/src -r x --no-ignore | head -3"),
         format!("rg -n fixture {child}/src --include='*.rs' --pre cat | head -3"),
         "rg -n fixture ~/.ssh --include='*.pub' | head -3".to_string(),
         format!("rg -n fixture {child}/.env --include='*.rs'"),
