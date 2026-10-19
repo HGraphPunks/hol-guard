@@ -147,3 +147,45 @@ fn anything_the_scan_cannot_read_keeps_the_command_line_scan() {
     let result = verdict(&["bash", "-c", "cat .env"], None);
     assert!(result.risk_signals.contains(&secrets), "bash -c");
 }
+
+#[test]
+fn a_script_whose_own_path_names_a_secret_runs_without_review() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    for folder in [".env-tools", "credentials", "id_rsa-helpers"] {
+        let inside = directory.path().join(folder);
+        std::fs::create_dir(&inside).expect("folder");
+        let tool = script(&inside, "credentials-check.js", CLEAN);
+        let result = verdict(&["bun", &tool], None);
+        assert_eq!(
+            result.action, "allow",
+            "{folder}: {:?}",
+            result.risk_signals
+        );
+        assert!(result.risk_signals.is_empty(), "{folder}");
+        let result = verdict(&["bun", "run", &tool, "--print", PROSE], None);
+        assert_eq!(
+            result.action, "allow",
+            "{folder}: {:?}",
+            result.risk_signals
+        );
+    }
+}
+
+#[test]
+fn a_path_argument_that_only_contains_a_secret_word_is_data() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let tool = script(directory.path(), "tool.js", CLEAN);
+    for argument in [
+        "docs/credentials-rotation.md",
+        "notes/.environment-notes.md",
+        "printenv-output.txt",
+        "ssh-keys-and-id_rsa-guide.md",
+    ] {
+        let result = verdict(&["bun", &tool, argument], None);
+        assert_eq!(
+            result.action, "allow",
+            "{argument}: {:?}",
+            result.risk_signals
+        );
+    }
+}
