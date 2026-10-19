@@ -9,6 +9,16 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
 
+mod identity;
+mod runner_config;
+mod schema;
+pub use identity::{is_git_sha, validate_source_identity, IdentityError};
+pub use runner_config::{
+    canonical_relative_asset_path, validate_runner_declaration, RunnerConfigError,
+    RunnerDeclaration,
+};
+pub use schema::{load_record, schema_kinds, Record, RecordError};
+
 pub const MAX_RECORD_BYTES: usize = 16 * 1024 * 1024;
 pub const MAX_DEPTH: usize = 32;
 pub const MAX_NODES: usize = 500_000;
