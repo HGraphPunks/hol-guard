@@ -112,12 +112,7 @@ jobs:
           set -euo pipefail
           runtime="rust/target/$TARGET/release/hol-guard-runtime"
           compiler="rust/target/$TARGET/release/guard-command-source"
-          jq -n \
-            --slurpfile source rust/crates/guard-command/tests/fixtures/command-source-example.v1.json \
-            --slurpfile trust contracts/extensions/build-trust-class-map.v1.json \
-            '{schema:"guard.command-extension-build.v1",sources:$source,mcp_sources:[],trust:$trust[0],base:"packaged"}' \
-            > source-build.json
-          "$compiler" compile < source-build.json > source-compiled.json
+          "$compiler" export-built > source-compiled.json
           HOL_GUARD_BUILD_SOURCE_COMPILER="$compiler" uv build --wheel --out-dir pure-dist
           RULE_DIGEST=$("$runtime" capabilities --json | python3 -I -c 'import json,sys; print(json.load(sys.stdin)["rule_digest"])')
           HOL_GUARD_BUILD_SOURCE_COMPILER="$compiler" uv run --no-sync python scripts/build_native_hol_guard_wheel.py \
@@ -130,7 +125,7 @@ jobs:
             --source-sha "$SOURCE_SHA" \
             --rule-digest "$RULE_DIGEST" \
             --implementation-digest "$(jq -r '.implementation_digest' source-compiled.json)" \
-            --base-program-digest "$(jq -r '.base_program_digest' source-compiled.json)"
+            --base-program-digest "$(jq -r '.program.program_digest' source-compiled.json)"
           WHEEL=$(find native-dist -maxdepth 1 -type f -name 'hol_guard-*.whl' -print)
           test "$(printf '%s\n' "$WHEEL" | wc -l)" -eq 1
           echo "WHEEL=$PWD/$WHEEL" >> "$GITHUB_ENV"

@@ -25,6 +25,7 @@ mod risk;
 #[derive(Debug)]
 pub struct CompiledNativeCommandControls {
     program: Arc<NativeCommandProgram>,
+    catalog: Option<Arc<crate::native_command_catalog::CommandCatalog>>,
     binding: NativeCommandControlBindingV1,
     active_extensions: BTreeSet<String>,
     candidate_index: CommandCandidateIndex,
@@ -171,6 +172,7 @@ impl CompiledNativeCommandControls {
             .map(|(index, rule)| (rule.rule_id.clone(), index))
             .collect();
         Ok(Self {
+            catalog: None,
             candidate_index: CommandCandidateIndex::for_active(&program, &active_extensions),
             program,
             binding: binding.clone(),

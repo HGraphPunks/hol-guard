@@ -249,10 +249,10 @@ pub(crate) fn evaluate_resident_bytes(
                 crate::context_digest::evaluate_context_digest_request(&request)
             }
             ResidentOperationV1::CommandEffectDecide(request) => {
-                crate::command_effect::evaluate_command_effect_request(&request)
+                crate::command_effect::evaluate_with_store(&request, policy_store)
             }
             ResidentOperationV1::CommandEffectDecideBatch(request) => {
-                crate::command_effect::evaluate_command_effect_batch_request(&request)
+                crate::command_effect::evaluate_batch_with_store(&request, policy_store)
             }
             ResidentOperationV1::ApprovalReuseDecide(request) => {
                 crate::approval_reuse::evaluate_approval_reuse_request(&request)

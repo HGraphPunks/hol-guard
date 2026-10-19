@@ -13,6 +13,10 @@ use guard_policy_snapshot::{canonical_json_bytes, digest_bytes};
 use serde_json::{json, Value};
 
 pub(super) fn controls(home: &Path, lockdown: bool) -> CompiledNativeCommandControls {
+    controls_for(home, lockdown, &["command.mcp-filesystem", "command.mcp-enola"], &["command.mcp-filesystem", "command.mcp-enola"])
+}
+
+pub(super) fn controls_for(home: &Path, lockdown: bool, optional: &[&str], enabled: &[&str]) -> CompiledNativeCommandControls {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
     let mut selected: BTreeSet<String> = packaged_command_program()
         .unwrap()
@@ -20,7 +24,7 @@ pub(super) fn controls(home: &Path, lockdown: bool) -> CompiledNativeCommandCont
         .iter()
         .map(|extension| extension.extension_id.clone())
         .collect();
-    selected.extend(["command.mcp-filesystem".into(), "command.mcp-enola".into()]);
+    selected.extend(optional.iter().map(|id| (*id).to_owned()));
     let mut sources = Vec::new();
     for (directory, kind) in [("command-sources", "command"), ("mcp-servers", "mcp")] {
         for path in fs::read_dir(repository.join("contributions").join(directory)).unwrap() {
@@ -128,8 +132,7 @@ pub(super) fn controls(home: &Path, lockdown: bool) -> CompiledNativeCommandCont
         "catalog_digest":program.catalog_digest,"trust_digest":program.trust_digest,"health":"protected",
         "revision":1,"managed_revision":0,"effective_digest":"","layers":[{
             "schema_version":"1.0.0","kind":"local-admin","catalog_digest":program.catalog_digest,"global_lockdown":lockdown,
-            "controls":[{"target_kind":"extension","target_id":"command.mcp-filesystem","state":"enabled"},
-                {"target_kind":"extension","target_id":"command.mcp-enola","state":"enabled"}]}]
+            "controls":enabled.iter().map(|id| json!({"target_kind":"extension","target_id":id,"state":"enabled"})).collect::<Vec<_>>()}]
     })).unwrap();
     binding.effective_digest = binding.compute_effective_digest().unwrap();
     CompiledNativeCommandControls::from_pack_cache(

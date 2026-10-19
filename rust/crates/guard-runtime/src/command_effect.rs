@@ -20,6 +20,39 @@ use guard_contracts::{
     COMMAND_EFFECT_MAX_BYTES, COMMAND_EFFECT_REQUEST_SCHEMA, COMMAND_EFFECT_RESULT_SCHEMA,
 };
 use guard_policy_snapshot::digest_bytes;
+use guard_command::native_command_controls::CompiledNativeCommandControls;
+
+// The resident owns its guard-home scope. Capture one authenticated generation
+// and hold its mutation lease across the entire single or batch evaluation.
+fn with_store<T>(
+    store: Option<&crate::policy_store::PolicySnapshotStore>,
+    evaluate: impl FnOnce(Option<&CompiledNativeCommandControls>) -> Result<T, String>,
+) -> Result<T, String> {
+    let Some(store) = store else { return evaluate(None) };
+    let snapshot = match store.current_admitted_snapshot() {
+        Ok(snapshot) => snapshot,
+        // Preserve the core-only offline evaluator. It cannot accept an
+        // optional receipt because its catalog identity is still core-only.
+        Err(error) if error == "native_policy_snapshot_missing" => return evaluate(None),
+        Err(error) => return Err(error),
+    };
+    let _lease = store.command_authority_lease(&snapshot)?;
+    evaluate(snapshot.command_extensions.as_ref())
+}
+
+pub(crate) fn evaluate_with_store(
+    request: &CommandEffectRequestV1,
+    store: Option<&crate::policy_store::PolicySnapshotStore>,
+) -> Result<Vec<u8>, String> {
+    with_store(store, |controls| single(request, controls))
+}
+
+pub(crate) fn evaluate_batch_with_store(
+    request: &CommandEffectBatchRequestV1,
+    store: Option<&crate::policy_store::PolicySnapshotStore>,
+) -> Result<Vec<u8>, String> {
+    with_store(store, |controls| batch_in(request, controls))
+}
 
 /// Canonical serialization of one request: the bytes its `request_sha256`
 /// binds and the size the batch bound is measured against.
@@ -40,8 +73,9 @@ fn digest_of(bytes: &[u8]) -> String {
 fn evaluate_to_result(
     request: &CommandEffectRequestV1,
     request_sha256: String,
+    controls: Option<&CompiledNativeCommandControls>,
 ) -> CommandEffectResultV1 {
-    let (status, code, payload) = match evaluate(request) {
+    let (status, code, payload) = match evaluate(request, controls) {
         Ok(payload) => ("ok".to_owned(), "ok".to_owned(), Some(payload)),
         Err(code) => ("error".to_owned(), code, None),
     };
@@ -58,8 +92,12 @@ fn evaluate_to_result(
 pub(crate) fn evaluate_command_effect_request(
     request: &CommandEffectRequestV1,
 ) -> Result<Vec<u8>, String> {
+    single(request, None)
+}
+
+fn single(request: &CommandEffectRequestV1, controls: Option<&CompiledNativeCommandControls>) -> Result<Vec<u8>, String> {
     let request_sha256 = digest_of(&canonical_request_bytes(request).map_err(str::to_owned)?);
-    crate::encode_response(&evaluate_to_result(request, request_sha256))
+    crate::encode_response(&evaluate_to_result(request, request_sha256, controls))
 }
 
 fn refused_batch(request_id: &str, code: &str) -> Result<Vec<u8>, String> {
@@ -84,6 +122,10 @@ fn refused_batch(request_id: &str, code: &str) -> Result<Vec<u8>, String> {
 pub(crate) fn evaluate_command_effect_batch_request(
     batch: &CommandEffectBatchRequestV1,
 ) -> Result<Vec<u8>, String> {
+    batch_in(batch, None)
+}
+
+fn batch_in(batch: &CommandEffectBatchRequestV1, controls: Option<&CompiledNativeCommandControls>) -> Result<Vec<u8>, String> {
     if batch.schema != COMMAND_EFFECT_BATCH_REQUEST_SCHEMA {
         return refused_batch(
             &batch.request_id,
@@ -121,7 +163,7 @@ pub(crate) fn evaluate_command_effect_batch_request(
         .items
         .iter()
         .zip(digests)
-        .map(|(item, digest)| evaluate_to_result(item, digest))
+        .map(|(item, digest)| evaluate_to_result(item, digest, controls))
         .collect();
     match crate::encode_response(&CommandEffectBatchResultV1 {
         schema: COMMAND_EFFECT_BATCH_RESULT_SCHEMA.to_owned(),
@@ -140,15 +182,16 @@ pub(crate) fn evaluate_command_effect_batch_request(
     }
 }
 
-fn evaluate(request: &CommandEffectRequestV1) -> Result<serde_json::Value, String> {
+fn evaluate(request: &CommandEffectRequestV1, controls: Option<&CompiledNativeCommandControls>) -> Result<serde_json::Value, String> {
     if request.schema != COMMAND_EFFECT_REQUEST_SCHEMA {
         return Err("native_command_effect_schema_mismatch".to_owned());
     }
-    evaluate_with_read_floors(request)
+    evaluate_with_read_floors(request, controls)
 }
 
 fn evaluate_with_read_floors(
     request: &CommandEffectRequestV1,
+    controls: Option<&CompiledNativeCommandControls>,
 ) -> Result<serde_json::Value, String> {
     use std::path::Path;
 
@@ -166,7 +209,7 @@ fn evaluate_with_read_floors(
         serde_json::from_value(request.canonical_command.clone())
             .map_err(|_| "native_command_effect_invalid_canonical_command".to_owned())?;
     let command = CanonicalCommand::from_v1(&canonical_v1);
-    let registry = packaged_command_catalog()
+    let registry = controls.map_or_else(packaged_command_catalog, |controls| controls.command_catalog())
         .map_err(|_| "native_command_effect_catalog_unavailable".to_owned())?;
     let mut binding: NativeCommandControlBindingV1 =
         serde_json::from_value(request.control_snapshot.clone())
@@ -175,6 +218,16 @@ fn evaluate_with_read_floors(
     // effective digest the native evidence is bound to. A counterfactual
     // overlay, if any, is applied only after that check.
     binding.validate().map_err(str::to_owned)?;
+    if let Some(controls) = controls {
+        let admitted = controls.control_binding();
+        if binding.program_digest != admitted.program_digest
+            || binding.catalog_digest != admitted.catalog_digest
+            || binding.trust_digest != admitted.trust_digest
+            || binding.effective_digest != admitted.effective_digest
+        {
+            return Err("native_command_extension_evidence_binding_mismatch".to_owned());
+        }
+    }
     apply_counterfactual_permissions(&mut binding, &request.counterfactual_enabled_permission_ids)?;
     let workflow_authorization: Option<GitHubWorkflowAuthorizationV1> = request
         .workflow_authorization
@@ -275,6 +328,10 @@ pub(crate) fn evaluate_command_effect_bytes(bytes: &[u8]) -> Result<Vec<u8>, Str
         .map_err(|_| "native_command_effect_invalid_json".to_owned())?;
     evaluate_command_effect_request(&request)
 }
+
+#[cfg(test)]
+#[path = "command_effect_active_tests.rs"]
+mod active_tests;
 
 #[cfg(test)]
 mod tests {
