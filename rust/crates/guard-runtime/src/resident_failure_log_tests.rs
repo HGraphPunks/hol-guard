@@ -203,3 +203,28 @@ fn an_older_run_does_not_overwrite_a_newer_runs_record() {
 
     fs::remove_dir_all(scope).expect("remove failure-log test scope");
 }
+
+#[test]
+fn an_older_run_that_writes_late_does_not_hide_a_newer_runs_failure() {
+    // The older supervisor is still waiting out its stderr tail when the newer
+    // run starts, so it writes after that start. Its record must still read as
+    // the older one when the newer run fails.
+    let scope = temp_scope("late-writer");
+    let now = std::time::SystemTime::now();
+    let older_start = now - std::time::Duration::from_secs(20);
+    let newer_start = now - std::time::Duration::from_secs(10);
+    write_run_unless_superseded(&scope, b"older failure\n", None, older_start);
+    write_run_unless_superseded(&scope, b"newer failure\n", None, newer_start);
+    let path = ResidentFailureLog::path(&scope);
+    assert_eq!(
+        fs::read_to_string(&path).expect("read record"),
+        "newer failure\n"
+    );
+    // And the newer record now holds off the older run's late write.
+    write_run_unless_superseded(&scope, b"older again\n", None, older_start);
+    assert_eq!(
+        fs::read_to_string(&path).expect("read record"),
+        "newer failure\n"
+    );
+    fs::remove_dir_all(scope).expect("remove failure-log test scope");
+}

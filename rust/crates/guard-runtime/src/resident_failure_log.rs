@@ -146,18 +146,23 @@ pub(crate) fn collect_resident_stderr(mut reader: impl Read) -> Vec<u8> {
 /// for it, so a resident that floods stderr cannot push the one line that
 /// explains the exit out of the record.
 pub(crate) fn write_run(scope: &Path, stderr: &[u8], note: Option<&str>) {
+    let _ = publish_run(scope, stderr, note);
+}
+
+fn publish_run(scope: &Path, stderr: &[u8], note: Option<&str>) -> Option<ResidentFailureLog> {
     let reserved = note.map_or(0, |note| note.len() + 1);
     let kept = MAX_RESIDENT_FAILURE_BYTES
         .saturating_sub(reserved)
         .min(stderr.len());
     if kept == 0 && note.is_none() {
-        return;
+        return None;
     }
     let mut record = ResidentFailureLog::for_scope(scope);
     record.append(&stderr[..kept]);
     if let Some(note) = note {
         record.note(note);
     }
+    Some(record)
 }
 
 /// Publish one supervised run unless a later run has already published its
@@ -165,6 +170,11 @@ pub(crate) fn write_run(scope: &Path, stderr: &[u8], note: Option<&str>) {
 /// replaced this one can fail and record why while this supervisor is still
 /// waiting out its stderr tail; the older record must not erase that newer
 /// evidence.
+///
+/// Runs are ordered by when they started, not by when they wrote: a record
+/// takes its run's start as its modification time. Otherwise an older run
+/// that writes late, after a newer run has started, would make that newer
+/// run's own failure look superseded.
 pub(crate) fn write_run_unless_superseded(
     scope: &Path,
     stderr: &[u8],
@@ -173,9 +183,12 @@ pub(crate) fn write_run_unless_superseded(
 ) {
     let superseded = std::fs::symlink_metadata(ResidentFailureLog::path(scope))
         .and_then(|metadata| metadata.modified())
-        .is_ok_and(|modified| modified > run_started);
-    if !superseded {
-        write_run(scope, stderr, note);
+        .is_ok_and(|recorded_run| recorded_run > run_started);
+    if superseded {
+        return;
+    }
+    if let Some(file) = publish_run(scope, stderr, note).and_then(|record| record.file) {
+        let _ = file.set_modified(run_started);
     }
 }
 
