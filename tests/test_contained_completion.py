@@ -14,6 +14,7 @@ import pytest
 
 from codex_plugin_scanner.guard.config import GuardConfig
 from codex_plugin_scanner.guard.models import GuardArtifact
+from codex_plugin_scanner.guard.native_policy_snapshot import provision_native_policy_verifier_key
 from codex_plugin_scanner.guard.runtime import contained_completion as module
 
 pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="native completion proof is Linux-only")
@@ -81,6 +82,7 @@ def test_workspace_authorized_stderr_duplication_keeps_completed_output(case, mo
 def case(tmp_path, request):
     home = tmp_path / "guard"
     home.mkdir(mode=0o700)
+    provision_native_policy_verifier_key(home, b"x" * 32)
     workspace = tmp_path / "workspace"
     workspace.mkdir(mode=0o700)
     payload = {
