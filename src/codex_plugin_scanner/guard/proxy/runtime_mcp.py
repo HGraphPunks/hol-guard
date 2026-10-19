@@ -64,6 +64,7 @@ from ..native_mcp_proxy_decision import (
     package_facts,
     tool_facts,
 )
+from ..native_mcp_write_budget import NativeMcpWriteBudgetError, claim_mcp_write_budget
 from ..native_mcp_relay_server_report import report_mcp_relay_server
 from ..package_execution_context import build_package_execution_context
 from ..policy.engine import build_decision_v2
@@ -1134,6 +1135,26 @@ class RuntimeMcpGuardProxy:
                 approval_callback=approval_callback,
             ),
         )
+        try:
+            budget_decision, budget_reason = claim_mcp_write_budget(
+                guard_home=self.context.guard_home,
+                tool_name=tool_name,
+            )
+        except NativeMcpWriteBudgetError:
+            budget_decision, budget_reason = "block", "native_budget_unavailable"
+        if budget_decision == "block":
+            return self._deny_inline_tool_call(
+                decision_source="native-task-write-budget",
+                event_decision="blocked",
+                reason=f"HOL Guard blocked this tool call: {budget_reason.replace('_', ' ')}.",
+                message=message,
+                tool_name=tool_name,
+                event=event,
+                artifact=authority.artifact,
+                artifact_hash=authority.artifact_hash,
+                decision=authority.decision,
+                scanner_evidence=_tool_decision_scanner_evidence(authority.decision),
+            )
         artifact = authority.artifact
         tool_artifact_hash = authority.artifact_hash
         held: dict[str, Any] = {}

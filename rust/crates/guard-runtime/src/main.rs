@@ -177,6 +177,8 @@ mod consumer_url;
 #[cfg(target_os = "linux")]
 mod contained_completion_op;
 #[cfg(unix)]
+mod mcp_write_budget_op;
+#[cfg(unix)]
 mod contained_op;
 #[cfg(unix)]
 mod contained_workspace_grant_plan;
