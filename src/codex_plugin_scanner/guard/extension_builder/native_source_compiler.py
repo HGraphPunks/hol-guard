@@ -364,7 +364,7 @@ def run_source_compiler(
 ) -> dict[str, object]:
     """Run one native source-compiler operation using bounded JSON stdin."""
     operations = {"compile", "validate", "check", "test", "compare"}
-    operations.update({"schema", "descriptor-schema", "authoring-admission"})
+    operations.update({"schema", "descriptor-schema", "authoring-admission", "bundle-metadata"})
     if subcommand not in operations:
         raise NativeSourceCompilerError("unsupported source compiler subcommand")
     if subcommand == "check":

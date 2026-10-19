@@ -17,8 +17,9 @@ from pathlib import Path
 from typing import Any, cast
 
 from ..extension_builder.io import read_bytes
+from ..extension_builder.native_source_compiler import NativeSourceCompilerError, run_source_compiler
 from .authority import decode
-from .bundle_metadata import MANIFEST, MAX_BYTES, descriptor, target
+from .bundle_metadata import MANIFEST, MAX_BYTES, target
 from .containers import maximum, member
 
 
@@ -160,53 +161,30 @@ def load_installed_bundle() -> VerifiedInstalledBundle:
     native = package / "_native"
     runtime = decode(read_bytes(native / "runtime-manifest.json", limit=65536))
     compiler = decode(read_bytes(native / "source-compiler-manifest.json", limit=65536))
-    if (
-        not isinstance(runtime, dict)
-        or not isinstance(compiler, dict)
-        or runtime.get("schema") != "hol-guard-native-runtime.v1"
-        or compiler.get("schema") != "hol-guard-native-source-compiler.v2"
-        or type(runtime.get("protocol_version")) is not int
-        or runtime.get("protocol_version") != 1
-        or type(compiler.get("protocol_version")) is not int
-        or compiler.get("protocol_version") != 1
-        or any(
-            runtime.get(key) != compiler.get(key) or not isinstance(runtime.get(key), str)
-            for key in ("source_sha", "package_version", "target", "platform_tag")
-        )
-    ):
-        raise ValueError("installed bundle native manifests differ")
-    executable = compiler.get("executable")
-    if executable not in {"hol-guard-runtime", "hol-guard-runtime.exe"}:
-        raise ValueError("installed bundle executable invalid")
-    size = compiler.get("compiler_size")
-    if (
-        type(size) is not int
-        or not 0 < size <= 128 * 1024 * 1024
-        or type(runtime.get("runtime_size")) is not int
-        or runtime["runtime_size"] != size
-    ):
-        raise ValueError("installed bundle executable size differs")
-    binary = read_bytes(native / executable, limit=size)
-    binary_digest = hashlib.sha256(binary).hexdigest()
-    if (
-        len(binary) != size
-        or binary_digest != compiler.get("compiler_sha256")
-        or binary_digest != runtime.get("runtime_sha256")
-    ):
-        raise ValueError("installed bundle executable digest differs")
+    evidence = {"runtime_manifest": runtime, "compiler_manifest": compiler}
+    plan = _native_metadata("installed-plan", **evidence)
+    binary = read_bytes(native / cast(str, plan["executable"]), limit=cast(int, plan["size"]))
     data = read_bytes(package / "guard/contracts/data/extensions/command-pack-bundle" / MANIFEST, limit=65536)
-    engine = compiler.get("implementation_digest")
-    if not isinstance(engine, str):
-        raise ValueError("installed bundle engine identity missing")
-    expected = descriptor(data, source_sha=runtime["source_sha"], engine=engine)
-    if runtime.get("command_pack_bundle") != expected or compiler.get("command_pack_bundle") != expected:
-        raise ValueError("installed bundle native Root binding differs")
+    identity = _native_metadata(
+        "installed",
+        **evidence,
+        binary_length=len(binary),
+        binary_digest=hashlib.sha256(binary).hexdigest(),
+        data=data.decode("utf-8"),
+    )
     result = object.__new__(VerifiedInstalledBundle)
     for name, value in (
         ("data", bytes(data)),
-        ("source_sha", runtime["source_sha"]),
-        ("digest", expected["sha256"]),
-        ("engine", expected["engine"]),
+        ("source_sha", identity["source_sha"]),
+        ("digest", identity["digest"]),
+        ("engine", identity["engine"]),
     ):
         object.__setattr__(result, name, value)
     return result
+
+
+def _native_metadata(operation: str, **fields: object) -> dict[str, object]:
+    try:
+        return run_source_compiler("bundle-metadata", {"operation": operation, **fields})
+    except NativeSourceCompilerError as error:
+        raise ValueError(f"installed bundle metadata unavailable: {error}") from error

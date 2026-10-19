@@ -133,6 +133,7 @@ pub fn is_command(arguments: &[String]) -> bool {
         | "authoring-context"
         | "authoring-index"
         | "authoring-admission"
+        | "bundle-metadata"
         | "schema"
         | "descriptor-schema"
         | "github-classify"
@@ -216,6 +217,7 @@ fn run(arguments: &[String]) -> Result<Value, &'static str> {
             | "compare"
             | "evaluate-batch"
             | "authoring-admission"
+            | "bundle-metadata"
     ) || arguments.len() != if operation == "check" { 2 } else { 1 }
     {
         return Err("command_source_usage_expected_schema_validate_compile_check_or_test");
@@ -235,6 +237,9 @@ fn run(arguments: &[String]) -> Result<Value, &'static str> {
         .map_err(|_| "command_source_input_read_failed")?;
     if bytes.len() > MAX_SOURCE_INPUT_BYTES {
         return Err("command_source_bytes_invalid");
+    }
+    if operation == "bundle-metadata" {
+        return crate::bundle_metadata::evaluate(&bytes);
     }
     if operation == "authoring-admission" {
         return crate::native_command_program::source::authoring_admission(&bytes);

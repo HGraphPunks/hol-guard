@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import os
 import subprocess
 import zipfile
 from pathlib import Path
@@ -13,6 +14,7 @@ import pytest
 
 from codex_plugin_scanner.guard.catalog_delivery import installed_bundle as installed
 from codex_plugin_scanner.guard.catalog_delivery.bundle_metadata import MANIFEST, descriptor, validate
+from codex_plugin_scanner.guard.extension_builder import native_source_compiler
 
 SOURCE = "a" * 40
 ENGINE = "b" * 64
@@ -56,6 +58,17 @@ def root():
 
 @pytest.fixture
 def package(tmp_path, monkeypatch):
+    # Synthetic release bytes remain fixture IO; the candidate native validator
+    # authenticates their manifests, executable digest and complete Root.
+    binary_path = Path(
+        os.environ.get("HOL_GUARD_BUILD_SOURCE_COMPILER")
+        or Path(__file__).resolve().parents[1] / "rust/target/debug/guard-command-source"
+    )
+    monkeypatch.setattr(
+        installed,
+        "run_source_compiler",
+        lambda operation, request: native_source_compiler.run_source_compiler(operation, request, compiler=binary_path),
+    )
     monkeypatch.setattr(installed, "_package", lambda: tmp_path)
     directory = tmp_path / "guard/contracts/data/extensions/command-pack-bundle"
     directory.mkdir(parents=True)
@@ -101,6 +114,15 @@ def test_factory_only_immutable_release_profile(package):
     assert "expires_at" not in bundle.manifest()
     with pytest.raises(AttributeError):
         bundle.engine = "d" * 64
+
+
+def test_factory_has_no_python_authentication_fallback(package, monkeypatch):
+    def unavailable(*args, **kwargs):
+        raise native_source_compiler.NativeSourceCompilerError("candidate unavailable")
+
+    monkeypatch.setattr(installed, "run_source_compiler", unavailable)
+    with pytest.raises(ValueError, match="installed bundle metadata unavailable"):
+        installed.load_installed_bundle()
 
 
 @pytest.mark.parametrize("fault", ["root", "executable", "source", "engine", "binding", "path", "size"])

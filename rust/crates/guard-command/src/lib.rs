@@ -5,6 +5,7 @@ pub mod artifact_risk;
 pub mod bash_approval;
 pub mod benign_request_api;
 pub mod browser_mcp_intent;
+mod bundle_metadata;
 pub mod business_gmail_plain;
 pub mod business_gmail_wire;
 pub mod business_gws_command;
