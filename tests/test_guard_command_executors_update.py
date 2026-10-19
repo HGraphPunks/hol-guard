@@ -159,6 +159,10 @@ def test_cloud_audit_executes_relative_dot_in_active_workspace(tmp_path: Path, m
 
     with (
         patch(
+            "codex_plugin_scanner.guard.runtime.command_executors.managed_install_audit_workspace_dirs",
+            return_value=[],
+        ),
+        patch(
             "codex_plugin_scanner.guard.runtime.command_executors.build_workspace_audit_payload",
             return_value=({"workspace": str(context.workspace_dir)}, 0),
         ) as audit,
