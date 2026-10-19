@@ -105,7 +105,8 @@ fn supervise_managed_child(
     // Claim the scope before the spawn, so a stop sees this supervisor from
     // the start of the run until its exit record is written rather than only
     // once the record is under way.
-    let supervised = super::exit_record::supervised_scope(owner.state_base, owner.digest);
+    // A failure here must leave no serving child, as on Unix.
+    let supervised = super::exit_record::supervised_scope(owner.state_base, owner.digest)?;
     let started = Instant::now();
     let mut child = spawn_managed_child(executable, &argument_refs)
         .map_err(|_| "native_resident_spawn_failed".to_owned())?;
@@ -141,9 +142,7 @@ fn supervise_managed_child(
         status_result.map_err(|_| "native_resident_supervisor_wait_failed".to_owned())?;
     // Windows spawns the serving child without a stderr pipe, so the record
     // carries the supervisor's own classification of this exit.
-    if let Ok(supervised) = supervised {
-        super::exit_record::record_supervised_exit(supervised, None, status_success, None, ran_for);
-    }
+    super::exit_record::record_supervised_exit(supervised, None, status_success, None, ran_for);
     if status_success {
         Ok(())
     } else {
