@@ -307,7 +307,6 @@ fn a_fast_forward_merge_of_origin_is_a_proven_refresh() {
         split.to_owned(),
         "git fetch origin fix/report-lane && git merge --ff-only origin/fix/report-lane 2>&1 | tail -3"
             .to_owned(),
-        "git merge -q --ff-only origin/main && git log --oneline -1".to_owned(),
         "git merge --ff-only @{u}".to_owned(),
         "git fetch origin && git merge --ff-only @{upstream}".to_owned(),
         // The main checkout behind `git -C` sits outside the shell's directory.
@@ -316,6 +315,14 @@ fn a_fast_forward_merge_of_origin_is_a_proven_refresh() {
     ] {
         assert_allowed(&session, &command, &wt, REFRESH);
     }
+    // A Git read after the merge falls to the read floor, which the local
+    // write proof settles; either way it runs without review.
+    assert!(reason(
+        &session,
+        "git merge -q --ff-only origin/main && git log --oneline -1",
+        &wt
+    )
+    .is_some());
     // In the main checkout the proven merge runs directly, as the pull does,
     // rather than in the workspace sandbox that would cut the fetch off.
     for command in [merge, split] {
