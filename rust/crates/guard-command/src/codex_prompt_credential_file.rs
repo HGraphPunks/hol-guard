@@ -265,6 +265,11 @@ pub(crate) fn review_prompt_credential_file(
         if SKIP_BASENAMES.contains(&name) || !name.starts_with('.') || !looks_secret_bearing(name) {
             continue;
         }
+        // Past the deadline the caller has already given up on this answer,
+        // so no further file is opened on its behalf.
+        if Instant::now() >= deadline {
+            break;
+        }
         let normalized_path = path.to_string();
         if !ctx.host.is_regular_file(&normalized_path) {
             continue;

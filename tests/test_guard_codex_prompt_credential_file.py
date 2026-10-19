@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -41,7 +42,7 @@ def test_credential_looking_dotfile_named_in_the_prompt_becomes_an_artifact(tmp_
     assert artifact.config_path == _CONFIG_PATH
     assert artifact.metadata["prompt_matched_text"] == ".auth-token"
     assert artifact.metadata["prompt_request_class"] == "secret_read"
-    assert artifact.metadata["normalized_path"] == str(tmp_path / ".auth-token")
+    assert artifact.metadata["normalized_path"] == os.path.realpath(tmp_path / ".auth-token")
 
 
 def test_a_prompt_that_asks_for_no_read_leaves_the_file_alone(tmp_path: Path) -> None:
@@ -65,3 +66,27 @@ def test_an_ordinary_name_or_ordinary_content_produces_no_artifact(tmp_path: Pat
     assert _review("Read .authnotes please.", tmp_path) is None
     # Nothing is there to read at all.
     assert _review("Read .missingtoken please.", tmp_path) is None
+
+
+def test_a_symlink_is_judged_by_the_name_it_resolves_to(tmp_path: Path) -> None:
+    # The resident resolves the path the way ``Path.resolve(strict=False)``
+    # did, so an ordinary-looking link to a credential file is still caught.
+    (tmp_path / ".apitoken").write_text(_CREDENTIAL_TEXT, encoding="utf-8")
+    (tmp_path / ".notes").symlink_to(tmp_path / ".apitoken")
+
+    artifact = _review("Read .notes please.", tmp_path)
+
+    assert artifact is not None
+    assert artifact.name == "credential-looking local file .apitoken"
+    assert artifact.metadata["normalized_path"] == os.path.realpath(tmp_path / ".apitoken")
+
+
+def test_a_prompt_larger_than_a_command_line_is_still_reviewed(tmp_path: Path) -> None:
+    # Prompts carry pasted logs and diffs; a long one must not turn into a
+    # blocking "native runtime unavailable" artifact.
+    (tmp_path / ".apitoken").write_text(_CREDENTIAL_TEXT, encoding="utf-8")
+    padding = "a line of pasted output that names nothing at all\n" * 3_000
+
+    assert len(padding) > 64 * 1024
+    assert _review(f"{padding}Read .apitoken please.", tmp_path) is not None
+    assert _review(f"{padding}Rename .apitoken to something clearer.", tmp_path) is None

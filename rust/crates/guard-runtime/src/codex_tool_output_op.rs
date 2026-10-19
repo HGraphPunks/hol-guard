@@ -175,6 +175,11 @@ impl InspectionHost for ResidentInspectionHost<'_> {
         self.svc_object_existence(command, cwd)
     }
 
+    fn real_path(&self, path: &str) -> Option<String> {
+        path.starts_with('/')
+            .then(|| crate::oci_path::resolve_lenient(path))
+    }
+
     fn is_regular_file(&self, path: &str) -> bool {
         std::path::Path::new(path).is_file()
     }
@@ -353,10 +358,10 @@ fn action_is_bounded(action: &CodexToolOutputActionV1) -> bool {
         }
         // The canonical digest already bounds the whole body.
         Action::PostToolOutput(_) => true,
+        // A prompt is prose, not a command line: the canonical digest limit
+        // bounds it, as it does for every other prompt review.
         Action::PromptCredentialFile(scope) => {
-            text_is_bounded(&scope.prompt_text)
-                && option_path_is_bounded(&scope.cwd)
-                && path_is_bounded(&scope.config_path)
+            option_path_is_bounded(&scope.cwd) && path_is_bounded(&scope.config_path)
         }
         Action::PromptAttachment(scope) => {
             text_is_bounded(&scope.prompt_text)
