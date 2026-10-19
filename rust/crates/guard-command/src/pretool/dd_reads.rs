@@ -19,12 +19,29 @@ fn readable(value: &str, context: super::PathContext<'_>) -> bool {
         && command_read_target(value, context, false)
 }
 
-/// A block or byte count: digits with at most one size suffix.
-fn size(value: &str) -> bool {
-    let digits = value
-        .strip_suffix(['c', 'w', 'b', 'k', 'K', 'M', 'G'])
-        .unwrap_or(value);
-    !digits.is_empty() && digits.len() <= 12 && digits.bytes().all(|byte| byte.is_ascii_digit())
+/// The most one block may hold. `dd` allocates a buffer of the block size, so
+/// the bound keeps a read from asking for gigabytes of memory.
+const MAX_BLOCK_BYTES: u64 = 16 * 1024 * 1024;
+
+/// A count: digits with at most one size suffix.
+fn size(value: &str) -> Option<u64> {
+    let (digits, unit) = match value.char_indices().last() {
+        Some((index, 'c')) => (&value[..index], 1),
+        Some((index, 'w')) => (&value[..index], 2),
+        Some((index, 'b')) => (&value[..index], 512),
+        Some((index, 'k' | 'K')) => (&value[..index], 1024),
+        Some((index, 'M')) => (&value[..index], 1024 * 1024),
+        Some((index, 'G')) => (&value[..index], 1024 * 1024 * 1024),
+        _ => (value, 1),
+    };
+    if digits.is_empty() || digits.len() > 12 || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    digits.parse::<u64>().ok()?.checked_mul(unit)
+}
+
+fn block_size(value: &str) -> bool {
+    size(value).is_some_and(|bytes| bytes <= MAX_BLOCK_BYTES)
 }
 
 pub(super) fn safe_dd_arguments(arguments: &[String], context: super::PathContext<'_>) -> bool {
@@ -38,7 +55,8 @@ pub(super) fn safe_dd_arguments(arguments: &[String], context: super::PathContex
                 input = true;
                 true
             }
-            "bs" | "ibs" | "count" | "skip" => size(value),
+            "bs" | "ibs" => block_size(value),
+            "count" | "skip" => size(value).is_some(),
             "status" => matches!(value, "none" | "noxfer"),
             _ => false,
         };
@@ -57,6 +75,10 @@ pub(crate) fn proven_read_segment(
     segment: &crate::CommandSegmentV1,
     context: super::PathContext<'_>,
 ) -> bool {
-    segment.executable.as_deref() == Some("dd")
+    // The same whole-command conditions `benign_command_segments` requires.
+    model.confidence == "exact"
+        && !model.path_overridden
+        && model.wrapper_chain.is_empty()
+        && segment.executable.as_deref() == Some("dd")
         && super::segment_proof::exact_safe_segment_with_context(model, segment, false, context)
 }

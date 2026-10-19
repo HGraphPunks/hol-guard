@@ -77,6 +77,8 @@ fn dd_prints_a_slice_of_a_readable_file() {
         format!("dd if={scratch}/a.ts bs=4k count=1 status=none | head -2"),
         "dd if=src/a.ts bs=1 count=20 2>/dev/null | od -c | head -3".to_owned(),
         format!("dd if={scratch}/a.ts bs=16 count=1 skip=1"),
+        format!("dd if={scratch}/a.ts bs=16M count=1 status=none | head -2"),
+        format!("dd if={scratch}/a.ts ibs=1M skip=2 count=1 | od -c | head -2"),
     ] {
         assert!(permitted(&fixture, &command), "{command}");
     }
@@ -101,6 +103,11 @@ fn dd_keeps_review_for_outputs_conversions_and_unreadable_inputs() {
         // Unknown operands and malformed sizes.
         format!("dd if={scratch}/a.ts bs=1 count=4 iflag=direct"),
         format!("dd if={scratch}/a.ts bs=-1 count=4"),
+        // A block size that would allocate a large buffer.
+        format!("dd if={scratch}/a.ts bs=17M count=1"),
+        format!("dd if={scratch}/a.ts bs=1G count=1"),
+        format!("dd if={scratch}/a.ts ibs=999999999999 count=1"),
+        format!("dd if={scratch}/a.ts bs=999999999999G count=1"),
         format!("dd if={scratch}/a.ts bs=$(echo 1) count=4"),
         // Credentials and files outside the read scope.
         format!("dd if={home}/.ssh/id_rsa bs=1 count=20"),
