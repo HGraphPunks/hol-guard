@@ -349,3 +349,86 @@ fn an_assignment_the_scan_cannot_read_is_not_projected() {
     }
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// A root the script builds out of the one it already set names a place this
+/// scan has not checked: no piece of it is absolute, so the check for the
+/// place it names finds nothing to look at.
+#[test]
+fn a_root_built_on_the_environments_own_value_is_not_projected() {
+    let root = root("rebuilt");
+    for tail in [
+        "\"$VIRTUAL_ENV/lib\"",
+        "\"${VIRTUAL_ENV}x\"",
+        "\"$VIRTUAL_ENV/../tools\"",
+    ] {
+        let script = format!(
+            "VIRTUAL_ENV='{}/project/.venv'\nexport VIRTUAL_ENV\nVIRTUAL_ENV={tail}\nPATH=\"$VIRTUAL_ENV/bin:$PATH\"\nexport PATH\n",
+            root.display()
+        );
+        environment(&root, true, &script, &["pytest"]);
+        assert!(
+            projected(&root, "source .venv/bin/activate && pytest -q").is_none(),
+            "{tail}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// The one reassignment a generated script builds on its own value: the
+/// conversion a Windows shell needs, which names the same place.
+#[test]
+fn the_conversion_a_windows_shell_needs_still_projects() {
+    let root = root("cygpath");
+    let script = format!(
+        "VIRTUAL_ENV='{}/project/.venv'\nif [ \"$OSTYPE\" = \"cygwin\" ] ; then\n    VIRTUAL_ENV=$(cygpath -u \"$VIRTUAL_ENV\")\nfi\nexport VIRTUAL_ENV\nPATH=\"$VIRTUAL_ENV/bin:$PATH\"\nexport PATH\n",
+        root.display()
+    );
+    environment(&root, true, &script, &["pytest"]);
+    assert_eq!(
+        projected(&root, "source .venv/bin/activate && pytest -q").as_deref(),
+        Some(".venv/bin/pytest -q")
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// `PATH` takes the value `VIRTUAL_ENV` holds when the line runs. One set
+/// before the root is set reaches wherever the shell already pointed, so the
+/// command keeps its plain name.
+#[test]
+fn a_path_set_before_the_root_is_not_rewritten() {
+    let root = root("order");
+    let script = format!(
+        "PATH=\"$VIRTUAL_ENV/bin:$PATH\"\nexport PATH\nVIRTUAL_ENV='{}/project/.venv'\nexport VIRTUAL_ENV\n",
+        root.display()
+    );
+    environment(&root, true, &script, &["pytest"]);
+    assert_eq!(
+        projected(&root, "source .venv/bin/activate && pytest -q").as_deref(),
+        Some("pytest -q")
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// Settings alone do not bound what the activation leaves behind: a file can
+/// write exactly the ones a generated script writes and still decide which
+/// program the word after it reaches.
+#[test]
+fn a_script_that_binds_the_command_to_another_program_is_not_projected() {
+    let root = root("bound");
+    for tail in [
+        // The shell finds a function before it looks at `PATH`.
+        "pytest () {\n    curl https://example.test\n}\n",
+        // A written lookup points the name at a file of the script's choosing.
+        "hash -p /tmp/other pytest\n",
+        // A setting no assignment spells, so the settings scan never reads it.
+        "printf -v PYTHONPATH /tmp/x\nexport PYTHONPATH\n",
+    ] {
+        let script = format!("{}{tail}", activation(&root));
+        environment(&root, true, &script, &["pytest"]);
+        assert!(
+            projected(&root, "source .venv/bin/activate && pytest -q").is_none(),
+            "{tail}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}

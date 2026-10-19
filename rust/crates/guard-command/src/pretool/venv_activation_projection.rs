@@ -18,6 +18,9 @@ use crate::cloud_scrub_shell::shell_tokens;
 use crate::pretool::PathContext;
 use std::path::Path;
 
+#[path = "venv_activation_commands.rs"]
+mod commands;
+
 const MAX_PROJECTED_CHARS: usize = 8_192;
 
 /// Characters a plain, literal path is written with. An expansion, a glob or
@@ -225,6 +228,16 @@ fn places(value: &str) -> impl Iterator<Item = &str> {
 /// derived from the value already there. A value naming another place refuses
 /// the projection outright, because the `PATH` built from it would put that
 /// place in front of the command.
+/// The whole of what a generated script writes `VIRTUAL_ENV` from the value
+/// it already holds: `uv` and `virtualenv` pass `-u`, the standard library's
+/// `venv` does not, and `assigned_value` has taken the quotes out.
+const CONVERSIONS: &[&str] = &[
+    "$(cygpath -u $VIRTUAL_ENV)",
+    "$(cygpath -u ${VIRTUAL_ENV})",
+    "$(cygpath $VIRTUAL_ENV)",
+    "$(cygpath ${VIRTUAL_ENV})",
+];
+
 fn environment_assignment(value: &str, root: &Path, home: Option<&str>) -> Option<Option<bool>> {
     let value = &with_home(value, home);
     // A relative step is the script walking up out of its own `bin`; more
@@ -233,9 +246,12 @@ fn environment_assignment(value: &str, root: &Path, home: Option<&str>) -> Optio
         return None;
     }
     if value.contains("$VIRTUAL_ENV") || value.contains("${VIRTUAL_ENV") {
-        // Built on the value the lines before it left, so it names no place
-        // of its own, and it may not add one.
-        return places(value).next().is_none().then_some(None);
+        // The one reassignment a generated script builds on the value it has
+        // already left: the conversion a Windows shell needs. Any other one
+        // names a place of its own that this scan cannot check, because a
+        // piece such as `$VIRTUAL_ENV/lib` or `${VIRTUAL_ENV}x` carries no
+        // absolute path for `places` to resolve and would pass unread.
+        return CONVERSIONS.contains(&value.as_str()).then_some(None);
     }
     if value.contains("dirname") || value.contains("SCRIPT_PATH") || value.contains("BASH_SOURCE") {
         // The script locating itself. Every absolute place it names has to be
@@ -298,7 +314,10 @@ fn activation_settings(
                 "PATH" => match path_assignment(&value, binaries, home)? {
                     Prepended::Restored => {}
                     Prepended::Binaries => written = true,
-                    Prepended::ByEnvironment => by_environment = true,
+                    // `PATH="$VIRTUAL_ENV/bin:$PATH"` reaches this
+                    // environment only if the lines before it left
+                    // `VIRTUAL_ENV` naming this environment.
+                    Prepended::ByEnvironment => by_environment |= environment_here,
                 },
                 "VIRTUAL_ENV" => {
                     if let Some(here) = environment_assignment(&value, root, home)? {
@@ -365,6 +384,11 @@ pub(super) fn project(command: &str, context: PathContext<'_>) -> Option<String>
     // generated activation script writes. `reaches` says whether the `PATH`
     // those settings leave behind finds this environment's own programs.
     let reaches = activation_settings(&text, binaries, binaries.parent()?, home)?;
+    // A file can write exactly those settings and still bind the name the
+    // command runs next to a program of its own choosing.
+    if !commands::runs_settings_only(&text, &first.value) {
+        return None;
+    }
     // Only the word the command runs next is rewritten. A later word the
     // environment also holds would run a different program once the
     // activation has set `PATH`, and this projection does not answer for it.
