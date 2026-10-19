@@ -77,9 +77,12 @@ pub(crate) fn repository_config(root: &Path) -> Result<Option<String>, ()> {
 pub(super) fn remote_urls(root: &Path) -> Option<Vec<String>> {
     let config = repository_config(root).ok()??;
     let entries = entries(&config)?;
+    // Git still reads the deprecated `[url.<base>]` header, which the entry
+    // reader names `url.<base>`, so the section is judged by its first part.
     let rewritten = entries.iter().any(|(section, key, _)| {
-        (section == "url" && matches!(key.as_str(), "insteadof" | "pushinsteadof"))
-            || (matches!(section.as_str(), "include" | "includeif") && key == "path")
+        let base = section.split('.').next().unwrap_or_default();
+        (base == "url" && matches!(key.as_str(), "insteadof" | "pushinsteadof"))
+            || (matches!(base, "include" | "includeif") && key == "path")
     });
     (!rewritten).then(|| {
         entries

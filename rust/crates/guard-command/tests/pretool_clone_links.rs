@@ -189,6 +189,10 @@ fn matching_remote_urls_do_not_relate_checkouts_that_rewrite_or_include() {
             "pushrewritten",
             "[url \"https://git.example.invalid/\"]\n\tpushInsteadOf = https://github.com/\n",
         ),
+        (
+            "deprecated-header",
+            "[url.evil]\n\tinsteadOf = https://github.com/\n",
+        ),
         ("included", "[include]\n\tpath = ../shared.gitconfig\n"),
     ] {
         let repository = repository_with_origin(&session, name, url);
