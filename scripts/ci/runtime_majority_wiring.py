@@ -9,10 +9,12 @@ Reachability is a static, file-granular name graph.  A wired file ``G``
 reaches a file ``F`` when the code of ``G`` (comments, string contents and
 ``#[cfg(test)]`` regions blanked, ``mod x;`` declarations ignored) contains
 
-* the module alias or file name of ``F``: an alias declared by a ``mod``
-  statement is visible only inside the declaring file and its descendants,
-  a file stem is visible crate-wide, and either one is visible in another
-  crate only when ``G`` also names that crate; or
+* the module alias or file name of ``F``: an alias declared by a private
+  ``mod`` statement is visible only inside the declaring file and its
+  descendants, one declared ``pub`` (in any form) is also visible from the
+  declaring file's parent and that parent's descendants, a file stem is
+  visible crate-wide, and any of them is visible in another crate only when
+  ``G`` also names that crate; or
 * a public item name defined or implemented in ``F`` that ``G`` does not
   define itself and that at most ``MAX_AMBIGUITY`` counted files define.
 
@@ -190,6 +192,17 @@ def compute_wired(files: list[WiringFile], crate_deps: dict[str, set[str]], entr
         return found
 
     subtrees: dict[str, set[str]] = {}
+
+    def alias_anchor(target: WiringFile) -> str:
+        """Where a ``mod`` alias is nameable: the declaring file, or, for a
+        ``pub`` declaration, the nearest ancestor that declaration escapes to."""
+        node = by_path[target.parent]
+        if not target.public_mod:
+            return node.path
+        while node.public_mod and node.parent:
+            node = by_path[node.parent]
+        return by_path[node.parent].path if node.parent else node.path
+
     crate_roots = {item.crate: item for item in files if item.is_root}
     wired: dict[str, str] = {item.path: "" for item in files if item.crate == entry_crate and item.is_root}
     queue: deque[str] = deque(wired)
@@ -219,8 +232,8 @@ def compute_wired(files: list[WiringFile], crate_deps: dict[str, set[str]], entr
                     reach(target, current.path)
             for target in aliased.get(name, ()):
                 if target.crate == current.crate:
-                    scope = subtrees.setdefault(target.parent, subtree(target.parent))
-                    if current.path in scope:
+                    anchor = alias_anchor(target)
+                    if current.path in subtrees.setdefault(anchor, subtree(anchor)):
                         reach(target, current.path)
                 elif target.crate in crates and by_path[target.parent].is_root:
                     reach(target, current.path)

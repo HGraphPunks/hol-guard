@@ -212,3 +212,28 @@ def test_declared_target_must_resolve_to_a_module(tmp_path: Path, resolution: st
     scope_path.write_text(json.dumps(_with_dynamic([_dynamic(resolution, targets=[".plugn"])])), encoding="utf-8")
     with pytest.raises(ScopeError, match=r"target '\.plugn' resolves to no module"):
         build_report(repo, scope_path)
+
+
+def test_pub_mod_alias_reaches_the_declaring_file_sibling(tmp_path: Path) -> None:
+    """A ``pub(super) mod`` alias is nameable one level up; a private one is not."""
+    repo, scope_path = _repo(tmp_path, _scope())
+    source = repo / CRATES / "bin" / "src"
+    _write(
+        source / "main.rs",
+        "mod wired;\nmod chained;\nmod orphan;\nmod unused_name;\nmod holder;\nmod sibling;\n"
+        "fn main() {\n    wired::run();\n    sibling::call();\n    lib::shared::answer();\n}\n",
+    )
+    _write(source / "holder.rs", "pub(super) mod shown;\nmod hidden;\n")
+    _write(source / "holder" / "shown.rs", "fn go() -> u8 {\n    1\n}\n")
+    _write(source / "holder" / "hidden.rs", "fn go() -> u8 {\n    2\n}\n")
+    _write(
+        source / "sibling.rs",
+        "pub fn call() -> u8 {\n    super::holder::shown::go() + super::holder::hidden::go()\n}\n",
+    )
+    result = build_report(repo, scope_path)
+    wired = {item["path"].rsplit("/", 1)[1] for item in result["rust"]["files"]}
+    unwired = {item["path"].rsplit("/", 1)[1] for item in result["rust"]["unwired_files"]}
+    assert "shown.rs" in wired
+    assert "hidden.rs" in unwired
+    via = {item["path"].rsplit("/", 1)[1]: item["wired_via"] for item in result["rust"]["files"]}
+    assert via["shown.rs"].endswith("sibling.rs")
