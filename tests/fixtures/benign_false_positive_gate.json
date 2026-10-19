@@ -11336,7 +11336,7 @@
       "expect": "not_allow"
     },
     {
-      "id": "neg-git-pull-to-tmp-chain",
+      "id": "neg-git-push-to-tmp-chain",
       "fix_area": "negative",
       "harnesses": [
         "claude-code",
@@ -11346,7 +11346,7 @@
       ],
       "tool": "shell",
       "tool_input": {
-        "command": "git -C ${ORG}/app-portal pull --ff-only > ${PRIVATE_TMP}/pull.txt; cat ${PRIVATE_TMP}/pull.txt"
+        "command": "git -C ${ORG}/app-portal push origin HEAD > ${PRIVATE_TMP}/push.txt; cat ${PRIVATE_TMP}/push.txt"
       },
       "cwd": "org",
       "expect": "not_allow",
