@@ -141,14 +141,16 @@ pub(crate) fn collect_resident_stderr(mut reader: impl Read) -> Vec<u8> {
     collected
 }
 
-/// Publish one supervised run: the resident's stderr, then the supervisor's
-/// own classification of the exit. The note is written from space reserved
-/// for it, so a resident that floods stderr cannot push the one line that
-/// explains the exit out of the record.
+/// Publish one run with no ordering check.
+#[cfg(test)]
 pub(crate) fn write_run(scope: &Path, stderr: &[u8], note: Option<&str>) {
     let _ = publish_run(scope, stderr, note);
 }
 
+/// Publish one supervised run: the resident's stderr, then the supervisor's
+/// own classification of the exit. The note is written from space reserved
+/// for it, so a resident that floods stderr cannot push the one line that
+/// explains the exit out of the record.
 fn publish_run(scope: &Path, stderr: &[u8], note: Option<&str>) -> Option<ResidentFailureLog> {
     let reserved = note.map_or(0, |note| note.len() + 1);
     let kept = MAX_RESIDENT_FAILURE_BYTES
