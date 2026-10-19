@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sys
 import time
 from copy import deepcopy
 from dataclasses import replace
@@ -14,6 +15,8 @@ import pytest
 from codex_plugin_scanner.guard.config import GuardConfig
 from codex_plugin_scanner.guard.models import GuardArtifact
 from codex_plugin_scanner.guard.runtime import contained_completion as module
+
+pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="native completion proof is Linux-only")
 
 
 @pytest.mark.parametrize("status", [0, 1])
@@ -69,9 +72,7 @@ def test_workspace_authorized_stderr_duplication_keeps_completed_output(case, mo
 
 
 @pytest.fixture(params=["destructive_shell", "execution"])
-def case(tmp_path, monkeypatch, request):
-    monkeypatch.setattr(module.sys, "platform", "linux")
-    monkeypatch.setattr(module, "_boot", lambda: "owned-unit-boot")
+def case(tmp_path, request):
     home = tmp_path / "guard"
     home.mkdir(mode=0o700)
     workspace = tmp_path / "workspace"
@@ -263,14 +264,20 @@ def test_caller_flag_never_replaces_two_matching_live_receipts(case, receipts):
     assert not (options["guard_home"] / module.DIRECTORY).exists()
 
 
-def test_expiry_uses_real_elapsed_time_and_boot_identity(case, monkeypatch):
+def test_expiry_uses_real_elapsed_time_and_boot_identity(case):
     artifact, _, options, record = case
-    monkeypatch.setattr(module, "TTL_NS", 20_000_000)
     assert record()
-    time.sleep(0.03)
+    path = next((options["guard_home"] / module.DIRECTORY).iterdir())
+    row = json.loads(path.read_bytes())
+    row["created_ns"] = time.monotonic_ns() - module.TTL_NS - 1_000_000_000
+    row["expires_ns"] = row["created_ns"] + module.TTL_NS
+    path.write_bytes(module._canonical(row))
     assert module.completed_output_artifact(artifact, **options) is artifact
     assert record()
-    monkeypatch.setattr(module, "_boot", lambda: "different-boot")
+    path = next((options["guard_home"] / module.DIRECTORY).iterdir())
+    row = json.loads(path.read_bytes())
+    row["boot_id"] = "different-boot"
+    path.write_bytes(module._canonical(row))
     assert module.completed_output_artifact(artifact, **options) is artifact
 
 

@@ -26,8 +26,8 @@ from pathlib import Path
 from ..config import GuardConfig
 from ..models import GuardArtifact
 
-SCHEMA = "guard-contained-completion.v1"
-DIRECTORY = "contained-completions-v1"
+SCHEMA = "guard-contained-completion.v2"
+DIRECTORY = "contained-completions-v2"
 TTL_NS = 30_000_000_000
 MAX_OUTPUT = 900_000
 
@@ -47,16 +47,35 @@ def _binding(payload: Mapping[str, object], harness: str, workspace: Path) -> st
     if any(type(value) is not str or not 1 <= len(value) <= 4096 for value in fields.values()):
         return None
     tool_input = payload.get("tool_input")
-    if type(tool_input) is not dict or type(tool_input.get("command")) is not str:
+    if type(tool_input) is not dict or set(tool_input) != {"command"} or type(tool_input["command"]) is not str:
         return None
-    value = {
-        "harness": harness,
-        "workspace": str(workspace.resolve(strict=True)),
-        **fields,
-        "tool_input": tool_input,
-        "execution_environment": payload.get("guard_execution_environment"),
-    }
-    raw = _canonical(value)
+    environment = payload.get("guard_execution_environment")
+    if environment is not None and (
+        type(environment) is not dict
+        or len(environment) > 128
+        or any(type(key) is not str or type(value) is not str for key, value in environment.items())
+    ):
+        return None
+    raw = bytearray(b"guard-contained-completion-binding.v2\0")
+
+    def append(value: str) -> None:
+        encoded = value.encode("utf-8")
+        raw.extend(len(encoded).to_bytes(4, "big"))
+        raw.extend(encoded)
+
+    append(harness)
+    append(str(workspace.resolve(strict=True)))
+    for name in ("session_id", "tool_call_id", "config_path"):
+        append(fields[name])
+    append(tool_input["command"])
+    if environment is None:
+        raw.append(0)
+    else:
+        raw.append(1)
+        raw.extend(len(environment).to_bytes(4, "big"))
+        for key, value in sorted(environment.items()):
+            append(key)
+            append(value)
     return hashlib.sha256(raw).hexdigest() if len(raw) <= 1024**2 else None
 
 
@@ -184,78 +203,6 @@ def record_completion(
             os.close(descriptor)
 
 
-def _consume(*, payload: Mapping[str, object], harness: str, workspace: Path, guard_home: Path) -> str | None:
-    if sys.platform != "linux" or payload.get("hook_event_name") != "PostToolUse":
-        return None
-    descriptor = None
-    claim = None
-    try:
-        binding = _binding(payload, harness, workspace)
-        content = payload.get("tool_response")
-        if (
-            binding is None
-            or type(content) is not list
-            or len(content) != 1
-            or type(content[0]) is not dict
-            or set(content[0]) != {"type", "text"}
-            or content[0]["type"] != "text"
-            or type(content[0]["text"]) is not str
-            or len(content[0]["text"].encode()) > 1024**2
-            or type(payload.get("is_error")) is not bool
-        ):
-            return None
-        descriptor = _private(guard_home / DIRECTORY)
-        claim = "claimed-" + secrets.token_hex(32)
-        os.rename(binding, claim, src_dir_fd=descriptor, dst_dir_fd=descriptor)
-        fd = os.open(claim, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=descriptor)
-        with os.fdopen(fd, "rb") as stream:
-            info = os.fstat(stream.fileno())
-            if (
-                not stat.S_ISREG(info.st_mode)
-                or info.st_uid != os.getuid()
-                or stat.S_IMODE(info.st_mode) != 0o600
-                or info.st_nlink != 1
-                or info.st_size > 8192
-            ):
-                return None
-            raw = stream.read(8193)
-
-        def unique(pairs):
-            value = {}
-            for key, item in pairs:
-                if key in value:
-                    raise ValueError("duplicate completion field")
-                value[key] = item
-            return value
-
-        row = json.loads(raw, object_pairs_hook=unique)
-        now = time.monotonic_ns()
-        if (
-            type(row) is not dict
-            or set(row) != {"schema", "binding", "output_sha256", "is_error", "created_ns", "expires_ns", "boot_id"}
-            or row["schema"] != SCHEMA
-            or row["binding"] != binding
-            or row["boot_id"] != _boot()
-            or type(row["created_ns"]) is not int
-            or type(row["expires_ns"]) is not int
-            or not 0 <= row["created_ns"] <= now < row["expires_ns"]
-            or row["expires_ns"] - row["created_ns"] != TTL_NS
-            or type(row["is_error"]) is not bool
-            or row["is_error"] != payload["is_error"]
-            or row["output_sha256"] != hashlib.sha256(content[0]["text"].encode()).hexdigest()
-        ):
-            return None
-        return hashlib.sha256(raw).hexdigest()
-    except (OSError, ValueError, TypeError, KeyError):
-        return None
-    finally:
-        if descriptor is not None:
-            if claim is not None:
-                with suppress(FileNotFoundError):
-                    os.unlink(claim, dir_fd=descriptor)
-            os.close(descriptor)
-
-
 def _completed_execution_risk(metadata: Mapping[str, object]) -> str | None:
     """Only the two default execution requests supported by private completion."""
     risks = metadata.get("risk_classes")
@@ -310,16 +257,18 @@ def completed_output_artifact(
     for actions in (config.risk_actions or {}, (config.harness_risk_actions or {}).get(harness, {}) or {}):
         if risk in actions and actions[risk] not in {"allow", "warn"}:
             return artifact
-    content = payload.get("tool_response")
-    if (
-        type(content) is not list
-        or len(content) != 1
-        or type(content[0]) is not dict
-        or type(content[0].get("text")) is not str
-        or native_edge.get("reviewed_output_sha256") != hashlib.sha256(content[0]["text"].encode()).hexdigest()
-    ):
+    reviewed_output_sha256 = native_edge.get("reviewed_output_sha256")
+    if type(reviewed_output_sha256) is not str:
         return artifact
-    proof = _consume(payload=payload, harness=harness, workspace=workspace, guard_home=guard_home)
+    from ..native_execution import consume_contained_completion_native
+
+    proof = consume_contained_completion_native(
+        payload=payload,
+        harness=harness,
+        workspace=workspace,
+        guard_home=guard_home,
+        reviewed_output_sha256=reviewed_output_sha256,
+    )
     if proof is None:
         return artifact
     metadata = dict(artifact.metadata)

@@ -174,6 +174,8 @@ mod consumer_evidence;
 mod consumer_incident;
 mod consumer_result;
 mod consumer_url;
+#[cfg(target_os = "linux")]
+mod contained_completion_op;
 #[cfg(unix)]
 mod contained_op;
 #[cfg(unix)]

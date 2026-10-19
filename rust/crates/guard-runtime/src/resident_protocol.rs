@@ -130,6 +130,8 @@ pub(crate) fn capabilities() -> RuntimeCapabilitiesV1 {
         #[cfg(unix)]
         features.push(crate::binding_capture_op::BINDING_CAPTURE_FEATURE.into());
     }
+    #[cfg(target_os = "linux")]
+    features.push(crate::contained_completion_op::FEATURE.into());
     features.push(crate::mcp_relay::RELAY_FEATURE.into());
     features.push(crate::hook_evidence_writer_op::HOOK_EVIDENCE_WRITER_FEATURE.into());
     features.push(crate::claude_session_start::SESSION_START_FEATURE.into());
@@ -213,6 +215,8 @@ pub(crate) enum ResidentOperationV1 {
     ContainedWorkspaceWriteExecute(ContainedWorkspaceWriteExecuteRequestV1),
     #[allow(dead_code)]
     ContainedExecute(ContainedExecuteRequestV1),
+    #[cfg(target_os = "linux")]
+    ContainedCompletionConsume(crate::contained_completion_op::ConsumeRequest),
     ShimAdmin(ShimAdminRequestV2),
     PackageContextBuild(PackageContextBuildRequestV1),
     McpStdioProbe(McpStdioProbeRequestV1),
