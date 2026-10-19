@@ -307,13 +307,13 @@ def test_a_stale_generation_is_still_claimed_alongside_a_recorded_command(tmp_pa
     assert [binding["handler"]["command"] for binding in claimed] == [stale]
 
 
-def test_the_migration_path_holds_back_a_recorded_command_too(tmp_path):
-    """The holdback belongs to every path that rewrites hooks, not only the report.
+def test_the_json_migration_path_does_not_hold_back_a_recorded_command(tmp_path):
+    """The manifest authenticates the config entry, not one in hooks.json.
 
-    Reporting an edited handler and then stripping it on the way to writing
-    would leave the refusal true and the configuration changed anyway, so the
-    paths that mutate hooks derive the recorded commands from the same
-    authenticated manifest the inventory reads.
+    A JSON handler that happens to run a recorded command is not Guard's
+    recorded registration, so the holdback does not apply to it. Migration
+    claims it the same way the JSON inventory does, instead of copying it into
+    the config as a user hook.
     """
 
     guard_home = tmp_path / "guard-home"
@@ -322,11 +322,7 @@ def test_the_migration_path_holds_back_a_recorded_command_too(tmp_path):
     handler = {"type": "command", "command": command}
     hooks = {"PreToolUse": [{"matcher": "*", "hooks": [handler]}]}
     context = HarnessContext(home_dir=tmp_path / "home", workspace_dir=None, guard_home=guard_home)
-    # The manifest records this command, but under the matcher Guard wrote.
-    # The file now carries a different one: an edit made outside Guard.
     recorded = [{"event": "PreToolUse", "group": {"matcher": "Bash", "hooks": [handler]}, "handler": dict(handler)}]
 
     assert _unmanaged_migration_payload({"hooks": hooks}, context=context, owned_bindings=()) == {}
-    preserved = _unmanaged_migration_payload({"hooks": hooks}, context=context, owned_bindings=recorded)
-
-    assert preserved == {"hooks": hooks}
+    assert _unmanaged_migration_payload({"hooks": hooks}, context=context, owned_bindings=recorded) == {}
