@@ -49,10 +49,13 @@ fn reason(session: &Session, command: &str, cwd: &std::path::Path) -> Option<Str
 }
 
 fn assert_allowed(session: &Session, command: &str, cwd: &std::path::Path, expected: &str) {
+    let result = session.evaluate_at(command, cwd);
     assert_eq!(
-        reason(session, command, cwd).as_deref(),
+        (result.minimum_action == "allow").then_some(result.reason_code.as_str()),
         Some(expected),
-        "{command}"
+        "{command}: {} {}",
+        result.reason_code,
+        result.reason
     );
 }
 
