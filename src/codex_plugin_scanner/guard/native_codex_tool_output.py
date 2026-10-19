@@ -189,7 +189,15 @@ def codex_tool_output_native(
         ).encode("utf-8")
     except (TypeError, ValueError):
         return _deny("native_codex_tool_output_invalid")
-    limit = _MAX_POST_TOOL_REQUEST_BYTES if kind == "post_tool_output" else _MAX_REQUEST_BYTES
+    # A harness accepts up to a megabyte of hook input, so a prompt review
+    # carries whatever the user pasted. Holding a prompt to the ordinary
+    # request limit turned a long one into a blocking "native runtime
+    # unavailable" artifact, which is a review the user did not need.
+    limit = (
+        _MAX_POST_TOOL_REQUEST_BYTES
+        if kind in {"post_tool_output", "prompt_credential_file", "prompt_attachment"}
+        else _MAX_REQUEST_BYTES
+    )
     if len(resident) > limit or time.monotonic() >= effective_deadline:
         return _deny(_UNAVAILABLE)
     output = native_resident_client_request(
