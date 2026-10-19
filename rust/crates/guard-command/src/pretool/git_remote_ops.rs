@@ -377,7 +377,10 @@ fn prove(
         // so with LFS on the merge needs the fetch's transport proof too.
         let lfs = effective.keys().any(|key| key.starts_with("filter.lfs."));
         return target.is_some_and(|target| tracks_origin(&probe, target))
-            && (!lfs || transport_proven(&effective, &repository, &probe))
+            && (!lfs
+                || (transport_proven(&effective, &repository, &probe)
+                    && !lfs_endpoint_overridden(&effective)
+                    && target.is_some_and(|target| lfsconfig_absent(&probe, target))))
             && fast_forward_inert(&effective, &repository, shape, &probe);
     }
     // Initialized submodules are fetched on demand with their own config
@@ -390,6 +393,44 @@ fn prove(
             "post-fetch",
         ])
         && upstream.is_none_or(|shape| pull::pull_inert(&effective, &repository, shape, &probe))
+}
+
+/// Git LFS takes its endpoint from `lfs.url`, `lfs.pushurl` or
+/// `remote.<name>.lfsurl`, and how it authenticates there from
+/// `lfs.<url>.access`, rather than from origin's URL.
+fn lfs_endpoint_overridden(effective: &config::GitConfig) -> bool {
+    effective.keys().any(|key| {
+        let key = key.to_ascii_lowercase();
+        key == "lfs.url"
+            || key == "lfs.pushurl"
+            || (key.starts_with("remote.") && key.ends_with(".lfsurl"))
+            || (key.starts_with("lfs.") && key.ends_with(".access"))
+    })
+}
+
+/// No `.lfsconfig` names those keys from the work tree, the current commit
+/// or the commit the fast-forward checks out. A probe that fails counts as
+/// one being there.
+fn lfsconfig_absent(probe: &Probe, target: &str) -> bool {
+    let Some(top) = probe.text(&["rev-parse", "--show-toplevel"]) else {
+        return false;
+    };
+    if std::fs::symlink_metadata(std::path::Path::new(&top).join(".lfsconfig")).is_ok() {
+        return false;
+    }
+    ["HEAD", target].iter().all(|commit| {
+        probe
+            .output(&[
+                "ls-tree",
+                "--full-tree",
+                "--name-only",
+                "--end-of-options",
+                commit,
+                "--",
+                ".lfsconfig",
+            ])
+            .is_some_and(|listed| listed.iter().all(u8::is_ascii_whitespace))
+    })
 }
 
 /// The network half of the proof: every origin URL reaches GitHub, no

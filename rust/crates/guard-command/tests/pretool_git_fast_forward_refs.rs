@@ -134,6 +134,26 @@ fn with_git_lfs_on_the_merge_needs_the_fetch_transport_proof() {
         assert_held(&session, &wt, key);
         restore(&session, key);
     }
+    // LFS takes its endpoint, and how it authenticates there, from its own
+    // keys rather than origin's URL.
+    for (key, value) in [
+        ("lfs.url", "https://lfs.example.invalid/acme/app"),
+        ("lfs.pushurl", "https://lfs.example.invalid/acme/app"),
+        (
+            "remote.origin.lfsurl",
+            "https://lfs.example.invalid/acme/app",
+        ),
+        ("lfs.https://lfs.example.invalid/.access", "basic"),
+    ] {
+        session.config(&[key, value]);
+        assert_held(&session, &wt, key);
+        session.config(&["--unset-all", key]);
+    }
+    // So can a `.lfsconfig` in the work tree.
+    let lfsconfig = wt.join(".lfsconfig");
+    std::fs::write(&lfsconfig, "[lfs]\n\turl = https://lfs.example.invalid/\n").unwrap();
+    assert_held(&session, &wt, ".lfsconfig");
+    std::fs::remove_file(&lfsconfig).unwrap();
     assert_refresh(&session, MERGE, &wt);
 }
 
