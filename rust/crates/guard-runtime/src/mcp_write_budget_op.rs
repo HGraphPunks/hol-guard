@@ -6,7 +6,7 @@
 
 #![forbid(unsafe_code)]
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::os::unix::fs::MetadataExt;
@@ -25,7 +25,7 @@ pub(crate) const FEATURE: &str = "mcp-task-write-budget-v1";
 const REQUEST_SCHEMA: &str = "guard-mcp-write-budget-claim-request.v1";
 const RESULT_SCHEMA: &str = "guard-mcp-write-budget-claim-result.v1";
 const POLICY_SCHEMA: &str = "guard-mcp-task-write-budget.v1";
-const STATE_SCHEMA: &str = "guard-mcp-task-write-budget-state.v2";
+const STATE_SCHEMA: &str = "guard-mcp-task-write-budget-state.v3";
 const POLICY_NAME: &str = "mcp-task-write-budget.json";
 const LOCK_NAME: &str = "mcp-task-write-budget.lock";
 const STATE_NAME: &str = "mcp-task-write-budget-state.json";
@@ -51,6 +51,8 @@ struct Policy {
     reserved_record_ids: Vec<String>,
     #[serde(default)]
     required_source_ids: Vec<String>,
+    #[serde(default)]
+    tool_write_limits: BTreeMap<String, u32>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -60,12 +62,14 @@ struct State {
     policy_sha256: String,
     claimed_writes: u32,
     cited_source_ids: Vec<String>,
+    claimed_by_tool: BTreeMap<String, u32>,
 }
 
 enum ClaimOutcome {
     Claimed(u32),
     Exhausted,
     MissingSources(Vec<String>),
+    ToolExhausted,
 }
 
 fn directory_flags() -> OFlag {
@@ -131,6 +135,10 @@ fn policy(home: &File) -> Result<Option<(Policy, String)>, ()> {
         || !valid_names(&parsed.read_only_tools)
         || !valid_names(&parsed.reserved_record_ids)
         || !valid_names(&parsed.required_source_ids)
+        || parsed.tool_write_limits.len() > 128
+        || parsed.tool_write_limits.iter().any(|(name, limit)| {
+            !valid_names(std::slice::from_ref(name)) || *limit == 0 || *limit > parsed.max_writes
+        })
     {
         return Err(());
     }
@@ -199,8 +207,8 @@ fn state_file(home: &File) -> Option<(File, bool)> {
     regular_private(&file, STATE_MAX_BYTES).then_some((file, new))
 }
 
-fn claim(home: &File, digest: &str, maximum: u32,
-         cited: &[String], required: &[String]) -> Option<ClaimOutcome> {
+fn claim(home: &File, digest: &str, maximum: u32, tool_name: &str,
+         tool_limit: Option<u32>, cited: &[String], required: &[String]) -> Option<ClaimOutcome> {
     let lock = File::from(
         openat(
             home,
@@ -220,6 +228,7 @@ fn claim(home: &File, digest: &str, maximum: u32,
             policy_sha256: digest.into(),
             claimed_writes: 0,
             cited_source_ids: Vec::new(),
+            claimed_by_tool: BTreeMap::new(),
         }
     } else {
         let raw = read_bounded(&mut file, STATE_MAX_BYTES)?;
@@ -230,11 +239,20 @@ fn claim(home: &File, digest: &str, maximum: u32,
         || state.claimed_writes > maximum
         || !valid_names(&state.cited_source_ids)
         || !unique(&state.cited_source_ids)
+        || state.claimed_by_tool.len() > 128
+        || state.claimed_by_tool.iter().any(|(name, count)| {
+            !valid_names(std::slice::from_ref(name)) || *count == 0 || *count > maximum
+        })
+        || state.claimed_by_tool.values().map(|value| u64::from(*value)).sum::<u64>()
+            != u64::from(state.claimed_writes)
     {
         return None;
     }
     if state.claimed_writes == maximum {
         return Some(ClaimOutcome::Exhausted);
+    }
+    if tool_limit.is_some_and(|limit| state.claimed_by_tool.get(tool_name).copied().unwrap_or(0) >= limit) {
+        return Some(ClaimOutcome::ToolExhausted);
     }
     let mut sources: BTreeSet<String> = state.cited_source_ids.into_iter().collect();
     sources.extend(cited.iter().cloned());
@@ -246,6 +264,7 @@ fn claim(home: &File, digest: &str, maximum: u32,
         }
     }
     state.claimed_writes += 1;
+    *state.claimed_by_tool.entry(tool_name.to_owned()).or_insert(0) += 1;
     state.cited_source_ids = sources.into_iter().collect();
     let raw = serde_json::to_vec(&state).ok()?;
     file.seek(SeekFrom::Start(0)).ok()?;
@@ -304,12 +323,21 @@ pub(crate) fn evaluate(request: &ClaimRequest) -> Result<Vec<u8>, String> {
 
 fn claim_decision(home: &File, policy: &Policy, digest: &str, request: &ClaimRequest)
     -> (&'static str, &'static str, Option<u32>, Vec<String>) {
+    let tool_limit = if policy.tool_write_limits.is_empty() {
+        None
+    } else if let Some(limit) = policy.tool_write_limits.get(&request.tool_name) {
+        Some(*limit)
+    } else {
+        return ("block", "tool_not_authorized", None, Vec::new());
+    };
     let cited = cited_sources(&request.tool_name, &request.arguments);
-    match claim(home, digest, policy.max_writes, &cited, &policy.required_source_ids) {
+    match claim(home, digest, policy.max_writes, &request.tool_name,
+                tool_limit, &cited, &policy.required_source_ids) {
         Some(ClaimOutcome::Claimed(remaining)) => ("allow", "claimed", Some(remaining), Vec::new()),
         Some(ClaimOutcome::Exhausted) => ("block", "write_budget_exhausted", Some(0), Vec::new()),
         Some(ClaimOutcome::MissingSources(missing)) =>
             ("block", "required_source_references_missing", None, missing),
+        Some(ClaimOutcome::ToolExhausted) => ("block", "tool_write_limit_exhausted", None, Vec::new()),
         None => ("block", "budget_state_invalid", None, Vec::new()),
     }
 }
@@ -437,6 +465,28 @@ mod tests {
             "source_ids": ["contact-b", "contact-c"],
             "source_versions": {"contact-b": 1, "contact-c": 1}
         });
+        assert_eq!(decision(&request)["remaining"], 0);
+        assert_eq!(decision(&request)["reason"], "write_budget_exhausted");
+    }
+
+    #[test]
+    fn tool_limits_reserve_draft_slots_from_extra_crm_updates() {
+        let (_root, mut request) = setup();
+        let path = Path::new(&request.guard_home).join(POLICY_NAME);
+        std::fs::write(&path, serde_json::to_vec(&json!({
+            "schema": POLICY_SCHEMA, "max_writes": 4,
+            "read_only_tools": ["crm.read"],
+            "tool_write_limits": {"crm.update": 2, "mail.create_draft": 2},
+        })).unwrap()).unwrap();
+        request.tool_name = "mail.send".into();
+        assert_eq!(decision(&request)["reason"], "tool_not_authorized");
+        request.tool_name = "crm.update".into();
+        assert_eq!(decision(&request)["remaining"], 3);
+        assert_eq!(decision(&request)["remaining"], 2);
+        assert_eq!(decision(&request)["reason"], "tool_write_limit_exhausted");
+        request.tool_name = "mail.create_draft".into();
+        request.arguments = json!({"record_id": "draft-a", "data": {}});
+        assert_eq!(decision(&request)["remaining"], 1);
         assert_eq!(decision(&request)["remaining"], 0);
         assert_eq!(decision(&request)["reason"], "write_budget_exhausted");
     }

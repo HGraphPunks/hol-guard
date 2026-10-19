@@ -19,6 +19,7 @@ _REASONS = frozenset({
     "no_policy", "read_only", "claimed", "invalid_request", "write_budget_exhausted",
     "budget_state_invalid", "policy_invalid", "guard_home_invalid", "invalid_arguments",
     "record_id_reserved", "required_source_references_missing",
+    "tool_not_authorized", "tool_write_limit_exhausted",
 })
 
 
