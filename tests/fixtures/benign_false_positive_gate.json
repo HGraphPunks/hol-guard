@@ -7687,7 +7687,7 @@
       "tool_input": {
         "command": "git fetch origin && git merge --ff-only origin/main"
       },
-      "cwd": "org_wt",
+      "cwd": "org_app",
       "expect": "allow"
     },
     {
@@ -7739,8 +7739,7 @@
         "command": "git merge --ff-only origin/main"
       },
       "cwd": "org_hooked",
-      "expect": "not_allow",
-      "contained_ok": true
+      "expect": "not_allow"
     },
     {
       "id": "neg-git-fetch-then-merge-ff-only-post-merge-hook",
@@ -7757,8 +7756,7 @@
         "command": "git fetch origin && git merge --ff-only origin/main"
       },
       "cwd": "org_hooked",
-      "expect": "not_allow",
-      "contained_ok": true
+      "expect": "not_allow"
     },
     {
       "id": "neg-git-fetch-then-merge-ff-only-strategy",
@@ -7774,9 +7772,8 @@
       "tool_input": {
         "command": "git fetch origin && git merge --ff-only -s ours origin/main"
       },
-      "cwd": "org_app",
-      "expect": "not_allow",
-      "contained_ok": true
+      "cwd": "org_wt",
+      "expect": "not_allow"
     },
     {
       "id": "neg-git-fetch-then-merge-ff-only-squash",
@@ -7792,9 +7789,8 @@
       "tool_input": {
         "command": "git fetch origin && git merge --ff-only --squash origin/main"
       },
-      "cwd": "org_app",
-      "expect": "not_allow",
-      "contained_ok": true
+      "cwd": "org_wt",
+      "expect": "not_allow"
     },
     {
       "id": "neg-git-fetch-then-merge-without-ff-only",
@@ -7810,9 +7806,8 @@
       "tool_input": {
         "command": "git fetch origin && git merge origin/main"
       },
-      "cwd": "org_app",
-      "expect": "not_allow",
-      "contained_ok": true
+      "cwd": "org_wt",
+      "expect": "not_allow"
     },
     {
       "id": "session-git-pull-origin-main-merge",

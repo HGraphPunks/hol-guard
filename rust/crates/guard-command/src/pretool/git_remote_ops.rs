@@ -133,6 +133,53 @@ pub(super) fn exact_safe_command(
     ))
 }
 
+/// Lifts the generic review the declarative `command.git.merge` rule puts on
+/// every merge once this module proves the chain a fast-forward of origin. A
+/// permission the user disabled, a sandbox route and a sensitive target keep
+/// their own verdicts, and a chain without such a merge is left as it is.
+pub(super) fn settle_fast_forward(
+    result: &mut guard_contracts::PreToolResultV1,
+    model: Option<&CanonicalCommandV1>,
+    context: super::PathContext<'_>,
+    deadline: Option<Instant>,
+    execution_environment: Option<&guard_contracts::GuardExecutionEnvironmentV1>,
+) {
+    let Some(model) = model else {
+        return;
+    };
+    if result.minimum_action != "review"
+        || !matches!(
+            result.reason_code.as_str(),
+            "native_command_review_required" | "native_command_extension_review"
+        )
+        || result.action.action_type != guard_contracts::PreToolActionTypeV1::Command
+        || result.action.sensitive_target
+    {
+        return;
+    }
+    let merges = model.segments.iter().any(|segment| {
+        let stripped = super::segment_proof::without_stderr_merge(segment);
+        matches!(
+            parse(stripped.as_ref().unwrap_or(segment), context),
+            Some((_, Some(shape))) if !shape.fetches
+        )
+    });
+    if !merges {
+        return;
+    }
+    let Some((reason_code, reason)) =
+        exact_safe_command(model, context, deadline, execution_environment)
+    else {
+        return;
+    };
+    result.minimum_action = "allow".into();
+    result.policy_action = "allow".into();
+    result.decision = "allow".into();
+    result.explicitly_benign = true;
+    result.reason_code = reason_code.into();
+    result.reason = reason.into();
+}
+
 /// A Git read the configuration probe proves starts no pager, diff driver or
 /// textconv helper. A fetch writes refs, never configuration, so the proof
 /// holds on either side of it.

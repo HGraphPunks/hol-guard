@@ -54,7 +54,7 @@ from tests.benign_fp_gate_configs import KUBECONFIG, LFS_GITCONFIG
 from tests.benign_fp_gate_connectors import write_connectors
 from tests.benign_fp_gate_developer_checkout import head_commit, write_developer_checkout
 from tests.benign_fp_gate_feature_app import build_feature_app, feature_app_path
-from tests.benign_fp_gate_hooked_clone import hooked_clone_path, write_hooked_clone
+from tests.benign_fp_gate_hooked_clone import hooked_worktree_path, write_hooked_clone
 from tests.benign_fp_gate_projects import (
     _INSTALLED_PACKAGES,
     _NODE_PACKAGES,
@@ -140,7 +140,7 @@ class BenignFixture:
             "org_app": self.org / "app-portal",
             "org_wt": self.org.parent / "app-portal-fix",
             "org_clone": self.org.parent / "app-portal-clone",
-            "org_hooked": hooked_clone_path(self.org),
+            "org_hooked": hooked_worktree_path(self.org),
             "tmp_org": self.tmp_org,
             "org_rebase": self.org.parent / "app-portal-rebase",
             "org_rebase_exec": self.org.parent / "app-portal-rebase-exec",
