@@ -369,7 +369,7 @@ class NativeProductContainer:
             self.loaded = True
             args = ["run", "--detach", "--name", self.name, "--pull=never", "--network=none", "--read-only",
                 f"--user={self.uid}:{self.uid}", "--cap-drop=ALL", "--security-opt=no-new-privileges",
-                "--security-opt=apparmor=" + self.name, "--pids-limit=128", "--memory=1g", "--cpus=1",
+                "--security-opt=apparmor=" + self.name, "--pids-limit=256", "--memory=1g", "--cpus=1",
                 "--timeout=" + str(self.wall_seconds), "--env=HOME=/product/home", "--env=PATH=/usr/bin:/bin",
                 "--workdir=/product/home/project"]
             for mount in self.mounts:
