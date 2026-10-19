@@ -215,10 +215,43 @@ fn reads_a_program_file(words: &[&str], index: usize) -> bool {
         return true;
     };
     let program = command_basename(program);
+    if program == "env" || program == "env.exe" {
+        return env_runs_a_program(&words[index + 1..]);
+    }
     if !is_python(program.as_str()) {
         return INTERPRETERS.contains(&program.as_str());
     }
     !python_module_launch(&words[index + 1..])
+}
+
+/// Whether this `env` hands its environment to a program, or only prints it.
+///
+/// `env` is an interpreter when a program follows it: `env sh -c …` runs
+/// whatever that shell is given. With no program operand it runs nothing at
+/// all - it writes the environment and exits, the way `printenv` does - so
+/// reading it as an interpreter that launches an unread file left `env`,
+/// `env -0` and `env | grep '^PATH='` blocked outright, with no approval to
+/// give them. The dump itself still reaches the owners' floor, so it is
+/// reviewed rather than allowed; what changes is that it can be reviewed.
+///
+/// `env` spends a positional only on the program, so the first word that is
+/// not one of its own options is that program. `-u`/`--unset` carries the
+/// name it removes, and the caller has already dropped the `NAME=value`
+/// assignments, which stand before the program in any case.
+fn env_runs_a_program(words: &[&str]) -> bool {
+    let mut index = 0;
+    while let Some(word) = words.get(index) {
+        if *word == "--" {
+            return words.get(index + 1).is_some();
+        }
+        if !word.starts_with('-') || *word == "-" {
+            return true;
+        }
+        // The split spelling `-u NAME` spends the next word; `-uNAME` and
+        // `--unset=NAME` carry it themselves.
+        index += 1 + usize::from(*word == "-u" || *word == "--unset");
+    }
+    false
 }
 
 /// A word naming a file an interpreter reads, rather than a program on the

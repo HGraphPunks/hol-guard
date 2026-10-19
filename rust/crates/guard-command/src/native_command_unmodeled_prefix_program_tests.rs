@@ -1,5 +1,7 @@
 //! Walking a launcher's own options to the program it runs.
-use super::{is_launcher, prefix_reads_a_program_file, program_index};
+use super::{
+    command_reads_a_program_file, is_launcher, prefix_reads_a_program_file, program_index,
+};
 
 fn program(command: &str) -> Option<&str> {
     let words: Vec<&str> = command.split_whitespace().collect();
@@ -129,4 +131,36 @@ fn a_stacked_launcher_is_walked_to_its_own_program() {
     ] {
         assert!(!reads(command), "{command}");
     }
+}
+
+/// `env` is an interpreter only when a program follows it. With nothing but
+/// its own options it writes the environment and exits, so nothing unread
+/// runs and the command stays reviewable instead of refused outright.
+#[test]
+fn an_env_without_a_program_launches_nothing() {
+    for command in [
+        "env",
+        "env -0",
+        "env -i",
+        "env -u NODE_OPTIONS",
+        "env -uNODE_OPTIONS",
+        "env --unset NODE_OPTIONS",
+        "env --unset=NODE_OPTIONS",
+        "env --",
+    ] {
+        assert!(!dumps(command), "{command}");
+    }
+    for command in [
+        "env sh -c 'id'",
+        "env -i sh -c 'id'",
+        "env -u NODE_OPTIONS bash -lc 'id'",
+        "env -- bash -lc 'id'",
+        "env ./deploy.sh",
+    ] {
+        assert!(dumps(command), "{command}");
+    }
+}
+
+fn dumps(command: &str) -> bool {
+    command_reads_a_program_file(command)
 }

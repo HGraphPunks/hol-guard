@@ -16271,7 +16271,7 @@
       "expect": "allow"
     },
     {
-      "id": "shell-env-grep-path",
+      "id": "neg-env-all",
       "fix_area": "shell",
       "harnesses": [
         "codex",
@@ -16285,7 +16285,7 @@
         "command": "env | grep '^PATH='"
       },
       "cwd": "worktree",
-      "expect": "allow"
+      "expect": "not_allow"
     },
     {
       "id": "shell-if-test-manifest",
