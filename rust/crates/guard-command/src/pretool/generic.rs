@@ -26,10 +26,14 @@ mod omp_bash_cwd_tests;
 mod open_quote;
 #[path = "generic_pure_eval.rs"]
 mod pure_eval;
+#[path = "generic_read_note.rs"]
+mod read_note;
 #[path = "redirect_projection.rs"]
 mod redirect_projection;
 #[path = "generic_result.rs"]
 mod result;
+#[path = "venv_activation_projection.rs"]
+mod venv_activation_projection;
 #[path = "workspace_redirects.rs"]
 pub(crate) mod workspace_redirects;
 use command_rewrite::payload_with_command;
@@ -101,6 +105,8 @@ pub fn bounded_task_metadata_output(payload: &serde_json::Value, harness: &str) 
     }
     agent_metadata::bounded_task_list(&input, Some(tool))
 }
+#[path = "generic_github.rs"]
+mod github;
 #[path = "generic_tools.rs"]
 mod tools;
 #[path = "generic_web_fetch.rs"]
@@ -331,6 +337,10 @@ fn evaluate_envelope(
         Ok(value) => value,
         Err(error) => return generic_error_result(harness, event, error),
     };
+    signals.github_read_only = harness == "omp"
+        && event == "PreToolUse"
+        && omp::strict_tool_input(payload)
+            .is_some_and(|input| github::read_only_call(input, signals.tool_name.as_deref()));
     // A search pattern is data, not a command: a proven Claude `Grep` scope
     // skips the command authority but still passes the command controls below.
     let search_scope_proven = event == "PreToolUse"
@@ -424,6 +434,42 @@ fn evaluate_envelope(
         })
     {
         return contained;
+    }
+    // Activating a virtualenv exports settings and runs nothing else, so the
+    // command after it carries the verdict. Only an allow or a containment
+    // verdict is taken from the projected command: a review there is the
+    // answer the full command already has, and the unprojected pass keeps its
+    // own reasons for it.
+    if let Some(projected) = signals
+        .command
+        .as_deref()
+        .filter(|_| !search_scope_proven && !apply_patch_proven)
+        .and_then(|command| venv_activation_projection::project(command, context))
+    {
+        let projected_payload = payload_with_command(
+            payload,
+            signals.command.as_deref().unwrap_or_default(),
+            &projected,
+        );
+        if projected_payload != *payload {
+            let projected = evaluate_envelope(
+                harness,
+                event,
+                &projected_payload,
+                controls,
+                deadline,
+                context,
+                execution_environment,
+                project_redirects,
+            );
+            if projected.minimum_action == "allow"
+                || (projected.minimum_action == "sandbox-required"
+                    && crate::hook_responses::contained_execution_profile(&projected.reason_code)
+                        .is_some())
+            {
+                return projected;
+            }
+        }
     }
     // An inert environment prefix cannot change how the rest of the command
     // runs, so the command without it carries the whole verdict.
@@ -721,6 +767,8 @@ fn evaluate_envelope(
     if result.reason_code == "native_file_read_review" {
         if let Some(note) = omp::grep_review_note(payload, &signals, &omp_context) {
             result.reason = format!("{} {note}", result.reason);
+        } else if let Some(reason) = read_note::read_review_reason(&signals, &omp_context) {
+            result.reason = reason;
         }
     }
     if event == "UserPromptSubmit" {
