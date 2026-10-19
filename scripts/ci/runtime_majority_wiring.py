@@ -144,11 +144,14 @@ def build_files(
 def _mod_visibility(declared_pub: bool, visibility: str) -> str:
     """Normalise a ``mod`` declaration's visibility to one of four answers.
 
-    ``pub(in crate)`` and ``pub(in self)`` are spellings of ``pub(crate)`` and
-    ``pub(self)``, and ``pub(self)`` says exactly what a bare ``mod`` says.  A
-    ``pub(in path)`` naming some other ancestor is held to the nearest boundary
-    a declaration can name rather than resolving the path: under-reaching drops
-    a file from the wired share, while over-reaching would count an unwired one.
+    ``pub(in crate)``, ``pub(in self)`` and ``pub(in super)`` are spellings of
+    ``pub(crate)``, ``pub(self)`` and ``pub(super)``, and ``pub(self)`` says
+    exactly what a bare ``mod`` says.  Any other ``pub(in path)`` is held where
+    a private declaration is held, because this gate does not resolve the path
+    and the path may name the declaring module itself: ``pub(in crate::outer)``
+    written in ``outer.rs`` reaches no further than ``pub(self)`` does.
+    Under-reaching drops a file from the wired share, while over-reaching would
+    count an unwired one, and that is the thing this gate exists to stop.
     """
     if not declared_pub:
         return "private"
@@ -157,9 +160,9 @@ def _mod_visibility(declared_pub: bool, visibility: str) -> str:
         return "pub"
     if inner == "crate":
         return "crate"
-    if inner == "self":
-        return "private"
-    return "super"
+    if inner == "super":
+        return "super"
+    return "private"
 
 
 def _crate_ident(name: str) -> str:
