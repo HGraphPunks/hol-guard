@@ -58,7 +58,7 @@ struct Command {
 
 /// Whether the script runs nothing beyond the settings it writes, and binds
 /// no name the command runs next.
-pub(super) fn runs_settings_only(text: &str, next: &str) -> bool {
+pub(super) fn runs_settings_only(text: &str, next: &[&str]) -> bool {
     if text.len() > MAX_SCRIPT_CHARS {
         return false;
     }
@@ -68,9 +68,13 @@ pub(super) fn runs_settings_only(text: &str, next: &str) -> bool {
     let Some(definitions) = definitions(&tokens) else {
         return false;
     };
-    // A function of that name is what the shell finds when it looks the word
-    // up, whatever the activated `PATH` holds.
-    if definitions.iter().any(|(name, _, _)| name == next) {
+    // A function of that name is what the shell finds when it looks any of
+    // those words up, whatever the activated `PATH` holds. The word after a
+    // later `&&` or `|` runs as a command too, so every one of them counts.
+    if definitions
+        .iter()
+        .any(|(name, _, _)| next.contains(&name.as_str()))
+    {
         return false;
     }
     let mut live: BTreeSet<String> = BTreeSet::new();
@@ -211,6 +215,11 @@ fn tokens(text: &str) -> Option<Vec<Token>> {
                 if scan.word.ends_with('$') {
                     scan.word.pop();
                 }
+                // `: >(helper)` and `: >$(helper)` run `helper` as a
+                // redirection's target, where no word of it reaches `out`.
+                if scan.redirecting {
+                    return None;
+                }
                 scan.flush();
                 scan.out.push(Token::Open);
             }
@@ -222,7 +231,17 @@ fn tokens(text: &str) -> Option<Vec<Token>> {
         }
     }
     scan.separate();
+    if scan.unreadable {
+        return None;
+    }
     Some(scan.out)
+}
+
+/// Whether a redirection's target names a descriptor the shell already holds.
+fn descriptor(word: &str) -> bool {
+    word.strip_prefix('&').is_some_and(|digits| {
+        !digits.is_empty() && digits.chars().all(|digit| digit.is_ascii_digit())
+    })
 }
 
 #[derive(Default)]
@@ -230,6 +249,7 @@ struct Scan {
     out: Vec<Token>,
     word: String,
     redirecting: bool,
+    unreadable: bool,
 }
 
 impl Scan {
@@ -242,6 +262,14 @@ impl Scan {
         let word = std::mem::take(&mut self.word);
         if self.redirecting {
             self.redirecting = false;
+            // A generated script redirects to `/dev/null` or to a descriptor
+            // it already holds. Reading past any other target would mean
+            // reading the name of a file the script writes, and a write to
+            // this environment's own `bin` changes the program the word the
+            // projection rewrites then runs.
+            if word != "/dev/null" && !descriptor(&word) {
+                self.unreadable = true;
+            }
             return;
         }
         self.out.push(Token::Word(word));
@@ -329,10 +357,28 @@ fn opens(tokens: &[Token], index: usize) -> Option<Option<(String, usize)>> {
 /// The token closing the body opened at `brace`.
 fn body_end(tokens: &[Token], brace: usize) -> Option<usize> {
     let mut depth = 0usize;
+    let mut position = true;
     for (index, token) in tokens.iter().enumerate().skip(brace) {
-        let Token::Word(word) = token else {
-            continue;
+        let word = match token {
+            Token::Word(word) => word,
+            // A separator and a substitution's opening both start a command;
+            // its closing leaves one, where a brace is a word again.
+            Token::Separator | Token::Open => {
+                position = true;
+                continue;
+            }
+            Token::Close => {
+                position = false;
+                continue;
+            }
         };
+        // The shell reads a brace as a brace only in command position. A body
+        // holding `echo {` would otherwise swallow the lines after it, and a
+        // program among them would never be read.
+        let brace_word = word == "{" || word == "}";
+        if brace_word && !position {
+            return None;
+        }
         if word == "{" {
             depth += 1;
         } else if word == "}" {
@@ -341,6 +387,7 @@ fn body_end(tokens: &[Token], brace: usize) -> Option<usize> {
                 return Some(index);
             }
         }
+        position = brace_word || GRAMMAR.contains(&word.as_str()) || assigns(word);
     }
     None
 }

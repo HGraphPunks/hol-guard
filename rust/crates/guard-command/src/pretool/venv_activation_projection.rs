@@ -384,9 +384,16 @@ pub(super) fn project(command: &str, context: PathContext<'_>) -> Option<String>
     // generated activation script writes. `reaches` says whether the `PATH`
     // those settings leave behind finds this environment's own programs.
     let reaches = activation_settings(&text, binaries, binaries.parent()?, home)?;
-    // A file can write exactly those settings and still bind the name the
-    // command runs next to a program of its own choosing.
-    if !commands::runs_settings_only(&text, &first.value) {
+    // A file can write exactly those settings and still bind a name the rest
+    // of the command runs to a program of its own choosing. A function the
+    // file defines wins the lookup wherever the shell makes it, so every word
+    // left in the command counts, not only the first.
+    let words: Vec<&str> = rest
+        .iter()
+        .filter(|token| !token.is_control)
+        .map(|token| token.value.as_str())
+        .collect();
+    if !commands::runs_settings_only(&text, &words) {
         return None;
     }
     // Only the word the command runs next is rewritten. A later word the
