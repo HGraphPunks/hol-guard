@@ -165,6 +165,12 @@ pub trait InspectionHost {
     fn real_path(&self, _path: &str) -> Option<String> {
         None
     }
+    /// `Path(path).is_dir()` on the caller's filesystem. A host that cannot
+    /// answer reports the directory as present, so a scan that depends on one
+    /// is attempted rather than silently skipped.
+    fn is_directory(&self, _path: &str) -> bool {
+        true
+    }
     /// `Path(path).is_file()` on the caller's filesystem, with the `OSError`
     /// Python suppresses reported as "not a file". Hosts without a filesystem
     /// service answer `false`, so nothing is scanned that cannot be opened.
@@ -185,14 +191,16 @@ pub trait InspectionHost {
         true
     }
     /// A reader over the managed attachment named by `relative` under
-    /// `attachment_root`, opened without following links at any component and
-    /// verified to be a regular file. `None` is every `OSError` the Python
-    /// scan turns into an unscanned-attachment artifact, and a host without a
-    /// filesystem service.
+    /// `attachment_root`, opened without following links at any component,
+    /// verified to be a regular file and no larger than `max_bytes`. `None` is
+    /// every `OSError` the Python scan turns into an unscanned-attachment
+    /// artifact, the oversized file Python refused from its `fstat`, and a
+    /// host without a filesystem service.
     fn attachment_reader(
         &self,
         _attachment_root: &str,
         _relative: &[String],
+        _max_bytes: u64,
     ) -> Option<Box<dyn std::io::Read + '_>> {
         None
     }

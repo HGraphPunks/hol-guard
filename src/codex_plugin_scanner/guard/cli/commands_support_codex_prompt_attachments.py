@@ -16,18 +16,19 @@ _ATTACHMENT_SCAN_CHUNK_BYTES = 64 * 1024
 _ATTACHMENT_SCAN_MAX_BYTES = 8 * 1024 * 1024
 
 
-def _codex_prompt_attachment_artifact(
-    *, prompt_text: str, home_dir: Path, config_path: str, guard_home: Path | None = None
-) -> GuardArtifact | None:
+def _codex_prompt_attachment_artifact(*, prompt_text: str, home_dir: Path, config_path: str) -> GuardArtifact | None:
     """Scan explicitly requested Codex attachment text without exposing its contents."""
 
+    # The resident grants a worker at most nine seconds whatever a caller asks
+    # for, so the scan's own deadline stays inside that lease: it then ends in
+    # an unscanned-attachment artifact rather than an expired-lease error.
     answer = codex_tool_output_native(
         "prompt_attachment",
         prompt_text=prompt_text,
         home_dir=home_dir,
         config_path=config_path,
-        deadline_ms=20_000,
-        timeout_seconds=21.0,
+        deadline_ms=8_000,
+        timeout_seconds=9.0,
     )
     if not answer.allowed or answer.value is None or answer.error_code is not None:
         raise NativeSensitiveRequestError(answer.error_code or "native_codex_attachment_unavailable")

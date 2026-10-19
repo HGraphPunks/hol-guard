@@ -57,10 +57,14 @@ impl InspectionHost for Host {
         }
         false
     }
+    fn is_directory(&self, path: &str) -> bool {
+        Path::new(path).is_dir()
+    }
     fn attachment_reader(
         &self,
         attachment_root: &str,
         relative: &[String],
+        max_bytes: u64,
     ) -> Option<Box<dyn std::io::Read + '_>> {
         let mut candidate = PathBuf::from(attachment_root);
         for part in relative {
@@ -70,7 +74,8 @@ impl InspectionHost for Host {
             candidate.push(part);
         }
         let file = fs::File::open(&candidate).ok()?;
-        if !file.metadata().ok()?.is_file() {
+        let metadata = file.metadata().ok()?;
+        if !metadata.is_file() || metadata.len() > max_bytes {
             return None;
         }
         Some(Box::new(file))
@@ -201,6 +206,24 @@ fn an_attachment_reached_through_a_link_is_held_unscanned() {
         found.metadata["prompt_request_class"],
         "prompt_injection_intent"
     );
+}
+
+#[test]
+fn a_harness_with_no_managed_root_scans_nothing() {
+    // `Path.resolve(strict=True)` on a missing root ended the scan. A lenient
+    // resolution would walk on and hold an attachment that cannot exist.
+    let home = Home::new("norootatall");
+    let named = home
+        .path
+        .join(".codex")
+        .join("attachments")
+        .join("00000000-0000-4000-8000-000000000000")
+        .join("pasted-text.txt");
+    fs::remove_dir_all(home.path.join(".codex")).expect("remove managed root");
+
+    let prompt = format!("Read {} before continuing.", named.to_string_lossy());
+
+    assert!(review(&home, &prompt).is_none());
 }
 
 #[test]

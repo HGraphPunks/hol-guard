@@ -67,7 +67,10 @@ pub(crate) fn review_prompt_attachment(
     let root_text = attachment_root.to_string();
     // `Path.resolve(strict=True)`: a root that is not there is not a scan
     // failure, it is a harness with no managed attachments.
-    ctx.host.real_path(&root_text)?;
+    let resolved_root = ctx.host.real_path(&root_text)?;
+    if !ctx.host.is_directory(&resolved_root) {
+        return None;
+    }
     for found in ATTACHMENT_PATH_TOKEN.find_iter(prompt_text) {
         let Ok(found) = found else { break };
         let requested_path = found.as_str().trim_end_matches(|c| ".,:!?".contains(c));
@@ -92,7 +95,7 @@ pub(crate) fn review_prompt_attachment(
                 config_path,
             ));
         }
-        let Some(mut reader) = ctx.host.attachment_reader(&root_text, &relative) else {
+        let Some(mut reader) = ctx.host.attachment_reader(&root_text, &relative, MAX_BYTES) else {
             return Some(scan_failure(
                 requested_path,
                 "Guard could not fully scan the Codex attachment.",

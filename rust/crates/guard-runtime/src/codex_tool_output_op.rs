@@ -180,6 +180,10 @@ impl InspectionHost for ResidentInspectionHost<'_> {
             .then(|| crate::oci_path::resolve_lenient(path))
     }
 
+    fn is_directory(&self, path: &str) -> bool {
+        std::path::Path::new(path).is_dir()
+    }
+
     fn is_regular_file(&self, path: &str) -> bool {
         std::path::Path::new(path).is_file()
     }
@@ -226,6 +230,7 @@ impl InspectionHost for ResidentInspectionHost<'_> {
         &self,
         attachment_root: &str,
         relative: &[String],
+        max_bytes: u64,
     ) -> Option<Box<dyn std::io::Read + '_>> {
         use std::os::unix::fs::MetadataExt;
 
@@ -264,7 +269,10 @@ impl InspectionHost for ResidentInspectionHost<'_> {
             )
             .ok()?,
         );
-        if !file.metadata().ok()?.is_file() {
+        // Python read the descriptor's `fstat` before the first chunk, so an
+        // attachment past the limit never cost a scan.
+        let metadata = file.metadata().ok()?;
+        if !metadata.is_file() || metadata.len() > max_bytes {
             return None;
         }
         Some(Box::new(file))
@@ -278,6 +286,7 @@ impl InspectionHost for ResidentInspectionHost<'_> {
         &self,
         attachment_root: &str,
         relative: &[String],
+        max_bytes: u64,
     ) -> Option<Box<dyn std::io::Read + '_>> {
         if relative.is_empty()
             || relative
@@ -296,7 +305,10 @@ impl InspectionHost for ResidentInspectionHost<'_> {
             return None;
         }
         let file = std::fs::File::open(&resolved).ok()?;
-        if !file.metadata().ok()?.is_file() {
+        // Python read the descriptor's `fstat` before the first chunk, so an
+        // attachment past the limit never cost a scan.
+        let metadata = file.metadata().ok()?;
+        if !metadata.is_file() || metadata.len() > max_bytes {
             return None;
         }
         Some(Box::new(file))
