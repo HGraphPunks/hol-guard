@@ -162,8 +162,10 @@ fn checkout_common_directory(root: &Path, cwd: &Path) -> Option<PathBuf> {
     None
 }
 
-/// Whether `root` is a separate clone of the repository holding `cwd`.
+/// Whether `root` is the checkout holding `cwd` (the command runs in one of
+/// its subdirectories) or a separate clone of that checkout's repository.
 fn clone_of_workspace(root: &Path, cwd: &Path) -> bool {
-    super::worktree_writes::repository_common_directory(cwd)
-        .is_some_and(|(workspace, _)| super::clone_siblings::related_clones(&workspace, root))
+    super::worktree_writes::repository_common_directory(cwd).is_some_and(|(workspace, _)| {
+        workspace == root || super::clone_siblings::related_clones(&workspace, root)
+    })
 }

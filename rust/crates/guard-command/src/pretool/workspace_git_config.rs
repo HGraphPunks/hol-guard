@@ -71,16 +71,23 @@ pub(crate) fn repository_config(root: &Path) -> Result<Option<String>, ()> {
 }
 
 /// The URL of every remote the repository whose work tree is `root` names, or
-/// `None` when its configuration cannot be read as plain, bounded entries.
+/// `None` when its configuration cannot be read as plain, bounded entries, or
+/// when it rewrites URLs (`url.<base>.insteadOf`) or includes another file, so
+/// the URL it names is not the one Git connects to.
 pub(super) fn remote_urls(root: &Path) -> Option<Vec<String>> {
     let config = repository_config(root).ok()??;
-    Some(
-        entries(&config)?
+    let entries = entries(&config)?;
+    let rewritten = entries.iter().any(|(section, key, _)| {
+        (section == "url" && matches!(key.as_str(), "insteadof" | "pushinsteadof"))
+            || (matches!(section.as_str(), "include" | "includeif") && key == "path")
+    });
+    (!rewritten).then(|| {
+        entries
             .into_iter()
             .filter(|(section, key, _)| section == "remote" && key == "url")
             .map(|(_, _, value)| value)
-            .collect(),
-    )
+            .collect()
+    })
 }
 
 /// The shared Git directory and admin entry of the verified linked worktree
