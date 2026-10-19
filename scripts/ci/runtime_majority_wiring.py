@@ -10,9 +10,12 @@ reaches a file ``F`` when the code of ``G`` (comments, string contents and
 ``#[cfg(test)]`` regions blanked, ``mod x;`` declarations ignored) contains
 
 * the module alias or file name of ``F``: an alias declared by a private
-  ``mod`` statement is visible only inside the declaring file and its
-  descendants, one declared ``pub`` (in any form) is also visible from the
-  declaring file's parent and that parent's descendants, a file stem is
+  ``mod`` statement (or by ``pub(self) mod``) is visible only inside the
+  declaring file and its descendants, one declared ``pub`` is also visible
+  from the declaring file's parent and that parent's descendants and keeps
+  carrying while the ancestors are themselves ``pub`` or ``pub(crate)``,
+  one declared ``pub(super)`` or ``pub(in path)`` stops at that parent, a
+  file stem is
   visible crate-wide, and any of them is visible in another crate only when
   ``G`` also names that crate; or
 * a public item name defined or implemented in ``F`` that ``G`` does not
@@ -72,6 +75,7 @@ class WiringFile:
     parent: str = ""
     included_by: str = ""
     public_mod: bool = False
+    unrestricted_mod: bool = False
 
 
 def visible_code(code: str, flags: bytearray) -> str:
@@ -123,9 +127,15 @@ def build_files(
             if target in by_resolved and not by_resolved[target].parent:
                 child = by_resolved[target]
                 child.parent, child.alias = path, alias
-                child.public_mod = (
-                    re.search(r"\bpub(?:\s*\([^)]*\))?\s+mod\s+" + re.escape(alias) + r"\s*;", parent_text) is not None
+                declaration = re.search(
+                    r"\bpub(?:\s*\((?P<vis>[^)]*)\))?\s+mod\s+" + re.escape(alias) + r"\s*;", parent_text
                 )
+                visibility = "" if declaration is None else (declaration.group("vis") or "").strip()
+                # ``pub(self)`` says exactly what a bare ``mod`` says, and only
+                # ``pub`` and ``pub(crate)`` let the alias carry past the file
+                # above the declaration.
+                child.public_mod = declaration is not None and visibility != "self"
+                child.unrestricted_mod = child.public_mod and visibility in {"", "crate"}
         for target in includes:
             if target in by_resolved:
                 by_resolved[target].included_by = path
@@ -195,12 +205,22 @@ def compute_wired(files: list[WiringFile], crate_deps: dict[str, set[str]], entr
 
     def alias_anchor(target: WiringFile) -> str:
         """Where a ``mod`` alias is nameable: the declaring file, or, for a
-        ``pub`` declaration, the nearest ancestor that declaration escapes to."""
+        ``pub`` declaration, the nearest ancestor that declaration escapes to.
+
+        ``pub(super)`` and ``pub(in path)`` name a boundary, so the alias stops
+        at the file above the declaration however public that file is.  Only an
+        unrestricted ``pub`` or ``pub(crate)`` carries further, and only through
+        ancestors that are themselves unrestricted.  Climbing past a restricted
+        level would let a file that cannot name the module mark it wired, and
+        an unwired file counted as runtime is the one thing this gate exists to
+        stop.
+        """
         node = by_path[target.parent]
         if not target.public_mod:
             return node.path
-        while node.public_mod and node.parent:
-            node = by_path[node.parent]
+        if target.unrestricted_mod:
+            while node.unrestricted_mod and node.parent:
+                node = by_path[node.parent]
         return by_path[node.parent].path if node.parent else node.path
 
     crate_roots = {item.crate: item for item in files if item.is_root}
