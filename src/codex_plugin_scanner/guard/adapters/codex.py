@@ -451,7 +451,26 @@ def _current_install_legacy_bindings(context: HarnessContext, hooks: dict[str, o
     )
 
 
-def _current_install_self_bindings(context: HarnessContext, hooks: Mapping[str, object]) -> list[dict[str, object]]:
+def _recorded_handler_commands(bindings: Sequence[Mapping[str, object]]) -> list[str]:
+    """The handler commands the authenticated manifest says Guard wrote here."""
+
+    commands: list[str] = []
+    for binding in bindings:
+        handler = binding.get("handler")
+        if not isinstance(handler, Mapping):
+            continue
+        command = handler.get("command")
+        if isinstance(command, str):
+            commands.append(command)
+    return commands
+
+
+def _current_install_self_bindings(
+    context: HarnessContext,
+    hooks: Mapping[str, object],
+    *,
+    authenticated_bindings: Sequence[Mapping[str, object]] = (),
+) -> list[dict[str, object]]:
     """Select the handlers an earlier generation of this same install left behind.
 
     A Guard handler counts as ours only when it names this Guard home and runs
@@ -460,9 +479,19 @@ def _current_install_self_bindings(context: HarnessContext, hooks: Mapping[str, 
     reinstall replaces those rather than refusing to touch an owner it cannot
     identify. A Guard-shaped handler launched from anywhere else keeps its
     conflict, because its spelling proves nothing about who wrote it.
+
+    The one handler containment does not get to decide is one still running a
+    command the authenticated manifest records, which therefore differs from
+    its recorded entry somewhere other than the command. That is an edit made
+    to Guard's own registration from outside Guard, and it is reported rather
+    than silently rewritten.
     """
 
-    return self_bound_hook_bindings(hooks, guard_home=_runtime_guard_home(context))
+    return self_bound_hook_bindings(
+        hooks,
+        guard_home=_runtime_guard_home(context),
+        recorded_commands=_recorded_handler_commands(authenticated_bindings),
+    )
 
 
 def _wire_bindings(bindings: Sequence[Mapping[str, object]]) -> list[dict[str, object]]:
@@ -955,7 +984,8 @@ def _codex_hook_inventory(
     context: HarnessContext,
     authenticated_bindings: Sequence[Mapping[str, object]] = (),
 ) -> CodexHookInventory:
-    hooks = payload.get("hooks") if isinstance(payload.get("hooks"), dict) else {}
+    raw_hooks = payload.get("hooks")
+    hooks: dict[str, object] = raw_hooks if isinstance(raw_hooks, dict) else {}
     legacy_bindings = _current_install_legacy_bindings(context, hooks)
     return enumerate_codex_hooks(
         payload,
@@ -965,7 +995,7 @@ def _codex_hook_inventory(
         source_hooks_enabled=source_hooks_enabled,
         authenticated_bindings=authenticated_bindings,
         legacy_bindings=legacy_bindings,
-        self_bindings=_current_install_self_bindings(context, hooks),
+        self_bindings=_current_install_self_bindings(context, hooks, authenticated_bindings=authenticated_bindings),
     )
 
 

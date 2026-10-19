@@ -30,7 +30,7 @@ stamped as owned.
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from pathlib import Path
 from urllib.parse import parse_qsl
 
@@ -204,16 +204,38 @@ def codex_hook_binds_guard_home(
     )
 
 
+def _handler_command(handler: Mapping[str, object]) -> str | None:
+    """The handler's command, when it has one spelled as a string."""
+
+    command = handler.get("command")
+    return command if isinstance(command, str) else None
+
+
 def self_bound_hook_bindings(
     hooks: Mapping[str, object],
     *,
     guard_home: Path,
     package_root: Path | None = None,
+    recorded_commands: Collection[str] = (),
     windows: bool | None = None,
 ) -> list[dict[str, object]]:
-    """Exact bindings for the handlers an earlier generation of this install left behind."""
+    """Exact bindings for the handlers an earlier generation of this install left behind.
+
+    ``recorded_commands`` are the handler commands the authenticated manifest
+    says this install wrote into this configuration. A handler running one of
+    them, which nonetheless failed to match its recorded entry, is not a stale
+    generation: Guard knows it wrote exactly that command, so what differs is
+    the rest of the entry, and something outside Guard edited it. Guard holds
+    that back rather than claiming it, because quietly rewriting the slot would
+    repair the edit and leave the person who owns the machine never told their
+    Codex configuration had been changed. A stale generation looks different -
+    an upgrade, a moved virtualenv or a reinstall changes the launcher itself,
+    so its command is not one the manifest recorded, and containment decides it
+    as usual.
+    """
 
     root = install_package_root() if package_root is None else package_root
+    recorded = frozenset(recorded_commands)
     bindings: list[dict[str, object]] = []
     for event_name in MANAGED_CODEX_HOOK_EVENTS:
         groups = hooks.get(event_name)
@@ -226,12 +248,16 @@ def self_bound_hook_bindings(
             if not isinstance(handlers, list):
                 # The group is the handler, so removing the handler removes
                 # the group, and the exact group is what identifies it.
-                if _binds(group, guard_home, package_root=root, windows=windows):
+                if _handler_command(group) not in recorded and _binds(
+                    group, guard_home, package_root=root, windows=windows
+                ):
                     bindings.append({"event": event_name, "group": dict(group), "handler": dict(group)})
                 continue
             for handler in handlers:
-                if not isinstance(handler, Mapping) or not _binds(
-                    handler, guard_home, package_root=root, windows=windows
+                if (
+                    not isinstance(handler, Mapping)
+                    or _handler_command(handler) in recorded
+                    or not _binds(handler, guard_home, package_root=root, windows=windows)
                 ):
                     continue
                 # The group is named by its matcher alone: a group that also

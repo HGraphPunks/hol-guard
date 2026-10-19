@@ -271,3 +271,37 @@ def test_self_bound_bindings_name_the_group_by_matcher_alone(tmp_path):
     hooks = {"PreToolUse": [{"matcher": "Bash", "hooks": [handler, {"type": "command", "command": "other"}]}]}
     bindings = self_bound_hook_bindings(hooks, guard_home=guard_home)
     assert bindings == [{"event": "PreToolUse", "group": {"matcher": "Bash"}, "handler": handler}]
+
+
+def test_a_handler_still_running_a_recorded_command_is_reported_not_claimed(tmp_path):
+    """An edit Guard did not make is surfaced, even inside a slot Guard owns.
+
+    The command here is one the authenticated manifest records, so Guard wrote
+    those exact bytes. Whatever now differs from the recorded entry was changed
+    by something else, and rewriting the slot would repair that edit without
+    ever telling the person at the keyboard it happened.
+    """
+
+    guard_home = tmp_path / "guard-home"
+    command = _bridge_launch(_PACKAGED_BRIDGE, guard_home)
+    hooks = {"PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": command}]}]}
+
+    assert self_bound_hook_bindings(hooks, guard_home=guard_home)
+    assert self_bound_hook_bindings(hooks, guard_home=guard_home, recorded_commands=[command]) == []
+
+
+def test_a_stale_generation_is_still_claimed_alongside_a_recorded_command(tmp_path):
+    """A recorded command holds back only the handler running it.
+
+    An upgrade or a moved virtualenv changes the launcher, so a stale handler's
+    command is not one the manifest recorded and containment still decides it.
+    """
+
+    guard_home = tmp_path / "guard-home"
+    recorded = _bridge_launch(_PACKAGED_BRIDGE, guard_home)
+    stale = _bridge_launch(_PACKAGED_BRIDGE, guard_home, program="/opt/python3.12/bin/python3")
+    hooks = {"PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": stale}]}]}
+
+    claimed = self_bound_hook_bindings(hooks, guard_home=guard_home, recorded_commands=[recorded])
+
+    assert [binding["handler"]["command"] for binding in claimed] == [stale]
