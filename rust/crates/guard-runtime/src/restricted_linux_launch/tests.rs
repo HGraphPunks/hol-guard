@@ -267,7 +267,8 @@ fn original_python_kernel_plan_and_mount_contracts() {
             // between filesystems, while path and identity must still match.
             for outcome in [&mut actual, &mut expected] {
                 if let Some(grants) = outcome.get_mut("value").and_then(Value::as_array_mut) {
-                    grants.sort_by(|left, right| left["path"].as_str().cmp(&right["path"].as_str()));
+                    grants
+                        .sort_by(|left, right| left["path"].as_str().cmp(&right["path"].as_str()));
                 }
             }
         }

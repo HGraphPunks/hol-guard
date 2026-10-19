@@ -167,8 +167,14 @@ fn run(
     remaining.sort_by(|left, right| {
         let left = &entries[*left];
         let right = &entries[*right];
-        (left.entry_type == EntryType::Symlink, left.relative_path.as_bytes())
-            .cmp(&(right.entry_type == EntryType::Symlink, right.relative_path.as_bytes()))
+        (
+            left.entry_type == EntryType::Symlink,
+            left.relative_path.as_bytes(),
+        )
+            .cmp(&(
+                right.entry_type == EntryType::Symlink,
+                right.relative_path.as_bytes(),
+            ))
     });
     let order = std::iter::once(primary_index).chain(remaining);
     let mut records: Vec<(String, Value)> = Vec::with_capacity(entries.len());
