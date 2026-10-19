@@ -154,7 +154,13 @@ def cli_hook_environment(tmp_path_factory: pytest.TempPathFactory) -> Iterator[t
 
 
 def _decision(response: dict[str, object]) -> str:
-    """The effective verdict in a claude-code hook response: allow, deny or ask."""
+    """The effective verdict in a claude-code hook response.
+
+    A response that names no verdict reads as ``unspecified`` rather than as an
+    allow: a hook that exits 0 with nothing to say has not allowed the command,
+    and counting it as one would let a hook stop short and still pass a budget
+    that only measures round trips.
+    """
 
     specific = response.get("hookSpecificOutput")
     permission = specific.get("permissionDecision") if isinstance(specific, dict) else None
@@ -165,7 +171,9 @@ def _decision(response: dict[str, object]) -> str:
         return "deny"
     if permission == "ask":
         return "ask"
-    return "allow"
+    if permission == "allow":
+        return "allow"
+    return "unspecified"
 
 
 def _run_hook(fixture: BenignFixture, store: GuardStore, index: int) -> None:
