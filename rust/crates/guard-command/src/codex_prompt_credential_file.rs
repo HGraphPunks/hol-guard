@@ -24,7 +24,7 @@ use crate::sfrs_json::dumps_sorted;
 /// `_PROMPT_CONTENT_SCAN_MAX_BYTES`.
 const CONTENT_SCAN_MAX_BYTES: usize = 64 * 1024;
 /// `_CODEX_PROMPT_FILE_FINGERPRINT_LENGTH`.
-const FINGERPRINT_LENGTH: usize = 24;
+pub(crate) const FINGERPRINT_LENGTH: usize = 24;
 /// `_truncate_codex_display_text(..., limit=320)` at the one call site.
 const DISPLAY_LIMIT: usize = 320;
 /// `_PROMPT_CONTENT_SCAN_SKIP_BASENAMES`: names a dedicated sensitive-path
@@ -76,17 +76,23 @@ fn compile(pattern: &str) -> Regex {
     Regex::new(pattern).expect("prompt-file pattern is a compile-time constant")
 }
 
-/// `_PROMPT_PATH_TOKEN_PATTERN`.
-static PATH_TOKEN: LazyLock<Regex> = LazyLock::new(|| {
-    compile(
-        r#"(?<![\w/.-])\.[A-Za-z0-9][A-Za-z0-9_.-]{0,255}|(?:~|\.{1,2}|/)[^\s'"`<>|;(){}\[\]]{0,255}"#,
-    )
-});
+/// `_PROMPT_PATH_TOKEN_PATTERN`; the attachment scan builds its own pattern
+/// around this one, as `_CODEX_ATTACHMENT_PATH_TOKEN_PATTERN` does.
+pub(crate) const PATH_TOKEN_PATTERN: &str =
+    r#"(?<![\w/.-])\.[A-Za-z0-9][A-Za-z0-9_.-]{0,255}|(?:~|\.{1,2}|/)[^\s'"`<>|;(){}\[\]]{0,255}"#;
+
+static PATH_TOKEN: LazyLock<Regex> = LazyLock::new(|| compile(PATH_TOKEN_PATTERN));
 
 /// `_PROMPT_FILE_READ_VERB_PATTERN`.
 static READ_VERB: LazyLock<Regex> = LazyLock::new(|| {
     compile(r"(?i)\b(?:read|open|print|show|dump|cat|head|tail|less|view|display)\b")
 });
+
+/// `_PROMPT_FILE_READ_VERB_PATTERN.search(prompt_text) is not None`: both
+/// prompt scans start by asking whether the prompt asks for a read at all.
+pub(crate) fn has_read_verb(prompt_text: &str) -> bool {
+    READ_VERB.is_match(prompt_text).unwrap_or(false)
+}
 
 /// `_CODEX_PROMPT_RETRY_BOILERPLATE_PATTERNS`: Guard's own retry copy, removed
 /// before the intent hash so a retried prompt hashes to the first attempt.
@@ -244,7 +250,7 @@ pub(crate) fn review_prompt_credential_file(
     config_path: &str,
     deadline_ms: u64,
 ) -> Option<GuardRunPromptArtifact> {
-    if !READ_VERB.is_match(prompt_text).unwrap_or(false) {
+    if !has_read_verb(prompt_text) {
         return None;
     }
     let deadline = Instant::now() + Duration::from_millis(deadline_ms.min(MAX_DEADLINE_MS));
