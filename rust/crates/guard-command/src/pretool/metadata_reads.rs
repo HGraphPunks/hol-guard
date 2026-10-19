@@ -239,14 +239,17 @@ pub(super) fn safe_stat_arguments(arguments: &[String], context: super::PathCont
     }
     !operands.is_empty()
         && operands.len() <= MAX_OPERANDS
-        && operands.iter().chain(format_operands.iter()).all(|operand| {
-            safe_reads::bounded_read_target(operand, context.home_dir, context.cwd, true)
-                || super::chain_temporary::absent_temporary_read_target(
-                    operand,
-                    context.home_dir,
-                    context.cwd,
-                )
-        })
+        && operands
+            .iter()
+            .chain(format_operands.iter())
+            .all(|operand| {
+                safe_reads::bounded_read_target(operand, context.home_dir, context.cwd, true)
+                    || super::chain_temporary::absent_temporary_read_target(
+                        operand,
+                        context.home_dir,
+                        context.cwd,
+                    )
+            })
 }
 
 /// An output format is printed, never run: bounded, single-line text.
