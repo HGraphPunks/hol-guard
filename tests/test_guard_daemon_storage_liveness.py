@@ -32,7 +32,9 @@ from codex_plugin_scanner.guard.sqlite_tuning import (
     sqlite_connect_timeout_seconds,
     sqlite_operation_deadline_monotonic,
 )
+from codex_plugin_scanner.guard import store_review_event_outbox
 from codex_plugin_scanner.guard.store import GuardStore
+from codex_plugin_scanner.guard.store_review_event_outbox import StoreReviewEventOutboxMixin
 from tests.daemon_control_patching import patch_daemon_global
 from tests.native_command_activity_test_support import use_real_native_activity_reviews
 
@@ -307,6 +309,51 @@ def test_sqlite_lock_wait_stays_short_when_the_operation_clock_is_longer() -> No
         assert 4 < remaining <= 5
     assert sqlite_connect_timeout_seconds({}) == 30.0
     assert sqlite_operation_deadline_monotonic() is None
+
+
+@final
+class _GateWaitStore(StoreReviewEventOutboxMixin):
+    """Mixin host whose storage gate is held by someone else for a while."""
+
+    def __init__(self, path: Path, *, gate_wait_seconds: float) -> None:
+        self.path = path
+        self.guard_home = path.parent
+        self._guard_source = "test"
+        self._gate_wait_seconds = gate_wait_seconds
+
+    @contextmanager
+    def _hold_storage_gate(self, *, exclusive: bool) -> Iterator[None]:
+        assert not exclusive
+        time.sleep(self._gate_wait_seconds)
+        yield
+
+    def _sqlite_profiler(self) -> SimpleNamespace:
+        return SimpleNamespace(record_busy_locked=lambda: None, record_transaction=lambda _elapsed_ms: None)
+
+    def _repair_store_permissions(self) -> None:
+        return None
+
+
+def test_store_call_budget_starts_once_the_storage_gate_is_held(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    budgets: list[float] = []
+
+    def record_budget(*, deadline_monotonic: float, **_rest: object) -> tuple[object, int | None]:
+        budgets.append(deadline_monotonic - time.monotonic())
+        return None, None
+
+    monkeypatch.setattr(store_review_event_outbox, "native_guard_store_call", record_budget)
+    monkeypatch.setenv("HOL_GUARD_INTERNAL_HOOK_SQLITE_TIMEOUT_MS", "125")
+    store = _GateWaitStore(tmp_path / "guard.db", gate_wait_seconds=0.25)
+
+    assert store._native_store_call("requeue_pending_review_events", {}) is None
+
+    # The gate wait is twice the lock-wait cap. The cap bounds waiting for the
+    # database, not waiting to be admitted to it, so the call still reaches the
+    # resident with its budget instead of failing the review closed.
+    assert budgets == pytest.approx([0.125], abs=0.05)
 
 
 def test_store_promotes_rollback_journal_before_bounded_hook_writes(
