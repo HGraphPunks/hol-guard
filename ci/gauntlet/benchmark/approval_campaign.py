@@ -52,10 +52,17 @@ def _read(path: Path):
 def _write(path: Path, value):
     # Approval evidence contains synthetic private records and the public
     # verification key. Keep it in the controller's owner-only attempt directory.
-    parent = path.parent.lstat()
-    if not stat.S_ISDIR(parent.st_mode) or parent.st_uid != os.getuid() or stat.S_IMODE(parent.st_mode) != 0o700:
-        raise ValueError('approval evidence requires an owner-only attempt directory')
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    parent_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        parent = os.fstat(parent_fd)
+        if not stat.S_ISDIR(parent.st_mode) or parent.st_uid != os.getuid() or stat.S_IMODE(parent.st_mode) != 0o700:
+            raise ValueError('approval evidence requires an owner-only attempt directory')
+        fd = os.open(
+            path.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+            0o600, dir_fd=parent_fd,
+        )
+    finally:
+        os.close(parent_fd)
     with os.fdopen(fd, 'w', encoding='utf-8') as stream:
         # Only the private synthetic approval attempt is written here; a
         # public verification key is not a secret. Real credentials are absent.

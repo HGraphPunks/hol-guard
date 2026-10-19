@@ -119,7 +119,7 @@ def test_approval_evidence_writer_refuses_shared_or_symlinked_attempt_directory(
     private.mkdir(mode=0o700)
     alias = tmp_path / 'alias'
     alias.symlink_to(private, target_is_directory=True)
-    with pytest.raises(ValueError, match='owner-only'):
+    with pytest.raises(OSError):
         _write(alias / 'approval-state.json', {'synthetic': True})
     assert not (private / 'approval-state.json').exists()
 
