@@ -47,13 +47,27 @@ _RESIDENT_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK = 24
 # drain pages on its own wake-ups and the snapshot publisher runs on its own
 # thread, so how often either lands in a batch is a matter of timing. They are
 # still on the hook's clock — a one-shot CLI hook starts a worker that waits
-# for the publisher to report ready and closes it afterwards — so they get a
-# ceiling of their own rather than an exemption. The slack above the hook's own
-# budget absorbs a thread that happens to run twice in one batch; it does not
-# absorb a port that adds a publication per request.
+# for the publisher to report ready and closes it afterwards — so they are
+# counted on their own rather than exempted.
 _BACKGROUND_OPERATIONS = frozenset({"hook_direct_evidence_drain", "policy_snapshot_push"})
 
-_RESIDENT_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK_WITH_BACKGROUND = 28
+# Each is bounded on its own, because they vary for different reasons and one
+# must not spend the other's room. Every allowance is per batch rather than per
+# hook: it is there for a thread that lands out of step, and growth that tracks
+# the request count exhausts a fixed allowance however little it adds per
+# request. That is what makes a port that publishes per request fail here.
+#
+# A one-shot CLI hook's worker waits for one publication and closes, so the
+# count follows the hooks exactly; the allowance covers a publisher that
+# republishes once while the worker is still up.
+_PUBLICATIONS_PER_CLI_PRE_TOOL_HOOK = 1
+_PUBLICATION_JITTER_PER_BATCH = 1
+
+# The direct-hook evidence drain pages on its own wake-ups, so how many land
+# while a batch runs is timing rather than a count the hook drives. It is held
+# to a rate instead of being exempted.
+_DRAIN_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK = 2
+_DRAIN_JITTER_PER_BATCH = 2
 
 _BATCH = 3
 
@@ -70,18 +84,33 @@ def _hook_path_operations(log_path: Path) -> Counter[str]:
     return Counter(name for name in _measured_operations(log_path) if name not in _BACKGROUND_OPERATIONS)
 
 
-def _all_operations(log_path: Path) -> Counter[str]:
-    return Counter(_measured_operations(log_path))
+def _background_operations(log_path: Path) -> Counter[str]:
+    return Counter(name for name in _measured_operations(log_path) if name in _BACKGROUND_OPERATIONS)
 
 
 def _assert_growth_within(samples: list[Counter[str]], ceiling: int) -> None:
+    """Every batch between two samples stays within one absolute ceiling."""
+
     for before, after in pairwise(samples):
         growth = after - before
-        assert sum(growth.values()) <= _BATCH * ceiling, growth
+        assert sum(growth.values()) <= ceiling, growth
 
 
 def _assert_round_trip_growth(samples: list[Counter[str]]) -> None:
-    _assert_growth_within(samples, _RESIDENT_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK)
+    _assert_growth_within(samples, _BATCH * _RESIDENT_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK)
+
+
+def _assert_background_growth(samples: list[Counter[str]]) -> None:
+    """Each background operation answers to its own ceiling, not to a total."""
+
+    ceilings = {
+        "policy_snapshot_push": _BATCH * _PUBLICATIONS_PER_CLI_PRE_TOOL_HOOK
+        + _PUBLICATION_JITTER_PER_BATCH,
+        "hook_direct_evidence_drain": _BATCH * _DRAIN_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK
+        + _DRAIN_JITTER_PER_BATCH,
+    }
+    for name, ceiling in ceilings.items():
+        _assert_growth_within([Counter({name: sample[name]}) for sample in samples], ceiling)
 
 
 @pytest.fixture(scope="module")
@@ -194,35 +223,48 @@ def test_cli_pre_tool_hook_resident_round_trips_per_request_are_bounded(
     for index in range(_BATCH):
         _run_hook(fixture, store, index)
     samples: list[Counter[str]] = [_hook_path_operations(log_path)]
-    everything: list[Counter[str]] = [_all_operations(log_path)]
+    background: list[Counter[str]] = [_background_operations(log_path)]
     for batch in range(1, 4):
         for index in range(_BATCH):
             _run_hook(fixture, store, batch * _BATCH + index)
         samples.append(_hook_path_operations(log_path))
-        everything.append(_all_operations(log_path))
+        background.append(_background_operations(log_path))
     assert sum(samples[0].values()) > 0, "no resident request was recorded"
     _assert_round_trip_growth(samples)
     # Publication and the evidence drain are on the hook's clock too, so they
-    # answer to the looser ceiling rather than to none at all.
-    _assert_growth_within(everything, _RESIDENT_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK_WITH_BACKGROUND)
+    # answer to a ceiling of their own rather than to none at all. Counting
+    # them apart keeps either budget from spending the other's room.
+    _assert_background_growth(background)
 
 
-def _replay(log_path: Path, *, extra: bytes, batches: int = 3) -> tuple[list[Counter[str]], list[Counter[str]]]:
-    """Write a hook-shaped request log and sample it the way the budget does."""
+def _replay(
+    log_path: Path, *, extra: bytes, once: bool = False, batches: int = 3
+) -> tuple[list[Counter[str]], list[Counter[str]]]:
+    """Write a hook-shaped request log and sample it the way the budget does.
+
+    Each request spends the hook's own budget plus the one publication and one
+    drain its worker accounts for. ``extra`` is what a regression would add: on
+    every request after the first batch, or, with ``once``, on a single request,
+    which is the shape of a thread that landed out of step.
+    """
 
     log_path.write_bytes(b"W\npolicy_snapshot_push\n")
     samples: list[Counter[str]] = [_hook_path_operations(log_path)]
-    everything: list[Counter[str]] = [_all_operations(log_path)]
+    background: list[Counter[str]] = [_background_operations(log_path)]
     for batch in range(batches):
         with log_path.open("ab") as output:
             for index in range(_BATCH):
                 output.write(b"hook_decide\n" * _RESIDENT_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK)
-                output.write(b"hook_direct_evidence_drain\npolicy_snapshot_push\n")
-                if extra and (batch, index) >= (1, 0):
+                # What the background budgets account for per hook.
+                output.write(
+                    b"hook_direct_evidence_drain\n" * _DRAIN_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK
+                    + b"policy_snapshot_push\n" * _PUBLICATIONS_PER_CLI_PRE_TOOL_HOOK
+                )
+                if extra and ((batch, index) == (1, 0) if once else (batch, index) >= (1, 0)):
                     output.write(extra)
         samples.append(_hook_path_operations(log_path))
-        everything.append(_all_operations(log_path))
-    return samples, everything
+        background.append(_background_operations(log_path))
+    return samples, background
 
 
 @pytest.mark.parametrize("extra", ["none", "per-request"])
@@ -243,18 +285,17 @@ def test_growth_tolerates_background_jitter_but_detects_an_extra_call(tmp_path: 
 def test_publication_growth_answers_to_the_background_ceiling(tmp_path: Path, extra: str) -> None:
     """Publication is counted, with room for a thread that runs out of step.
 
-    The slack is deliberate: one extra push across a batch is timing, not a
-    port. Growth that tracks the request count exhausts it and fails.
+    One extra push in a whole batch is timing and passes. One extra push on
+    every request is a port, and it fails however few it adds per request,
+    because the allowance it eats is fixed per batch rather than per hook.
     """
 
-    added = {
-        "none": b"",
-        "one-more-publication": b"policy_snapshot_push\n",
-        "per-request": b"policy_snapshot_push\n" * 3,
-    }[extra]
-    _, everything = _replay(tmp_path / "resident-requests.log", extra=added)
+    added = b"" if extra == "none" else b"policy_snapshot_push\n"
+    _, background = _replay(
+        tmp_path / "resident-requests.log", extra=added, once=extra == "one-more-publication"
+    )
     if extra == "per-request":
         with pytest.raises(AssertionError):
-            _assert_growth_within(everything, _RESIDENT_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK_WITH_BACKGROUND)
+            _assert_background_growth(background)
         return
-    _assert_growth_within(everything, _RESIDENT_ROUND_TRIPS_PER_CLI_PRE_TOOL_HOOK_WITH_BACKGROUND)
+    _assert_background_growth(background)
