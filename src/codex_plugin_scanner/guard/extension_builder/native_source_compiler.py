@@ -10,7 +10,7 @@ import stat
 import subprocess
 import tempfile
 import threading
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from contextlib import contextmanager, suppress
 from importlib import metadata
 from pathlib import Path
@@ -361,10 +361,11 @@ def run_source_compiler(
     digest: str | None = None,
     compiler: Path | None = None,
     timeout: float = _DEFAULT_TIMEOUT_SECONDS,
+    fetch: Callable[[dict[str, object]], bytes] | None = None,
 ) -> dict[str, object]:
     """Run one native source-compiler operation using bounded JSON stdin."""
     operations = {"compile", "validate", "check", "test", "compare"}
-    operations.update({"schema", "descriptor-schema", "authoring-admission", "bundle-metadata"})
+    operations.update({"schema", "descriptor-schema", "authoring-admission", "bundle-metadata", "bundle-compatibility"})
     if subcommand not in operations:
         raise NativeSourceCompilerError("unsupported source compiler subcommand")
     if subcommand == "check":
@@ -398,6 +399,11 @@ def run_source_compiler(
         tempfile.TemporaryDirectory(prefix="hol-guard-authoring-") as authoring_directory,
     ):
         from .bundle_baseline import admission_request, authoring_request
+
+        if subcommand == "bundle-compatibility":
+            from .metadata_index import exchange
+
+            return exchange(executable, subcommand, [request], Path(authoring_directory), fetch=fetch)
 
         if subcommand == "authoring-admission":
             return admission_request(

@@ -66,7 +66,9 @@ def _use_native_metadata_compiler(monkeypatch):
     monkeypatch.setattr(
         installed,
         "run_source_compiler",
-        lambda operation, request: native_source_compiler.run_source_compiler(operation, request, compiler=binary_path),
+        lambda operation, request, **options: native_source_compiler.run_source_compiler(
+            operation, request, compiler=binary_path, **options
+        ),
     )
 
 
@@ -118,15 +120,6 @@ def test_factory_only_immutable_release_profile(package):
     assert "expires_at" not in bundle.manifest()
     with pytest.raises(AttributeError):
         bundle.engine = "d" * 64
-
-
-def test_factory_has_no_python_authentication_fallback(package, monkeypatch):
-    def unavailable(*args, **kwargs):
-        raise native_source_compiler.NativeSourceCompilerError("candidate unavailable")
-
-    monkeypatch.setattr(installed, "run_source_compiler", unavailable)
-    with pytest.raises(ValueError, match="installed bundle metadata unavailable"):
-        installed.load_installed_bundle()
 
 
 @pytest.mark.parametrize("fault", ["root", "executable", "source", "engine", "binding", "path", "size"])

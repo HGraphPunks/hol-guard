@@ -6,6 +6,7 @@ use super::*;
 mod admission;
 #[path = "native_command_source_authoring.rs"]
 mod authoring;
+pub(crate) use authoring::Exchange as MetadataExchange;
 #[path = "native_command_source_baseline.rs"]
 mod baseline;
 #[path = "native_command_source_capabilities.rs"]

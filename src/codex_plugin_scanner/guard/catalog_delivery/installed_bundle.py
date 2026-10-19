@@ -7,9 +7,7 @@ must be bound by both installed native manifests to the same executable bytes.
 from __future__ import annotations
 
 import hashlib
-import re
 import sys
-import tempfile
 import zipfile
 from dataclasses import dataclass
 from functools import lru_cache
@@ -51,13 +49,6 @@ def compatibility_payloads(family: str) -> tuple[dict[str, Any], ...] | None:
     if not advertised:
         return None
     bundle = load_installed_bundle()
-    compatibility = bundle.manifest().get("compatibility")
-    if compatibility is None:
-        return None  # Already-built v1 Roots may retain loose legacy resources.
-    from .located_store import LocatedStore
-    from .metadata_objects import entries
-
-    consumed = 0
 
     @lru_cache(maxsize=2)
     def read_asset(path: Path, *, limit: int) -> bytes:
@@ -65,34 +56,21 @@ def compatibility_payloads(family: str) -> tuple[dict[str, Any], ...] | None:
         # container. Keep at most two containers, scoped to this explicit read.
         return read_bytes(path, limit=limit)
 
-    def fetch(location: dict[str, Any], size: int) -> bytes:
-        nonlocal consumed
-        consumed += size
-        if consumed > MAX_BYTES:
-            raise ValueError("installed compatibility metadata exceeds byte budget")
-        return bundle._fetch(location, size, read_asset)
-
-    row = compatibility[family]
-    payloads = []
-    expanded = 0
-    with tempfile.TemporaryDirectory(prefix="guard-compatibility-") as temporary:
-        store = LocatedStore(Path(temporary).resolve(), fetch=fetch)
-        for identity, reference in entries(store, row["index"], row["count"]) if row["count"] else ():
-            expanded += reference["expanded_length"]
-            if expanded > MAX_BYTES:
-                raise ValueError("installed compatibility metadata exceeds expanded byte budget")
-            payload = store.json(reference)
-            prefix = "command" if family == "commands" else "mcp"
-            if (
-                re.fullmatch(prefix + r"\.[a-z0-9]+(?:[.-][a-z0-9]+)*", identity) is None
-                or not isinstance(payload, dict)
-                or payload.get("id") != identity
-                or payload.get("schemaVersion")
-                != ("guard.extension-contribution.v2" if family == "commands" else "guard.mcp-server-contribution.v1")
-            ):
-                raise ValueError("installed compatibility metadata identity invalid")
-            payloads.append(payload)
-    return tuple(sorted(payloads, key=lambda payload: payload["id"]))
+    try:
+        result = run_source_compiler(
+            "bundle-compatibility",
+            {
+                "family": family,
+                "source_sha": bundle.source_sha,
+                "engine": bundle.engine,
+                "data": bundle.data.decode("utf-8"),
+                "max_bytes": MAX_BYTES,
+            },
+            fetch=lambda reference: bundle._fetch(reference["location"], reference["length"], read_asset),
+        )
+    except NativeSourceCompilerError as error:
+        raise ValueError(f"installed compatibility metadata unavailable: {error}") from error
+    return tuple(cast(list[dict[str, Any]], result["payloads"])) if result["available"] else None
 
 
 @dataclass(frozen=True, slots=True, init=False)

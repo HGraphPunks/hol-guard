@@ -7,14 +7,32 @@ use std::io::{BufRead, Read, Write};
 #[path = "native_command_source_authoring_transport.rs"]
 mod transport;
 
-pub(super) struct Exchange<R, W> {
+pub(crate) struct Exchange<R, W> {
     input: R,
     output: W,
     visits: usize,
     bytes: usize,
+    source: Option<String>,
+    byte_limit: usize,
+    fetched: BTreeMap<String, Vec<u8>>,
 }
 impl<R: BufRead, W: Write> Exchange<R, W> {
-    fn line_bytes(&mut self) -> Result<Vec<u8>, &'static str> {
+    pub(crate) fn installed(input: R, output: W, source: String, byte_limit: usize) -> Self {
+        Self {
+            input,
+            output,
+            visits: 0,
+            bytes: 0,
+            source: Some(source),
+            byte_limit,
+            fetched: BTreeMap::new(),
+        }
+    }
+    pub(crate) fn bind_installed(&mut self, source: String, byte_limit: usize) {
+        self.source = Some(source);
+        self.byte_limit = byte_limit;
+    }
+    pub(crate) fn line_bytes(&mut self) -> Result<Vec<u8>, &'static str> {
         let mut bytes = Vec::new();
         self.input
             .by_ref()
@@ -29,7 +47,7 @@ impl<R: BufRead, W: Write> Exchange<R, W> {
     fn line(&mut self) -> Result<Value, &'static str> {
         json::decode(&self.line_bytes()?)
     }
-    fn event(&mut self, value: &Value) -> Result<(), &'static str> {
+    pub(crate) fn event(&mut self, value: &Value) -> Result<(), &'static str> {
         serde_json::to_writer(&mut self.output, value)
             .map_err(|_| "authoring_transport_write_failed")?;
         self.output
@@ -41,6 +59,20 @@ impl<R: BufRead, W: Write> Exchange<R, W> {
         self.visits += 1;
         if self.visits > 300_000 {
             return Err("authoring_transport_reference_budget_exceeded");
+        }
+        if let Some(source) = &self.source {
+            if !reference["location"]["tag"]
+                .as_str()
+                .is_some_and(|tag| tag.starts_with(&format!("extension-data-{source}-0.0-")))
+            {
+                return Err("installed compatibility metadata source invalid");
+            }
+            if let Some(bytes) = reference["sha256"]
+                .as_str()
+                .and_then(|sha| self.fetched.get(sha))
+            {
+                return Ok(bytes.clone());
+            }
         }
         self.event(&serde_json::json!({"kind":"fetch", "reference":reference}))?;
         #[derive(Deserialize)]
@@ -57,8 +89,21 @@ impl<R: BufRead, W: Write> Exchange<R, W> {
             return Err("authoring_transport_response_invalid");
         }
         self.bytes += bytes.len();
-        if self.bytes > 512 * 1024 * 1024 {
-            return Err("authoring_transport_byte_budget_exceeded");
+        if self.bytes > self.byte_limit {
+            return Err(if self.source.is_some() {
+                "installed compatibility metadata exceeds byte budget"
+            } else {
+                "authoring_transport_byte_budget_exceeded"
+            });
+        }
+        if self.source.is_some() {
+            self.fetched.insert(
+                reference["sha256"]
+                    .as_str()
+                    .ok_or("authoring_reference_invalid")?
+                    .to_owned(),
+                bytes.clone(),
+            );
         }
         Ok(bytes)
     }
@@ -80,7 +125,11 @@ impl<R: BufRead, W: Write> Exchange<R, W> {
         })?;
         json::decode_value(&bytes, json::MAX_PROGRAM_OBJECT_MEMBERS)
     }
-    fn located(&mut self, reference: &Value, depth: usize) -> Result<Vec<u8>, &'static str> {
+    pub(crate) fn located(
+        &mut self,
+        reference: &Value,
+        depth: usize,
+    ) -> Result<Vec<u8>, &'static str> {
         if depth > 4 {
             return Err("authoring_reference_depth_invalid");
         }
@@ -264,6 +313,9 @@ pub fn authoring_context() -> Result<Value, &'static str> {
         output: std::io::stdout().lock(),
         visits: 0,
         bytes: 0,
+        source: None,
+        byte_limit: 512 * 1024 * 1024,
+        fetched: BTreeMap::new(),
     };
     let input = io.line()?;
     let context = input["source_context"]
@@ -359,6 +411,9 @@ pub fn authoring_index() -> Result<Value, &'static str> {
         output: std::io::stdout().lock(),
         visits: 0,
         bytes: 0,
+        source: None,
+        byte_limit: 512 * 1024 * 1024,
+        fetched: BTreeMap::new(),
     };
     let header = io.line()?;
     let count = header["count"]

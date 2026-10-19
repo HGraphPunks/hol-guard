@@ -41,6 +41,7 @@ def exchange(compiler, operation, records, directory, *, fetch=None, archive=Non
             feeder = threading.Thread(target=feed)
             feeder.start()
             result = None
+            payloads = []
             for _ in range(600_000):
                 line = process.stdout.readline(64 * 1024 * 1024 + 1)
                 if not line:
@@ -59,8 +60,12 @@ def exchange(compiler, operation, records, directory, *, fetch=None, archive=Non
                     if len(data) != row["length"] or len(data) > 64 * 1024:
                         raise ValueError("native authoring object exceeds budget")
                     publish_object(directory, row["sha256"], data)
-                elif kind in {"context", "index", "admission"}:
+                elif kind == "compatibility-record":
+                    payloads.append(row["payload"])
+                elif kind in {"context", "index", "admission", "compatibility"}:
                     result = row
+                    if kind == "compatibility":
+                        result["payloads"] = payloads
                     break
                 else:
                     raise NativeSourceCompilerError(

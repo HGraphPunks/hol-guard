@@ -49,6 +49,21 @@ fn offline_cli_exports_build_derived_trust_without_stdin() {
 }
 
 #[test]
+fn bundle_metadata_dispatch_rejects_unknown_compatibility_family_without_fetch() {
+    let mut input = serde_json::to_vec(
+        &json!({"family":"arbitrary","source_sha":"a".repeat(40),"max_bytes":536870912}),
+    )
+    .unwrap();
+    input.push(b'\n');
+    let output = invoke(&["bundle-compatibility"], &input);
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(
+        serde_json::from_slice::<Value>(&output.stdout).unwrap()["code"],
+        "unknown compatibility metadata family"
+    );
+}
+
+#[test]
 fn offline_cli_bounds_each_stream_frame_and_rejects_extra_arguments() {
     let mut input = b"HGCS\x01".to_vec();
     input.extend_from_slice(&(8 * 1024 * 1024 + 1u32).to_be_bytes());

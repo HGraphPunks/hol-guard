@@ -1,8 +1,11 @@
 //! Installed metadata integrity only; this never enables contributed policy.
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+#[path = "bundle_metadata_compatibility.rs"]
+mod compatibility_reader;
 #[path = "bundle_metadata_json.rs"]
 mod strict_json;
+pub(crate) use compatibility_reader::stream as compatibility_stream;
 type Result<T> = std::result::Result<T, &'static str>;
 const INVALID: &str = "installed bundle metadata invalid";
 
@@ -282,7 +285,7 @@ fn installed(input: &Value) -> Result<Value> {
 mod tests {
     use super::*;
 
-    fn fixture() -> Value {
+    pub(super) fn fixture() -> Value {
         let reference =
             json!({"sha256":"c".repeat(64),"length":2,"expanded_length":2,"kind":"data"});
         let mut located = reference.clone();
@@ -397,7 +400,14 @@ mod tests {
             "/authority_epoch",
             "/policy/revocations/epoch",
         ] {
-            for bad in [json!(true), json!(-1), json!(1.0), json!("1"), json!(null)] {
+            for bad in [
+                json!(true),
+                json!(-1),
+                json!(1.0),
+                json!("1"),
+                json!(null),
+                json!({"$serde_json::private::Number":"1"}),
+            ] {
                 let mut invalid = value.clone();
                 *invalid.pointer_mut(pointer).unwrap() = bad;
                 assert!(validate(&invalid).is_err(), "{pointer}");

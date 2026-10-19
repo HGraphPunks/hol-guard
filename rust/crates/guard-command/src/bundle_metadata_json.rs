@@ -1,66 +1,63 @@
-//! Duplicate-safe JSON for installed metadata. Unlike authored sources,
-//! metadata admits the complete u64 epoch range and a 64 KiB Root string.
-use serde::de::{Deserialize, Deserializer, Error, MapAccess, SeqAccess, Visitor};
-use serde_json::{Map, Value};
+//! Duplicate-safe metadata JSON with complete u64 epochs and decimal payloads.
+//! Parse objects explicitly so serde's private arbitrary-precision number
+//! representation cannot turn a literal user object into an identity integer.
+use serde::de::{Deserializer, Error, MapAccess, SeqAccess, Visitor};
+use serde_json::{value::RawValue, Map, Value};
 use std::fmt;
 
-struct Unique(Value);
-impl<'de> Deserialize<'de> for Unique {
-    fn deserialize<D: Deserializer<'de>>(decoder: D) -> Result<Self, D::Error> {
-        decoder.deserialize_any(UniqueVisitor).map(Unique)
-    }
+struct Container {
+    depth: usize,
 }
-struct UniqueVisitor;
-impl<'de> Visitor<'de> for UniqueVisitor {
+impl<'de> Visitor<'de> for Container {
     type Value = Value;
     fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("unique installed metadata JSON")
-    }
-    fn visit_unit<E: Error>(self) -> Result<Value, E> {
-        Ok(Value::Null)
-    }
-    fn visit_bool<E: Error>(self, value: bool) -> Result<Value, E> {
-        Ok(value.into())
-    }
-    fn visit_u64<E: Error>(self, value: u64) -> Result<Value, E> {
-        Ok(value.into())
-    }
-    fn visit_i64<E: Error>(self, value: i64) -> Result<Value, E> {
-        Ok(value.into())
-    }
-    fn visit_f64<E: Error>(self, value: f64) -> Result<Value, E> {
-        serde_json::Number::from_f64(value)
-            .map(Value::Number)
-            .ok_or_else(|| E::custom("nonfinite metadata"))
-    }
-    fn visit_str<E: Error>(self, value: &str) -> Result<Value, E> {
-        Ok(value.into())
-    }
-    fn visit_seq<A: SeqAccess<'de>>(self, mut sequence: A) -> Result<Value, A::Error> {
-        let mut values = Vec::new();
-        while let Some(Unique(value)) = sequence.next_element()? {
-            values.push(value);
-        }
-        Ok(Value::Array(values))
+        f.write_str("unique installed metadata container")
     }
     fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Value, A::Error> {
         let mut values = Map::new();
         while let Some(key) = map.next_key::<String>()? {
-            if values.contains_key(&key) || key == "$serde_json::private::Number" {
-                return Err(A::Error::custom("duplicate or invalid metadata key"));
+            if values.contains_key(&key) {
+                return Err(A::Error::custom("duplicate metadata key"));
             }
-            let Unique(value) = map.next_value()?;
+            let raw: Box<RawValue> = map.next_value()?;
+            let value = decode_value(raw.get(), self.depth + 1).map_err(A::Error::custom)?;
             values.insert(key, value);
         }
         Ok(Value::Object(values))
     }
+    fn visit_seq<A: SeqAccess<'de>>(self, mut sequence: A) -> Result<Value, A::Error> {
+        let mut values = Vec::new();
+        while let Some(raw) = sequence.next_element::<Box<RawValue>>()? {
+            values.push(decode_value(raw.get(), self.depth + 1).map_err(A::Error::custom)?);
+        }
+        Ok(Value::Array(values))
+    }
+}
+
+fn decode_value(text: &str, depth: usize) -> Result<Value, &'static str> {
+    if depth > 128 {
+        return Err("installed bundle metadata JSON depth invalid");
+    }
+    let mut decoder = serde_json::Deserializer::from_str(text);
+    let result = match text.as_bytes().first() {
+        Some(b'{') => decoder.deserialize_map(Container { depth }),
+        Some(b'[') => decoder.deserialize_seq(Container { depth }),
+        _ => {
+            return serde_json::from_str(text).map_err(|_| "installed bundle metadata JSON invalid")
+        }
+    }
+    .map_err(|_| "installed bundle metadata JSON invalid")?;
+    decoder
+        .end()
+        .map_err(|_| "installed bundle metadata JSON invalid")?;
+    Ok(result)
 }
 
 pub(super) fn decode(bytes: &[u8]) -> Result<Value, &'static str> {
-    if bytes.is_empty() || bytes.len() > 2 * 1024 * 1024 {
+    if bytes.is_empty() || bytes.len() > 8 * 1024 * 1024 {
         return Err("installed bundle metadata bounds invalid");
     }
-    serde_json::from_slice::<Unique>(bytes)
-        .map(|value| value.0)
-        .map_err(|_| "installed bundle metadata JSON invalid")
+    let raw: Box<RawValue> =
+        serde_json::from_slice(bytes).map_err(|_| "installed bundle metadata JSON invalid")?;
+    decode_value(raw.get(), 0)
 }

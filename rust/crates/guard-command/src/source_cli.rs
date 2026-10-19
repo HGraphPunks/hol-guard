@@ -134,6 +134,7 @@ pub fn is_command(arguments: &[String]) -> bool {
         | "authoring-index"
         | "authoring-admission"
         | "bundle-metadata"
+        | "bundle-compatibility"
         | "schema"
         | "descriptor-schema"
         | "github-classify"
@@ -152,6 +153,9 @@ pub fn is_command(arguments: &[String]) -> bool {
 }
 
 fn run(arguments: &[String]) -> Result<Value, &'static str> {
+    if arguments == ["bundle-compatibility"] {
+        return crate::bundle_metadata::compatibility_stream();
+    }
     if arguments == ["authoring-index"] {
         return crate::native_command_program::source::authoring_index();
     }
