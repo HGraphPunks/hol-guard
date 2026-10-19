@@ -11237,7 +11237,7 @@
       "expect": "allow"
     },
     {
-      "id": "neg-rg-replace-reaches-hidden-env",
+      "id": "neg-rg-replace-widens-home-search",
       "fix_area": "negative",
       "harnesses": [
         "claude-code",
@@ -11247,7 +11247,7 @@
       ],
       "tool": "shell",
       "tool_input": {
-        "command": "rg -n token ${ORG}/app-portal --hidden --no-ignore -r | head -5"
+        "command": "rg -n token ~/.ssh --hidden --no-ignore -r | head -5"
       },
       "cwd": "org",
       "expect": "not_allow",
@@ -11304,7 +11304,7 @@
       "expect": "allow"
     },
     {
-      "id": "stat-then-file-on-tmp-copy",
+      "id": "stat-format-then-file-on-tmp-copy",
       "fix_area": "temporary",
       "harnesses": [
         "claude-code",
@@ -11314,7 +11314,7 @@
       ],
       "tool": "shell",
       "tool_input": {
-        "command": "stat -L ${PRIVATE_TMP}/notes.txt; file ${PRIVATE_TMP}/notes.txt"
+        "command": "stat -f \"%N %Sm\" ${PRIVATE_TMP}/notes.txt; file ${PRIVATE_TMP}/notes.txt"
       },
       "cwd": "org",
       "expect": "allow"
@@ -11401,7 +11401,7 @@
       "expect": "allow"
     },
     {
-      "id": "gauntlet-stat-then-file-tmp-copy",
+      "id": "gauntlet-stat-format-then-file-tmp-copy",
       "fix_area": "temporary",
       "harnesses": [
         "claude-code",
@@ -11411,7 +11411,7 @@
       ],
       "tool": "shell",
       "tool_input": {
-        "command": "stat -L ${SCRATCH}-report-main.ts; file ${SCRATCH}-report-main.ts"
+        "command": "stat -f \"%N %Sm\" ${SCRATCH}-report-main.ts; file ${SCRATCH}-report-main.ts"
       },
       "cwd": "worktree",
       "expect": "allow"

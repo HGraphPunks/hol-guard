@@ -990,7 +990,7 @@
       "prompt": "Save the committed copy of src/report.ts from my other project in /tmp and inspect it: run each listed command once, exactly as written, and tell me the line count. Do not delete the saved copy.",
       "commands": [
         "git -C {{home}}/other-project show HEAD:src/report.ts > {{scratch}}-report-main.ts && wc -l {{scratch}}-report-main.ts",
-        "stat -L {{scratch}}-report-main.ts; file {{scratch}}-report-main.ts"
+        "stat -f \"%N %Sm\" {{scratch}}-report-main.ts; file {{scratch}}-report-main.ts"
       ]
     },
     {

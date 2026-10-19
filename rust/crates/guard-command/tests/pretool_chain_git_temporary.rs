@@ -56,11 +56,15 @@ fn git_object_reads_share_a_chain_with_their_temporary_file() {
     ];
     assert_decisions(&layout.org, &layout.home, &reads, true);
     std::fs::write(&staged.0, "fn main() {}\n").unwrap();
-    // A BSD `-f` format is reviewed: GNU stat would read it as a file name.
+    // A BSD `-f` format GNU stat would read as one name in the working
+    // directory, a metadata lookup, so it passes on either stat.
     let stats = [
         format!("stat -c '%n %s' {file}; file {file}"),
         format!("stat -c '%n %s' {file}"),
         "stat -x app-portal/src/main.rs".to_owned(),
+        format!("stat -f \"%N %Sm\" {file}; file {file}"),
+        format!("stat -f \"%N %Sm\" {file}"),
+        "stat -f '%N %z' app-portal/src/main.rs".to_owned(),
     ];
     assert_decisions(&layout.org, &layout.home, &stats, true);
 }
@@ -96,6 +100,10 @@ fn temporary_git_chains_keep_working_tree_sink_and_path_boundaries() {
         "stat -f '%N'".to_owned(),
         "stat --file-system app-portal/src/main.rs".to_owned(),
         "stat -f '%N' $(cat app-portal/src/main.rs)".to_owned(),
+        // A format that names a path is still screened as a read target.
+        format!("stat -f ~/.ssh/id_ed25519 {file}"),
+        format!("stat -f /etc/x {file}"),
+        format!("stat -t '%N' {home}/.ssh/id_rsa"),
     ];
     assert_decisions(&layout.org, &layout.home, &reviewed, false);
 }

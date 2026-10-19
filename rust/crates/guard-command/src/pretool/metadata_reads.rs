@@ -239,17 +239,31 @@ pub(super) fn safe_stat_arguments(arguments: &[String], context: super::PathCont
     }
     !operands.is_empty()
         && operands.len() <= MAX_OPERANDS
+        && operands.iter().any(|operand| !inert_format(operand))
         && operands
             .iter()
             .chain(format_operands.iter())
             .all(|operand| {
-                safe_reads::bounded_read_target(operand, context.home_dir, context.cwd, true)
+                inert_format(operand)
+                    || safe_reads::bounded_read_target(operand, context.home_dir, context.cwd, true)
                     || super::chain_temporary::absent_temporary_read_target(
                         operand,
                         context.home_dir,
                         context.cwd,
                     )
             })
+}
+
+/// A format such as `"%N %Sm"` that GNU stat would take as a file name. Read
+/// that way it is a metadata lookup of one name in the working directory,
+/// never a content read. It names no other directory, no home path and no
+/// glob, and the `%` keeps it from naming an ordinary file such as `.env` or
+/// a key the working directory holds.
+fn inert_format(value: &str) -> bool {
+    stat_format(value)
+        && value.contains('%')
+        && !value.starts_with(['~', '-'])
+        && !value.contains(['/', '\\', '*', '?', '[', '$', '`'])
 }
 
 /// An output format is printed, never run: bounded, single-line text.
