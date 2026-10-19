@@ -66,7 +66,9 @@ def compatibility_payloads(family: str) -> tuple[dict[str, Any], ...] | None:
                 "data": bundle.data.decode("utf-8"),
                 "max_bytes": MAX_BYTES,
             },
-            fetch=lambda reference: bundle._fetch(reference["location"], reference["length"], read_asset),
+            fetch=lambda reference: bundle._fetch(
+                cast(dict[str, Any], reference["location"]), cast(int, reference["length"]), read_asset
+            ),
         )
     except NativeSourceCompilerError as error:
         raise ValueError(f"installed compatibility metadata unavailable: {error}") from error
