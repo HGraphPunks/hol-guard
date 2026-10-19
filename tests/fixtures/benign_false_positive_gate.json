@@ -13157,7 +13157,7 @@
     },
     {
       "id": "session-git-amend-signed-then-log",
-      "fix_area": "negative",
+      "fix_area": "git",
       "harnesses": [
         "codex",
         "zcode",
@@ -13170,7 +13170,7 @@
         "command": "git commit --amend --no-edit -S; git log -1"
       },
       "cwd": "org_wt",
-      "expect": "not_allow"
+      "expect": "allow"
     },
     {
       "id": "neg-git-amend-signed-program-override",

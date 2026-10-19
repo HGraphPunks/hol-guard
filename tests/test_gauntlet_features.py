@@ -40,7 +40,7 @@ class FeatureAuditTests(unittest.TestCase):
                 feature_audit.source_archive_for_build(state,passed,build)
 
     def test_catalog_has_unique_real_test_targets_and_explicit_evidence_modes(self):
-        root = Path(__file__).resolve().parents[2]/'gauntlet-current-candidate'
+        root = Path(__file__).resolve().parents[1]
         groups = feature_entry.catalog()
         self.assertEqual(len({g['id'] for g in groups}), len(groups))
         self.assertGreaterEqual(len(groups), 20)

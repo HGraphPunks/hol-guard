@@ -58,7 +58,8 @@ FEATURES = (
         'tests/test_guard_cli.py::test_guard_settings_set_security_level_paranoid')),
     ('codex_claude', 'Codex and Claude native hooks', (
         'tests/test_guard_codex_authoritative_hook_boundary.py',
-        'tests/test_claude_hook_exit_paths.py')),
+        'tests/test_claude_daemon_hook_bridge.py',
+        'tests/test_claude_hook_failure_floor.py')),
     ('copilot', 'Copilot native hooks', ('tests/test_guard_copilot_hook_command_corpus.py',)),
     ('cursor', 'Cursor native hooks', ('tests/test_cursor_hooks.py',)),
     ('cursor_installed', 'Cursor installed adapter and bridge', (

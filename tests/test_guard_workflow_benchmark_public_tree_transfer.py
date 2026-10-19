@@ -46,6 +46,7 @@ def source(tmp_path):
     return root
 
 
+@pytest.mark.skipif(os.geteuid() not in {0, 501}, reason='fixture requires an approved public SDK uid')
 def test_bundle_is_inert_and_preserves_existing_sdk_inventory_contract(tmp_path):
     from ci.gauntlet.benchmark.business_agent_container import freeze_public_tree
     root=source(tmp_path)

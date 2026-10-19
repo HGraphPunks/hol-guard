@@ -72,13 +72,13 @@ _WORKFLOW_FAMILIES = {
 _NATIVE_PAIR_MINIMUM_ACTIONS = {
     "p-navigation-boundary": ("allow", "allow"),
     "p-source-boundary": ("allow", "review"),
-    "p-typescript-source": ("sandbox-required", "review"),
-    "p-git-history": ("allow", "review"),
+    "p-typescript-source": ("review", "review"),
+    "p-git-history": ("review", "review"),
     "p-github-mutation-impact": ("review", "review"),
-    "p-package-operation": ("allow", "review"),
+    "p-package-operation": ("review", "review"),
     "p-shell-data-vs-eval": ("allow", "block"),
     "p-cloud-help-redirection": ("review", "block"),
-    "p-patch-check-vs-apply": ("allow", "review"),
+    "p-patch-check-vs-apply": ("review", "review"),
     "p-capability-replay": ("block", "block"),
 }
 
