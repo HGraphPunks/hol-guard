@@ -64,6 +64,12 @@ def test_workspace_authorized_stderr_duplication_keeps_completed_output(case, mo
         guard_home=options["guard_home"],
     )
     assert result == status
+    proofs = list((options["guard_home"] / module.DIRECTORY).iterdir())
+    assert len(proofs) == 1, "contained execution did not record its output proof"
+    if os.environ.get("HOL_GUARD_TEST_USE_INSTALLED") != "1":
+        # The builder checks this wrapper before compiling the native runtime.
+        # Its post-build contract run verifies the proof with that exact binary.
+        return
     completed = module.completed_output_artifact(artifact, **options)
     assert completed is not artifact, "completed original input lost its private output proof"
     assert completed.metadata["contained_completion_schema"] == module.SCHEMA
