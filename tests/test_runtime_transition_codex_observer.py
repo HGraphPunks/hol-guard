@@ -278,8 +278,10 @@ def test_desktop_dispatch_hands_the_runtime_what_is_left_of_the_budget(
     # The runtime subtracts the same two-second grace from what it is told, so
     # the five seconds in its config leave it the three this hook has left.
     assert configured == [5]
-    # Python's own wait only outlives that deadline; it does not set it.
-    assert budgets[0] > configured[0] - 2
+    # Python's own wait only outlives that deadline; it does not set it, and it
+    # ends before Codex's own, so this denial is written while Codex still reads
+    # the hook.
+    assert configured[0] - 2 < budgets[0] < configured[0]
     assert json.loads(stdout.getvalue())["hookSpecificOutput"]["permissionDecision"] == "deny"
     assert json.loads(stderr.getvalue())["causes"] == [{"reason_code": "codex_hook_native_runtime_deadline_exceeded"}]
 

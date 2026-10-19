@@ -239,8 +239,10 @@ def _desktop_main(
                 input=raw_data.encode("utf-8", "surrogateescape"),
                 capture_output=True,
                 # The runtime answers on its own deadline; this only stops a
-                # child that ignored the deadline it was given.
-                timeout=remaining + _HOOK_TIMEOUT_GRACE_SECONDS,
+                # child that ignored the deadline it was given. It takes back
+                # part of the grace Python held so the denial below is written
+                # while Codex is still reading this hook, not as it gives up.
+                timeout=remaining + _HOOK_TIMEOUT_GRACE_SECONDS / 2,
                 check=False,
             )
         except OSError:
