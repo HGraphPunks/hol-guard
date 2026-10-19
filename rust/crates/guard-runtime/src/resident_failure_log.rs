@@ -18,6 +18,7 @@ use std::fs::File;
 use std::io::Read;
 use std::io::{Seek, Write};
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 /// One supervisor-owned file per runtime scope, beside `restart-budget.json`
 /// in `<guard-home>/native-runtime/resident-v3-<digest>/`.
@@ -156,6 +157,25 @@ pub(crate) fn write_run(scope: &Path, stderr: &[u8], note: Option<&str>) {
     record.append(&stderr[..kept]);
     if let Some(note) = note {
         record.note(note);
+    }
+}
+
+/// Publish one supervised run unless a later run has already published its
+/// own record. A Unix stop no longer waits for the supervisor, so a run that
+/// replaced this one can fail and record why while this supervisor is still
+/// waiting out its stderr tail; the older record must not erase that newer
+/// evidence.
+pub(crate) fn write_run_unless_superseded(
+    scope: &Path,
+    stderr: &[u8],
+    note: Option<&str>,
+    run_started: SystemTime,
+) {
+    let superseded = std::fs::symlink_metadata(ResidentFailureLog::path(scope))
+        .and_then(|metadata| metadata.modified())
+        .is_ok_and(|modified| modified > run_started);
+    if !superseded {
+        write_run(scope, stderr, note);
     }
 }
 

@@ -177,3 +177,29 @@ fn a_healthy_run_leaves_the_previous_record_untouched() {
 
     fs::remove_dir_all(scope).expect("remove failure-log test scope");
 }
+
+#[test]
+fn an_older_run_does_not_overwrite_a_newer_runs_record() {
+    let scope = temp_scope("superseded");
+    write_run(&scope, b"newer failure\n", None);
+    let path = ResidentFailureLog::path(&scope);
+    let recorded_at = fs::metadata(&path)
+        .and_then(|metadata| metadata.modified())
+        .expect("record modification time");
+
+    let older_start = recorded_at - std::time::Duration::from_secs(5);
+    write_run_unless_superseded(&scope, b"older failure\n", None, older_start);
+    assert_eq!(
+        fs::read_to_string(&path).expect("read record"),
+        "newer failure\n"
+    );
+
+    let later_start = recorded_at + std::time::Duration::from_secs(5);
+    write_run_unless_superseded(&scope, b"later failure\n", None, later_start);
+    assert_eq!(
+        fs::read_to_string(&path).expect("read record"),
+        "later failure\n"
+    );
+
+    fs::remove_dir_all(scope).expect("remove failure-log test scope");
+}

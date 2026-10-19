@@ -10,9 +10,9 @@
 #[cfg(windows)]
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 #[cfg(windows)]
 use std::time::Instant;
+use std::time::{Duration, SystemTime};
 
 use super::resident_failure_log;
 use super::restart_budget;
@@ -66,6 +66,9 @@ impl Drop for SupervisorHold {
 /// exactly as long as the supervisor writes.
 pub(super) struct SupervisedScope {
     scope: PathBuf,
+    /// When the scope was claimed, before the child was spawned. A failure
+    /// record written after this belongs to a later run.
+    started: SystemTime,
     #[cfg(windows)]
     _hold: Option<SupervisorHold>,
 }
@@ -74,13 +77,18 @@ pub(super) struct SupervisedScope {
 /// this supervisor.
 pub(super) fn supervised_scope(state_base: &Path, digest: &str) -> Result<SupervisedScope, String> {
     let scope = crate::resident_state::state_scope(state_base, digest)?;
+    let started = SystemTime::now();
     #[cfg(windows)]
     let supervised = {
         let hold = hold_scope(&scope);
-        SupervisedScope { scope, _hold: hold }
+        SupervisedScope {
+            scope,
+            started,
+            _hold: hold,
+        }
     };
     #[cfg(not(windows))]
-    let supervised = SupervisedScope { scope };
+    let supervised = SupervisedScope { scope, started };
     Ok(supervised)
 }
 
@@ -107,25 +115,43 @@ fn open_hold_file(scope: &Path) -> Result<File, String> {
 /// Quiesce the scope while holding the home-wide startup lock a client takes
 /// before it spawns, so no new supervisor can claim the scope while the probe
 /// waits and keep it claimed for its resident's whole life.
+///
+/// The lock is handed back so the caller can clear the restart budget under
+/// it. Without it a start may already have charged the budget for a new run,
+/// and that charge must stand.
 #[cfg(windows)]
 pub(super) fn quiesce_under_startup_lock(
     state_base: &Path,
     digest: &str,
     scope: &Path,
-) -> Result<(), String> {
-    let _startup = hold_startup_for_quiesce(state_base, digest);
-    wait_for_supervisor_quiesce(scope)
+) -> Result<Option<crate::resident_state::StartupLock>, String> {
+    let startup = hold_startup_for_quiesce(state_base, digest);
+    wait_for_supervisor_quiesce(scope)?;
+    Ok(startup)
 }
 
 /// A Unix supervisor takes no hold, so there is nothing to wait for: the
-/// scope stays removable while its last writes finish.
+/// scope stays removable while its last writes finish. The startup lock is
+/// still taken for the budget, but only if it is free now, so a start in
+/// progress cannot hold up the stop.
 #[cfg(not(windows))]
 pub(super) fn quiesce_under_startup_lock(
-    _state_base: &Path,
-    _digest: &str,
+    state_base: &Path,
+    digest: &str,
     _scope: &Path,
-) -> Result<(), String> {
-    Ok(())
+) -> Result<Option<crate::resident_state::StartupLock>, String> {
+    if let Ok(Some(lock)) = crate::resident_state::acquire_startup_lock(state_base) {
+        return Ok(Some(lock));
+    }
+    if matches!(
+        crate::resident_state::clear_stale_startup_lock(state_base, digest),
+        Ok(true)
+    ) {
+        return Ok(crate::resident_state::acquire_startup_lock(state_base)
+            .ok()
+            .flatten());
+    }
+    Ok(None)
 }
 
 /// Take the startup lock clients spawn under, waiting out a start that is
@@ -230,7 +256,12 @@ pub(super) fn record_supervised_exit(
     // must not cost the user the reason the run ended.
     let stderr = stderr.unwrap_or_default();
     let scope = supervised.scope.clone();
-    resident_failure_log::write_run(&scope, &stderr, note.as_deref());
+    resident_failure_log::write_run_unless_superseded(
+        &scope,
+        &stderr,
+        note.as_deref(),
+        supervised.started,
+    );
     let _ = restart_budget::release_after_exit(&scope, success, ran_for);
     // The hold is released last: it is what tells a waiting stop that these
     // writes are over.
