@@ -502,12 +502,24 @@ fn an_interpreter_beside_the_sourcing_is_judged_without_it() {
     ] {
         assert_ne!(reviewed(&root, command).1, FAILED, "{command}");
     }
-    // A script file next to the sourcing is still a file nobody read.
-    for command in [
-        "source .venv/bin/activate && python tools/release.py",
-        "source .venv/bin/activate && bash scripts/deploy.sh",
+    // A script file next to the sourcing is still a file nobody read, and the
+    // sourcing adds nothing to what running it would have been judged as.
+    for (sourced, alone) in [
+        (
+            "source .venv/bin/activate && python tools/release.py",
+            ".venv/bin/python tools/release.py",
+        ),
+        (
+            "source .venv/bin/activate && bash scripts/deploy.sh",
+            "bash scripts/deploy.sh",
+        ),
     ] {
-        assert_eq!(reviewed(&root, command).1, FAILED, "{command}");
+        assert_eq!(
+            reviewed(&root, sourced),
+            reviewed(&root, alone),
+            "{sourced}"
+        );
+        assert_ne!(reviewed(&root, sourced).0, "allow", "{sourced}");
     }
     let _ = std::fs::remove_dir_all(&root);
 }

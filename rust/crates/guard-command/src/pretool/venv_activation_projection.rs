@@ -48,9 +48,219 @@ fn environment_program(binaries: &Path, word: &str) -> bool {
     binaries.join(word).is_file()
 }
 
+/// Names a generated activation script assigns. A script that sets anything
+/// else — `LD_PRELOAD`, `BASH_ENV`, `PYTHONPATH`, `GIT_SSH_COMMAND` — decides
+/// what the command after it runs, which is exactly the reading this
+/// projection hands to that command.
+fn activation_setting(name: &str) -> bool {
+    matches!(
+        name,
+        "VIRTUAL_ENV"
+            | "VIRTUAL_ENV_PROMPT"
+            | "VIRTUAL_ENV_DISABLE_PROMPT"
+            | "PATH"
+            | "PS1"
+            | "PYTHONHOME"
+            | "SCRIPT_PATH"
+    ) || name.starts_with("_OLD_")
+}
+
+/// The name a word assigns, or `None` when the word is not an assignment.
+fn assigned_name(word: &str) -> Option<&str> {
+    let name = word.split('=').next()?;
+    let mut characters = name.chars();
+    let first = characters.next()?;
+    if !(first.is_ascii_alphabetic() || first == '_')
+        || !characters.all(|c| c.is_ascii_alphanumeric() || c == '_')
+        || name.len() == word.len()
+    {
+        return None;
+    }
+    Some(name)
+}
+
+/// What an assignment's value is worth reading as: the rest of its line up to
+/// a separator, without the quotes the shell splices out. Reading only the
+/// word would cut `$(cd "$(dirname "$0")/.." && pwd)` in half.
+fn assigned_value(line: &str, from: usize) -> String {
+    line[from..]
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .chars()
+        .filter(|c| *c != '"' && *c != '\'')
+        .collect::<String>()
+        .trim()
+        .to_owned()
+}
+
+/// The words of a line with the offset each one starts at.
+fn words(line: &str) -> impl Iterator<Item = (usize, &str)> + '_ {
+    line.split_whitespace().scan(0usize, |cursor, word| {
+        let start = line[*cursor..].find(word).unwrap_or_default() + *cursor;
+        *cursor = start + word.len();
+        Some((start, word))
+    })
+}
+
+/// Whether a `PATH` segment is the shell's own `PATH` rather than a place of
+/// its own. `${PATH:+:$PATH}` splits into pieces that are punctuation alone.
+fn inherited_path(segment: &str) -> bool {
+    let bare = segment.trim_matches(|c| matches!(c, '{' | '}' | '+' | '-' | '$' | ':'));
+    bare.is_empty() || bare == "PATH"
+}
+
+/// `$HOME` is the one name an activation script can name a place with whose
+/// value this scan already holds, so a value that starts with it is read as
+/// the place it stands for.
+fn with_home(value: &str, home: Option<&str>) -> String {
+    let Some(home) = home else {
+        return value.to_owned();
+    };
+    for prefix in ["${HOME}", "$HOME"] {
+        let Some(rest) = value.strip_prefix(prefix) else {
+            continue;
+        };
+        if prefix == "$HOME" && rest.starts_with(|c: char| c.is_alphanumeric() || c == '_') {
+            break;
+        }
+        return format!("{home}{rest}");
+    }
+    value.to_owned()
+}
+
+/// Which directory an activation's `PATH` assignment puts in front.
+enum Prepended {
+    /// The saved path going back, which puts nothing in front.
+    Restored,
+    /// This environment's own `bin`, written out.
+    Binaries,
+    /// This environment's own `bin` by way of `$VIRTUAL_ENV`, which is the
+    /// environment root only if the script's own `VIRTUAL_ENV` says so.
+    ByEnvironment,
+}
+
+fn path_assignment(value: &str, binaries: &Path, home: Option<&str>) -> Option<Prepended> {
+    if value.starts_with("$_OLD_") || value.starts_with("${_OLD_") {
+        return Some(Prepended::Restored);
+    }
+    let mut segments = value.split(':');
+    let first = segments.next()?;
+    if !segments.all(inherited_path) {
+        return None;
+    }
+    let directory = binaries.file_name()?.to_str()?;
+    if first == format!("$VIRTUAL_ENV/{directory}")
+        || first == format!("${{VIRTUAL_ENV}}/{directory}")
+    {
+        return Some(Prepended::ByEnvironment);
+    }
+    (std::fs::canonicalize(with_home(first, home)).ok()? == binaries).then_some(Prepended::Binaries)
+}
+
+/// Whether a value names no absolute place but this environment's root. A
+/// relative step is read as the script locating itself, and more than one
+/// would walk out of the environment.
+fn names_no_other_place(value: &str, root: &Path) -> bool {
+    value.matches("..").count() <= 1
+        && value
+            .split(|c: char| c.is_whitespace() || matches!(c, '(' | ')'))
+            .filter(|piece| piece.starts_with('/'))
+            .all(|piece| {
+                std::fs::canonicalize(piece)
+                    .map(|path| path == root)
+                    .unwrap_or(true)
+            })
+}
+
+/// Where a `VIRTUAL_ENV` assignment leaves the variable: `Some(true)` at this
+/// environment's root, `Some(false)` somewhere that does not exist, `None`
+/// derived from the value already there. A value naming another place that
+/// does exist refuses the projection outright, because the `PATH` built from
+/// it would put that place in front of the command.
+fn environment_assignment(value: &str, root: &Path, home: Option<&str>) -> Option<Option<bool>> {
+    let value = &with_home(value, home);
+    if !names_no_other_place(value, root) {
+        return None;
+    }
+    if value.contains("$VIRTUAL_ENV") || value.contains("${VIRTUAL_ENV") {
+        return Some(None);
+    }
+    if value.contains("dirname") || value.contains("SCRIPT_PATH") || value.contains("BASH_SOURCE") {
+        return Some(Some(true));
+    }
+    if value.is_empty() || value.contains('$') || value.contains('`') {
+        return None;
+    }
+    match std::fs::canonicalize(value) {
+        Ok(path) if path == root => Some(Some(true)),
+        Ok(_) => None,
+        // A moved environment still activates; its `PATH` reaches nothing.
+        Err(_) => Some(Some(false)),
+    }
+}
+
+/// Whether the script's whole effect is the settings a generated activation
+/// script writes, and whether the `PATH` it leaves reaches this environment's
+/// own `bin`. `None` refuses the projection: a script that sets a name this
+/// scan does not model, puts another directory in front of `PATH`, or reads
+/// another file into the shell, decides what the command after it runs.
+fn activation_settings(
+    text: &str,
+    binaries: &Path,
+    root: &Path,
+    home: Option<&str>,
+) -> Option<bool> {
+    let mut written = false;
+    let mut by_environment = false;
+    let mut environment_here = false;
+    for line in text.lines() {
+        let line = line.trim();
+        if line.starts_with('#') {
+            continue;
+        }
+        for (start, word) in words(line) {
+            // Another file read into the shell carries settings this scan
+            // never saw, and `eval` builds them where it cannot read them.
+            if matches!(word, "." | "source" | "eval") {
+                return None;
+            }
+            let Some(name) = assigned_name(word) else {
+                continue;
+            };
+            if !activation_setting(name) {
+                return None;
+            }
+            let value = assigned_value(line, start + name.len() + 1);
+            match name {
+                "PATH" => match path_assignment(&value, binaries, home)? {
+                    Prepended::Restored => {}
+                    Prepended::Binaries => written = true,
+                    Prepended::ByEnvironment => by_environment = true,
+                },
+                "VIRTUAL_ENV" => {
+                    if let Some(here) = environment_assignment(&value, root, home)? {
+                        environment_here = here;
+                    }
+                }
+                // Restoring the saved home is what a generated script does
+                // with it; setting one chooses the interpreter's own library.
+                "PYTHONHOME" => {
+                    if !value.starts_with("$_OLD_") && !value.starts_with("${_OLD_") {
+                        return None;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    Some(written || (by_environment && environment_here))
+}
+
 /// The command without its leading activation, or `None` when the activation
 /// is not one this scan can read through.
 pub(super) fn project(command: &str, context: PathContext<'_>) -> Option<String> {
+    let home = context.home_dir;
     if !command.is_ascii() || command.len() > MAX_PROJECTED_CHARS {
         return None;
     }
@@ -77,6 +287,10 @@ pub(super) fn project(command: &str, context: PathContext<'_>) -> Option<String>
         return None;
     }
     let binaries = script.parent()?;
+    // The file is a set of settings only if every name it writes is one a
+    // generated activation script writes. `reaches` says whether the `PATH`
+    // those settings leave behind finds this environment's own programs.
+    let reaches = activation_settings(&text, binaries, binaries.parent()?, home)?;
     // Only the word the command runs next is rewritten. A later word the
     // environment also holds would run a different program once the
     // activation has set `PATH`, and this projection does not answer for it.
@@ -92,7 +306,7 @@ pub(super) fn project(command: &str, context: PathContext<'_>) -> Option<String>
         return None;
     }
     let (written, _) = target.value.rsplit_once('/')?;
-    if environment_program(binaries, &first.value) {
+    if reaches && environment_program(binaries, &first.value) {
         return Some(format!("{written}/{remainder}"));
     }
     Some(remainder)
