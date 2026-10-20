@@ -20,6 +20,8 @@ pub use source_archive::{
 };
 mod telemetry;
 pub use telemetry::{resource_admission_reasons, TelemetryError, VmProbePlan};
+mod vm_progress;
+pub use vm_progress::{VmProgressError, VmProgressPlan};
 
 const ARCHIVE_REASON: &str = "Removed from active queue by release-only configuration";
 

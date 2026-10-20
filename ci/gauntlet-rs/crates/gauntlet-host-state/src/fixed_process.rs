@@ -1,7 +1,7 @@
 //! Bounded executor for fixed, read-only host probes. It never uses a shell,
 //! accepts stdin, or returns diagnostics that might contain private data.
 
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
@@ -47,6 +47,20 @@ pub(crate) fn run_fixed(
     stderr_limit: usize,
     environment: &[(&str, &str)],
 ) -> Result<Vec<u8>, FixedProcessError> {
+    run_fixed_input(argv, None, timeout, stdout_limit, stderr_limit, environment)
+}
+
+pub(crate) fn run_fixed_input(
+    argv: &[String],
+    input: Option<&[u8]>,
+    timeout: Duration,
+    stdout_limit: usize,
+    stderr_limit: usize,
+    environment: &[(&str, &str)],
+) -> Result<Vec<u8>, FixedProcessError> {
+    if input.is_some_and(|bytes| bytes.len() > 1024) {
+        return Err(FixedProcessError::TooLarge);
+    }
     let executable = argv.first().ok_or(FixedProcessError::Unavailable)?;
     if !Path::new(executable).is_absolute() {
         return Err(FixedProcessError::Unavailable);
@@ -54,7 +68,11 @@ pub(crate) fn run_fixed(
     let mut child = Command::new(executable)
         .args(&argv[1..])
         .envs(environment.iter().copied())
-        .stdin(Stdio::null())
+        .stdin(if input.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -69,6 +87,22 @@ pub(crate) fn run_fixed(
     thread::spawn(move || {
         let _ = sender.send((false, drain_bounded(stderr, stderr_limit)));
     });
+    if let Some(bytes) = input {
+        let write_result = child
+            .stdin
+            .take()
+            .ok_or(FixedProcessError::Unavailable)
+            .and_then(|mut stream| {
+                stream
+                    .write_all(bytes)
+                    .map_err(|_| FixedProcessError::Failed)
+            });
+        if let Err(error) = write_result {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(error);
+        }
+    }
     let started = Instant::now();
     let status = loop {
         match child.try_wait() {
