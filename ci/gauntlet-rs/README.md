@@ -64,6 +64,14 @@ idle, and rechecks directory and lock identities before returning. While the
 retained observer was active, the live diagnostic exited 2 with `Python
 observer owns the host state`. It does not take over the observer, reconcile
 VM receipts or publish a snapshot; see the [idle-lock proof](../../docs/gauntlet-rust-host-idle-lock-proof.md).
+The separate `gauntlet-host-shadow-reconcile` diagnostic uses Python's fixed
+read-only VM `reconcile` request for one retained historical job. Rust compares
+the returned source, job and deployment identities to the host record and
+matches Python's terminal-state mapping without saving the job or posting a
+status. One retained pass agreed across host and VM; a build-failed job had no
+VM terminal receipt and remained unknown to reconciliation. The response is
+still producer data, not an independently authenticated verdict; see the
+[reconcile proof](../../docs/gauntlet-rust-host-reconcile-proof.md).
 
 `gauntlet-evidence` reads a workflow public bundle through no-symlink,
 descriptor-relative paths. It checks externally pinned manifest and source

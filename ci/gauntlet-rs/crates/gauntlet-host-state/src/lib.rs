@@ -26,6 +26,8 @@ mod telemetry;
 pub use telemetry::{resource_admission_reasons, TelemetryError, VmProbePlan};
 mod vm_progress;
 pub use vm_progress::{VmProgressError, VmProgressPlan};
+mod vm_reconcile;
+pub use vm_reconcile::{VmReconcileError, VmReconcilePlan};
 
 const ARCHIVE_REASON: &str = "Removed from active queue by release-only configuration";
 
