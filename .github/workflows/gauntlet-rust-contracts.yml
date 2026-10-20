@@ -56,7 +56,7 @@ jobs:
         run: cargo +1.88.0 build --manifest-path ci/gauntlet-rs/Cargo.toml --workspace --bins --locked
       - name: Test Linux worker, host, evidence, and provider readers
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence -p gauntlet-host-state -p gauntlet-provider-observer -p gauntlet-worker-state --lib --locked
-      - name: Compare fixed worker launch with pinned Python on ARM64
-        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-worker-state --test launch_plan --locked
-      - name: Compare host config, queue, tag source, and private job reader on ARM64
-        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-host-state --test operations_config --test release_queue --test release_source --test private_jobs --locked
+      - name: Compare fixed worker and builder plans with pinned Python on ARM64
+        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-worker-state --test launch_plan --test builder_run_plan --locked
+      - name: Compare host config, queue, tag source, private jobs, and source archives on ARM64
+        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-host-state --test operations_config --test release_queue --test release_source --test private_jobs --test source_archive --locked

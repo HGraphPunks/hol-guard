@@ -66,6 +66,7 @@ pub struct RunReservationJournal {
     root_owned: bool,
 }
 
+mod builder_run_plan;
 #[cfg(target_os = "linux")]
 mod deadline;
 #[cfg(target_os = "linux")]
@@ -80,6 +81,7 @@ mod projection;
 #[cfg(target_os = "linux")]
 mod running;
 mod terminal;
+pub use builder_run_plan::{fixed_builder_run_plan, BuilderRunError, BuilderRunPlan};
 #[cfg(target_os = "linux")]
 pub use deadline::{BoottimeDeadline, DeadlineError, MAX_ACTIVE_SECONDS};
 #[cfg(target_os = "linux")]

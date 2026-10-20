@@ -48,7 +48,7 @@ fn private_directory(stat: &Stat, owner: u32) -> bool {
         && stat.st_mode & 0o077 == 0
 }
 
-fn state_root(path: &Path, owner: u32) -> Result<OwnedFd, PrivateJobError> {
+pub(crate) fn state_root(path: &Path, owner: u32) -> Result<OwnedFd, PrivateJobError> {
     if !path.is_absolute()
         || path
             .components()
@@ -85,7 +85,11 @@ fn state_root(path: &Path, owner: u32) -> Result<OwnedFd, PrivateJobError> {
     Ok(dir)
 }
 
-fn child_directory(parent: &OwnedFd, name: &str, owner: u32) -> Result<OwnedFd, PrivateJobError> {
+pub(crate) fn child_directory(
+    parent: &OwnedFd,
+    name: &str,
+    owner: u32,
+) -> Result<OwnedFd, PrivateJobError> {
     let dir = openat(
         parent,
         name,
@@ -99,7 +103,7 @@ fn child_directory(parent: &OwnedFd, name: &str, owner: u32) -> Result<OwnedFd, 
     Ok(dir)
 }
 
-fn job_name(name: &str) -> bool {
+pub(crate) fn job_name(name: &str) -> bool {
     let Some(id) = name.strip_suffix(".json") else {
         return false;
     };
@@ -131,7 +135,7 @@ fn list_names(dir: &OwnedFd) -> Result<Vec<String>, PrivateJobError> {
     Ok(names)
 }
 
-fn same_file(left: &Stat, right: &Stat) -> bool {
+pub(crate) fn same_file(left: &Stat, right: &Stat) -> bool {
     left.st_dev == right.st_dev
         && left.st_ino == right.st_ino
         && left.st_mode == right.st_mode

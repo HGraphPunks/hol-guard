@@ -1,5 +1,5 @@
-//! Data-only queue decisions matching the pinned Python release observer.
-//! This crate neither owns the Python lease nor reads or writes live jobs.
+//! Passive host readers and queue decisions matching the pinned Python release
+//! observer. This crate neither owns the Python lease nor writes live jobs.
 
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -11,6 +11,10 @@ mod private_jobs;
 pub use private_jobs::{read_private_jobs, read_private_operations, PrivateJobError};
 mod release_source;
 pub use release_source::{ReleaseSourceError, TagLookupPlan};
+mod source_archive;
+pub use source_archive::{
+    verify_retained_source_archive, SourceArchiveError, SourceArchiveInventory,
+};
 
 const ARCHIVE_REASON: &str = "Removed from active queue by release-only configuration";
 
