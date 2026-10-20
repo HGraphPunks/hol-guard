@@ -67,8 +67,12 @@ pub struct RunReservationJournal {
 }
 
 mod builder_run_plan;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod contained_probe;
 #[cfg(target_os = "linux")]
 mod deadline;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use contained_probe::{run_fixed_cgroup_probe, CgroupProbeError, CgroupProbeProof};
 #[cfg(target_os = "linux")]
 mod deployment;
 #[cfg(target_os = "linux")]
