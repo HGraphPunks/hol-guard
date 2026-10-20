@@ -27,6 +27,7 @@ const MAX_DEPTH: usize = 128;
 pub enum TreeKind {
     Sdk,
     InstalledPrefix,
+    Controller,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,6 +47,9 @@ struct TreeContext<'a> {
 
 #[cfg(target_os = "linux")]
 fn symlink_contained(context: &TreeContext<'_>, relative: &str) -> Result<()> {
+    if context.kind == TreeKind::Controller {
+        return Err(EvidenceError::Invalid("controller tree contains a symlink"));
+    }
     let flags = OFlags::PATH | OFlags::CLOEXEC;
     if openat2(
         context.root_fd,
@@ -87,6 +91,9 @@ fn symlink_contained(context: &TreeContext<'_>, relative: &str) -> Result<()> {
 
 #[cfg(not(target_os = "linux"))]
 fn symlink_contained(context: &TreeContext<'_>, relative: &str) -> Result<()> {
+    if context.kind == TreeKind::Controller {
+        return Err(EvidenceError::Invalid("controller tree contains a symlink"));
+    }
     let resolved = context
         .root
         .join(relative)
@@ -186,10 +193,15 @@ fn inspect_one(
                 ));
             }
         }
-        TreeKind::InstalledPrefix => {
-            if before.st_uid != 0 || (file_kind != FileType::Symlink && mode & 0o022 != 0) {
+        TreeKind::InstalledPrefix | TreeKind::Controller => {
+            if before.st_uid != 0
+                || (file_kind != FileType::Symlink && mode & 0o022 != 0)
+                || (kind == TreeKind::Controller
+                    && (file_kind == FileType::Symlink
+                        || file_kind == FileType::RegularFile && before.st_nlink != 1))
+            {
                 return Err(EvidenceError::Invalid(
-                    "unsafe installed prefix ownership or mode",
+                    "unsafe installed tree ownership, mode or link",
                 ));
             }
         }
@@ -198,7 +210,9 @@ fn inspect_one(
         TreeKind::Sdk => {
             json!({"path":relative,"uid":before.st_uid,"gid":before.st_gid,"mode":mode})
         }
-        TreeKind::InstalledPrefix => json!({"uid":before.st_uid,"mode":mode}),
+        TreeKind::InstalledPrefix | TreeKind::Controller => {
+            json!({"uid":before.st_uid,"mode":mode})
+        }
     };
     let mut child = None;
     let mut bytes = 0;
@@ -331,7 +345,8 @@ pub fn inventory_tree(root: &Path, kind: TreeKind) -> Result<TreeInventory> {
     if root.canonicalize().ok().as_deref() != Some(root) {
         return Err(EvidenceError::Invalid("tree root must be canonical"));
     }
-    if kind == TreeKind::InstalledPrefix && (metadata.st_uid != 0 || metadata.st_mode & 0o022 != 0)
+    if matches!(kind, TreeKind::InstalledPrefix | TreeKind::Controller)
+        && (metadata.st_uid != 0 || metadata.st_mode & 0o022 != 0)
     {
         return Err(EvidenceError::Invalid(
             "installed prefix root is not root-owned",
@@ -354,7 +369,7 @@ pub fn inventory_tree(root: &Path, kind: TreeKind) -> Result<TreeInventory> {
     let entries = rows.len();
     let shape = match kind {
         TreeKind::Sdk => Value::Array(rows.into_values().collect()),
-        TreeKind::InstalledPrefix => {
+        TreeKind::InstalledPrefix | TreeKind::Controller => {
             rows.insert(
                 ".".to_owned(),
                 json!({"mode":metadata.st_mode & 0o7777,"uid":metadata.st_uid}),

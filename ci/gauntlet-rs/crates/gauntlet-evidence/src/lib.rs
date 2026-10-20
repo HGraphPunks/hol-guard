@@ -5,6 +5,8 @@ mod campaign;
 mod campaign_gate;
 mod controller_invocation_files;
 mod controller_invocations;
+#[cfg(target_os = "linux")]
+mod controller_tree;
 mod crypto;
 mod episode_score;
 mod io;
@@ -25,6 +27,8 @@ pub use bridge_frames::FrameCodec;
 pub use campaign_gate::evaluate_audited_campaign;
 pub use controller_invocation_files::read_controller_invocations_root_owned;
 pub use controller_invocations::{audit_controller_invocations, ControllerInvocationBytes};
+#[cfg(target_os = "linux")]
+pub use controller_tree::{verify_controller_tree, VerifiedControllerTree};
 pub use episode_score::evaluate_audited_episode;
 pub use package_version::{valid_package_version, verify_installed_version_metadata};
 pub use private_cell_files::{verify_private_cell_artifacts, PrivateCellInventory};

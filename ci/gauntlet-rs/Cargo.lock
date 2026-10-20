@@ -266,6 +266,7 @@ name = "gauntlet-worker-state"
 version = "0.1.0"
 dependencies = [
  "gauntlet-contracts",
+ "gauntlet-evidence",
  "rustix",
  "serde_json",
  "sha2",

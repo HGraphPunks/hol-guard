@@ -9,8 +9,13 @@ description = "Durable one-time reservation boundary for the future Gauntlet Lin
 name = "gauntlet-vm-worker-shadow"
 path = "src/bin/gauntlet-vm-worker-shadow.rs"
 
+[[bin]]
+name = "gauntlet-controller-shadow"
+path = "src/bin/gauntlet-controller-shadow.rs"
+
 [dependencies]
 gauntlet-contracts = { path = "../gauntlet-contracts" }
+gauntlet-evidence = { path = "../gauntlet-evidence" }
 rustix = { version = "=1.1.5", features = ["event", "fs", "process", "time"] }
 serde_json = { version = "=1.0.151", features = ["arbitrary_precision"] }
 sha2 = "=0.10.9"
