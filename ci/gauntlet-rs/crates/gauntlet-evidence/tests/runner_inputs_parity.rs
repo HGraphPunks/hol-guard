@@ -126,7 +126,7 @@ fn no_symlink_file_reader_matches_python_documents_and_file_pins() {
 #[cfg(unix)]
 #[test]
 fn symlinked_document_and_changed_file_asset_are_rejected() {
-    use std::os::unix::fs::symlink;
+    use std::os::unix::fs::{symlink, PermissionsExt};
 
     let temporary = tempfile::tempdir().unwrap();
     let directory = temporary.path().canonicalize().unwrap();
@@ -152,6 +152,15 @@ fn symlinked_document_and_changed_file_asset_are_rejected() {
     let config_path = directory.join("config.json");
     std::fs::write(&config_path, config).unwrap();
     let verified = verify_runner_inputs_from_paths(&config_path, &pin, &assets).unwrap();
+    let bun = assets.join("bun");
+    let original_mode = std::fs::metadata(&bun).unwrap().permissions().mode();
+    std::fs::set_permissions(
+        &bun,
+        std::fs::Permissions::from_mode(original_mode & !0o111),
+    )
+    .unwrap();
+    assert!(verify_runner_file_assets(&verified, &assets).is_err());
+    std::fs::set_permissions(&bun, std::fs::Permissions::from_mode(original_mode)).unwrap();
     std::fs::write(assets.join("wheel"), b"changed wheel").unwrap();
     assert!(verify_runner_file_assets(&verified, &assets).is_err());
 

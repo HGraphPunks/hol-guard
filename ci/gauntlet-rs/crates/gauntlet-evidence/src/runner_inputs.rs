@@ -325,7 +325,10 @@ pub fn verify_runner_file_assets(
         let path = row["path"]
             .as_str()
             .ok_or(EvidenceError::Invalid("asset path missing"))?;
-        let digest = reader.file_digest(path)?;
+        let digest = reader.file_digest(
+            path,
+            matches!(role.as_str(), "bun" | "node" | "native" | "compiler"),
+        )?;
         if row["sha256"] != digest {
             return Err(EvidenceError::Invalid("file asset differs from its pin"));
         }

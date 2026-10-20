@@ -20,6 +20,9 @@ pub(crate) struct PublicRootReader {
 fn unchanged(before: &Metadata, after: &Metadata) -> bool {
     before.dev() == after.dev()
         && before.ino() == after.ino()
+        && before.mode() == after.mode()
+        && before.uid() == after.uid()
+        && before.gid() == after.gid()
         && before.len() == after.len()
         && before.mtime() == after.mtime()
         && before.mtime_nsec() == after.mtime_nsec()
@@ -96,8 +99,13 @@ impl PublicRootReader {
         Ok(raw)
     }
 
-    pub(crate) fn file_digest(&self, path: &str) -> Result<String> {
+    pub(crate) fn file_digest(&self, path: &str, require_execute: bool) -> Result<String> {
         let (mut file, before) = self.open_regular(path)?;
+        if require_execute && before.mode() & 0o111 == 0 {
+            return Err(EvidenceError::Invalid(
+                "pinned executable has no execute bit",
+            ));
+        }
         let mut hasher = Sha256::new();
         let mut total = 0_u64;
         let mut buffer = [0_u8; 1024 * 1024];
