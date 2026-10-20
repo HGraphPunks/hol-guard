@@ -134,6 +134,21 @@ fn symlink_or_terminal_receipt_never_authorizes_another_run() {
 }
 
 #[test]
+fn orphan_running_report_or_terminal_sidecar_blocks_a_new_reservation() {
+    for suffix in ["running", "report", "terminal"] {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().canonicalize().unwrap();
+        fs::write(root.join(format!("{JOB}.{suffix}.json")), b"incomplete").unwrap();
+        let journal = RunReservationJournal::open(&root).unwrap();
+        assert_eq!(
+            journal.reserve(&request(DEPLOYMENT), SOURCE, DEPLOYMENT, GENERATION),
+            Err(ReservationError::AlreadyStarted),
+            "{suffix} must consume the job ID"
+        );
+    }
+}
+
+#[test]
 fn corrupted_marker_is_unknown_evidence_and_cannot_be_replaced() {
     let temporary = tempfile::tempdir().unwrap();
     let root = temporary.path().canonicalize().unwrap();

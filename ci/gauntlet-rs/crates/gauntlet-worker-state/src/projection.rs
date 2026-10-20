@@ -5,6 +5,46 @@ use crate::{hex, ReservationError, RunReservationJournal, TerminalOutcome, Termi
 use gauntlet_contracts::{canonicalize, WorkerAction, WorkerRequest, WorkerResponse};
 use serde_json::{json, Value};
 
+#[cfg(target_os = "linux")]
+fn running_value(
+    journal: &RunReservationJournal,
+    job_id: &str,
+    source_sha: &str,
+    deployment_digest: &str,
+    worker_generation: &str,
+) -> Value {
+    match journal.running_marker(job_id, source_sha, deployment_digest, worker_generation) {
+        Ok(Some(marker))
+            if crate::observe_process(
+                marker.process.pid,
+                marker.process.start_ticks,
+                &marker.cgroup,
+            )
+            .is_ok() =>
+        {
+            json!({
+                "state": "running",
+                "deployment_digest": marker.deployment_digest,
+                "started_marker_sha256": marker.started_marker_sha256,
+                "pid": marker.process.pid,
+                "process_start_ticks": marker.process.start_ticks,
+            })
+        }
+        _ => json!({"state":"unknown"}),
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn running_value(
+    _journal: &RunReservationJournal,
+    _job_id: &str,
+    _source_sha: &str,
+    _deployment_digest: &str,
+    _worker_generation: &str,
+) -> Value {
+    json!({"state":"unknown"})
+}
+
 fn terminal_value(receipt: TerminalReceipt) -> Value {
     let status = match receipt.status {
         TerminalOutcome::Passed => "passed",
@@ -25,7 +65,8 @@ impl RunReservationJournal {
     /// Return an exact v1 response for a passive shadow worker. `inspect` is
     /// unavailable, and an unstarted `run` is unavailable until a trusted
     /// deployment reader and dispatcher exist. A started job without a verified
-    /// terminal remains unknown; the host must never retry it.
+    /// terminal is running only while its retained process/cgroup identity
+    /// passes a fresh Linux pidfd check; otherwise it is unknown and blocks retry.
     pub fn project_read_only(
         &self,
         request: &WorkerRequest,
@@ -72,7 +113,14 @@ impl RunReservationJournal {
                                     json!({"state":"not-started"})
                                 }
                                 Ok(None) => json!({"state":"unavailable"}),
-                                Ok(Some(_)) | Err(ReservationError::InvalidMarker) => {
+                                Ok(Some(_)) => running_value(
+                                    self,
+                                    request.job_id(),
+                                    expected_source_sha,
+                                    deployment,
+                                    expected_worker_generation,
+                                ),
+                                Err(ReservationError::InvalidMarker) => {
                                     json!({"state":"unknown"})
                                 }
                                 Err(_) => json!({"state":"unavailable"}),

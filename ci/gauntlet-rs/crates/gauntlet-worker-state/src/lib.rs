@@ -68,12 +68,16 @@ mod linux_cgroup;
 #[cfg(any(target_os = "linux", test))]
 mod linux_process;
 mod projection;
+#[cfg(target_os = "linux")]
+mod running;
 mod terminal;
 pub use lease::ActiveLease;
 #[cfg(target_os = "linux")]
 pub use linux_cgroup::{observe_process_resources, CgroupResources, ProcessResourceObservation};
 #[cfg(target_os = "linux")]
 pub use linux_process::{observe_process, ProcessObservation, ProcessObservationError};
+#[cfg(target_os = "linux")]
+pub use running::RunningMarker;
 pub use terminal::{ProcessIdentity, TerminalOutcome, TerminalReceipt};
 
 pub(crate) fn hex(value: &str, length: usize) -> bool {
@@ -257,15 +261,13 @@ impl RunReservationJournal {
             return Err(ReservationError::WrongRequest);
         }
         let name = marker_name(request.job_id())?;
-        let terminal_name = format!("{}.terminal.json", request.job_id());
-        match statat(
-            &self.root,
-            terminal_name.as_str(),
-            AtFlags::SYMLINK_NOFOLLOW,
-        ) {
-            Ok(_) => return Err(ReservationError::AlreadyStarted),
-            Err(Errno::NOENT) => {}
-            Err(error) => return Err(io(error)),
+        for suffix in ["running", "report", "terminal"] {
+            let sidecar_name = format!("{}.{suffix}.json", request.job_id());
+            match statat(&self.root, sidecar_name.as_str(), AtFlags::SYMLINK_NOFOLLOW) {
+                Ok(_) => return Err(ReservationError::AlreadyStarted),
+                Err(Errno::NOENT) => {}
+                Err(error) => return Err(io(error)),
+            }
         }
         let value = json!({
             "schema": MARKER_SCHEMA,

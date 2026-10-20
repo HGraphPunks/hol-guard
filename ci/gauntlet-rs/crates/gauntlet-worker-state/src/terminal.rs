@@ -290,6 +290,15 @@ impl RunReservationJournal {
         {
             return Err(ReservationError::InvalidMarker);
         }
+        #[cfg(target_os = "linux")]
+        if self.root_owned {
+            let running = self
+                .running_marker(job_id, source_sha, deployment_digest, worker_generation)?
+                .ok_or(ReservationError::InvalidMarker)?;
+            if running.process != process || running.started_marker_sha256 != started.sha256 {
+                return Err(ReservationError::InvalidMarker);
+            }
+        }
         let report = read_bounded_regular(&self.root, &report_name(job_id), MAX_REPORT_BYTES)?
             .ok_or(ReservationError::InvalidMarker)?;
         if report.is_empty()

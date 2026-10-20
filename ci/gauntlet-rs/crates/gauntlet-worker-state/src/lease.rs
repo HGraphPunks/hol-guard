@@ -59,7 +59,7 @@ fn acquire(root: &OwnedFd, require_root: bool) -> Result<ActiveLease, Reservatio
 }
 
 impl ActiveLease {
-    fn verify(&self, root: &OwnedFd) -> Result<(), ReservationError> {
+    pub(crate) fn verify(&self, root: &OwnedFd) -> Result<(), ReservationError> {
         let current_root = fstat(root).map_err(io)?;
         let descriptor = fstat(&self.descriptor).map_err(io)?;
         let visible = statat(root, LEASE_FILE, AtFlags::SYMLINK_NOFOLLOW).map_err(io)?;
@@ -121,6 +121,22 @@ impl RunReservationJournal {
             return Err(ReservationError::UnsafeRoot);
         }
         lease.verify(&self.root)?;
+        #[cfg(target_os = "linux")]
+        {
+            let running = self
+                .running_marker(
+                    request.job_id(),
+                    source_sha,
+                    deployment_digest,
+                    worker_generation,
+                )?
+                .ok_or(ReservationError::InvalidMarker)?;
+            if running.process != process
+                || running.started_marker_sha256 != expected_started_sha256
+            {
+                return Err(ReservationError::InvalidMarker);
+            }
+        }
         self.finish_internal(
             request,
             source_sha,
