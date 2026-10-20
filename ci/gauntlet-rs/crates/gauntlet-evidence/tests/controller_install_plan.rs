@@ -1,0 +1,104 @@
+use gauntlet_evidence::plan_controller_install;
+use serde_json::Value;
+use std::collections::BTreeMap;
+
+fn current_source_map() -> BTreeMap<String, String> {
+    let baseline: Value =
+        serde_json::from_str(include_str!("../../../parity-manifest.v1.json")).unwrap();
+    let delta: Value =
+        serde_json::from_str(include_str!("../../../integration-source-delta.v1.json")).unwrap();
+    assert_eq!(delta["base_source_commit"], baseline["source_commit"]);
+    let mut files: BTreeMap<String, String> = baseline["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| {
+            (
+                row["path"].as_str().unwrap().to_owned(),
+                row["sha256"].as_str().unwrap().to_owned(),
+            )
+        })
+        .collect();
+    for row in delta["changed"].as_array().unwrap() {
+        let path = row["path"].as_str().unwrap();
+        assert_eq!(
+            files.get(path).map(String::as_str),
+            row["base_sha256"].as_str()
+        );
+        files.insert(path.to_owned(), row["sha256"].as_str().unwrap().to_owned());
+    }
+    for row in delta["added"].as_array().unwrap() {
+        assert!(files
+            .insert(
+                row["path"].as_str().unwrap().to_owned(),
+                row["sha256"].as_str().unwrap().to_owned(),
+            )
+            .is_none());
+    }
+    assert_eq!(files.len(), 426);
+    files
+}
+
+#[test]
+fn current_source_map_matches_python_bootstrap_tree_plan() {
+    // Frozen independently from bootstrap.py's selection and bootstrap_guest.py's
+    // 0755/0444 Root install modes, then Python canonical SHA-256 over the same
+    // path/mode/uid/file-hash shape used by TreeKind::Controller.
+    let plan = plan_controller_install(&current_source_map()).unwrap();
+    assert_eq!(plan.installed_files.len(), 395);
+    assert_eq!(plan.entries, 406);
+    assert_eq!(
+        plan.tree_digest,
+        "a62dd6dd884448f83f612c4895648577ea66e18c720942b3b7ca3a707894170e"
+    );
+    assert!(plan
+        .installed_files
+        .contains_key("ci/gauntlet/benchmark/__main__.py"));
+    assert!(!plan
+        .installed_files
+        .contains_key("ci/gauntlet/control_plane/bootstrap.py"));
+}
+
+#[test]
+fn source_drift_and_unlisted_installed_files_cannot_keep_the_expected_tree_digest() {
+    let source = current_source_map();
+    let expected = plan_controller_install(&source).unwrap();
+    let mut changed = source.clone();
+    changed.insert(
+        "ci/gauntlet/benchmark/__main__.py".to_owned(),
+        "0".repeat(64),
+    );
+    assert_ne!(
+        plan_controller_install(&changed).unwrap().tree_digest,
+        expected.tree_digest
+    );
+    let mut extra = source.clone();
+    extra.insert("ci/gauntlet/extra.py".to_owned(), "0".repeat(64));
+    assert_ne!(
+        plan_controller_install(&extra).unwrap().tree_digest,
+        expected.tree_digest
+    );
+    // Python deliberately omits this control-plane file. A fresh installer
+    // cannot place it; whole-tree verification still rejects it if present.
+    let mut excluded = source.clone();
+    excluded.insert(
+        "ci/gauntlet/control_plane/unlisted.py".to_owned(),
+        "0".repeat(64),
+    );
+    assert_eq!(
+        plan_controller_install(&excluded).unwrap().tree_digest,
+        expected.tree_digest
+    );
+    let mut missing = source.clone();
+    missing.remove("ci/gauntlet/benchmark/__main__.py");
+    assert!(plan_controller_install(&missing).is_err());
+    let mut conflict = source.clone();
+    conflict.insert(
+        "ci/gauntlet/benchmark/__main__.py/child".to_owned(),
+        "0".repeat(64),
+    );
+    assert!(plan_controller_install(&conflict).is_err());
+    let mut unsafe_path = source;
+    unsafe_path.insert("ci/gauntlet/../outside".to_owned(), "0".repeat(64));
+    assert!(plan_controller_install(&unsafe_path).is_err());
+}

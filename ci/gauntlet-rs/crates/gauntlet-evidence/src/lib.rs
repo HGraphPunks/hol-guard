@@ -4,6 +4,7 @@
 mod bridge_frames;
 mod campaign;
 mod campaign_gate;
+mod controller_install_plan;
 mod controller_invocation_files;
 mod controller_invocations;
 #[cfg(target_os = "linux")]
@@ -37,6 +38,7 @@ mod worker_receipt;
 
 pub use bridge_frames::FrameCodec;
 pub use campaign_gate::evaluate_audited_campaign;
+pub use controller_install_plan::{plan_controller_install, ControllerInstallPlan};
 pub use controller_invocation_files::read_controller_invocations_root_owned;
 pub use controller_invocations::{audit_controller_invocations, ControllerInvocationBytes};
 #[cfg(target_os = "linux")]
