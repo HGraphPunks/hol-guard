@@ -111,6 +111,13 @@
       "sha256": "687090e07cf710b3cc04cd5c939cdf406fa33bd3f25e5c2a050018861118e6be"
     },
     {
+      "base_sha256": "4ed4c0599266a6ff7d70feb9c115a6857da25d08a8df2891adffd230e172681b",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/control_plane/build_artifact.py",
+      "phase": 3,
+      "sha256": "5ccc33ace975a72228fbb1a4e859efe47b43642f08814cd0c5b3dbf068446f94"
+    },
+    {
       "base_sha256": "7d5a6e17217805cb0df10c85f86f7be2e4910010c7f9d6ffa49c918718c30ec5",
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/event_exports.py",

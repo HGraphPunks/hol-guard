@@ -37,11 +37,19 @@ def main():
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
-    wheel = module.build_native_wheel(source_wheel=pure, runtime=runtime,
-        output_dir=root/'gauntlet-artifact', version=version, platform_tag='linux_aarch64',
-        target='aarch64-unknown-linux-gnu', source_sha=sha, rule_digest=cap['rule_digest'],
-        implementation_digest=exported['implementation_digest'],
-        base_program_digest=exported['program']['program_digest'])
+    previous_compiler = os.environ.get('HOL_GUARD_BUILD_SOURCE_COMPILER')
+    os.environ['HOL_GUARD_BUILD_SOURCE_COMPILER'] = str(runtime)
+    try:
+        wheel = module.build_native_wheel(source_wheel=pure, runtime=runtime,
+            output_dir=root/'gauntlet-artifact', version=version, platform_tag='linux_aarch64',
+            target='aarch64-unknown-linux-gnu', source_sha=sha, rule_digest=cap['rule_digest'],
+            implementation_digest=exported['implementation_digest'],
+            base_program_digest=exported['program']['program_digest'])
+    finally:
+        if previous_compiler is None:
+            os.environ.pop('HOL_GUARD_BUILD_SOURCE_COMPILER', None)
+        else:
+            os.environ['HOL_GUARD_BUILD_SOURCE_COMPILER'] = previous_compiler
     record = {'schema': 'hol-gauntlet-pr-artifact.v1', 'source_sha': sha,
               'version': version, 'wheel': wheel.name,
               'wheel_sha256': hashlib.sha256(wheel.read_bytes()).hexdigest(),
