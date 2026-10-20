@@ -53,25 +53,72 @@ impl fmt::Display for ReservationError {
 impl std::error::Error for ReservationError {}
 
 pub struct RunReservationJournal {
-    root: OwnedFd,
+    pub(crate) root: OwnedFd,
 }
 
-fn hex(value: &str, length: usize) -> bool {
+mod terminal;
+pub use terminal::{ProcessIdentity, TerminalOutcome, TerminalReceipt};
+
+pub(crate) fn hex(value: &str, length: usize) -> bool {
     value.len() == length
         && value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
-fn io(error: impl fmt::Display) -> ReservationError {
+pub(crate) fn io(error: impl fmt::Display) -> ReservationError {
     ReservationError::Io(error.to_string())
 }
 
-fn marker_name(job_id: &str) -> Result<String, ReservationError> {
+pub(crate) fn marker_name(job_id: &str) -> Result<String, ReservationError> {
     if !hex(job_id, 16) {
         return Err(ReservationError::InvalidPins);
     }
     Ok(format!("{job_id}.started.json"))
+}
+
+pub(crate) fn read_bounded_regular(
+    root: &OwnedFd,
+    name: &str,
+    limit: u64,
+) -> Result<Option<Vec<u8>>, ReservationError> {
+    let descriptor = match openat(
+        root,
+        name,
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
+        Mode::empty(),
+    ) {
+        Ok(descriptor) => descriptor,
+        Err(Errno::NOENT) => return Ok(None),
+        Err(error) => return Err(io(error)),
+    };
+    let mut file = File::from(descriptor);
+    let before = file.metadata().map_err(io)?;
+    if !before.is_file() || before.nlink() != 1 || before.len() > limit {
+        return Err(ReservationError::InvalidMarker);
+    }
+    let mut bytes = Vec::new();
+    Read::by_ref(&mut file)
+        .take(limit + 1)
+        .read_to_end(&mut bytes)
+        .map_err(io)?;
+    if bytes.len() as u64 > limit {
+        return Err(ReservationError::InvalidMarker);
+    }
+    let after = file.metadata().map_err(io)?;
+    if bytes.len() as u64 != before.len()
+        || before.dev() != after.dev()
+        || before.ino() != after.ino()
+        || before.nlink() != after.nlink()
+        || before.len() != after.len()
+        || before.mtime() != after.mtime()
+        || before.mtime_nsec() != after.mtime_nsec()
+        || before.ctime() != after.ctime()
+        || before.ctime_nsec() != after.ctime_nsec()
+    {
+        return Err(ReservationError::InvalidMarker);
+    }
+    Ok(Some(bytes))
 }
 
 fn open_canonical_directory(path: &Path) -> Result<OwnedFd, ReservationError> {
@@ -199,41 +246,9 @@ impl RunReservationJournal {
             return Err(ReservationError::InvalidPins);
         }
         let name = marker_name(job_id)?;
-        let descriptor = match openat(
-            &self.root,
-            name.as_str(),
-            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
-            Mode::empty(),
-        ) {
-            Ok(descriptor) => descriptor,
-            Err(Errno::NOENT) => return Ok(None),
-            Err(error) => return Err(io(error)),
+        let Some(bytes) = read_bounded_regular(&self.root, &name, MAX_MARKER_BYTES)? else {
+            return Ok(None);
         };
-        let mut file = File::from(descriptor);
-        let before = file.metadata().map_err(io)?;
-        if !before.is_file() || before.len() > MAX_MARKER_BYTES {
-            return Err(ReservationError::InvalidMarker);
-        }
-        let mut bytes = Vec::new();
-        Read::by_ref(&mut file)
-            .take(MAX_MARKER_BYTES + 1)
-            .read_to_end(&mut bytes)
-            .map_err(io)?;
-        if bytes.len() as u64 > MAX_MARKER_BYTES {
-            return Err(ReservationError::InvalidMarker);
-        }
-        let after = file.metadata().map_err(io)?;
-        if bytes.len() as u64 != before.len()
-            || before.dev() != after.dev()
-            || before.ino() != after.ino()
-            || before.len() != after.len()
-            || before.mtime() != after.mtime()
-            || before.mtime_nsec() != after.mtime_nsec()
-            || before.ctime() != after.ctime()
-            || before.ctime_nsec() != after.ctime_nsec()
-        {
-            return Err(ReservationError::InvalidMarker);
-        }
         let canonical = canonicalize(&bytes).map_err(|_| ReservationError::InvalidMarker)?;
         if bytes != canonical {
             return Err(ReservationError::InvalidMarker);

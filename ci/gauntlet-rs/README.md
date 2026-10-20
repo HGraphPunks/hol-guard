@@ -65,7 +65,7 @@ cargo +1.88.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gaunt
 
 On 2026-10-20, a side-by-side read of the live public directory produced equal status JSON after excluding the time-sampled `collector_age_seconds`; the health values were equal and the three static assets were byte-identical. The Rust server does not change the authoritative Python controller or its port.
 
-`gauntlet-worker-state` is an inert durable reservation library for the future Linux worker. It consumes a fixed `run` request only after independently supplied source, deployment and worker-generation pins match, creates a one-time canonical started marker with exclusive no-symlink file creation, and fsyncs the file and directory. Repeat, symlinked, terminal-collision and changed-pin cases fail closed. It does not launch a process, own a Root directory, write terminal receipts or authorize benchmark execution.
+`gauntlet-worker-state` is an inert durable journal library for the future Linux worker. It consumes a fixed `run` request only after independently supplied source, deployment and worker-generation pins match, creates a one-time canonical started marker with exclusive no-symlink file creation, and fsyncs the file and directory. It can also persist bounded canonical report bytes and a versioned terminal receipt bound to the started marker and process identity. Restart reads detect partial, symlinked or changed evidence and block replay. It does not launch a process, own a Root directory, authenticate process identity or report claims, or authorize benchmark execution.
 
 Run the checks from the repository root:
 
