@@ -110,6 +110,14 @@ cargo +1.88.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gaunt
 
 On 2026-10-20, a side-by-side read of the live public directory produced equal status JSON after excluding the time-sampled `collector_age_seconds`; the health values were equal and the three static assets were byte-identical. The Rust server does not change the authoritative Python controller or its port.
 
+The Rust dashboard also has an isolated Compose shadow. Supply the absolute **public** status directory, then build and launch it with one command. This Mac uses the `colima` Docker context and port 8793 because the local process shadow already uses 8792:
+
+```sh
+GAUNTLET_PUBLIC_STATE=/absolute/path/to/.gauntlet-ops/public docker --context colima compose -f ci/gauntlet-rs/dashboard.compose.yml up -d --build
+```
+
+Compose binds only host `127.0.0.1:8793`; the container reads `/state` without write access, runs as UID/GID 65532, drops all capabilities, and has a 0.25-CPU/128-MiB limit. Its built-in health probe checks the dashboard process, while `/api/status` continues to show the observer's actual stale or unavailable state. Use `GAUNTLET_RUST_PORT` only if another local port is needed. This command does not start a Rust observer, VM job or PR gate. The [container proof](../../docs/gauntlet-rust-dashboard-container-proof.md) records the live comparison.
+
 `gauntlet-worker-state` is an inert durable journal library for the future Linux worker. It consumes a fixed `run` request only after independently supplied source, deployment and worker-generation pins match, creates one-time canonical started and running markers with exclusive no-symlink file creation, and fsyncs the files and directory. It can also persist bounded canonical report bytes and a versioned terminal receipt bound to the started marker and process identity. Restart reads detect orphan, partial, symlinked or changed evidence and block replay. It does not launch a process or authorize benchmark execution.
 Its read-only response projection emits the fixed v1 protocol: an untouched job is `not-started` for progress, a started job is `running` only when a fresh Linux pidfd/start-tick/cgroup sample matches its durable marker, and a changed report cannot become terminal success. `inspect` and unstarted `run` remain unavailable until the Linux worker has complete trusted deployment and dispatch code.
 An inert [fixed launch plan](../../docs/gauntlet-rust-worker-launch-proof.md)
