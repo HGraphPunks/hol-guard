@@ -102,3 +102,18 @@ fn source_drift_and_unlisted_installed_files_cannot_keep_the_expected_tree_diges
     unsafe_path.insert("ci/gauntlet/../outside".to_owned(), "0".repeat(64));
     assert!(plan_controller_install(&unsafe_path).is_err());
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn optional_root_owned_fresh_install_fixture_matches_the_source_plan() {
+    let Some(root) = std::env::var_os("GAUNTLET_CONTROLLER_INSTALL_FIXTURE") else {
+        return;
+    };
+    let expected = plan_controller_install(&current_source_map()).unwrap();
+    let observed = gauntlet_evidence::verify_controller_tree(
+        std::path::Path::new(&root),
+        &expected.tree_digest,
+    )
+    .unwrap();
+    assert_eq!(observed.entries(), expected.entries);
+}
