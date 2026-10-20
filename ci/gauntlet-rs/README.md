@@ -43,6 +43,8 @@ it does not independently score Guard behavior or publish a CI status.
 Python-exported valid and signed hostile fixtures provide differential tests.
 The [parity manifest](parity-manifest.v1.json) records SHA-256 hashes for all
 420 pinned Gauntlet source files and a preliminary owner phase.
+`gauntlet-contracts` also parses a fixed, versioned [VM worker request](../../docs/gauntlet-rust-worker-protocol.md)
+with no command or path selectors; no worker dispatcher exists yet.
 
 Run the checks from the repository root:
 

@@ -34,6 +34,7 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). Ch
 
 ## 2. Linux ARM VM worker and deterministic apparatus
 
+- [x] Add a versioned, 1-KiB fixed-action request parser that rejects arbitrary command/path/profile fields and requires an external deployment digest for `run`. Evidence: `worker_request.rs`, `worker_request.rs` tests, and [worker protocol boundary](gauntlet-rust-worker-protocol.md). It does not dispatch or prove one-time execution.
 - [ ] Define a fixed, versioned request/receipt protocol for `inspect`, `progress`, `reconcile` and one-time source/deployment-bound `run`; reject arbitrary command or path selection.
 - [ ] Build a root-owned Linux ARM worker binary with durable job IDs, exclusive lease, restart reconciliation, monotone deadlines, PID/cgroup identity, and truthful unavailable telemetry.
 - [ ] Port exact Git/archive provenance and the unprivileged, bounded Podman builder, retaining UID, AppArmor, seccomp, capability and `slirp4netns` controls.

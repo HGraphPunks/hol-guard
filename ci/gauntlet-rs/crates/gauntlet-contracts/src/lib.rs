@@ -13,6 +13,7 @@ mod identity;
 mod policy;
 mod runner_config;
 mod schema;
+mod worker_request;
 pub use identity::{is_git_sha, validate_source_identity, IdentityError};
 pub use policy::{bind_gate_policy, GatePolicyError};
 pub use runner_config::{
@@ -20,6 +21,7 @@ pub use runner_config::{
     RunnerDeclaration,
 };
 pub use schema::{load_record, schema_kinds, Record, RecordError};
+pub use worker_request::{WorkerAction, WorkerRequest, WorkerRequestError};
 
 pub const MAX_RECORD_BYTES: usize = 16 * 1024 * 1024;
 pub const MAX_DEPTH: usize = 32;
