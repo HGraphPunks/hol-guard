@@ -9,6 +9,8 @@ The current [Rust workspace](../ci/gauntlet-rs/README.md) has a SHA-256 [invento
 
 The pinned control-plane baseline is still draft PR #5263, while Rust PR #5306 branches from `main`. Draft integration PR #5402 combines both with current `main` for testing; its [source delta](../ci/gauntlet-rs/integration-source-delta.v1.json) records 37 changed and five additional `ci/gauntlet` files against the original 420-file pinned fixture. The Rust workspace can verify frozen copies and contracts in isolation, but a production Rust worker must be built against a reviewed controller generation containing the corresponding source. Review and merge this dependency before VM cutover; a candidate PR binary cannot become its own trusted worker.
 
+A [read-only audit of the retained VM controller](gauntlet-rust-controller-source-audit.md) found a curated installed tree that matches neither the pinned baseline nor this integration tree exactly. That VM can still supply identical retained assets for Python/Rust reader parity, but the installed controller cannot be promoted into a Rust worker's trusted execution path without an outside-pinned exact install map or a fresh reviewed build.
+
 The [command and state ownership matrix](gauntlet-rust-surface-matrix.md) inventories the three Python entrypoints, primary profiles, asset roles, job states, public snapshot and journals with proposed Rust phase owners. It is an intermediate inventory; the 420-file disposition audit remains open.
 
 ## Decision and scope
