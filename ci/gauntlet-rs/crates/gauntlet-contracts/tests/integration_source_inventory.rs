@@ -14,7 +14,7 @@ fn merged_gauntlet_source_matches_the_explicit_pinned_delta() {
     assert_eq!(delta["base_source_commit"], baseline["source_commit"]);
     assert_eq!(
         delta["integration_commit"],
-        "cbb0c374ba8f7d5c4bec40d69856cf1d425b0469"
+        "b7f1f3273da9a874a8eed1b3aaea712cec5e9380"
     );
 
     let mut expected: BTreeMap<&str, &str> = baseline["files"]

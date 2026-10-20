@@ -150,7 +150,7 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/fixtures.py",
       "phase": 5,
-      "sha256": "0926907fe3de1a5bf53d6d48822d3ff15b8c6a4cb4a739aa7b35b9a6207ee79b"
+      "sha256": "0fe1c20a6cdb84dd2672b4fafce223509906db228f6615e3dfde611a38b81feb"
     },
     {
       "base_sha256": "841da1d2937e72dd53c4468a12b1886d0b56b28f5bf2ed7e78fbb71f0355011d",
@@ -283,7 +283,7 @@
       "disposition": "frozen_data_or_schema",
       "path": "ci/gauntlet/scenarios.json",
       "phase": 1,
-      "sha256": "31fa82d4c443cddb92d8ba6c80c6ba471c2c484d53ebbf863214c58425f0dcc4"
+      "sha256": "88a434d09fc84ab737c493751c65e2c033a01472f16d1b0671f11b3a81328cc2"
     },
     {
       "base_sha256": "51b44a46b4d5d229ca4bf3b146b9125580ae6a4b8a46ba24aa3ef406f16e3758",
@@ -293,7 +293,7 @@
       "sha256": "b1432149922669d8a60daecf6de86d4dccebe5f3c6c7d62d077c56042e552e8e"
     }
   ],
-  "integration_commit": "cbb0c374ba8f7d5c4bec40d69856cf1d425b0469",
+  "integration_commit": "b7f1f3273da9a874a8eed1b3aaea712cec5e9380",
   "schema": "gauntlet-rust-integration-source-delta.v1",
   "source_file_count": 425
 }
