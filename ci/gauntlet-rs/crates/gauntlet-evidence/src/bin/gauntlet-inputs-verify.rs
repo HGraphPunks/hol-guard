@@ -1,4 +1,4 @@
-use gauntlet_evidence::{verify_runner_file_assets, verify_runner_inputs_from_paths};
+use gauntlet_evidence::{load_runner_config_from_paths, verify_runner_file_assets};
 use serde_json::json;
 use std::path::Path;
 
@@ -20,16 +20,17 @@ fn main() {
         eprintln!("config and asset root must be absolute paths");
         std::process::exit(2);
     }
-    let result = verify_runner_inputs_from_paths(config, pin, asset_root).and_then(|verified| {
-        let files = verify_runner_file_assets(&verified, asset_root)?;
+    let result = load_runner_config_from_paths(config, pin, asset_root).and_then(|loaded| {
+        let files = verify_runner_file_assets(&loaded.verified, asset_root)?;
         Ok(json!({
             "profile": "gauntlet-runner-inputs.v1",
-            "schema": verified.config.value()["schema"],
+            "schema": loaded.verified.config.value()["schema"],
             "config_digest": pin,
-            "selected_episodes": verified.config.value()["selection"].as_array().map(Vec::len),
-            "shards": verified.shards,
-            "selection_reservations": verified.selection_reservations.to_json(),
+            "selected_episodes": loaded.verified.config.value()["selection"].as_array().map(Vec::len),
+            "shards": loaded.verified.shards,
+            "selection_reservations": loaded.verified.selection_reservations.to_json(),
             "file_assets_verified": files,
+            "installed_package_version_metadata": loaded.installed_package_version,
             "tree_and_installed_assets_verified": false,
             "execution_eligible": false,
         }))

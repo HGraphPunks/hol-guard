@@ -20,6 +20,10 @@ external config digests, asset-role declarations, and candidate/test-merge
 source identity claims. It also binds frozen campaign and gate-policy bytes
 to all seven declarations, checks selected-cell policy/reservations/shards,
 and hashes ordinary asset files through bounded no-symlink descriptors.
+The composite v1–v7 inert config loader also reproduces Python's runtime/path
+declarations, rejects symlinked private-cell paths, and checks v5–v7 installed
+version metadata against outside source/native/version pins. It does not
+authenticate the full installed prefix or admit a candidate to execution.
 An inert SDK and installed-prefix inventory prototype hashes metadata and
 bytes through descriptor-relative directory enumeration. Symlink containment
 still needs Linux race/parity proof, and installed-prefix verification needs a
@@ -90,10 +94,10 @@ cargo +1.88.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gaunt
   /absolute/path/to/config.json EXTERNAL_CONFIG_SHA256 /absolute/path/to/assets
 ```
 
-The JSON reports the selected episode count, shard assignment and aggregate
-reservations. `execution_eligible` is always `false`: this command does not
-verify SDK or installed-prefix custody, private cells, conformance artifacts,
-the candidate deployment or any live behavior.
+The JSON reports the selected episode count, shard assignment, aggregate
+reservations and installed version metadata when applicable. `execution_eligible`
+is always `false`: this command does not verify SDK or installed-prefix custody,
+private cells, conformance artifacts, the candidate deployment or any live behavior.
 
 The next slices must finish Phase 0's behavioral matrix and Phase 1's full
 asset/configuration custody, legacy evidence and independent scoring parity before moving

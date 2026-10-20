@@ -10,6 +10,7 @@ mod package_version;
 mod payload;
 mod public_files;
 mod runner_inputs;
+mod runner_runtime;
 mod tree_inventory;
 mod worker_receipt;
 
@@ -20,6 +21,10 @@ pub use package_version::{valid_package_version, verify_installed_version_metada
 pub use runner_inputs::{
     verify_runner_file_assets, verify_runner_inputs, verify_runner_inputs_from_paths,
     ReservationTotals, VerifiedRunnerInputs,
+};
+pub use runner_runtime::{
+    load_runner_config_from_paths, runner_runtime_declaration,
+    verify_runner_installed_version_metadata, LoadedRunnerConfig, RunnerRuntimeDeclaration,
 };
 pub use tree_inventory::{inventory_tree, TreeInventory, TreeKind};
 pub use worker_receipt::{verify_python_worker_terminal, PythonWorkerTerminal};
