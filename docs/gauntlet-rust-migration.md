@@ -7,6 +7,8 @@
 
 The current [Rust workspace](../ci/gauntlet-rs/README.md) has a SHA-256 [inventory of all 420 pinned source files](../ci/gauntlet-rs/parity-manifest.v1.json). Its fixtures include seven Python-accepted runner configs, an incomplete and a complete synthetic bundle, and four signed hostile bundles that Python and Rust both reject. The complete synthetic fixture contains failed/inconclusive records and proves only inventory parsing. No Rust-controlled VM or inference run has occurred, and no Rust result is merge-qualifying.
 
+The pinned control-plane baseline is still draft PR #5263, while Rust PR #5306 branches from `main`. The Rust workspace can verify frozen copies and contracts in isolation, but a production Rust worker must be built against a reviewed controller generation containing the corresponding source. Integrate or explicitly establish that dependency before VM cutover; a candidate PR binary cannot become its own trusted worker.
+
 ## Decision and scope
 
 Port Gauntlet incrementally. The practical target is a **Rust-owned trusted controller, verifier, evidence ledger, and VM worker** with the same observable behavior and refusal rules as the current Python system. Keep the pinned Oh My Pi (OMP) TypeScript SDK adapters and the macOS MLX model server as bounded external processes until equivalent native interfaces are proven. Keep pytest as the product feature-audit executor; porting Gauntlet does not mean rewriting HOL Guard's Python product tests or its already-Rust native runtime. A literal all-Rust process tree would also require replacing OMP/MLX/pytest and is a separate, much larger project.
