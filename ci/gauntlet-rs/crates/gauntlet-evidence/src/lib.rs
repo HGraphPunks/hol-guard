@@ -1,4 +1,5 @@
-//! Read-only public bundle verifier. Candidate bytes never choose code or trust anchors.
+//! Independent evidence verifier. Candidate bytes never choose trust anchors.
+//! The optional quota writer is excluded from default read-only builds.
 
 mod bridge_frames;
 mod campaign;
@@ -15,6 +16,11 @@ mod payload;
 mod private_cell_files;
 mod private_cell_manifest;
 mod provider_quota;
+#[cfg(feature = "quota-write")]
+mod provider_quota_create;
+mod provider_quota_history;
+#[cfg(feature = "quota-write")]
+mod provider_quota_writer;
 mod provider_status;
 mod public_files;
 mod runner_asset_inventory;
@@ -33,7 +39,10 @@ pub use episode_score::evaluate_audited_episode;
 pub use package_version::{valid_package_version, verify_installed_version_metadata};
 pub use private_cell_files::{verify_private_cell_artifacts, PrivateCellInventory};
 pub use private_cell_manifest::{verify_private_cell_manifest, PrivateCellManifest};
-pub use provider_quota::{read_provider_quota_snapshot, verify_provider_quota_observations};
+pub use provider_quota::read_provider_quota_snapshot;
+pub use provider_quota_history::verify_provider_quota_observations;
+#[cfg(feature = "quota-write")]
+pub use provider_quota_writer::ProviderQuotaWriter;
 pub use provider_status::verify_provider_status;
 pub use runner_asset_inventory::{verify_runner_assets_inert, RunnerAssetInventory};
 pub use runner_inputs::{

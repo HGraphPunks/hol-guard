@@ -1,4 +1,5 @@
-use super::{read_provider_quota_snapshot, verify_provider_quota_observations};
+use super::read_provider_quota_snapshot;
+use crate::verify_provider_quota_observations;
 use rustix::fs::{flock, open, FlockOperation, Mode, OFlags};
 use serde_json::Value;
 use std::os::unix::fs::{symlink, PermissionsExt};

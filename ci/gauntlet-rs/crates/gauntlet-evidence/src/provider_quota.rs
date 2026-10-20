@@ -23,11 +23,11 @@ use std::path::Path;
 const MAX_LOG: usize = 16 * 1024 * 1024;
 const MAX_ROWS: usize = 30_000;
 
-fn invalid(message: &'static str) -> EvidenceError {
+pub(super) fn invalid(message: &'static str) -> EvidenceError {
     EvidenceError::Invalid(message)
 }
 
-fn unchanged(before: &Stat, after: &Stat) -> bool {
+pub(super) fn unchanged(before: &Stat, after: &Stat) -> bool {
     before.st_dev == after.st_dev
         && before.st_ino == after.st_ino
         && before.st_mode == after.st_mode
@@ -54,7 +54,7 @@ fn sha_value(value: &Value) -> bool {
     value.as_str().is_some_and(is_sha256)
 }
 
-fn bounded(value: &Value, minimum: u64, maximum: u64) -> Result<u64> {
+pub(super) fn bounded(value: &Value, minimum: u64, maximum: u64) -> Result<u64> {
     value
         .as_u64()
         .filter(|number| (minimum..=maximum).contains(number))
@@ -66,11 +66,11 @@ fn decode(raw: &[u8]) -> Result<Value> {
     serde_json::from_slice(&canonical).map_err(|_| invalid("invalid bounded quota JSON"))
 }
 
-fn digest(value: &Value) -> Result<String> {
+pub(super) fn digest(value: &Value) -> Result<String> {
     Ok(sha256(&canonical_value(value)?))
 }
 
-fn root_owned_by_reader(root: &Path, descriptor: &OwnedFd) -> Result<()> {
+pub(super) fn root_owned_by_reader(root: &Path, descriptor: &OwnedFd) -> Result<()> {
     if root.canonicalize().ok().as_deref() != Some(root) {
         return Err(invalid("canonical absolute quota directory required"));
     }
@@ -99,7 +99,7 @@ fn root_owned_by_reader(root: &Path, descriptor: &OwnedFd) -> Result<()> {
     Ok(())
 }
 
-fn private_file(root: &OwnedFd, name: &str) -> Result<(OwnedFd, Stat)> {
+pub(super) fn private_file(root: &OwnedFd, name: &str) -> Result<(OwnedFd, Stat)> {
     let descriptor = openat(
         root,
         name,
@@ -147,16 +147,28 @@ fn read_private(root: &OwnedFd, name: &str, limit: usize) -> Result<Vec<u8>> {
     Ok(raw)
 }
 
-struct State {
-    last_hash: String,
-    pending: BTreeMap<String, (u64, u64)>,
-    finished: BTreeSet<String>,
-    authorizations: BTreeSet<String>,
+pub(super) struct State {
+    pub(super) last_hash: String,
+    pub(super) pending: BTreeMap<String, (u64, u64)>,
+    pub(super) finished: BTreeSet<String>,
+    pub(super) authorizations: BTreeSet<String>,
+    pub(super) charged: u64,
+    pub(super) requests: u64,
+    pub(super) token_cap: u64,
+    pub(super) halted: bool,
     allowance_digest: Option<String>,
-    charged: u64,
-    requests: u64,
-    token_cap: u64,
-    halted: bool,
+}
+
+pub(super) struct ReplayedQuota {
+    #[cfg(feature = "quota-write")]
+    pub(super) config: Value,
+    #[cfg(feature = "quota-write")]
+    pub(super) state: State,
+    #[cfg(feature = "quota-write")]
+    pub(super) rows: usize,
+    #[cfg(feature = "quota-write")]
+    pub(super) journal_bytes: usize,
+    snapshot: Value,
 }
 
 impl State {
@@ -174,7 +186,7 @@ impl State {
         }
     }
 
-    fn apply(&mut self, event: &Value, maximum_requests: u64) -> Result<()> {
+    pub(super) fn apply(&mut self, event: &Value, maximum_requests: u64) -> Result<()> {
         let key = event["reservation_id"]
             .as_str()
             .filter(|_| hex32(&event["reservation_id"]))
@@ -307,26 +319,16 @@ impl State {
     }
 }
 
-fn visit_provider_quota_snapshots<F>(
-    root: &Path,
+pub(super) fn replay_locked<F>(
+    descriptor: &OwnedFd,
     expected_config_digest: &str,
     expected_allowance_digest: Option<&str>,
     mut visit: F,
-) -> Result<Value>
+) -> Result<ReplayedQuota>
 where
     F: FnMut(&Value) -> Result<()>,
 {
-    if !is_sha256(expected_config_digest)
-        || expected_allowance_digest.is_some_and(|value| !is_sha256(value))
-    {
-        return Err(invalid("outside provider quota digest required"));
-    }
-    let descriptor = open_absolute_directory(root)?;
-    root_owned_by_reader(root, &descriptor)?;
-    let (lock, lock_before) = private_file(&descriptor, "quota.lock")?;
-    flock(&lock, FlockOperation::NonBlockingLockShared)
-        .map_err(|_| invalid("provider quota journal is busy"))?;
-    let config = decode(&read_private(&descriptor, "config.json", 16_384)?)?;
+    let config = decode(&read_private(descriptor, "config.json", 16_384)?)?;
     if !exact_keys(
         &config,
         &[
@@ -352,7 +354,7 @@ where
     if !sha_value(&config["model_identity_digest"]) {
         return Err(invalid("quota requires a lowercase immutable input digest"));
     }
-    let raw = read_private(&descriptor, "events.jsonl", MAX_LOG)?;
+    let raw = read_private(descriptor, "events.jsonl", MAX_LOG)?;
     if !raw.is_empty() && !raw.ends_with(b"\n") {
         return Err(invalid("interrupted quota append requires reconciliation"));
     }
@@ -398,12 +400,50 @@ where
     if state.allowance_digest.as_deref() != expected_allowance_digest {
         return Err(invalid("provider allowance differs from external pin"));
     }
+    Ok(ReplayedQuota {
+        #[cfg(feature = "quota-write")]
+        config,
+        #[cfg(feature = "quota-write")]
+        state,
+        #[cfg(feature = "quota-write")]
+        rows: rows.len(),
+        #[cfg(feature = "quota-write")]
+        journal_bytes: raw.len(),
+        snapshot,
+    })
+}
+
+pub(super) fn visit_provider_quota_snapshots<F>(
+    root: &Path,
+    expected_config_digest: &str,
+    expected_allowance_digest: Option<&str>,
+    visit: F,
+) -> Result<Value>
+where
+    F: FnMut(&Value) -> Result<()>,
+{
+    if !is_sha256(expected_config_digest)
+        || expected_allowance_digest.is_some_and(|value| !is_sha256(value))
+    {
+        return Err(invalid("outside provider quota digest required"));
+    }
+    let descriptor = open_absolute_directory(root)?;
+    root_owned_by_reader(root, &descriptor)?;
+    let (lock, lock_before) = private_file(&descriptor, "quota.lock")?;
+    flock(&lock, FlockOperation::NonBlockingLockShared)
+        .map_err(|_| invalid("provider quota journal is busy"))?;
+    let replayed = replay_locked(
+        &descriptor,
+        expected_config_digest,
+        expected_allowance_digest,
+        visit,
+    )?;
     let current_lock = statat(&descriptor, "quota.lock", AtFlags::SYMLINK_NOFOLLOW)
         .map_err(|error| EvidenceError::Io(error.to_string()))?;
     if !unchanged(&lock_before, &current_lock) {
         return Err(invalid("provider quota lock changed during reading"));
     }
-    Ok(snapshot)
+    Ok(replayed.snapshot)
 }
 
 /// Verify a Python v1 journal and return its Python-shaped read-only snapshot.
@@ -419,56 +459,6 @@ pub fn read_provider_quota_snapshot(
         expected_allowance_digest,
         |_| Ok(()),
     )
-}
-
-/// Compare chronological operational snapshots with exact prefixes of one
-/// private Python journal and an independently pinned final journal hash.
-/// This never grants inference or qualifies a benchmark result.
-pub fn verify_provider_quota_observations(
-    root: &Path,
-    expected_config_digest: &str,
-    expected_allowance_digest: Option<&str>,
-    expected_final_journal_hash: &str,
-    observations: &[Value],
-) -> Result<Value> {
-    if !is_sha256(expected_final_journal_hash)
-        || observations.is_empty()
-        || observations.len() > MAX_ROWS + 1
-        || observations
-            .iter()
-            .any(|row| !row["journal_hash"].as_str().is_some_and(is_sha256))
-    {
-        return Err(invalid(
-            "outside provider history pins and observations required",
-        ));
-    }
-    let mut matched = 0_usize;
-    let final_snapshot = visit_provider_quota_snapshots(
-        root,
-        expected_config_digest,
-        expected_allowance_digest,
-        |snapshot| {
-            while matched < observations.len()
-                && observations[matched]["journal_hash"] == snapshot["journal_hash"]
-            {
-                if observations[matched] != *snapshot {
-                    return Err(invalid(
-                        "provider observation differs from durable journal prefix",
-                    ));
-                }
-                matched += 1;
-            }
-            Ok(())
-        },
-    )?;
-    if matched != observations.len()
-        || final_snapshot["journal_hash"] != expected_final_journal_hash
-    {
-        return Err(invalid(
-            "provider observations omit or reorder journal prefixes",
-        ));
-    }
-    Ok(final_snapshot)
 }
 
 #[cfg(test)]

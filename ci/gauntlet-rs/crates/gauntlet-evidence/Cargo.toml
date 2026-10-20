@@ -3,7 +3,10 @@ name = "gauntlet-evidence"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.88"
-description = "Read-only independent evidence verification for HOL Guard Gauntlet"
+description = "Independent Gauntlet evidence verification with an opt-in quota writer"
+
+[features]
+quota-write = []
 
 [dependencies]
 base64 = "=0.22.1"
