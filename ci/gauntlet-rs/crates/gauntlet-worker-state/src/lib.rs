@@ -63,11 +63,15 @@ pub struct RunReservationJournal {
 }
 
 mod lease;
+#[cfg(target_os = "linux")]
+mod linux_cgroup;
 #[cfg(any(target_os = "linux", test))]
 mod linux_process;
 mod projection;
 mod terminal;
 pub use lease::ActiveLease;
+#[cfg(target_os = "linux")]
+pub use linux_cgroup::{observe_process_resources, CgroupResources, ProcessResourceObservation};
 #[cfg(target_os = "linux")]
 pub use linux_process::{observe_process, ProcessObservation, ProcessObservationError};
 pub use terminal::{ProcessIdentity, TerminalOutcome, TerminalReceipt};

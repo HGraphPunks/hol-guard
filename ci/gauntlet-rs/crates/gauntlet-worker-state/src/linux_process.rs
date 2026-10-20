@@ -35,13 +35,13 @@ pub struct ProcessObservation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct ProcStat {
-    start_ticks: u64,
+pub(crate) struct ProcStat {
+    pub(crate) start_ticks: u64,
     state: char,
     rss_pages: i64,
 }
 
-fn parse_proc_stat(raw: &[u8], expected_pid: u32) -> Option<ProcStat> {
+pub(crate) fn parse_proc_stat(raw: &[u8], expected_pid: u32) -> Option<ProcStat> {
     if raw.len() > MAX_PROC_BYTES {
         return None;
     }
@@ -65,7 +65,7 @@ fn parse_proc_stat(raw: &[u8], expected_pid: u32) -> Option<ProcStat> {
     })
 }
 
-fn valid_cgroup(path: &str) -> bool {
+pub(crate) fn valid_cgroup(path: &str) -> bool {
     path.len() <= 256
         && path.starts_with('/')
         && path != "/"
