@@ -265,7 +265,9 @@ dependencies = [
 name = "gauntlet-host-state"
 version = "0.1.0"
 dependencies = [
+ "rustix",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]

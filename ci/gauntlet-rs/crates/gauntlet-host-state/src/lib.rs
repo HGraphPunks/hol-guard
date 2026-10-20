@@ -7,6 +7,8 @@ use std::fmt;
 
 mod operations;
 pub use operations::{load_operations_bytes, OperationsError};
+mod private_jobs;
+pub use private_jobs::{read_private_jobs, PrivateJobError};
 
 const ARCHIVE_REASON: &str = "Removed from active queue by release-only configuration";
 
