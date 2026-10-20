@@ -276,10 +276,10 @@
       "disposition": "frozen_data_or_schema",
       "path": "ci/gauntlet/scenarios.json",
       "phase": 1,
-      "sha256": "d5f04fd75392f86591b05c1895711cdc5d5389aa5d5e1a51f3917a43f1d23eb2"
+      "sha256": "31fa82d4c443cddb92d8ba6c80c6ba471c2c484d53ebbf863214c58425f0dcc4"
     }
   ],
-  "integration_commit": "518c1c732216ebfaa908cbd2c76f7aede7b12681",
+  "integration_commit": "52c29e35304f4ed18eb3fe8061549b14b0a4e659",
   "schema": "gauntlet-rust-integration-source-delta.v1",
   "source_file_count": 425
 }
