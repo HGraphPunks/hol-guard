@@ -277,15 +277,45 @@ impl State {
         }
         Ok(())
     }
+
+    fn snapshot(&self, config: &Value, config_digest: &str, maximum_requests: u64) -> Value {
+        let reserved: u64 = self
+            .pending
+            .values()
+            .map(|(prompt, output)| prompt + output)
+            .sum();
+        let mut snapshot = json!({
+            "schema":"gauntlet-provider-quota-status.v1",
+            "config_digest":config_digest,
+            "model_identity_digest":config["model_identity_digest"],
+            "token_cap":self.token_cap,
+            "charged_tokens":self.charged,
+            "known_tokens":self.charged - reserved,
+            "reserved_tokens":reserved,
+            "requests":self.requests,
+            "maximum_requests":maximum_requests,
+            "pending_requests":self.pending.len(),
+            "halted":self.halted,
+            "remaining_tokens":self.token_cap - self.charged,
+            "journal_hash":self.last_hash,
+            "qualification_eligible":false,
+        });
+        if let Some(allowance) = self.allowance_digest.as_deref() {
+            snapshot["allowance_digest"] = json!(allowance);
+        }
+        snapshot
+    }
 }
 
-/// Verify a Python v1 journal and return its Python-shaped read-only snapshot.
-/// A valid snapshot is operational accounting only, never model admission.
-pub fn read_provider_quota_snapshot(
+fn visit_provider_quota_snapshots<F>(
     root: &Path,
     expected_config_digest: &str,
     expected_allowance_digest: Option<&str>,
-) -> Result<Value> {
+    mut visit: F,
+) -> Result<Value>
+where
+    F: FnMut(&Value) -> Result<()>,
+{
     if !is_sha256(expected_config_digest)
         || expected_allowance_digest.is_some_and(|value| !is_sha256(value))
     {
@@ -338,6 +368,8 @@ pub fn read_provider_quota_snapshot(
         return Err(invalid("provider quota journal row bound exceeded"));
     }
     let mut state = State::new(token_cap);
+    let mut snapshot = state.snapshot(&config, expected_config_digest, maximum_requests);
+    visit(&snapshot)?;
     for (sequence, line) in rows.iter().enumerate() {
         let row = decode(line)?;
         if !exact_keys(
@@ -360,6 +392,8 @@ pub fn read_provider_quota_snapshot(
         }
         state.apply(event, maximum_requests)?;
         state.last_hash = digest(&row)?;
+        snapshot = state.snapshot(&config, expected_config_digest, maximum_requests);
+        visit(&snapshot)?;
     }
     if state.allowance_digest.as_deref() != expected_allowance_digest {
         return Err(invalid("provider allowance differs from external pin"));
@@ -369,31 +403,72 @@ pub fn read_provider_quota_snapshot(
     if !unchanged(&lock_before, &current_lock) {
         return Err(invalid("provider quota lock changed during reading"));
     }
-    let reserved: u64 = state
-        .pending
-        .values()
-        .map(|(prompt, output)| prompt + output)
-        .sum();
-    let mut snapshot = json!({
-        "schema":"gauntlet-provider-quota-status.v1",
-        "config_digest":expected_config_digest,
-        "model_identity_digest":config["model_identity_digest"],
-        "token_cap":state.token_cap,
-        "charged_tokens":state.charged,
-        "known_tokens":state.charged - reserved,
-        "reserved_tokens":reserved,
-        "requests":state.requests,
-        "maximum_requests":maximum_requests,
-        "pending_requests":state.pending.len(),
-        "halted":state.halted,
-        "remaining_tokens":state.token_cap - state.charged,
-        "journal_hash":state.last_hash,
-        "qualification_eligible":false,
-    });
-    if let Some(allowance) = state.allowance_digest {
-        snapshot["allowance_digest"] = json!(allowance);
-    }
     Ok(snapshot)
+}
+
+/// Verify a Python v1 journal and return its Python-shaped read-only snapshot.
+/// A valid snapshot is operational accounting only, never model admission.
+pub fn read_provider_quota_snapshot(
+    root: &Path,
+    expected_config_digest: &str,
+    expected_allowance_digest: Option<&str>,
+) -> Result<Value> {
+    visit_provider_quota_snapshots(
+        root,
+        expected_config_digest,
+        expected_allowance_digest,
+        |_| Ok(()),
+    )
+}
+
+/// Compare chronological operational snapshots with exact prefixes of one
+/// private Python journal and an independently pinned final journal hash.
+/// This never grants inference or qualifies a benchmark result.
+pub fn verify_provider_quota_observations(
+    root: &Path,
+    expected_config_digest: &str,
+    expected_allowance_digest: Option<&str>,
+    expected_final_journal_hash: &str,
+    observations: &[Value],
+) -> Result<Value> {
+    if !is_sha256(expected_final_journal_hash)
+        || observations.is_empty()
+        || observations.len() > MAX_ROWS + 1
+        || observations
+            .iter()
+            .any(|row| !row["journal_hash"].as_str().is_some_and(is_sha256))
+    {
+        return Err(invalid(
+            "outside provider history pins and observations required",
+        ));
+    }
+    let mut matched = 0_usize;
+    let final_snapshot = visit_provider_quota_snapshots(
+        root,
+        expected_config_digest,
+        expected_allowance_digest,
+        |snapshot| {
+            while matched < observations.len()
+                && observations[matched]["journal_hash"] == snapshot["journal_hash"]
+            {
+                if observations[matched] != *snapshot {
+                    return Err(invalid(
+                        "provider observation differs from durable journal prefix",
+                    ));
+                }
+                matched += 1;
+            }
+            Ok(())
+        },
+    )?;
+    if matched != observations.len()
+        || final_snapshot["journal_hash"] != expected_final_journal_hash
+    {
+        return Err(invalid(
+            "provider observations omit or reorder journal prefixes",
+        ));
+    }
+    Ok(final_snapshot)
 }
 
 #[cfg(test)]

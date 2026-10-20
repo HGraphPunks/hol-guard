@@ -1,4 +1,4 @@
-use super::read_provider_quota_snapshot;
+use super::{read_provider_quota_snapshot, verify_provider_quota_observations};
 use rustix::fs::{flock, open, FlockOperation, Mode, OFlags};
 use serde_json::Value;
 use std::os::unix::fs::{symlink, PermissionsExt};
@@ -114,4 +114,65 @@ fn quota_reader_refuses_mutable_custody_and_contended_lock() {
     std::fs::remove_file(&events).unwrap();
     symlink(root.join("config.json"), events).unwrap();
     assert!(read(case, &root).is_err());
+}
+
+#[test]
+fn historical_snapshots_match_only_durable_ordered_journal_prefixes() {
+    let frozen = fixture();
+    let cases = frozen["cases"].as_array().unwrap();
+    let final_case = cases
+        .iter()
+        .find(|case| case["name"] == "uncertain")
+        .unwrap();
+    let (_temporary, root) = install_case(final_case);
+    let observations: Vec<Value> = [
+        "empty",
+        "reserved",
+        "settled",
+        "extended",
+        "extended-reserved",
+        "uncertain",
+    ]
+    .iter()
+    .map(|name| cases.iter().find(|case| case["name"] == *name).unwrap()["snapshot"].clone())
+    .collect();
+    let config = final_case["config_digest"].as_str().unwrap();
+    let allowance = final_case["allowance_digest"].as_str();
+    let final_hash = observations.last().unwrap()["journal_hash"]
+        .as_str()
+        .unwrap();
+    let verified =
+        verify_provider_quota_observations(&root, config, allowance, final_hash, &observations)
+            .unwrap();
+    assert_eq!(verified, *observations.last().unwrap());
+
+    let mut changed = observations.clone();
+    changed[2]["known_tokens"] = serde_json::json!(0);
+    assert!(
+        verify_provider_quota_observations(&root, config, allowance, final_hash, &changed)
+            .unwrap_err()
+            .to_string()
+            .contains("differs from durable journal prefix")
+    );
+
+    let mut reordered = observations.clone();
+    reordered.swap(1, 2);
+    assert!(
+        verify_provider_quota_observations(&root, config, allowance, final_hash, &reordered)
+            .is_err()
+    );
+    assert!(verify_provider_quota_observations(
+        &root,
+        config,
+        allowance,
+        &"f".repeat(64),
+        &observations
+    )
+    .is_err());
+
+    let mut repeated = observations.clone();
+    repeated.insert(2, observations[1].clone());
+    assert!(
+        verify_provider_quota_observations(&root, config, allowance, final_hash, &repeated).is_ok()
+    );
 }

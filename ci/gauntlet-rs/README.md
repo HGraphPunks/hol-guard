@@ -47,6 +47,9 @@ reserve/settle/uncertain/extension accounting. It matches six Python-frozen
 snapshots and rejects nine malformed or unauthorized journal variants; the
 synthetic [quota proof](../../docs/gauntlet-rust-quota-proof.md) includes Linux
 ARM64 test evidence. It cannot append a journal row or admit model inference.
+An additional read-only helper checks historical provider observations against
+ordered prefixes of that journal and an outside final-hash pin; it has only
+synthetic fixture evidence and no live provider authority.
 
 Pure [provider-status and controller-invocation reducers](../../docs/gauntlet-rust-controller-invocation-proof.md)
 match 18 and 14 additional Python-frozen cases over operational accounting.

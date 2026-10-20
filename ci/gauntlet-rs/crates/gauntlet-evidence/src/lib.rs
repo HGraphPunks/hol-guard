@@ -29,7 +29,7 @@ pub use episode_score::evaluate_audited_episode;
 pub use package_version::{valid_package_version, verify_installed_version_metadata};
 pub use private_cell_files::{verify_private_cell_artifacts, PrivateCellInventory};
 pub use private_cell_manifest::{verify_private_cell_manifest, PrivateCellManifest};
-pub use provider_quota::read_provider_quota_snapshot;
+pub use provider_quota::{read_provider_quota_snapshot, verify_provider_quota_observations};
 pub use provider_status::verify_provider_status;
 pub use runner_asset_inventory::{verify_runner_assets_inert, RunnerAssetInventory};
 pub use runner_inputs::{
