@@ -203,6 +203,7 @@ fn writer_refuses_busy_or_unsafe_storage_and_interrupted_append() {
         .unwrap_err()
         .to_string()
         .contains("busy"));
+    flock(&lock, FlockOperation::Unlock).unwrap();
     drop(lock);
     let writer = ProviderQuotaWriter::open_existing(&root, &config, None).unwrap();
     let id = writer.reserve(1, 1, &"b".repeat(64), None).unwrap();

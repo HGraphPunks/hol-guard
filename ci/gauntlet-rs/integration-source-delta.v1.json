@@ -20,6 +20,12 @@
     },
     {
       "disposition": "port_to_rust",
+      "path": "ci/gauntlet/case_retry.py",
+      "phase": 5,
+      "sha256": "3318a1e9d07c845742e78b071a93636764e2a2d8d82c4623e840b3927a19c116"
+    },
+    {
+      "disposition": "port_to_rust",
       "path": "ci/gauntlet/lane_preflight.py",
       "phase": 5,
       "sha256": "cc6a9e6344dcb76599dc7ec5636c004ae74e2fc3febed7b9e388416b21e9b0ed"
@@ -38,14 +44,14 @@
       "disposition": "reference_documentation",
       "path": "ci/gauntlet/README.md",
       "phase": 0,
-      "sha256": "55046cbbc127825000221d7b3c83405331244c2b59a5c69ddc1b725f2136c97b"
+      "sha256": "b385294dd1c4b198cdbce504db041ea008e47391d2c72d94daa8bfa5cdda32b8"
     },
     {
       "base_sha256": "be550727703aa7639c360fa4b97980d4ebaee767340b1791996985c2f9127196",
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/__main__.py",
       "phase": 5,
-      "sha256": "d27a51d853eae99fa1d5bb22bb6faeb8aef3a1023ed89977ef19792048e79365"
+      "sha256": "ebe2fa28dee097523fba9a0e5bc3ffe349f2b36a3acceefd2828faa829d4e5d7"
     },
     {
       "base_sha256": "296c0e60a54a0aebbd301187e3da3ad00ece3c53f01ada6916ed347fbe1e6403",
@@ -83,11 +89,25 @@
       "sha256": "6b31150f68673fe90a88130331a10578d8bcfec0c7962aa8149232a1fdd68e26"
     },
     {
+      "base_sha256": "766f65bb15960fdbc815917a80bdd8d8774d84cb1e088f7d5020da62c896a5d8",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/bundle.py",
+      "phase": 5,
+      "sha256": "da24d300da9e3a6b3d7d47da6f6358469bc5aba1477212cd79b1106285843579"
+    },
+    {
       "base_sha256": "0ee4f4f291edc575250ea1044cb7af50e250b9585f790a50eea2fd019477cccc",
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/case_helpers.py",
       "phase": 5,
       "sha256": "d487821618da8240403eef4a4d32cabef26da5388e3e390c9e2de75287060341"
+    },
+    {
+      "base_sha256": "57ebce71ac4328e09e9b49771114f55093d4c58baf5f893238c0482d8e155bb6",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/case_worker.py",
+      "phase": 5,
+      "sha256": "9bfd94c8d5b31fa1e5ee5bd38cf02c36dda069c6f454b1ac7c186e40b43ec5e9"
     },
     {
       "base_sha256": "388506ca0ddc27306835ff9efb83226127ee45db2e83309613915e7a7d5d8271",
@@ -244,6 +264,13 @@
       "sha256": "85b3bb767a23da9649baf7cf0fff38adceccb65e9263f78f8b1cf5afc7658e92"
     },
     {
+      "base_sha256": "92cf99999e5039823b1330834d30fbd634695accd411c19a8d7775650a97a246",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/parallel.py",
+      "phase": 5,
+      "sha256": "3925ef182c3c5a005ae31a15d773ca708092669020442845e7f54e52580ea02c"
+    },
+    {
       "base_sha256": "b97584f65030076f9f74a8030d64c3f53c49fd6d13aeeeba06630bfefc5aba71",
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/proofs.py",
@@ -255,7 +282,7 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/qualify.py",
       "phase": 5,
-      "sha256": "a5687a42f049374a69205dec241c8111a76be7630f28d658a161f40020c823c1"
+      "sha256": "8d0515003c77418d056eddaf965be9967a462e6de34e0ede1b1824ff6f090a32"
     },
     {
       "base_sha256": "826fe575dca301c41ef55d1a70011fd7da370640384c5482d89f941d5489f781",
@@ -276,24 +303,38 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/runner.py",
       "phase": 5,
-      "sha256": "37e88a5bd6b55746e4a72a0a62efda7658c7438a2ffae8e6ac764f1853008ba5"
+      "sha256": "96895e03b90b4f1e3d1d279447ee55325d54518f321305c99e4adb48156abd55"
     },
     {
       "base_sha256": "6195060feea1e25a69a9dfe8ff75d971b2d0d73241ff8eb8dbb547a4cb900d79",
       "disposition": "frozen_data_or_schema",
       "path": "ci/gauntlet/scenarios.json",
       "phase": 1,
-      "sha256": "88a434d09fc84ab737c493751c65e2c033a01472f16d1b0671f11b3a81328cc2"
+      "sha256": "918a268b521904baee864255755fc8b25420fc665dafa17915df1fee60fa3f7a"
+    },
+    {
+      "base_sha256": "8443830bfc26c8e7a853d0d558d297d61cec4658dd26039c485e1e1767541f46",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/session_folder.py",
+      "phase": 5,
+      "sha256": "776989034e94ebf9d254472dad07e68d93c08370804eb4cb6e914c246d4a56f2"
     },
     {
       "base_sha256": "51b44a46b4d5d229ca4bf3b146b9125580ae6a4b8a46ba24aa3ef406f16e3758",
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/summary.py",
       "phase": 5,
-      "sha256": "b1432149922669d8a60daecf6de86d4dccebe5f3c6c7d62d077c56042e552e8e"
+      "sha256": "b6fac38ee985c44b296df54ffb90aedcbf09a59ae6a5dc9821cbb2347f05f006"
+    },
+    {
+      "base_sha256": "091828760a117554d17ba7355d1b2cccc2c690168c4583bf4ca15ac2ebfcb642",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/verify.py",
+      "phase": 5,
+      "sha256": "a9b8b287c12f98046048248c9920ffc8d01f60964ab944d10893129da1f230a8"
     }
   ],
   "integration_commit": "b7f1f3273da9a874a8eed1b3aaea712cec5e9380",
   "schema": "gauntlet-rust-integration-source-delta.v1",
-  "source_file_count": 425
+  "source_file_count": 426
 }

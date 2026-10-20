@@ -173,6 +173,7 @@ impl ProviderQuotaWriter {
         if !unchanged(&lock_before, &named_lock) || !same_file(&root_before, &root_after) {
             return Err(invalid("quota root or lock changed while writing"));
         }
+        flock(&lock, FlockOperation::Unlock).map_err(io)?;
         result
     }
 

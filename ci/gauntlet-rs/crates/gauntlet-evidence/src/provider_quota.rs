@@ -443,6 +443,7 @@ where
     if !unchanged(&lock_before, &current_lock) {
         return Err(invalid("provider quota lock changed during reading"));
     }
+    flock(&lock, FlockOperation::Unlock).map_err(|error| EvidenceError::Io(error.to_string()))?;
     Ok(replayed.snapshot)
 }
 

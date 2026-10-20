@@ -576,6 +576,10 @@ pub(crate) fn evaluate_resident_bytes_with_cancellation(
             ResidentOperationV1::McpWriteBudgetClaim(request) => {
                 crate::mcp_write_budget_op::evaluate(&request)
             }
+            #[cfg(unix)]
+            ResidentOperationV1::ContainmentHealthProbe(request) => {
+                crate::contained_op::evaluate_containment_health_probe(&request)
+            }
             ResidentOperationV1::ShimAdmin(request) => {
                 crate::shim_op::evaluate_shim_admin(&request)
             }
@@ -654,7 +658,8 @@ pub(crate) fn evaluate_resident_bytes_with_cancellation(
             | ResidentOperationV1::ContainedTypescriptExecute(_)
             | ResidentOperationV1::ContainedPackageScriptExecute(_)
             | ResidentOperationV1::ContainedWorkspaceWriteExecute(_)
-            | ResidentOperationV1::ContainedExecute(_) => {
+            | ResidentOperationV1::ContainedExecute(_)
+            | ResidentOperationV1::ContainmentHealthProbe(_) => {
                 Err("native_operation_unavailable_on_this_platform".to_owned())
             }
             ResidentOperationV1::Health(_request) => encode_response(&serde_json::json!({
@@ -735,6 +740,7 @@ fn operation_guard_home(operation: &ResidentOperationV1) -> Option<&str> {
         ResidentOperationV1::ContainedCompletionConsume(request) => Some(&request.guard_home),
         #[cfg(unix)]
         ResidentOperationV1::McpWriteBudgetClaim(request) => Some(&request.guard_home),
+        ResidentOperationV1::ContainmentHealthProbe(request) => Some(&request.guard_home),
         ResidentOperationV1::ShimAdmin(request) => Some(&request.guard_home),
         ResidentOperationV1::PackageContextBuild(request) => Some(&request.guard_home),
         ResidentOperationV1::McpStdioProbe(request) => Some(&request.guard_home),

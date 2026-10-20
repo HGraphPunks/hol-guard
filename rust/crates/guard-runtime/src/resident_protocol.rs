@@ -234,6 +234,8 @@ pub(crate) enum ResidentOperationV1 {
     ContainedCompletionConsume(crate::contained_completion_op::ConsumeRequest),
     #[cfg(unix)]
     McpWriteBudgetClaim(crate::mcp_write_budget_op::ClaimRequest),
+    #[allow(dead_code)]
+    ContainmentHealthProbe(guard_contracts::ContainmentHealthProbeRequestV1),
     ShimAdmin(ShimAdminRequestV2),
     PackageContextBuild(PackageContextBuildRequestV1),
     McpStdioProbe(McpStdioProbeRequestV1),
