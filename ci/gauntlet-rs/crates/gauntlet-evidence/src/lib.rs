@@ -6,6 +6,7 @@ mod campaign_gate;
 mod crypto;
 mod episode_score;
 mod io;
+mod package_version;
 mod payload;
 mod public_files;
 mod runner_inputs;
@@ -14,6 +15,7 @@ mod tree_inventory;
 pub use bridge_frames::FrameCodec;
 pub use campaign_gate::evaluate_audited_campaign;
 pub use episode_score::evaluate_audited_episode;
+pub use package_version::{valid_package_version, verify_installed_version_metadata};
 pub use runner_inputs::{
     verify_runner_file_assets, verify_runner_inputs, verify_runner_inputs_from_paths,
     ReservationTotals, VerifiedRunnerInputs,

@@ -2,6 +2,7 @@
 
 use crate::campaign::verify_campaign;
 use crate::crypto::sha256;
+use crate::package_version::valid_package_version;
 use crate::public_files::PublicRootReader;
 use crate::{EvidenceError, Result};
 use gauntlet_contracts::{
@@ -167,6 +168,15 @@ pub fn verify_runner_inputs(
     let declared = validate_runner_declaration(config_raw, expected_config_digest)
         .map_err(|_| EvidenceError::Invalid("invalid caller-pinned runner declaration"))?;
     let config = declared.record.value();
+    if declared.version >= 5
+        && !config["runtime"]["guard_package_version"]
+            .as_str()
+            .is_some_and(valid_package_version)
+    {
+        return Err(EvidenceError::Invalid(
+            "invalid frozen Guard package version",
+        ));
+    }
     if sha256(campaign_raw) != config["campaign"]["sha256"]
         || sha256(policy_raw) != config["policy"]["sha256"]
     {

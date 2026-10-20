@@ -83,6 +83,13 @@ fn changed_document_bytes_and_selection_are_rejected() {
     let changed = serde_json::to_vec(&value).unwrap();
     let changed_pin = canonical_sha256(&changed).unwrap();
     assert!(verify_runner_inputs(&changed, &changed_pin, &campaign, &policy).is_err());
+
+    let (config, _, campaign, policy, _) = fixture(5);
+    let mut value: Value = serde_json::from_slice(&config).unwrap();
+    value["runtime"]["guard_package_version"] = json!("3.50.0+unreviewed");
+    let changed = serde_json::to_vec(&value).unwrap();
+    let changed_pin = canonical_sha256(&changed).unwrap();
+    assert!(verify_runner_inputs(&changed, &changed_pin, &campaign, &policy).is_err());
 }
 
 #[test]

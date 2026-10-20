@@ -23,7 +23,9 @@ and hashes ordinary asset files through bounded no-symlink descriptors.
 An inert SDK and installed-prefix inventory prototype hashes metadata and
 bytes through descriptor-relative directory enumeration. Symlink containment
 still needs Linux race/parity proof, and installed-prefix verification needs a
-root-owned Linux positive fixture. No Rust input check authorizes execution.
+root-owned Linux positive fixture. Bounded installed version metadata has
+separate Python-parity checks but must follow that prefix verification. No
+Rust input check authorizes execution.
 
 `gauntlet-evidence` reads a workflow public bundle through no-symlink,
 descriptor-relative paths. It checks externally pinned manifest and source
