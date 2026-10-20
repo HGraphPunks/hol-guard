@@ -7,7 +7,7 @@ description = "Durable one-time reservation boundary for the future Gauntlet Lin
 
 [dependencies]
 gauntlet-contracts = { path = "../gauntlet-contracts" }
-rustix = { version = "=1.1.5", features = ["fs"] }
+rustix = { version = "=1.1.5", features = ["fs", "process"] }
 serde_json = { version = "=1.0.151", features = ["arbitrary_precision"] }
 sha2 = "=0.10.9"
 

@@ -109,11 +109,42 @@ fn create_durable(
 }
 
 impl RunReservationJournal {
+    /// Inert test entrypoint. A Root-owned live journal must use
+    /// `finish_under_lease` so no terminal can be written after losing its lease.
+    #[allow(clippy::too_many_arguments)]
+    pub fn finish(
+        &self,
+        request: &WorkerRequest,
+        source_sha: &str,
+        deployment_digest: &str,
+        worker_generation: &str,
+        expected_started_sha256: &str,
+        report_raw: &[u8],
+        process: ProcessIdentity,
+        exit_code: i32,
+        status: TerminalOutcome,
+    ) -> Result<TerminalReceipt, ReservationError> {
+        if self.root_owned {
+            return Err(ReservationError::UnsafeRoot);
+        }
+        self.finish_internal(
+            request,
+            source_sha,
+            deployment_digest,
+            worker_generation,
+            expected_started_sha256,
+            report_raw,
+            process,
+            exit_code,
+            status,
+        )
+    }
+
     /// Write the exact bounded report bytes before a terminal marker. This is
     /// not a gate verdict: the caller must independently establish the kernel
     /// process identity and recompute the report outcome before using `Passed`.
     #[allow(clippy::too_many_arguments)]
-    pub fn finish(
+    pub(crate) fn finish_internal(
         &self,
         request: &WorkerRequest,
         source_sha: &str,

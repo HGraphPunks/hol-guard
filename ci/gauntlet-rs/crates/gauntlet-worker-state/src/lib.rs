@@ -2,8 +2,9 @@
 //! A successful reservation consumes a job ID but never launches candidate code.
 
 use gauntlet_contracts::{canonicalize, is_git_sha, WorkerAction, WorkerRequest};
-use rustix::fs::{fsync, open, openat, statat, AtFlags, Mode, OFlags};
+use rustix::fs::{fstat, fsync, open, openat, statat, AtFlags, FileType, Mode, OFlags, Stat};
 use rustix::io::Errno;
+use rustix::process::geteuid;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::fmt;
@@ -28,8 +29,10 @@ pub struct StartedMarker {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReservationError {
     InvalidPins,
+    UnsafeRoot,
     WrongRequest,
     AlreadyStarted,
+    LeaseBusy,
     InvalidMarker,
     Io(String),
 }
@@ -38,10 +41,12 @@ impl fmt::Display for ReservationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidPins => f.write_str("invalid outside worker/deployment pins"),
+            Self::UnsafeRoot => f.write_str("Linux Root-owned private worker directory required"),
             Self::WrongRequest => {
                 f.write_str("run request differs from outside source/deployment pins")
             }
             Self::AlreadyStarted => f.write_str("job ID was already reserved for execution"),
+            Self::LeaseBusy => f.write_str("another worker holds the active lease"),
             Self::InvalidMarker => {
                 f.write_str("started marker is malformed or differs from outside pins")
             }
@@ -54,10 +59,13 @@ impl std::error::Error for ReservationError {}
 
 pub struct RunReservationJournal {
     pub(crate) root: OwnedFd,
+    root_owned: bool,
 }
 
+mod lease;
 mod projection;
 mod terminal;
+pub use lease::ActiveLease;
 pub use terminal::{ProcessIdentity, TerminalOutcome, TerminalReceipt};
 
 pub(crate) fn hex(value: &str, length: usize) -> bool {
@@ -122,7 +130,13 @@ pub(crate) fn read_bounded_regular(
     Ok(Some(bytes))
 }
 
-fn open_canonical_directory(path: &Path) -> Result<OwnedFd, ReservationError> {
+fn trusted_directory(stat: &Stat) -> bool {
+    FileType::from_raw_mode(stat.st_mode) == FileType::Directory
+        && stat.st_uid == 0
+        && stat.st_mode & 0o022 == 0
+}
+
+fn open_canonical_directory(path: &Path, require_root: bool) -> Result<OwnedFd, ReservationError> {
     let literal = path.to_str().ok_or(ReservationError::InvalidPins)?;
     if !path.is_absolute()
         || literal != "/"
@@ -141,6 +155,12 @@ fn open_canonical_directory(path: &Path) -> Result<OwnedFd, ReservationError> {
         Mode::empty(),
     )
     .map_err(io)?;
+    if require_root {
+        let stat = fstat(&root).map_err(io)?;
+        if !trusted_directory(&stat) {
+            return Err(ReservationError::UnsafeRoot);
+        }
+    }
     for component in path.components() {
         match component {
             Component::RootDir => {}
@@ -152,25 +172,68 @@ fn open_canonical_directory(path: &Path) -> Result<OwnedFd, ReservationError> {
                     Mode::empty(),
                 )
                 .map_err(io)?;
+                if require_root {
+                    let stat = fstat(&root).map_err(io)?;
+                    if !trusted_directory(&stat) {
+                        return Err(ReservationError::UnsafeRoot);
+                    }
+                }
             }
             _ => return Err(ReservationError::InvalidPins),
+        }
+    }
+    if require_root {
+        let stat = fstat(&root).map_err(io)?;
+        if path == Path::new("/") || stat.st_mode & 0o077 != 0 {
+            return Err(ReservationError::UnsafeRoot);
         }
     }
     Ok(root)
 }
 
 impl RunReservationJournal {
-    /// The caller must supply a trusted worker-owned directory. Root ownership,
-    /// lease and Linux process identity checks belong to the future worker.
+    /// Inert tests may use an ordinary directory. A live Linux worker must use
+    /// `open_root_owned` before any durable write.
     pub fn open(path: &Path) -> Result<Self, ReservationError> {
         Ok(Self {
-            root: open_canonical_directory(path)?,
+            root: open_canonical_directory(path, false)?,
+            root_owned: false,
         })
+    }
+
+    /// Open a private worker directory through no-symlink descriptors, checking
+    /// that this process is Linux Root, every ancestor is Root-owned and not
+    /// group/world writable, and the final journal directory has no
+    /// group/world permissions.
+    /// The exclusive active lease and process/cgroup checks remain separate.
+    pub fn open_root_owned(path: &Path) -> Result<Self, ReservationError> {
+        if !cfg!(target_os = "linux") || geteuid().as_raw() != 0 {
+            return Err(ReservationError::UnsafeRoot);
+        }
+        Ok(Self {
+            root: open_canonical_directory(path, true)?,
+            root_owned: true,
+        })
+    }
+
+    /// Inert test entrypoint. A Root-owned live journal must use
+    /// `reserve_under_lease` so no job ID can be consumed without the lease.
+    pub fn reserve(
+        &self,
+        request: &WorkerRequest,
+        source_sha: &str,
+        deployment_digest: &str,
+        worker_generation: &str,
+    ) -> Result<StartedMarker, ReservationError> {
+        if self.root_owned {
+            return Err(ReservationError::UnsafeRoot);
+        }
+        self.reserve_internal(request, source_sha, deployment_digest, worker_generation)
     }
 
     /// Persist an immutable, source/deployment/job-bound marker before any
     /// candidate launch. A failed or partial write still consumes the job ID.
-    pub fn reserve(
+    pub(crate) fn reserve_internal(
         &self,
         request: &WorkerRequest,
         source_sha: &str,

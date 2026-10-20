@@ -151,3 +151,13 @@ fn corrupted_marker_is_unknown_evidence_and_cannot_be_replaced() {
         Err(ReservationError::AlreadyStarted)
     );
 }
+
+#[test]
+fn live_worker_open_refuses_untrusted_or_exposed_ancestors() {
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().canonicalize().unwrap();
+    assert!(matches!(
+        RunReservationJournal::open_root_owned(&root),
+        Err(ReservationError::UnsafeRoot)
+    ));
+}
