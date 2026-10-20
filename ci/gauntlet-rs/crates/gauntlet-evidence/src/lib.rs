@@ -14,6 +14,7 @@ mod episode_score;
 mod host_calls;
 mod io;
 mod model_endpoint;
+mod omp_transcript;
 mod package_version;
 mod payload;
 mod private_cell_files;
@@ -24,6 +25,7 @@ mod provider_quota_create;
 mod provider_quota_history;
 #[cfg(feature = "quota-write")]
 mod provider_quota_writer;
+mod provider_rounds;
 mod provider_status;
 mod public_files;
 mod python_worker_files;
@@ -45,6 +47,7 @@ pub use host_calls::reconcile_host_calls;
 pub use model_endpoint::{
     model_endpoint, verify_advertised_model, verify_model_endpoint, ModelEndpoint, DEFAULT_BASE_URL,
 };
+pub use omp_transcript::{parse_omp_transcript, read_omp_transcript, TRANSCRIPT_LIMIT};
 pub use package_version::{valid_package_version, verify_installed_version_metadata};
 pub use private_cell_files::{verify_private_cell_artifacts, PrivateCellInventory};
 pub use private_cell_manifest::{verify_private_cell_manifest, PrivateCellManifest};
@@ -52,6 +55,7 @@ pub use provider_quota::read_provider_quota_snapshot;
 pub use provider_quota_history::verify_provider_quota_observations;
 #[cfg(feature = "quota-write")]
 pub use provider_quota_writer::ProviderQuotaWriter;
+pub use provider_rounds::reconcile_provider_rounds;
 pub use provider_status::verify_provider_status;
 pub use python_worker_files::read_python_worker_terminal_root_owned;
 pub use runner_asset_inventory::{verify_runner_assets_inert, RunnerAssetInventory};
