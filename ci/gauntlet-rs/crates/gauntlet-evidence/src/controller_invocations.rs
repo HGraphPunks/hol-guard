@@ -47,6 +47,7 @@ fn whole_nonnegative(value: &Value) -> Option<u64> {
 
 /// A frozen invocation directory represented as independently read raw bytes.
 /// The record name is diagnostic only and never supplies paths or trust pins.
+#[derive(Debug)]
 pub struct ControllerInvocationBytes {
     pub name: String,
     pub files: BTreeMap<String, Vec<u8>>,

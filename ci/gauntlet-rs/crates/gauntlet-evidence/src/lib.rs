@@ -3,6 +3,7 @@
 mod bridge_frames;
 mod campaign;
 mod campaign_gate;
+mod controller_invocation_files;
 mod controller_invocations;
 mod crypto;
 mod episode_score;
@@ -22,6 +23,7 @@ mod worker_receipt;
 
 pub use bridge_frames::FrameCodec;
 pub use campaign_gate::evaluate_audited_campaign;
+pub use controller_invocation_files::read_controller_invocations_root_owned;
 pub use controller_invocations::{audit_controller_invocations, ControllerInvocationBytes};
 pub use episode_score::evaluate_audited_episode;
 pub use package_version::{valid_package_version, verify_installed_version_metadata};
