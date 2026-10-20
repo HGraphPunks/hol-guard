@@ -41,3 +41,18 @@ jobs:
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml --all-features --locked
       - name: Clippy
         run: cargo +1.88.0 clippy --manifest-path ci/gauntlet-rs/Cargo.toml --all-targets --all-features --locked -- -D warnings
+
+  arm64-binaries:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.88.0 --profile minimal
+      - name: Link all Rust Gauntlet executables on Linux ARM64
+        run: cargo +1.88.0 build --manifest-path ci/gauntlet-rs/Cargo.toml --workspace --bins --locked
+      - name: Test Linux worker and evidence readers
+        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence -p gauntlet-worker-state --lib --locked

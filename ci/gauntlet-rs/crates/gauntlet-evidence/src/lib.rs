@@ -11,6 +11,7 @@ mod controller_tree;
 mod crypto;
 mod episode_score;
 mod io;
+mod model_endpoint;
 mod package_version;
 mod payload;
 mod private_cell_files;
@@ -36,6 +37,9 @@ pub use controller_invocations::{audit_controller_invocations, ControllerInvocat
 #[cfg(target_os = "linux")]
 pub use controller_tree::{verify_controller_tree, VerifiedControllerTree};
 pub use episode_score::evaluate_audited_episode;
+pub use model_endpoint::{
+    model_endpoint, verify_advertised_model, verify_model_endpoint, ModelEndpoint, DEFAULT_BASE_URL,
+};
 pub use package_version::{valid_package_version, verify_installed_version_metadata};
 pub use private_cell_files::{verify_private_cell_artifacts, PrivateCellInventory};
 pub use private_cell_manifest::{verify_private_cell_manifest, PrivateCellManifest};
