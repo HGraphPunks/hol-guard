@@ -9,7 +9,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::fs::File;
 use std::io::Read;
-use std::os::fd::OwnedFd;
+use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
 use std::path::Path;
 
 const CANDIDATES: &str = "/opt/hol-gauntlet/candidates";
@@ -33,6 +33,33 @@ pub struct InterpreterDeclaration {
     pub sha256: String,
 }
 
+/// The already-hashed executable inode remains open until this value drops.
+/// It is only byte custody; no child process or execution identity is claimed.
+pub struct HeldInterpreter {
+    declaration: InterpreterDeclaration,
+    descriptor: OwnedFd,
+    snapshot: Stat,
+}
+
+impl HeldInterpreter {
+    pub fn declaration(&self) -> &InterpreterDeclaration {
+        &self.declaration
+    }
+
+    pub fn checked_fd(&self) -> Result<BorrowedFd<'_>, ReservationError> {
+        self.assert_unchanged()?;
+        Ok(self.descriptor.as_fd())
+    }
+
+    pub fn assert_unchanged(&self) -> Result<(), ReservationError> {
+        let current = fstat(&self.descriptor).map_err(io)?;
+        if !unchanged(&self.snapshot, &current) {
+            return Err(ReservationError::InvalidDeployment);
+        }
+        Ok(())
+    }
+}
+
 fn unchanged(before: &Stat, after: &Stat) -> bool {
     before.st_dev == after.st_dev
         && before.st_ino == after.st_ino
@@ -47,12 +74,12 @@ fn unchanged(before: &Stat, after: &Stat) -> bool {
         && before.st_ctime_nsec == after.st_ctime_nsec
 }
 
-fn read_root_file(
+fn read_root_file_held(
     parent: &OwnedFd,
     name: &str,
     limit: u64,
     executable: bool,
-) -> Result<Vec<u8>, ReservationError> {
+) -> Result<(Vec<u8>, OwnedFd, Stat), ReservationError> {
     let descriptor = openat(
         parent,
         name,
@@ -81,7 +108,16 @@ fn read_root_file(
     if raw.len() as u64 != before.st_size as u64 || !unchanged(&before, &after) {
         return Err(ReservationError::InvalidDeployment);
     }
-    Ok(raw)
+    Ok((raw, file.into(), after))
+}
+
+fn read_root_file(
+    parent: &OwnedFd,
+    name: &str,
+    limit: u64,
+    executable: bool,
+) -> Result<Vec<u8>, ReservationError> {
+    read_root_file_held(parent, name, limit, executable).map(|(raw, _, _)| raw)
 }
 
 fn json_value(raw: &[u8]) -> Result<Value, ReservationError> {
@@ -234,6 +270,20 @@ pub fn read_fixed_interpreter(
     deployment: &DeploymentDeclaration,
     expected_interpreter_sha256: &str,
 ) -> Result<InterpreterDeclaration, ReservationError> {
+    Ok(
+        read_fixed_interpreter_held(deployment, expected_interpreter_sha256)?
+            .declaration
+            .clone(),
+    )
+}
+
+/// Keep the exact hashed Root-owned interpreter target descriptor open for a
+/// future descriptor-bound launcher. The alias chain is still checked, but
+/// neither this function nor its returned handle executes any code.
+pub fn read_fixed_interpreter_held(
+    deployment: &DeploymentDeclaration,
+    expected_interpreter_sha256: &str,
+) -> Result<HeldInterpreter, ReservationError> {
     if !controller_python(&deployment.python_path) || !hex(expected_interpreter_sha256, 64) {
         return Err(ReservationError::InvalidPins);
     }
@@ -247,15 +297,20 @@ pub fn read_fixed_interpreter(
     if !system_python_target(&target) {
         return Err(ReservationError::InvalidDeployment);
     }
-    let bytes = read_root_file(&system_bin, &target, MAX_INTERPRETER_BYTES, true)?;
+    let (bytes, descriptor, snapshot) =
+        read_root_file_held(&system_bin, &target, MAX_INTERPRETER_BYTES, true)?;
     let digest = format!("{:x}", Sha256::digest(bytes));
     if digest != expected_interpreter_sha256 {
         return Err(ReservationError::InvalidDeployment);
     }
-    Ok(InterpreterDeclaration {
-        python_path: deployment.python_path.clone(),
-        target_path: format!("/usr/bin/{target}"),
-        sha256: digest,
+    Ok(HeldInterpreter {
+        declaration: InterpreterDeclaration {
+            python_path: deployment.python_path.clone(),
+            target_path: format!("/usr/bin/{target}"),
+            sha256: digest,
+        },
+        descriptor,
+        snapshot,
     })
 }
 
@@ -306,5 +361,29 @@ mod tests {
         ] {
             assert!(!system_python_target(invalid));
         }
+    }
+
+    #[test]
+    fn root_owned_executable_descriptor_stays_open_after_hashing() {
+        let parent = open_root_owned_public_directory(Path::new("/usr/bin")).unwrap();
+        let (bytes, descriptor, snapshot) =
+            read_root_file_held(&parent, "true", MAX_INTERPRETER_BYTES, true).unwrap();
+        assert!(!bytes.is_empty());
+        assert!(unchanged(&snapshot, &fstat(&descriptor).unwrap()));
+        let mut held = HeldInterpreter {
+            declaration: InterpreterDeclaration {
+                python_path: "/usr/bin/true".to_owned(),
+                target_path: "/usr/bin/true".to_owned(),
+                sha256: format!("{:x}", Sha256::digest(bytes)),
+            },
+            descriptor,
+            snapshot,
+        };
+        assert!(held.checked_fd().is_ok());
+        held.snapshot.st_size += 1;
+        assert!(matches!(
+            held.checked_fd(),
+            Err(ReservationError::InvalidDeployment)
+        ));
     }
 }

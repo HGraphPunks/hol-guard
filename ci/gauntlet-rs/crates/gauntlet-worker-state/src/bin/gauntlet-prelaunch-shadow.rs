@@ -3,7 +3,7 @@
 #[cfg(target_os = "linux")]
 use gauntlet_contracts::WorkerRequest;
 #[cfg(target_os = "linux")]
-use gauntlet_worker_state::{verify_fixed_prelaunch, PrelaunchPins};
+use gauntlet_worker_state::{prepare_fixed_prelaunch, PrelaunchPins};
 #[cfg(target_os = "linux")]
 use std::io::Read;
 
@@ -42,8 +42,8 @@ fn run() -> Result<String, String> {
         controller_tree_digest: pins.remove(0),
         interpreter_sha256: pins.remove(0),
     };
-    verify_fixed_prelaunch(&request, &pins)
-        .map(|proof| proof.to_json().to_string())
+    prepare_fixed_prelaunch(&request, &pins)
+        .map(|prepared| prepared.proof().to_json().to_string())
         .map_err(|error| error.to_string())
 }
 

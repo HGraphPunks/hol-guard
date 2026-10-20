@@ -2,8 +2,8 @@
 //! This is a read-only point-in-time diagnostic, not a dispatch authority.
 
 use crate::{
-    fixed_launch_plan, hex, read_fixed_deployment, read_fixed_interpreter, FixedLaunchPlan,
-    ReservationError, RunLaunchPins,
+    fixed_launch_plan, hex, read_fixed_deployment, read_fixed_interpreter_held, FixedLaunchPlan,
+    HeldInterpreter, ReservationError, RunLaunchPins,
 };
 use gauntlet_contracts::{is_git_sha, WorkerAction, WorkerRequest};
 use gauntlet_evidence::{
@@ -72,6 +72,27 @@ pub struct PrelaunchProof {
     plan: FixedLaunchPlan,
 }
 
+/// Keep the verified interpreter inode open while a future dispatcher decides
+/// whether it can safely launch. This is not a lease, cgroup or result.
+pub struct PreparedLaunch {
+    proof: PrelaunchProof,
+    interpreter: HeldInterpreter,
+}
+
+impl PreparedLaunch {
+    pub fn proof(&self) -> &PrelaunchProof {
+        &self.proof
+    }
+
+    pub fn interpreter(&self) -> &HeldInterpreter {
+        &self.interpreter
+    }
+
+    pub fn into_parts(self) -> (PrelaunchProof, HeldInterpreter) {
+        (self.proof, self.interpreter)
+    }
+}
+
 impl PrelaunchProof {
     pub fn to_json(&self) -> Value {
         json!({
@@ -97,10 +118,10 @@ impl PrelaunchProof {
 /// A future dispatcher must still authenticate the outside pin source, hold
 /// the worker lease, bind the opened executable to its launch, contain/reap the
 /// process and independently score its output.
-pub fn verify_fixed_prelaunch(
+pub fn prepare_fixed_prelaunch(
     request: &WorkerRequest,
     pins: &PrelaunchPins,
-) -> Result<PrelaunchProof, PrelaunchError> {
+) -> Result<PreparedLaunch, PrelaunchError> {
     if !cfg!(target_arch = "aarch64") {
         return Err(PrelaunchError::Platform);
     }
@@ -126,7 +147,7 @@ pub fn verify_fixed_prelaunch(
         &pins.controller_tree_digest,
     )
     .map_err(PrelaunchError::Controller)?;
-    let interpreter = read_fixed_interpreter(&deployment, &pins.interpreter_sha256)
+    let interpreter = read_fixed_interpreter_held(&deployment, &pins.interpreter_sha256)
         .map_err(PrelaunchError::Interpreter)?;
     let config_path = format!(
         "/opt/hol-gauntlet/candidates/{}/config.json",
@@ -143,24 +164,40 @@ pub fn verify_fixed_prelaunch(
     }
     let assets = verify_runner_assets_inert(&loaded, Path::new(ASSET_ROOT))
         .map_err(PrelaunchError::Assets)?;
+    interpreter
+        .assert_unchanged()
+        .map_err(PrelaunchError::Interpreter)?;
+    let declaration = interpreter.declaration();
     let plan_pins = RunLaunchPins {
         source_sha: deployment.source_sha.clone(),
         deployment_digest: deployment.deployment_digest.clone(),
         config_digest: deployment.config_digest.clone(),
         controller_path: controller.root().to_string_lossy().into_owned(),
-        python_path: interpreter.python_path.clone(),
-        interpreter_sha256: interpreter.sha256.clone(),
+        python_path: declaration.python_path.clone(),
+        interpreter_sha256: declaration.sha256.clone(),
     };
     let plan = fixed_launch_plan(request, &plan_pins, &pins.interpreter_sha256)
         .map_err(PrelaunchError::Plan)?;
-    Ok(PrelaunchProof {
-        source_sha: deployment.source_sha,
-        deployment_digest: deployment.deployment_digest,
-        controller_tree_digest: controller.digest().to_owned(),
-        interpreter_sha256: interpreter.sha256,
-        config_digest: deployment.config_digest,
-        controller_entries: controller.entries(),
-        asset_roles: assets.observed.len(),
-        plan,
+    Ok(PreparedLaunch {
+        proof: PrelaunchProof {
+            source_sha: deployment.source_sha,
+            deployment_digest: deployment.deployment_digest,
+            controller_tree_digest: controller.digest().to_owned(),
+            interpreter_sha256: declaration.sha256.clone(),
+            config_digest: deployment.config_digest,
+            controller_entries: controller.entries(),
+            asset_roles: assets.observed.len(),
+            plan,
+        },
+        interpreter,
     })
+}
+
+/// Data-only compatibility wrapper for diagnostics that do not need to retain
+/// the executable descriptor after prelaunch verification.
+pub fn verify_fixed_prelaunch(
+    request: &WorkerRequest,
+    pins: &PrelaunchPins,
+) -> Result<PrelaunchProof, PrelaunchError> {
+    Ok(prepare_fixed_prelaunch(request, pins)?.proof)
 }

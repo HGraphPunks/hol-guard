@@ -88,7 +88,8 @@ pub use builder_run_plan::{fixed_builder_run_plan, BuilderRunError, BuilderRunPl
 pub use deadline::{BoottimeDeadline, DeadlineError, MAX_ACTIVE_SECONDS};
 #[cfg(target_os = "linux")]
 pub use deployment::{
-    read_fixed_deployment, read_fixed_interpreter, DeploymentDeclaration, InterpreterDeclaration,
+    read_fixed_deployment, read_fixed_interpreter, read_fixed_interpreter_held,
+    DeploymentDeclaration, HeldInterpreter, InterpreterDeclaration,
 };
 pub use launch_plan::{fixed_launch_plan, FixedLaunchPlan, RunLaunchPins};
 pub use lease::ActiveLease;
@@ -100,7 +101,10 @@ pub use linux_cgroup::{
 #[cfg(target_os = "linux")]
 pub use linux_process::{observe_process, ProcessObservation, ProcessObservationError};
 #[cfg(target_os = "linux")]
-pub use prelaunch::{verify_fixed_prelaunch, PrelaunchError, PrelaunchPins, PrelaunchProof};
+pub use prelaunch::{
+    prepare_fixed_prelaunch, verify_fixed_prelaunch, PrelaunchError, PrelaunchPins, PrelaunchProof,
+    PreparedLaunch,
+};
 #[cfg(target_os = "linux")]
 pub use running::RunningMarker;
 pub use terminal::{ProcessIdentity, TerminalOutcome, TerminalReceipt};
