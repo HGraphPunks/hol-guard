@@ -1,14 +1,16 @@
 //! Inert Python-compatible SDK and installed-prefix inventories.
 //!
-//! Directory and file enumeration is descriptor-relative. Symlink containment
-//! still uses host path resolution and needs Linux race/parity proof before
-//! this reader can participate in execution admission.
+//! Directory and file enumeration is descriptor-relative. Linux symlink
+//! containment uses openat2, but complete race/parity proof is still required
+//! before this reader can participate in execution admission.
 
 use crate::crypto::sha256;
 use crate::io::open_absolute_directory;
 use crate::{canonical_value, EvidenceError, Result};
 use gauntlet_contracts::canonical_relative_asset_path;
 use rustix::fs::{fstat, openat, readlinkat, statat, AtFlags, Dir, FileType, Mode, OFlags, Stat};
+#[cfg(target_os = "linux")]
+use rustix::fs::{open, openat2, ResolveFlags};
 use rustix::process::getuid;
 use serde_json::{json, Map, Value};
 use sha2::Digest;
@@ -32,6 +34,76 @@ pub struct TreeInventory {
     pub digest: String,
     pub entries: usize,
     pub bytes: u64,
+}
+
+struct TreeContext<'a> {
+    #[cfg(not(target_os = "linux"))]
+    root: &'a Path,
+    #[cfg(target_os = "linux")]
+    root_fd: &'a OwnedFd,
+    kind: TreeKind,
+}
+
+#[cfg(target_os = "linux")]
+fn symlink_contained(context: &TreeContext<'_>, relative: &str) -> Result<()> {
+    let flags = OFlags::PATH | OFlags::CLOEXEC;
+    if openat2(
+        context.root_fd,
+        relative,
+        flags,
+        Mode::empty(),
+        ResolveFlags::BENEATH | ResolveFlags::NO_MAGICLINKS,
+    )
+    .is_ok()
+    {
+        return Ok(());
+    }
+    if context.kind == TreeKind::InstalledPrefix {
+        let resolved = openat2(
+            context.root_fd,
+            relative,
+            flags,
+            Mode::empty(),
+            ResolveFlags::NO_MAGICLINKS,
+        )
+        .map_err(|_| EvidenceError::Invalid("tree symlink escapes its root"))?;
+        let observed = fstat(&resolved).map_err(|error| EvidenceError::Io(error.to_string()))?;
+        for path in ["/usr/bin/python3", "/usr/bin/python3.12"] {
+            let allowed = open(path, flags, Mode::empty())
+                .map_err(|error| EvidenceError::Io(error.to_string()))?;
+            let trusted = fstat(&allowed).map_err(|error| EvidenceError::Io(error.to_string()))?;
+            if FileType::from_raw_mode(trusted.st_mode) == FileType::RegularFile
+                && trusted.st_uid == 0
+                && trusted.st_mode & 0o022 == 0
+                && observed.st_dev == trusted.st_dev
+                && observed.st_ino == trusted.st_ino
+            {
+                return Ok(());
+            }
+        }
+    }
+    Err(EvidenceError::Invalid("tree symlink escapes its root"))
+}
+
+#[cfg(not(target_os = "linux"))]
+fn symlink_contained(context: &TreeContext<'_>, relative: &str) -> Result<()> {
+    let resolved = context
+        .root
+        .join(relative)
+        .canonicalize()
+        .map_err(|_| EvidenceError::Invalid("unresolved tree symlink"))?;
+    if resolved.starts_with(context.root)
+        || (context.kind == TreeKind::InstalledPrefix
+            && [
+                Path::new("/usr/bin/python3"),
+                Path::new("/usr/bin/python3.12"),
+            ]
+            .contains(&resolved.as_path()))
+    {
+        Ok(())
+    } else {
+        Err(EvidenceError::Invalid("tree symlink escapes its root"))
+    }
 }
 
 fn unchanged(before: &Stat, after: &Stat) -> bool {
@@ -77,10 +149,9 @@ fn hash_file(descriptor: OwnedFd, before: &Stat) -> Result<String> {
 
 fn inspect_one(
     parent: &OwnedFd,
-    root: &Path,
+    context: &TreeContext<'_>,
     name: &str,
     relative: &str,
-    kind: TreeKind,
 ) -> Result<(Value, u64, Option<OwnedFd>)> {
     if !canonical_relative_asset_path(relative) {
         return Err(EvidenceError::Invalid("noncanonical tree entry"));
@@ -89,6 +160,7 @@ fn inspect_one(
         .map_err(|error| EvidenceError::Io(error.to_string()))?;
     let file_kind = FileType::from_raw_mode(before.st_mode);
     let mode = before.st_mode & 0o7777;
+    let kind = context.kind;
     match kind {
         TreeKind::Sdk => {
             let user = getuid().as_raw();
@@ -122,20 +194,7 @@ fn inspect_one(
         FileType::Symlink => {
             let target = readlinkat(parent, name, Vec::new())
                 .map_err(|error| EvidenceError::Io(error.to_string()))?;
-            let resolved = root
-                .join(relative)
-                .canonicalize()
-                .map_err(|_| EvidenceError::Invalid("unresolved tree symlink"))?;
-            let allowed = resolved.starts_with(root)
-                || (kind == TreeKind::InstalledPrefix
-                    && [
-                        Path::new("/usr/bin/python3"),
-                        Path::new("/usr/bin/python3.12"),
-                    ]
-                    .contains(&resolved.as_path()));
-            if !allowed {
-                return Err(EvidenceError::Invalid("tree symlink escapes its root"));
-            }
+            symlink_contained(context, relative)?;
             let target = target
                 .to_str()
                 .map_err(|_| EvidenceError::Invalid("non-UTF8 symlink target"))?;
@@ -198,10 +257,9 @@ fn inspect_one(
 
 fn scan(
     descriptor: &OwnedFd,
-    root: &Path,
+    context: &TreeContext<'_>,
     prefix: &str,
     depth: usize,
-    kind: TreeKind,
     rows: &mut Map<String, Value>,
     total: &mut u64,
 ) -> Result<()> {
@@ -231,7 +289,7 @@ fn scan(
         } else {
             format!("{prefix}/{name}")
         };
-        let (row, bytes, child) = inspect_one(descriptor, root, &name, &relative, kind)?;
+        let (row, bytes, child) = inspect_one(descriptor, context, &name, &relative)?;
         *total = total
             .checked_add(bytes)
             .filter(|size| *size <= MAX_BYTES)
@@ -240,7 +298,7 @@ fn scan(
             return Err(EvidenceError::Invalid("tree exceeds entry budget"));
         }
         if let Some(child) = child {
-            scan(&child, root, &relative, depth + 1, kind, rows, total)?;
+            scan(&child, context, &relative, depth + 1, rows, total)?;
             let current = statat(descriptor, name.as_str(), AtFlags::SYMLINK_NOFOLLOW)
                 .map_err(|error| EvidenceError::Io(error.to_string()))?;
             let opened = fstat(&child).map_err(|error| EvidenceError::Io(error.to_string()))?;
@@ -269,7 +327,14 @@ pub fn inventory_tree(root: &Path, kind: TreeKind) -> Result<TreeInventory> {
     }
     let mut rows = Map::new();
     let mut total = 0_u64;
-    scan(&descriptor, root, "", 0, kind, &mut rows, &mut total)?;
+    let context = TreeContext {
+        #[cfg(not(target_os = "linux"))]
+        root,
+        #[cfg(target_os = "linux")]
+        root_fd: &descriptor,
+        kind,
+    };
+    scan(&descriptor, &context, "", 0, &mut rows, &mut total)?;
     let after = fstat(&descriptor).map_err(|error| EvidenceError::Io(error.to_string()))?;
     if !unchanged(&metadata, &after) {
         return Err(EvidenceError::Invalid("tree root changed during inventory"));
@@ -291,4 +356,27 @@ pub fn inventory_tree(root: &Path, kind: TreeKind) -> Result<TreeInventory> {
         entries,
         bytes: total,
     })
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod linux_tests {
+    use super::{inventory_tree, TreeKind};
+    use std::os::unix::fs::symlink;
+
+    #[test]
+    fn descriptor_relative_resolution_allows_inside_chain_and_refuses_escape() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().join("sdk");
+        std::fs::create_dir(&root).unwrap();
+        std::fs::create_dir(root.join("nested")).unwrap();
+        std::fs::write(root.join("data"), b"inert").unwrap();
+        std::fs::write(temporary.path().join("outside"), b"outside").unwrap();
+        symlink("../data", root.join("nested/inside")).unwrap();
+        symlink("nested/inside", root.join("chain")).unwrap();
+        let root = root.canonicalize().unwrap();
+        assert_eq!(inventory_tree(&root, TreeKind::Sdk).unwrap().entries, 4);
+
+        symlink("../../outside", root.join("nested/escape")).unwrap();
+        assert!(inventory_tree(&root, TreeKind::Sdk).is_err());
+    }
 }

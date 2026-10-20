@@ -48,3 +48,20 @@ fn installed_prefix_refuses_unowned_root() {
         assert!(inventory_tree(&root, TreeKind::InstalledPrefix).is_err());
     }
 }
+
+#[test]
+fn sdk_inventory_follows_inside_chain_but_refuses_nested_escape() {
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().join("sdk");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::create_dir(root.join("nested")).unwrap();
+    std::fs::write(root.join("data"), b"inert").unwrap();
+    std::fs::write(temporary.path().join("outside"), b"not sdk").unwrap();
+    symlink("../data", root.join("nested/inside")).unwrap();
+    symlink("nested/inside", root.join("chain")).unwrap();
+    let root = root.canonicalize().unwrap();
+    assert_eq!(inventory_tree(&root, TreeKind::Sdk).unwrap().entries, 4);
+
+    symlink("../../outside", root.join("nested/escape")).unwrap();
+    assert!(inventory_tree(&root, TreeKind::Sdk).is_err());
+}
