@@ -12,7 +12,10 @@ fn merged_gauntlet_source_matches_the_explicit_pinned_delta() {
         serde_json::from_str(include_str!("../../../integration-source-delta.v1.json")).unwrap();
     assert_eq!(delta["schema"], "gauntlet-rust-integration-source-delta.v1");
     assert_eq!(delta["base_source_commit"], baseline["source_commit"]);
-    assert_eq!(delta["integration_commit"], "94afa23");
+    assert_eq!(
+        delta["integration_commit"],
+        "518c1c732216ebfaa908cbd2c76f7aede7b12681"
+    );
 
     let mut expected: BTreeMap<&str, &str> = baseline["files"]
         .as_array()

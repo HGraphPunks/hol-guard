@@ -453,10 +453,10 @@ mod hook_direct_evidence;
 mod hook_env_stamp;
 #[cfg(all(test, unix))]
 mod mcp_config_discovery_tests;
-mod pack_lifecycle;
-mod pack_preparation;
 #[cfg(unix)]
 mod mcp_write_budget_op;
+mod pack_lifecycle;
+mod pack_preparation;
 // The seams the evidence writer runs on. Each is reached through
 // hook_evidence_writer_op; the readers also have their own tests.
 #[allow(dead_code)]
