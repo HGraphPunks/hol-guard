@@ -56,6 +56,7 @@ pub struct RunReservationJournal {
     pub(crate) root: OwnedFd,
 }
 
+mod projection;
 mod terminal;
 pub use terminal::{ProcessIdentity, TerminalOutcome, TerminalReceipt};
 
