@@ -1,0 +1,7 @@
+# Rust host operator configuration proof
+
+`gauntlet-host-state::load_operations_bytes` now merges operator overrides with the pinned Python `DEFAULTS` and validates the full operations object before queue decisions use it. It rejects unknown keys, unsupported discovery/build modes, non-distinct or unstable release tags, wrong schema/base/repository/VM names, unsafe configured paths, inconsistent staging prefix pins, invalid resource numbers and memory headroom, short polls, malformed adapter argv, unreviewed artifact workflows, invalid baseline digests and non-HTTPS dashboard URLs. This is a parser of caller-supplied bytes; it does not read or authenticate the private host file.
+
+The fixture generator checks `ci/gauntlet/control_plane/config.py` against SHA-256 `8b0777a6d89bcdc29d80981fd8542316a3dcced017b1e132907dd6fbf1e0476b`, calls its actual `load` function on isolated temporary files, and freezes the resulting full object or exact Python refusal message. Rust matches four accepted configurations and 33 refusal cases. The Rust reader additionally rejects malformed JSON and inputs over 1 MiB. It uses a bounded `u64` resource representation; very large Python integers are outside this proof and refuse in Rust.
+
+The two config integration tests passed locally on 2026-10-20, along with full-workspace Rust tests and Clippy after the change. The isolated workflow runs these tests on native Linux ARM64. Private-file custody, operations schema evolution, source revalidation, host lease and command implementation remain open.

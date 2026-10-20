@@ -5,6 +5,9 @@ use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::fmt;
 
+mod operations;
+pub use operations::{load_operations_bytes, OperationsError};
+
 const ARCHIVE_REASON: &str = "Removed from active queue by release-only configuration";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
