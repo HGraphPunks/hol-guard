@@ -63,9 +63,13 @@ pub struct RunReservationJournal {
 }
 
 mod lease;
+#[cfg(any(target_os = "linux", test))]
+mod linux_process;
 mod projection;
 mod terminal;
 pub use lease::ActiveLease;
+#[cfg(target_os = "linux")]
+pub use linux_process::{observe_process, ProcessObservation, ProcessObservationError};
 pub use terminal::{ProcessIdentity, TerminalOutcome, TerminalReceipt};
 
 pub(crate) fn hex(value: &str, length: usize) -> bool {
