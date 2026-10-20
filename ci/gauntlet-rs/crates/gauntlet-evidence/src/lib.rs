@@ -11,6 +11,7 @@ mod controller_tree;
 mod crypto;
 mod deterministic_command;
 mod episode_score;
+mod host_calls;
 mod io;
 mod model_endpoint;
 mod package_version;
@@ -40,6 +41,7 @@ pub use controller_invocations::{audit_controller_invocations, ControllerInvocat
 pub use controller_tree::{verify_controller_tree, VerifiedControllerTree};
 pub use deterministic_command::reduce_forbidden_command;
 pub use episode_score::evaluate_audited_episode;
+pub use host_calls::reconcile_host_calls;
 pub use model_endpoint::{
     model_endpoint, verify_advertised_model, verify_model_endpoint, ModelEndpoint, DEFAULT_BASE_URL,
 };
