@@ -34,6 +34,7 @@ pub enum ReservationError {
     AlreadyStarted,
     LeaseBusy,
     InvalidMarker,
+    InvalidDeployment,
     Io(String),
 }
 
@@ -50,6 +51,9 @@ impl fmt::Display for ReservationError {
             Self::InvalidMarker => {
                 f.write_str("started marker is malformed or differs from outside pins")
             }
+            Self::InvalidDeployment => {
+                f.write_str("deployment declaration differs from its outside pins")
+            }
             Self::Io(message) => write!(f, "worker reservation I/O error: {message}"),
         }
     }
@@ -62,6 +66,8 @@ pub struct RunReservationJournal {
     root_owned: bool,
 }
 
+#[cfg(target_os = "linux")]
+mod deployment;
 mod lease;
 #[cfg(target_os = "linux")]
 mod linux_cgroup;
@@ -71,6 +77,8 @@ mod projection;
 #[cfg(target_os = "linux")]
 mod running;
 mod terminal;
+#[cfg(target_os = "linux")]
+pub use deployment::{read_fixed_deployment, DeploymentDeclaration};
 pub use lease::ActiveLease;
 #[cfg(target_os = "linux")]
 pub use linux_cgroup::{observe_process_resources, CgroupResources, ProcessResourceObservation};
@@ -149,6 +157,19 @@ fn trusted_directory(stat: &Stat) -> bool {
 }
 
 fn open_canonical_directory(path: &Path, require_root: bool) -> Result<OwnedFd, ReservationError> {
+    open_canonical_directory_with_mode(path, require_root, require_root)
+}
+
+#[cfg(target_os = "linux")]
+fn open_root_owned_public_directory(path: &Path) -> Result<OwnedFd, ReservationError> {
+    open_canonical_directory_with_mode(path, true, false)
+}
+
+fn open_canonical_directory_with_mode(
+    path: &Path,
+    require_root: bool,
+    private_final: bool,
+) -> Result<OwnedFd, ReservationError> {
     let literal = path.to_str().ok_or(ReservationError::InvalidPins)?;
     if !path.is_absolute()
         || literal != "/"
@@ -194,7 +215,7 @@ fn open_canonical_directory(path: &Path, require_root: bool) -> Result<OwnedFd, 
             _ => return Err(ReservationError::InvalidPins),
         }
     }
-    if require_root {
+    if private_final {
         let stat = fstat(&root).map_err(io)?;
         if path == Path::new("/") || stat.st_mode & 0o077 != 0 {
             return Err(ReservationError::UnsafeRoot);

@@ -24,18 +24,19 @@ The composite v1–v7 inert config loader also reproduces Python's runtime/path
 declarations, rejects symlinked private-cell paths, and checks v5–v7 installed
 version metadata against outside source/native/version pins. It does not
 authenticate the full installed prefix or admit a candidate to execution.
-An inert SDK and installed-prefix inventory prototype hashes metadata and
-bytes through descriptor-relative directory enumeration. Symlink containment
-still needs Linux race/parity proof, and installed-prefix verification needs a
-root-owned Linux positive fixture. Bounded installed version metadata has
-separate Python-parity checks but must follow that prefix verification. No
-Rust input check authorizes execution.
+An inert SDK and installed-prefix inventory hashes metadata and bytes through
+descriptor-relative directory enumeration. Linux `openat2` confines symlink
+resolution, and a retained VM deployment gave positive Python/Rust parity for
+all 13 asset roles. Concurrent mutation and the full negative reason corpus
+still need proof. No Rust input check authorizes execution.
 An optional full inert inventory also checks all declared file and tree roles
 and the Root-owned private-cell artifact set. Its private-cell manifest must
 match 36 bootstrap files embedded from this controller generation, the exact
 fixed file set, and the outside initializer pin; the embedded source-map digest
-matches the current Python producer. This still needs a positive Linux fixture
-and end-to-end Python outcome comparison before it can be used for admission.
+matches the current Python producer. The retained v7 VM deployment passed the
+positive inventory comparison and 13 altered asset-digest refusal cases; see
+the [Linux proof](../../docs/gauntlet-rust-linux-asset-proof.md). Metadata,
+path and older-version parity remain open before execution admission.
 
 `gauntlet-evidence` reads a workflow public bundle through no-symlink,
 descriptor-relative paths. It checks externally pinned manifest and source
@@ -54,7 +55,7 @@ Python-exported valid and signed hostile fixtures provide differential tests.
 The [parity manifest](parity-manifest.v1.json) records SHA-256 hashes for all
 420 pinned Gauntlet source files and a preliminary owner phase.
 The separate [integration source delta](integration-source-delta.v1.json) records the
-35 files changed and five files added when that pinned source is combined with
+37 files changed and five files added when that pinned source is combined with
 current `main` in draft PR #5402. A Rust test reconstructs and hashes all 425
 tracked `ci/gauntlet` files; the original 420-file manifest remains the
 immutable #5263 fixture baseline. Neither manifest makes candidate code a
@@ -71,12 +72,13 @@ cargo +1.88.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gaunt
 
 On 2026-10-20, a side-by-side read of the live public directory produced equal status JSON after excluding the time-sampled `collector_age_seconds`; the health values were equal and the three static assets were byte-identical. The Rust server does not change the authoritative Python controller or its port.
 
-`gauntlet-worker-state` is an inert durable journal library for the future Linux worker. It consumes a fixed `run` request only after independently supplied source, deployment and worker-generation pins match, creates a one-time canonical started marker with exclusive no-symlink file creation, and fsyncs the file and directory. It can also persist bounded canonical report bytes and a versioned terminal receipt bound to the started marker and process identity. Restart reads detect partial, symlinked or changed evidence and block replay. It does not launch a process, own a Root directory, authenticate process identity or report claims, or authorize benchmark execution.
-Its read-only response projection emits the fixed v1 protocol: an untouched job is `not-started` for progress, a started job without a verified terminal is `unknown`, and a changed report cannot become terminal success. `inspect` and unstarted `run` remain unavailable until the Linux worker has trusted deployment and dispatch code.
-The separate `open_root_owned` entrypoint is reserved for a live Linux worker: it requires effective Root, no symlink path components, Root-owned non-writable ancestors and a final directory with no group/world permissions. Its nonblocking `active.lock` lease is descriptor-held through reservation and terminal writing, and fails if the visible lock file changes. Tests use the inert `open` entrypoint to prove lock contention without Root. No kernel process/cgroup proof or live dispatcher exists yet.
+`gauntlet-worker-state` is an inert durable journal library for the future Linux worker. It consumes a fixed `run` request only after independently supplied source, deployment and worker-generation pins match, creates one-time canonical started and running markers with exclusive no-symlink file creation, and fsyncs the files and directory. It can also persist bounded canonical report bytes and a versioned terminal receipt bound to the started marker and process identity. Restart reads detect orphan, partial, symlinked or changed evidence and block replay. It does not launch a process or authorize benchmark execution.
+Its read-only response projection emits the fixed v1 protocol: an untouched job is `not-started` for progress, a started job is `running` only when a fresh Linux pidfd/start-tick/cgroup sample matches its durable marker, and a changed report cannot become terminal success. `inspect` and unstarted `run` remain unavailable until the Linux worker has complete trusted deployment and dispatch code.
+The separate `open_root_owned` entrypoint is reserved for a live Linux worker: it requires effective Root, no symlink path components, Root-owned non-writable ancestors and a final directory with no group/world permissions. Its nonblocking `active.lock` lease is descriptor-held through reservation and terminal writing, and fails if the visible lock file changes. Tests use the inert `open` entrypoint to prove lock contention without Root. Linux process/cgroup observations are implemented, but the live dispatcher and independently authenticated report are still absent.
 
-`gauntlet-vm-worker-shadow` is an uninstalled Linux ARM64 read-only entrypoint. It accepts one bounded fixed request on stdin and three independently supplied source/deployment/generation hashes, reads only `/var/lib/hol-gauntlet-rust/worker-state`, and prints a v1 response. It refuses other platforms, CLI path/command selectors and untrusted state ancestry. `inspect` and an untouched `run` are unavailable; a reserved job remains unknown until its terminal bytes verify. It cannot create a journal, reserve a job, launch a candidate or replace the current Python worker.
-The pinned Rust 1.88.0 `aarch64-unknown-linux-musl` release build produced a static 1.2 MB ARM64 ELF. On 2026-10-20 its SHA-256 `5fa5eda30232202bcef3e50abd448cb7d68d1678790879878fe175dbb65a3ca6` matched after transfer to the idle 16-GiB benchmark VM; an unprivileged request exited 2 with the required Root-custody refusal. The separate Rust state directory there is empty and mode 0700. This does not qualify the draft artifact for Root installation or candidate execution.
+`gauntlet-vm-worker-shadow` is an uninstalled Linux ARM64 read-only entrypoint. It accepts one bounded fixed request on stdin and three independently supplied source/deployment/generation hashes, reads only `/var/lib/hol-gauntlet-rust/worker-state`, and prints a v1 response. It refuses other platforms, CLI path/command selectors and untrusted state ancestry. `inspect` and an untouched `run` are unavailable; a reserved job is `running` only with a valid durable marker and fresh kernel sample. It cannot create a journal, reserve a job, launch a candidate or replace the current Python worker. The latest static 1.2 MB ARM64 shadow binary had SHA-256 `b498f6723a09c48daf3c2e0dc94bb3616dd6a74c3686499bb9298cd4959e932b` on both host and VM; an unprivileged request exited 2 with the expected Root-custody refusal. The separate Rust state directory there is empty and mode 0700.
+
+The separate uninstalled `gauntlet-deployment-shadow` diagnostic reads the fixed `/opt/hol-gauntlet/candidates/<source>` declaration with a caller-supplied raw manifest digest. It checks Root-owned no-symlink ancestry and files, the exact manifest fields, canonical config digest, config source SHA and Root-owned controller/interpreter parent directories. It does not read controller source bytes, follow the interpreter, verify all assets or report a staged worker. A static ARM64 binary with SHA-256 `424c545eef4c5ac62807563bd68e6112f9185d0317b42c21b22db3dedd698d3f` matched on both host and VM; the read-only invocation matched the pinned v7 deployment and refused a wrong outside digest. Eleven worker-state unit tests passed unprivileged there. This does not qualify the draft artifacts for Root installation or candidate execution.
 
 Run the checks from the repository root:
 
