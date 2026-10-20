@@ -9,6 +9,8 @@ mod operations;
 pub use operations::{load_operations_bytes, OperationsError};
 mod private_jobs;
 pub use private_jobs::{read_private_jobs, PrivateJobError};
+mod release_source;
+pub use release_source::{ReleaseSourceError, TagLookupPlan};
 
 const ARCHIVE_REASON: &str = "Removed from active queue by release-only configuration";
 

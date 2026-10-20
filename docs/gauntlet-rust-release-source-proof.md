@@ -1,0 +1,7 @@
+# Rust fixed release-tag source proof
+
+`gauntlet-host-state::TagLookupPlan` reproduces the pinned Python `local_vm.resolve_release` Git argument vector for an allowlisted stable tag. It fixes the disabled hook path, Git object fsck, cleared credential helper chain, existing `gh auth git-credential` broker, exact `refs/tags/TAG` and optional peeled ref, GitHub URL, and `GIT_TERMINAL_PROMPT=0` environment delta. It does not execute Git, inspect credentials, fetch an archive, or admit a job.
+
+The fixture generator verifies `ci/gauntlet/control_plane/local_vm.py` SHA-256 `b7f4274c4656dba13ec7b3dcc71ad96a71b0cc4dd8fccca2218041fc3db3aa20` and calls Python's actual `resolve_release` with `subprocess.check_output` replaced by an in-process result. Fourteen cases freeze the exact argv, direct and annotated tag results, quoted helper path, and refusals for unlisted tags, missing refs, duplicates, unexpected refs, malformed columns and invalid SHAs. Rust matches the accepted values and refusal classes. Its parser additionally bounds output to 64 KiB and rejects invalid UTF-8. Two local Rust integration tests passed on 2026-10-20; isolated native ARM64 CI runs the same cases.
+
+This is a data-only source-lookup boundary. Trusted config-file custody, the Git subprocess/credential broker, remote identity, exact fetched commit, archive byte custody, moved-tag recheck and VM build remain open. The Python release observer remains authoritative.

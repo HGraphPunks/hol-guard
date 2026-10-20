@@ -1,0 +1,77 @@
+use gauntlet_host_state::{ReleaseSourceError, TagLookupPlan};
+use serde_json::Value;
+
+#[test]
+fn fixed_git_tag_lookup_matches_pinned_python_without_network() {
+    let fixture: Value =
+        serde_json::from_str(include_str!("python_release_source_v1.json")).unwrap();
+    let manifest: Value =
+        serde_json::from_str(include_str!("../../../parity-manifest.v1.json")).unwrap();
+    let source = manifest["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["path"] == "ci/gauntlet/control_plane/local_vm.py")
+        .unwrap();
+    assert_eq!(fixture["source_sha256"], source["sha256"]);
+    assert_eq!(fixture["schema"], "gauntlet-release-source-fixtures.v1");
+    let cases = fixture["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 14);
+    for case in cases {
+        let mut operations: Value =
+            serde_json::from_str(include_str!("../operations-defaults-v1.json")).unwrap();
+        operations
+            .as_object_mut()
+            .unwrap()
+            .extend(case["overrides"].as_object().unwrap().clone());
+        let tag = case["tag"].as_str().unwrap();
+        if case["refusal"] == "tag-not-allowed" {
+            assert_eq!(
+                TagLookupPlan::new(&operations, tag),
+                Err(ReleaseSourceError::TagNotAllowed)
+            );
+            assert!(case["calls"].as_array().unwrap().is_empty());
+            continue;
+        }
+        let plan = TagLookupPlan::new(&operations, tag).unwrap();
+        let calls = case["calls"].as_array().unwrap();
+        assert_eq!(calls.len(), 1, "{case}");
+        assert_eq!(
+            plan.argv,
+            serde_json::from_value::<Vec<String>>(calls[0]["argv"].clone()).unwrap()
+        );
+        assert_eq!(
+            plan.to_json()["env_delta"]["GIT_TERMINAL_PROMPT"],
+            calls[0]["git_terminal_prompt"]
+        );
+        assert_eq!(calls[0]["text"], true);
+        assert_eq!(calls[0]["timeout"], 60);
+        assert_eq!(plan.to_json()["execution_eligible"], false);
+        let result = plan.parse_response(case["stdout"].as_str().unwrap().as_bytes());
+        if case["accepted"] == true {
+            assert_eq!(result.unwrap(), case["result"], "{case}");
+        } else {
+            let expected = match case["refusal"].as_str().unwrap() {
+                "missing-tag" => ReleaseSourceError::MissingTag,
+                "invalid-response" => ReleaseSourceError::InvalidResponse,
+                other => panic!("unexpected Python refusal {other}"),
+            };
+            assert_eq!(result, Err(expected), "{case}");
+        }
+    }
+}
+
+#[test]
+fn malformed_or_oversize_git_output_refuses() {
+    let operations: Value =
+        serde_json::from_str(include_str!("../operations-defaults-v1.json")).unwrap();
+    let plan = TagLookupPlan::new(&operations, "v3.48.0").unwrap();
+    assert_eq!(
+        plan.parse_response(&[0xff]),
+        Err(ReleaseSourceError::InvalidResponse)
+    );
+    assert_eq!(
+        plan.parse_response(&vec![b'x'; 64 * 1024 + 1]),
+        Err(ReleaseSourceError::TooLarge)
+    );
+}
