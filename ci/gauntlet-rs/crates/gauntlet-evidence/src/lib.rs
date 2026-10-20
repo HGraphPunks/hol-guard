@@ -1,5 +1,6 @@
 //! Read-only public bundle verifier. Candidate bytes never choose code or trust anchors.
 
+mod bridge_frames;
 mod campaign;
 mod campaign_gate;
 mod crypto;
@@ -10,6 +11,7 @@ mod public_files;
 mod runner_inputs;
 mod tree_inventory;
 
+pub use bridge_frames::FrameCodec;
 pub use campaign_gate::evaluate_audited_campaign;
 pub use episode_score::evaluate_audited_episode;
 pub use runner_inputs::{
