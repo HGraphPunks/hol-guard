@@ -4,7 +4,7 @@
 use crate::linux_process::{
     observe_process, valid_cgroup, ProcessObservation, ProcessObservationError,
 };
-use rustix::fs::{open, openat, Mode, OFlags};
+use rustix::fs::{fstat, open, openat, Mode, OFlags};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
@@ -29,7 +29,19 @@ pub struct ProcessResourceObservation {
     pub resources: CgroupResources,
 }
 
-fn read_counter(directory: &OwnedFd, name: &str) -> Result<Vec<u8>, ProcessObservationError> {
+/// One kernel snapshot of an owned cgroup subtree. `Drained` is only a
+/// terminal-cleanup input while the caller still owns the worker lease and
+/// prevents new processes from entering the cgroup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CgroupDrainState {
+    Drained,
+    Populated,
+}
+
+fn read_counter_bounded(
+    directory: &OwnedFd,
+    name: &str,
+) -> Result<Vec<u8>, ProcessObservationError> {
     let descriptor = openat(
         directory,
         name,
@@ -42,7 +54,15 @@ fn read_counter(directory: &OwnedFd, name: &str) -> Result<Vec<u8>, ProcessObser
         .take((MAX_COUNTER_BYTES + 1) as u64)
         .read_to_end(&mut bytes)
         .map_err(|_| ProcessObservationError::Unavailable)?;
-    if bytes.is_empty() || bytes.len() > MAX_COUNTER_BYTES {
+    if bytes.len() > MAX_COUNTER_BYTES {
+        return Err(ProcessObservationError::Unavailable);
+    }
+    Ok(bytes)
+}
+
+fn read_counter(directory: &OwnedFd, name: &str) -> Result<Vec<u8>, ProcessObservationError> {
+    let bytes = read_counter_bounded(directory, name)?;
+    if bytes.is_empty() {
         return Err(ProcessObservationError::Unavailable);
     }
     Ok(bytes)
@@ -97,7 +117,7 @@ fn event(directory: &OwnedFd, name: &str, target: &str) -> Result<u64, ProcessOb
     parse_event(&read_counter(directory, name)?, target).ok_or(ProcessObservationError::Unavailable)
 }
 
-fn read_resources(path: &str) -> Result<CgroupResources, ProcessObservationError> {
+fn cgroup_directory(path: &str) -> Result<OwnedFd, ProcessObservationError> {
     if !valid_cgroup(path) {
         return Err(ProcessObservationError::InvalidExpectation);
     }
@@ -116,6 +136,59 @@ fn read_resources(path: &str) -> Result<CgroupResources, ProcessObservationError
         )
         .map_err(|_| ProcessObservationError::Unavailable)?;
     }
+    Ok(directory)
+}
+
+fn classify_drain(
+    before_events: u64,
+    before_tasks: u64,
+    direct_processes: &[u8],
+    after_events: u64,
+    after_tasks: u64,
+) -> Result<CgroupDrainState, ProcessObservationError> {
+    if before_events > 1 || after_events > 1 {
+        return Err(ProcessObservationError::Unavailable);
+    }
+    if before_events == 0
+        && after_events == 0
+        && before_tasks == 0
+        && after_tasks == 0
+        && direct_processes.is_empty()
+    {
+        Ok(CgroupDrainState::Drained)
+    } else {
+        Ok(CgroupDrainState::Populated)
+    }
+}
+
+/// Observe whether a retained cgroup still contains a process anywhere in
+/// its subtree. Missing or malformed kernel files are unavailable, never
+/// interpreted as successful cleanup. Reopening the path detects a removed
+/// or replaced cgroup while the two samples are taken.
+pub fn observe_cgroup_drain(path: &str) -> Result<CgroupDrainState, ProcessObservationError> {
+    let directory = cgroup_directory(path)?;
+    let original = fstat(&directory).map_err(|_| ProcessObservationError::Unavailable)?;
+    let before_events = event(&directory, "cgroup.events", "populated")?;
+    let before_tasks = required_number(&directory, "pids.current")?;
+    let direct_processes = read_counter_bounded(&directory, "cgroup.procs")?;
+    let after_events = event(&directory, "cgroup.events", "populated")?;
+    let after_tasks = required_number(&directory, "pids.current")?;
+    let reopened = cgroup_directory(path)?;
+    let current = fstat(&reopened).map_err(|_| ProcessObservationError::Unavailable)?;
+    if original.st_dev != current.st_dev || original.st_ino != current.st_ino {
+        return Err(ProcessObservationError::Unavailable);
+    }
+    classify_drain(
+        before_events,
+        before_tasks,
+        &direct_processes,
+        after_events,
+        after_tasks,
+    )
+}
+
+fn read_resources(path: &str) -> Result<CgroupResources, ProcessObservationError> {
+    let directory = cgroup_directory(path)?;
     Ok(CgroupResources {
         memory_bytes: required_number(&directory, "memory.current")?,
         memory_limit_bytes: limit(&directory, "memory.max")?,
@@ -155,6 +228,32 @@ mod tests {
         assert_eq!(parse_event(b"low 0\noom_kill 2\n", "oom_kill"), Some(2));
         assert_eq!(parse_event(b"low 0\n", "oom_kill"), None);
         assert_eq!(parse_event(b"oom_kill 2\noom_kill 0\n", "oom_kill"), None);
+        assert_eq!(
+            parse_event(b"populated 0\nfrozen 0\n", "populated"),
+            Some(0)
+        );
+        assert_eq!(parse_event(b"populated 1\n", "populated"), Some(1));
+        assert_eq!(parse_event(b"frozen 0\n", "populated"), None);
+        assert_eq!(
+            classify_drain(0, 0, b"", 0, 0),
+            Ok(CgroupDrainState::Drained)
+        );
+        assert_eq!(
+            classify_drain(1, 0, b"", 0, 0),
+            Ok(CgroupDrainState::Populated)
+        );
+        assert_eq!(
+            classify_drain(0, 0, b"", 0, 1),
+            Ok(CgroupDrainState::Populated)
+        );
+        assert_eq!(
+            classify_drain(0, 0, b"123\n", 0, 0),
+            Ok(CgroupDrainState::Populated)
+        );
+        assert_eq!(
+            classify_drain(2, 0, b"", 0, 0),
+            Err(ProcessObservationError::Unavailable)
+        );
     }
 
     #[test]
@@ -175,6 +274,15 @@ mod tests {
         assert_eq!(
             observe_process_resources(pid, expected.start_ticks, "/system.slice/absent.service"),
             Err(ProcessObservationError::IdentityMismatch)
+        );
+        assert_eq!(observe_cgroup_drain(path), Ok(CgroupDrainState::Populated));
+        assert_eq!(
+            observe_cgroup_drain("/system.slice/absent.service"),
+            Err(ProcessObservationError::Unavailable)
+        );
+        assert_eq!(
+            observe_cgroup_drain("/system.slice/../other"),
+            Err(ProcessObservationError::InvalidExpectation)
         );
     }
 }

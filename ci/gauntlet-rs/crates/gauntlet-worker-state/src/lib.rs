@@ -87,7 +87,10 @@ pub use deployment::{
 };
 pub use lease::ActiveLease;
 #[cfg(target_os = "linux")]
-pub use linux_cgroup::{observe_process_resources, CgroupResources, ProcessResourceObservation};
+pub use linux_cgroup::{
+    observe_cgroup_drain, observe_process_resources, CgroupDrainState, CgroupResources,
+    ProcessResourceObservation,
+};
 #[cfg(target_os = "linux")]
 pub use linux_process::{observe_process, ProcessObservation, ProcessObservationError};
 #[cfg(target_os = "linux")]
