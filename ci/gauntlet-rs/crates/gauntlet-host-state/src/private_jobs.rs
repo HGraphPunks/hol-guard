@@ -2,7 +2,10 @@
 //! records are historical data, not execution authority or a coherent lease.
 
 use crate::load_operations_bytes;
-use rustix::fs::{fstat, open, openat, statat, AtFlags, Dir, FileType, Mode, OFlags, Stat};
+use rustix::fs::{
+    flock, fstat, open, openat, statat, AtFlags, Dir, FileType, FlockOperation, Mode, OFlags, Stat,
+};
+use rustix::io::Errno;
 use rustix::process::geteuid;
 use serde_json::Value;
 use std::fmt;
@@ -20,6 +23,8 @@ pub enum PrivateJobError {
     InvalidPath,
     UnsafeDirectory,
     UnsafeJob,
+    UnsafeLock,
+    ObserverBusy,
     InvalidConfig,
     Changed,
     TooLarge,
@@ -32,6 +37,8 @@ impl fmt::Display for PrivateJobError {
             Self::InvalidPath => "invalid host state path",
             Self::UnsafeDirectory => "private host state directory is unsafe",
             Self::UnsafeJob => "private host job record is unsafe or malformed",
+            Self::UnsafeLock => "Python observer lock is unsafe",
+            Self::ObserverBusy => "Python observer owns the host state",
             Self::InvalidConfig => "private host operations config is malformed",
             Self::Changed => "private host jobs changed during read",
             Self::TooLarge => "private host job inventory exceeds bounds",
@@ -227,7 +234,12 @@ pub fn read_private_jobs(state: &Path) -> Result<Vec<Value>, PrivateJobError> {
     let owner = geteuid().as_raw();
     let root = state_root(state, owner)?;
     let private = child_directory(&root, "private", owner)?;
-    let jobs = child_directory(&private, "jobs", owner)?;
+    read_jobs_from_private(&private, owner)
+}
+
+fn read_jobs_from_private(private: &OwnedFd, owner: u32) -> Result<Vec<Value>, PrivateJobError> {
+    let jobs = child_directory(private, "jobs", owner)?;
+    let jobs_before = fstat(&jobs).map_err(|_| PrivateJobError::Io)?;
     let names = list_names(&jobs)?;
     let mut records = Vec::with_capacity(names.len());
     let mut total = 0u64;
@@ -239,7 +251,64 @@ pub fn read_private_jobs(state: &Path) -> Result<Vec<Value>, PrivateJobError> {
         }
         records.push(record);
     }
-    if names != list_names(&jobs)? {
+    let visible_jobs =
+        statat(private, "jobs", AtFlags::SYMLINK_NOFOLLOW).map_err(|_| PrivateJobError::Changed)?;
+    if names != list_names(&jobs)? || !same_file(&jobs_before, &visible_jobs) {
+        return Err(PrivateJobError::Changed);
+    }
+    Ok(records)
+}
+
+/// Take a nonblocking shared snapshot only while Python's `agent.lock` has no
+/// exclusive owner. This is a read-only cutover diagnostic, not a Rust observer
+/// lease or permission to write, reconcile, dispatch, or publish state.
+pub fn read_private_jobs_if_idle(state: &Path) -> Result<Vec<Value>, PrivateJobError> {
+    let owner = geteuid().as_raw();
+    let root = state_root(state, owner)?;
+    let root_before = fstat(&root).map_err(|_| PrivateJobError::Io)?;
+    let private = child_directory(&root, "private", owner)?;
+    let private_before = fstat(&private).map_err(|_| PrivateJobError::Io)?;
+    let lock = openat(
+        &private,
+        "agent.lock",
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|_| PrivateJobError::UnsafeLock)?;
+    let lock_before = fstat(&lock).map_err(|_| PrivateJobError::Io)?;
+    if FileType::from_raw_mode(lock_before.st_mode) != FileType::RegularFile
+        || lock_before.st_uid != owner
+        || lock_before.st_mode & 0o777 != 0o600
+        || lock_before.st_nlink != 1
+        || lock_before.st_size != 0
+    {
+        return Err(PrivateJobError::UnsafeLock);
+    }
+    let visible_before = statat(&private, "agent.lock", AtFlags::SYMLINK_NOFOLLOW)
+        .map_err(|_| PrivateJobError::Changed)?;
+    if !same_file(&lock_before, &visible_before) {
+        return Err(PrivateJobError::Changed);
+    }
+    match flock(&lock, FlockOperation::NonBlockingLockShared) {
+        Ok(()) => {}
+        Err(Errno::AGAIN) => return Err(PrivateJobError::ObserverBusy),
+        Err(_) => return Err(PrivateJobError::Io),
+    }
+    let records = read_jobs_from_private(&private, owner)?;
+    let lock_after = fstat(&lock).map_err(|_| PrivateJobError::Io)?;
+    let visible_after = statat(&private, "agent.lock", AtFlags::SYMLINK_NOFOLLOW)
+        .map_err(|_| PrivateJobError::Changed)?;
+    let private_after = fstat(&private).map_err(|_| PrivateJobError::Io)?;
+    let visible_private = statat(&root, "private", AtFlags::SYMLINK_NOFOLLOW)
+        .map_err(|_| PrivateJobError::Changed)?;
+    let reopened_root = state_root(state, owner).map_err(|_| PrivateJobError::Changed)?;
+    let root_after = fstat(&reopened_root).map_err(|_| PrivateJobError::Io)?;
+    if !same_file(&lock_before, &lock_after)
+        || !same_file(&lock_before, &visible_after)
+        || !same_file(&private_before, &private_after)
+        || !same_file(&private_before, &visible_private)
+        || !same_file(&root_before, &root_after)
+    {
         return Err(PrivateJobError::Changed);
     }
     Ok(records)

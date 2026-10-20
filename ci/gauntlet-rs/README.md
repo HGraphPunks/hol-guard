@@ -57,6 +57,14 @@ An idle-only, no-symlink private-file reader can supply those bytes to the
 reducer. Live Root-owned VM proof, shard-ledger binding and provider-snapshot
 authentication remain open.
 
+`gauntlet-host-shadow-idle` is an uninstalled, summary-only diagnostic for the
+existing Python host state. It attempts a nonblocking shared lock on the
+private `agent.lock`, reads bounded job records only if the Python observer is
+idle, and rechecks directory and lock identities before returning. While the
+retained observer was active, the live diagnostic exited 2 with `Python
+observer owns the host state`. It does not take over the observer, reconcile
+VM receipts or publish a snapshot; see the [idle-lock proof](../../docs/gauntlet-rust-host-idle-lock-proof.md).
+
 `gauntlet-evidence` reads a workflow public bundle through no-symlink,
 descriptor-relative paths. It checks externally pinned manifest and source
 identities, Ed25519 signatures, file inventory and hashes, signed World

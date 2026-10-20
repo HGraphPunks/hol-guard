@@ -11,7 +11,9 @@ mod fixed_process;
 mod host_telemetry;
 pub use host_telemetry::{sample_host, HostTelemetryError};
 mod private_jobs;
-pub use private_jobs::{read_private_jobs, read_private_operations, PrivateJobError};
+pub use private_jobs::{
+    read_private_jobs, read_private_jobs_if_idle, read_private_operations, PrivateJobError,
+};
 mod public_jobs;
 pub use public_jobs::{project_public_jobs, PublicJobsError, PublicJobsProjection};
 mod release_source;

@@ -1,6 +1,8 @@
 use gauntlet_host_state::{
-    next_queued_job, read_private_jobs, read_private_operations, QueueConfig,
+    next_queued_job, read_private_jobs, read_private_jobs_if_idle, read_private_operations,
+    PrivateJobError, QueueConfig,
 };
+use rustix::fs::{flock, FlockOperation};
 use serde_json::{json, Value};
 use std::fs::{self, Permissions};
 use std::os::unix::fs::{symlink, PermissionsExt};
@@ -111,4 +113,57 @@ fn private_config_reader_validates_bytes_and_refuses_links() {
     fs::write(&target, b"{}").unwrap();
     symlink(&target, &path).unwrap();
     assert!(read_private_operations(&state).is_err());
+}
+
+#[test]
+fn idle_snapshot_reads_only_without_a_python_observer_owner() {
+    let (_temp, state) = fixture();
+    write_job(
+        &state,
+        "0000000000000001",
+        &json!({"id":"0000000000000001","state":"queued"}),
+    );
+    let lock_path = state.join("private/agent.lock");
+    fs::write(&lock_path, b"").unwrap();
+    fs::set_permissions(&lock_path, Permissions::from_mode(0o600)).unwrap();
+    assert_eq!(read_private_jobs_if_idle(&state).unwrap().len(), 1);
+
+    let writer = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&lock_path)
+        .unwrap();
+    flock(&writer, FlockOperation::NonBlockingLockExclusive).unwrap();
+    assert_eq!(
+        read_private_jobs_if_idle(&state).unwrap_err(),
+        PrivateJobError::ObserverBusy
+    );
+    drop(writer);
+    assert_eq!(read_private_jobs_if_idle(&state).unwrap().len(), 1);
+}
+
+#[test]
+fn idle_snapshot_refuses_unsafe_or_replaced_lock_paths() {
+    let (_temp, state) = fixture();
+    let lock_path = state.join("private/agent.lock");
+    fs::write(&lock_path, b"").unwrap();
+    fs::set_permissions(&lock_path, Permissions::from_mode(0o644)).unwrap();
+    assert_eq!(
+        read_private_jobs_if_idle(&state).unwrap_err(),
+        PrivateJobError::UnsafeLock
+    );
+    fs::set_permissions(&lock_path, Permissions::from_mode(0o600)).unwrap();
+    let linked = state.join("private/agent-copy.lock");
+    fs::hard_link(&lock_path, &linked).unwrap();
+    assert_eq!(
+        read_private_jobs_if_idle(&state).unwrap_err(),
+        PrivateJobError::UnsafeLock
+    );
+    fs::remove_file(&linked).unwrap();
+    fs::remove_file(&lock_path).unwrap();
+    symlink(&linked, &lock_path).unwrap();
+    assert_eq!(
+        read_private_jobs_if_idle(&state).unwrap_err(),
+        PrivateJobError::UnsafeLock
+    );
 }
