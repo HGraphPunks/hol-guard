@@ -23,6 +23,7 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). Ch
 - [ ] Implement full v1–v7 config loading: canonical root and no-symlink input reads, document byte pins, campaign/policy binding, selection/shard and reservation budgets, protocol mapping, and installed package version.
 - [ ] Implement inert SHA-256 inventory of file, SDK tree, installed Guard prefix, private-cell artifacts, conformance package, compiler, Node, Bun, wheel, native binary and provider/model manifests; compare exact Python outcomes.
 - [x] Verify workflow public-bundle custody using independent pins, Ed25519 signatures, World receipt chains, bounded no-symlink files, campaign and episode bindings. Evidence: `gauntlet-evidence` tests and exploratory `gauntlet-verify`.
+- [x] Port the pure Python `_episode` gate reducer over already-audited inputs, including baseline measurement, approval, native surfaces, protocol exposure, inference, utility, security and cleanup dimensions. Evidence: 17 Python-frozen cases in `episode_score_parity.rs`; it cannot authenticate the inputs or grant eligibility.
 - [ ] Recompute deterministic control verdicts and workflow task/security/exposure/intervention outcomes from authenticated observations; do not accept a producer-supplied `passed` flag.
 - [ ] Verify HMAC and remaining signed custody formats, including quota and controller journals, with interruption and tamper cases.
 - [ ] Port the legacy public-evidence reader and trusted-base eligibility rules for all retained evidence versions.

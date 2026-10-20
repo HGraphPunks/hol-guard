@@ -2,12 +2,14 @@
 
 mod campaign;
 mod crypto;
+mod episode_score;
 mod io;
 mod payload;
 mod public_files;
 mod runner_inputs;
 mod tree_inventory;
 
+pub use episode_score::evaluate_audited_episode;
 pub use runner_inputs::{
     verify_runner_file_assets, verify_runner_inputs, verify_runner_inputs_from_paths,
     ReservationTotals, VerifiedRunnerInputs,

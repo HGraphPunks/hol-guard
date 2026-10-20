@@ -70,7 +70,10 @@ fn budget(value: &Value, name: &str) -> Result<u64> {
         .ok_or(EvidenceError::Invalid("invalid campaign budget"))
 }
 
-fn developer_cell(cell: &Value) -> bool {
+pub(crate) fn developer_cell(cell: &Value) -> bool {
+    if cell["group"] == "approval" {
+        return false;
+    }
     let Some(name) = cell["workflow_id"].as_str() else {
         return false;
     };
