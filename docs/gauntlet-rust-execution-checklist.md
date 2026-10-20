@@ -11,7 +11,7 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). Ch
 - [ ] Audit every manifest disposition and enumerate each CLI command, profile, schema/version, external executable, artifact role, public status field, exit code, journal and state transition with an owning Rust component.
 - [x] Freeze Python-produced canonical JSON vectors, seven accepted runner declarations, and valid/incomplete, complete synthetic, and signed hostile public bundles. Evidence: Rust fixture tests under `ci/gauntlet-rs/crates/`.
 - [ ] Add versioned golden cases and Python accept/refuse reason classes for the full config loader, source/archive/asset custody, HMAC/Ed25519 receipts, deterministic reports, provider quota, bridge frames, legacy evidence, dashboard snapshots, and interruption recovery.
-- [ ] Resolve failures in the full repository CI run for PR #5306; identify branch-caused failures and obtain a green required aggregate before a merge proposal.
+- [ ] Resolve failures in the full repository CI run for integration PR #5402; identify branch-caused failures and obtain a green required aggregate before a merge proposal. A source-inventory failure caused by two newer `main` Gauntlet files was fixed by merging `e70212a5` and refreshing the exact source delta; the current head's full CI run is pending.
 
 ## 1. Pure contracts and trusted readers
 
