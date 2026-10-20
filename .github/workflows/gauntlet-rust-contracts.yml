@@ -58,5 +58,5 @@ jobs:
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence -p gauntlet-host-state -p gauntlet-provider-observer -p gauntlet-worker-state --lib --locked
       - name: Compare fixed worker and builder plans with pinned Python on ARM64
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-worker-state --test launch_plan --test builder_run_plan --locked
-      - name: Compare host config, queue, tag source, private jobs, source archives, and VM telemetry on ARM64
-        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-host-state --test operations_config --test release_queue --test release_source --test private_jobs --test source_archive --test telemetry --locked
+      - name: Compare host config, queue, tag source, jobs, source archives, and VM telemetry on ARM64
+        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-host-state --test operations_config --test release_queue --test release_source --test private_jobs --test public_jobs --test source_archive --test telemetry --locked
