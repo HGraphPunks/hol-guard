@@ -1453,10 +1453,10 @@
   {
    "file": "rust/crates/guard-runtime/src/restricted_pytest_op.rs",
    "item": "fn evaluate -- non-Unix block",
-   "verdict": "windows-unsupported",
-   "note": "Only `contained_argv`, `normalized_command` and the Windows inline and Node-build planners answer off Unix. There is no pytest backend, which is why `source .venv/bin/activate && pytest -q` cannot be routed into a sink on Windows.",
+   "verdict": "windows-equivalent",
+   "note": "Windows `prepare` now calls the read-only pytest planner for an eligible virtual environment and runs it through the LPAC snapshot backend. Unsupported, editable or hardlinked environments fail closed. The Windows-only `windows_pytest_tests.rs` covers the planner; full Windows runtime validation remains a separate CI result.",
    "cfg": "not(unix)",
-   "body": "fa16bec3bb42"
+   "body": "21a1afbb5f71"
   },
   {
    "file": "rust/crates/guard-runtime/src/shell_request_inspection_host.rs",

@@ -65,7 +65,7 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/agent_prompt.py",
       "phase": 5,
-      "sha256": "2b09f68b77fcdce29aff6b72c463b7e43308085b2269a9ccfed1688216beaff5"
+      "sha256": "48ab6c3227763424dc82f37543c7a79d90e72ecb6c7d047eef8eb4918db470c0"
     },
     {
       "base_sha256": "3a5fdb770d41e103cb7494559841553c6661d75c3d04ba38e7c4a2e4bb8c7d90",
@@ -170,7 +170,7 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/fixtures.py",
       "phase": 5,
-      "sha256": "0fe1c20a6cdb84dd2672b4fafce223509906db228f6615e3dfde611a38b81feb"
+      "sha256": "d20f0721f413bfefd28eca2863bb72a8c9ba2aa21ea415b6b829f0c529ea38e3"
     },
     {
       "base_sha256": "841da1d2937e72dd53c4468a12b1886d0b56b28f5bf2ed7e78fbb71f0355011d",
@@ -303,14 +303,14 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/runner.py",
       "phase": 5,
-      "sha256": "96895e03b90b4f1e3d1d279447ee55325d54518f321305c99e4adb48156abd55"
+      "sha256": "48d13c43e382fcf52e5f2d203710485858fe8e12e756864afda3d44dc1c16177"
     },
     {
       "base_sha256": "6195060feea1e25a69a9dfe8ff75d971b2d0d73241ff8eb8dbb547a4cb900d79",
       "disposition": "frozen_data_or_schema",
       "path": "ci/gauntlet/scenarios.json",
       "phase": 1,
-      "sha256": "918a268b521904baee864255755fc8b25420fc665dafa17915df1fee60fa3f7a"
+      "sha256": "a0695b46310267890368fa70506ae50744ed535c75977c643ba64b9872046e3c"
     },
     {
       "base_sha256": "8443830bfc26c8e7a853d0d558d297d61cec4658dd26039c485e1e1767541f46",
