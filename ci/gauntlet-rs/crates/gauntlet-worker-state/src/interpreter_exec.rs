@@ -6,6 +6,7 @@ use crate::HeldInterpreter;
 use serde_json::{json, Value};
 use std::fmt;
 
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 const PROBE_CODE: &str = "import sys;raise SystemExit(73 if sys.prefix==sys.argv[1] else 74)";
 const SUCCESS_CODE: i32 = 73;
 
