@@ -4,6 +4,15 @@ mod campaign;
 mod crypto;
 mod io;
 mod payload;
+mod public_files;
+mod runner_inputs;
+mod tree_inventory;
+
+pub use runner_inputs::{
+    verify_runner_file_assets, verify_runner_inputs, verify_runner_inputs_from_paths,
+    ReservationTotals, VerifiedRunnerInputs,
+};
+pub use tree_inventory::{inventory_tree, TreeInventory, TreeKind};
 
 use crate::campaign::verify_campaign;
 use crate::crypto::{decode_base64, decode_hex, is_sha256, sha256, verify_ed25519};

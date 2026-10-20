@@ -48,44 +48,9 @@ fn open_directory_at(root: &OwnedFd, name: &str) -> Result<OwnedFd> {
 
 impl BundleReader {
     pub fn open(path: &Path) -> Result<Self> {
-        if !path.is_absolute() {
-            return Err(EvidenceError::Invalid("absolute bundle root required"));
-        }
-        let literal = path
-            .to_str()
-            .ok_or(EvidenceError::Invalid("noncanonical bundle root"))?;
-        if literal != "/"
-            && !literal.strip_prefix('/').is_some_and(|relative| {
-                !relative.is_empty()
-                    && relative
-                        .split('/')
-                        .all(|part| !part.is_empty() && part != "." && part != "..")
-            })
-        {
-            return Err(EvidenceError::Invalid("noncanonical bundle root"));
-        }
-        let mut root = open(
-            "/",
-            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
-            Mode::empty(),
-        )
-        .map_err(|error| EvidenceError::Io(error.to_string()))?;
-        for component in path.components() {
-            match component {
-                Component::RootDir => {}
-                Component::Normal(name) => {
-                    root = openat(
-                        &root,
-                        name,
-                        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
-                        Mode::empty(),
-                    )
-                    .map_err(|error| EvidenceError::Io(error.to_string()))?;
-                }
-                _ => return Err(EvidenceError::Invalid("noncanonical bundle root")),
-            }
-        }
-        Ok(Self { root })
+        Ok(Self {
+            root: open_absolute_directory(path)?,
+        })
     }
 
     pub fn list_files(&self) -> Result<BTreeSet<String>> {
@@ -145,6 +110,47 @@ impl BundleReader {
         }
         Ok(raw)
     }
+}
+
+pub(crate) fn open_absolute_directory(path: &Path) -> Result<OwnedFd> {
+    if !path.is_absolute() {
+        return Err(EvidenceError::Invalid("absolute bundle root required"));
+    }
+    let literal = path
+        .to_str()
+        .ok_or(EvidenceError::Invalid("noncanonical bundle root"))?;
+    if literal != "/"
+        && !literal.strip_prefix('/').is_some_and(|relative| {
+            !relative.is_empty()
+                && relative
+                    .split('/')
+                    .all(|part| !part.is_empty() && part != "." && part != "..")
+        })
+    {
+        return Err(EvidenceError::Invalid("noncanonical bundle root"));
+    }
+    let mut root = open(
+        "/",
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|error| EvidenceError::Io(error.to_string()))?;
+    for component in path.components() {
+        match component {
+            Component::RootDir => {}
+            Component::Normal(name) => {
+                root = openat(
+                    &root,
+                    name,
+                    OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+                    Mode::empty(),
+                )
+                .map_err(|error| EvidenceError::Io(error.to_string()))?;
+            }
+            _ => return Err(EvidenceError::Invalid("noncanonical bundle root")),
+        }
+    }
+    Ok(root)
 }
 
 fn scan(

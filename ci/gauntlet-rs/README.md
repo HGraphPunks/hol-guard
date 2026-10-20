@@ -17,8 +17,12 @@ whose file SHA-256 is recorded in the tests. That benchmark implementation is
 not yet on `main`. It also checks the 22 copied Draft 2020-12 schemas,
 Python's strict integer typing, all seven runner declaration versions, exact
 external config digests, asset-role declarations, and candidate/test-merge
-source identity claims. The runner declaration check is inert: it does not
-verify asset bytes, campaign/policy bindings, or authorize execution.
+source identity claims. It also binds frozen campaign and gate-policy bytes
+to all seven declarations, checks selected-cell policy/reservations/shards,
+and hashes ordinary asset files through bounded no-symlink descriptors.
+An inert SDK and installed-prefix inventory prototype hashes metadata and
+bytes but still needs descriptor-relative directory enumeration and a
+root-owned Linux positive fixture. No Rust input check authorizes execution.
 
 `gauntlet-evidence` reads a workflow public bundle through no-symlink,
 descriptor-relative paths. It checks externally pinned manifest and source
@@ -52,8 +56,21 @@ The pin file contains `controller_public_key` (base64 Ed25519 public key),
 under `crates/gauntlet-evidence/tests/fixtures/` show the exact shape. Pins
 must come from the trusted caller outside the candidate bundle.
 
+Inspect pinned runner documents and ordinary file assets with a separate
+trusted SHA-256 pin and a canonical absolute public asset root:
+
+```sh
+cargo +1.88.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gauntlet-inputs-verify -- \
+  /absolute/path/to/config.json EXTERNAL_CONFIG_SHA256 /absolute/path/to/assets
+```
+
+The JSON reports the selected episode count, shard assignment and aggregate
+reservations. `execution_eligible` is always `false`: this command does not
+verify SDK or installed-prefix custody, private cells, conformance artifacts,
+the candidate deployment or any live behavior.
+
 The next slices must finish Phase 0's behavioral matrix and Phase 1's full
-configuration, legacy evidence and independent scoring parity before moving
+asset/configuration custody, legacy evidence and independent scoring parity before moving
 to the Linux VM worker and host observer. The existing Python Gauntlet, VM
 jobs, model provider, dashboard and optional PR gate remain the authoritative
 execution path until fresh source-bound parity and recovery checks justify a

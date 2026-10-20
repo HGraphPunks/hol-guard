@@ -10,9 +10,11 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 mod identity;
+mod policy;
 mod runner_config;
 mod schema;
 pub use identity::{is_git_sha, validate_source_identity, IdentityError};
+pub use policy::{bind_gate_policy, GatePolicyError};
 pub use runner_config::{
     canonical_relative_asset_path, validate_runner_declaration, RunnerConfigError,
     RunnerDeclaration,
