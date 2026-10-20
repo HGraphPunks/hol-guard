@@ -302,6 +302,7 @@ name = "gauntlet-host-state"
 version = "0.1.0"
 dependencies = [
  "flate2",
+ "gauntlet-contracts",
  "rustix",
  "serde_json",
  "sha2",

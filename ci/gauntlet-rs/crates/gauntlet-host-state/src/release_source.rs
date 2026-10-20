@@ -1,15 +1,12 @@
 //! Fixed, data-only release tag lookup and bounded response parser. No Git
 //! subprocess or credential broker is invoked by this crate.
 
+use crate::fixed_process::{run_fixed, FixedProcessError};
 use crate::{git_sha, load_operations_bytes, QueueConfig};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fmt;
-use std::io::Read;
-use std::process::{Command, Stdio};
-use std::sync::mpsc;
-use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 const MAX_RESPONSE_BYTES: usize = 64 * 1024;
 
@@ -65,30 +62,6 @@ fn shell_quote(value: &str) -> String {
         return value.to_owned();
     }
     format!("'{}'", value.replace('\'', "'\"'\"'"))
-}
-
-fn drain_bounded(mut reader: impl Read, limit: usize) -> Result<Vec<u8>, ReleaseSourceError> {
-    let mut kept = Vec::new();
-    let mut buffer = [0u8; 4096];
-    let mut overflow = false;
-    loop {
-        let count = reader
-            .read(&mut buffer)
-            .map_err(|_| ReleaseSourceError::GitUnavailable)?;
-        if count == 0 {
-            break;
-        }
-        if kept.len().saturating_add(count) > limit {
-            overflow = true;
-        } else if !overflow {
-            kept.extend_from_slice(&buffer[..count]);
-        }
-    }
-    if overflow {
-        Err(ReleaseSourceError::TooLarge)
-    } else {
-        Ok(kept)
-    }
 }
 
 impl TagLookupPlan {
@@ -191,64 +164,19 @@ impl TagLookupPlan {
     }
 
     fn execute_with_timeout(&self, timeout: Duration) -> Result<Value, ReleaseSourceError> {
-        let mut child = Command::new(&self.argv[0])
-            .args(&self.argv[1..])
-            .env("GIT_TERMINAL_PROMPT", "0")
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|_| ReleaseSourceError::GitUnavailable)?;
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or(ReleaseSourceError::GitUnavailable)?;
-        let stderr = child
-            .stderr
-            .take()
-            .ok_or(ReleaseSourceError::GitUnavailable)?;
-        let (sender, receiver) = mpsc::channel();
-        let stdout_sender = sender.clone();
-        thread::spawn(move || {
-            let _ = stdout_sender.send((true, drain_bounded(stdout, MAX_RESPONSE_BYTES)));
-        });
-        thread::spawn(move || {
-            let _ = sender.send((false, drain_bounded(stderr, 1500)));
-        });
-        let started = Instant::now();
-        let status = loop {
-            match child.try_wait() {
-                Ok(Some(status)) => break status,
-                Ok(None) if started.elapsed() < timeout => thread::sleep(Duration::from_millis(50)),
-                Ok(None) => {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    return Err(ReleaseSourceError::TimedOut);
-                }
-                Err(_) => {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    return Err(ReleaseSourceError::GitUnavailable);
-                }
-            }
-        };
-        let mut output = None;
-        let mut diagnostics = None;
-        for _ in 0..2 {
-            let (is_stdout, result) = receiver
-                .recv_timeout(Duration::from_secs(5))
-                .map_err(|_| ReleaseSourceError::GitUnavailable)?;
-            if is_stdout {
-                output = Some(result);
-            } else {
-                diagnostics = Some(result);
-            }
-        }
-        let output = output.ok_or(ReleaseSourceError::GitUnavailable)??;
-        diagnostics.ok_or(ReleaseSourceError::GitUnavailable)??;
-        if !status.success() {
-            return Err(ReleaseSourceError::GitFailed);
-        }
+        let output = run_fixed(
+            &self.argv,
+            timeout,
+            MAX_RESPONSE_BYTES,
+            1500,
+            &[("GIT_TERMINAL_PROMPT", "0")],
+        )
+        .map_err(|error| match error {
+            FixedProcessError::Unavailable => ReleaseSourceError::GitUnavailable,
+            FixedProcessError::Failed => ReleaseSourceError::GitFailed,
+            FixedProcessError::TimedOut => ReleaseSourceError::TimedOut,
+            FixedProcessError::TooLarge => ReleaseSourceError::TooLarge,
+        })?;
         self.parse_response(&output)
     }
 }

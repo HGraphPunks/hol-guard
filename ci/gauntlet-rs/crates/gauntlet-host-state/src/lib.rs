@@ -7,6 +7,7 @@ use std::fmt;
 
 mod operations;
 pub use operations::{load_operations_bytes, OperationsError};
+mod fixed_process;
 mod private_jobs;
 pub use private_jobs::{read_private_jobs, read_private_operations, PrivateJobError};
 mod release_source;
@@ -15,6 +16,8 @@ mod source_archive;
 pub use source_archive::{
     verify_retained_source_archive, SourceArchiveError, SourceArchiveInventory,
 };
+mod telemetry;
+pub use telemetry::{resource_admission_reasons, TelemetryError, VmProbePlan};
 
 const ARCHIVE_REASON: &str = "Removed from active queue by release-only configuration";
 

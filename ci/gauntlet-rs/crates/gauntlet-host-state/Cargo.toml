@@ -7,6 +7,7 @@ description = "Passive release queue decisions for the future Gauntlet host obse
 
 [dependencies]
 flate2 = "=1.1.10"
+gauntlet-contracts = { path = "../gauntlet-contracts" }
 rustix = { version = "=1.1.5", features = ["fs", "process"] }
 serde_json = { version = "=1.0.151", features = ["arbitrary_precision"] }
 sha2 = "=0.10.9"
