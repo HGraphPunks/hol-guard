@@ -21,7 +21,8 @@ source identity claims. It also binds frozen campaign and gate-policy bytes
 to all seven declarations, checks selected-cell policy/reservations/shards,
 and hashes ordinary asset files through bounded no-symlink descriptors.
 An inert SDK and installed-prefix inventory prototype hashes metadata and
-bytes but still needs descriptor-relative directory enumeration and a
+bytes through descriptor-relative directory enumeration. Symlink containment
+still needs Linux race/parity proof, and installed-prefix verification needs a
 root-owned Linux positive fixture. No Rust input check authorizes execution.
 
 `gauntlet-evidence` reads a workflow public bundle through no-symlink,
