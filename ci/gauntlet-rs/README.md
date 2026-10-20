@@ -41,6 +41,13 @@ and Rust stages; see the [Linux proof](../../docs/gauntlet-rust-linux-asset-proo
 Complete reason-class parity and older-version assets remain open before
 execution admission.
 
+A read-only v1 provider-quota reader checks outside config/allowance pins,
+private file custody, the Python writer lock, canonical hash-chain rows and
+reserve/settle/uncertain/extension accounting. It matches six Python-frozen
+snapshots and rejects nine malformed or unauthorized journal variants; the
+synthetic [quota proof](../../docs/gauntlet-rust-quota-proof.md) includes Linux
+ARM64 test evidence. It cannot append a journal row or admit model inference.
+
 `gauntlet-evidence` reads a workflow public bundle through no-symlink,
 descriptor-relative paths. It checks externally pinned manifest and source
 identities, Ed25519 signatures, file inventory and hashes, signed World
