@@ -8,6 +8,10 @@ use std::fmt;
 mod operations;
 pub use operations::{load_operations_bytes, OperationsError};
 mod fixed_process;
+mod git_controller_source;
+pub use git_controller_source::{
+    verify_git_controller_source, GitControllerSourceError, GitControllerSourceProof,
+};
 mod host_telemetry;
 pub use host_telemetry::{sample_host, HostTelemetryError};
 mod private_jobs;
