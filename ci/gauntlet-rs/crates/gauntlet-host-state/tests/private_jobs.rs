@@ -1,4 +1,6 @@
-use gauntlet_host_state::{next_queued_job, read_private_jobs, QueueConfig};
+use gauntlet_host_state::{
+    next_queued_job, read_private_jobs, read_private_operations, QueueConfig,
+};
 use serde_json::{json, Value};
 use std::fs::{self, Permissions};
 use std::os::unix::fs::{symlink, PermissionsExt};
@@ -87,4 +89,26 @@ fn private_reader_refuses_changed_namespace_and_oversized_file() {
 
     fs::write(&path, vec![b'x'; 1024 * 1024 + 1]).unwrap();
     assert!(read_private_jobs(&state).is_err());
+}
+
+#[test]
+fn private_config_reader_validates_bytes_and_refuses_links() {
+    let (_temp, state) = fixture();
+    let path = state.join("config.json");
+    fs::write(&path, b"{}").unwrap();
+    fs::set_permissions(&path, Permissions::from_mode(0o600)).unwrap();
+    let operations = read_private_operations(&state).unwrap();
+    assert_eq!(operations["release_tags"], json!(["v3.48.0", "v3.49.0"]));
+
+    fs::write(&path, br#"{"discovery_mode":"other"}"#).unwrap();
+    assert!(read_private_operations(&state).is_err());
+    fs::write(&path, b"{}").unwrap();
+    fs::set_permissions(&path, Permissions::from_mode(0o644)).unwrap();
+    assert!(read_private_operations(&state).is_err());
+
+    fs::remove_file(&path).unwrap();
+    let target = state.join("private/target.json");
+    fs::write(&target, b"{}").unwrap();
+    symlink(&target, &path).unwrap();
+    assert!(read_private_operations(&state).is_err());
 }

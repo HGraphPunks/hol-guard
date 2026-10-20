@@ -1,6 +1,6 @@
 //! Uninstalled summary-only diagnostic for retained Python host jobs.
 
-use gauntlet_host_state::read_private_jobs;
+use gauntlet_host_state::{read_private_jobs, read_private_operations};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -29,6 +29,13 @@ fn main() {
             std::process::exit(2);
         }
     };
+    let operations = match read_private_operations(Path::new(&args[1])) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("host config shadow unavailable: {error}");
+            std::process::exit(2);
+        }
+    };
     let mut states = BTreeMap::<String, usize>::new();
     let mut archived = 0usize;
     for job in &jobs {
@@ -43,6 +50,10 @@ fn main() {
         json!({
             "schema": "hol-gauntlet-host-shadow.v1",
             "source": "python-private-jobs",
+            "config_verified": true,
+            "discovery_mode": operations["discovery_mode"],
+            "release_tags": operations["release_tags"],
+            "release_build_backend": operations["release_build_backend"],
             "jobs": jobs.len(),
             "states": states,
             "archived": archived,

@@ -8,7 +8,7 @@ use std::fmt;
 mod operations;
 pub use operations::{load_operations_bytes, OperationsError};
 mod private_jobs;
-pub use private_jobs::{read_private_jobs, PrivateJobError};
+pub use private_jobs::{read_private_jobs, read_private_operations, PrivateJobError};
 mod release_source;
 pub use release_source::{ReleaseSourceError, TagLookupPlan};
 

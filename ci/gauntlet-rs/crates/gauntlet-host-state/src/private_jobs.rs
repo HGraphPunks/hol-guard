@@ -1,6 +1,7 @@
 //! Passive, bounded reader for Python's private host job files. The returned
 //! records are historical data, not execution authority or a coherent lease.
 
+use crate::load_operations_bytes;
 use rustix::fs::{fstat, open, openat, statat, AtFlags, Dir, FileType, Mode, OFlags, Stat};
 use rustix::process::geteuid;
 use serde_json::Value;
@@ -19,6 +20,7 @@ pub enum PrivateJobError {
     InvalidPath,
     UnsafeDirectory,
     UnsafeJob,
+    InvalidConfig,
     Changed,
     TooLarge,
     Io,
@@ -30,6 +32,7 @@ impl fmt::Display for PrivateJobError {
             Self::InvalidPath => "invalid host state path",
             Self::UnsafeDirectory => "private host state directory is unsafe",
             Self::UnsafeJob => "private host job record is unsafe or malformed",
+            Self::InvalidConfig => "private host operations config is malformed",
             Self::Changed => "private host jobs changed during read",
             Self::TooLarge => "private host job inventory exceeds bounds",
             Self::Io => "private host job I/O failed",
@@ -141,7 +144,7 @@ fn same_file(left: &Stat, right: &Stat) -> bool {
         && left.st_ctime_nsec == right.st_ctime_nsec
 }
 
-fn read_one(dir: &OwnedFd, name: &str, owner: u32) -> Result<(Value, u64), PrivateJobError> {
+fn read_regular_bytes(dir: &OwnedFd, name: &str, owner: u32) -> Result<Vec<u8>, PrivateJobError> {
     let descriptor = openat(
         dir,
         name,
@@ -184,6 +187,11 @@ fn read_one(dir: &OwnedFd, name: &str, owner: u32) -> Result<(Value, u64), Priva
     {
         return Err(PrivateJobError::Changed);
     }
+    Ok(bytes)
+}
+
+fn read_one(dir: &OwnedFd, name: &str, owner: u32) -> Result<(Value, u64), PrivateJobError> {
+    let bytes = read_regular_bytes(dir, name, owner)?;
     let value: Value = serde_json::from_slice(&bytes).map_err(|_| PrivateJobError::UnsafeJob)?;
     let expected_id = name
         .strip_suffix(".json")
@@ -195,6 +203,16 @@ fn read_one(dir: &OwnedFd, name: &str, owner: u32) -> Result<(Value, u64), Priva
         return Err(PrivateJobError::UnsafeJob);
     }
     Ok((value, bytes.len() as u64))
+}
+
+/// Privately read the Python host's operator config through the same stable
+/// descriptor custody as a job record, then apply the pinned Python-compatible
+/// merge/validation. The returned data is not source authority by itself.
+pub fn read_private_operations(state: &Path) -> Result<Value, PrivateJobError> {
+    let owner = geteuid().as_raw();
+    let root = state_root(state, owner)?;
+    let bytes = read_regular_bytes(&root, "config.json", owner)?;
+    load_operations_bytes(&bytes).map_err(|_| PrivateJobError::InvalidConfig)
 }
 
 /// Read every historical Python job through private descriptor-relative paths.

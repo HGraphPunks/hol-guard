@@ -1,5 +1,7 @@
 use gauntlet_host_state::{ReleaseSourceError, TagLookupPlan};
 use serde_json::Value;
+use std::fs::{self, Permissions};
+use std::os::unix::fs::PermissionsExt;
 
 #[test]
 fn fixed_git_tag_lookup_matches_pinned_python_without_network() {
@@ -74,4 +76,23 @@ fn malformed_or_oversize_git_output_refuses() {
         plan.parse_response(&vec![b'x'; 64 * 1024 + 1]),
         Err(ReleaseSourceError::TooLarge)
     );
+}
+
+#[test]
+fn read_only_git_runner_uses_fixed_plan_and_reports_failure() {
+    let temporary = tempfile::tempdir().unwrap();
+    let fake_git = temporary.path().join("fake-git");
+    fs::write(
+        &fake_git,
+        b"#!/bin/sh\nprintf '%s\\t%s\\n' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa refs/tags/v3.48.0\n",
+    )
+    .unwrap();
+    fs::set_permissions(&fake_git, Permissions::from_mode(0o700)).unwrap();
+    let mut operations: Value =
+        serde_json::from_str(include_str!("../operations-defaults-v1.json")).unwrap();
+    operations["git"] = fake_git.to_str().unwrap().into();
+    let plan = TagLookupPlan::new(&operations, "v3.48.0").unwrap();
+    assert_eq!(plan.execute_read_only().unwrap()["sha"], "a".repeat(40));
+    fs::write(&fake_git, b"#!/bin/sh\nexit 7\n").unwrap();
+    assert_eq!(plan.execute_read_only(), Err(ReleaseSourceError::GitFailed));
 }
