@@ -303,6 +303,7 @@ version = "0.1.0"
 dependencies = [
  "flate2",
  "gauntlet-contracts",
+ "libc",
  "rustix",
  "serde_json",
  "sha2",

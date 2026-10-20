@@ -8,6 +8,8 @@ use std::fmt;
 mod operations;
 pub use operations::{load_operations_bytes, OperationsError};
 mod fixed_process;
+mod host_telemetry;
+pub use host_telemetry::{sample_host, HostTelemetryError};
 mod private_jobs;
 pub use private_jobs::{read_private_jobs, read_private_operations, PrivateJobError};
 mod public_jobs;
