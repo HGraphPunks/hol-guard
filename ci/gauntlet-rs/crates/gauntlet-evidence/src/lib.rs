@@ -1,6 +1,7 @@
 //! Read-only public bundle verifier. Candidate bytes never choose code or trust anchors.
 
 mod campaign;
+mod campaign_gate;
 mod crypto;
 mod episode_score;
 mod io;
@@ -9,6 +10,7 @@ mod public_files;
 mod runner_inputs;
 mod tree_inventory;
 
+pub use campaign_gate::evaluate_audited_campaign;
 pub use episode_score::evaluate_audited_episode;
 pub use runner_inputs::{
     verify_runner_file_assets, verify_runner_inputs, verify_runner_inputs_from_paths,

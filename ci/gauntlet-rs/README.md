@@ -30,8 +30,9 @@ descriptor-relative paths. It checks externally pinned manifest and source
 identities, Ed25519 signatures, file inventory and hashes, signed World
 receipt chains, campaign inventory, and scheduled episode bindings. The
 pure episode reducer matches 17 Python gate cases when supplied already
-audited scores, native surfaces and cleanup observations. It does not yet
-authenticate those observations or compute a campaign verdict. The
+audited scores, native surfaces and cleanup observations. A pure campaign
+reducer matches 16 Python ledger/accounting cases. Neither function
+authenticates those observations or grants a production campaign verdict. The
 `gauntlet-verify` binary reports integrity and completeness only. Every
 successful report remains `exploratory` and `qualification_eligible: false`;
 it does not independently score Guard behavior or publish a CI status.

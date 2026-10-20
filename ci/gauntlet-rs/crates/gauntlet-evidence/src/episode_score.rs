@@ -72,7 +72,9 @@ pub fn evaluate_audited_episode(
     }
     if !exact_true(report.get("inference_started"))
         || !exact_true(report.get("model_usage_known"))
-        || report["model_tokens"].as_u64().is_none_or(|tokens| tokens == 0)
+        || report["model_tokens"]
+            .as_u64()
+            .is_none_or(|tokens| tokens == 0)
         || exact_true(report.get("zero_model_requests_proven"))
     {
         reasons.insert("completed-inference-unproven");
