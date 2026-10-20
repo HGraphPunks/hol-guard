@@ -3,6 +3,7 @@
 mod bridge_frames;
 mod campaign;
 mod campaign_gate;
+mod controller_invocations;
 mod crypto;
 mod episode_score;
 mod io;
@@ -11,6 +12,7 @@ mod payload;
 mod private_cell_files;
 mod private_cell_manifest;
 mod provider_quota;
+mod provider_status;
 mod public_files;
 mod runner_asset_inventory;
 mod runner_inputs;
@@ -20,11 +22,13 @@ mod worker_receipt;
 
 pub use bridge_frames::FrameCodec;
 pub use campaign_gate::evaluate_audited_campaign;
+pub use controller_invocations::{audit_controller_invocations, ControllerInvocationBytes};
 pub use episode_score::evaluate_audited_episode;
 pub use package_version::{valid_package_version, verify_installed_version_metadata};
 pub use private_cell_files::{verify_private_cell_artifacts, PrivateCellInventory};
 pub use private_cell_manifest::{verify_private_cell_manifest, PrivateCellManifest};
 pub use provider_quota::read_provider_quota_snapshot;
+pub use provider_status::verify_provider_status;
 pub use runner_asset_inventory::{verify_runner_assets_inert, RunnerAssetInventory};
 pub use runner_inputs::{
     verify_runner_file_assets, verify_runner_inputs, verify_runner_inputs_from_paths,

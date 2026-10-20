@@ -48,6 +48,11 @@ snapshots and rejects nine malformed or unauthorized journal variants; the
 synthetic [quota proof](../../docs/gauntlet-rust-quota-proof.md) includes Linux
 ARM64 test evidence. It cannot append a journal row or admit model inference.
 
+Pure [provider-status and controller-invocation reducers](../../docs/gauntlet-rust-controller-invocation-proof.md)
+match 18 and 14 additional Python-frozen cases over operational accounting.
+The invocation reducer takes already-read bytes; its live Root-owned file
+custody, shard-ledger binding and provider-snapshot authentication remain open.
+
 `gauntlet-evidence` reads a workflow public bundle through no-symlink,
 descriptor-relative paths. It checks externally pinned manifest and source
 identities, Ed25519 signatures, file inventory and hashes, signed World
