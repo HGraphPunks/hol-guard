@@ -5,6 +5,10 @@ edition = "2021"
 rust-version = "1.88"
 description = "Durable one-time reservation boundary for the future Gauntlet Linux worker"
 
+[[bin]]
+name = "gauntlet-vm-worker-shadow"
+path = "src/bin/gauntlet-vm-worker-shadow.rs"
+
 [dependencies]
 gauntlet-contracts = { path = "../gauntlet-contracts" }
 rustix = { version = "=1.1.5", features = ["fs", "process"] }

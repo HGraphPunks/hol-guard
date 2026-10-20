@@ -1,6 +1,6 @@
 # Rust Gauntlet VM worker protocol boundary
 
-This is the fixed request and response syntax for the proposed Root-owned Linux ARM worker. The implemented parsers are [`worker_request.rs`](../ci/gauntlet-rs/crates/gauntlet-contracts/src/worker_request.rs) and [`worker_response.rs`](../ci/gauntlet-rs/crates/gauntlet-contracts/src/worker_response.rs). They validate data only; no Rust VM worker is installed or allowed to act on a parsed request yet. The [execution checklist](gauntlet-rust-execution-checklist.md) tracks durable receipts, leases, process identity, conformance and cutover separately.
+This is the fixed request and response syntax for the proposed Root-owned Linux ARM worker. The implemented parsers are [`worker_request.rs`](../ci/gauntlet-rs/crates/gauntlet-contracts/src/worker_request.rs) and [`worker_response.rs`](../ci/gauntlet-rs/crates/gauntlet-contracts/src/worker_response.rs). They validate data only. An uninstalled [`gauntlet-vm-worker-shadow`](../ci/gauntlet-rs/crates/gauntlet-worker-state/src/bin/gauntlet-vm-worker-shadow.rs) binary can read the new private journal on Linux ARM64 with hash-only outside pins; it never executes a request. No Rust VM worker is installed or allowed to launch a candidate yet. The [execution checklist](gauntlet-rust-execution-checklist.md) tracks durable receipts, leases, process identity, conformance and cutover separately.
 
 The request is at most 1,024 bytes of bounded JSON. It has schema `hol-gauntlet-worker-request.v1` and exactly one of these shapes:
 
