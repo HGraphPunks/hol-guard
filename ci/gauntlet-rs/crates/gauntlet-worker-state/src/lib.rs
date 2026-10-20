@@ -71,7 +71,13 @@ mod builder_run_plan;
 mod deadline;
 #[cfg(target_os = "linux")]
 mod deployment;
+#[cfg(target_os = "linux")]
+mod interpreter_exec;
 mod launch_plan;
+#[cfg(target_os = "linux")]
+pub use interpreter_exec::{
+    probe_verified_interpreter_exec, InterpreterExecError, InterpreterExecProof,
+};
 mod lease;
 #[cfg(target_os = "linux")]
 mod linux_cgroup;

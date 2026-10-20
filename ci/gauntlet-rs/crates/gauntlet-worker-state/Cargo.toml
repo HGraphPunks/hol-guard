@@ -16,6 +16,7 @@ path = "src/bin/gauntlet-controller-shadow.rs"
 [dependencies]
 gauntlet-contracts = { path = "../gauntlet-contracts" }
 gauntlet-evidence = { path = "../gauntlet-evidence" }
+libc = "=0.2.191"
 rustix = { version = "=1.1.5", features = ["event", "fs", "process", "time"] }
 serde_json = { version = "=1.0.151", features = ["arbitrary_precision"] }
 sha2 = "=0.10.9"
