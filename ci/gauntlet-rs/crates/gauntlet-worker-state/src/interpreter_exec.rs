@@ -8,6 +8,8 @@ use std::fmt;
 
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 const PROBE_CODE: &str = "import sys;raise SystemExit(73 if sys.prefix==sys.argv[1] else 74)";
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+const CONTAINED_PROBE_CODE: &str = "import os,time;os.fork();time.sleep(5)";
 const SUCCESS_CODE: i32 = 73;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,15 +78,24 @@ pub fn probe_verified_interpreter_exec(
 }
 
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub(crate) fn spawn_contained_interpreter_probe(
+    interpreter: &HeldInterpreter,
+    cgroup_writer: std::os::fd::OwnedFd,
+) -> Result<std::process::Child, InterpreterExecError> {
+    linux::spawn_contained_probe(interpreter, cgroup_writer)
+}
+
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod linux {
     use super::{
-        HeldInterpreter, InterpreterExecError, InterpreterExecProof, PROBE_CODE, SUCCESS_CODE,
+        HeldInterpreter, InterpreterExecError, InterpreterExecProof, CONTAINED_PROBE_CODE,
+        PROBE_CODE, SUCCESS_CODE,
     };
     use std::ffi::CString;
     use std::io;
-    use std::os::fd::{AsRawFd, BorrowedFd};
+    use std::os::fd::{AsRawFd, BorrowedFd, OwnedFd};
     use std::os::unix::process::CommandExt;
-    use std::process::{Command, Stdio};
+    use std::process::{Child, Command, Stdio};
     use std::thread;
     use std::time::{Duration, Instant};
 
@@ -98,7 +109,11 @@ mod linux {
     /// The child callback makes no allocations, reads or locks after fork.
     /// It either replaces the child through the verified descriptor or returns
     /// an error to `Command::spawn`; `/usr/bin/false` cannot run as a fallback.
-    fn exec_fd(descriptor: BorrowedFd<'_>, argv: &[&str]) -> Result<i32, InterpreterExecError> {
+    fn spawn_fd(
+        descriptor: BorrowedFd<'_>,
+        argv: &[&str],
+        cgroup_writer: Option<OwnedFd>,
+    ) -> Result<Child, InterpreterExecError> {
         if argv.is_empty() || argv.len() > 7 {
             return Err(InterpreterExecError::InvalidInterpreter);
         }
@@ -124,13 +139,43 @@ mod linux {
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
-        // SAFETY: the Rust child callback only uses stack pointer arrays and
-        // execveat's syscall. The heap-backed CStrings are prepared before
-        // fork and retained in the closure until exec or child failure.
+        // SAFETY: all buffers are prepared before fork. The child uses only
+        // stack digits, cgroup write, privilege-drop and execveat syscalls.
+        // The CStrings remain owned by the closure through exec or failure.
         unsafe {
             command.pre_exec(move || {
                 let _keep_args = &args;
                 let _keep_environment = &environment;
+                if let Some(writer) = &cgroup_writer {
+                    let mut pid = libc::getpid() as u32;
+                    let mut digits = [0u8; 10];
+                    let mut start = digits.len();
+                    loop {
+                        start -= 1;
+                        digits[start] = b'0' + (pid % 10) as u8;
+                        pid /= 10;
+                        if pid == 0 {
+                            break;
+                        }
+                    }
+                    let bytes = &digits[start..];
+                    let written =
+                        libc::write(writer.as_raw_fd(), bytes.as_ptr().cast(), bytes.len());
+                    if written != bytes.len() as isize {
+                        return Err(if written < 0 {
+                            io::Error::last_os_error()
+                        } else {
+                            io::Error::from_raw_os_error(libc::EIO)
+                        });
+                    }
+                    if libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0
+                        || libc::setgroups(0, std::ptr::null()) != 0
+                        || libc::setresgid(65534, 65534, 65534) != 0
+                        || libc::setresuid(65534, 65534, 65534) != 0
+                    {
+                        return Err(io::Error::last_os_error());
+                    }
+                }
                 let mut argv_ptrs = [std::ptr::null(); 8];
                 for (slot, pointer) in argv_ptrs.iter_mut().zip(&argument_ptrs) {
                     *slot = *pointer as *const libc::c_char;
@@ -150,7 +195,11 @@ mod linux {
                 Err(io::Error::last_os_error())
             });
         }
-        let mut child = command.spawn().map_err(|_| InterpreterExecError::Spawn)?;
+        command.spawn().map_err(|_| InterpreterExecError::Spawn)
+    }
+
+    fn exec_fd(descriptor: BorrowedFd<'_>, argv: &[&str]) -> Result<i32, InterpreterExecError> {
+        let mut child = spawn_fd(descriptor, argv, None)?;
         let started = Instant::now();
         loop {
             match child.try_wait() {
@@ -170,6 +219,28 @@ mod linux {
                 }
             }
         }
+    }
+
+    pub(super) fn spawn_contained_probe(
+        interpreter: &HeldInterpreter,
+        cgroup_writer: OwnedFd,
+    ) -> Result<Child, InterpreterExecError> {
+        let declaration = interpreter.declaration();
+        let fd = interpreter
+            .checked_fd()
+            .map_err(|_| InterpreterExecError::InvalidInterpreter)?;
+        spawn_fd(
+            fd,
+            &[
+                &declaration.python_path,
+                "-I",
+                "-S",
+                "-B",
+                "-c",
+                CONTAINED_PROBE_CODE,
+            ],
+            Some(cgroup_writer),
+        )
     }
 
     pub(super) fn probe(

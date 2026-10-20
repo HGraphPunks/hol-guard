@@ -1,7 +1,10 @@
 //! Fixed inert cgroup-v2 child/grandchild kill-and-drain proof. The API cannot
 //! select candidate code, a command, a cgroup path or a production job ID.
 
-use crate::{observe_cgroup_drain, CgroupDrainState};
+use crate::{
+    interpreter_exec::spawn_contained_interpreter_probe, observe_cgroup_drain, CgroupDrainState,
+    HeldInterpreter,
+};
 use rustix::fs::{
     fstat, mkdirat, open, openat, statat, unlinkat, AtFlags, FileType, Mode, OFlags, Stat,
 };
@@ -38,6 +41,8 @@ pub enum CgroupProbeError {
     KillUnavailable,
     DrainUnknown,
     CleanupUnavailable,
+    InterpreterChanged,
+    ChildIdentityUnknown,
 }
 
 impl fmt::Display for CgroupProbeError {
@@ -52,6 +57,8 @@ impl fmt::Display for CgroupProbeError {
             Self::KillUnavailable => "fixed cgroup subtree kill failed",
             Self::DrainUnknown => "fixed cgroup subtree did not prove drained",
             Self::CleanupUnavailable => "drained fixed cgroup could not be removed",
+            Self::InterpreterChanged => "held interpreter changed during contained probe",
+            Self::ChildIdentityUnknown => "contained child credentials were not safely observed",
         })
     }
 }
@@ -79,7 +86,7 @@ impl CgroupProbeProof {
     }
 }
 
-struct OwnedProbeGroup {
+pub(crate) struct OwnedProbeGroup {
     parent: OwnedFd,
     directory: OwnedFd,
     original: Stat,
@@ -131,8 +138,50 @@ fn write_control(directory: &OwnedFd, name: &str, bytes: &[u8]) -> Result<(), Cg
     Ok(())
 }
 
+fn check_unprivileged_child(pid: u32) -> Result<(), CgroupProbeError> {
+    let path = format!("/proc/{pid}/status");
+    let fd = open(
+        path.as_str(),
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|_| CgroupProbeError::ChildIdentityUnknown)?;
+    let mut bytes = Vec::new();
+    File::from(fd)
+        .take(16 * 1024 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| CgroupProbeError::ChildIdentityUnknown)?;
+    if bytes.len() > 16 * 1024 {
+        return Err(CgroupProbeError::ChildIdentityUnknown);
+    }
+    let text = std::str::from_utf8(&bytes).map_err(|_| CgroupProbeError::ChildIdentityUnknown)?;
+    let uid = text
+        .lines()
+        .find(|line| line.starts_with("Uid:"))
+        .ok_or(CgroupProbeError::ChildIdentityUnknown)?;
+    let no_new_privs = text
+        .lines()
+        .find(|line| line.starts_with("NoNewPrivs:"))
+        .ok_or(CgroupProbeError::ChildIdentityUnknown)?;
+    let zero_capabilities = ["CapPrm:", "CapEff:", "CapAmb:"].iter().all(|label| {
+        text.lines()
+            .find(|line| line.starts_with(label))
+            .is_some_and(|line| {
+                line.split_ascii_whitespace().collect::<Vec<_>>() == [*label, "0000000000000000"]
+            })
+    });
+    if uid.split_ascii_whitespace().collect::<Vec<_>>()
+        != ["Uid:", "65534", "65534", "65534", "65534"]
+        || no_new_privs.split_ascii_whitespace().collect::<Vec<_>>() != ["NoNewPrivs:", "1"]
+        || !zero_capabilities
+    {
+        return Err(CgroupProbeError::ChildIdentityUnknown);
+    }
+    Ok(())
+}
+
 impl OwnedProbeGroup {
-    fn create() -> Result<Self, CgroupProbeError> {
+    pub(crate) fn create() -> Result<Self, CgroupProbeError> {
         if geteuid().as_raw() != 0 {
             return Err(CgroupProbeError::RootRequired);
         }
@@ -216,15 +265,19 @@ impl OwnedProbeGroup {
         self.check_identity()
     }
 
-    fn attach_child(&self, command: &mut Command) -> Result<(), CgroupProbeError> {
+    pub(crate) fn writer(&self) -> Result<OwnedFd, CgroupProbeError> {
         self.check_identity()?;
-        let writer = openat(
+        openat(
             &self.directory,
             "cgroup.procs",
             OFlags::WRONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
             Mode::empty(),
         )
-        .map_err(|_| CgroupProbeError::ControlUnavailable)?;
+        .map_err(|_| CgroupProbeError::ControlUnavailable)
+    }
+
+    fn attach_child(&self, command: &mut Command) -> Result<(), CgroupProbeError> {
+        let writer = self.writer()?;
         // SAFETY: the callback uses only getpid, stack digits and one write
         // syscall after fork. It runs before the fixed shell is executed.
         unsafe {
@@ -254,7 +307,7 @@ impl OwnedProbeGroup {
         Ok(())
     }
 
-    fn tasks(&self) -> Result<u64, CgroupProbeError> {
+    pub(crate) fn tasks(&self) -> Result<u64, CgroupProbeError> {
         self.check_identity()?;
         let raw = read_control(&self.directory, "pids.current")?;
         let text = std::str::from_utf8(&raw).map_err(|_| CgroupProbeError::ControlUnavailable)?;
@@ -268,13 +321,13 @@ impl OwnedProbeGroup {
             .map_err(|_| CgroupProbeError::ControlUnavailable)
     }
 
-    fn kill(&self) -> Result<(), CgroupProbeError> {
+    pub(crate) fn kill(&self) -> Result<(), CgroupProbeError> {
         self.check_identity()?;
         write_control(&self.directory, "cgroup.kill", b"1")
             .map_err(|_| CgroupProbeError::KillUnavailable)
     }
 
-    fn remove_empty(&mut self) -> Result<(), CgroupProbeError> {
+    pub(crate) fn remove_empty(&mut self) -> Result<(), CgroupProbeError> {
         self.check_identity()?;
         if observe_cgroup_drain(GROUP) != Ok(CgroupDrainState::Drained) {
             return Err(CgroupProbeError::DrainUnknown);
@@ -283,7 +336,7 @@ impl OwnedProbeGroup {
             .map_err(|_| CgroupProbeError::CleanupUnavailable)
     }
 
-    fn drain_and_remove(&mut self) -> Result<(), CgroupProbeError> {
+    pub(crate) fn drain_and_remove(&mut self) -> Result<(), CgroupProbeError> {
         let started = Instant::now();
         loop {
             match self.remove_empty() {
@@ -345,4 +398,86 @@ pub fn run_fixed_cgroup_probe() -> Result<CgroupProbeProof, CgroupProbeError> {
     reaped?;
     drained?;
     Ok(CgroupProbeProof { observed_tasks })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContainedInterpreterProbeProof {
+    pub observed_tasks: u64,
+    pub interpreter_sha256: String,
+}
+
+impl ContainedInterpreterProbeProof {
+    pub fn to_json(&self) -> Value {
+        json!({
+            "schema":"hol-gauntlet-contained-interpreter-probe.v1",
+            "cgroup":GROUP,
+            "observed_tasks":self.observed_tasks,
+            "interpreter_sha256":self.interpreter_sha256,
+            "child_uid":65534,
+            "child_uid_kernel_observed":true,
+            "no_new_privileges_kernel_observed":true,
+            "child_capabilities_zero_kernel_observed":true,
+            "execveat_fd_bound":true,
+            "python_site_disabled":true,
+            "recursive_kill_written":true,
+            "drained_observed":true,
+            "cgroup_removed":true,
+            "controller_executed":false,
+            "benchmark_executed":false,
+            "execution_eligible":false,
+        })
+    }
+}
+
+/// Join the held executable and fixed cgroup in one inert launch. The child
+/// enters the group as Root, drops to nobody before exec, then the fixed
+/// Python snippet forks once and sleeps. This proves process containment of
+/// the descriptor-bound interpreter, not controller or benchmark eligibility.
+pub fn run_fixed_contained_interpreter_probe(
+    interpreter: &HeldInterpreter,
+) -> Result<ContainedInterpreterProbeProof, CgroupProbeError> {
+    interpreter
+        .assert_unchanged()
+        .map_err(|_| CgroupProbeError::InterpreterChanged)?;
+    let mut group = OwnedProbeGroup::create()?;
+    let writer = match group.writer() {
+        Ok(writer) => writer,
+        Err(error) => {
+            group.remove_empty()?;
+            return Err(error);
+        }
+    };
+    let mut child = match spawn_contained_interpreter_probe(interpreter, writer) {
+        Ok(child) => child,
+        Err(_) => {
+            group.drain_and_remove()?;
+            return Err(CgroupProbeError::Spawn);
+        }
+    };
+    let started = Instant::now();
+    let observed_tasks = loop {
+        match group.tasks() {
+            Ok(tasks) if tasks >= 2 => break Ok(tasks),
+            Ok(_) if started.elapsed() < WAIT => thread::sleep(POLL),
+            Ok(_) => break Err(CgroupProbeError::GrandchildUnavailable),
+            Err(error) => break Err(error),
+        }
+    };
+    let child_identity = check_unprivileged_child(child.id());
+    let killed = group.kill();
+    let reaped = child.wait().map_err(|_| CgroupProbeError::Spawn);
+    let drained = group.drain_and_remove();
+    let interpreter_unchanged = interpreter
+        .assert_unchanged()
+        .map_err(|_| CgroupProbeError::InterpreterChanged);
+    let observed_tasks = observed_tasks?;
+    child_identity?;
+    killed?;
+    reaped?;
+    drained?;
+    interpreter_unchanged?;
+    Ok(ContainedInterpreterProbeProof {
+        observed_tasks,
+        interpreter_sha256: interpreter.declaration().sha256.clone(),
+    })
 }
