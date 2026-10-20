@@ -24,6 +24,7 @@ mod provider_quota_history;
 mod provider_quota_writer;
 mod provider_status;
 mod public_files;
+mod python_worker_files;
 mod runner_asset_inventory;
 mod runner_inputs;
 mod runner_runtime;
@@ -48,6 +49,7 @@ pub use provider_quota_history::verify_provider_quota_observations;
 #[cfg(feature = "quota-write")]
 pub use provider_quota_writer::ProviderQuotaWriter;
 pub use provider_status::verify_provider_status;
+pub use python_worker_files::read_python_worker_terminal_root_owned;
 pub use runner_asset_inventory::{verify_runner_assets_inert, RunnerAssetInventory};
 pub use runner_inputs::{
     verify_runner_file_assets, verify_runner_inputs, verify_runner_inputs_from_paths,

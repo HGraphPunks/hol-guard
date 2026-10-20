@@ -81,7 +81,14 @@ immutable #5263 fixture baseline. Neither manifest makes candidate code a
 trusted controller generation.
 `gauntlet-contracts` also parses fixed, versioned [VM worker requests and responses](../../docs/gauntlet-rust-worker-protocol.md)
 with no command or path selectors and explicit unknown/unavailable states; no worker dispatcher or receipt authenticator exists yet.
-`gauntlet-evidence` checks the pinned Python worker's terminal receipt against independently supplied source, job, deployment and config pins and the exact report bytes. It does not read Root-owned VM paths or award benchmark eligibility.
+`gauntlet-evidence` checks the pinned Python worker's terminal receipt against caller-supplied source, job, deployment and config pins and the exact report bytes. The pure consistency helper does not open VM paths or award benchmark eligibility.
+An uninstalled [Root-only Python-worker shadow](../../docs/gauntlet-rust-python-worker-file-proof.md)
+now reads one retained receipt and report through fixed no-symlink private
+paths before applying that verifier. A SHA-matched ARM64 binary accepted one
+retained VM pair as internally consistent, refused unprivileged access and a
+wrong config pin, and still reported `execution_eligible: false`. Its pins
+were observed on that same VM, so this is diagnostic custody proof rather than
+an independently authenticated control verdict.
 
 `gauntlet-provider-observer` is a separate read-only socket client for the two
 fixed local-model GET endpoints. It resolves only the pinned local route to
