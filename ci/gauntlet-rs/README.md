@@ -88,7 +88,10 @@ fixed local-model GET endpoints. It resolves only the pinned local route to
 `192.168.5.2` on port 8001 or 8002, refuses redirects and oversized or
 ambiguous HTTP responses, and applies the Rust one-model and provider-status
 checks against outside pins. Its local tests cover response framing and a
-Python-frozen idle provider snapshot. It has no inference POST, quota writer,
+Python-frozen idle provider snapshot. The uninstalled `gauntlet-provider-shadow`
+binary accepts one bounded v1 JSON request on stdin and reports an unavailable
+route with a nonzero exit; a SHA-matched ARM64 build did so in the idle VM
+while the host model provider was offline. It has no inference POST, quota writer,
 trusted provider generation or benchmark eligibility. See the
 [provider observer proof](../../docs/gauntlet-rust-provider-observer-proof.md).
 
