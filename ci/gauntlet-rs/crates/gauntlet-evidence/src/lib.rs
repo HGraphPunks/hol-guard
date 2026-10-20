@@ -11,6 +11,7 @@ mod payload;
 mod public_files;
 mod runner_inputs;
 mod tree_inventory;
+mod worker_receipt;
 
 pub use bridge_frames::FrameCodec;
 pub use campaign_gate::evaluate_audited_campaign;
@@ -21,6 +22,7 @@ pub use runner_inputs::{
     ReservationTotals, VerifiedRunnerInputs,
 };
 pub use tree_inventory::{inventory_tree, TreeInventory, TreeKind};
+pub use worker_receipt::{verify_python_worker_terminal, PythonWorkerTerminal};
 
 use crate::campaign::verify_campaign;
 use crate::crypto::{decode_base64, decode_hex, is_sha256, sha256, verify_ed25519};

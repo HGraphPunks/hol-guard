@@ -45,6 +45,7 @@ The [parity manifest](parity-manifest.v1.json) records SHA-256 hashes for all
 420 pinned Gauntlet source files and a preliminary owner phase.
 `gauntlet-contracts` also parses fixed, versioned [VM worker requests and responses](../../docs/gauntlet-rust-worker-protocol.md)
 with no command or path selectors and explicit unknown/unavailable states; no worker dispatcher or receipt authenticator exists yet.
+`gauntlet-evidence` checks the pinned Python worker's terminal receipt against independently supplied source, job, deployment and config pins and the exact report bytes. It does not read Root-owned VM paths or award benchmark eligibility.
 
 Run the checks from the repository root:
 
