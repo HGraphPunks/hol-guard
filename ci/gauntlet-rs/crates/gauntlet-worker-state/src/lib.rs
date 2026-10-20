@@ -70,6 +70,7 @@ pub struct RunReservationJournal {
 mod deadline;
 #[cfg(target_os = "linux")]
 mod deployment;
+mod launch_plan;
 mod lease;
 #[cfg(target_os = "linux")]
 mod linux_cgroup;
@@ -85,6 +86,7 @@ pub use deadline::{BoottimeDeadline, DeadlineError, MAX_ACTIVE_SECONDS};
 pub use deployment::{
     read_fixed_deployment, read_fixed_interpreter, DeploymentDeclaration, InterpreterDeclaration,
 };
+pub use launch_plan::{fixed_launch_plan, FixedLaunchPlan, RunLaunchPins};
 pub use lease::ActiveLease;
 #[cfg(target_os = "linux")]
 pub use linux_cgroup::{

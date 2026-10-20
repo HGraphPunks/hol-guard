@@ -56,3 +56,5 @@ jobs:
         run: cargo +1.88.0 build --manifest-path ci/gauntlet-rs/Cargo.toml --workspace --bins --locked
       - name: Test Linux worker, evidence, and provider metadata readers
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence -p gauntlet-provider-observer -p gauntlet-worker-state --lib --locked
+      - name: Compare fixed worker launch with pinned Python on ARM64
+        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-worker-state --test launch_plan --locked
