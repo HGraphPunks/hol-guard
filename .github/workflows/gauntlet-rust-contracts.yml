@@ -54,5 +54,5 @@ jobs:
         run: rustup toolchain install 1.88.0 --profile minimal
       - name: Link all Rust Gauntlet executables on Linux ARM64
         run: cargo +1.88.0 build --manifest-path ci/gauntlet-rs/Cargo.toml --workspace --bins --locked
-      - name: Test Linux worker and evidence readers
-        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence -p gauntlet-worker-state --lib --locked
+      - name: Test Linux worker, evidence, and provider metadata readers
+        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence -p gauntlet-provider-observer -p gauntlet-worker-state --lib --locked

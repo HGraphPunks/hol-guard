@@ -74,7 +74,7 @@ Python-exported valid and signed hostile fixtures provide differential tests.
 The [parity manifest](parity-manifest.v1.json) records SHA-256 hashes for all
 420 pinned Gauntlet source files and a preliminary owner phase.
 The separate [integration source delta](integration-source-delta.v1.json) records the
-37 files changed and five files added when that pinned source is combined with
+42 files changed and six files added when that pinned source is combined with
 current `main` in draft PR #5402. A Rust test reconstructs and hashes all 426
 tracked `ci/gauntlet` files; the original 420-file manifest remains the
 immutable #5263 fixture baseline. Neither manifest makes candidate code a
@@ -82,6 +82,15 @@ trusted controller generation.
 `gauntlet-contracts` also parses fixed, versioned [VM worker requests and responses](../../docs/gauntlet-rust-worker-protocol.md)
 with no command or path selectors and explicit unknown/unavailable states; no worker dispatcher or receipt authenticator exists yet.
 `gauntlet-evidence` checks the pinned Python worker's terminal receipt against independently supplied source, job, deployment and config pins and the exact report bytes. It does not read Root-owned VM paths or award benchmark eligibility.
+
+`gauntlet-provider-observer` is a separate read-only socket client for the two
+fixed local-model GET endpoints. It resolves only the pinned local route to
+`192.168.5.2` on port 8001 or 8002, refuses redirects and oversized or
+ambiguous HTTP responses, and applies the Rust one-model and provider-status
+checks against outside pins. Its local tests cover response framing and a
+Python-frozen idle provider snapshot. It has no inference POST, quota writer,
+trusted provider generation or benchmark eligibility. See the
+[provider observer proof](../../docs/gauntlet-rust-provider-observer-proof.md).
 
 `gauntlet-dashboard` is a read-only shadow server for the existing public status directory. It embeds the current dashboard HTML, JavaScript and CSS, reads only bounded regular files through no-symlink descriptors, and serves the same `/api/status` and `/healthz` values on loopback. It does not own the observer, VM, queue or port 8791. To compare it with the Python dashboard, run it on port 8792 with the absolute **public** directory (never the private state root):
 

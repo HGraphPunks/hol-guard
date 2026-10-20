@@ -262,6 +262,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "gauntlet-provider-observer"
+version = "0.1.0"
+dependencies = [
+ "gauntlet-contracts",
+ "gauntlet-evidence",
+ "serde_json",
+]
+
+[[package]]
 name = "gauntlet-worker-state"
 version = "0.1.0"
 dependencies = [
