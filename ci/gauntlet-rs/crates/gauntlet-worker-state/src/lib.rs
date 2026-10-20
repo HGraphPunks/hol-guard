@@ -67,6 +67,8 @@ pub struct RunReservationJournal {
 }
 
 #[cfg(target_os = "linux")]
+mod deadline;
+#[cfg(target_os = "linux")]
 mod deployment;
 mod lease;
 #[cfg(target_os = "linux")]
@@ -78,7 +80,11 @@ mod projection;
 mod running;
 mod terminal;
 #[cfg(target_os = "linux")]
-pub use deployment::{read_fixed_deployment, DeploymentDeclaration};
+pub use deadline::{BoottimeDeadline, DeadlineError, MAX_ACTIVE_SECONDS};
+#[cfg(target_os = "linux")]
+pub use deployment::{
+    read_fixed_deployment, read_fixed_interpreter, DeploymentDeclaration, InterpreterDeclaration,
+};
 pub use lease::ActiveLease;
 #[cfg(target_os = "linux")]
 pub use linux_cgroup::{observe_process_resources, CgroupResources, ProcessResourceObservation};

@@ -4,7 +4,7 @@
 
 use crate::{hex, io, open_root_owned_public_directory, ReservationError};
 use gauntlet_contracts::{canonical_sha256, canonicalize, is_git_sha};
-use rustix::fs::{fstat, openat, FileType, Mode, OFlags, Stat};
+use rustix::fs::{fstat, openat, readlinkat, statat, AtFlags, FileType, Mode, OFlags, Stat};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::fs::File;
@@ -15,6 +15,7 @@ use std::path::Path;
 const CANDIDATES: &str = "/opt/hol-gauntlet/candidates";
 const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
 const MAX_CONFIG_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_INTERPRETER_BYTES: u64 = 32 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeploymentDeclaration {
@@ -23,6 +24,13 @@ pub struct DeploymentDeclaration {
     pub config_digest: String,
     pub controller_path: String,
     pub python_path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InterpreterDeclaration {
+    pub python_path: String,
+    pub target_path: String,
+    pub sha256: String,
 }
 
 fn unchanged(before: &Stat, after: &Stat) -> bool {
@@ -39,7 +47,12 @@ fn unchanged(before: &Stat, after: &Stat) -> bool {
         && before.st_ctime_nsec == after.st_ctime_nsec
 }
 
-fn read_root_file(parent: &OwnedFd, name: &str, limit: u64) -> Result<Vec<u8>, ReservationError> {
+fn read_root_file(
+    parent: &OwnedFd,
+    name: &str,
+    limit: u64,
+    executable: bool,
+) -> Result<Vec<u8>, ReservationError> {
     let descriptor = openat(
         parent,
         name,
@@ -54,6 +67,7 @@ fn read_root_file(parent: &OwnedFd, name: &str, limit: u64) -> Result<Vec<u8>, R
         || before.st_nlink != 1
         || before.st_size < 0
         || before.st_size as u64 > limit
+        || (executable && before.st_mode & 0o111 == 0)
     {
         return Err(ReservationError::InvalidDeployment);
     }
@@ -94,6 +108,40 @@ fn controller_python(value: &str) -> bool {
         .is_some_and(|generation| {
             generation.len() == 8 && generation.bytes().all(|byte| byte.is_ascii_digit())
         })
+}
+
+fn system_python_target(target: &str) -> bool {
+    target.strip_prefix("python3.").is_some_and(|minor| {
+        (1..=2).contains(&minor.len())
+            && !minor.starts_with('0')
+            && minor.bytes().all(|b| b.is_ascii_digit())
+    })
+}
+
+fn trusted_symlink_target(
+    parent: &OwnedFd,
+    name: &str,
+    expected_target: Option<&str>,
+) -> Result<String, ReservationError> {
+    let before = statat(parent, name, AtFlags::SYMLINK_NOFOLLOW).map_err(io)?;
+    if FileType::from_raw_mode(before.st_mode) != FileType::Symlink
+        || before.st_uid != 0
+        || before.st_nlink != 1
+    {
+        return Err(ReservationError::InvalidDeployment);
+    }
+    let target = readlinkat(parent, name, Vec::new()).map_err(io)?;
+    let target = target
+        .to_str()
+        .map_err(|_| ReservationError::InvalidDeployment)?;
+    if target.len() > 64 || expected_target.is_some_and(|expected| target != expected) {
+        return Err(ReservationError::InvalidDeployment);
+    }
+    let after = statat(parent, name, AtFlags::SYMLINK_NOFOLLOW).map_err(io)?;
+    if !unchanged(&before, &after) {
+        return Err(ReservationError::InvalidDeployment);
+    }
+    Ok(target.to_owned())
 }
 
 fn parse_manifest(
@@ -159,9 +207,9 @@ pub fn read_fixed_deployment(
     }
     let directory = format!("{CANDIDATES}/{source_sha}");
     let root = open_root_owned_public_directory(Path::new(&directory))?;
-    let manifest_raw = read_root_file(&root, "deployment.json", MAX_MANIFEST_BYTES)?;
+    let manifest_raw = read_root_file(&root, "deployment.json", MAX_MANIFEST_BYTES, false)?;
     let manifest = parse_manifest(&manifest_raw, source_sha, expected_deployment_digest)?;
-    let config_raw = read_root_file(&root, "config.json", MAX_CONFIG_BYTES)?;
+    let config_raw = read_root_file(&root, "config.json", MAX_CONFIG_BYTES, false)?;
     let config_digest =
         canonical_sha256(&config_raw).map_err(|_| ReservationError::InvalidDeployment)?;
     if config_digest != manifest.config_digest {
@@ -177,6 +225,38 @@ pub fn read_fixed_deployment(
         .ok_or(ReservationError::InvalidDeployment)?;
     open_root_owned_public_directory(python_parent)?;
     Ok(manifest)
+}
+
+/// Inspect the exact venv alias and its Root-owned system target against an
+/// outside binary hash. This checks the bytes at inspection time only; a
+/// future launcher must bind execution to the verified descriptor/identity.
+pub fn read_fixed_interpreter(
+    deployment: &DeploymentDeclaration,
+    expected_interpreter_sha256: &str,
+) -> Result<InterpreterDeclaration, ReservationError> {
+    if !controller_python(&deployment.python_path) || !hex(expected_interpreter_sha256, 64) {
+        return Err(ReservationError::InvalidPins);
+    }
+    let parent = Path::new(&deployment.python_path)
+        .parent()
+        .ok_or(ReservationError::InvalidDeployment)?;
+    let venv_bin = open_root_owned_public_directory(parent)?;
+    trusted_symlink_target(&venv_bin, "python", Some("/usr/bin/python3"))?;
+    let system_bin = open_root_owned_public_directory(Path::new("/usr/bin"))?;
+    let target = trusted_symlink_target(&system_bin, "python3", None)?;
+    if !system_python_target(&target) {
+        return Err(ReservationError::InvalidDeployment);
+    }
+    let bytes = read_root_file(&system_bin, &target, MAX_INTERPRETER_BYTES, true)?;
+    let digest = format!("{:x}", Sha256::digest(bytes));
+    if digest != expected_interpreter_sha256 {
+        return Err(ReservationError::InvalidDeployment);
+    }
+    Ok(InterpreterDeclaration {
+        python_path: deployment.python_path.clone(),
+        target_path: format!("/usr/bin/{target}"),
+        sha256: digest,
+    })
 }
 
 #[cfg(test)]
@@ -209,5 +289,22 @@ mod tests {
             parse_manifest(&bytes, &source, &wrong_pin),
             Err(ReservationError::InvalidDeployment)
         );
+    }
+
+    #[test]
+    fn system_python_alias_is_one_canonical_basename() {
+        assert!(system_python_target("python3.12"));
+        assert!(system_python_target("python3.9"));
+        for invalid in [
+            "python3",
+            "python3.123",
+            "python3.01",
+            "python3.0",
+            "python3.12/other",
+            "../python3.12",
+            "python3.x",
+        ] {
+            assert!(!system_python_target(invalid));
+        }
     }
 }
