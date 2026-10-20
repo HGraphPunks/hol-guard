@@ -52,7 +52,7 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). Ch
 - [ ] Port `up`, `status`, `doctor`, `hold`, `resume`, `down`, `reconcile`, and `repair` with new versioned state storage and no concurrent ownership of Python locks/journals.
 - [ ] Port release-only exact-tag discovery for v3.48/v3.49, optional isolated PR artifact handoff, queue admission, single observer lease, and unknown-job blocking.
 - [ ] Port bounded Lima transport, source/build/stage/control progress, VM/headroom/progress sampling, and public snapshot publication with no private fields.
-- [ ] Serve the existing loopback dashboard/API from Rust with correct instance identity, stale/unavailable states, active jobs and resource headroom.
+- [x] Serve the existing loopback dashboard/API from Rust with correct instance identity, stale/unavailable states, active jobs and resource headroom. Evidence: `gauntlet-dashboard` serves the embedded existing assets and bounded public snapshots on loopback; four Rust tests cover staleness, active jobs/headroom, symlink refusal and HTTP identity/host/method behavior. On 2026-10-20, side-by-side port 8792 returned the same live status JSON as the Python server on 8791 (excluding the sampled age), the same health values, and byte-identical HTML/JS/CSS. This is a shadow server only; observer and cutover items remain open.
 - [ ] Shadow-read historical state, then test intentional interruption and read-only receipt reconciliation before a controlled observer cutover.
 - [ ] Prove one-command deployment and port 8791 identity check without modifying current Python jobs or enabling a PR gate.
 

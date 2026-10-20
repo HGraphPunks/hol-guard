@@ -238,6 +238,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "gauntlet-dashboard"
+version = "0.1.0"
+dependencies = [
+ "rustix",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "gauntlet-evidence"
 version = "0.1.0"
 dependencies = [

@@ -264,6 +264,9 @@ def test_metadata_observer_uses_only_fixed_get_paths_without_redirects(tmp_path,
 
 def test_preflight_retains_supported_and_unsupported_selected_cells(tmp_path,monkeypatch):
     from ci.gauntlet.benchmark import local_campaign_custody
+    # Import the lazy support probe before mocking the process-wide platform.
+    # Its MCP/Pydantic dependencies may initialize sysconfig on first import.
+    from ci.gauntlet.benchmark import mcp_protocol_campaign  # noqa: F401
     root,path,config = specimen(tmp_path)
     loaded = load(root,path,config)
     protected = next(row for row in loaded['campaign']['inventory'] if row['protected'] and row['variant']=='clean')

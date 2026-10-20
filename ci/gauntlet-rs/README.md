@@ -47,6 +47,14 @@ The [parity manifest](parity-manifest.v1.json) records SHA-256 hashes for all
 with no command or path selectors and explicit unknown/unavailable states; no worker dispatcher or receipt authenticator exists yet.
 `gauntlet-evidence` checks the pinned Python worker's terminal receipt against independently supplied source, job, deployment and config pins and the exact report bytes. It does not read Root-owned VM paths or award benchmark eligibility.
 
+`gauntlet-dashboard` is a read-only shadow server for the existing public status directory. It embeds the current dashboard HTML, JavaScript and CSS, reads only bounded regular files through no-symlink descriptors, and serves the same `/api/status` and `/healthz` values on loopback. It does not own the observer, VM, queue or port 8791. To compare it with the Python dashboard, run it on port 8792 with the absolute **public** directory (never the private state root):
+
+```sh
+cargo +1.88.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gauntlet-dashboard -- --state /absolute/path/to/.gauntlet-ops/public --port 8792
+```
+
+On 2026-10-20, a side-by-side read of the live public directory produced equal status JSON after excluding the time-sampled `collector_age_seconds`; the health values were equal and the three static assets were byte-identical. The Rust server does not change the authoritative Python controller or its port.
+
 Run the checks from the repository root:
 
 ```sh
