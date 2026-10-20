@@ -8,7 +8,10 @@ mod episode_score;
 mod io;
 mod package_version;
 mod payload;
+mod private_cell_files;
+mod private_cell_manifest;
 mod public_files;
+mod runner_asset_inventory;
 mod runner_inputs;
 mod runner_runtime;
 mod tree_inventory;
@@ -18,6 +21,9 @@ pub use bridge_frames::FrameCodec;
 pub use campaign_gate::evaluate_audited_campaign;
 pub use episode_score::evaluate_audited_episode;
 pub use package_version::{valid_package_version, verify_installed_version_metadata};
+pub use private_cell_files::{verify_private_cell_artifacts, PrivateCellInventory};
+pub use private_cell_manifest::{verify_private_cell_manifest, PrivateCellManifest};
+pub use runner_asset_inventory::{verify_runner_assets_inert, RunnerAssetInventory};
 pub use runner_inputs::{
     verify_runner_file_assets, verify_runner_inputs, verify_runner_inputs_from_paths,
     ReservationTotals, VerifiedRunnerInputs,

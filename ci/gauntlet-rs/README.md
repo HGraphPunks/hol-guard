@@ -30,6 +30,12 @@ still needs Linux race/parity proof, and installed-prefix verification needs a
 root-owned Linux positive fixture. Bounded installed version metadata has
 separate Python-parity checks but must follow that prefix verification. No
 Rust input check authorizes execution.
+An optional full inert inventory also checks all declared file and tree roles
+and the Root-owned private-cell artifact set. Its private-cell manifest must
+match 36 bootstrap files embedded from this controller generation, the exact
+fixed file set, and the outside initializer pin; the embedded source-map digest
+matches the current Python producer. This still needs a positive Linux fixture
+and end-to-end Python outcome comparison before it can be used for admission.
 
 `gauntlet-evidence` reads a workflow public bundle through no-symlink,
 descriptor-relative paths. It checks externally pinned manifest and source
@@ -96,10 +102,12 @@ cargo +1.88.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gaunt
   /absolute/path/to/config.json EXTERNAL_CONFIG_SHA256 /absolute/path/to/assets
 ```
 
-The JSON reports the selected episode count, shard assignment, aggregate
-reservations and installed version metadata when applicable. `execution_eligible`
-is always `false`: this command does not verify SDK or installed-prefix custody,
-private cells, conformance artifacts, the candidate deployment or any live behavior.
+Add `--full-inert-assets` after the asset root to hash the declared SDK/cache
+trees, installed prefix and private-cell artifact set as well. The JSON reports
+the selected episode count, shard assignment, aggregate reservations and
+installed version metadata when applicable. `execution_eligible` is always
+`false`: even the full inert inventory does not prove OS execute access,
+Linux symlink-race safety, independent verdicts or live candidate execution.
 
 The next slices must finish Phase 0's behavioral matrix and Phase 1's full
 asset/configuration custody, legacy evidence and independent scoring parity before moving
