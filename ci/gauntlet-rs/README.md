@@ -27,16 +27,19 @@ authenticate the full installed prefix or admit a candidate to execution.
 An inert SDK and installed-prefix inventory hashes metadata and bytes through
 descriptor-relative directory enumeration. Linux `openat2` confines symlink
 resolution, and a retained VM deployment gave positive Python/Rust parity for
-all 13 asset roles. Concurrent mutation and the full negative reason corpus
-still need proof. No Rust input check authorizes execution.
+all 13 asset roles. A Linux unit test rejects a file changed after hashing
+starts; directory and symlink swap races still need proof. No Rust input check
+authorizes execution.
 An optional full inert inventory also checks all declared file and tree roles
 and the Root-owned private-cell artifact set. Its private-cell manifest must
 match 36 bootstrap files embedded from this controller generation, the exact
 fixed file set, and the outside initializer pin; the embedded source-map digest
 matches the current Python producer. The retained v7 VM deployment passed the
-positive inventory comparison and 13 altered asset-digest refusal cases; see
-the [Linux proof](../../docs/gauntlet-rust-linux-asset-proof.md). Metadata,
-path and older-version parity remain open before execution admission.
+positive inventory comparison, 13 altered asset-digest refusals, and 13 more
+path/kind/version/source/symlink/mode/byte refusal cases with mapped Python
+and Rust stages; see the [Linux proof](../../docs/gauntlet-rust-linux-asset-proof.md).
+Complete reason-class parity and older-version assets remain open before
+execution admission.
 
 `gauntlet-evidence` reads a workflow public bundle through no-symlink,
 descriptor-relative paths. It checks externally pinned manifest and source

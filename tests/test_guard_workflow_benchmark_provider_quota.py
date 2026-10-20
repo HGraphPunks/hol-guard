@@ -2,6 +2,7 @@
 import json
 import multiprocessing
 import os
+from pathlib import Path
 
 import pytest
 
@@ -194,8 +195,11 @@ def _admit_child(path, pin, start, output):
         output.put(('denied', None))
 
 
-def test_two_real_processes_cannot_double_admit(tmp_path):
+def test_two_real_processes_cannot_double_admit(tmp_path, monkeypatch):
     quota = make(tmp_path)
+    # CI launches pytest with only scripts/ci on PYTHONPATH. Spawned children
+    # import this test module afresh and need the checkout root in sys.path.
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1]))
     context = multiprocessing.get_context('spawn')
     start, output = context.Event(), context.Queue()
     children = [context.Process(target=_admit_child,

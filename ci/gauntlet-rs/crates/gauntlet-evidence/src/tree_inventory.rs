@@ -119,7 +119,11 @@ fn unchanged(before: &Stat, after: &Stat) -> bool {
         && before.st_ctime_nsec == after.st_ctime_nsec
 }
 
-fn hash_file(descriptor: OwnedFd, before: &Stat) -> Result<String> {
+fn hash_file_after_chunk(
+    descriptor: OwnedFd,
+    before: &Stat,
+    after_first_chunk: impl FnOnce(),
+) -> Result<String> {
     if before.st_size < 0 || before.st_size as u64 > MAX_BYTES {
         return Err(EvidenceError::Invalid("tree file exceeds byte budget"));
     }
@@ -127,6 +131,7 @@ fn hash_file(descriptor: OwnedFd, before: &Stat) -> Result<String> {
     let mut hasher = sha2::Sha256::new();
     let mut total = 0_u64;
     let mut buffer = [0_u8; 1024 * 1024];
+    let mut after_first_chunk = Some(after_first_chunk);
     loop {
         let count = file
             .read(&mut buffer)
@@ -139,12 +144,19 @@ fn hash_file(descriptor: OwnedFd, before: &Stat) -> Result<String> {
             .filter(|size| *size <= MAX_BYTES)
             .ok_or(EvidenceError::Invalid("tree exceeds two GiB"))?;
         sha2::Digest::update(&mut hasher, &buffer[..count]);
+        if let Some(callback) = after_first_chunk.take() {
+            callback();
+        }
     }
     let after = fstat(&file).map_err(|error| EvidenceError::Io(error.to_string()))?;
     if total != before.st_size as u64 || !unchanged(before, &after) {
         return Err(EvidenceError::Invalid("tree file changed while hashing"));
     }
     Ok(format!("{:x}", sha2::Digest::finalize(hasher)))
+}
+
+fn hash_file(descriptor: OwnedFd, before: &Stat) -> Result<String> {
+    hash_file_after_chunk(descriptor, before, || {})
 }
 
 fn inspect_one(
@@ -360,8 +372,10 @@ pub fn inventory_tree(root: &Path, kind: TreeKind) -> Result<TreeInventory> {
 
 #[cfg(all(test, target_os = "linux"))]
 mod linux_tests {
-    use super::{inventory_tree, TreeKind};
-    use std::os::unix::fs::symlink;
+    use super::{hash_file_after_chunk, inventory_tree, TreeKind};
+    use rustix::fs::{fstat, open, Mode, OFlags};
+    use std::io::Write;
+    use std::os::unix::fs::{symlink, PermissionsExt};
 
     #[test]
     fn descriptor_relative_resolution_allows_inside_chain_and_refuses_escape() {
@@ -378,5 +392,24 @@ mod linux_tests {
 
         symlink("../../outside", root.join("nested/escape")).unwrap();
         assert!(inventory_tree(&root, TreeKind::Sdk).is_err());
+    }
+
+    #[test]
+    fn refuses_file_changed_after_hashing_starts() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("mutable");
+        std::fs::write(&path, vec![b'a'; 2 * 1024 * 1024]).unwrap();
+        let descriptor = open(&path, OFlags::RDONLY | OFlags::CLOEXEC, Mode::empty()).unwrap();
+        let before = fstat(&descriptor).unwrap();
+        let result = hash_file_after_chunk(descriptor, &before, || {
+            let mut writer = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+            writer.write_all(b"b").unwrap();
+            writer.sync_all().unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        });
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "tree file changed while hashing"
+        );
     }
 }
