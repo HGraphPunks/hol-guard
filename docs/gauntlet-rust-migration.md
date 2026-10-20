@@ -9,6 +9,8 @@ The current [Rust workspace](../ci/gauntlet-rs/README.md) has a SHA-256 [invento
 
 The pinned control-plane baseline is still draft PR #5263, while Rust PR #5306 branches from `main`. The Rust workspace can verify frozen copies and contracts in isolation, but a production Rust worker must be built against a reviewed controller generation containing the corresponding source. Integrate or explicitly establish that dependency before VM cutover; a candidate PR binary cannot become its own trusted worker.
 
+The [command and state ownership matrix](gauntlet-rust-surface-matrix.md) inventories the three Python entrypoints, primary profiles, asset roles, job states, public snapshot and journals with proposed Rust phase owners. It is an intermediate inventory; the 420-file disposition audit remains open.
+
 ## Decision and scope
 
 Port Gauntlet incrementally. The practical target is a **Rust-owned trusted controller, verifier, evidence ledger, and VM worker** with the same observable behavior and refusal rules as the current Python system. Keep the pinned Oh My Pi (OMP) TypeScript SDK adapters and the macOS MLX model server as bounded external processes until equivalent native interfaces are proven. Keep pytest as the product feature-audit executor; porting Gauntlet does not mean rewriting HOL Guard's Python product tests or its already-Rust native runtime. A literal all-Rust process tree would also require replacing OMP/MLX/pytest and is a separate, much larger project.
