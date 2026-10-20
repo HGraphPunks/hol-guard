@@ -77,6 +77,8 @@ mod lease;
 mod linux_cgroup;
 #[cfg(any(target_os = "linux", test))]
 mod linux_process;
+#[cfg(target_os = "linux")]
+mod prelaunch;
 mod projection;
 #[cfg(target_os = "linux")]
 mod running;
@@ -97,6 +99,8 @@ pub use linux_cgroup::{
 };
 #[cfg(target_os = "linux")]
 pub use linux_process::{observe_process, ProcessObservation, ProcessObservationError};
+#[cfg(target_os = "linux")]
+pub use prelaunch::{verify_fixed_prelaunch, PrelaunchError, PrelaunchPins, PrelaunchProof};
 #[cfg(target_os = "linux")]
 pub use running::RunningMarker;
 pub use terminal::{ProcessIdentity, TerminalOutcome, TerminalReceipt};
