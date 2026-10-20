@@ -43,6 +43,12 @@ it does not independently score Guard behavior or publish a CI status.
 Python-exported valid and signed hostile fixtures provide differential tests.
 The [parity manifest](parity-manifest.v1.json) records SHA-256 hashes for all
 420 pinned Gauntlet source files and a preliminary owner phase.
+The separate [integration source delta](integration-source-delta.v1.json) records the
+35 files changed and five files added when that pinned source is combined with
+current `main` in draft PR #5402. A Rust test reconstructs and hashes all 425
+tracked `ci/gauntlet` files; the original 420-file manifest remains the
+immutable #5263 fixture baseline. Neither manifest makes candidate code a
+trusted controller generation.
 `gauntlet-contracts` also parses fixed, versioned [VM worker requests and responses](../../docs/gauntlet-rust-worker-protocol.md)
 with no command or path selectors and explicit unknown/unavailable states; no worker dispatcher or receipt authenticator exists yet.
 `gauntlet-evidence` checks the pinned Python worker's terminal receipt against independently supplied source, job, deployment and config pins and the exact report bytes. It does not read Root-owned VM paths or award benchmark eligibility.
