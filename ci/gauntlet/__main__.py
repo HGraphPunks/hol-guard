@@ -62,7 +62,8 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument(
         "--fail-fast",
         action="store_true",
-        help="Stop scheduling new cases after the first non-pass outcome; in-flight cases finish normally",
+        help="Stop scheduling new cases after the first false positive or false negative; a case the model "
+        "never exercised, a dead provider round or a host-tool failure is recorded and the run continues",
     )
     run.add_argument(
         "--host-slots",
@@ -175,7 +176,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     qualify.add_argument("--sha", required=True, help="Full commit of the tested source or test merge")
     qualify.add_argument("--candidate-sha", help="PR head when qualifying its exact two-parent test merge")
-    qualify.add_argument("--attempts", type=int, default=2, help="Bounded fresh runs (1-3)")
+    # The ceiling is spelled here rather than imported so the parser stays cheap to build;
+    # `test_attempt_budget` pins it to `qualify.ATTEMPT_LIMIT`, which does the rejecting.
+    qualify.add_argument("--attempts", type=int, default=2, help="Bounded fresh runs (1-10)")
     qualify.add_argument(
         "--jobs",
         type=int,
