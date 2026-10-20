@@ -9,6 +9,7 @@ mod controller_invocations;
 #[cfg(target_os = "linux")]
 mod controller_tree;
 mod crypto;
+mod deterministic_command;
 mod episode_score;
 mod io;
 mod model_endpoint;
@@ -37,6 +38,7 @@ pub use controller_invocation_files::read_controller_invocations_root_owned;
 pub use controller_invocations::{audit_controller_invocations, ControllerInvocationBytes};
 #[cfg(target_os = "linux")]
 pub use controller_tree::{verify_controller_tree, VerifiedControllerTree};
+pub use deterministic_command::reduce_forbidden_command;
 pub use episode_score::evaluate_audited_episode;
 pub use model_endpoint::{
     model_endpoint, verify_advertised_model, verify_model_endpoint, ModelEndpoint, DEFAULT_BASE_URL,
