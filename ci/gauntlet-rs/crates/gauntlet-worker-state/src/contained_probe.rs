@@ -2,8 +2,8 @@
 //! select candidate code, a command, a cgroup path or a production job ID.
 
 use crate::{
-    interpreter_exec::spawn_contained_interpreter_probe, observe_cgroup_drain, CgroupDrainState,
-    HeldInterpreter,
+    interpreter_exec::spawn_contained_interpreter_probe, observe_cgroup_drain,
+    process_reap::reap_probe_child_bounded, CgroupDrainState, HeldInterpreter,
 };
 use rustix::fs::{
     fstat, mkdirat, open, openat, statat, unlinkat, AtFlags, FileType, Mode, OFlags, Stat,
@@ -391,7 +391,7 @@ pub fn run_fixed_cgroup_probe() -> Result<CgroupProbeProof, CgroupProbeError> {
         }
     };
     let killed = group.kill();
-    let reaped = child.wait().map_err(|_| CgroupProbeError::Spawn);
+    let reaped = reap_probe_child_bounded(&mut child);
     let drained = group.drain_and_remove();
     let observed_tasks = observed_tasks?;
     killed?;
@@ -465,7 +465,7 @@ pub fn run_fixed_contained_interpreter_probe(
     };
     let child_identity = check_unprivileged_child(child.id());
     let killed = group.kill();
-    let reaped = child.wait().map_err(|_| CgroupProbeError::Spawn);
+    let reaped = reap_probe_child_bounded(&mut child);
     let drained = group.drain_and_remove();
     let interpreter_unchanged = interpreter
         .assert_unchanged()

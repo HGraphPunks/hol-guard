@@ -98,6 +98,8 @@ mod linux_cgroup;
 mod linux_process;
 #[cfg(target_os = "linux")]
 mod prelaunch;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod process_reap;
 mod projection;
 #[cfg(target_os = "linux")]
 mod running;
