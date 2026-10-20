@@ -9,6 +9,8 @@ A [fixed Root-only cgroup containment probe](gauntlet-rust-cgroup-containment-pr
 
 A separate [Git-object diagnostic](gauntlet-rust-git-controller-source-proof.md) matches every proposed controller source byte at an exact local commit to the 426-file integration map and derives the expected install digest. The draft PR cannot serve as its own reviewed source pin or VM install authorization.
 
+An [isolated Rust installer](gauntlet-rust-controller-install-shadow-proof.md) has since retained a new Root-owned controller generation on the ARM VM, with the expected full-tree digest independently rechecked after installation. The active Python controller remains separate. The new bytes are not a reviewed execution generation, and no deployment or benchmark uses them.
+
 An isolated Rust dashboard container has been built and exercised on port 8793. It reads the Python observer’s public files and does not run a Rust observer or benchmark. Repository CI passed on pushed head `582e525b`; the final migration head still needs its own green run.
 
 The current [Rust workspace](../ci/gauntlet-rs/README.md) has a SHA-256 [inventory of all 420 pinned source files](../ci/gauntlet-rs/parity-manifest.v1.json). Its fixtures include seven Python-accepted runner configs, an incomplete and a complete synthetic bundle, and four signed hostile bundles that Python and Rust both reject. The complete synthetic fixture contains failed/inconclusive records and proves only inventory parsing. No Rust-controlled benchmark or inference run has occurred, and no Rust result is merge-qualifying.
