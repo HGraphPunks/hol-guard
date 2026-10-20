@@ -1,0 +1,15 @@
+[package]
+name = "gauntlet-worker-state"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+description = "Durable one-time reservation boundary for the future Gauntlet Linux worker"
+
+[dependencies]
+gauntlet-contracts = { path = "../gauntlet-contracts" }
+rustix = { version = "=1.1.5", features = ["fs"] }
+serde_json = { version = "=1.0.151", features = ["arbitrary_precision"] }
+sha2 = "=0.10.9"
+
+[dev-dependencies]
+tempfile = "=3.27.0"
