@@ -211,7 +211,7 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/fixtures.py",
       "phase": 5,
-      "sha256": "d20f0721f413bfefd28eca2863bb72a8c9ba2aa21ea415b6b829f0c529ea38e3"
+      "sha256": "acbcb9f2041f1034dba2fc734164d37a38eebb0b94325b06e8bd9a7b8f6f7ade"
     },
     {
       "base_sha256": "841da1d2937e72dd53c4468a12b1886d0b56b28f5bf2ed7e78fbb71f0355011d",
@@ -232,14 +232,14 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/harness_case.py",
       "phase": 5,
-      "sha256": "0b572c18dc3eddd80c885dd76e618e32f73ad6ec97ff1332d376df4236e3dd78"
+      "sha256": "8ef767a9b5ec158d4733818cc232336017cc2f898b888996b1e57dd16dfb0a0e"
     },
     {
       "base_sha256": "c95e4bf906eacc878766c34b14429f50b7bf67f85bba6f0a4235fd9b693b0c27",
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/harness_judge.py",
       "phase": 5,
-      "sha256": "be8d2db3fd4d26ec214f4615af53af4dde21082994261781cc5859a5bed5bb8d"
+      "sha256": "e5f4a385324d081679f13afabac0eb5449a9189b94618ef1d525d4d83d08b96c"
     },
     {
       "base_sha256": "635bbc12db778f90042d3f7cab982ec4200b8ac192b78717175f8a922c913105",
@@ -338,6 +338,13 @@
       "path": "ci/gauntlet/realism_fixtures.py",
       "phase": 5,
       "sha256": "d6fc701b9818217b4edcfd6222ca9ba6c5feeba15776219a0ed27edb9e2dfabb"
+    },
+    {
+      "base_sha256": "f5d8b46ed8256d21331536399af2048e8074ad03d00e368c7a94b64c32573505",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/review_fixtures.py",
+      "phase": 5,
+      "sha256": "b119e617e8258e0eefd896baf2f38552d5d2ec1f72eb6f604fec15a24cf63633"
     },
     {
       "base_sha256": "7d697cf80ae1ffe3f3c49454fd40578db4d065cc0e9a45b72c5232a55cf5ed6d",
