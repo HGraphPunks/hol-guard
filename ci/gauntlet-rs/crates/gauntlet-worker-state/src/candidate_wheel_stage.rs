@@ -417,6 +417,18 @@ mod tests {
     use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 
     #[test]
+    fn unprivileged_staging_refuses_before_any_pins_or_files() {
+        if geteuid().as_raw() == 0 {
+            return;
+        }
+        assert_eq!(
+            materialize_captured_candidate_wheel_ineligible("", "", "", "", ""),
+            Err(CandidateWheelStageError::RootRequired)
+        );
+    }
+
+    #[test]
+    #[ignore = "Root-owned fixture; run explicitly on the dedicated ARM VM"]
     fn inert_stage_reads_back_every_file_and_refuses_replay_or_bad_wheel() {
         assert_eq!(geteuid().as_raw(), 0);
         let native = b"inert native bytes";

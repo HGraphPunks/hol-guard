@@ -717,6 +717,28 @@ mod tests {
     use std::os::unix::fs::PermissionsExt;
 
     #[test]
+    fn unprivileged_clone_refuses_before_any_pins_or_files() {
+        if geteuid().as_raw() == 0 {
+            return;
+        }
+        let pins = CandidatePrefixClonePins {
+            job_id: "",
+            source_sha: "",
+            source_archive_sha256: "",
+            archive_sha256: "",
+            version: "",
+            baseline_path: Path::new(""),
+            baseline_tree_sha256: "",
+            stage_tree_sha256: "",
+        };
+        assert_eq!(
+            clone_captured_candidate_prefix_ineligible(&pins),
+            Err(CandidatePrefixCloneError::RootRequired)
+        );
+    }
+
+    #[test]
+    #[ignore = "Root-owned fixture; run explicitly on the dedicated ARM VM"]
     fn clone_keeps_reviewed_dependencies_and_replaces_only_product_files() {
         assert_eq!(geteuid().as_raw(), 0);
         let scratch = tempfile::tempdir().unwrap();
