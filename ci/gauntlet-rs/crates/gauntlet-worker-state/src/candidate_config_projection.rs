@@ -60,6 +60,75 @@ pub fn project_candidate_config_ineligible(
     template_digest: &str,
     pins: &CandidateConfigProjectionPins<'_>,
 ) -> Result<CandidateConfigProjection, CandidateConfigProjectionError> {
+    let base = format!("hol-gauntlet/candidates/{}", pins.source_sha);
+    let id = format!("pr-{}", pins.source_sha);
+    project_at_fixed_base(template_raw, template_digest, pins, &base, &id)
+}
+
+/// The same inert v7 transformation for an isolated, one-use Rust shadow
+/// asset root. Its Root-only parent prevents this data from becoming a live
+/// runner deployment; no config file is written here.
+pub fn project_shadow_candidate_config_ineligible(
+    template_raw: &[u8],
+    template_digest: &str,
+    pins: &CandidateConfigProjectionPins<'_>,
+    job_id: &str,
+) -> Result<CandidateConfigProjection, CandidateConfigProjectionError> {
+    if !lower_hex(job_id, 16) {
+        return Err(CandidateConfigProjectionError::InvalidPins);
+    }
+    let base = format!("hol-gauntlet/rust-shadow-candidates/{job_id}");
+    let id = format!("rust-shadow-{}-{job_id}", pins.source_sha);
+    project_at_fixed_base(template_raw, template_digest, pins, &base, &id)
+}
+
+/// A fresh source-matched private-cell generation inside the same inert shadow
+/// root. The manifest digest selects a distinct one-use config filename and
+/// candidate ID, so a prior failed provisional file remains untouched.
+pub fn project_shadow_candidate_config_with_private_cell_ineligible(
+    template_raw: &[u8],
+    template_digest: &str,
+    pins: &CandidateConfigProjectionPins<'_>,
+    job_id: &str,
+    manifest_sha256: &str,
+) -> Result<CandidateConfigProjection, CandidateConfigProjectionError> {
+    if !lower_hex(job_id, 16) || !lower_hex(manifest_sha256, 64) {
+        return Err(CandidateConfigProjectionError::InvalidPins);
+    }
+    let base = format!("hol-gauntlet/rust-shadow-candidates/{job_id}");
+    let id = format!(
+        "rust-shadow-{}-{job_id}-{}",
+        pins.source_sha,
+        &manifest_sha256[..16]
+    );
+    let base_projection = project_at_fixed_base(template_raw, template_digest, pins, &base, &id)?;
+    let mut config: serde_json::Value = serde_json::from_slice(&base_projection.canonical_bytes)
+        .map_err(|_| CandidateConfigProjectionError::InvalidProjection)?;
+    config["assets"]["private_cell"]["path"] = json!(format!("{base}/cell-artifacts"));
+    config["assets"]["private_cell"]["sha256"] = json!(manifest_sha256);
+    let serialized = serde_json::to_vec(&config)
+        .map_err(|_| CandidateConfigProjectionError::InvalidProjection)?;
+    let canonical_bytes =
+        canonicalize(&serialized).map_err(|_| CandidateConfigProjectionError::InvalidProjection)?;
+    let digest = format!("{:x}", Sha256::digest(&canonical_bytes));
+    validate_runner_declaration(&canonical_bytes, &digest)
+        .map_err(|_| CandidateConfigProjectionError::InvalidProjection)?;
+    let mut file_bytes = canonical_bytes.clone();
+    file_bytes.push(b'\n');
+    Ok(CandidateConfigProjection {
+        canonical_bytes,
+        file_bytes,
+        digest,
+    })
+}
+
+fn project_at_fixed_base(
+    template_raw: &[u8],
+    template_digest: &str,
+    pins: &CandidateConfigProjectionPins<'_>,
+    base: &str,
+    id: &str,
+) -> Result<CandidateConfigProjection, CandidateConfigProjectionError> {
     if !is_git_sha(pins.source_sha)
         || !valid_package_version(pins.package_version)
         || !lower_hex(pins.native_sha256, 64)
@@ -76,13 +145,12 @@ pub fn project_candidate_config_ineligible(
         return Err(CandidateConfigProjectionError::UnsupportedTemplate);
     }
     let mut config = template.record.value().clone();
-    let base = format!("hol-gauntlet/candidates/{}", pins.source_sha);
     let wheel = format!(
         "{base}/hol_guard-{}-py3-none-linux_aarch64.whl",
         pins.package_version
     );
     let native = format!("{base}/hol-guard-runtime");
-    config["id"] = json!(format!("pr-{}", pins.source_sha));
+    config["id"] = json!(id);
     config["runtime"]["guard_source_sha"] = json!(pins.source_sha);
     config["runtime"]["guard_package_version"] = json!(pins.package_version);
     config["runtime"]["private_cell"]["native_sha256"] = json!(pins.native_sha256);
@@ -210,5 +278,65 @@ mod tests {
             ),
             Err(CandidateConfigProjectionError::UnsupportedTemplate)
         );
+    }
+
+    #[test]
+    fn shadow_projection_uses_only_fixed_job_path_and_distinct_id() {
+        let projection = project_shadow_candidate_config_ineligible(
+            &fixture(7),
+            "580c94be23f58345bf7c59eb11239ae9bd21347b70fadb6c19f243b7f7a3f1e8",
+            &pins(),
+            "1234567890abcdef",
+        )
+        .unwrap();
+        assert_eq!(projection.canonical_bytes.len(), 3651);
+        assert_eq!(
+            projection.digest,
+            "71e8bc8f042afc3970cee97eb1e57a1ea218dc43857dea4683708761d591ab95"
+        );
+        let config: serde_json::Value =
+            serde_json::from_slice(&projection.canonical_bytes).unwrap();
+        assert_eq!(
+            config["id"],
+            "rust-shadow-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-1234567890abcdef"
+        );
+        assert_eq!(
+            config["assets"]["guard_prefix"]["path"],
+            "hol-gauntlet/rust-shadow-candidates/1234567890abcdef/prefix"
+        );
+        assert_eq!(
+            project_shadow_candidate_config_ineligible(
+                &fixture(7),
+                "580c94be23f58345bf7c59eb11239ae9bd21347b70fadb6c19f243b7f7a3f1e8",
+                &pins(),
+                "../escape"
+            ),
+            Err(CandidateConfigProjectionError::InvalidPins)
+        );
+    }
+
+    #[test]
+    fn source_matched_private_cell_projection_uses_distinct_fixed_id_and_path() {
+        let digest = "e".repeat(64);
+        let projection = project_shadow_candidate_config_with_private_cell_ineligible(
+            &fixture(7),
+            "580c94be23f58345bf7c59eb11239ae9bd21347b70fadb6c19f243b7f7a3f1e8",
+            &pins(),
+            "1234567890abcdef",
+            &digest,
+        )
+        .unwrap();
+        let config: serde_json::Value =
+            serde_json::from_slice(&projection.canonical_bytes).unwrap();
+        assert_eq!(
+            config["id"],
+            "rust-shadow-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-1234567890abcdef-eeeeeeeeeeeeeeee"
+        );
+        assert_eq!(
+            config["assets"]["private_cell"]["path"],
+            "hol-gauntlet/rust-shadow-candidates/1234567890abcdef/cell-artifacts"
+        );
+        assert_eq!(config["assets"]["private_cell"]["sha256"], digest);
+        assert_eq!(projection.file_bytes.last(), Some(&b'\n'));
     }
 }

@@ -107,6 +107,8 @@ mod candidate_capture;
 mod candidate_config_projection;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_config_projection_live;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod candidate_config_shadow_write;
 mod candidate_dependencies;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_dependencies_live;
@@ -116,6 +118,8 @@ mod candidate_host_anchor;
 mod candidate_prefix_clone;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_result_read;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod candidate_shadow_assets;
 mod candidate_wheel;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_wheel_stage;
@@ -131,6 +135,8 @@ mod controller_key;
 mod controller_run;
 #[cfg(target_os = "linux")]
 mod deadline;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod private_cell_shadow_artifacts;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use contained_probe::{
     run_fixed_cgroup_probe, run_fixed_contained_interpreter_probe, run_fixed_job_cgroup_probe,
@@ -230,14 +236,21 @@ pub use candidate_capture::{
     CandidateCaptureError, CandidateCaptureProof, CandidateWheelLiveProof,
 };
 pub use candidate_config_projection::{
-    project_candidate_config_ineligible, CandidateConfigProjection, CandidateConfigProjectionError,
-    CandidateConfigProjectionPins,
+    project_candidate_config_ineligible, project_shadow_candidate_config_ineligible,
+    project_shadow_candidate_config_with_private_cell_ineligible, CandidateConfigProjection,
+    CandidateConfigProjectionError, CandidateConfigProjectionPins,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_config_projection_live::{
     project_cloned_candidate_config_ineligible, project_installed_candidate_config_ineligible,
     CandidateConfigArtifactPins, CandidateConfigArtifactProof, CandidateConfigLiveError,
     CandidateConfigLiveProof,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use candidate_config_shadow_write::{
+    write_shadow_candidate_config_ineligible,
+    write_shadow_candidate_config_with_private_cell_ineligible, CandidateConfigShadowWriteError,
+    CandidateConfigShadowWriteProof,
 };
 pub use candidate_dependencies::{
     check_candidate_dependencies, CandidateDependencyError, CandidateDependencyProof,
@@ -260,6 +273,11 @@ pub use candidate_prefix_clone::{
 pub use candidate_result_read::{
     read_fixed_candidate_result_ineligible, read_fixed_hostbound_candidate_result_ineligible,
     CandidateResultReadError, CandidateResultReadProof, HostBoundCandidateResultPins,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use candidate_shadow_assets::{
+    assemble_candidate_shadow_assets_ineligible, CandidateShadowAssetsError,
+    CandidateShadowAssetsPins, CandidateShadowAssetsProof,
 };
 pub use candidate_wheel::{inspect_candidate_wheel, CandidateWheelError, CandidateWheelProof};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
@@ -290,6 +308,11 @@ pub use linux_process::{observe_process, ProcessObservation, ProcessObservationE
 pub use prelaunch::{
     prepare_fixed_prelaunch, verify_fixed_prelaunch, PrelaunchError, PrelaunchPins, PrelaunchProof,
     PreparedLaunch,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use private_cell_shadow_artifacts::{
+    prepare_private_cell_shadow_artifacts_ineligible, PrivateCellShadowError,
+    PrivateCellShadowPins, PrivateCellShadowProof,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use product_cell_units::{

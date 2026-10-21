@@ -73,9 +73,14 @@ pub struct CandidateConfigLiveProof {
     config_digest: String,
     config_bytes: usize,
     file_bytes: usize,
+    template_raw: Vec<u8>,
 }
 
 impl CandidateConfigLiveProof {
+    pub(crate) fn template_raw(&self) -> &[u8] {
+        &self.template_raw
+    }
+
     pub fn to_json(&self) -> Value {
         json!({
             "schema":"hol-gauntlet-candidate-config-shadow.v1",
@@ -254,6 +259,7 @@ pub fn project_installed_candidate_config_ineligible(
         config_digest: projection.digest,
         config_bytes: projection.canonical_bytes.len(),
         file_bytes: projection.file_bytes.len(),
+        template_raw: raw,
     })
 }
 

@@ -59,7 +59,10 @@ pub struct PrivateCellManifest {
     pub files: BTreeMap<String, String>,
 }
 
-fn fixed_sources() -> BTreeMap<String, &'static [u8]> {
+/// Exact controller-owned bootstrap bytes embedded in this verifier build.
+/// Artifact writers may copy these bytes, but still need independent outside
+/// pins and a separate whole-directory verification before using the result.
+pub fn fixed_private_cell_sources() -> BTreeMap<String, &'static [u8]> {
     let mut sources = BTreeMap::new();
     for (folder, modules) in [
         (
@@ -137,7 +140,7 @@ pub fn verify_private_cell_manifest(
         .get("files")
         .and_then(Value::as_object)
         .ok_or(EvidenceError::Invalid("private-cell file map missing"))?;
-    let fixed = fixed_sources();
+    let fixed = fixed_private_cell_sources();
     let required: BTreeSet<_> = fixed
         .keys()
         .map(String::as_str)
@@ -180,7 +183,7 @@ mod tests {
 
     fn fixture() -> (Value, String) {
         let mut files = BTreeMap::new();
-        for (path, bytes) in fixed_sources() {
+        for (path, bytes) in fixed_private_cell_sources() {
             files.insert(path, sha256(bytes));
         }
         let initializer = "a".repeat(64);
@@ -194,7 +197,7 @@ mod tests {
 
     #[test]
     fn embedded_bootstrap_source_map_matches_python_generation() {
-        let hashes: BTreeMap<_, _> = fixed_sources()
+        let hashes: BTreeMap<_, _> = fixed_private_cell_sources()
             .into_iter()
             .map(|(path, bytes)| (path, sha256(bytes)))
             .collect();
@@ -215,7 +218,7 @@ mod tests {
     fn exact_embedded_bootstrap_and_initializer_are_accepted() {
         let (value, initializer) = fixture();
         let result = verify(&value, &initializer).unwrap();
-        assert_eq!(result.files.len(), fixed_sources().len() + 2);
+        assert_eq!(result.files.len(), fixed_private_cell_sources().len() + 2);
         assert_eq!(result.initializer_sha256, initializer);
     }
 

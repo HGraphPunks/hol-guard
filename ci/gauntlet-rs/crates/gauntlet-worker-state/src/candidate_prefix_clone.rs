@@ -317,13 +317,14 @@ fn old_product(relative: &str) -> bool {
             })
 }
 
-fn clone_baseline(
+pub(crate) fn clone_baseline(
     source: &OwnedFd,
     target: &OwnedFd,
     prefix: &str,
     depth: usize,
     entries_seen: &mut usize,
     copied_bytes: &mut u64,
+    skip_old_product: bool,
 ) -> Result<(), CandidatePrefixCloneError> {
     if depth > MAX_DEPTH {
         return Err(CandidatePrefixCloneError::CloneUncertain);
@@ -338,7 +339,7 @@ fn clone_baseline(
         } else {
             format!("{prefix}/{name}")
         };
-        if old_product(&relative) {
+        if skip_old_product && old_product(&relative) {
             continue;
         }
         let before = statat(source, name.as_str(), AtFlags::SYMLINK_NOFOLLOW)
@@ -378,6 +379,7 @@ fn clone_baseline(
                     depth + 1,
                     entries_seen,
                     copied_bytes,
+                    skip_old_product,
                 )?;
                 fchmod(
                     &child_target,
@@ -653,7 +655,7 @@ pub fn clone_captured_candidate_prefix_ineligible(
     private_directory(&target)?;
     let mut seen = 0_usize;
     let mut bytes = 0_u64;
-    clone_baseline(&baseline_fd, &target, "", 0, &mut seen, &mut bytes)?;
+    clone_baseline(&baseline_fd, &target, "", 0, &mut seen, &mut bytes, true)?;
     let mut wheel_files = 0_usize;
     overlay_wheel(&stage_fd, &target, "", 0, &mut wheel_files, &mut bytes)?;
     if wheel_files == 0 {
@@ -810,6 +812,7 @@ mod tests {
             0,
             &mut entries_seen,
             &mut bytes,
+            true,
         )
         .unwrap();
         let mut wheel_files = 0;

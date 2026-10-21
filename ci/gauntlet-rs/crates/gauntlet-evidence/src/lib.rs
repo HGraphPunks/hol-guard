@@ -97,7 +97,9 @@ pub use omp_transcript::{parse_omp_transcript, read_omp_transcript, TRANSCRIPT_L
 pub use package_version::{valid_package_version, verify_installed_version_metadata};
 pub use private_actor::verify_private_actor;
 pub use private_cell_files::{verify_private_cell_artifacts, PrivateCellInventory};
-pub use private_cell_manifest::{verify_private_cell_manifest, PrivateCellManifest};
+pub use private_cell_manifest::{
+    fixed_private_cell_sources, verify_private_cell_manifest, PrivateCellManifest,
+};
 pub use private_cell_mounts::verify_private_cell_mount_relation;
 pub use private_hook_samples::verify_private_hook_samples;
 pub use private_network::verify_private_network_topology;
