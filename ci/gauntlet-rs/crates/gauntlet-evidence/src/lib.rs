@@ -35,6 +35,7 @@ mod private_cell_files;
 mod private_cell_manifest;
 mod private_cell_mounts;
 mod private_runtime_prompt;
+mod product_kernel_identity;
 mod provider_quota;
 #[cfg(feature = "quota-write")]
 mod provider_quota_create;
@@ -90,6 +91,7 @@ pub use private_cell_files::{verify_private_cell_artifacts, PrivateCellInventory
 pub use private_cell_manifest::{verify_private_cell_manifest, PrivateCellManifest};
 pub use private_cell_mounts::verify_private_cell_mount_relation;
 pub use private_runtime_prompt::verify_private_runtime_prompt_relation;
+pub use product_kernel_identity::verify_product_kernel_identity;
 pub use provider_quota::read_provider_quota_snapshot;
 pub use provider_quota_history::verify_provider_quota_observations;
 #[cfg(feature = "quota-write")]
