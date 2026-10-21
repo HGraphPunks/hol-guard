@@ -5,7 +5,12 @@ use gauntlet_host_state::{
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::fs;
+use std::io::{Read, Write};
+use std::net::Shutdown;
 use std::os::unix::fs::{symlink, MetadataExt, PermissionsExt};
+use std::os::unix::net::UnixStream;
+use std::thread;
+use std::time::Duration;
 
 const JOB: &str = "dddddddddddddddd";
 
@@ -223,4 +228,81 @@ fn acknowledgement_is_issued_only_after_the_exact_host_record_is_durable() {
         journal.accept_prepared(b"{}", &planned),
         Err(HostKeyPinError::InvalidPins)
     );
+}
+
+#[test]
+fn bounded_local_pipe_completes_the_host_pin_exchange() {
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().canonicalize().unwrap();
+    fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
+    let journal = HostControllerKeyPinJournal::open(&root).unwrap();
+    let pins = pins();
+    let prepared = prepared(&pins);
+    let planned = planned_identity(&pins);
+    let (host, mut worker) = UnixStream::pair().unwrap();
+    worker
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
+    let child = thread::spawn(move || {
+        worker.write_all(&prepared.to_bytes().unwrap()).unwrap();
+        worker.write_all(b"\n").unwrap();
+        let mut ack = Vec::new();
+        loop {
+            let mut byte = [0u8; 1];
+            worker.read_exact(&mut byte).unwrap();
+            if byte[0] == b'\n' {
+                break;
+            }
+            ack.push(byte[0]);
+            assert!(ack.len() <= 1024);
+        }
+        prepared.verify_acknowledgement(&ack).unwrap();
+    });
+    let record = journal
+        .accept_prepared_pipe(&host, &host, &planned, Duration::from_secs(2))
+        .unwrap();
+    child.join().unwrap();
+    assert_eq!(record.pins, pins);
+    assert_eq!(journal.read(JOB), Ok(record));
+}
+
+#[test]
+fn bounded_pipe_refuses_missing_or_oversized_prepared_frames() {
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().canonicalize().unwrap();
+    fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
+    let journal = HostControllerKeyPinJournal::open(&root).unwrap();
+    let planned = planned_identity(&pins());
+    let (host, _worker) = UnixStream::pair().unwrap();
+    assert_eq!(
+        journal.accept_prepared_pipe(&host, &host, &planned, Duration::from_millis(50)),
+        Err(HostKeyPinError::TransportTimedOut)
+    );
+    let (host, mut worker) = UnixStream::pair().unwrap();
+    worker.write_all(&vec![b'x'; 1025]).unwrap();
+    assert_eq!(
+        journal.accept_prepared_pipe(&host, &host, &planned, Duration::from_secs(1)),
+        Err(HostKeyPinError::FrameTooLarge)
+    );
+    assert_eq!(journal.read(JOB), Err(HostKeyPinError::Missing));
+}
+
+#[test]
+fn lost_ack_reader_leaves_the_durable_host_pin_unresolved() {
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().canonicalize().unwrap();
+    fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
+    let journal = HostControllerKeyPinJournal::open(&root).unwrap();
+    let planned = planned_identity(&pins());
+    let (host, mut worker) = UnixStream::pair().unwrap();
+    worker
+        .write_all(&prepared(&pins()).to_bytes().unwrap())
+        .unwrap();
+    worker.write_all(b"\n").unwrap();
+    worker.shutdown(Shutdown::Read).unwrap();
+    assert_eq!(
+        journal.accept_prepared_pipe(&host, &host, &planned, Duration::from_secs(1)),
+        Err(HostKeyPinError::TransportFailed)
+    );
+    assert_eq!(journal.read(JOB).unwrap().pins, pins());
 }

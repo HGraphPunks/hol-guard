@@ -22,6 +22,9 @@ const MAX_PIN_BYTES: u64 = 1024;
 mod terminal;
 pub use terminal::HostKeyedTerminalObservation;
 
+#[path = "controller_key_pipe.rs"]
+mod pipe;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostControllerKeyPins {
     pub job_id: String,
@@ -82,6 +85,9 @@ pub enum HostKeyPinError {
     Missing,
     UnsafeRecord,
     InvalidTerminal,
+    TransportTimedOut,
+    TransportFailed,
+    FrameTooLarge,
     Changed,
     Io,
 }
@@ -96,6 +102,9 @@ impl fmt::Display for HostKeyPinError {
             Self::Missing => "host has no prelaunch controller key pin for this job",
             Self::UnsafeRecord => "host controller key pin is malformed or unsafe",
             Self::InvalidTerminal => "keyed VM terminal differs from the host prelaunch pin",
+            Self::TransportTimedOut => "VM prelaunch frame or acknowledgement timed out",
+            Self::TransportFailed => "VM prelaunch transport failed",
+            Self::FrameTooLarge => "VM prelaunch frame exceeds its byte limit",
             Self::Changed => "host controller key pin changed while reading",
             Self::Io => "host controller key pin I/O failed",
         })
