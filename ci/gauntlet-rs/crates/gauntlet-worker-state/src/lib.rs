@@ -76,6 +76,8 @@ pub struct RunReservationJournal {
 
 mod builder_run_plan;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod builder_source_capture;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod contained_probe;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod controller_exec;
@@ -138,6 +140,10 @@ mod projection;
 mod running;
 mod terminal;
 pub use builder_run_plan::{fixed_builder_run_plan, BuilderRunError, BuilderRunPlan};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use builder_source_capture::{
+    capture_fixed_guest_source_archive, BuilderSourceCaptureError, BuilderSourceCaptureProof,
+};
 #[cfg(target_os = "linux")]
 pub use deadline::{BoottimeDeadline, DeadlineError, MAX_ACTIVE_SECONDS};
 #[cfg(target_os = "linux")]
