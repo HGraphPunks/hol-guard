@@ -346,6 +346,47 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires the pinned Root Linux ARM Python image with controller dependencies"]
+    fn python_consumes_a_rust_generated_sealed_descriptor() {
+        let python = std::env::var("GAUNTLET_KEY_INTEROP_PYTHON").unwrap();
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(4)
+            .unwrap();
+        let key = SealedControllerKey::generate().unwrap();
+        let fd = key.fd().as_raw_fd();
+        let code = "import sys;sys.path.insert(0,sys.argv[1]);from ci.gauntlet.benchmark.ci_pipeline import _rust_worker_signing_key;key=_rust_worker_signing_key('deterministic');sys.stdout.write(key.public_key().public_bytes_raw().hex())";
+        let mut child = Command::new(python);
+        child
+            .env_clear()
+            .env("HOL_GAUNTLET_RUST_SIGNING_KEY_FD", fd.to_string())
+            .env("HOME", "/root")
+            .env("PATH", "/usr/local/bin:/usr/bin:/bin")
+            .args(["-I", "-B", "-c", code])
+            .arg(root);
+        // SAFETY: only the fixed fcntl syscall runs between fork and exec.
+        unsafe {
+            child.pre_exec(move || {
+                let flags = libc::fcntl(fd, libc::F_GETFD);
+                if flags < 0 || libc::fcntl(fd, libc::F_SETFD, flags & !libc::FD_CLOEXEC) < 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+        let output = child.output().unwrap();
+        assert!(
+            output.status.success(),
+            "Python key adapter failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap(),
+            key.public_key_hex()
+        );
+    }
+
+    #[test]
     fn sealed_key_is_single_descriptor_and_public_pin_is_one_use() {
         if unsafe { libc::geteuid() } != 0 {
             assert!(matches!(
