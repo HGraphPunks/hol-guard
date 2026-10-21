@@ -24,6 +24,9 @@ pub use terminal::HostKeyedTerminalObservation;
 
 #[path = "controller_key_pipe.rs"]
 mod pipe;
+#[path = "controller_key_process.rs"]
+mod process;
+pub use process::{HostPreparedProcess, HostProcessFailure};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostControllerKeyPins {

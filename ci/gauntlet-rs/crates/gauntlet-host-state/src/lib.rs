@@ -17,7 +17,7 @@ pub use host_telemetry::{sample_host, HostTelemetryError};
 mod controller_key_pins;
 pub use controller_key_pins::{
     HostControllerKeyPinJournal, HostControllerKeyPins, HostKeyPinError, HostKeyPinRecord,
-    HostKeyedTerminalObservation, HostPrelaunchIdentity,
+    HostKeyedTerminalObservation, HostPrelaunchIdentity, HostPreparedProcess, HostProcessFailure,
 };
 mod private_jobs;
 pub use private_jobs::{
@@ -37,6 +37,8 @@ mod vm_progress;
 pub use vm_progress::{VmProgressError, VmProgressPlan};
 mod vm_reconcile;
 pub use vm_reconcile::{VmReconcileError, VmReconcilePlan};
+mod vm_rust_shadow;
+pub use vm_rust_shadow::{VmRustShadowError, VmRustShadowPlan};
 
 const ARCHIVE_REASON: &str = "Removed from active queue by release-only configuration";
 
