@@ -28,6 +28,11 @@ fn git(args: &[&str]) -> String {
         .args(args)
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_COUNT", "2")
+        .env("GIT_CONFIG_KEY_0", "maintenance.auto")
+        .env("GIT_CONFIG_VALUE_0", "false")
+        .env("GIT_CONFIG_KEY_1", "gc.auto")
+        .env("GIT_CONFIG_VALUE_1", "0")
         .env("GIT_TERMINAL_PROMPT", "0")
         .output()
         .unwrap();
@@ -60,6 +65,11 @@ fn add_directory(tar: &mut Builder<GzEncoder<Vec<u8>>>, root: &Path, directory: 
             add_directory(tar, root, &path);
         } else {
             let relative = path.strip_prefix(root).unwrap();
+            // A newer Git may leave an auto-maintenance lock in its object
+            // directory. It is not an object and must not enter the fixture.
+            if relative == Path::new("objects/maintenance.lock") {
+                continue;
+            }
             let name = format!("repository.git/{}", relative.display());
             add_file(tar, &name, &fs::read(&path).unwrap());
         }
@@ -245,6 +255,24 @@ fn archived_object_alternate_refuses() {
             "repository.git/objects/info/alternates",
             b"/outside/object-store\n",
         )),
+    );
+    assert_eq!(
+        verify_retained_source_archive_commit(
+            &state,
+            JOB_ID,
+            &archive_sha,
+            &sha,
+            "refs/tags/v3.49.0"
+        ),
+        Err(SourceArchiveCommitError::InvalidObjectPath)
+    );
+}
+
+#[test]
+fn archived_maintenance_lock_refuses() {
+    let (_temp, state, sha, archive_sha) = fixture(
+        FixtureMode::Direct,
+        Some(("repository.git/objects/maintenance.lock", b"stale\n")),
     );
     assert_eq!(
         verify_retained_source_archive_commit(
