@@ -23,6 +23,8 @@ The [reported control tail](gauntlet-rust-control-reported-tail-proof.md) now ch
 
 A separate [Git-object diagnostic](gauntlet-rust-git-controller-source-proof.md) matches every proposed controller source byte at an exact local commit to the 426-file integration map and derives the expected install digest. The draft PR cannot serve as its own reviewed source pin or VM install authorization.
 
+The [source archive commit diagnostic](gauntlet-rust-source-commit-proof.md) now verifies an outside-pinned retained archive's selected ref, exact commit and reachable Git graph in a fresh private repository. It is inert; source-host authentication, moved-tag recheck, VM transfer and the bounded builder remain migration work.
+
 An [isolated Rust installer](gauntlet-rust-controller-install-shadow-proof.md) has since retained a new Root-owned controller generation on the ARM VM, with the expected full-tree digest independently rechecked after installation. The active Python controller remains separate. The new bytes are not a reviewed execution generation, and no deployment or benchmark uses them.
 
 An isolated Rust dashboard container has been built and exercised on port 8793. It reads the Python observer’s public files and does not run a Rust observer or benchmark. Repository CI passed on pushed head `582e525b`; the final migration head still needs its own green run.

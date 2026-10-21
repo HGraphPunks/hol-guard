@@ -31,6 +31,10 @@ mod source_archive;
 pub use source_archive::{
     verify_retained_source_archive, SourceArchiveError, SourceArchiveInventory,
 };
+mod source_archive_commit;
+pub use source_archive_commit::{
+    verify_retained_source_archive_commit, SourceArchiveCommitError, SourceArchiveCommitProof,
+};
 mod telemetry;
 pub use telemetry::{resource_admission_reasons, TelemetryError, VmProbePlan};
 mod vm_progress;

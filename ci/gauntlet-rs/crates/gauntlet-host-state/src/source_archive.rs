@@ -198,11 +198,11 @@ fn inventory(bytes: &[u8], sha256: &str) -> Result<SourceArchiveInventory, Sourc
 /// Verify the bytes and ordinary-member shape of an existing Python-produced
 /// source archive against a caller-supplied outside SHA-256. The caller must
 /// establish the pin's trust independently; this reader never grants execution.
-pub fn verify_retained_source_archive(
+pub(crate) fn verified_archive_bytes(
     state: &Path,
     job_id: &str,
     expected_sha256: &str,
-) -> Result<SourceArchiveInventory, SourceArchiveError> {
+) -> Result<(Vec<u8>, SourceArchiveInventory), SourceArchiveError> {
     if !hex_pin(job_id, 16) || !hex_pin(expected_sha256, 64) {
         return Err(SourceArchiveError::InvalidInput);
     }
@@ -264,5 +264,17 @@ pub fn verify_retained_source_archive(
     if actual_sha256 != expected_sha256 {
         return Err(SourceArchiveError::DigestMismatch);
     }
-    inventory(&bytes, &actual_sha256)
+    let inventory = inventory(&bytes, &actual_sha256)?;
+    Ok((bytes, inventory))
+}
+
+/// Verify the bytes and ordinary-member shape of an existing Python-produced
+/// source archive against a caller-supplied outside SHA-256. The caller must
+/// establish the pin's trust independently; this reader never grants execution.
+pub fn verify_retained_source_archive(
+    state: &Path,
+    job_id: &str,
+    expected_sha256: &str,
+) -> Result<SourceArchiveInventory, SourceArchiveError> {
+    verified_archive_bytes(state, job_id, expected_sha256).map(|(_, inventory)| inventory)
 }

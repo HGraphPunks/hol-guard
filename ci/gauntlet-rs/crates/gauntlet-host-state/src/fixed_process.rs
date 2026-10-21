@@ -47,7 +47,34 @@ pub(crate) fn run_fixed(
     stderr_limit: usize,
     environment: &[(&str, &str)],
 ) -> Result<Vec<u8>, FixedProcessError> {
-    run_fixed_input(argv, None, timeout, stdout_limit, stderr_limit, environment)
+    run_fixed_input_inner(
+        argv,
+        None,
+        timeout,
+        stdout_limit,
+        stderr_limit,
+        environment,
+        false,
+    )
+}
+
+/// Run a fixed program without inheriting caller environment variables.
+pub(crate) fn run_fixed_clean(
+    argv: &[String],
+    timeout: Duration,
+    stdout_limit: usize,
+    stderr_limit: usize,
+    environment: &[(&str, &str)],
+) -> Result<Vec<u8>, FixedProcessError> {
+    run_fixed_input_inner(
+        argv,
+        None,
+        timeout,
+        stdout_limit,
+        stderr_limit,
+        environment,
+        true,
+    )
 }
 
 pub(crate) fn run_fixed_input(
@@ -58,6 +85,26 @@ pub(crate) fn run_fixed_input(
     stderr_limit: usize,
     environment: &[(&str, &str)],
 ) -> Result<Vec<u8>, FixedProcessError> {
+    run_fixed_input_inner(
+        argv,
+        input,
+        timeout,
+        stdout_limit,
+        stderr_limit,
+        environment,
+        false,
+    )
+}
+
+fn run_fixed_input_inner(
+    argv: &[String],
+    input: Option<&[u8]>,
+    timeout: Duration,
+    stdout_limit: usize,
+    stderr_limit: usize,
+    environment: &[(&str, &str)],
+    clean_environment: bool,
+) -> Result<Vec<u8>, FixedProcessError> {
     if input.is_some_and(|bytes| bytes.len() > 1024) {
         return Err(FixedProcessError::TooLarge);
     }
@@ -65,7 +112,11 @@ pub(crate) fn run_fixed_input(
     if !Path::new(executable).is_absolute() {
         return Err(FixedProcessError::Unavailable);
     }
-    let mut child = Command::new(executable)
+    let mut command = Command::new(executable);
+    if clean_environment {
+        command.env_clear();
+    }
+    let mut child = command
         .args(&argv[1..])
         .envs(environment.iter().copied())
         .stdin(if input.is_some() {
