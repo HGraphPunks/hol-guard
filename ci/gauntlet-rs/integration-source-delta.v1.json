@@ -20,6 +20,12 @@
     },
     {
       "disposition": "port_to_rust",
+      "path": "ci/gauntlet/benchmark/stage_control_adapter.py",
+      "phase": 2,
+      "sha256": "6bf03bb31b2a0fc730aa01334b6022b03dfd5cd434e7c555d3d16d17b47ec646"
+    },
+    {
+      "disposition": "port_to_rust",
       "path": "ci/gauntlet/case_retry.py",
       "phase": 5,
       "sha256": "3318a1e9d07c845742e78b071a93636764e2a2d8d82c4623e840b3927a19c116"
@@ -364,5 +370,5 @@
   ],
   "integration_commit": "b7f1f3273da9a874a8eed1b3aaea712cec5e9380",
   "schema": "gauntlet-rust-integration-source-delta.v1",
-  "source_file_count": 426
+  "source_file_count": 427
 }

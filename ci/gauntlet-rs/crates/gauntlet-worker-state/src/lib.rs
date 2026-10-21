@@ -122,6 +122,7 @@ mod candidate_prefix_clone;
 mod candidate_result_read;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_shadow_assets;
+mod candidate_staging_plan;
 mod candidate_wheel;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_wheel_stage;
@@ -285,6 +286,9 @@ pub use candidate_result_read::{
 pub use candidate_shadow_assets::{
     assemble_candidate_shadow_assets_ineligible, CandidateShadowAssetsError,
     CandidateShadowAssetsPins, CandidateShadowAssetsProof,
+};
+pub use candidate_staging_plan::{
+    fixed_staging_control_plan, FixedStagingControlPlan, StagingControlPins, StagingRole,
 };
 pub use candidate_wheel::{inspect_candidate_wheel, CandidateWheelError, CandidateWheelProof};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

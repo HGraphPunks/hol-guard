@@ -15,7 +15,10 @@ WORKSPACE = Path(__file__).resolve().parents[1]
 REPOSITORY = WORKSPACE.parents[1]
 BASELINE = WORKSPACE / "parity-manifest.v1.json"
 DELTA = WORKSPACE / "integration-source-delta.v1.json"
-NEW_FILES = {"ci/gauntlet/case_retry.py": ("port_to_rust", 5)}
+NEW_FILES = {
+    "ci/gauntlet/case_retry.py": ("port_to_rust", 5),
+    "ci/gauntlet/benchmark/stage_control_adapter.py": ("port_to_rust", 2),
+}
 
 
 def main() -> None:

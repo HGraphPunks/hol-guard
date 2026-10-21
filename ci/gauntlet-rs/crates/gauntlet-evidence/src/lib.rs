@@ -59,6 +59,7 @@ mod runner_asset_inventory;
 mod runner_inputs;
 mod runner_runtime;
 mod six_control_openings;
+mod staging_control_record;
 mod tree_inventory;
 mod worker_receipt;
 
@@ -141,6 +142,10 @@ pub use runner_runtime::{
 pub use six_control_openings::{
     observe_six_control_openings_root_owned_ineligible, verify_six_control_openings_ineligible,
     SixControlOpeningsShadow,
+};
+pub use staging_control_record::{
+    observe_staging_control_root_owned_ineligible, verify_staging_control_opening_ineligible,
+    StagingControlOpening, StagingEvidencePins,
 };
 pub use tree_inventory::{inventory_tree, TreeInventory, TreeKind};
 pub use worker_receipt::{verify_python_worker_terminal, PythonWorkerTerminal};
