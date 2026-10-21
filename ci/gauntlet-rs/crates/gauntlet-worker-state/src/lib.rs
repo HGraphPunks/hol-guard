@@ -194,6 +194,8 @@ mod projection;
 #[cfg(target_os = "linux")]
 mod running;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod sdk_wire_tap;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod staging_kernel_observer;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod staging_machine_observer;
@@ -350,6 +352,8 @@ pub use product_cell_units::{
 };
 #[cfg(target_os = "linux")]
 pub use running::RunningMarker;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use sdk_wire_tap::{relay_bounded_sdk_mcp_pair_ineligible, SdkWireEvent, SdkWireObservation};
 pub use terminal::{ProcessIdentity, TerminalOutcome, TerminalReceipt};
 
 pub(crate) fn hex(value: &str, length: usize) -> bool {
