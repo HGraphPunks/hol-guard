@@ -200,6 +200,8 @@ mod sdk_wire_journal;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod sdk_wire_listener;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod sdk_wire_native;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod sdk_wire_peer;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod sdk_wire_pipe;
@@ -374,6 +376,8 @@ pub use sdk_wire_journal::{
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use sdk_wire_listener::{bind_sdk_tap_listeners_ineligible, SdkTapListeners};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use sdk_wire_native::{open_fixed_native_frontdoor_ineligible, HeldNativeFrontdoor};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use sdk_wire_peer::{
     authenticate_native_frontdoor_peer_ineligible, authenticate_sdk_relay_peer_ineligible,
