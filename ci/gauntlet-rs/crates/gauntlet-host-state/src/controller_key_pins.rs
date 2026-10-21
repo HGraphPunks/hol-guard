@@ -34,6 +34,23 @@ pub struct HostControllerKeyPins {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostPrelaunchIdentity {
+    pub job_id: String,
+    pub source_sha: String,
+    pub deployment_digest: String,
+    pub worker_generation: String,
+}
+
+impl HostPrelaunchIdentity {
+    fn valid(&self) -> bool {
+        hex(&self.job_id, 16)
+            && is_git_sha(&self.source_sha)
+            && hex(&self.deployment_digest, 64)
+            && hex(&self.worker_generation, 64)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostKeyPinRecord {
     pub pins: HostControllerKeyPins,
     pub raw_sha256: String,
@@ -60,6 +77,7 @@ impl HostKeyPinRecord {
 pub enum HostKeyPinError {
     UnsafeDirectory,
     InvalidPins,
+    WrongPreparedIdentity,
     AlreadyRecorded,
     Missing,
     UnsafeRecord,
@@ -73,6 +91,7 @@ impl fmt::Display for HostKeyPinError {
         f.write_str(match self {
             Self::UnsafeDirectory => "isolated private host pin directory required",
             Self::InvalidPins => "invalid outside controller key identity",
+            Self::WrongPreparedIdentity => "VM prepared frame differs from the planned host job",
             Self::AlreadyRecorded => "host already recorded this one-use job ID",
             Self::Missing => "host has no prelaunch controller key pin for this job",
             Self::UnsafeRecord => "host controller key pin is malformed or unsafe",
@@ -242,9 +261,18 @@ impl HostControllerKeyPinJournal {
     pub fn accept_prepared(
         &self,
         prepared_raw: &[u8],
+        expected: &HostPrelaunchIdentity,
     ) -> Result<(HostKeyPinRecord, Vec<u8>), HostKeyPinError> {
         let prepared =
             PrelaunchPrepared::parse(prepared_raw).map_err(|_| HostKeyPinError::InvalidPins)?;
+        if !expected.valid()
+            || prepared.job_id != expected.job_id
+            || prepared.source_sha != expected.source_sha
+            || prepared.deployment_digest != expected.deployment_digest
+            || prepared.worker_generation != expected.worker_generation
+        {
+            return Err(HostKeyPinError::WrongPreparedIdentity);
+        }
         let pins = HostControllerKeyPins {
             job_id: prepared.job_id.clone(),
             source_sha: prepared.source_sha.clone(),

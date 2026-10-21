@@ -1,5 +1,7 @@
 use gauntlet_contracts::{canonicalize, PrelaunchPrepared};
-use gauntlet_host_state::{HostControllerKeyPinJournal, HostControllerKeyPins, HostKeyPinError};
+use gauntlet_host_state::{
+    HostControllerKeyPinJournal, HostControllerKeyPins, HostKeyPinError, HostPrelaunchIdentity,
+};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -28,6 +30,15 @@ fn prepared(pins: &HostControllerKeyPins) -> PrelaunchPrepared {
         started_marker_sha256: pins.started_marker_sha256.clone(),
         controller_key_pin_sha256: pins.controller_key_pin_sha256.clone(),
         controller_public_key_hex: pins.controller_public_key_hex.clone(),
+    }
+}
+
+fn planned_identity(pins: &HostControllerKeyPins) -> HostPrelaunchIdentity {
+    HostPrelaunchIdentity {
+        job_id: pins.job_id.clone(),
+        source_sha: pins.source_sha.clone(),
+        deployment_digest: pins.deployment_digest.clone(),
+        worker_generation: pins.worker_generation.clone(),
     }
 }
 
@@ -184,16 +195,32 @@ fn acknowledgement_is_issued_only_after_the_exact_host_record_is_durable() {
     let journal = HostControllerKeyPinJournal::open(&root).unwrap();
     let prepared = prepared(&pins());
     let raw = prepared.to_bytes().unwrap();
-    let (record, acknowledgement) = journal.accept_prepared(&raw).unwrap();
+    let planned = planned_identity(&pins());
+    let mut wrong = planned.clone();
+    wrong.job_id = "0".repeat(16);
+    let mut wrong_source = planned.clone();
+    wrong_source.source_sha = "0".repeat(40);
+    let mut wrong_deployment = planned.clone();
+    wrong_deployment.deployment_digest = "0".repeat(64);
+    let mut wrong_generation = planned.clone();
+    wrong_generation.worker_generation = "0".repeat(64);
+    for wrong in [wrong, wrong_source, wrong_deployment, wrong_generation] {
+        assert_eq!(
+            journal.accept_prepared(&raw, &wrong),
+            Err(HostKeyPinError::WrongPreparedIdentity)
+        );
+    }
+    assert_eq!(journal.read(JOB), Err(HostKeyPinError::Missing));
+    let (record, acknowledgement) = journal.accept_prepared(&raw, &planned).unwrap();
     assert_eq!(record.pins, pins());
     assert_eq!(journal.read(JOB), Ok(record));
     assert_eq!(prepared.verify_acknowledgement(&acknowledgement), Ok(()));
     assert_eq!(
-        journal.accept_prepared(&raw),
+        journal.accept_prepared(&raw, &planned),
         Err(HostKeyPinError::AlreadyRecorded)
     );
     assert_eq!(
-        journal.accept_prepared(b"{}"),
+        journal.accept_prepared(b"{}", &planned),
         Err(HostKeyPinError::InvalidPins)
     );
 }
