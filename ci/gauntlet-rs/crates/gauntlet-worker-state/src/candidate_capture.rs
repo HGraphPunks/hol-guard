@@ -98,6 +98,8 @@ impl CandidateWheelLiveProof {
             "distribution":self.wheel.distribution,
             "native_bytes":self.wheel.native_bytes,
             "native_sha256":self.wheel.native_sha256,
+            "wheel_completion_module_present":self.wheel.contained_completion_present,
+            "missing_capabilities":if self.wheel.contained_completion_present { vec![] } else { vec!["contained-output-completion.v1"] },
             "native_bytes_verified":true,
             "all_wheel_entries_read":true,
             "artifact_admitted":false,

@@ -18,6 +18,7 @@ const MAX_METADATA: u64 = 128 * 1024;
 const MAX_MANIFEST: u64 = 8192;
 const NATIVE: &str = "codex_plugin_scanner/_native/hol-guard-runtime";
 const RUNTIME: &str = "codex_plugin_scanner/_native/runtime-manifest.json";
+const COMPLETION: &str = "codex_plugin_scanner/guard/runtime/contained_completion.py";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CandidateWheelError {
@@ -54,6 +55,7 @@ pub struct CandidateWheelProof {
     pub distribution: String,
     pub native_bytes: u64,
     pub native_sha256: String,
+    pub contained_completion_present: bool,
 }
 
 fn valid_entry_name(name: &str, raw: &[u8]) -> bool {
@@ -295,6 +297,7 @@ pub fn inspect_candidate_wheel(
         distribution,
         native_bytes,
         native_sha256,
+        contained_completion_present: names.contains(COMPLETION),
     })
 }
 
@@ -371,6 +374,12 @@ mod tests {
         assert_eq!(proof.entries, 3);
         assert_eq!(proof.native_bytes, native.len() as u64);
         assert_eq!(proof.native_sha256, digest);
+        assert!(!proof.contained_completion_present);
+        let with_completion = wheel(native, SOURCE, VERSION, &digest, Some(COMPLETION));
+        let proof =
+            inspect_candidate_wheel(&with_completion, &declaration(&with_completion, &digest))
+                .unwrap();
+        assert!(proof.contained_completion_present);
     }
 
     #[test]

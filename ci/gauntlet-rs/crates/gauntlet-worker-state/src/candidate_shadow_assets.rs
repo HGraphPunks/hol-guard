@@ -90,6 +90,7 @@ pub struct CandidateShadowAssetsProof {
     prefix_bytes: u64,
     wheel_sha256: String,
     native_sha256: String,
+    contained_completion_present: bool,
 }
 
 impl CandidateShadowAssetsProof {
@@ -104,6 +105,8 @@ impl CandidateShadowAssetsProof {
             "prefix_bytes":self.prefix_bytes,
             "wheel_sha256":self.wheel_sha256,
             "native_sha256":self.native_sha256,
+            "wheel_completion_module_present":self.contained_completion_present,
+            "missing_capabilities":if self.contained_completion_present { vec![] } else { vec!["contained-output-completion.v1"] },
             "assets_copied":true,
             "assets_admitted":false,
             "config_written":false,
@@ -425,6 +428,7 @@ pub fn assemble_candidate_shadow_assets_ineligible(
         prefix_bytes: target_inventory.bytes,
         wheel_sha256: pins.wheel_sha256.to_owned(),
         native_sha256: pins.native_sha256.to_owned(),
+        contained_completion_present: checked_wheel.contained_completion_present,
     })
 }
 
