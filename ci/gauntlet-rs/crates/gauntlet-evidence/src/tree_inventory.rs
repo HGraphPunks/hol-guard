@@ -166,6 +166,30 @@ fn hash_file(descriptor: OwnedFd, before: &Stat) -> Result<String> {
     hash_file_after_chunk(descriptor, before, || {})
 }
 
+fn stable_symlink_target(
+    parent: &OwnedFd,
+    context: &TreeContext<'_>,
+    name: &str,
+    relative: &str,
+    after_initial_read: impl FnOnce(),
+) -> Result<String> {
+    let target = readlinkat(parent, name, Vec::new())
+        .map_err(|error| EvidenceError::Io(error.to_string()))?;
+    after_initial_read();
+    symlink_contained(context, relative)?;
+    let after_target = readlinkat(parent, name, Vec::new())
+        .map_err(|_| EvidenceError::Invalid("tree symlink changed during inventory"))?;
+    if target != after_target {
+        return Err(EvidenceError::Invalid(
+            "tree symlink changed during inventory",
+        ));
+    }
+    target
+        .to_str()
+        .map(str::to_owned)
+        .map_err(|_| EvidenceError::Invalid("non-UTF8 symlink target"))
+}
+
 fn inspect_one(
     parent: &OwnedFd,
     context: &TreeContext<'_>,
@@ -218,12 +242,7 @@ fn inspect_one(
     let mut bytes = 0;
     match file_kind {
         FileType::Symlink => {
-            let target = readlinkat(parent, name, Vec::new())
-                .map_err(|error| EvidenceError::Io(error.to_string()))?;
-            symlink_contained(context, relative)?;
-            let target = target
-                .to_str()
-                .map_err(|_| EvidenceError::Invalid("non-UTF8 symlink target"))?;
+            let target = stable_symlink_target(parent, context, name, relative, || {})?;
             row[if kind == TreeKind::Sdk {
                 "symlink"
             } else {
@@ -340,6 +359,14 @@ fn scan(
 
 /// Hash inert tree bytes and metadata. This is not an execution authorization.
 pub fn inventory_tree(root: &Path, kind: TreeKind) -> Result<TreeInventory> {
+    inventory_tree_with_after_scan(root, kind, || {})
+}
+
+fn inventory_tree_with_after_scan(
+    root: &Path,
+    kind: TreeKind,
+    after_scan: impl FnOnce(),
+) -> Result<TreeInventory> {
     let descriptor = open_absolute_directory(root)?;
     let metadata = fstat(&descriptor).map_err(|error| EvidenceError::Io(error.to_string()))?;
     if root.canonicalize().ok().as_deref() != Some(root) {
@@ -362,8 +389,16 @@ pub fn inventory_tree(root: &Path, kind: TreeKind) -> Result<TreeInventory> {
         kind,
     };
     scan(&descriptor, &context, "", 0, &mut rows, &mut total)?;
+    after_scan();
     let after = fstat(&descriptor).map_err(|error| EvidenceError::Io(error.to_string()))?;
     if !unchanged(&metadata, &after) {
+        return Err(EvidenceError::Invalid("tree root changed during inventory"));
+    }
+    let visible = open_absolute_directory(root)
+        .map_err(|_| EvidenceError::Invalid("tree root changed during inventory"))?;
+    let visible = fstat(&visible)
+        .map_err(|_| EvidenceError::Invalid("tree root changed during inventory"))?;
+    if !unchanged(&metadata, &visible) {
         return Err(EvidenceError::Invalid("tree root changed during inventory"));
     }
     let entries = rows.len();
@@ -386,45 +421,5 @@ pub fn inventory_tree(root: &Path, kind: TreeKind) -> Result<TreeInventory> {
 }
 
 #[cfg(all(test, target_os = "linux"))]
-mod linux_tests {
-    use super::{hash_file_after_chunk, inventory_tree, TreeKind};
-    use rustix::fs::{fstat, open, Mode, OFlags};
-    use std::io::Write;
-    use std::os::unix::fs::{symlink, PermissionsExt};
-
-    #[test]
-    fn descriptor_relative_resolution_allows_inside_chain_and_refuses_escape() {
-        let temporary = tempfile::tempdir().unwrap();
-        let root = temporary.path().join("sdk");
-        std::fs::create_dir(&root).unwrap();
-        std::fs::create_dir(root.join("nested")).unwrap();
-        std::fs::write(root.join("data"), b"inert").unwrap();
-        std::fs::write(temporary.path().join("outside"), b"outside").unwrap();
-        symlink("../data", root.join("nested/inside")).unwrap();
-        symlink("nested/inside", root.join("chain")).unwrap();
-        let root = root.canonicalize().unwrap();
-        assert_eq!(inventory_tree(&root, TreeKind::Sdk).unwrap().entries, 4);
-
-        symlink("../../outside", root.join("nested/escape")).unwrap();
-        assert!(inventory_tree(&root, TreeKind::Sdk).is_err());
-    }
-
-    #[test]
-    fn refuses_file_changed_after_hashing_starts() {
-        let temporary = tempfile::tempdir().unwrap();
-        let path = temporary.path().join("mutable");
-        std::fs::write(&path, vec![b'a'; 2 * 1024 * 1024]).unwrap();
-        let descriptor = open(&path, OFlags::RDONLY | OFlags::CLOEXEC, Mode::empty()).unwrap();
-        let before = fstat(&descriptor).unwrap();
-        let result = hash_file_after_chunk(descriptor, &before, || {
-            let mut writer = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
-            writer.write_all(b"b").unwrap();
-            writer.sync_all().unwrap();
-            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
-        });
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "tree file changed while hashing"
-        );
-    }
-}
+#[path = "tree_inventory_tests.rs"]
+mod linux_tests;
