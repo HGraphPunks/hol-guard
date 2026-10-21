@@ -9,7 +9,9 @@ use crate::candidate_dependencies::{
 };
 use crate::RunReservationJournal;
 use gauntlet_contracts::is_git_sha;
-use gauntlet_evidence::{inventory_tree, valid_package_version, TreeKind};
+use gauntlet_evidence::{
+    inventory_tree, valid_package_version, verify_installed_version_metadata, TreeKind,
+};
 use pep508_rs::{MarkerEnvironment, MarkerEnvironmentBuilder};
 use rustix::fs::{fstat, openat, openat2, Dir, FileType, Mode, OFlags, ResolveFlags};
 use rustix::process::geteuid;
@@ -70,6 +72,7 @@ pub struct CandidateDependencyLivePins<'a> {
     pub source_archive_sha256: &'a str,
     pub archive_sha256: &'a str,
     pub version: &'a str,
+    pub native_sha256: &'a str,
     pub prefix_tree_sha256: &'a str,
     pub python_full_version: &'a str,
 }
@@ -79,6 +82,7 @@ pub struct CandidateDependencyLiveProof {
     job_id: String,
     source_sha: String,
     archive_sha256: String,
+    native_sha256: String,
     prefix_tree_sha256: String,
     python_full_version: String,
     installed_distributions: usize,
@@ -92,6 +96,7 @@ impl CandidateDependencyLiveProof {
             "job_id":self.job_id,
             "source_sha":self.source_sha,
             "archive_sha256":self.archive_sha256,
+            "native_sha256":self.native_sha256,
             "prefix_tree_sha256":self.prefix_tree_sha256,
             "python_full_version":self.python_full_version,
             "installed_distributions":self.installed_distributions,
@@ -286,6 +291,7 @@ pub fn verify_cloned_candidate_dependencies_ineligible(
         || !lower_hex(pins.source_archive_sha256, 64)
         || !lower_hex(pins.archive_sha256, 64)
         || !valid_package_version(pins.version)
+        || !lower_hex(pins.native_sha256, 64)
         || !lower_hex(pins.prefix_tree_sha256, 64)
     {
         return Err(CandidateDependencyLiveError::InvalidPins);
@@ -330,6 +336,13 @@ pub fn verify_cloned_candidate_dependencies_ineligible(
     if inventory.digest != pins.prefix_tree_sha256 {
         return Err(CandidateDependencyLiveError::PrefixMismatch);
     }
+    verify_installed_version_metadata(
+        &prefix_path,
+        pins.version,
+        pins.source_sha,
+        pins.native_sha256,
+    )
+    .map_err(|_| CandidateDependencyLiveError::PrefixMismatch)?;
     let site = openat2(
         &job,
         SITE,
@@ -371,6 +384,7 @@ pub fn verify_cloned_candidate_dependencies_ineligible(
         job_id: pins.job_id.to_owned(),
         source_sha: pins.source_sha.to_owned(),
         archive_sha256: pins.archive_sha256.to_owned(),
+        native_sha256: pins.native_sha256.to_owned(),
         prefix_tree_sha256: pins.prefix_tree_sha256.to_owned(),
         python_full_version: pins.python_full_version.to_owned(),
         installed_distributions: versions.len(),
