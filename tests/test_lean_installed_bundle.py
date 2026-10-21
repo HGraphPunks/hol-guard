@@ -22,6 +22,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 try:
     import build_command_pack_bundle as builder
     import publish_installed_bundle_assets as publisher
+    from extension_delivery_policy_lookup import lookup, read_transport_page
 finally:
     sys.path.remove(str(ROOT / "scripts"))
 
@@ -30,7 +31,6 @@ from codex_plugin_scanner.guard.catalog_delivery.installed_bundle import MANIFES
 from codex_plugin_scanner.guard.catalog_delivery.installed_bundle import ROOT as ROOT_MEMBER
 from codex_plugin_scanner.guard.catalog_delivery.located_store import LocatedStore
 from codex_plugin_scanner.guard.catalog_delivery.metadata_objects import encoded
-from codex_plugin_scanner.guard.catalog_delivery.policy_lookup import lookup
 from codex_plugin_scanner.guard.extension_builder import native_source_compiler as native
 from tests.extension_builder_support import use_installed_native_source_compiler
 
@@ -114,8 +114,6 @@ def selected_record(built, identity=None):
     if identity is None:
 
         def walk(reference, expected, count, prefix=""):
-            from codex_plugin_scanner.guard.catalog_delivery.policy_lookup import read_transport_page
-
             wrapper, page = read_transport_page(store, reference, expected, count, prefix)
             if page["kind"] == "leaf":
                 for name, _ in page["entries"]:
@@ -217,9 +215,9 @@ def test_public_legacy_records_use_metadata_without_policy_archives(built, tmp_p
     install(built, tmp_path, monkeypatch, require_runtime=False)
     original = installed_bundle.read_bytes
 
-    def metadata_only(path, *, limit):
+    def metadata_only(path, *, limit, anchor=None):
         assert not path.name.startswith("pack-"), "legacy metadata must not read executable policy"
-        return original(path, limit=limit)
+        return original(path, limit=limit, anchor=anchor)
 
     monkeypatch.setattr(installed_bundle, "read_bytes", metadata_only)
     for family in ("commands", "mcp"):

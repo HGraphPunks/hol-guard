@@ -13,7 +13,7 @@ mod hidden_listing;
 #[path = "omp_json_query.rs"]
 mod omp_json_query;
 #[path = "omp_read_targets.rs"]
-mod omp_targets;
+pub(super) mod omp_targets;
 use hidden_listing::resolved_home_hidden_content_read;
 pub(super) use hidden_listing::{
     home_hidden_content_read, home_hidden_directory, home_hidden_tool_directory,
@@ -59,6 +59,23 @@ pub(super) fn safe_read_target(argument: &str) -> bool {
         return false;
     }
     true
+}
+
+/// The lexical floor a path-spelled word shares with every read screen: a
+/// bounded length, no shell metacharacter or glob, and no parent component.
+///
+/// A caller that proves its own target, rather than asking whether the path
+/// may be read, still owes the shell's own reading of the word. `..` stays
+/// refused here even though the read screens admit a parent component that
+/// canonicalizing resolves, because nothing downstream re-reads the spelling.
+pub(super) fn bounded_path_spelling(value: &str) -> bool {
+    value == value.trim()
+        && !value.is_empty()
+        && value.len() <= 4096
+        && !value.contains([
+            '$', '`', '|', ';', '&', '<', '>', '\n', '\r', '\0', '*', '?', '{', '}', '[', ']',
+        ])
+        && !value.split(['/', '\\']).any(|part| part == "..")
 }
 
 /// Share canonical path-risk checks between structured reads and shell reads.

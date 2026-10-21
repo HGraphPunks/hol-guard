@@ -54,6 +54,23 @@ def session():
         raise ValueError(f"native_pack_lifecycle_unavailable: {exc}") from exc
 
 
+@contextmanager
+def pinned_session(executable: Path):
+    """Answer native requests with a runtime a build job compiled from this checkout.
+
+    A source checkout carries no packaged runtime to verify, so the caller
+    names the one it built. Nested sessions reuse it as they would a verified one.
+    """
+    with ExitStack() as stack:
+        pinned = _Session(stack)
+        pinned._executable = executable
+        token = _SESSION.set(pinned)
+        try:
+            yield
+        finally:
+            _SESSION.reset(token)
+
+
 def runtime_fingerprint() -> tuple[tuple[int, ...], ...]:
     """Cheap identity of the installed runtime files.
 
@@ -76,8 +93,14 @@ def _invoke(kind, fields, deadline) -> dict[str, Any]:
         request = json.dumps({"kind": kind, **fields}, sort_keys=True, separators=(",", ":")).encode()
         with session():
             executable = cast(_Session, _SESSION.get()).executable()
+            # This subcommand is read by the runtime's own bounded stdin
+            # reader, whose frame is smaller than the compiler front end's, so
+            # the request is held to the smaller of the two here.
             code, stdout, stderr = transport._run_bounded(
-                [str(executable), "pack-lifecycle", "--stdin"], request, timeout=deadline
+                [str(executable), "pack-lifecycle", "--stdin"],
+                request,
+                timeout=deadline,
+                limit=transport._MAX_NATIVE_REQUEST_BYTES,
             )
         # Rust validates each operation's record; this adapter transports heterogeneous JSON values.
         return cast(dict[str, Any], transport._decode_output(stdout, returncode=code, stderr=stderr))
