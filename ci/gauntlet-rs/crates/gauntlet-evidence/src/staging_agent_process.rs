@@ -531,6 +531,8 @@ fn matching_verified_native_mcp_processes(
     let mut children = BTreeSet::new();
     let mut authenticated_peers = 0_usize;
     let mut forwarded_tool_calls = 0_usize;
+    let mut completed_tool_calls = 0_usize;
+    let mut pending = BTreeMap::new();
     for (index, event) in events.iter().enumerate() {
         if event["sequence"].as_u64() != Some((index + 1) as u64) {
             return Err(INVALID);
@@ -541,8 +543,6 @@ fn matching_verified_native_mcp_processes(
                 return Err(INVALID);
             }
             authenticated_peers += 1;
-        } else if event["kind"] == "forwarded" && event["message"]["method"] == "tools/call" {
-            forwarded_tool_calls += 1;
         } else if event["kind"] == "child-started" {
             let session = event["session_id"].as_str().ok_or(INVALID)?;
             let (host_exec_pid, proxy) = proxies.get(session).ok_or(INVALID)?;
@@ -555,12 +555,113 @@ fn matching_verified_native_mcp_processes(
             {
                 return Err(INVALID);
             }
+        } else if matches!(
+            event["kind"].as_str(),
+            Some("frame" | "forwarded" | "delivered")
+        ) {
+            let session = event["session_id"].as_str().ok_or(INVALID)?;
+            let (_, proxy) = proxies.get(session).ok_or(INVALID)?;
+            let message = &event["message"];
+            if event["family"] != proxy["family"]
+                || message["jsonrpc"] != "2.0"
+                || !message.is_object()
+            {
+                return Err(INVALID);
+            }
+            if event["kind"] == "frame" {
+                let following = events.get(index + 1).ok_or(INVALID)?;
+                let expected = match event["direction"].as_str() {
+                    Some("client-to-service") => "forwarded",
+                    Some("service-to-client") => "delivered",
+                    _ => return Err(INVALID),
+                };
+                if event["stage"] != "received"
+                    || following["kind"] != expected
+                    || following["session_id"] != session
+                    || following["family"] != event["family"]
+                    || following["message"] != *message
+                {
+                    return Err(INVALID);
+                }
+                continue;
+            }
+            let preceding = index
+                .checked_sub(1)
+                .and_then(|before| events.get(before))
+                .ok_or(INVALID)?;
+            let direction = if event["kind"] == "forwarded" {
+                "client-to-service"
+            } else {
+                "service-to-client"
+            };
+            if preceding["kind"] != "frame"
+                || preceding["direction"] != direction
+                || preceding["session_id"] != session
+                || preceding["family"] != event["family"]
+                || preceding["message"] != *message
+            {
+                return Err(INVALID);
+            }
+            let id = message["id"].as_str();
+            if event["kind"] == "forwarded" {
+                let method = message["method"]
+                    .as_str()
+                    .filter(|value| !value.is_empty())
+                    .ok_or(INVALID)?;
+                if let Some(id) = id {
+                    if id.is_empty()
+                        || id.len() > 128
+                        || pending
+                            .insert(
+                                (session.to_owned(), id.to_owned()),
+                                (
+                                    proxy["family"].as_str().ok_or(INVALID)?.to_owned(),
+                                    method.to_owned(),
+                                ),
+                            )
+                            .is_some()
+                    {
+                        return Err(INVALID);
+                    }
+                } else if !message["id"].is_null() {
+                    return Err(INVALID);
+                }
+                if method == "tools/call" {
+                    if id.is_none()
+                        || event["family"] != "docs"
+                        || message["params"]["name"] != "docs.read"
+                        || message["params"]["arguments"]["record_id"] != "developer-spec"
+                    {
+                        return Err(INVALID);
+                    }
+                    forwarded_tool_calls += 1;
+                }
+            } else if let Some(id) = id {
+                let (family, method) = pending
+                    .remove(&(session.to_owned(), id.to_owned()))
+                    .ok_or(INVALID)?;
+                if event["family"] != family
+                    || message["result"].is_object() == message["error"].is_object()
+                {
+                    return Err(INVALID);
+                }
+                if method == "tools/call" {
+                    if !message["result"]["isError"].is_boolean() {
+                        return Err(INVALID);
+                    }
+                    completed_tool_calls += 1;
+                }
+            } else if !message["id"].is_null() || message["method"].as_str().is_none() {
+                return Err(INVALID);
+            }
         }
     }
     if run_ids.len() != 1
         || children.len() != proxies.len()
         || authenticated_peers < children.len()
-        || forwarded_tool_calls == 0
+        || forwarded_tool_calls != 1
+        || completed_tool_calls != 1
+        || !pending.is_empty()
     {
         return Err(INVALID);
     }
@@ -861,6 +962,11 @@ mod tests {
         first["start_time"] = json!("102");
         let mut second = identity.clone();
         second["start_time"] = json!("103");
+        let call = json!({
+            "jsonrpc":"2.0","id":"call-1","method":"tools/call",
+            "params":{"name":"docs.read","arguments":{"record_id":"developer-spec"}},
+        });
+        let answer = json!({"jsonrpc":"2.0","id":"call-1","result":{"isError":false}});
         let audit = json!({
             "kind":"isolated-native-mcp-observation",
             "schema_version":"1.0",
@@ -876,7 +982,10 @@ mod tests {
                 {"kind":"peer-authenticated","sequence":3,"run_id":"test-run","peer_uid":10001,"allowed_uid":10001},
                 {"kind":"child-started","sequence":4,"run_id":"test-run","session_id":"first","backend":"isolated-product-uid10005","pid":21,"product_pid":12,"product_identity":first,"family":"docs"},
                 {"kind":"child-started","sequence":5,"run_id":"test-run","session_id":"second","backend":"isolated-product-uid10005","pid":22,"product_pid":13,"product_identity":second,"family":"mail"},
-                {"kind":"forwarded","sequence":6,"run_id":"test-run","message":{"method":"tools/call"}},
+                {"kind":"frame","sequence":6,"run_id":"test-run","session_id":"first","family":"docs","direction":"client-to-service","stage":"received","message":call},
+                {"kind":"forwarded","sequence":7,"run_id":"test-run","session_id":"first","family":"docs","message":call},
+                {"kind":"frame","sequence":8,"run_id":"test-run","session_id":"first","family":"docs","direction":"service-to-client","stage":"received","message":answer},
+                {"kind":"delivered","sequence":9,"run_id":"test-run","session_id":"first","family":"docs","message":answer},
             ],
             "product_plane":{
                 "kind":"isolated-product-plane.v2",
@@ -962,6 +1071,16 @@ mod tests {
         );
         wrong = audit.clone();
         wrong["transport_observations"][3]["product_identity"]["start_time"] = json!("999");
+        assert!(
+            matching_verified_native_mcp_processes(&wrong, &activity, &agent_id, &agent).is_err()
+        );
+        wrong = audit.clone();
+        wrong["transport_observations"][6]["message"]["params"]["name"] = json!("docs.create");
+        assert!(
+            matching_verified_native_mcp_processes(&wrong, &activity, &agent_id, &agent).is_err()
+        );
+        wrong = audit.clone();
+        wrong["transport_observations"][8]["message"]["id"] = json!("other-call");
         assert!(
             matching_verified_native_mcp_processes(&wrong, &activity, &agent_id, &agent).is_err()
         );
