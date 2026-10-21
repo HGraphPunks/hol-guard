@@ -4,7 +4,7 @@
 //! Acceptance here cannot become a deterministic Guard verdict.
 
 use crate::control_opening::{verify_control_session_opening, ControlSessionOpening};
-use crate::{EvidenceError, Result};
+use crate::{captured_contained_output, EvidenceError, Result};
 use gauntlet_contracts::canonicalize;
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
@@ -128,16 +128,15 @@ fn verify_boundary(value: &Value, root: &str) -> Result<()> {
 }
 
 /// Match the remaining *outer* reported-field checks of the pinned Python
-/// deterministic control. `outside_captured_output` must be derived by an
-/// independent captured-output reader for success/boundary roles. This API
-/// never verifies private-cell runtime, SDK process, Native review, kernel
-/// negatives, cancellation or physical effects, and cannot grant eligibility.
+/// deterministic control. Captured output is recomputed from the signed
+/// execution field with its byte hashes. This API never verifies private-cell
+/// runtime, SDK process, Native review, kernel negatives, cancellation or
+/// physical effects, and cannot grant eligibility.
 pub fn verify_control_reported_tail(
     raw_control: &[u8],
     role: &str,
     outside_public_key: &[u8],
     outside_expected: &Value,
-    outside_captured_output: Option<&Value>,
 ) -> Result<ControlReportedTail> {
     let session =
         verify_control_session_opening(raw_control, role, outside_public_key, outside_expected)?;
@@ -185,8 +184,11 @@ pub fn verify_control_reported_tail(
         if execution["exit_code"].as_i64() != Some(0)
             || !is_true(&value, "actual_sdk_bash_success")
             || !is_false(result, "isError")
-            || outside_captured_output.is_none_or(|output| result["content"] != *output)
         {
+            return Err(OUTPUT);
+        }
+        let captured = captured_contained_output(execution)?;
+        if result["content"] != captured["tool_response"] {
             return Err(OUTPUT);
         }
     }

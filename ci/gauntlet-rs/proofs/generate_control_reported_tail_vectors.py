@@ -1,8 +1,8 @@
 """Freeze Python deterministic control checks after the signed session opening.
 
-Only private-cell custody, cancellation custody and captured-output acquisition
-are synthetic stubs. The checks under test are the exact pinned verify_control,
-request_rejection and _boundary ASTs. No product, SDK or model is executed.
+Only private-cell runtime and cancellation custody are synthetic stubs. The
+checks under test are the exact pinned verify_control, request_rejection,
+_boundary and captured_output ASTs. No product, SDK or model is executed.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ import base64
 import copy
 import hashlib
 import json
+import math
 from pathlib import Path, PurePosixPath
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -55,9 +56,13 @@ def apply_merge_delta(base, patch):
 def base_full_case(role: str) -> tuple[dict, dict, str]:
     control, expected, key = base_session_case()
     plane = control["developer_runtime"]["record"]["native_builtin_audit"]["record"]["product_plane"]
+    stdout = "captured synthetic output\n"
+    stderr = ""
     plane["executions"] = [] if role == "cancel" else [{
         "exit_code": 124 if role == "timeout" else 0,
-        "synthetic_tool_response": [{"text": "captured synthetic output"}],
+        "stdout": stdout, "stderr": stderr,
+        "stdout_sha256": hashlib.sha256(stdout.encode()).hexdigest(),
+        "stderr_sha256": hashlib.sha256(stderr.encode()).hexdigest(),
     }]
     control["developer_runtime"]["record"]["native_builtin_audit"]["record"]["review_summary"] = {
         "post_review_counts": {"sdk-contained-control": 1},
@@ -71,7 +76,10 @@ def base_full_case(role: str) -> tuple[dict, dict, str]:
         },
         "modelExercised": False, "providerRequests": 0,
         "syntheticStreamCalls": 3, "mcpExercised": True,
-        "results": [{}, {"isError": False, "content": [{"text": "captured synthetic output"}]}],
+        "results": [{}, {"isError": False, "content": [{
+            "type": "text",
+            "text": "Exit code: 0\nSTDOUT:\ncaptured synthetic output\n\nSTDERR:\n",
+        }]}],
     }
     control["actual_sdk_bash_success"] = True
     control["native_timeout_seconds"] = 5
@@ -139,6 +147,8 @@ def cases() -> list[dict]:
     add("success-sdk-error", "success", lambda c: c["sdk_result"]["results"][1].update(isError=True))
     add("success-output-mismatch", "success", lambda c: c["sdk_result"]["results"][1].update(content=[]))
     add("boundary-output-mismatch", "boundary", lambda c: c["sdk_result"]["results"][1].update(content=[]))
+    add("success-stdout-digest-mismatch", "success", lambda c: plane(c)["executions"][0].update(stdout_sha256="0" * 64))
+    add("boundary-stderr-digest-mismatch", "boundary", lambda c: plane(c)["executions"][0].update(stderr_sha256="0" * 64))
     add("timeout-duration", "timeout", lambda c: c.update(native_timeout_seconds=4))
     add("timeout-native-exit", "timeout", lambda c: plane(c)["executions"][0].update(exit_code=0))
     add("timeout-no-samples", "timeout", lambda c: c.update(detached_child_samples=[]))
@@ -171,16 +181,25 @@ def main() -> None:
     args = parser.parse_args()
     source = args.source.read_text(encoding="utf-8")
     custody = args.custody.read_text(encoding="utf-8")
+    output_path = args.source.with_name("contained_output_binding.py")
+    output_source = output_path.read_text(encoding="utf-8")
+    json_data_path = args.source.with_name("json_data.py")
+    json_data_source = json_data_path.read_text(encoding="utf-8")
     functions = [extracted(name, custody) for name in ("_require", "_signed")]
     functions += [extracted(name, source) for name in ("request_rejection", "_boundary", "verify_control")]
+    functions += [extracted(name, json_data_source) for name in ("_bounded", "canonical_json", "digest")]
+    functions.append(extracted("captured_output", output_source))
     namespace = {
         "base64": base64, "canonical_json": canonical_json,
+        "hashlib": hashlib, "json": json, "math": math,
         "Ed25519PublicKey": Ed25519PublicKey, "PurePosixPath": PurePosixPath,
         "ROLES": {"success", "timeout", "cancel", "input-binding", "boundary"},
         "NEGATIVES": NEGATIVES,
+        "ContractError": ValueError,
+        "MAX_DEPTH": 32, "MAX_NODES": 500_000, "MAX_RECORD_BYTES": 16 * 1024 * 1024,
+        "PROFILE": "controller-contained-output.v1",
         "verify_private_cell_runtime": lambda *_a, **_kw: {"custody_verified": True},
         "_cancel": lambda *_a, **_kw: None,
-        "captured_output": lambda execution: {"tool_response": execution["synthetic_tool_response"]},
     }
     module = ast.fix_missing_locations(ast.Module(body=functions, type_ignores=[]))
     exec(compile(module, str(args.source), "exec"), namespace)
@@ -204,6 +223,8 @@ def main() -> None:
         if role not in bases:
             control, expected, key = base_full_case(role)
             bases[role] = {"control": control, "expected": expected, "public_key_hex": key}
+            if role != "cancel":
+                bases[role]["captured_output"] = namespace["captured_output"](control["plane"]["executions"][0])
         base = bases[role]
         assert row["expected"] == base["expected"]
         assert row["public_key_hex"] == base["public_key_hex"]
@@ -219,8 +240,10 @@ def main() -> None:
         "schema": "gauntlet-control-reported-tail-fixtures.v1",
         "source_sha256": hashlib.sha256(args.source.read_bytes()).hexdigest(),
         "custody_sha256": hashlib.sha256(args.custody.read_bytes()).hexdigest(),
-        "ast_function": "verify_control, request_rejection, _boundary",
-        "stubs": ["verify_private_cell_runtime", "_cancel", "captured_output"],
+        "output_binding_sha256": hashlib.sha256(output_path.read_bytes()).hexdigest(),
+        "json_data_sha256": hashlib.sha256(json_data_path.read_bytes()).hexdigest(),
+        "ast_function": "verify_control, request_rejection, _boundary, captured_output",
+        "stubs": ["verify_private_cell_runtime", "_cancel"],
         "bases": bases,
         "cases": compact,
     }, sort_keys=True, indent=2) + "\n", encoding="utf-8")

@@ -1,4 +1,4 @@
-use gauntlet_evidence::verify_control_reported_tail;
+use gauntlet_evidence::{captured_contained_output, verify_control_reported_tail};
 use serde_json::Value;
 
 fn key(hex: &str) -> Vec<u8> {
@@ -41,6 +41,11 @@ fn python_reported_role_checks_match_without_granting_eligibility() {
             "custody_sha256",
             "ci/gauntlet/benchmark/developer_product_custody.py",
         ),
+        (
+            "output_binding_sha256",
+            "ci/gauntlet/benchmark/contained_output_binding.py",
+        ),
+        ("json_data_sha256", "ci/gauntlet/benchmark/json_data.py"),
     ] {
         let row = baseline["files"]
             .as_array()
@@ -54,28 +59,30 @@ fn python_reported_role_checks_match_without_granting_eligibility() {
         fixture["schema"],
         "gauntlet-control-reported-tail-fixtures.v1"
     );
-    assert_eq!(fixture["cases"].as_array().unwrap().len(), 42);
+    assert_eq!(fixture["cases"].as_array().unwrap().len(), 44);
     assert_eq!(
         fixture["stubs"],
-        serde_json::json!(["verify_private_cell_runtime", "_cancel", "captured_output"])
+        serde_json::json!(["verify_private_cell_runtime", "_cancel"])
     );
+    for role in ["success", "timeout", "input-binding", "boundary"] {
+        let base = &fixture["bases"][role];
+        assert_eq!(
+            captured_contained_output(&base["control"]["plane"]["executions"][0]).unwrap(),
+            base["captured_output"],
+            "{role}"
+        );
+    }
     for case in fixture["cases"].as_array().unwrap() {
         let role = case["role"].as_str().unwrap();
         let base = &fixture["bases"][role];
         let mut control = base["control"].clone();
         apply_merge_delta(&mut control, &case["control_patch"]);
         let raw = serde_json::to_vec(&control).unwrap();
-        let captured = if matches!(role, "success" | "boundary") {
-            Some(&control["plane"]["executions"][0]["synthetic_tool_response"])
-        } else {
-            None
-        };
         let result = verify_control_reported_tail(
             &raw,
             role,
             &key(base["public_key_hex"].as_str().unwrap()),
             &base["expected"],
-            captured,
         );
         if case["accepted"] == true {
             let opened = result.unwrap_or_else(|error| panic!("{}: {error}", case["name"]));
@@ -93,23 +100,15 @@ fn python_reported_role_checks_match_without_granting_eligibility() {
 }
 
 #[test]
-fn output_must_be_supplied_by_a_separate_reader() {
+fn captured_output_refuses_changed_stream_digest() {
     let fixture: Value =
         serde_json::from_str(include_str!("python_control_reported_tail_v1.json")).unwrap();
-    let case = &fixture["cases"][0];
     let base = &fixture["bases"]["success"];
-    let mut control = base["control"].clone();
-    apply_merge_delta(&mut control, &case["control_patch"]);
-    let raw = serde_json::to_vec(&control).unwrap();
-    let result = verify_control_reported_tail(
-        &raw,
-        "success",
-        &key(base["public_key_hex"].as_str().unwrap()),
-        &base["expected"],
-        None,
-    );
+    let mut execution = base["control"]["plane"]["executions"][0].clone();
+    execution["stdout_sha256"] = Value::String("0".repeat(64));
+    let result = captured_contained_output(&execution);
     assert_eq!(
         result.unwrap_err().to_string(),
-        "actual SDK did not receive successful exact captured output"
+        "captured contained output differs from its byte digest"
     );
 }

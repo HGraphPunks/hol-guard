@@ -1,7 +1,19 @@
 {
-  "ast_function": "verify_control, request_rejection, _boundary",
+  "ast_function": "verify_control, request_rejection, _boundary, captured_output",
   "bases": {
     "boundary": {
+      "captured_output": {
+        "is_error": false,
+        "output_sha256": "a765bdc439c83bb477d4fa247da6a3cd054a28a0edad397c2fba40d303fbef8d",
+        "result_digest": "134276aa5e0f0c39eee385693b0e11dfac2089f70cb079f1b14327e4a40a27b6",
+        "schema": "controller-contained-output.v1",
+        "tool_response": [
+          {
+            "text": "Exit code: 0\nSTDOUT:\ncaptured synthetic output\n\nSTDERR:\n",
+            "type": "text"
+          }
+        ]
+      },
       "control": {
         "actual_sdk_bash_success": true,
         "agent_cgroup_absent": true,
@@ -38,11 +50,10 @@
                   "executions": [
                     {
                       "exit_code": 0,
-                      "synthetic_tool_response": [
-                        {
-                          "text": "captured synthetic output"
-                        }
-                      ]
+                      "stderr": "",
+                      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "stdout": "captured synthetic output\n",
+                      "stdout_sha256": "374e63ee09e942f345a05cd7e0b2505a3722965c261ea88673c49ce01f92b10e"
                     }
                   ],
                   "task_mounts": [
@@ -67,7 +78,7 @@
                   }
                 }
               },
-              "signature": "RPrgS49RCnmduT3Qdyvu16Cfecxv5gKsNcScp+vi08ncv6vFUNwmUcNH676eV1Pbck3zVQXyAHdVGd9v8p7UCw=="
+              "signature": "x/WGS71gamn3tC+EOH4LQEHJRMosxoPuhi6GW5icQ1cKITHHb2G/tt/FLkUnNoFEu4XfryantKrD+b+OBXCmCw=="
             },
             "public_prompt_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "schema_version": "5.0",
@@ -90,7 +101,7 @@
               "source_sha": "source"
             }
           },
-          "signature": "zgpdKBxdPKTekUDg7iO9HjRx36ee6xaoa4dvZ+3u1A1oUg9LjwuqmXXY3Ngf333QRF/gPY+4dAN3Gs6tbFtkBw=="
+          "signature": "3NweSa4tnaUDWYkrrcgaOl2m37+HuuyZCWFHbbo5uLcqQ7cwh/QezvauYQF4pKvz5Eh2XazETSCq5p4pZcRyDA=="
         },
         "image_released": true,
         "kernel_boundary_negatives": {
@@ -218,11 +229,10 @@
           "executions": [
             {
               "exit_code": 0,
-              "synthetic_tool_response": [
-                {
-                  "text": "captured synthetic output"
-                }
-              ]
+              "stderr": "",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout": "captured synthetic output\n",
+              "stdout_sha256": "374e63ee09e942f345a05cd7e0b2505a3722965c261ea88673c49ce01f92b10e"
             }
           ],
           "task_mounts": [
@@ -378,7 +388,8 @@
             {
               "content": [
                 {
-                  "text": "captured synthetic output"
+                  "text": "Exit code: 0\nSTDOUT:\ncaptured synthetic output\n\nSTDERR:\n",
+                  "type": "text"
                 }
               ],
               "isError": false
@@ -764,7 +775,8 @@
             {
               "content": [
                 {
-                  "text": "captured synthetic output"
+                  "text": "Exit code: 0\nSTDOUT:\ncaptured synthetic output\n\nSTDERR:\n",
+                  "type": "text"
                 }
               ],
               "isError": false
@@ -792,6 +804,18 @@
       "public_key_hex": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c"
     },
     "input-binding": {
+      "captured_output": {
+        "is_error": false,
+        "output_sha256": "a765bdc439c83bb477d4fa247da6a3cd054a28a0edad397c2fba40d303fbef8d",
+        "result_digest": "134276aa5e0f0c39eee385693b0e11dfac2089f70cb079f1b14327e4a40a27b6",
+        "schema": "controller-contained-output.v1",
+        "tool_response": [
+          {
+            "text": "Exit code: 0\nSTDOUT:\ncaptured synthetic output\n\nSTDERR:\n",
+            "type": "text"
+          }
+        ]
+      },
       "control": {
         "actual_sdk_bash_success": true,
         "agent_cgroup_absent": true,
@@ -828,11 +852,10 @@
                   "executions": [
                     {
                       "exit_code": 0,
-                      "synthetic_tool_response": [
-                        {
-                          "text": "captured synthetic output"
-                        }
-                      ]
+                      "stderr": "",
+                      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "stdout": "captured synthetic output\n",
+                      "stdout_sha256": "374e63ee09e942f345a05cd7e0b2505a3722965c261ea88673c49ce01f92b10e"
                     }
                   ],
                   "task_mounts": [
@@ -857,7 +880,7 @@
                   }
                 }
               },
-              "signature": "RPrgS49RCnmduT3Qdyvu16Cfecxv5gKsNcScp+vi08ncv6vFUNwmUcNH676eV1Pbck3zVQXyAHdVGd9v8p7UCw=="
+              "signature": "x/WGS71gamn3tC+EOH4LQEHJRMosxoPuhi6GW5icQ1cKITHHb2G/tt/FLkUnNoFEu4XfryantKrD+b+OBXCmCw=="
             },
             "public_prompt_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "schema_version": "5.0",
@@ -880,7 +903,7 @@
               "source_sha": "source"
             }
           },
-          "signature": "zgpdKBxdPKTekUDg7iO9HjRx36ee6xaoa4dvZ+3u1A1oUg9LjwuqmXXY3Ngf333QRF/gPY+4dAN3Gs6tbFtkBw=="
+          "signature": "3NweSa4tnaUDWYkrrcgaOl2m37+HuuyZCWFHbbo5uLcqQ7cwh/QezvauYQF4pKvz5Eh2XazETSCq5p4pZcRyDA=="
         },
         "image_released": true,
         "kernel_boundary_negatives": {
@@ -1008,11 +1031,10 @@
           "executions": [
             {
               "exit_code": 0,
-              "synthetic_tool_response": [
-                {
-                  "text": "captured synthetic output"
-                }
-              ]
+              "stderr": "",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout": "captured synthetic output\n",
+              "stdout_sha256": "374e63ee09e942f345a05cd7e0b2505a3722965c261ea88673c49ce01f92b10e"
             }
           ],
           "task_mounts": [
@@ -1168,7 +1190,8 @@
             {
               "content": [
                 {
-                  "text": "captured synthetic output"
+                  "text": "Exit code: 0\nSTDOUT:\ncaptured synthetic output\n\nSTDERR:\n",
+                  "type": "text"
                 }
               ],
               "isError": false
@@ -1196,6 +1219,18 @@
       "public_key_hex": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c"
     },
     "success": {
+      "captured_output": {
+        "is_error": false,
+        "output_sha256": "a765bdc439c83bb477d4fa247da6a3cd054a28a0edad397c2fba40d303fbef8d",
+        "result_digest": "134276aa5e0f0c39eee385693b0e11dfac2089f70cb079f1b14327e4a40a27b6",
+        "schema": "controller-contained-output.v1",
+        "tool_response": [
+          {
+            "text": "Exit code: 0\nSTDOUT:\ncaptured synthetic output\n\nSTDERR:\n",
+            "type": "text"
+          }
+        ]
+      },
       "control": {
         "actual_sdk_bash_success": true,
         "agent_cgroup_absent": true,
@@ -1232,11 +1267,10 @@
                   "executions": [
                     {
                       "exit_code": 0,
-                      "synthetic_tool_response": [
-                        {
-                          "text": "captured synthetic output"
-                        }
-                      ]
+                      "stderr": "",
+                      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "stdout": "captured synthetic output\n",
+                      "stdout_sha256": "374e63ee09e942f345a05cd7e0b2505a3722965c261ea88673c49ce01f92b10e"
                     }
                   ],
                   "task_mounts": [
@@ -1261,7 +1295,7 @@
                   }
                 }
               },
-              "signature": "RPrgS49RCnmduT3Qdyvu16Cfecxv5gKsNcScp+vi08ncv6vFUNwmUcNH676eV1Pbck3zVQXyAHdVGd9v8p7UCw=="
+              "signature": "x/WGS71gamn3tC+EOH4LQEHJRMosxoPuhi6GW5icQ1cKITHHb2G/tt/FLkUnNoFEu4XfryantKrD+b+OBXCmCw=="
             },
             "public_prompt_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "schema_version": "5.0",
@@ -1284,7 +1318,7 @@
               "source_sha": "source"
             }
           },
-          "signature": "zgpdKBxdPKTekUDg7iO9HjRx36ee6xaoa4dvZ+3u1A1oUg9LjwuqmXXY3Ngf333QRF/gPY+4dAN3Gs6tbFtkBw=="
+          "signature": "3NweSa4tnaUDWYkrrcgaOl2m37+HuuyZCWFHbbo5uLcqQ7cwh/QezvauYQF4pKvz5Eh2XazETSCq5p4pZcRyDA=="
         },
         "image_released": true,
         "kernel_boundary_negatives": {
@@ -1412,11 +1446,10 @@
           "executions": [
             {
               "exit_code": 0,
-              "synthetic_tool_response": [
-                {
-                  "text": "captured synthetic output"
-                }
-              ]
+              "stderr": "",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout": "captured synthetic output\n",
+              "stdout_sha256": "374e63ee09e942f345a05cd7e0b2505a3722965c261ea88673c49ce01f92b10e"
             }
           ],
           "task_mounts": [
@@ -1572,7 +1605,8 @@
             {
               "content": [
                 {
-                  "text": "captured synthetic output"
+                  "text": "Exit code: 0\nSTDOUT:\ncaptured synthetic output\n\nSTDERR:\n",
+                  "type": "text"
                 }
               ],
               "isError": false
@@ -1600,6 +1634,18 @@
       "public_key_hex": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c"
     },
     "timeout": {
+      "captured_output": {
+        "is_error": true,
+        "output_sha256": "273669237322501c601310b728896aa24ff53155139bc47fda35a63bef00d023",
+        "result_digest": "da6356795844e3ee961bf527596a81752b137ec63e669d7c3e6b4b3e6da21ed5",
+        "schema": "controller-contained-output.v1",
+        "tool_response": [
+          {
+            "text": "Exit code: 124\nSTDOUT:\ncaptured synthetic output\n\nSTDERR:\n",
+            "type": "text"
+          }
+        ]
+      },
       "control": {
         "actual_sdk_bash_success": true,
         "agent_cgroup_absent": true,
@@ -1636,11 +1682,10 @@
                   "executions": [
                     {
                       "exit_code": 124,
-                      "synthetic_tool_response": [
-                        {
-                          "text": "captured synthetic output"
-                        }
-                      ]
+                      "stderr": "",
+                      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "stdout": "captured synthetic output\n",
+                      "stdout_sha256": "374e63ee09e942f345a05cd7e0b2505a3722965c261ea88673c49ce01f92b10e"
                     }
                   ],
                   "task_mounts": [
@@ -1665,7 +1710,7 @@
                   }
                 }
               },
-              "signature": "eTok+P1LUj09nc07d0XIthvppSRmELTxGBcNmiZNHAn7+NNV/Q/vX99qRGLjCNurOYehcd2UXUg+ePCR/fTNDQ=="
+              "signature": "4Kxp4nreI9/FYAhOrXrE5BccfJS8GCnx8N2TEKdbiwLMCV1n+1hatwMxcEN289pE6t9ySlv/4VF3j5ksU9B2Aw=="
             },
             "public_prompt_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "schema_version": "5.0",
@@ -1688,7 +1733,7 @@
               "source_sha": "source"
             }
           },
-          "signature": "WfYOyPX10JBCHmJSvnvNU/NMabt94GWlunEABbsfhV7NI/8dZ2hqNbwfge4HWKFjzoYOZid1t4aCmmiXuRUFDA=="
+          "signature": "jLR7P7XA34xuYygFbR1ZYcXVbTCtyEFjYTgn0jH4H8OLx11KCqhH+gg7m7BjavlcOHKV5082k8nVd+aDFJkvDw=="
         },
         "image_released": true,
         "kernel_boundary_negatives": {
@@ -1816,11 +1861,10 @@
           "executions": [
             {
               "exit_code": 124,
-              "synthetic_tool_response": [
-                {
-                  "text": "captured synthetic output"
-                }
-              ]
+              "stderr": "",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout": "captured synthetic output\n",
+              "stdout_sha256": "374e63ee09e942f345a05cd7e0b2505a3722965c261ea88673c49ce01f92b10e"
             }
           ],
           "task_mounts": [
@@ -1976,7 +2020,8 @@
             {
               "content": [
                 {
-                  "text": "captured synthetic output"
+                  "text": "Exit code: 0\nSTDOUT:\ncaptured synthetic output\n\nSTDERR:\n",
+                  "type": "text"
                 }
               ],
               "isError": false
@@ -2210,10 +2255,10 @@
                   }
                 }
               },
-              "signature": "+i7e93y1VB/+sHeKfyjVV1x9WI9f2PDH3j9mdP+rF5LWKXzrS8aqlLqhxIaIfxx9gY4ClZz3er7dLL1zomb6Bw=="
+              "signature": "M8rIF92ScYh5SplL9Z3r1TuA/wmXStJ1LHPibttOBbDajfZpjKkkpjQfSj2+x7FRAkGLT0S64NPU6Yqe+JYgBQ=="
             }
           },
-          "signature": "2rafQHoc5kKTG5t8GPTVvkj7KC4WPxFGUorEji4dJIDexqvKPXx47S/gZHQ2dWMvDKk741ydKimzG+WycjoSBQ=="
+          "signature": "KF1QHuTgc97/C0Hug2qfAHNNhXb7tPYPgHV3eYmoPUVc9JLKSfF7h8qpB4CzsClfpzIFPwEcyLDVzKMA1fNZBQ=="
         }
       },
       "error": "exactly one actual required Post required",
@@ -2231,29 +2276,27 @@
                   "executions": [
                     {
                       "exit_code": 1,
-                      "synthetic_tool_response": [
-                        {
-                          "text": "captured synthetic output"
-                        }
-                      ]
+                      "stderr": "",
+                      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "stdout": "captured synthetic output\n",
+                      "stdout_sha256": "374e63ee09e942f345a05cd7e0b2505a3722965c261ea88673c49ce01f92b10e"
                     }
                   ]
                 }
               },
-              "signature": "E5jjM0RNJxzGQV/Yfo63KnA+gCX07WWq+RPxnWD+n6W9DHMOorS/aiXyVrGT48kfGbjVduL7MJlOGKCOCtkqAQ=="
+              "signature": "hs94CvPPsje/uMgXfBW4i5s1M1lM4OomVYnD/PwxX3ZRTFd2Wd1MLOFQ+W6p76QqUab04Qkz3CnvMwsmuEqGAQ=="
             }
           },
-          "signature": "+IeSd+SNuqVtt2hu0Hlfg8TrFQvwKLViVaSZBmhphHx59LKJErpZ7o1ERxsOSc4XCpTmlATRRuDSuhQrq9m7Dg=="
+          "signature": "5dSGOwWrKsntbfSH9fNnhxJJOOlLtpEIpXM6Yy6n2qneQMhr42en+240cXuakqNmFxlKXIBcxcbHSg4+AFwKBg=="
         },
         "plane": {
           "executions": [
             {
               "exit_code": 1,
-              "synthetic_tool_response": [
-                {
-                  "text": "captured synthetic output"
-                }
-              ]
+              "stderr": "",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout": "captured synthetic output\n",
+              "stdout_sha256": "374e63ee09e942f345a05cd7e0b2505a3722965c261ea88673c49ce01f92b10e"
             }
           ]
         }
@@ -2280,7 +2323,8 @@
             {
               "content": [
                 {
-                  "text": "captured synthetic output"
+                  "text": "Exit code: 0\nSTDOUT:\ncaptured synthetic output\n\nSTDERR:\n",
+                  "type": "text"
                 }
               ],
               "isError": true
@@ -2329,6 +2373,86 @@
     {
       "accepted": false,
       "control_patch": {
+        "developer_runtime": {
+          "record": {
+            "native_builtin_audit": {
+              "record": {
+                "product_plane": {
+                  "executions": [
+                    {
+                      "exit_code": 0,
+                      "stderr": "",
+                      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "stdout": "captured synthetic output\n",
+                      "stdout_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+                    }
+                  ]
+                }
+              },
+              "signature": "9erQvzjGEJP1siw8Ex2ABd5tWo92wOCAGc1IQDYK+0nWLdV+slcwBFkQ3Bszd9rogyS1KyFctxakeA+tX0BuBQ=="
+            }
+          },
+          "signature": "Qm+5L1mAtUfl9LB1Wj0sacx7ecMBdcJ+4huZfuugFgA/cTTpjxmnwZOsuCferUYu/itVdqCxjgihL/CZ4mBBDQ=="
+        },
+        "plane": {
+          "executions": [
+            {
+              "exit_code": 0,
+              "stderr": "",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout": "captured synthetic output\n",
+              "stdout_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            }
+          ]
+        }
+      },
+      "error": "captured contained output differs from its byte digest",
+      "name": "success-stdout-digest-mismatch",
+      "role": "success"
+    },
+    {
+      "accepted": false,
+      "control_patch": {
+        "developer_runtime": {
+          "record": {
+            "native_builtin_audit": {
+              "record": {
+                "product_plane": {
+                  "executions": [
+                    {
+                      "exit_code": 0,
+                      "stderr": "",
+                      "stderr_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+                      "stdout": "captured synthetic output\n",
+                      "stdout_sha256": "374e63ee09e942f345a05cd7e0b2505a3722965c261ea88673c49ce01f92b10e"
+                    }
+                  ]
+                }
+              },
+              "signature": "n/dhZZlK258qg1cRoCKu8JDMrkmAS5uPQ13tV8Wt3CTPw96ifQ18OFNRjSig+EmLzlVZmv3lcs+69s/Vr6hCCw=="
+            }
+          },
+          "signature": "T5qFabMnS/lq08KydQ/aFdCt73IgkV2nYuwER9LzJd6/263lxqCQZK/lNgTI11wXGkOzMcMgdA4FQtMsWfMlCA=="
+        },
+        "plane": {
+          "executions": [
+            {
+              "exit_code": 0,
+              "stderr": "",
+              "stderr_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+              "stdout": "captured synthetic output\n",
+              "stdout_sha256": "374e63ee09e942f345a05cd7e0b2505a3722965c261ea88673c49ce01f92b10e"
+            }
+          ]
+        }
+      },
+      "error": "captured contained output differs from its byte digest",
+      "name": "boundary-stderr-digest-mismatch",
+      "role": "boundary"
+    },
+    {
+      "accepted": false,
+      "control_patch": {
         "native_timeout_seconds": 4
       },
       "error": "timeout requires Native descendant cleanup before cell backstop",
@@ -2346,29 +2470,27 @@
                   "executions": [
                     {
                       "exit_code": 0,
-                      "synthetic_tool_response": [
-                        {
-                          "text": "captured synthetic output"
-                        }
-                      ]
+                      "stderr": "",
+                      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "stdout": "captured synthetic output\n",
+                      "stdout_sha256": "374e63ee09e942f345a05cd7e0b2505a3722965c261ea88673c49ce01f92b10e"
                     }
                   ]
                 }
               },
-              "signature": "RPrgS49RCnmduT3Qdyvu16Cfecxv5gKsNcScp+vi08ncv6vFUNwmUcNH676eV1Pbck3zVQXyAHdVGd9v8p7UCw=="
+              "signature": "x/WGS71gamn3tC+EOH4LQEHJRMosxoPuhi6GW5icQ1cKITHHb2G/tt/FLkUnNoFEu4XfryantKrD+b+OBXCmCw=="
             }
           },
-          "signature": "zgpdKBxdPKTekUDg7iO9HjRx36ee6xaoa4dvZ+3u1A1oUg9LjwuqmXXY3Ngf333QRF/gPY+4dAN3Gs6tbFtkBw=="
+          "signature": "3NweSa4tnaUDWYkrrcgaOl2m37+HuuyZCWFHbbo5uLcqQ7cwh/QezvauYQF4pKvz5Eh2XazETSCq5p4pZcRyDA=="
         },
         "plane": {
           "executions": [
             {
               "exit_code": 0,
-              "synthetic_tool_response": [
-                {
-                  "text": "captured synthetic output"
-                }
-              ]
+              "stderr": "",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout": "captured synthetic output\n",
+              "stdout_sha256": "374e63ee09e942f345a05cd7e0b2505a3722965c261ea88673c49ce01f92b10e"
             }
           ]
         }
@@ -3372,11 +3494,12 @@
     }
   ],
   "custody_sha256": "fa347e8cf791c21a4ce6de8d331bfbb80d80f605d0e927f672ed8475e24de21e",
+  "json_data_sha256": "5d7a9b3b350ac5a7c318f02af8916101551371459f487cc0e5abd037792f817e",
+  "output_binding_sha256": "921ca0f4fd253a374cb59d82c2b0849c6839fcfb613c7fa4c28ddc3ccfdddd5a",
   "schema": "gauntlet-control-reported-tail-fixtures.v1",
   "source_sha256": "22773101b8880d65dd85183a4212ca8efa57897388ad1408ab5d1ad971111427",
   "stubs": [
     "verify_private_cell_runtime",
-    "_cancel",
-    "captured_output"
+    "_cancel"
   ]
 }
