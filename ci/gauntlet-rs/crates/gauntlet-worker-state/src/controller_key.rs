@@ -21,6 +21,12 @@ const MAX_BYTES: u64 = 1024;
 const REQUIRED_SEALS: libc::c_int =
     libc::F_SEAL_SEAL | libc::F_SEAL_SHRINK | libc::F_SEAL_GROW | libc::F_SEAL_WRITE;
 
+#[path = "controller_key_observe.rs"]
+mod observe;
+pub use observe::{
+    observe_controller_key_pin_root_owned, ControllerKeyObservation, ControllerKeyOutsidePins,
+};
+
 #[derive(Debug)]
 pub enum ControllerKeyError {
     RootRequired,

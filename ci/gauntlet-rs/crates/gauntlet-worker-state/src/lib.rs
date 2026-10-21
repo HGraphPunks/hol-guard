@@ -102,7 +102,10 @@ pub use controller_install::{
     install_fixed_controller, ControllerInstallError, ControllerInstallProof,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-pub use controller_key::ControllerKeyError;
+pub use controller_key::{
+    observe_controller_key_pin_root_owned, ControllerKeyError, ControllerKeyObservation,
+    ControllerKeyOutsidePins,
+};
 #[cfg(target_os = "linux")]
 mod deployment;
 #[cfg(target_os = "linux")]
