@@ -17,6 +17,8 @@ The [controller signed-envelope verifier](gauntlet-rust-controller-envelope-proo
 
 The [signed injection composition](gauntlet-rust-signed-injection-composition-proof.md) binds that envelope and the control's declared key before applying pure attribution. Its synthetic 12-case parity and tamper refusals still leave the outer SDK result and physical effects unauthenticated; it grants no control pass.
 
+The [deterministic control opening](gauntlet-rust-control-opening-proof.md) ports Python's initial signed runtime/builtin, outside conformance and backend tuple, profile, cleanup-claim and detached-plane checks. Twenty-three Python-frozen cases, including a v4 opening, match Rust; all later session, SDK, Native and kernel/product checks remain required before a deterministic pass can be recomputed.
+
 A separate [Git-object diagnostic](gauntlet-rust-git-controller-source-proof.md) matches every proposed controller source byte at an exact local commit to the 426-file integration map and derives the expected install digest. The draft PR cannot serve as its own reviewed source pin or VM install authorization.
 
 An [isolated Rust installer](gauntlet-rust-controller-install-shadow-proof.md) has since retained a new Root-owned controller generation on the ARM VM, with the expected full-tree digest independently rechecked after installation. The active Python controller remains separate. The new bytes are not a reviewed execution generation, and no deployment or benchmark uses them.

@@ -93,6 +93,10 @@ The [signed injection composition](../../docs/gauntlet-rust-signed-injection-com
 binds the synthetic `extra_probes` signature and declared key to the outside
 key before pure attribution. It still cannot authenticate the outer SDK result
 or award a deterministic control pass.
+The [deterministic control opening](../../docs/gauntlet-rust-control-opening-proof.md)
+matches 23 Python-frozen signed/runtime/backend cases, including nested
+Ed25519 records and outside conformance pins. Session, SDK, Native, kernel and
+product-effect checks still must be ported before a complete control verdict.
 The bounded HMAC VM bridge codec
 matches Python frame bytes and poisons replayed,
 tampered or misdirected connections; it has no live transport or key delivery.
