@@ -182,14 +182,21 @@ fn project_at_fixed_base(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
 
     fn fixture(version: u8) -> Vec<u8> {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        std::fs::read(root.join(format!(
-            "../gauntlet-contracts/tests/fixtures/runner_config_v{version}.json"
-        )))
-        .unwrap()
+        match version {
+            6 => include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../gauntlet-contracts/tests/fixtures/runner_config_v6.json"
+            ))
+            .to_vec(),
+            7 => include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../gauntlet-contracts/tests/fixtures/runner_config_v7.json"
+            ))
+            .to_vec(),
+            _ => panic!("unsupported test fixture version"),
+        }
     }
 
     fn pins() -> CandidateConfigProjectionPins<'static> {
