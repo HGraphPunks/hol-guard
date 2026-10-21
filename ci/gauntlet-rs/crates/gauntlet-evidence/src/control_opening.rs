@@ -5,6 +5,8 @@ use crate::crypto::decode_hex;
 use crate::{verify_controller_envelope, EvidenceError, Result};
 use gauntlet_contracts::canonicalize;
 use serde_json::Value;
+use std::collections::BTreeSet;
+use std::path::{Component, Path};
 
 const INVALID: EvidenceError = EvidenceError::Invalid("invalid deterministic control record");
 const FAILED: EvidenceError =
@@ -20,6 +22,11 @@ const PROFILE: EvidenceError =
 const BACKEND: EvidenceError = EvidenceError::Invalid("control backend differs from tuple");
 const PLANE: EvidenceError =
     EvidenceError::Invalid("detached control plane differs from signed observation");
+const ALLOCATION: EvidenceError = EvidenceError::Invalid("control allocation differs from session");
+const TASK_PATHS: EvidenceError =
+    EvidenceError::Invalid("control task paths differ from declared allocation");
+const SDK_BINDING: EvidenceError =
+    EvidenceError::Invalid("control lacks outside pre-import SDK binding");
 
 /// Signed portions of a control after the opening checks. This does **not**
 /// establish actual SDK traffic, Native reviews, kernel effects or a verdict.
@@ -29,6 +36,19 @@ pub struct ControlOpening {
     pub builtin: Value,
     pub settings: Value,
     pub plane: Value,
+}
+
+/// Signed allocation and reported outside SDK gate fields, still awaiting
+/// independent kernel/process custody and a complete deterministic verdict.
+#[derive(Debug)]
+pub struct ControlSessionOpening {
+    pub signed: ControlOpening,
+    pub session_id: String,
+    pub workspace_source: String,
+    pub provider_mounts: Vec<String>,
+    pub sdk_observation: Value,
+    pub agent_identity: Value,
+    pub public_prompt_digest: Value,
 }
 
 fn exact_true(record: &Value, name: &str) -> bool {
@@ -150,5 +170,99 @@ pub fn verify_control_opening(
         builtin,
         settings: settings.clone(),
         plane,
+    })
+}
+
+/// Continue Python `verify_control` through the signed session allocation,
+/// task-path relation and pre-import SDK gate flags. These flags are supplied
+/// by the producer; they do not authenticate the kernel peer or SDK process.
+pub fn verify_control_session_opening(
+    raw_control: &[u8],
+    role: &str,
+    outside_public_key: &[u8],
+    outside_expected: &Value,
+) -> Result<ControlSessionOpening> {
+    let signed = verify_control_opening(raw_control, role, outside_public_key, outside_expected)?;
+    let canonical = canonicalize(raw_control).map_err(|_| INVALID)?;
+    let value: Value = serde_json::from_slice(&canonical).map_err(|_| INVALID)?;
+    let session_id = signed
+        .runtime
+        .get("controller_session_id")
+        .and_then(Value::as_str)
+        .ok_or(INVALID)?
+        .to_owned();
+    let workspace_path = signed
+        .plane
+        .get("workspace_path")
+        .and_then(Value::as_str)
+        .ok_or(INVALID)?;
+    let mounts = signed
+        .plane
+        .get("task_mounts")
+        .and_then(Value::as_array)
+        .ok_or(INVALID)?;
+    let workspace_source = mounts
+        .iter()
+        .find(|row| row.get("destination").and_then(Value::as_str) == Some(workspace_path))
+        .and_then(|row| row.get("source"))
+        .and_then(Value::as_str)
+        .ok_or(INVALID)?
+        .to_owned();
+    let root_path = Path::new(&workspace_source)
+        .parent()
+        .and_then(Path::parent)
+        .ok_or(ALLOCATION)?;
+    let root = root_path.to_str().ok_or(ALLOCATION)?;
+    if root_path.file_name().and_then(|name| name.to_str()) != Some(session_id.as_str())
+        || root_path
+            .components()
+            .any(|component| component == Component::ParentDir)
+    {
+        return Err(ALLOCATION);
+    }
+    let provider_mounts: Vec<String> = mounts
+        .iter()
+        .filter(|row| row.get("destination").and_then(Value::as_str) != Some(workspace_path))
+        .map(|row| {
+            row.get("source")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+                .ok_or(INVALID)
+        })
+        .collect::<Result<_>>()?;
+    let actual_providers: BTreeSet<&str> = provider_mounts.iter().map(String::as_str).collect();
+    let expected_providers = [format!("{root}/tasks/remote"), format!("{root}/tasks/home")];
+    let expected_providers: BTreeSet<&str> =
+        expected_providers.iter().map(String::as_str).collect();
+    if workspace_source != format!("{root}/tasks/checkout")
+        || actual_providers != expected_providers
+    {
+        return Err(TASK_PATHS);
+    }
+    let sdk_gate = value.get("sdk_gate").ok_or(INVALID)?;
+    let sdk_observation = sdk_gate.get("observation").ok_or(INVALID)?;
+    if sdk_gate.get("cleanup_complete") != Some(&Value::Bool(true))
+        || sdk_gate.get("error") != Some(&Value::Null)
+        || sdk_observation.get("kernel_peer_authenticated") != Some(&Value::Bool(true))
+        || sdk_observation.get("bound_before_sdk_import") != Some(&Value::Bool(true))
+    {
+        return Err(SDK_BINDING);
+    }
+    sdk_observation.get("pid").ok_or(INVALID)?;
+    sdk_observation.get("identity").ok_or(INVALID)?;
+    let agent_identity = value.get("agent_identity").ok_or(INVALID)?.clone();
+    let public_prompt_digest = signed
+        .runtime
+        .get("public_prompt_digest")
+        .ok_or(INVALID)?
+        .clone();
+    Ok(ControlSessionOpening {
+        signed,
+        session_id,
+        workspace_source,
+        provider_mounts,
+        sdk_observation: sdk_observation.clone(),
+        agent_identity,
+        public_prompt_digest,
     })
 }
