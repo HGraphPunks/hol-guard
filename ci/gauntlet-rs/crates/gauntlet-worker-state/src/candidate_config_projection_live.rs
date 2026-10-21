@@ -122,10 +122,15 @@ pub struct CandidateConfigArtifactProof {
     prefix_tree_sha256: String,
     wheel_sha256: String,
     native_sha256: String,
+    contained_completion_present: bool,
     config: CandidateConfigLiveProof,
 }
 
 impl CandidateConfigArtifactProof {
+    pub(crate) fn contained_completion_present(&self) -> bool {
+        self.contained_completion_present
+    }
+
     pub fn to_json(&self) -> Value {
         json!({
             "schema":"hol-gauntlet-candidate-config-artifacts-shadow.v1",
@@ -135,6 +140,8 @@ impl CandidateConfigArtifactProof {
             "prefix_tree_sha256":self.prefix_tree_sha256,
             "wheel_sha256":self.wheel_sha256,
             "native_sha256":self.native_sha256,
+            "wheel_completion_module_present":self.contained_completion_present,
+            "missing_capabilities":if self.contained_completion_present { vec![] } else { vec!["contained-output-completion.v1"] },
             "template_raw_sha256":self.config.template_raw_sha256,
             "template_canonical_sha256":self.config.template_canonical_sha256,
             "config_digest":self.config.config_digest,
@@ -328,11 +335,11 @@ pub fn project_cloned_candidate_config_ineligible(
         .take(256 * 1024 * 1024 + 1)
         .read_to_end(&mut wheel)
         .map_err(|_| CandidateConfigLiveError::ArchiveMismatch)?;
-    if wheel.len() as u64 != declaration.wheel_bytes
-        || inspect_candidate_wheel(&wheel, &declaration).is_err()
-    {
+    if wheel.len() as u64 != declaration.wheel_bytes {
         return Err(CandidateConfigLiveError::ArchiveMismatch);
     }
+    let checked_wheel = inspect_candidate_wheel(&wheel, &declaration)
+        .map_err(|_| CandidateConfigLiveError::ArchiveMismatch)?;
     let archive = outer.into_inner();
     let archive_after = fstat(&archive).map_err(|_| CandidateConfigLiveError::ArchiveMismatch)?;
     if !same_file(&archive_stat, &archive_after) {
@@ -425,6 +432,7 @@ pub fn project_cloned_candidate_config_ineligible(
         prefix_tree_sha256: pins.prefix_tree_sha256.to_owned(),
         wheel_sha256: pins.wheel_sha256.to_owned(),
         native_sha256: pins.native_sha256.to_owned(),
+        contained_completion_present: checked_wheel.contained_completion_present,
         config,
     })
 }

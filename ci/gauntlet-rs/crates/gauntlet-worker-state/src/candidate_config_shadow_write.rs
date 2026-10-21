@@ -88,6 +88,7 @@ pub struct CandidateConfigShadowWriteProof {
     config_bytes: usize,
     asset_roles: usize,
     private_cell_manifest_sha256: Option<String>,
+    contained_completion_present: bool,
 }
 
 impl CandidateConfigShadowWriteProof {
@@ -102,6 +103,8 @@ impl CandidateConfigShadowWriteProof {
             "config_bytes":self.config_bytes,
             "asset_roles":self.asset_roles,
             "private_cell_manifest_sha256":self.private_cell_manifest_sha256,
+            "wheel_completion_module_present":self.contained_completion_present,
+            "missing_capabilities":if self.contained_completion_present { vec![] } else { vec!["contained-output-completion.v1"] },
             "config_written":true,
             "inert_assets_verified":true,
             "conformance_completed":false,
@@ -227,7 +230,7 @@ fn write_shadow_candidate_config_inner(
     if geteuid().as_raw() != 0 {
         return Err(CandidateConfigShadowWriteError::RootRequired);
     }
-    project_cloned_candidate_config_ineligible(pins)
+    let artifact_proof = project_cloned_candidate_config_ineligible(pins)
         .map_err(|_| CandidateConfigShadowWriteError::ArtifactMismatch)?;
     let journal = RunReservationJournal::open_root_owned(Path::new(RUST_STATE))
         .map_err(|_| CandidateConfigShadowWriteError::LeaseUnavailable)?;
@@ -382,6 +385,7 @@ fn write_shadow_candidate_config_inner(
         config_bytes: projection.file_bytes.len(),
         asset_roles: assets.observed.len(),
         private_cell_manifest_sha256: private_cell_manifest.map(str::to_owned),
+        contained_completion_present: artifact_proof.contained_completion_present(),
     })
 }
 
