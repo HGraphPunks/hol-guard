@@ -208,9 +208,10 @@ pub fn observe_staging_control_root_owned_ineligible(
         return Err(INVALID);
     }
     let config_path = format!(
-        "{SHADOW}/{}/provisional-{}.json",
+        "{SHADOW}/{}/provisional-{}-{}.json",
         pins.build_job_id,
-        &pins.private_manifest_sha256[..16]
+        &pins.private_manifest_sha256[..16],
+        &pins.config_digest[..16]
     );
     let before = load_runner_config_from_paths(
         Path::new(&config_path),

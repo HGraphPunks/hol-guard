@@ -4,7 +4,7 @@
 //! conformance package or benchmark admission can result from this path.
 
 use crate::candidate_conformance_readiness::{
-    inspect_candidate_conformance_readiness_ineligible, CandidateConformanceReadinessPins,
+    inspect_candidate_staging_readiness_ineligible, CandidateConformanceReadinessPins,
 };
 use crate::contained_probe::OwnedJobCgroup;
 use crate::controller_exec::{exchange_prelaunch_pipe, spawn_root_fd};
@@ -162,7 +162,7 @@ pub fn run_fixed_candidate_staging_control_ineligible(
     )
     .map_err(|error| error.to_string())?;
     let readiness =
-        inspect_candidate_conformance_readiness_ineligible(&CandidateConformanceReadinessPins {
+        inspect_candidate_staging_readiness_ineligible(&CandidateConformanceReadinessPins {
             job_id: pins.build_job_id,
             source_sha: pins.source_sha,
             version: pins.version,

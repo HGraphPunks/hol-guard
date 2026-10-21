@@ -5,7 +5,7 @@ import unittest
 from contextlib import redirect_stderr
 from unittest.mock import patch
 
-from ci.gauntlet.benchmark.stage_control_adapter import ROLES, main, parse_args
+from ci.gauntlet.benchmark.stage_control_adapter import ROLES, main, parse_args, staging_config_path
 
 
 BUILD = 'a' * 16
@@ -24,6 +24,11 @@ class StagingControlAdapterTests(unittest.TestCase):
             self.assertEqual(
                 parse_args([BUILD, RUN, SOURCE, '3.49.0', CONFIG, MANIFEST, role])[-1], role
             )
+        self.assertEqual(
+            str(staging_config_path(BUILD, MANIFEST, CONFIG)),
+            '/opt/hol-gauntlet/rust-shadow-candidates/' + BUILD
+            + '/provisional-eeeeeeeeeeeeeeee-dddddddddddddddd.json',
+        )
 
     def test_arbitrary_paths_selectors_and_malformed_pins_refuse(self):
         valid = [BUILD, RUN, SOURCE, '3.49.0', CONFIG, MANIFEST, 'success']

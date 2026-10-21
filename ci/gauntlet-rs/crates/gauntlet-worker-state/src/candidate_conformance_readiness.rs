@@ -15,6 +15,9 @@ use rustix::process::geteuid;
 use serde_json::{json, Value};
 use std::fmt;
 use std::path::Path;
+use std::process::{Command, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
 
 const ASSET_ROOT: &str = "/opt";
 const SHADOW_ROOT: &str = "/opt/hol-gauntlet/rust-shadow-candidates";
@@ -30,6 +33,7 @@ pub enum CandidateConformanceReadinessError {
     ConfigMismatch,
     AssetMismatch,
     CapabilityUncertain,
+    ExecutorImageUnavailable,
 }
 
 impl fmt::Display for CandidateConformanceReadinessError {
@@ -44,6 +48,7 @@ impl fmt::Display for CandidateConformanceReadinessError {
             Self::CapabilityUncertain => {
                 "installed completion capability cannot be resolved safely"
             }
+            Self::ExecutorImageUnavailable => "pinned Linux ARM executor image is unavailable",
         })
     }
 }
@@ -146,11 +151,87 @@ fn completion_present(prefix: &Path) -> Result<bool, CandidateConformanceReadine
     Ok(true)
 }
 
+pub(crate) fn inspect_executor_image(
+    image: &str,
+) -> Result<(), CandidateConformanceReadinessError> {
+    let expected = image
+        .strip_prefix("sha256:")
+        .filter(|digest| lower_hex(digest, 64))
+        .ok_or(CandidateConformanceReadinessError::ExecutorImageUnavailable)?;
+    let mut child = Command::new("/usr/bin/podman")
+        .args([
+            "image",
+            "inspect",
+            "--format",
+            "{{.Id}}|{{.Os}}|{{.Architecture}}",
+            image,
+        ])
+        .env_clear()
+        .env("HOME", "/root")
+        .env("PATH", "/usr/bin:/bin")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|_| CandidateConformanceReadinessError::ExecutorImageUnavailable)?;
+    let start = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) if start.elapsed() < Duration::from_secs(10) => {
+                thread::sleep(Duration::from_millis(20));
+            }
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(CandidateConformanceReadinessError::ExecutorImageUnavailable);
+            }
+        }
+    }
+    let output = child
+        .wait_with_output()
+        .map_err(|_| CandidateConformanceReadinessError::ExecutorImageUnavailable)?;
+    if !output.status.success()
+        || output.stdout.len() > 256
+        || output.stderr.len() > 4096
+        || std::str::from_utf8(&output.stdout).map(str::trim_end).ok()
+            != Some(format!("{expected}|linux|arm64").as_str())
+    {
+        return Err(CandidateConformanceReadinessError::ExecutorImageUnavailable);
+    }
+    Ok(())
+}
+
 /// Repeat complete inert reads under both worker locks. Presence of the
 /// completion module is only a diagnostic gate; actual controls and independent
 /// source review are still required before a deployment can exist.
 pub fn inspect_candidate_conformance_readiness_ineligible(
     pins: &CandidateConformanceReadinessPins<'_>,
+) -> Result<CandidateConformanceReadinessProof, CandidateConformanceReadinessError> {
+    let name = format!(
+        "provisional-{}.json",
+        &pins.private_manifest_sha256.get(..16).unwrap_or("")
+    );
+    inspect_readiness(pins, &name, false)
+}
+
+/// Fresh staging uses a second immutable config generation and requires its
+/// exact executor image to be present before a host key is pinned.
+pub fn inspect_candidate_staging_readiness_ineligible(
+    pins: &CandidateConformanceReadinessPins<'_>,
+) -> Result<CandidateConformanceReadinessProof, CandidateConformanceReadinessError> {
+    let name = format!(
+        "provisional-{}-{}.json",
+        pins.private_manifest_sha256.get(..16).unwrap_or(""),
+        pins.config_digest.get(..16).unwrap_or("")
+    );
+    inspect_readiness(pins, &name, true)
+}
+
+fn inspect_readiness(
+    pins: &CandidateConformanceReadinessPins<'_>,
+    config_name: &str,
+    require_executor_image: bool,
 ) -> Result<CandidateConformanceReadinessProof, CandidateConformanceReadinessError> {
     if geteuid().as_raw() != 0 {
         return Err(CandidateConformanceReadinessError::RootRequired);
@@ -177,7 +258,6 @@ pub fn inspect_candidate_conformance_readiness_ineligible(
         verify_controller_tree(Path::new(pins.controller_path), pins.controller_tree_sha256)
             .map_err(|_| CandidateConformanceReadinessError::ControllerMismatch)?;
     let base = format!("hol-gauntlet/rust-shadow-candidates/{}", pins.job_id);
-    let config_name = format!("provisional-{}.json", &pins.private_manifest_sha256[..16]);
     let config_path = Path::new(SHADOW_ROOT).join(pins.job_id).join(config_name);
     let loaded =
         load_runner_config_from_paths(&config_path, pins.config_digest, Path::new(ASSET_ROOT))
@@ -199,6 +279,13 @@ pub fn inspect_candidate_conformance_readiness_ineligible(
         || config["assets"]["private_cell"]["sha256"] != pins.private_manifest_sha256
     {
         return Err(CandidateConformanceReadinessError::ConfigMismatch);
+    }
+    if require_executor_image {
+        inspect_executor_image(
+            config["runtime"]["guard_executor_image_id"]
+                .as_str()
+                .ok_or(CandidateConformanceReadinessError::ExecutorImageUnavailable)?,
+        )?;
     }
     let assets = verify_runner_assets_inert(&loaded, Path::new(ASSET_ROOT))
         .map_err(|_| CandidateConformanceReadinessError::AssetMismatch)?;

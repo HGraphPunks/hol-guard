@@ -153,9 +153,10 @@ pub fn fixed_staging_control_plan(
         return Err(ReservationError::InvalidPins);
     }
     let config_path = format!(
-        "{SHADOW}/{}/provisional-{}.json",
+        "{SHADOW}/{}/provisional-{}-{}.json",
         pins.build_job_id,
-        &pins.private_manifest_sha256[..16]
+        &pins.private_manifest_sha256[..16],
+        &pins.config_digest[..16]
     );
     let state_root = format!("/home/hx-{}", pins.run_id);
     let record_path = format!("{state_root}/{}/control.json", role.as_str());
@@ -225,7 +226,7 @@ mod tests {
             assert_eq!(
                 plan.to_json()["config_path"],
                 format!(
-                    "{SHADOW}/{}/provisional-bbbbbbbbbbbbbbbb.json",
+                    "{SHADOW}/{}/provisional-bbbbbbbbbbbbbbbb-aaaaaaaaaaaaaaaa.json",
                     pins.build_job_id
                 )
             );

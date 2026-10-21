@@ -122,6 +122,8 @@ mod candidate_prefix_clone;
 mod candidate_result_read;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_shadow_assets;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod candidate_staging_config_revision;
 mod candidate_staging_plan;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_staging_run;
@@ -259,7 +261,8 @@ pub use candidate_config_shadow_write::{
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_conformance_readiness::{
-    inspect_candidate_conformance_readiness_ineligible, CandidateConformanceReadinessError,
+    inspect_candidate_conformance_readiness_ineligible,
+    inspect_candidate_staging_readiness_ineligible, CandidateConformanceReadinessError,
     CandidateConformanceReadinessPins, CandidateConformanceReadinessProof,
 };
 pub use candidate_dependencies::{
@@ -288,6 +291,10 @@ pub use candidate_result_read::{
 pub use candidate_shadow_assets::{
     assemble_candidate_shadow_assets_ineligible, CandidateShadowAssetsError,
     CandidateShadowAssetsPins, CandidateShadowAssetsProof,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use candidate_staging_config_revision::{
+    revise_staging_config_ineligible, StagingConfigRevisionPins,
 };
 pub use candidate_staging_plan::{
     fixed_staging_control_plan, FixedStagingControlPlan, StagingControlPins, StagingRole,

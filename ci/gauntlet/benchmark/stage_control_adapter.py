@@ -39,6 +39,11 @@ def parse_args(argv):
     return build_job, run_id, source, version, config_digest, private_manifest, role
 
 
+def staging_config_path(build_job, private_manifest, config_digest):
+    return (Path('/opt/hol-gauntlet/rust-shadow-candidates') / build_job
+            / ('provisional-' + private_manifest[:16] + '-' + config_digest[:16] + '.json'))
+
+
 def _read_control(path):
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
     with os.fdopen(descriptor, 'rb') as stream:
@@ -87,8 +92,7 @@ def run(argv):
     from .deterministic_control import run_control
     from ci.gauntlet.control_plane.stage_outcome import require_cleanup
 
-    shadow = Path('/opt/hol-gauntlet/rust-shadow-candidates') / build_job
-    config = shadow / ('provisional-' + private_manifest[:16] + '.json')
+    config = staging_config_path(build_job, private_manifest, config_digest)
     state = Path('/home/hx-' + run_id)
     os.umask(0o022)
     worker_lock = _locked_worker()

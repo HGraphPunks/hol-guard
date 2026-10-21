@@ -22,7 +22,7 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/benchmark/stage_control_adapter.py",
       "phase": 2,
-      "sha256": "6bf03bb31b2a0fc730aa01334b6022b03dfd5cd434e7c555d3d16d17b47ec646"
+      "sha256": "8c7442b144bbf1c7d006de21904e38760381df6c0b7f429744f993227a059c13"
     },
     {
       "disposition": "port_to_rust",
