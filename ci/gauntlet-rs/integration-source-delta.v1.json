@@ -89,6 +89,13 @@
       "sha256": "6b31150f68673fe90a88130331a10578d8bcfec0c7962aa8149232a1fdd68e26"
     },
     {
+      "base_sha256": "af2fa2036419ca3d927d9f3059e9f3e3f2bd3d8cb7be200c4a021c31137cd8c5",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/benchmark/product_cell_supervisor.py",
+      "phase": 4,
+      "sha256": "ff988e353a60ef82f9722af7e832c5417fdccff5a8933cbdd435011285a7f143"
+    },
+    {
       "base_sha256": "766f65bb15960fdbc815917a80bdd8d8774d84cb1e088f7d5020da62c896a5d8",
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/bundle.py",

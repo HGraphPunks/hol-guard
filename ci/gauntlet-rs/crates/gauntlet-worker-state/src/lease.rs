@@ -136,6 +136,7 @@ impl RunReservationJournal {
             {
                 return Err(ReservationError::InvalidMarker);
             }
+            crate::require_rust_job_slice_absent(request.job_id())?;
         }
         self.finish_internal(
             request,

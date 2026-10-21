@@ -8,6 +8,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import os
+import re
 import secrets
 import select
 import struct
@@ -62,6 +63,22 @@ def cpu_configuration(profile):
     return cpu,['--property=AllowedCPUs='+str(cpu),'--property=CPUAffinity='+str(cpu)]
 
 
+def rust_job_slice():
+    """Opt in only for a Rust worker that owns this exact job's systemd slice."""
+    value=os.environ.get('HOL_GAUNTLET_RUST_JOB_SLICE')
+    if value is None:
+        return None
+    if re.fullmatch(r'holgauntletrust[0-9a-f]{16}\.slice',value) is None:
+        raise ValueError('invalid Rust-owned product-cell job slice')
+    return value
+
+
+def cell_placement(job_slice,unit):
+    """Use the existing system slice unless the Rust job selected its own."""
+    return ((['--slice='+job_slice] if job_slice else []),
+            Path('/sys/fs/cgroup')/(job_slice or 'system.slice')/unit)
+
+
 class ProductCell:
     def __init__(self,stage: Path,artifacts: Path,*,initializer_sha256: str,
                  expected_manifest_digest: str,wall_seconds=600,network_profile='unix-only-v1',
@@ -71,6 +88,7 @@ class ProductCell:
             raise ValueError('separately declared cell network profile required')
         if os.geteuid()!=0 or type(wall_seconds) is not int or not 10<=wall_seconds<=4000:
             raise ValueError('Root collector and finite cell wall limit required')
+        self.job_slice=rust_job_slice()
         for path in (stage,artifacts):
             for parent in (path,*path.parents):
                 _trusted(parent,directory=True)
@@ -169,7 +187,9 @@ class ProductCell:
                     'loopback_parent_namespace=sys.argv[4] or None,expected_system_digest=sys.argv[5] or None,'
                     'idmap_runtime=sys.argv[6],expected_task_digest=sys.argv[7] or None)')
             parent_net=os.readlink('/proc/self/ns/net') if self.network_profile=='private-loopback-v1' else ''
+            slice_options,cgroup=cell_placement(self.job_slice,self.unit)
             argv=['/usr/bin/systemd-run','--quiet','--collect','--wait','--pipe','--unit='+self.unit,
+                  *slice_options,
                   '--property=MemoryMax=1G','--property=TasksMax=128','--property=CPUQuota=100%',
                   '--property=RuntimeMaxSec='+str(self.wall_seconds),'--property=TimeoutStopSec=2',
                   '--property=KillMode=control-group',*self.cpu_properties,'/usr/bin/aa-exec','-p',self.name,'--',
@@ -180,7 +200,7 @@ class ProductCell:
                                           close_fds=True,env=ENV,bufsize=0,start_new_session=True)
             for stream in (self.process.stdin,self.process.stdout,self.process.stderr):
                 os.set_blocking(stream.fileno(),False)
-            self.cgroup=Path('/sys/fs/cgroup/system.slice')/self.unit
+            self.cgroup=cgroup
             self._marker(b'HOL_CELL_READY_V1\n')
             initial=self._find(1)
             verify_actor(initial,profile=self.name,filtered=False,allowed_cpu=self.allowed_cpu)

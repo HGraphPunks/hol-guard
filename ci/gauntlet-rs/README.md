@@ -107,7 +107,7 @@ Python-exported valid and signed hostile fixtures provide differential tests.
 The [parity manifest](parity-manifest.v1.json) records SHA-256 hashes for all
 420 pinned Gauntlet source files and a preliminary owner phase.
 The separate [integration source delta](integration-source-delta.v1.json) records the
-42 files changed and six files added when that pinned source is combined with
+43 files changed and six files added when that pinned source is combined with
 current `main` in draft PR #5402. A Rust test reconstructs and hashes all 426
 tracked `ci/gauntlet` files; the original 420-file manifest remains the
 immutable #5263 fixture baseline. Neither manifest makes candidate code a

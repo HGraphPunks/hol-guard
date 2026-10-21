@@ -29,12 +29,14 @@ pub struct StartedMarker {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReservationError {
     InvalidPins,
+    RootRequired,
     UnsafeRoot,
     WrongRequest,
     AlreadyStarted,
     LeaseBusy,
     InvalidMarker,
     InvalidDeployment,
+    CleanupUncertain,
     Io(String),
 }
 
@@ -42,6 +44,7 @@ impl fmt::Display for ReservationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidPins => f.write_str("invalid outside worker/deployment pins"),
+            Self::RootRequired => f.write_str("Linux Root required for Rust job slice observation"),
             Self::UnsafeRoot => f.write_str("Linux Root-owned private worker directory required"),
             Self::WrongRequest => {
                 f.write_str("run request differs from outside source/deployment pins")
@@ -53,6 +56,9 @@ impl fmt::Display for ReservationError {
             }
             Self::InvalidDeployment => {
                 f.write_str("deployment declaration differs from its outside pins")
+            }
+            Self::CleanupUncertain => {
+                f.write_str("Rust job product-cell slice cleanup is not independently absent")
             }
             Self::Io(message) => write!(f, "worker reservation I/O error: {message}"),
         }
@@ -86,11 +92,15 @@ pub use controller_install::{
 mod deployment;
 #[cfg(target_os = "linux")]
 mod interpreter_exec;
+#[cfg(any(target_os = "linux", test))]
+mod job_slice_guard;
 mod launch_plan;
 #[cfg(target_os = "linux")]
 pub use interpreter_exec::{
     probe_verified_interpreter_exec, InterpreterExecError, InterpreterExecProof,
 };
+#[cfg(target_os = "linux")]
+pub use job_slice_guard::require_rust_job_slice_absent;
 mod lease;
 #[cfg(target_os = "linux")]
 mod linux_cgroup;
@@ -114,7 +124,10 @@ pub use deployment::{
     read_fixed_deployment, read_fixed_interpreter, read_fixed_interpreter_held,
     DeploymentDeclaration, HeldInterpreter, InterpreterDeclaration,
 };
-pub use launch_plan::{fixed_launch_plan, FixedLaunchPlan, RunLaunchPins};
+pub use launch_plan::{
+    fixed_launch_plan, fixed_rust_job_launch_plan, FixedLaunchPlan, RunLaunchPins,
+    RustJobLaunchPlan,
+};
 pub use lease::ActiveLease;
 #[cfg(target_os = "linux")]
 pub use linux_cgroup::{

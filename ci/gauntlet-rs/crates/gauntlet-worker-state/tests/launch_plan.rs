@@ -1,5 +1,7 @@
 use gauntlet_contracts::WorkerRequest;
-use gauntlet_worker_state::{fixed_launch_plan, ReservationError, RunLaunchPins};
+use gauntlet_worker_state::{
+    fixed_launch_plan, fixed_rust_job_launch_plan, ReservationError, RunLaunchPins,
+};
 use serde_json::{json, Value};
 
 fn run(source: &str, job: &str, deployment: &str) -> WorkerRequest {
@@ -108,4 +110,32 @@ fn plan_refuses_wrong_deployment_interpreter_and_path_selectors() {
         .unwrap()
     )
     .is_err());
+}
+
+#[test]
+fn rust_job_slice_is_derived_from_the_parsed_request_only() {
+    let fixture: Value =
+        serde_json::from_str(include_str!("python_worker_launch_v1.json")).unwrap();
+    let row = &fixture["cases"][0];
+    let source = row["source_sha"].as_str().unwrap();
+    let deployment = row["deployment_digest"].as_str().unwrap();
+    let job_id = row["job_id"].as_str().unwrap();
+    let request = run(source, job_id, deployment);
+    let plan = fixed_rust_job_launch_plan(&request, &pins(row), &"e".repeat(64)).unwrap();
+    assert_eq!(plan.fixed().to_json()["argv"], row["argv"]);
+    assert_eq!(plan.job_slice(), format!("holgauntletrust{job_id}.slice"));
+    assert_eq!(plan.job_cgroup(), format!("/holgauntletrust{job_id}.slice"));
+    let env = plan.environment();
+    assert_eq!(env.len(), 4);
+    assert_eq!(
+        env["HOL_GAUNTLET_RUST_JOB_SLICE"],
+        format!("holgauntletrust{job_id}.slice")
+    );
+    assert_eq!(env["PATH"], "/usr/bin:/bin");
+    assert_eq!(env["LANG"], "C.UTF-8");
+    assert_eq!(env["HOME"], "/root");
+
+    let next = run(source, "fedcba9876543210", deployment);
+    let other = fixed_rust_job_launch_plan(&next, &pins(row), &"e".repeat(64)).unwrap();
+    assert_ne!(plan.job_slice(), other.job_slice());
 }

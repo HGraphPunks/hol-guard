@@ -2,8 +2,8 @@
 //! This is a read-only point-in-time diagnostic, not a dispatch authority.
 
 use crate::{
-    fixed_launch_plan, hex, read_fixed_deployment, read_fixed_interpreter_held, FixedLaunchPlan,
-    HeldInterpreter, ReservationError, RunLaunchPins,
+    fixed_rust_job_launch_plan, hex, read_fixed_deployment, read_fixed_interpreter_held,
+    HeldInterpreter, ReservationError, RunLaunchPins, RustJobLaunchPlan,
 };
 use gauntlet_contracts::{is_git_sha, WorkerAction, WorkerRequest};
 use gauntlet_evidence::{
@@ -69,7 +69,7 @@ pub struct PrelaunchProof {
     config_digest: String,
     controller_entries: usize,
     asset_roles: usize,
-    plan: FixedLaunchPlan,
+    plan: RustJobLaunchPlan,
 }
 
 /// Keep the verified interpreter inode open while a future dispatcher decides
@@ -88,6 +88,10 @@ impl PreparedLaunch {
         &self.interpreter
     }
 
+    pub fn launch_plan(&self) -> &RustJobLaunchPlan {
+        &self.proof.plan
+    }
+
     pub fn into_parts(self) -> (PrelaunchProof, HeldInterpreter) {
         (self.proof, self.interpreter)
     }
@@ -104,7 +108,10 @@ impl PrelaunchProof {
             "config_digest": self.config_digest,
             "controller_entries": self.controller_entries,
             "verified_asset_roles": self.asset_roles,
-            "fixed_launch_plan": self.plan.to_json(),
+            "fixed_launch_plan": self.plan.fixed().to_json(),
+            "rust_job_slice": self.plan.job_slice(),
+            "rust_job_cgroup": self.plan.job_cgroup(),
+            "rust_job_environment": self.plan.environment(),
             "outside_pin_provenance_verified": false,
             "interpreter_execution_bound": false,
             "execution_eligible": false,
@@ -176,7 +183,7 @@ pub fn prepare_fixed_prelaunch(
         python_path: declaration.python_path.clone(),
         interpreter_sha256: declaration.sha256.clone(),
     };
-    let plan = fixed_launch_plan(request, &plan_pins, &pins.interpreter_sha256)
+    let plan = fixed_rust_job_launch_plan(request, &plan_pins, &pins.interpreter_sha256)
         .map_err(PrelaunchError::Plan)?;
     Ok(PreparedLaunch {
         proof: PrelaunchProof {

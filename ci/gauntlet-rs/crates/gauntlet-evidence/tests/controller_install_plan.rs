@@ -49,7 +49,7 @@ fn current_source_map_matches_python_bootstrap_tree_plan() {
     assert_eq!(plan.entries, 406);
     assert_eq!(
         plan.tree_digest,
-        "a62dd6dd884448f83f612c4895648577ea66e18c720942b3b7ca3a707894170e"
+        "4740c2ff7ce417fa2a3f61bddbd707167848c3098fdf5219f6c59997392d751e"
     );
     assert!(plan
         .installed_files

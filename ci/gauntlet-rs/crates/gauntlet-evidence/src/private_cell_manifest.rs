@@ -202,7 +202,7 @@ mod tests {
         let canonical = canonicalize(&raw).unwrap();
         assert_eq!(
             sha256(&canonical),
-            "33ecbce0862b3c00082c7b4ce7e890953a540c3eb54ddf28147022efb57a3d9b"
+            "909592fac5403f683df5673f5f195eac014986e91d50e547b7c214871507ae54"
         );
     }
 

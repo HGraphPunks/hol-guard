@@ -4,11 +4,19 @@
 use crate::{hex, ReservationError};
 use gauntlet_contracts::{is_git_sha, WorkerRequest};
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
 
 const CODE: &str = "import sys;sys.path.insert(0,sys.argv.pop(1));from ci.gauntlet.benchmark.__main__ import main;raise SystemExit(main())";
 const CONTROLLER_PREFIX: &str = "/opt/hol-gauntlet/controller-";
 const PYTHON_PREFIX: &str = "/opt/hol-benchmark-controller-";
 const PYTHON_SUFFIX: &str = "/.venv/bin/python";
+
+pub(crate) fn rust_job_slice_name(job_id: &str) -> Result<String, ReservationError> {
+    if !hex(job_id, 16) {
+        return Err(ReservationError::InvalidPins);
+    }
+    Ok(format!("holgauntletrust{job_id}.slice"))
+}
 
 /// The caller must obtain these bytes from independently verified, Root-owned
 /// deployment and interpreter readers. This data-only struct is not a receipt.
@@ -29,6 +37,38 @@ pub struct FixedLaunchPlan {
     pub state_root: String,
     pub output_dir: String,
     pub log_path: String,
+}
+
+/// The Rust-owned variant of the frozen Python launch. The environment is
+/// derived from the parsed job ID, never accepted from a caller's request.
+/// It only arranges product-cell placement; dispatch and cleanup remain open.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RustJobLaunchPlan {
+    fixed: FixedLaunchPlan,
+    job_slice: String,
+}
+
+impl RustJobLaunchPlan {
+    pub fn fixed(&self) -> &FixedLaunchPlan {
+        &self.fixed
+    }
+
+    pub fn job_slice(&self) -> &str {
+        &self.job_slice
+    }
+
+    pub fn job_cgroup(&self) -> String {
+        format!("/{}", self.job_slice)
+    }
+
+    pub fn environment(&self) -> BTreeMap<&'static str, String> {
+        BTreeMap::from([
+            ("PATH", "/usr/bin:/bin".to_owned()),
+            ("LANG", "C.UTF-8".to_owned()),
+            ("HOME", "/root".to_owned()),
+            ("HOL_GAUNTLET_RUST_JOB_SLICE", self.job_slice.clone()),
+        ])
+    }
 }
 
 impl FixedLaunchPlan {
@@ -119,5 +159,20 @@ pub fn fixed_launch_plan(
         state_root,
         output_dir,
         log_path,
+    })
+}
+
+/// Compose the same fixed command with the sole additional Rust-owned
+/// product-cell slice setting. The caller must still create, own, stop and
+/// verify that systemd slice before claiming whole-job cleanup.
+pub fn fixed_rust_job_launch_plan(
+    request: &WorkerRequest,
+    pins: &RunLaunchPins,
+    expected_interpreter_sha256: &str,
+) -> Result<RustJobLaunchPlan, ReservationError> {
+    let fixed = fixed_launch_plan(request, pins, expected_interpreter_sha256)?;
+    Ok(RustJobLaunchPlan {
+        fixed,
+        job_slice: rust_job_slice_name(request.job_id())?,
     })
 }
