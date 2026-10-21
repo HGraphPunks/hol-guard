@@ -22,7 +22,7 @@ fn io(error: impl std::fmt::Display) -> EvidenceError {
     EvidenceError::Io(error.to_string())
 }
 
-fn unchanged(before: &Stat, after: &Stat) -> bool {
+pub(crate) fn unchanged(before: &Stat, after: &Stat) -> bool {
     before.st_dev == after.st_dev
         && before.st_ino == after.st_ino
         && before.st_mode == after.st_mode
@@ -36,7 +36,7 @@ fn unchanged(before: &Stat, after: &Stat) -> bool {
         && before.st_ctime_nsec == after.st_ctime_nsec
 }
 
-fn private_directory(fd: &OwnedFd, owner: u32) -> Result<Stat> {
+pub(crate) fn private_directory(fd: &OwnedFd, owner: u32) -> Result<Stat> {
     let stat = fstat(fd).map_err(io)?;
     if FileType::from_raw_mode(stat.st_mode) != FileType::Directory
         || stat.st_uid != owner
@@ -47,7 +47,7 @@ fn private_directory(fd: &OwnedFd, owner: u32) -> Result<Stat> {
     Ok(stat)
 }
 
-fn open_private_directory(
+pub(crate) fn open_private_directory(
     parent: &OwnedFd,
     name: &str,
     owner: u32,
@@ -70,7 +70,7 @@ fn open_private_directory(
     Ok(Some((fd, stat)))
 }
 
-fn read_private_file(
+pub(crate) fn read_private_file(
     parent: &OwnedFd,
     name: &str,
     owner: u32,

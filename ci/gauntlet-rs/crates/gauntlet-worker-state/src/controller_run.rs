@@ -12,8 +12,8 @@ use crate::{
 };
 use gauntlet_contracts::WorkerRequest;
 use gauntlet_evidence::{
-    observe_deterministic_report_root_owned_ineligible, DeterministicReportObservation,
-    EvidenceError,
+    observe_deterministic_report_root_owned_ineligible, read_six_deterministic_controls_root_owned,
+    DeterministicReportObservation, EvidenceError, SixDeterministicControlRecords,
 };
 use std::fs;
 use std::os::unix::process::ExitStatusExt;
@@ -69,6 +69,7 @@ pub(crate) struct ControllerRunObservation {
     pub(crate) exit_code: Option<i32>,
     pub(crate) timed_out: bool,
     pub(crate) report: Option<DeterministicReportObservation>,
+    pub(crate) controls: Option<SixDeterministicControlRecords>,
 }
 
 fn wait_for_child(
@@ -217,6 +218,7 @@ pub(crate) fn run_prepared_controller_ineligible(
             exit_code,
             timed_out,
             report: None,
+            controls: None,
         })
     })();
     cleanup(&mut group, Some(&mut child), request.job_id(), true)?;
@@ -229,15 +231,29 @@ pub(crate) fn run_prepared_controller_ineligible(
         .map_err(ControllerRunError::PostRunCustody)?;
     if !observation.timed_out {
         let exit_code = observation.exit_code.ok_or(ControllerRunError::Wait)?;
-        observation.report = Some(
-            observe_deterministic_report_root_owned_ineligible(
+        let report = observe_deterministic_report_root_owned_ineligible(
+            request.job_id(),
+            request.source_sha(),
+            prepared.config_digest(),
+            exit_code,
+        )
+        .map_err(ControllerRunError::Report)?;
+        if report.producer_status == "passed" {
+            let controls = read_six_deterministic_controls_root_owned(
                 request.job_id(),
                 request.source_sha(),
                 prepared.config_digest(),
                 exit_code,
             )
-            .map_err(ControllerRunError::Report)?,
-        );
+            .map_err(ControllerRunError::Report)?;
+            if controls.report.raw_sha256 != report.raw_sha256 {
+                return Err(ControllerRunError::Report(EvidenceError::Invalid(
+                    "deterministic report changed while reading controls",
+                )));
+            }
+            observation.controls = Some(controls);
+        }
+        observation.report = Some(report);
     }
     Ok(observation)
 }

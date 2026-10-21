@@ -19,6 +19,7 @@ mod controller_invocations;
 mod controller_tree;
 mod crypto;
 mod deterministic_command;
+mod deterministic_control_records;
 mod deterministic_injection;
 mod deterministic_report;
 mod deterministic_signed_injection;
@@ -73,6 +74,10 @@ pub use controller_invocations::{audit_controller_invocations, ControllerInvocat
 #[cfg(target_os = "linux")]
 pub use controller_tree::{verify_controller_tree, VerifiedControllerTree};
 pub use deterministic_command::reduce_forbidden_command;
+pub use deterministic_control_records::{
+    read_six_deterministic_controls_root_owned, verify_six_deterministic_control_records,
+    SixDeterministicControlRecords,
+};
 pub use deterministic_injection::reduce_injection_attribution;
 pub use deterministic_report::{
     observe_deterministic_report_root_owned_ineligible, read_deterministic_report_root_owned,
