@@ -46,6 +46,23 @@ test still expected 426/395 files; this slice updates that expectation to
 427/396 and the independently derived new tree digest. The final PR-head CI
 result remains open.
 
+The first actual host handoff used run `0c83a264b4569830` with a
+SHA-matched Root-owned ARM executable `685202e4…`. The host durably pinned its
+public key, but the guest refused before spawn: the staging plan had added
+`PYTHONDONTWRITEBYTECODE` outside the descriptor launcher's fixed environment
+allowlist. The host and guest both exited 2. Readback found the 0600 host pin,
+Root-owned started marker, key pin and empty log; `/home/hx-0c83a264b4569830`
+and its controller cgroup did not exist. No terminal or control record was
+claimed, and the consumed run ID will not be replayed. The extra variable was
+removed; the fixed `python -B` launch still suppresses bytecode in the
+controller process. A new Linux ARM unit test joins the staging plan to the
+descriptor launcher's actual fixed environment. Its SHA-matched VM test
+binary `795881780e05363c58e249a7dbfd7949c1948741b3c2f5c370b7e646907ac357`
+passed all 74 runnable worker library tests (three fixture tests intentionally
+ignored). Warnings-denied ARM Clippy also passed. The corrected static guest
+binary has SHA-256 `fb57aaed8077980094bc220a0af72bfc1a16376db84d2f3659c1dc0cb7a51ab5`
+and was installed separately at its hash-derived Root path for a fresh run.
+
 The controller install and executable compilation are infrastructure evidence
 only. No fresh control, signed record, model request, full six-role package,
 independent physical-effect verdict, host/VM crash handoff, or production

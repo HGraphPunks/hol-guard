@@ -1,4 +1,32 @@
 use super::*;
+use crate::{fixed_staging_control_plan, StagingControlPins, StagingRole};
+
+#[test]
+fn staging_plan_matches_descriptor_launcher_environment() {
+    let config_digest = "a".repeat(64);
+    let private_manifest_sha256 = "b".repeat(64);
+    let interpreter_sha256 = "c".repeat(64);
+    let pins = StagingControlPins {
+        build_job_id: "aabbccddeeff0011",
+        run_id: "1122334455667788",
+        source_sha: "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd",
+        version: "3.49.0",
+        config_digest: &config_digest,
+        private_manifest_sha256: &private_manifest_sha256,
+        controller_path: "/opt/hol-gauntlet/controller-aabbccddeeff0011",
+        python_path: "/opt/hol-benchmark-controller-20261013/.venv/bin/python",
+        interpreter_sha256: &interpreter_sha256,
+    };
+    let plan = fixed_staging_control_plan(&pins, StagingRole::Success).unwrap();
+    assert_eq!(plan.argv()[0], pins.python_path);
+    assert!(plan.argv().len() <= MAX_ARGV);
+    let mut environment = plan.environment();
+    environment.insert("HOL_GAUNTLET_RUST_SIGNING_KEY_FD", "9".to_owned());
+    assert_eq!(
+        fixed_environment(&environment, Some(9)).unwrap().len(),
+        SIGNED_ENV_KEYS.len()
+    );
+}
 
 #[test]
 fn controller_environment_accepts_only_the_fixed_keys_and_exact_signing_fd() {
