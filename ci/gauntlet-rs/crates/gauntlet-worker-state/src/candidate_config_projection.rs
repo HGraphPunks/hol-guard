@@ -33,7 +33,8 @@ pub struct CandidateConfigProjectionPins<'a> {
     pub source_sha: &'a str,
     pub package_version: &'a str,
     pub native_sha256: &'a str,
-    pub prefix_digest: &'a str,
+    pub root_prefix_digest: &'a str,
+    pub runtime_tree_digest: &'a str,
     pub wheel_sha256: &'a str,
 }
 
@@ -62,7 +63,9 @@ pub fn project_candidate_config_ineligible(
     if !is_git_sha(pins.source_sha)
         || !valid_package_version(pins.package_version)
         || !lower_hex(pins.native_sha256, 64)
-        || !lower_hex(pins.prefix_digest, 64)
+        || !lower_hex(pins.root_prefix_digest, 64)
+        || !lower_hex(pins.runtime_tree_digest, 64)
+        || pins.root_prefix_digest != pins.runtime_tree_digest
         || !lower_hex(pins.wheel_sha256, 64)
     {
         return Err(CandidateConfigProjectionError::InvalidPins);
@@ -83,9 +86,9 @@ pub fn project_candidate_config_ineligible(
     config["runtime"]["guard_source_sha"] = json!(pins.source_sha);
     config["runtime"]["guard_package_version"] = json!(pins.package_version);
     config["runtime"]["private_cell"]["native_sha256"] = json!(pins.native_sha256);
-    config["runtime"]["private_cell"]["runtime_tree_digest"] = json!(pins.prefix_digest);
+    config["runtime"]["private_cell"]["runtime_tree_digest"] = json!(pins.runtime_tree_digest);
     config["assets"]["guard_prefix"]["path"] = json!(format!("{base}/prefix"));
-    config["assets"]["guard_prefix"]["sha256"] = json!(pins.prefix_digest);
+    config["assets"]["guard_prefix"]["sha256"] = json!(pins.root_prefix_digest);
     config["assets"]["wheel"]["path"] = json!(wheel);
     config["assets"]["wheel"]["sha256"] = json!(pins.wheel_sha256);
     for role in ["native", "compiler"] {
@@ -126,7 +129,8 @@ mod tests {
             source_sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             package_version: "3.48.0",
             native_sha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-            prefix_digest: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            root_prefix_digest: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            runtime_tree_digest: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
             wheel_sha256: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
         }
     }
@@ -144,6 +148,15 @@ mod tests {
             "d2ada18656a9a8c51162d376ab24cd80e601b80240641495cfa3710f7a90ae31"
         );
         assert_eq!(projection.canonical_bytes.len(), 3673);
+        let value: serde_json::Value = serde_json::from_slice(&projection.canonical_bytes).unwrap();
+        assert_eq!(
+            value["assets"]["guard_prefix"]["sha256"],
+            pins().root_prefix_digest
+        );
+        assert_eq!(
+            value["runtime"]["private_cell"]["runtime_tree_digest"],
+            pins().runtime_tree_digest
+        );
         assert_eq!(projection.file_bytes.last(), Some(&b'\n'));
         assert_eq!(
             projection.file_bytes.len(),
@@ -160,6 +173,27 @@ mod tests {
         );
         let mut wrong = pins();
         wrong.source_sha = "main";
+        assert_eq!(
+            project_candidate_config_ineligible(
+                &raw,
+                "580c94be23f58345bf7c59eb11239ae9bd21347b70fadb6c19f243b7f7a3f1e8",
+                &wrong
+            ),
+            Err(CandidateConfigProjectionError::InvalidPins)
+        );
+        let mut wrong = pins();
+        wrong.runtime_tree_digest = "missing";
+        assert_eq!(
+            project_candidate_config_ineligible(
+                &raw,
+                "580c94be23f58345bf7c59eb11239ae9bd21347b70fadb6c19f243b7f7a3f1e8",
+                &wrong
+            ),
+            Err(CandidateConfigProjectionError::InvalidPins)
+        );
+        let mut wrong = pins();
+        wrong.runtime_tree_digest =
+            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
         assert_eq!(
             project_candidate_config_ineligible(
                 &raw,

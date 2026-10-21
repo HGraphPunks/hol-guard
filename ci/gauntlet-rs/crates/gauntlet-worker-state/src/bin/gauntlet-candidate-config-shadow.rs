@@ -3,15 +3,16 @@
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 fn run() -> Result<String, String> {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() != 9 {
-        return Err("usage: gauntlet-candidate-config-shadow TEMPLATE_PATH TEMPLATE_RAW_SHA256 TEMPLATE_CANONICAL_SHA256 SOURCE_SHA VERSION NATIVE_SHA256 PREFIX_DIGEST WHEEL_SHA256".to_owned());
+    if args.len() != 10 {
+        return Err("usage: gauntlet-candidate-config-shadow TEMPLATE_PATH TEMPLATE_RAW_SHA256 TEMPLATE_CANONICAL_SHA256 SOURCE_SHA VERSION NATIVE_SHA256 ROOT_PREFIX_DIGEST RUNTIME_TREE_DIGEST WHEEL_SHA256".to_owned());
     }
     let pins = gauntlet_worker_state::CandidateConfigProjectionPins {
         source_sha: &args[4],
         package_version: &args[5],
         native_sha256: &args[6],
-        prefix_digest: &args[7],
-        wheel_sha256: &args[8],
+        root_prefix_digest: &args[7],
+        runtime_tree_digest: &args[8],
+        wheel_sha256: &args[9],
     };
     gauntlet_worker_state::project_installed_candidate_config_ineligible(
         &args[1], &args[2], &args[3], &pins,

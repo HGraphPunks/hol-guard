@@ -235,7 +235,8 @@ pub use candidate_config_projection::{
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_config_projection_live::{
-    project_installed_candidate_config_ineligible, CandidateConfigLiveError,
+    project_cloned_candidate_config_ineligible, project_installed_candidate_config_ineligible,
+    CandidateConfigArtifactPins, CandidateConfigArtifactProof, CandidateConfigLiveError,
     CandidateConfigLiveProof,
 };
 pub use candidate_dependencies::{
