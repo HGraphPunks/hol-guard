@@ -37,6 +37,7 @@ pub struct ProcessObservation {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ProcStat {
     pub(crate) start_ticks: u64,
+    pub(crate) parent_pid: u32,
     state: char,
     rss_pages: i64,
 }
@@ -56,10 +57,12 @@ pub(crate) fn parse_proc_stat(raw: &[u8], expected_pid: u32) -> Option<ProcStat>
         return None;
     }
     let state = fields[0].chars().next()?;
+    let parent_pid = fields[1].parse::<u32>().ok()?;
     let start_ticks = fields[19].parse::<u64>().ok().filter(|ticks| *ticks > 0)?;
     let rss_pages = fields[21].parse::<i64>().ok().filter(|pages| *pages >= 0)?;
     Some(ProcStat {
         start_ticks,
+        parent_pid,
         state,
         rss_pages,
     })
@@ -194,6 +197,7 @@ mod tests {
         let row = stat(42, "S", "1234567");
         let parsed = parse_proc_stat(row.as_bytes(), 42).unwrap();
         assert_eq!(parsed.start_ticks, 1_234_567);
+        assert_eq!(parsed.parent_pid, 1);
         assert_eq!(parsed.rss_pages, 7);
         assert!(parse_proc_stat(row.as_bytes(), 43).is_none());
         assert!(parse_proc_stat(stat(42, "S", "0").as_bytes(), 42).is_none());
