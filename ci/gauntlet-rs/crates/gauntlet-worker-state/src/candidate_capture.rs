@@ -6,6 +6,7 @@ use crate::builder_candidate_source::{open_fixed_build_slot, same_file, verify_c
 use crate::builder_image_context::{python_worker_lock, verify_python_lock, RUST_STATE};
 use crate::builder_policy::profile_is_loaded;
 use crate::candidate_archive::{inspect_candidate_archive, CandidateArchiveDeclaration};
+use crate::candidate_wheel::{inspect_candidate_wheel, CandidateWheelProof};
 use crate::RunReservationJournal;
 use gauntlet_contracts::is_git_sha;
 use gauntlet_evidence::valid_package_version;
@@ -18,6 +19,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::os::fd::OwnedFd;
 use std::path::Path;
+use zip::ZipArchive;
 
 const MAX_ARCHIVE: u64 = 256 * 1024 * 1024;
 const ARCHIVE: &str = "candidate.zip";
@@ -36,6 +38,7 @@ pub enum CandidateCaptureError {
     ExistingCapture,
     CaptureUncertain,
     ArchiveInvalid,
+    WheelInvalid,
 }
 
 impl fmt::Display for CandidateCaptureError {
@@ -53,6 +56,7 @@ impl fmt::Display for CandidateCaptureError {
             Self::ExistingCapture => "Root candidate capture already exists",
             Self::CaptureUncertain => "Root candidate capture or source stability uncertain",
             Self::ArchiveInvalid => "captured candidate archive declaration or wheel is invalid",
+            Self::WheelInvalid => "nested wheel entry, metadata or native bytes are invalid",
         })
     }
 }
@@ -67,6 +71,39 @@ pub struct CandidateCaptureProof {
     archive_sha256: String,
     archive_bytes: u64,
     declaration: CandidateArchiveDeclaration,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CandidateWheelLiveProof {
+    job_id: String,
+    source_sha: String,
+    archive_sha256: String,
+    declaration: CandidateArchiveDeclaration,
+    wheel: CandidateWheelProof,
+}
+
+impl CandidateWheelLiveProof {
+    pub fn to_json(&self) -> Value {
+        json!({
+            "schema":"hol-gauntlet-candidate-wheel-shadow.v1",
+            "job_id":self.job_id,
+            "source_sha":self.source_sha,
+            "archive_sha256":self.archive_sha256,
+            "version":self.declaration.version,
+            "wheel":self.declaration.wheel,
+            "wheel_sha256":self.declaration.wheel_sha256,
+            "entries":self.wheel.entries,
+            "uncompressed_bytes":self.wheel.uncompressed_bytes,
+            "entry_tree_sha256":self.wheel.entry_tree_sha256,
+            "distribution":self.wheel.distribution,
+            "native_bytes":self.wheel.native_bytes,
+            "native_sha256":self.wheel.native_sha256,
+            "native_bytes_verified":true,
+            "all_wheel_entries_read":true,
+            "artifact_admitted":false,
+            "execution_eligible":false,
+        })
+    }
 }
 
 impl CandidateCaptureProof {
@@ -333,5 +370,100 @@ pub fn capture_local_candidate_archive_ineligible(
         archive_sha256: export_sha256.to_owned(),
         archive_bytes: copied,
         declaration,
+    })
+}
+
+/// Verify the already captured Root archive and every inert wheel entry.
+/// This is a read-only diagnostic, not staging or a trusted terminal receipt.
+pub fn verify_captured_candidate_wheel_ineligible(
+    job_id: &str,
+    source_sha: &str,
+    source_archive_sha256: &str,
+    archive_sha256: &str,
+    version: &str,
+) -> Result<CandidateWheelLiveProof, CandidateCaptureError> {
+    if geteuid().as_raw() != 0 {
+        return Err(CandidateCaptureError::RootRequired);
+    }
+    if !lower_hex(job_id, 16)
+        || !is_git_sha(source_sha)
+        || !lower_hex(source_archive_sha256, 64)
+        || !lower_hex(archive_sha256, 64)
+        || !valid_package_version(version)
+    {
+        return Err(CandidateCaptureError::InvalidPins);
+    }
+    let journal = RunReservationJournal::open_root_owned(Path::new(RUST_STATE))
+        .map_err(|_| CandidateCaptureError::LeaseUnavailable)?;
+    let lease = journal
+        .acquire_active_lease()
+        .map_err(|_| CandidateCaptureError::LeaseUnavailable)?;
+    let python_lock = python_worker_lock().map_err(|_| CandidateCaptureError::LeaseUnavailable)?;
+    let job = open_fixed_build_slot(job_id).map_err(|_| CandidateCaptureError::SourceMismatch)?;
+    verify_captured_source(&job, source_archive_sha256)
+        .map_err(|_| CandidateCaptureError::SourceMismatch)?;
+    inactive(job_id)?;
+    let descriptor = openat(
+        &job,
+        ARCHIVE,
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|_| CandidateCaptureError::CaptureUncertain)?;
+    let before = fstat(&descriptor).map_err(|_| CandidateCaptureError::CaptureUncertain)?;
+    if before.st_size <= 0 || before.st_size as u64 > MAX_ARCHIVE {
+        return Err(CandidateCaptureError::CaptureUncertain);
+    }
+    let declaration = verify_captured(
+        &job,
+        archive_sha256,
+        before.st_size as u64,
+        source_sha,
+        version,
+    )?;
+    let mut outer = ZipArchive::new(File::from(descriptor))
+        .map_err(|_| CandidateCaptureError::ArchiveInvalid)?;
+    let mut wheel = Vec::with_capacity(declaration.wheel_bytes as usize);
+    outer
+        .by_name(&declaration.wheel)
+        .map_err(|_| CandidateCaptureError::ArchiveInvalid)?
+        .take(MAX_ARCHIVE + 1)
+        .read_to_end(&mut wheel)
+        .map_err(|_| CandidateCaptureError::ArchiveInvalid)?;
+    if wheel.len() as u64 != declaration.wheel_bytes || wheel.len() as u64 > MAX_ARCHIVE {
+        return Err(CandidateCaptureError::ArchiveInvalid);
+    }
+    let nested = inspect_candidate_wheel(&wheel, &declaration)
+        .map_err(|_| CandidateCaptureError::WheelInvalid)?;
+    let held_file = outer.into_inner();
+    let held = fstat(&held_file).map_err(|_| CandidateCaptureError::CaptureUncertain)?;
+    let visible = statat(&job, ARCHIVE, AtFlags::SYMLINK_NOFOLLOW)
+        .map_err(|_| CandidateCaptureError::CaptureUncertain)?;
+    if !same_file(&before, &held) || !same_file(&before, &visible) {
+        return Err(CandidateCaptureError::CaptureUncertain);
+    }
+    let after = verify_captured(
+        &job,
+        archive_sha256,
+        before.st_size as u64,
+        source_sha,
+        version,
+    )?;
+    if after != declaration {
+        return Err(CandidateCaptureError::CaptureUncertain);
+    }
+    lease
+        .verify(&journal.root)
+        .map_err(|_| CandidateCaptureError::LeaseUnavailable)?;
+    verify_python_lock(&python_lock).map_err(|_| CandidateCaptureError::LeaseUnavailable)?;
+    inactive(job_id)?;
+    verify_captured_source(&job, source_archive_sha256)
+        .map_err(|_| CandidateCaptureError::SourceMismatch)?;
+    Ok(CandidateWheelLiveProof {
+        job_id: job_id.to_owned(),
+        source_sha: source_sha.to_owned(),
+        archive_sha256: archive_sha256.to_owned(),
+        declaration,
+        wheel: nested,
     })
 }
