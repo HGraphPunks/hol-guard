@@ -77,6 +77,10 @@ pub struct CandidateConformanceReadinessProof {
 }
 
 impl CandidateConformanceReadinessProof {
+    pub fn contained_completion_present(&self) -> bool {
+        self.completion_present
+    }
+
     pub fn to_json(&self) -> Value {
         json!({
             "schema":"hol-gauntlet-candidate-conformance-readiness.v1",

@@ -284,10 +284,19 @@ pub fn read_fixed_interpreter_held(
     deployment: &DeploymentDeclaration,
     expected_interpreter_sha256: &str,
 ) -> Result<HeldInterpreter, ReservationError> {
-    if !controller_python(&deployment.python_path) || !hex(expected_interpreter_sha256, 64) {
+    read_fixed_interpreter_path_held(&deployment.python_path, expected_interpreter_sha256)
+}
+
+/// Hold the same fixed controller interpreter for source-matched staging,
+/// which has no final deployment declaration yet.
+pub fn read_fixed_interpreter_path_held(
+    python_path: &str,
+    expected_interpreter_sha256: &str,
+) -> Result<HeldInterpreter, ReservationError> {
+    if !controller_python(python_path) || !hex(expected_interpreter_sha256, 64) {
         return Err(ReservationError::InvalidPins);
     }
-    let parent = Path::new(&deployment.python_path)
+    let parent = Path::new(python_path)
         .parent()
         .ok_or(ReservationError::InvalidDeployment)?;
     let venv_bin = open_root_owned_public_directory(parent)?;
@@ -305,7 +314,7 @@ pub fn read_fixed_interpreter_held(
     }
     Ok(HeldInterpreter {
         declaration: InterpreterDeclaration {
-            python_path: deployment.python_path.clone(),
+            python_path: python_path.to_owned(),
             target_path: format!("/usr/bin/{target}"),
             sha256: digest,
         },

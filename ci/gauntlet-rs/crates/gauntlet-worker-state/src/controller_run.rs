@@ -64,7 +64,7 @@ impl std::fmt::Display for ControllerRunError {
 
 impl std::error::Error for ControllerRunError {}
 
-enum WaitOutcome {
+pub(crate) enum WaitOutcome {
     Exited(ExitStatus),
     TimedOut,
 }
@@ -85,7 +85,7 @@ pub(crate) struct ControllerRunObservation {
     pub(crate) control_openings: Option<SixControlOpeningsShadow>,
 }
 
-fn wait_for_child(
+pub(crate) fn wait_for_child(
     child: &mut Child,
     deadline: &BoottimeDeadline,
     mut check_owner: impl FnMut() -> Result<(), ControllerRunError>,
@@ -107,7 +107,7 @@ fn wait_for_child(
     }
 }
 
-fn observe_child(
+pub(crate) fn observe_child(
     child: &Child,
     expected_cgroup: &str,
 ) -> Result<ProcessIdentity, ControllerRunError> {
@@ -125,7 +125,7 @@ fn observe_child(
 
 /// Cleanup is attempted on every ordinary return after cgroup creation. A
 /// failed step keeps the reserved job unresolved; no retry is inferred.
-fn cleanup(
+pub(crate) fn cleanup(
     group: &mut OwnedJobCgroup,
     child: Option<&mut Child>,
     job_id: &str,

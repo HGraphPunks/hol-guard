@@ -123,6 +123,8 @@ mod candidate_result_read;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_shadow_assets;
 mod candidate_staging_plan;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod candidate_staging_run;
 mod candidate_wheel;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_wheel_stage;
@@ -290,6 +292,11 @@ pub use candidate_shadow_assets::{
 pub use candidate_staging_plan::{
     fixed_staging_control_plan, FixedStagingControlPlan, StagingControlPins, StagingRole,
 };
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use candidate_staging_run::{
+    run_fixed_candidate_staging_control_ineligible, CandidateStagingRunPins,
+    CandidateStagingRunProof,
+};
 pub use candidate_wheel::{inspect_candidate_wheel, CandidateWheelError, CandidateWheelProof};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_wheel_stage::{
@@ -301,7 +308,8 @@ pub use deadline::{BoottimeDeadline, DeadlineError, MAX_ACTIVE_SECONDS};
 #[cfg(target_os = "linux")]
 pub use deployment::{
     read_fixed_deployment, read_fixed_interpreter, read_fixed_interpreter_held,
-    DeploymentDeclaration, HeldInterpreter, InterpreterDeclaration,
+    read_fixed_interpreter_path_held, DeploymentDeclaration, HeldInterpreter,
+    InterpreterDeclaration,
 };
 pub use launch_plan::{
     fixed_launch_plan, fixed_rust_job_launch_plan, FixedLaunchPlan, RunLaunchPins,

@@ -35,7 +35,7 @@ fn current_source_map() -> BTreeMap<String, String> {
             )
             .is_none());
     }
-    assert_eq!(files.len(), 426);
+    assert_eq!(files.len(), 427);
     files
 }
 
@@ -45,11 +45,11 @@ fn current_source_map_matches_python_bootstrap_tree_plan() {
     // 0755/0444 Root install modes, then Python canonical SHA-256 over the same
     // path/mode/uid/file-hash shape used by TreeKind::Controller.
     let plan = plan_controller_install(&current_source_map()).unwrap();
-    assert_eq!(plan.installed_files.len(), 395);
-    assert_eq!(plan.entries, 406);
+    assert_eq!(plan.installed_files.len(), 396);
+    assert_eq!(plan.entries, 407);
     assert_eq!(
         plan.tree_digest,
-        "33c98333891743e6976bee9a123365fe7fe95dcf1bf9b65ee39a59fb41043c68"
+        "be835c70dd4435463568c7417e7330de21cc251618c0473b785ffc218f03e910"
     );
     assert!(plan
         .installed_files

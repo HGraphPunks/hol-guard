@@ -109,6 +109,7 @@ impl FixedStagingControlPlan {
             ("HOME", "/root".to_owned()),
             ("LANG", "C.UTF-8".to_owned()),
             ("PATH", "/usr/bin:/bin".to_owned()),
+            ("PYTHONDONTWRITEBYTECODE", "1".to_owned()),
         ])
     }
 

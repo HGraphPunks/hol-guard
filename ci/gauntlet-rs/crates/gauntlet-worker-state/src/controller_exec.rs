@@ -143,7 +143,7 @@ pub use probe::{run_fixed_root_controller_exec_probe, RootControllerProbeProof};
 /// descriptors and output handles are prepared in the parent. The child
 /// performs only fixed syscalls before `execveat(AT_EMPTY_PATH)`.
 #[allow(clippy::too_many_arguments)]
-fn spawn_root_fd(
+pub(crate) fn spawn_root_fd(
     interpreter: &HeldInterpreter,
     argv: &[String],
     environment: &BTreeMap<&'static str, String>,
