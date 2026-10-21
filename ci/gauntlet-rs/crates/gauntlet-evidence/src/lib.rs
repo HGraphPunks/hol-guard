@@ -5,6 +5,7 @@ mod bridge_frames;
 mod campaign;
 mod campaign_gate;
 mod control_opening;
+mod control_reported_tail;
 mod controller_envelope;
 mod controller_install_plan;
 mod controller_invocation_files;
@@ -46,6 +47,7 @@ pub use campaign_gate::evaluate_audited_campaign;
 pub use control_opening::{
     verify_control_opening, verify_control_session_opening, ControlOpening, ControlSessionOpening,
 };
+pub use control_reported_tail::{verify_control_reported_tail, ControlReportedTail};
 pub use controller_envelope::verify_controller_envelope;
 pub use controller_install_plan::{plan_controller_install, ControllerInstallPlan};
 pub use controller_invocation_files::read_controller_invocations_root_owned;
