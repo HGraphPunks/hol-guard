@@ -7,6 +7,14 @@
 
 A [fixed Root-only cgroup containment probe](gauntlet-rust-cgroup-containment-proof.md) has since shown child/grandchild entry, recursive kill, drain and removal on the retained ARM VM. No benchmark process used that cgroup, so the Linux worker exit remains open.
 
+The later [six-role staging suite](gauntlet-rust-staging-suite-proof.md) did run
+through a Rust-owned one-use controller cgroup and fixed Python product
+adapter. All six host-pinned signed records, retained filesystem effects and
+cleanup journals reconciled, with no surviving controller/product cgroups.
+The suite stays `invalid-evidence` and ineligible because live kernel/SDK
+effects and Guard causality are not independently scored; no conformance
+package or model inference exists for this Rust candidate.
+
 A [contained interpreter probe](gauntlet-rust-contained-interpreter-proof.md) now joins descriptor-bound Python execution and that fixed cgroup. It ran only inert code as UID 65534 on the ARM VM, observed the child credential and two contained tasks, and verified recursive cleanup. It did not launch a controller or benchmark or qualify a result.
 
 A [Root-only product-cell inventory](gauntlet-rust-product-cell-siblings-proof.md) found no retained product units on the idle ARM VM, but identified a necessary worker-design change: Python starts product cells as systemd sibling units under `system.slice`. The controller cgroup cannot kill those siblings. A Rust worker must bind, terminate and verify every product unit it creates, or prove a new job-owned slice arrangement, before it may write a successful cleanup receipt.

@@ -17,6 +17,7 @@ use std::path::{Path, PathBuf};
 
 const SCHEMA: &str = "hol-gauntlet-host-controller-key-pin.v1";
 const MAX_PIN_BYTES: u64 = 1024;
+const MAX_SUITE_BYTES: u64 = 8192;
 
 #[path = "controller_key_terminal.rs"]
 mod terminal;
@@ -267,6 +268,80 @@ impl HostControllerKeyPinJournal {
             return Err(HostKeyPinError::Changed);
         }
         Ok(observed)
+    }
+
+    /// Persist a diagnostic six-role suite anchor only after the caller has
+    /// reopened every prelaunch key pin. The manifest is one-use host data,
+    /// not a guest conformance package or benchmark admission.
+    pub fn record_staging_suite_manifest(
+        &self,
+        build_job_id: &str,
+        bytes: &[u8],
+    ) -> Result<String, HostKeyPinError> {
+        if !hex(build_job_id, 16)
+            || bytes.is_empty()
+            || bytes.len() as u64 > MAX_SUITE_BYTES
+            || canonicalize(bytes).ok().as_deref() != Some(bytes)
+        {
+            return Err(HostKeyPinError::InvalidPins);
+        }
+        self.stable_directory()?;
+        let name = format!("{build_job_id}.staging-suite-pins.json");
+        let descriptor = openat(
+            &self.directory,
+            name.as_str(),
+            OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::from_bits_truncate(0o600),
+        )
+        .map_err(|error| {
+            if error == Errno::EXIST {
+                HostKeyPinError::AlreadyRecorded
+            } else {
+                HostKeyPinError::Io
+            }
+        })?;
+        let stat = fstat(&descriptor).map_err(|_| HostKeyPinError::Io)?;
+        if FileType::from_raw_mode(stat.st_mode) != FileType::RegularFile
+            || stat.st_uid != self.owner
+            || stat.st_nlink != 1
+            || stat.st_mode & 0o7777 != 0o600
+        {
+            return Err(HostKeyPinError::UnsafeRecord);
+        }
+        let mut file = File::from(descriptor);
+        file.write_all(bytes).map_err(|_| HostKeyPinError::Io)?;
+        file.sync_all().map_err(|_| HostKeyPinError::Io)?;
+        fsync(&self.directory).map_err(|_| HostKeyPinError::Io)?;
+        self.stable_directory()?;
+        let descriptor = openat(
+            &self.directory,
+            name.as_str(),
+            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|_| HostKeyPinError::Changed)?;
+        let before = fstat(&descriptor).map_err(|_| HostKeyPinError::Io)?;
+        let visible = statat(&self.directory, name.as_str(), AtFlags::SYMLINK_NOFOLLOW)
+            .map_err(|_| HostKeyPinError::Changed)?;
+        if FileType::from_raw_mode(before.st_mode) != FileType::RegularFile
+            || before.st_uid != self.owner
+            || before.st_nlink != 1
+            || before.st_mode & 0o7777 != 0o600
+            || before.st_size as u64 != bytes.len() as u64
+            || !same_file(&before, &visible)
+        {
+            return Err(HostKeyPinError::Changed);
+        }
+        let mut observed = Vec::with_capacity(bytes.len());
+        File::from(descriptor)
+            .take(MAX_SUITE_BYTES + 1)
+            .read_to_end(&mut observed)
+            .map_err(|_| HostKeyPinError::Io)?;
+        self.stable_directory()?;
+        if observed != bytes {
+            return Err(HostKeyPinError::Changed);
+        }
+        Ok(format!("{:x}", Sha256::digest(bytes)))
     }
 
     /// Accept a bounded worker prepared frame, persist its exact identity,
