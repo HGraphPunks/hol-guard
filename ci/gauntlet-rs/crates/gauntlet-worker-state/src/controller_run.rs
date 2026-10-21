@@ -141,7 +141,7 @@ fn cleanup(
 /// expiry, then kill remaining descendants, reap and remove the controller
 /// cgroup, and stop/observe the job's product-cell slice. No public caller is
 /// wired to this until trusted pin delivery and report authentication exist.
-#[allow(dead_code)]
+#[allow(dead_code, clippy::too_many_arguments)]
 pub(crate) fn run_prepared_controller_ineligible(
     prepared: &PreparedLaunch,
     journal: &RunReservationJournal,
@@ -150,6 +150,7 @@ pub(crate) fn run_prepared_controller_ineligible(
     worker_generation: &str,
     active_seconds: u64,
     cancellation: &AtomicBool,
+    acknowledge: impl FnOnce(&[u8]) -> Result<Vec<u8>, ControllerExecError>,
 ) -> Result<ControllerRunObservation, ControllerRunError> {
     if cancellation.load(Ordering::Acquire) {
         return Err(ControllerRunError::Cancelled);
@@ -163,8 +164,17 @@ pub(crate) fn run_prepared_controller_ineligible(
         cleanup(&mut group, None, request.job_id(), false)?;
         return Err(ControllerRunError::Cancelled);
     }
-    let launched =
-        spawn_prepared_controller(prepared, &group, journal, lease, request, worker_generation);
+    let launched = spawn_prepared_controller(
+        prepared,
+        &group,
+        journal,
+        lease,
+        request,
+        worker_generation,
+        &deadline,
+        cancellation,
+        acknowledge,
+    );
     let (mut child, started, key_pin) = match launched {
         Ok(value) => value,
         Err(error) => {

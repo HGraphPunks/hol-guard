@@ -11,12 +11,14 @@ use std::fmt;
 
 mod identity;
 mod policy;
+mod prelaunch_handoff;
 mod runner_config;
 mod schema;
 mod worker_request;
 mod worker_response;
 pub use identity::{is_git_sha, validate_source_identity, IdentityError};
 pub use policy::{bind_gate_policy, GatePolicyError};
+pub use prelaunch_handoff::{PrelaunchHandoffError, PrelaunchPrepared};
 pub use runner_config::{
     canonical_relative_asset_path, validate_runner_declaration, RunnerConfigError,
     RunnerDeclaration,

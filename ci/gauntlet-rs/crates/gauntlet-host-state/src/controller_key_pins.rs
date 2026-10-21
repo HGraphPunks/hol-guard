@@ -3,7 +3,7 @@
 //! transport; this library cannot prove the caller's ordering or VM identity.
 
 use crate::private_jobs::{same_file, state_root};
-use gauntlet_contracts::{canonicalize, is_git_sha};
+use gauntlet_contracts::{canonicalize, is_git_sha, PrelaunchPrepared};
 use rustix::fs::{fstat, fsync, openat, statat, AtFlags, FileType, Mode, OFlags, Stat};
 use rustix::io::Errno;
 use rustix::process::geteuid;
@@ -234,6 +234,34 @@ impl HostControllerKeyPinJournal {
             return Err(HostKeyPinError::Changed);
         }
         Ok(observed)
+    }
+
+    /// Accept a bounded worker prepared frame, persist its exact identity,
+    /// then emit the only acknowledgement that may precede controller launch.
+    /// The caller still has to deliver that ack over a reviewed live channel.
+    pub fn accept_prepared(
+        &self,
+        prepared_raw: &[u8],
+    ) -> Result<(HostKeyPinRecord, Vec<u8>), HostKeyPinError> {
+        let prepared =
+            PrelaunchPrepared::parse(prepared_raw).map_err(|_| HostKeyPinError::InvalidPins)?;
+        let pins = HostControllerKeyPins {
+            job_id: prepared.job_id.clone(),
+            source_sha: prepared.source_sha.clone(),
+            deployment_digest: prepared.deployment_digest.clone(),
+            worker_generation: prepared.worker_generation.clone(),
+            started_marker_sha256: prepared.started_marker_sha256.clone(),
+            controller_key_pin_sha256: prepared.controller_key_pin_sha256.clone(),
+            controller_public_key_hex: prepared.controller_public_key_hex.clone(),
+        };
+        let record = self.record(&pins)?;
+        if prepared.host_record_sha256().ok().as_deref() != Some(&record.raw_sha256) {
+            return Err(HostKeyPinError::Changed);
+        }
+        let acknowledgement = prepared
+            .acknowledgement(&record.raw_sha256)
+            .map_err(|_| HostKeyPinError::Changed)?;
+        Ok((record, acknowledgement))
     }
 
     /// Reopen the host's prelaunch anchor after restart. It is a host record,

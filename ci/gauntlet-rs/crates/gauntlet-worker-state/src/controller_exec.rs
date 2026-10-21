@@ -8,16 +8,17 @@ use crate::controller_key::{
     pin_controller_key_under_lease, require_pinned_controller_key_under_lease, ControllerKeyError,
     ControllerKeyPin, SealedControllerKey,
 };
+use crate::deadline::DeadlineError;
 use crate::interpreter_exec::InterpreterExecError;
 use crate::launch_plan::{rust_controller_cgroup_path, rust_job_slice_name};
 use crate::linux_process::ProcessObservationError;
 use crate::prelaunch::{PrelaunchError, PreparedLaunch};
 use crate::process_reap::reap_probe_child_bounded;
 use crate::{
-    open_canonical_directory, open_root_owned_public_directory, ActiveLease, HeldInterpreter,
-    ReservationError, RunReservationJournal, StartedMarker,
+    open_canonical_directory, open_root_owned_public_directory, ActiveLease, BoottimeDeadline,
+    HeldInterpreter, ReservationError, RunReservationJournal, StartedMarker,
 };
-use gauntlet_contracts::WorkerRequest;
+use gauntlet_contracts::{PrelaunchHandoffError, PrelaunchPrepared, WorkerRequest};
 use rustix::fs::{fstat, fsync, openat, statat, AtFlags, Mode, OFlags};
 use rustix::io::Errno;
 use rustix::process::geteuid;
@@ -30,6 +31,7 @@ use std::os::fd::{AsRawFd, OwnedFd, RawFd};
 use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 const MAX_ARGV: usize = 22;
 const ENV_KEYS: [&str; 4] = ["HOL_GAUNTLET_RUST_JOB_SLICE", "HOME", "LANG", "PATH"];
@@ -51,6 +53,10 @@ pub enum ControllerExecError {
     Prelaunch(PrelaunchError),
     Reservation(ReservationError),
     ControllerKey(ControllerKeyError),
+    HostHandoff(PrelaunchHandoffError),
+    Deadline(DeadlineError),
+    PrelaunchExpired,
+    Cancelled,
     Interpreter(InterpreterExecError),
     Cgroup(CgroupProbeError),
     Process(ProcessObservationError),
@@ -72,6 +78,12 @@ impl fmt::Display for ControllerExecError {
             Self::Prelaunch(error) => write!(f, "prelaunch custody changed: {error}"),
             Self::Reservation(error) => write!(f, "worker reservation: {error}"),
             Self::ControllerKey(error) => write!(f, "worker controller key: {error}"),
+            Self::HostHandoff(error) => write!(f, "host prelaunch handoff: {error}"),
+            Self::Deadline(error) => write!(f, "host prelaunch deadline: {error}"),
+            Self::PrelaunchExpired => f.write_str("host prelaunch deadline expired before spawn"),
+            Self::Cancelled => {
+                f.write_str("controller launch cancelled before host acknowledgement")
+            }
             Self::Interpreter(error) => write!(f, "interpreter execution: {error}"),
             Self::Cgroup(error) => write!(f, "controller cgroup: {error}"),
             Self::Process(error) => write!(f, "controller process identity: {error:?}"),
@@ -228,8 +240,9 @@ fn spawn_root_fd(
 /// Internal launch step for a future worker dispatcher. A verified one-time
 /// marker and matching lease are mandatory; the caller must still retain the
 /// lease, child and cgroup through deadline, report, product-slice cleanup and
-/// terminal reconciliation. Until that owner exists, this is not exported.
-#[allow(dead_code)]
+/// terminal reconciliation. The host must durably record the prepared frame
+/// and return its exact ack before the child may spawn. This remains internal.
+#[allow(dead_code, clippy::too_many_arguments)]
 pub(crate) fn spawn_prepared_controller(
     prepared: &PreparedLaunch,
     group: &OwnedJobCgroup,
@@ -237,6 +250,9 @@ pub(crate) fn spawn_prepared_controller(
     lease: &ActiveLease,
     request: &WorkerRequest,
     worker_generation: &str,
+    deadline: &BoottimeDeadline,
+    cancellation: &AtomicBool,
+    acknowledge: impl FnOnce(&[u8]) -> Result<Vec<u8>, ControllerExecError>,
 ) -> Result<(Child, StartedMarker, ControllerKeyPin), ControllerExecError> {
     if geteuid().as_raw() != 0 {
         return Err(ControllerExecError::RootRequired);
@@ -282,6 +298,40 @@ pub(crate) fn spawn_prepared_controller(
         .map_err(ControllerExecError::Reservation)?;
     let pin = pin_controller_key_under_lease(journal, lease, &started, &signing_key)
         .map_err(ControllerExecError::ControllerKey)?;
+    let prepared_frame = PrelaunchPrepared {
+        job_id: started.job_id.clone(),
+        source_sha: started.source_sha.clone(),
+        deployment_digest: started.deployment_digest.clone(),
+        worker_generation: started.worker_generation.clone(),
+        started_marker_sha256: started.sha256.clone(),
+        controller_key_pin_sha256: pin.raw_sha256.clone(),
+        controller_public_key_hex: pin.public_key_hex.clone(),
+    };
+    let frame = prepared_frame
+        .to_bytes()
+        .map_err(ControllerExecError::HostHandoff)?;
+    let acknowledgement = acknowledge(&frame)?;
+    prepared_frame
+        .verify_acknowledgement(&acknowledgement)
+        .map_err(ControllerExecError::HostHandoff)?;
+    if cancellation.load(Ordering::Acquire) {
+        return Err(ControllerExecError::Cancelled);
+    }
+    if deadline
+        .remaining()
+        .map_err(ControllerExecError::Deadline)?
+        .is_zero()
+    {
+        return Err(ControllerExecError::PrelaunchExpired);
+    }
+    lease
+        .verify(&journal.root)
+        .map_err(ControllerExecError::Reservation)?;
+    require_pinned_controller_key_under_lease(journal, lease, &started, &pin)
+        .map_err(ControllerExecError::ControllerKey)?;
+    prepared
+        .recheck_controller_and_interpreter()
+        .map_err(ControllerExecError::Prelaunch)?;
     require_fresh_output(request.job_id())?;
     let log = open_fixed_log(request.job_id(), &plan.fixed().log_path)?;
     let cwd = open_root_owned_public_directory(Path::new(&plan.fixed().cwd))

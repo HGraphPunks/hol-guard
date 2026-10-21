@@ -1,4 +1,4 @@
-use gauntlet_contracts::canonicalize;
+use gauntlet_contracts::{canonicalize, PrelaunchPrepared};
 use gauntlet_host_state::{HostControllerKeyPinJournal, HostControllerKeyPins, HostKeyPinError};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -16,6 +16,18 @@ fn pins() -> HostControllerKeyPins {
         started_marker_sha256: "d".repeat(64),
         controller_key_pin_sha256: "e".repeat(64),
         controller_public_key_hex: "f".repeat(64),
+    }
+}
+
+fn prepared(pins: &HostControllerKeyPins) -> PrelaunchPrepared {
+    PrelaunchPrepared {
+        job_id: pins.job_id.clone(),
+        source_sha: pins.source_sha.clone(),
+        deployment_digest: pins.deployment_digest.clone(),
+        worker_generation: pins.worker_generation.clone(),
+        started_marker_sha256: pins.started_marker_sha256.clone(),
+        controller_key_pin_sha256: pins.controller_key_pin_sha256.clone(),
+        controller_public_key_hex: pins.controller_public_key_hex.clone(),
     }
 }
 
@@ -161,5 +173,27 @@ fn retained_host_pin_binds_a_keyed_terminal_and_exact_report_bytes() {
     assert_eq!(
         retained.observe_keyed_terminal(&terminal_bytes(&legacy), report),
         Err(HostKeyPinError::InvalidTerminal)
+    );
+}
+
+#[test]
+fn acknowledgement_is_issued_only_after_the_exact_host_record_is_durable() {
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().canonicalize().unwrap();
+    fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
+    let journal = HostControllerKeyPinJournal::open(&root).unwrap();
+    let prepared = prepared(&pins());
+    let raw = prepared.to_bytes().unwrap();
+    let (record, acknowledgement) = journal.accept_prepared(&raw).unwrap();
+    assert_eq!(record.pins, pins());
+    assert_eq!(journal.read(JOB), Ok(record));
+    assert_eq!(prepared.verify_acknowledgement(&acknowledgement), Ok(()));
+    assert_eq!(
+        journal.accept_prepared(&raw),
+        Err(HostKeyPinError::AlreadyRecorded)
+    );
+    assert_eq!(
+        journal.accept_prepared(b"{}"),
+        Err(HostKeyPinError::InvalidPins)
     );
 }
