@@ -64,6 +64,14 @@ impl BuilderContextProof {
         &self.image_tag
     }
 
+    pub fn profile_name(&self) -> &str {
+        &self.profile_name
+    }
+
+    pub fn policy_sha256(&self) -> &str {
+        &self.policy_sha256
+    }
+
     pub(crate) fn context_sha256(&self) -> &str {
         &self.context_sha256
     }

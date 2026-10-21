@@ -167,7 +167,7 @@ fn tag_absent(plan: &BuilderImagePlan) -> Result<bool, BuilderImageBuildError> {
     }
 }
 
-fn inspect_result(plan: &BuilderImagePlan) -> Result<String, BuilderImageBuildError> {
+pub(crate) fn inspect_result(plan: &BuilderImagePlan) -> Result<String, BuilderImageBuildError> {
     let mut command = fixed_podman();
     command.args([
         "image",

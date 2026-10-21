@@ -84,6 +84,8 @@ mod builder_image;
 mod builder_image_build;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod builder_image_context;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod builder_policy;
 mod builder_run_plan;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod builder_source_capture;
@@ -165,6 +167,10 @@ pub use builder_image_build::{
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use builder_image_context::{
     materialize_fixed_builder_image_context, BuilderImageContextError, BuilderImageContextProof,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use builder_policy::{
+    prove_fixed_builder_policy_ineligible, BuilderPolicyError, BuilderPolicyProof,
 };
 pub use builder_run_plan::{fixed_builder_run_plan, BuilderRunError, BuilderRunPlan};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
