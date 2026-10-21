@@ -4,9 +4,10 @@
 use crate::crypto::{decode_hex, is_sha256, sha256};
 use crate::payload::exact_keys;
 use crate::{
-    recompute_native_review_summary, verify_cancel_reported_relation,
+    recompute_native_review_summary, verify_cancel_reported_relation, verify_contained_cli_results,
     verify_contained_output_custody, verify_contained_route_accounting,
-    verify_control_reported_tail, verify_native_review_summary, EvidenceError, Result,
+    verify_control_reported_tail, verify_native_review_summary,
+    verify_private_runtime_prompt_relation, EvidenceError, Result,
 };
 use gauntlet_contracts::canonicalize;
 use serde_json::{json, Value};
@@ -96,6 +97,8 @@ pub struct LocalConformancePackageShadow {
     pub role_session_ids: BTreeMap<String, String>,
     pub contained_routes: usize,
     pub output_bindings: usize,
+    pub public_prompt_relations: usize,
+    pub contained_cli_results: usize,
     pub public_inputs_verified: bool,
     pub execution_eligible: bool,
 }
@@ -111,6 +114,8 @@ impl LocalConformancePackageShadow {
             "native_review_summaries_recomputed":self.role_session_ids.len(),
             "contained_routes_recomputed":self.contained_routes,
             "output_bindings_recomputed":self.output_bindings,
+            "public_prompt_relations_recomputed":self.public_prompt_relations,
+            "contained_cli_results_checked":self.contained_cli_results,
             "cancel_partial_relation_checked":true,
             "public_inputs_verified":self.public_inputs_verified,
             "signed_openings_checked":true,
@@ -243,6 +248,8 @@ pub fn verify_local_conformance_package_ineligible(
     let mut sessions = BTreeSet::new();
     let mut contained_routes = 0;
     let mut output_bindings = 0;
+    let mut public_prompt_relations = 0;
+    let mut contained_cli_results = 0;
     for role in ROLES {
         let row = &package["controls"][role];
         if !exact_keys(row, &["public_key", "record", "record_digest"]) {
@@ -283,6 +290,25 @@ pub fn verify_local_conformance_package_ineligible(
             )?;
             verify_cancel_reported_relation(&record_raw, &key, expected_runtime, &summary)?;
         } else {
+            let runtime_raw = canonical_value(&record["developer_runtime"])?;
+            let prompt_digest = tail.session.public_prompt_digest.as_str().ok_or(CONTROL)?;
+            let prompt = verify_private_runtime_prompt_relation(
+                &runtime_raw,
+                &key,
+                &tail.session.session_id,
+                prompt_digest,
+            )?;
+            if prompt["matched_public_prompts"].as_u64() != Some(1) {
+                return Err(CONTROL);
+            }
+            let cli = verify_contained_cli_results(
+                &tail.session.signed.plane,
+                &tail.session.signed.settings,
+                &tail.session.agent_identity,
+            )?;
+            if cli["checked_executions"].as_u64() != Some(1) {
+                return Err(CONTROL);
+            }
             let route = verify_contained_route_accounting(
                 &tail.session.signed.builtin,
                 &tail.session.signed.plane,
@@ -296,6 +322,8 @@ pub fn verify_local_conformance_package_ineligible(
             }
             contained_routes += route_count;
             output_bindings += binding_count;
+            public_prompt_relations += 1;
+            contained_cli_results += 1;
         }
         let session_id = tail.session.session_id;
         if !sessions.insert(session_id.clone()) {
@@ -322,6 +350,8 @@ pub fn verify_local_conformance_package_ineligible(
         role_session_ids,
         contained_routes,
         output_bindings,
+        public_prompt_relations,
+        contained_cli_results,
         public_inputs_verified: observed_public_assets.is_some(),
         execution_eligible: false,
     })
