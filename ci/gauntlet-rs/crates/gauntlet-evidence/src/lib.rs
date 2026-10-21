@@ -60,6 +60,8 @@ mod runner_inputs;
 mod runner_runtime;
 mod six_control_openings;
 mod staging_control_record;
+#[cfg(target_os = "linux")]
+mod staging_physical_files;
 mod tree_inventory;
 mod worker_receipt;
 
@@ -146,6 +148,10 @@ pub use six_control_openings::{
 pub use staging_control_record::{
     observe_staging_control_root_owned_ineligible, verify_staging_control_opening_ineligible,
     StagingControlOpening, StagingEvidencePins,
+};
+#[cfg(target_os = "linux")]
+pub use staging_physical_files::{
+    observe_staging_physical_files_root_owned_ineligible, StagingPhysicalFilesShadow,
 };
 pub use tree_inventory::{inventory_tree, TreeInventory, TreeKind};
 pub use worker_receipt::{verify_python_worker_terminal, PythonWorkerTerminal};

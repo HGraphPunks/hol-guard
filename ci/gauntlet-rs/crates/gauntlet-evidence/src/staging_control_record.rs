@@ -94,7 +94,7 @@ fn checked_named(parent: &OwnedFd, name: &str, held: &OwnedFd) -> Result<()> {
     Ok(())
 }
 
-fn open_home() -> Result<OwnedFd> {
+pub(crate) fn open_home() -> Result<OwnedFd> {
     let root = open(
         "/",
         OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
@@ -120,7 +120,7 @@ fn open_home() -> Result<OwnedFd> {
     Ok(home)
 }
 
-fn read_one(run_id: &str, role: &str) -> Result<Vec<u8>> {
+pub(crate) fn read_one(run_id: &str, role: &str) -> Result<Vec<u8>> {
     let home = open_home()?;
     let state_name = format!("hx-{run_id}");
     let (state, _) = open_private_directory(&home, &state_name, 0)?.ok_or(INVALID)?;
