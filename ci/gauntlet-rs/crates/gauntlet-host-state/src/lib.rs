@@ -19,6 +19,11 @@ pub use controller_key_pins::{
     HostControllerKeyPinJournal, HostControllerKeyPins, HostKeyPinError, HostKeyPinRecord,
     HostKeyedTerminalObservation, HostPrelaunchIdentity, HostPreparedProcess, HostProcessFailure,
 };
+mod candidate_build_pins;
+pub use candidate_build_pins::{
+    HostCandidateBuildPinError, HostCandidateBuildPinJournal, HostCandidateBuildPinRecord,
+    HostCandidateBuildPins,
+};
 mod private_jobs;
 pub use private_jobs::{
     read_private_jobs, read_private_jobs_if_idle, read_private_operations, PrivateJobError,
