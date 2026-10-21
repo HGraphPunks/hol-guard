@@ -9,6 +9,7 @@ use crate::staging_control_record::{open_home, read_one};
 use crate::{
     observe_staging_control_root_owned_ineligible, EvidenceError, Result, StagingEvidencePins,
 };
+use gauntlet_contracts::canonicalize;
 use rustix::fs::{fstat, openat2, statat, AtFlags, FileType, Mode, OFlags, ResolveFlags};
 use rustix::io::Errno;
 use rustix::process::geteuid;
@@ -34,12 +35,13 @@ pub struct StagingPhysicalFilesShadow {
 impl StagingPhysicalFilesShadow {
     pub fn to_json(&self) -> Value {
         json!({
-            "schema":"hol-gauntlet-staging-physical-files-shadow.v1",
+            "schema":"hol-gauntlet-staging-physical-files-shadow.v2",
             "role":self.role,
             "record_sha256":self.record_sha256,
             "observed_files":self.observed_files,
             "absent_effects":self.absent_effects,
             "physical_files_checked":true,
+            "sdk_stdout_result_bound":true,
             "independent_kernel_sdk_effects_verified":false,
             "execution_eligible":false,
         })
@@ -134,6 +136,11 @@ fn audit_file_effects(
     let stdout = read_stable(root, "sdk.stdout", controller_uid)?.ok_or(INVALID)?;
     let expected_stdout = record["sdk_stdout_sha256"].as_str().ok_or(INVALID)?;
     if !is_sha256(expected_stdout) || sha256(&stdout) != expected_stdout {
+        return Err(INVALID);
+    }
+    let canonical_stdout = canonicalize(&stdout).map_err(|_| INVALID)?;
+    let sdk_result: Value = serde_json::from_slice(&canonical_stdout).map_err(|_| INVALID)?;
+    if !sdk_result.is_object() || sdk_result != record["sdk_result"] {
         return Err(INVALID);
     }
     files += 1;
@@ -272,7 +279,7 @@ mod tests {
         let tree = tempfile::tempdir().unwrap();
         let root = tree.path();
         let uid = getuid().as_raw();
-        let stdout = b"synthetic SDK output";
+        let stdout = br#"{"modelExercised":false,"results":[]}"#;
         file(&root.join("sdk.stdout"), stdout);
         for path in ["remote", "home"] {
             file(
@@ -287,6 +294,7 @@ mod tests {
         );
         let record = json!({
             "sdk_stdout_sha256":sha256(stdout),
+            "sdk_result":{"modelExercised":false,"results":[]},
             "node_runtime_closure_control":{"node_version":"v22.22.2"},
         });
         let descriptor = open(
@@ -299,6 +307,9 @@ mod tests {
             audit_file_effects(&descriptor, "success", &record, uid, uid).unwrap(),
             (5, 0)
         );
+        let mut false_result = record.clone();
+        false_result["sdk_result"]["modelExercised"] = json!(true);
+        assert!(audit_file_effects(&descriptor, "success", &false_result, uid, uid).is_err());
         fs::remove_file(root.join("tasks/checkout/native-contained.txt")).unwrap();
         symlink(
             "node-runtime-control.json",
