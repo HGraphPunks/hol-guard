@@ -80,8 +80,12 @@ receipt chains, campaign inventory, and scheduled episode bindings. The
 pure episode reducer matches 17 Python gate cases when supplied already
 audited scores, native surfaces and cleanup observations. A pure campaign
 reducer matches 16 Python ledger/accounting cases. Neither function
-authenticates those observations or grants a production campaign verdict. The
-bounded HMAC VM bridge codec matches Python frame bytes and poisons replayed,
+authenticates those observations or grants a production campaign verdict. A
+pure [deterministic injection-attribution reducer](../../docs/gauntlet-rust-injection-attribution-proof.md)
+matches 12 Python-frozen forwarding/withholding cases with authentication
+deliberately stubbed in the fixture producer. It does not verify signatures,
+SDK/kernel custody or a full control verdict. The bounded HMAC VM bridge codec
+matches Python frame bytes and poisons replayed,
 tampered or misdirected connections; it has no live transport or key delivery.
 The `gauntlet-verify` binary reports integrity and completeness only. Every
 successful report remains `exploratory` and `qualification_eligible: false`;

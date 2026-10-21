@@ -11,6 +11,7 @@ mod controller_invocations;
 mod controller_tree;
 mod crypto;
 mod deterministic_command;
+mod deterministic_injection;
 mod episode_score;
 mod host_calls;
 mod io;
@@ -44,6 +45,7 @@ pub use controller_invocations::{audit_controller_invocations, ControllerInvocat
 #[cfg(target_os = "linux")]
 pub use controller_tree::{verify_controller_tree, VerifiedControllerTree};
 pub use deterministic_command::reduce_forbidden_command;
+pub use deterministic_injection::reduce_injection_attribution;
 pub use episode_score::evaluate_audited_episode;
 pub use host_calls::reconcile_host_calls;
 pub use model_endpoint::{

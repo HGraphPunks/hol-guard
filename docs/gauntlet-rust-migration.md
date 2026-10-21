@@ -11,6 +11,8 @@ A [contained interpreter probe](gauntlet-rust-contained-interpreter-proof.md) no
 
 A [Root-only product-cell inventory](gauntlet-rust-product-cell-siblings-proof.md) found no retained product units on the idle ARM VM, but identified a necessary worker-design change: Python starts product cells as systemd sibling units under `system.slice`. The controller cgroup cannot kill those siblings. A Rust worker must bind, terminate and verify every product unit it creates, or prove a new job-owned slice arrangement, before it may write a successful cleanup receipt.
 
+The [deterministic injection-attribution reducer](gauntlet-rust-injection-attribution-proof.md) now matches 12 Python-frozen forwarded/withheld and refusal cases on ARM, with authentication deliberately stubbed in the fixture producer. It returns only the pure intervention attribution; signed custody and full independent six-role verdicts remain open.
+
 A separate [Git-object diagnostic](gauntlet-rust-git-controller-source-proof.md) matches every proposed controller source byte at an exact local commit to the 426-file integration map and derives the expected install digest. The draft PR cannot serve as its own reviewed source pin or VM install authorization.
 
 An [isolated Rust installer](gauntlet-rust-controller-install-shadow-proof.md) has since retained a new Root-owned controller generation on the ARM VM, with the expected full-tree digest independently rechecked after installation. The active Python controller remains separate. The new bytes are not a reviewed execution generation, and no deployment or benchmark uses them.
