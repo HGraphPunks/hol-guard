@@ -197,9 +197,11 @@ def _admit_child(path, pin, start, output):
 
 def test_two_real_processes_cannot_double_admit(tmp_path, monkeypatch):
     quota = make(tmp_path)
-    # CI launches pytest with only scripts/ci on PYTHONPATH. Spawned children
-    # import this test module afresh and need the checkout root in sys.path.
-    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1]))
+    # Spawn starts a fresh interpreter before it receives the parent's
+    # sys.path. Put this checkout on its initial import path as well.
+    checkout = str(Path(__file__).resolve().parents[1])
+    monkeypatch.syspath_prepend(checkout)
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join((checkout, os.environ.get("PYTHONPATH", ""))))
     context = multiprocessing.get_context('spawn')
     start, output = context.Event(), context.Queue()
     children = [context.Process(target=_admit_child,
