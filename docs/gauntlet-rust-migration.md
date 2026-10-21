@@ -13,6 +13,8 @@ A [Root-only product-cell inventory](gauntlet-rust-product-cell-siblings-proof.m
 
 The [deterministic injection-attribution reducer](gauntlet-rust-injection-attribution-proof.md) now matches 12 Python-frozen forwarded/withheld and refusal cases on ARM, with authentication deliberately stubbed in the fixture producer. It returns only the pure intervention attribution; signed custody and full independent six-role verdicts remain open.
 
+The [controller signed-envelope verifier](gauntlet-rust-controller-envelope-proof.md) now validates the exact Python Ed25519 envelope format against a caller-supplied outside key. An independently generated Python `cryptography` fixture passed on the ARM VM. This is synthetic format parity: live record custody, reviewed key delivery and independent SDK/kernel/product observations remain open.
+
 A separate [Git-object diagnostic](gauntlet-rust-git-controller-source-proof.md) matches every proposed controller source byte at an exact local commit to the 426-file integration map and derives the expected install digest. The draft PR cannot serve as its own reviewed source pin or VM install authorization.
 
 An [isolated Rust installer](gauntlet-rust-controller-install-shadow-proof.md) has since retained a new Root-owned controller generation on the ARM VM, with the expected full-tree digest independently rechecked after installation. The active Python controller remains separate. The new bytes are not a reviewed execution generation, and no deployment or benchmark uses them.

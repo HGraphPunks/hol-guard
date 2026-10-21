@@ -84,7 +84,12 @@ authenticates those observations or grants a production campaign verdict. A
 pure [deterministic injection-attribution reducer](../../docs/gauntlet-rust-injection-attribution-proof.md)
 matches 12 Python-frozen forwarding/withholding cases with authentication
 deliberately stubbed in the fixture producer. It does not verify signatures,
-SDK/kernel custody or a full control verdict. The bounded HMAC VM bridge codec
+SDK/kernel custody or a full control verdict.
+The [controller signed-envelope verifier](../../docs/gauntlet-rust-controller-envelope-proof.md)
+matches a Python `cryptography` Ed25519 fixture and rejects altered or ambiguous
+records using an outside public key. It has no live controller-record custody or
+independent evidence for the effects asserted inside a signed record.
+The bounded HMAC VM bridge codec
 matches Python frame bytes and poisons replayed,
 tampered or misdirected connections; it has no live transport or key delivery.
 The `gauntlet-verify` binary reports integrity and completeness only. Every
