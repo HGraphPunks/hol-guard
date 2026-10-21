@@ -56,6 +56,19 @@ cgroups. The output remained
 `execution_eligible:false`. Free VM disk was 8,740,716,544 bytes after the
 run, above the 8-GiB floor but with limited headroom.
 
+Follow-up code commit `a75d6354` reused the existing Rust
+`verify_product_kernel_identity` parity function for the boundary and proxy
+checks, removing duplicate identity logic. A new static ARM64 evidence test
+binary SHA-256
+`8109d9bfcdaf2464123b29fedac742763794fcb0b0386aa61136b23abbd9aab2`
+passed all 47 tests as a Root-owned mode-0500 single-link VM executable.
+The optimized verifier SHA-256
+`b64af16d95a128370300ad464dcef183cd356c46cb092ff4b5707ed152d66724`
+was checked after transfer and Root install, then repeated the exact
+six-role command above with `/root/gauntlet-staging-suite-shadow-b64af16d`.
+It returned the same counts, schema and ineligible status. Warnings-denied
+ARM64 Clippy, Rustfmt and `git diff --check` passed for the refactor.
+
 These are signed controller observations cross-checked with earlier Rust
 worker kernel samples. They do not independently capture MCP wire frames,
 prove the SDK caused a tool call, authenticate Native contained-test effects,
