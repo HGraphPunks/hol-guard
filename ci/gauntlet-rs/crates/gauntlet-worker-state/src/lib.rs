@@ -107,6 +107,8 @@ mod candidate_capture;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_host_anchor;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod candidate_prefix_clone;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_result_read;
 mod candidate_wheel;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
@@ -224,6 +226,11 @@ pub use candidate_capture::{
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_host_anchor::{
     verify_running_binary, CandidateBinaryError, HostCandidateRunAnchor,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use candidate_prefix_clone::{
+    clone_captured_candidate_prefix_ineligible, CandidatePrefixCloneError,
+    CandidatePrefixClonePins, CandidatePrefixCloneProof,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_result_read::{
