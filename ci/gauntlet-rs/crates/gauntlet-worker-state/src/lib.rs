@@ -377,8 +377,8 @@ pub use sdk_wire_listener::{bind_sdk_tap_listeners_ineligible, SdkTapListeners};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use sdk_wire_peer::{
     authenticate_native_frontdoor_peer_ineligible, authenticate_sdk_relay_peer_ineligible,
-    bind_sdk_relay_to_ancestor_ineligible, HeldSdkWirePeer, SdkWireAncestryObservation,
-    SdkWirePeerObservation, SdkWirePeerPin,
+    bind_sdk_relay_to_ancestor_ineligible, observe_sdk_relay_peer_in_cgroup_ineligible,
+    HeldSdkWirePeer, SdkWireAncestryObservation, SdkWirePeerObservation, SdkWirePeerPin,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use sdk_wire_pipe::{read_sdk_tap_frame_pipe_ineligible, SdkTapFramePipeWriter};

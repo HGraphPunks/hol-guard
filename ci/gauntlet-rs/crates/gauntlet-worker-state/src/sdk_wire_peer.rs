@@ -1,7 +1,7 @@
 //! Held Linux Unix-peer identity for the opt-in SDK tap. This authenticates
 //! one outside-pinned process tuple, not SDK ancestry or a conformance result.
 
-use crate::linux_process::{observe_process, parse_proc_stat};
+use crate::linux_process::{observe_process, parse_proc_stat, valid_cgroup};
 use rustix::event::{poll, PollFd, PollFlags, Timespec};
 use rustix::fs::{open, openat, Mode, OFlags};
 use rustix::process::{pidfd_open, Pid, PidfdFlags};
@@ -184,6 +184,31 @@ pub fn authenticate_sdk_relay_peer_ineligible(
     authenticate_fixed_peer(socket, pin, SDK_UID, SDK_GID)
 }
 
+/// Discover the SDK relay tuple only after a separate worker observer has
+/// pinned the agent cgroup. This is a kernel observation, not a Bun or source
+/// identity: the caller must still match a sampled executable/ancestor and
+/// hold the returned peer through the full relay session.
+pub fn observe_sdk_relay_peer_in_cgroup_ineligible(
+    socket: &UnixStream,
+    expected_agent_cgroup: &str,
+) -> Result<(SdkWirePeerPin, HeldSdkWirePeer), String> {
+    if !valid_cgroup(expected_agent_cgroup) {
+        return Err("outside SDK agent cgroup pin required".to_owned());
+    }
+    let (pid, uid, gid) = peer_credentials(socket)?;
+    if (uid, gid) != (SDK_UID, SDK_GID) {
+        return Err("SDK relay peer must be UID/GID 10001".to_owned());
+    }
+    let (start_ticks, _) = parent_link(pid, expected_agent_cgroup)?;
+    let pin = SdkWirePeerPin {
+        pid,
+        start_ticks,
+        cgroup: expected_agent_cgroup.to_owned(),
+    };
+    let held = authenticate_sdk_relay_peer_ineligible(socket, &pin)?;
+    Ok((pin, held))
+}
+
 /// Require the controller's Root-owned Native frontdoor peer to match an
 /// outside-pinned process tuple. This does not verify the listener inode.
 pub fn authenticate_native_frontdoor_peer_ineligible(
@@ -357,6 +382,16 @@ mod tests {
             .unwrap();
         let (socket, _) = listener.accept().unwrap();
         let pin = pin_for(child.id());
+        let (discovered, observed) =
+            observe_sdk_relay_peer_in_cgroup_ineligible(&socket, &pin.cgroup).unwrap();
+        assert_eq!(discovered, pin);
+        observed.recheck(&socket).unwrap();
+        assert!(observe_sdk_relay_peer_in_cgroup_ineligible(
+            &socket,
+            "/system.slice/not-this-sdk-agent"
+        )
+        .is_err());
+        assert!(observe_sdk_relay_peer_in_cgroup_ineligible(&socket, "/").is_err());
         let held = authenticate_sdk_relay_peer_ineligible(&socket, &pin).unwrap();
         held.recheck(&socket).unwrap();
         assert_eq!(held.observation().uid, SDK_UID);
