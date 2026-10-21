@@ -42,6 +42,12 @@ SDK calls, Native product effects, Guard decisions, fresh scored conformance
 and model inference remain open, so the Phase 2 exit and all six
 `invalid-evidence` terminals remain unchanged.
 
+A [read-only live quota comparison](gauntlet-rust-live-quota-proof.md) now shows
+identical Rust and Python snapshots on the retained Mac Qwen journal. Its
+721,979 remaining tokens do not fit the 1,200,000-token full E2E reservation;
+the existing allowance is tied to an older candidate source. This does not
+start the provider or supply a model-backed result.
+
 A [contained interpreter probe](gauntlet-rust-contained-interpreter-proof.md) now joins descriptor-bound Python execution and that fixed cgroup. It ran only inert code as UID 65534 on the ARM VM, observed the child credential and two contained tasks, and verified recursive cleanup. It did not launch a controller or benchmark or qualify a result.
 
 A [Root-only product-cell inventory](gauntlet-rust-product-cell-siblings-proof.md) found no retained product units on the idle ARM VM, but identified a necessary worker-design change: Python starts product cells as systemd sibling units under `system.slice`. The controller cgroup cannot kill those siblings. A Rust worker must bind, terminate and verify every product unit it creates, or prove a new job-owned slice arrangement, before it may write a successful cleanup receipt.
