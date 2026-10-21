@@ -93,6 +93,18 @@ fn read_only_git_runner_uses_fixed_plan_and_reports_failure() {
     operations["git"] = fake_git.to_str().unwrap().into();
     let plan = TagLookupPlan::new(&operations, "v3.48.0").unwrap();
     assert_eq!(plan.execute_read_only().unwrap()["sha"], "a".repeat(40));
+    let unchanged = plan.recheck_pinned_sha_read_only(&"a".repeat(40)).unwrap();
+    assert_eq!(unchanged["tag"], "v3.48.0");
+    assert_eq!(unchanged["tag_unchanged"], true);
+    assert_eq!(unchanged["execution_eligible"], false);
+    assert_eq!(
+        plan.recheck_pinned_sha_read_only(&"b".repeat(40)),
+        Err(ReleaseSourceError::MovedTag)
+    );
+    assert_eq!(
+        plan.recheck_pinned_sha_read_only("not-a-sha"),
+        Err(ReleaseSourceError::InvalidExpectedSha)
+    );
     fs::write(&fake_git, b"#!/bin/sh\nexit 7\n").unwrap();
     assert_eq!(plan.execute_read_only(), Err(ReleaseSourceError::GitFailed));
 }

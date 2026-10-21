@@ -2,6 +2,7 @@
 //! subprocess or credential broker is invoked by this crate.
 
 use crate::fixed_process::{run_fixed, FixedProcessError};
+use crate::source_archive_commit::SourceArchiveCommitProof;
 use crate::{git_sha, load_operations_bytes, QueueConfig};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -16,6 +17,9 @@ pub enum ReleaseSourceError {
     TagNotAllowed,
     InvalidResponse,
     MissingTag,
+    InvalidExpectedSha,
+    ArchiveBinding,
+    MovedTag,
     TooLarge,
     GitUnavailable,
     GitFailed,
@@ -29,6 +33,9 @@ impl fmt::Display for ReleaseSourceError {
             Self::TagNotAllowed => "explicit stable tag allowlist required",
             Self::InvalidResponse => "unexpected or ambiguous Git tag response",
             Self::MissingTag => "exact release tag is missing",
+            Self::InvalidExpectedSha => "outside release commit pin is invalid",
+            Self::ArchiveBinding => "archive Git proof belongs to a different release ref",
+            Self::MovedTag => "release tag differs from outside commit pin",
             Self::TooLarge => "Git tag response exceeds byte limit",
             Self::GitUnavailable => "reviewed Git lookup is unavailable",
             Self::GitFailed => "reviewed Git lookup failed",
@@ -161,6 +168,50 @@ impl TagLookupPlan {
     /// objects, attest the credential broker or authorize a benchmark job.
     pub fn execute_read_only(&self) -> Result<Value, ReleaseSourceError> {
         self.execute_with_timeout(Duration::from_secs(60))
+    }
+
+    /// Resolve the exact release tag again and compare its peeled commit with
+    /// the caller's previously pinned source SHA. This is read-only; the
+    /// caller still authenticates the outside pin, Git and source host.
+    pub fn recheck_pinned_sha_read_only(
+        &self,
+        expected_sha: &str,
+    ) -> Result<Value, ReleaseSourceError> {
+        if !git_sha(expected_sha) {
+            return Err(ReleaseSourceError::InvalidExpectedSha);
+        }
+        let result = self.execute_read_only()?;
+        if result["sha"] != expected_sha {
+            return Err(ReleaseSourceError::MovedTag);
+        }
+        Ok(json!({
+            "schema":"hol-gauntlet-release-recheck-shadow.v1",
+            "tag":self.tag,
+            "source_sha":expected_sha,
+            "tag_unchanged":true,
+            "execution_eligible":false,
+        }))
+    }
+
+    /// Bind a successful archive graph proof to this exact
+    /// release ref before resolving the tag again. No execution is admitted.
+    pub fn recheck_archive_commit_read_only(
+        &self,
+        archive: &SourceArchiveCommitProof,
+    ) -> Result<Value, ReleaseSourceError> {
+        if archive.source_ref() != self.reference || !archive.git_graph_verified() {
+            return Err(ReleaseSourceError::ArchiveBinding);
+        }
+        let rechecked = self.recheck_pinned_sha_read_only(archive.source_sha())?;
+        Ok(json!({
+            "schema":"hol-gauntlet-release-archive-recheck-shadow.v1",
+            "tag":self.tag,
+            "source_sha":archive.source_sha(),
+            "source_archive_sha256":archive.archive().archive_sha256,
+            "tag_unchanged":rechecked["tag_unchanged"],
+            "git_graph_verified":archive.git_graph_verified(),
+            "execution_eligible":false,
+        }))
     }
 
     fn execute_with_timeout(&self, timeout: Duration) -> Result<Value, ReleaseSourceError> {

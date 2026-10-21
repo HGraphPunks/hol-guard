@@ -30,12 +30,12 @@ fn main() {
         json!({
             "schema":"hol-gauntlet-host-source-commit-shadow.v1",
             "job_id":args[2],
-            "archive_sha256":proof.archive.archive_sha256,
-            "source_sha":proof.source_sha,
-            "source_ref":proof.source_ref,
-            "ref_object_id":proof.ref_object_id,
-            "git_graph_verified":proof.git_graph_verified,
-            "execution_eligible":proof.execution_eligible
+            "archive_sha256":proof.archive().archive_sha256,
+            "source_sha":proof.source_sha(),
+            "source_ref":proof.source_ref(),
+            "ref_object_id":proof.ref_object_id(),
+            "git_graph_verified":proof.git_graph_verified(),
+            "execution_eligible":proof.execution_eligible()
         })
     );
 }

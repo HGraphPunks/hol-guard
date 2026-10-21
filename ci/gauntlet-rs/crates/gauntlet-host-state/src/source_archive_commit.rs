@@ -50,12 +50,38 @@ impl std::error::Error for SourceArchiveCommitError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceArchiveCommitProof {
-    pub archive: SourceArchiveInventory,
-    pub source_sha: String,
-    pub source_ref: String,
-    pub ref_object_id: String,
-    pub git_graph_verified: bool,
-    pub execution_eligible: bool,
+    archive: SourceArchiveInventory,
+    source_sha: String,
+    source_ref: String,
+    ref_object_id: String,
+    git_graph_verified: bool,
+    execution_eligible: bool,
+}
+
+impl SourceArchiveCommitProof {
+    pub fn archive(&self) -> &SourceArchiveInventory {
+        &self.archive
+    }
+
+    pub fn source_sha(&self) -> &str {
+        &self.source_sha
+    }
+
+    pub fn source_ref(&self) -> &str {
+        &self.source_ref
+    }
+
+    pub fn ref_object_id(&self) -> &str {
+        &self.ref_object_id
+    }
+
+    pub fn git_graph_verified(&self) -> bool {
+        self.git_graph_verified
+    }
+
+    pub fn execution_eligible(&self) -> bool {
+        self.execution_eligible
+    }
 }
 
 fn hex(value: &str, len: usize) -> bool {

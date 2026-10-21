@@ -1,6 +1,10 @@
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use gauntlet_host_state::{verify_retained_source_archive_commit, SourceArchiveCommitError};
+use gauntlet_host_state::{
+    verify_retained_source_archive_commit, ReleaseSourceError, SourceArchiveCommitError,
+    TagLookupPlan,
+};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::fs::{self, Permissions};
 use std::io::Cursor;
@@ -173,11 +177,11 @@ fn exact_ref_and_reachable_git_graph_verify_without_execution() {
         "refs/tags/v3.49.0",
     )
     .unwrap();
-    assert_eq!(proof.source_sha, sha);
-    assert_eq!(proof.ref_object_id, sha);
-    assert_eq!(proof.archive.archive_sha256, archive_sha);
-    assert!(proof.git_graph_verified);
-    assert!(!proof.execution_eligible);
+    assert_eq!(proof.source_sha(), sha);
+    assert_eq!(proof.ref_object_id(), sha);
+    assert_eq!(proof.archive().archive_sha256, archive_sha);
+    assert!(proof.git_graph_verified());
+    assert!(!proof.execution_eligible());
 }
 
 #[test]
@@ -242,8 +246,8 @@ fn shallow_fetch_graph_verifies() {
         "refs/tags/v3.49.0",
     )
     .unwrap();
-    assert!(proof.git_graph_verified);
-    assert!(!proof.execution_eligible);
+    assert!(proof.git_graph_verified());
+    assert!(!proof.execution_eligible());
 }
 
 #[test]
@@ -257,6 +261,49 @@ fn annotated_tag_peels_to_exact_commit() {
         "refs/tags/v3.49.0",
     )
     .unwrap();
-    assert_ne!(proof.ref_object_id, sha);
-    assert!(proof.git_graph_verified);
+    assert_ne!(proof.ref_object_id(), sha);
+    assert!(proof.git_graph_verified());
+}
+
+#[test]
+fn archive_proof_and_tag_recheck_bind_same_commit() {
+    let (temp, state, sha, archive_sha) = fixture(FixtureMode::Shallow, None);
+    let proof = verify_retained_source_archive_commit(
+        &state,
+        JOB_ID,
+        &archive_sha,
+        &sha,
+        "refs/tags/v3.49.0",
+    )
+    .unwrap();
+    let fake_git = temp.path().join("fixed-git");
+    fs::write(
+        &fake_git,
+        format!("#!/bin/sh\nprintf '%s\\t%s\\n' {sha} refs/tags/v3.49.0\n"),
+    )
+    .unwrap();
+    fs::set_permissions(&fake_git, Permissions::from_mode(0o700)).unwrap();
+    let mut operations: Value =
+        serde_json::from_str(include_str!("../operations-defaults-v1.json")).unwrap();
+    operations["git"] = fake_git.to_str().unwrap().into();
+    let plan = TagLookupPlan::new(&operations, "v3.49.0").unwrap();
+    let rechecked = plan.recheck_archive_commit_read_only(&proof).unwrap();
+    assert_eq!(rechecked["source_sha"], sha);
+    assert_eq!(rechecked["source_archive_sha256"], archive_sha);
+    assert_eq!(rechecked["tag_unchanged"], true);
+    assert_eq!(rechecked["execution_eligible"], false);
+    let wrong_plan = TagLookupPlan::new(&operations, "v3.48.0").unwrap();
+    assert_eq!(
+        wrong_plan.recheck_archive_commit_read_only(&proof),
+        Err(ReleaseSourceError::ArchiveBinding)
+    );
+    fs::write(
+        &fake_git,
+        "#!/bin/sh\nprintf '%s\\t%s\\n' bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb refs/tags/v3.49.0\n",
+    )
+    .unwrap();
+    assert_eq!(
+        plan.recheck_archive_commit_read_only(&proof),
+        Err(ReleaseSourceError::MovedTag)
+    );
 }
