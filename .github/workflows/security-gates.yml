@@ -88,6 +88,8 @@ jobs:
           --exit-code 1
           --quiet
           /workdir
+      - name: Verify patched certifi VEX against the lockfile
+        run: python3 .github/tools/check-certifi-vex.py
       - name: Run Trivy on release surfaces
         run: >
           docker run --rm
@@ -97,6 +99,7 @@ jobs:
           --scanners vuln,misconfig,secret
           --severity HIGH,CRITICAL
           --ignorefile /workdir/.trivyignore
+          --vex /workdir/.github/tools/certifi-2026.10.18.openvex.json
           --skip-dirs /workdir/tests/fixtures
           --skip-dirs /workdir/.github/tools/mcpb-cli/node_modules
           --skip-files /workdir/.clusterfuzzlite/Dockerfile

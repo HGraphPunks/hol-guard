@@ -1,0 +1,21 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://github.com/hashgraph-online/hol-guard/blob/main/.github/tools/certifi-2026.10.18.openvex.json",
+  "author": "HOL Guard maintainers",
+  "timestamp": "2026-10-20T00:00:00Z",
+  "version": 1,
+  "statements": [
+    {
+      "vulnerability": {
+        "name": "GHSA-6q48-6c7w-9gw2"
+      },
+      "products": [
+        {
+          "@id": "pkg:pypi/certifi@2026.10.18"
+        }
+      ],
+      "status": "fixed",
+      "impact_statement": "The certifi maintainer advisory identifies 2026.10.18 as patched. PyPI verifies its source SHA-256 b9995d97b64d0431a5af837d8ca8cd6238104d1f319f04bd93ea43124d6c861e and wheel SHA-256 73191c47aaa79da394e8fee2dbc2ec827432cab56311122c9e47abf79e390f62. See https://github.com/certifi/python-certifi/security/advisories/GHSA-6q48-6c7w-9gw2 and https://pypi.org/project/certifi/2026.10.18/."
+    }
+  ]
+}
