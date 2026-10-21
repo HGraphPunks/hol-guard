@@ -6,18 +6,16 @@ use crate::local_conformance_package::{
     verify_local_conformance_package_with_key_pins_ineligible, LocalConformancePackageShadow,
     EXECUTION_SOURCES,
 };
+use crate::local_conformance_runtime::expected_runtime;
 use crate::public_files::PublicRootReader;
 use crate::{
     inventory_tree, load_runner_config_from_paths, verify_controller_tree,
     verify_runner_file_assets, EvidenceError, Result, TreeKind,
 };
 use rustix::process::geteuid;
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::path::Path;
-
-const MCP_IMAGE_ID: &str =
-    "sha256:827eaec482942aa5805beac1a75afd755b0daebade43024883b7d1637c27e52d";
 
 fn invalid(message: &'static str) -> EvidenceError {
     EvidenceError::Invalid(message)
@@ -53,46 +51,6 @@ fn observed_platform() -> Result<Value> {
         "os_id":fields.get("ID").ok_or(invalid("OS ID missing"))?,
         "os_version":fields.get("VERSION_ID").ok_or(invalid("OS version missing"))?,
     }))
-}
-
-fn expected_runtime(config: &Value) -> Result<Value> {
-    let options = &config["runtime"];
-    let assets = &config["assets"];
-    let private = options["private_cell"]
-        .as_object()
-        .ok_or(invalid("private-cell config missing"))?;
-    let mut cell = Map::new();
-    cell.insert(
-        "artifact_manifest_sha256".into(),
-        assets["private_cell"]["sha256"].clone(),
-    );
-    for name in [
-        "initializer_sha256",
-        "native_sha256",
-        "runtime_tree_digest",
-        "idmap_runtime",
-        "cpu_profile",
-    ] {
-        cell.insert(
-            name.into(),
-            private
-                .get(name)
-                .cloned()
-                .ok_or(invalid("private-cell tuple missing"))?,
-        );
-    }
-    let mut expected = json!({
-        "source_sha":options["guard_source_sha"],
-        "prefix_digest":assets["guard_prefix"]["sha256"],
-        "bwrap_sha256":options["guard_bwrap_sha256"],
-        "executor_image_id":options["guard_executor_image_id"],
-        "mcp_image_id":MCP_IMAGE_ID,
-        "private_cell":Value::Object(cell),
-    });
-    if let Some(version) = options.get("guard_package_version") {
-        expected["package_version"] = version.clone();
-    }
-    Ok(expected)
 }
 
 fn observed_public_assets(config: &Value, asset_root: &Path) -> Result<Value> {

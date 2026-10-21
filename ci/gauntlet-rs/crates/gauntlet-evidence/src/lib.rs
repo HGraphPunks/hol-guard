@@ -29,6 +29,7 @@ mod io;
 #[cfg(target_os = "linux")]
 mod local_conformance_files;
 mod local_conformance_package;
+mod local_conformance_runtime;
 mod model_endpoint;
 mod native_review_summary;
 mod native_transport_relations;
@@ -56,6 +57,7 @@ mod python_worker_files;
 mod runner_asset_inventory;
 mod runner_inputs;
 mod runner_runtime;
+mod six_control_openings;
 mod tree_inventory;
 mod worker_receipt;
 
@@ -133,6 +135,10 @@ pub use runner_inputs::{
 pub use runner_runtime::{
     load_runner_config_from_paths, runner_runtime_declaration,
     verify_runner_installed_version_metadata, LoadedRunnerConfig, RunnerRuntimeDeclaration,
+};
+pub use six_control_openings::{
+    observe_six_control_openings_root_owned_ineligible, verify_six_control_openings_ineligible,
+    SixControlOpeningsShadow,
 };
 pub use tree_inventory::{inventory_tree, TreeInventory, TreeKind};
 pub use worker_receipt::{verify_python_worker_terminal, PythonWorkerTerminal};
