@@ -533,11 +533,22 @@ fn matching_verified_native_mcp_processes(
     let mut forwarded_tool_calls = 0_usize;
     let mut completed_tool_calls = 0_usize;
     let mut pending = BTreeMap::new();
+    // Native sessions are concurrent. A frame and its forwarding event stay
+    // ordered within one session, but another session may emit events between
+    // them in the global audit sequence.
+    let mut pending_frames = BTreeMap::new();
     for (index, event) in events.iter().enumerate() {
         if event["sequence"].as_u64() != Some((index + 1) as u64) {
             return Err(INVALID);
         }
         run_ids.insert(event["run_id"].as_str().ok_or(INVALID)?);
+        if let Some(session) = event["session_id"].as_str() {
+            if let Some((_, expected)) = pending_frames.keys().find(|(held, _)| held == session) {
+                if event["kind"] != *expected {
+                    return Err(INVALID);
+                }
+            }
+        }
         if event["kind"] == "peer-authenticated" {
             if event["peer_uid"] != 10001 || event["allowed_uid"] != 10001 {
                 return Err(INVALID);
@@ -569,37 +580,26 @@ fn matching_verified_native_mcp_processes(
                 return Err(INVALID);
             }
             if event["kind"] == "frame" {
-                let following = events.get(index + 1).ok_or(INVALID)?;
                 let expected = match event["direction"].as_str() {
                     Some("client-to-service") => "forwarded",
                     Some("service-to-client") => "delivered",
                     _ => return Err(INVALID),
                 };
-                if event["stage"] != "received"
-                    || following["kind"] != expected
-                    || following["session_id"] != session
-                    || following["family"] != event["family"]
-                    || following["message"] != *message
+                if event["stage"] != "received" {
+                    return Err(INVALID);
+                }
+                let key = (session.to_owned(), expected);
+                if pending_frames
+                    .insert(key, (event["family"].clone(), message.clone()))
+                    .is_some()
                 {
                     return Err(INVALID);
                 }
                 continue;
             }
-            let preceding = index
-                .checked_sub(1)
-                .and_then(|before| events.get(before))
-                .ok_or(INVALID)?;
-            let direction = if event["kind"] == "forwarded" {
-                "client-to-service"
-            } else {
-                "service-to-client"
-            };
-            if preceding["kind"] != "frame"
-                || preceding["direction"] != direction
-                || preceding["session_id"] != session
-                || preceding["family"] != event["family"]
-                || preceding["message"] != *message
-            {
+            let key = (session.to_owned(), event["kind"].as_str().ok_or(INVALID)?);
+            let (frame_family, frame_message) = pending_frames.remove(&key).ok_or(INVALID)?;
+            if frame_family != event["family"] || frame_message != *message {
                 return Err(INVALID);
             }
             let id = message["id"].as_str();
@@ -662,6 +662,7 @@ fn matching_verified_native_mcp_processes(
         || forwarded_tool_calls != 1
         || completed_tool_calls != 1
         || !pending.is_empty()
+        || !pending_frames.is_empty()
     {
         return Err(INVALID);
     }
@@ -1027,6 +1028,54 @@ mod tests {
         assert_eq!(
             matching_verified_native_mcp_processes(&audit, &activity, &agent_id, &agent).unwrap(),
             (product_id.clone(), 2)
+        );
+        let mut interleaved = audit.clone();
+        let events = interleaved["transport_observations"]
+            .as_array_mut()
+            .unwrap();
+        let notification = json!({"jsonrpc":"2.0","method":"notifications/initialized"});
+        events.insert(
+            8,
+            json!({
+                "kind":"frame","run_id":"test-run","session_id":"second",
+                "family":"mail","direction":"client-to-service","stage":"received",
+                "message":notification,
+            }),
+        );
+        events.insert(
+            9,
+            json!({
+                "kind":"forwarded","run_id":"test-run","session_id":"second",
+                "family":"mail","message":notification,
+            }),
+        );
+        for (index, event) in events.iter_mut().enumerate() {
+            event["sequence"] = json!(index + 1);
+        }
+        assert!(
+            matching_verified_native_mcp_processes(&interleaved, &activity, &agent_id, &agent)
+                .is_ok()
+        );
+        let mut same_session = interleaved.clone();
+        for event in &mut same_session["transport_observations"]
+            .as_array_mut()
+            .unwrap()[8..10]
+        {
+            event["session_id"] = json!("first");
+            event["family"] = json!("docs");
+        }
+        assert!(matching_verified_native_mcp_processes(
+            &same_session,
+            &activity,
+            &agent_id,
+            &agent
+        )
+        .is_err());
+        interleaved["transport_observations"][9]["message"]["method"] =
+            json!("notifications/changed");
+        assert!(
+            matching_verified_native_mcp_processes(&interleaved, &activity, &agent_id, &agent)
+                .is_err()
         );
         let mut wrong = audit.clone();
         wrong["product_plane"]["observations"][1]["identity"]["start_time"] = json!("104");

@@ -22,6 +22,9 @@ const MAX_SUITE_BYTES: u64 = 8192;
 #[path = "controller_key_terminal.rs"]
 mod terminal;
 pub use terminal::HostKeyedTerminalObservation;
+#[path = "controller_key_sdk_tap.rs"]
+mod sdk_tap;
+pub use sdk_tap::HostSdkTapJournalPin;
 
 #[path = "controller_key_pipe.rs"]
 mod pipe;
@@ -90,6 +93,7 @@ pub enum HostKeyPinError {
     Missing,
     UnsafeRecord,
     InvalidTerminal,
+    InvalidTapJournal,
     TransportTimedOut,
     TransportFailed,
     FrameTooLarge,
@@ -108,6 +112,7 @@ impl fmt::Display for HostKeyPinError {
             Self::Missing => "host has no prelaunch controller key pin for this job",
             Self::UnsafeRecord => "host controller key pin is malformed or unsafe",
             Self::InvalidTerminal => "keyed VM terminal differs from the host prelaunch pin",
+            Self::InvalidTapJournal => "SDK tap journal differs from the keyed VM run",
             Self::TransportTimedOut => "VM prelaunch frame or acknowledgement timed out",
             Self::TransportFailed => "VM prelaunch transport failed",
             Self::FrameTooLarge => "VM prelaunch frame exceeds its byte limit",

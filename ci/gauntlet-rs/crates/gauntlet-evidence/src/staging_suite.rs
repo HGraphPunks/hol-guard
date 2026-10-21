@@ -10,6 +10,7 @@ use crate::staging_agent_process::{
     matching_sdk_gate_process,
 };
 use crate::staging_control_record::read_one;
+use crate::staging_sdk_tap_frames::{matching_sdk_tap_native_frames, SdkTapOutsidePins};
 use crate::{
     observe_staging_physical_files_root_owned_ineligible, EvidenceError, Result,
     StagingEvidencePins,
@@ -47,11 +48,15 @@ pub struct StagingSuiteShadow {
     pub live_sdk_gate_roles_sampled: usize,
     pub live_sdk_executable_roles_sampled: usize,
     pub live_native_mcp_roles_sampled: usize,
+    pub live_sdk_tap_roles_matched: usize,
+    pub live_sdk_tap_frames_matched: usize,
 }
 
 impl StagingSuiteShadow {
     pub fn to_json(&self) -> Value {
-        let schema = if self.live_native_mcp_roles_sampled == 6 {
+        let schema = if self.live_sdk_tap_roles_matched == 6 {
+            "hol-gauntlet-staging-sdk-tap-suite-shadow.v1"
+        } else if self.live_native_mcp_roles_sampled == 6 {
             "hol-gauntlet-staging-native-mcp-suite-shadow.v1"
         } else if self.live_sdk_executable_roles_sampled == 6 {
             "hol-gauntlet-staging-suite-shadow.v5"
@@ -90,6 +95,10 @@ impl StagingSuiteShadow {
         if self.live_native_mcp_roles_sampled == 6 {
             output["live_native_mcp_roles_sampled"] = json!(6);
             output["signed_native_mcp_proxy_processes_sampled"] = json!(12);
+        }
+        if self.live_sdk_tap_roles_matched == 6 {
+            output["live_sdk_tap_roles_matched"] = json!(6);
+            output["live_sdk_tap_frames_matched"] = json!(self.live_sdk_tap_frames_matched);
         }
         output
     }
@@ -261,7 +270,8 @@ fn terminal_and_cleanup(
     common: &Value,
     row: &Value,
     require_native_mcp: bool,
-) -> Result<(bool, bool, bool, bool, bool)> {
+    tap_journal_sha256: Option<&str>,
+) -> Result<(bool, bool, bool, bool, bool, usize)> {
     let run = string(row, "run_id")?;
     let report_name = format!("{run}.report.json");
     let terminal_name = format!("{run}.terminal.json");
@@ -311,6 +321,7 @@ fn terminal_and_cleanup(
     {
         return Err(INVALID);
     }
+    let mut tap_frames = 0;
     if agent_process_required {
         let record_raw = read_one(run, role)?;
         if sha256(&record_raw) != string(row, "record_sha256")? {
@@ -338,6 +349,28 @@ fn terminal_and_cleanup(
                 string(common, "version")?,
             )?;
         }
+        if let Some(outside_sha) = tap_journal_sha256 {
+            if !require_native_mcp {
+                return Err(INVALID);
+            }
+            let name = format!("{run}.sdk-tap.json");
+            let raw = read_private_file(journal, &name, 0, 1024 * 1024)?.ok_or(INVALID)?;
+            tap_frames = matching_sdk_tap_native_frames(
+                &record,
+                &report,
+                &terminal,
+                &raw,
+                &SdkTapOutsidePins {
+                    journal_sha256: outside_sha,
+                    source_sha: string(common, "source_sha")?,
+                    started_marker_sha256: string(row, "started_marker_sha256")?,
+                    controller_public_key_hex: string(row, "controller_public_key_hex")?,
+                },
+            )?;
+            if raw != read_private_file(journal, &name, 0, 1024 * 1024)?.ok_or(INVALID)? {
+                return Err(INVALID);
+            }
+        }
         if record_raw != read_one(run, role)? {
             return Err(INVALID);
         }
@@ -351,6 +384,7 @@ fn terminal_and_cleanup(
         sdk_gate_required,
         sdk_executable_required,
         require_native_mcp,
+        tap_frames,
     ))
 }
 
@@ -393,6 +427,7 @@ fn observe_staging_suite(
     build_job_id: &str,
     outside_manifest_sha256: &str,
     require_native_mcp: bool,
+    tap_journal_sha256: Option<&[String; 6]>,
 ) -> Result<StagingSuiteShadow> {
     if geteuid().as_raw() != 0
         || !lower_hex(build_job_id, 16)
@@ -419,6 +454,13 @@ fn observe_staging_suite(
     if require_native_mcp && manifest["schema"] != "hol-gauntlet-staging-suite-pins.v5" {
         return Err(INVALID);
     }
+    if tap_journal_sha256.is_some_and(|pins| {
+        !require_native_mcp
+            || !pins.iter().all(|pin| is_sha256(pin))
+            || pins.iter().collect::<BTreeSet<_>>().len() != 6
+    }) {
+        return Err(INVALID);
+    }
     let journal = open_absolute_directory(Path::new(STAGING))?;
     private_directory(&journal, 0)?;
     let mut physical_files = 0;
@@ -428,7 +470,9 @@ fn observe_staging_suite(
     let mut live_sdk_gate_roles_sampled = 0;
     let mut live_sdk_executable_roles_sampled = 0;
     let mut live_native_mcp_roles_sampled = 0;
-    for role in ROLES {
+    let mut live_sdk_tap_roles_matched = 0;
+    let mut live_sdk_tap_frames_matched = 0;
+    for (index, role) in ROLES.into_iter().enumerate() {
         let row = &manifest["roles"][role];
         let pins = StagingEvidencePins {
             build_job_id,
@@ -445,13 +489,22 @@ fn observe_staging_suite(
         let opened = observe_staging_physical_files_root_owned_ineligible(&pins)?;
         physical_files += opened.observed_files;
         absent_effects += opened.absent_effects;
-        let (kernel, agent, sdk_gate, sdk_executable, native_mcp) =
-            terminal_and_cleanup(&journal, role, &manifest, row, require_native_mcp)?;
+        let (kernel, agent, sdk_gate, sdk_executable, native_mcp, tap_frames) =
+            terminal_and_cleanup(
+                &journal,
+                role,
+                &manifest,
+                row,
+                require_native_mcp,
+                tap_journal_sha256.map(|pins| pins[index].as_str()),
+            )?;
         live_kernel_roles_sampled += usize::from(kernel);
         live_agent_roles_sampled += usize::from(agent);
         live_sdk_gate_roles_sampled += usize::from(sdk_gate);
         live_sdk_executable_roles_sampled += usize::from(sdk_executable);
         live_native_mcp_roles_sampled += usize::from(native_mcp);
+        live_sdk_tap_roles_matched += usize::from(tap_frames > 0);
+        live_sdk_tap_frames_matched += tap_frames;
     }
     if root.read_file(&relative, 8192)? != raw {
         return Err(INVALID);
@@ -467,6 +520,8 @@ fn observe_staging_suite(
         live_sdk_gate_roles_sampled,
         live_sdk_executable_roles_sampled,
         live_native_mcp_roles_sampled,
+        live_sdk_tap_roles_matched,
+        live_sdk_tap_frames_matched,
     })
 }
 
@@ -474,7 +529,7 @@ pub fn observe_staging_suite_root_owned_ineligible(
     build_job_id: &str,
     outside_manifest_sha256: &str,
 ) -> Result<StagingSuiteShadow> {
-    observe_staging_suite(build_job_id, outside_manifest_sha256, false)
+    observe_staging_suite(build_job_id, outside_manifest_sha256, false, None)
 }
 
 /// Opt-in stronger opening of the same immutable v5 host manifest. The
@@ -484,7 +539,22 @@ pub fn observe_staging_suite_native_mcp_root_owned_ineligible(
     build_job_id: &str,
     outside_manifest_sha256: &str,
 ) -> Result<StagingSuiteShadow> {
-    observe_staging_suite(build_job_id, outside_manifest_sha256, true)
+    observe_staging_suite(build_job_id, outside_manifest_sha256, true, None)
+}
+
+/// Add six outside host-pinned Root tap digests to the signed Native/SDK
+/// process suite. The digests must be supplied in `ROLES` order.
+pub fn observe_staging_suite_sdk_tap_root_owned_ineligible(
+    build_job_id: &str,
+    outside_manifest_sha256: &str,
+    tap_journal_sha256: &[String; 6],
+) -> Result<StagingSuiteShadow> {
+    observe_staging_suite(
+        build_job_id,
+        outside_manifest_sha256,
+        true,
+        Some(tap_journal_sha256),
+    )
 }
 
 #[cfg(test)]
@@ -621,6 +691,8 @@ mod tests {
             live_sdk_gate_roles_sampled: 0,
             live_sdk_executable_roles_sampled: 0,
             live_native_mcp_roles_sampled: 0,
+            live_sdk_tap_roles_matched: 0,
+            live_sdk_tap_frames_matched: 0,
         };
         assert_eq!(
             proof.to_json()["schema"],
@@ -670,5 +742,15 @@ mod tests {
             native_mcp.to_json()["signed_native_mcp_proxy_processes_sampled"],
             12
         );
+        let sdk_tap = StagingSuiteShadow {
+            live_sdk_tap_roles_matched: 6,
+            live_sdk_tap_frames_matched: 144,
+            ..native_mcp
+        };
+        assert_eq!(
+            sdk_tap.to_json()["schema"],
+            "hol-gauntlet-staging-sdk-tap-suite-shadow.v1"
+        );
+        assert_eq!(sdk_tap.to_json()["live_sdk_tap_frames_matched"], 144);
     }
 }

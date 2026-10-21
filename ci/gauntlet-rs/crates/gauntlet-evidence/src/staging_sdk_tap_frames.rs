@@ -1,0 +1,322 @@
+//! Compare outside-pinned Root SDK tap digests with signed Native MCP frames.
+//! This is a diagnostic transport relation, not physical-effect attestation.
+
+use crate::crypto::{decode_hex, is_sha256, sha256};
+use crate::{verify_controller_envelope, EvidenceError, Result};
+use gauntlet_contracts::canonicalize;
+use serde_json::Value;
+use std::collections::{BTreeMap, BTreeSet};
+
+const INVALID: EvidenceError = EvidenceError::Invalid("invalid staging SDK tap frame relation");
+type Frame = (String, Option<String>, Option<String>);
+type FrameKey = (String, String);
+
+pub(crate) struct SdkTapOutsidePins<'a> {
+    pub journal_sha256: &'a str,
+    pub source_sha: &'a str,
+    pub started_marker_sha256: &'a str,
+    pub controller_public_key_hex: &'a str,
+}
+
+fn native_frames(audit: &Value) -> Result<BTreeMap<FrameKey, Vec<Frame>>> {
+    let events = audit["transport_observations"].as_array().ok_or(INVALID)?;
+    let mut frames: BTreeMap<FrameKey, Vec<Frame>> = BTreeMap::new();
+    for event in events {
+        if event["kind"] != "frame" {
+            continue;
+        }
+        let family = event["family"].as_str().ok_or(INVALID)?;
+        let direction = event["direction"].as_str().ok_or(INVALID)?;
+        if !matches!(family, "docs" | "mail")
+            || !matches!(direction, "client-to-service" | "service-to-client")
+            || event["message"]["jsonrpc"] != "2.0"
+        {
+            return Err(INVALID);
+        }
+        let message = &event["message"];
+        let canonical = canonicalize(message.to_string().as_bytes()).map_err(|_| INVALID)?;
+        let method = message
+            .get("method")
+            .map(|value| value.as_str().map(str::to_owned).ok_or(INVALID))
+            .transpose()?;
+        let id = message
+            .get("id")
+            .map(|value| {
+                if value.as_str().is_some() || value.as_i64().is_some() || value.as_u64().is_some()
+                {
+                    serde_json::to_string(value).map_err(|_| INVALID)
+                } else {
+                    Err(INVALID)
+                }
+            })
+            .transpose()?;
+        frames
+            .entry((family.to_owned(), direction.to_owned()))
+            .or_default()
+            .push((sha256(&canonical), method, id));
+    }
+    Ok(frames)
+}
+
+fn compare_frames(audit: &Value, journal: &Value) -> Result<usize> {
+    let expected = native_frames(audit)?;
+    let sessions = journal["sessions"].as_array().ok_or(INVALID)?;
+    if sessions.len() != 2 || journal["session_count"] != 2 {
+        return Err(INVALID);
+    }
+    let mut observed: BTreeMap<FrameKey, Vec<Frame>> = BTreeMap::new();
+    let mut families = BTreeSet::new();
+    let mut total = 0_usize;
+    let mut bytes = 0_u64;
+    for (index, session) in sessions.iter().enumerate() {
+        let family = session["family"].as_str().ok_or(INVALID)?;
+        let wire = &session["wire"];
+        let events = wire["events"].as_array().ok_or(INVALID)?;
+        if !matches!(family, "docs" | "mail")
+            || !families.insert(family)
+            || session["sequence"] != index + 1
+            || wire["schema"] != "hol-gauntlet-sdk-wire-tap.v1"
+            || wire["peer_identity_verified"] != false
+            || wire["journal_durable"] != false
+            || wire["execution_eligible"] != false
+            || wire["completed_tool_calls"] != usize::from(family == "docs")
+            || events.is_empty()
+            || events.len() > 1000
+        {
+            return Err(INVALID);
+        }
+        let mut session_bytes = 0_u64;
+        for (number, event) in events.iter().enumerate() {
+            let direction = event["direction"].as_str().ok_or(INVALID)?;
+            let digest = event["canonical_message_sha256"].as_str().ok_or(INVALID)?;
+            let raw_digest = event["frame_sha256"].as_str().ok_or(INVALID)?;
+            let size = event["frame_bytes"].as_u64().ok_or(INVALID)?;
+            if event["sequence"] != number + 1
+                || event["family"] != family
+                || !matches!(direction, "client-to-service" | "service-to-client")
+                || !is_sha256(digest)
+                || !is_sha256(raw_digest)
+                || !(2..=1024 * 1024 + 1).contains(&size)
+            {
+                return Err(INVALID);
+            }
+            let method = event["method"].as_str().map(str::to_owned);
+            let id = event["id_json"].as_str().map(str::to_owned);
+            if (!event["method"].is_null() && method.is_none())
+                || (!event["id_json"].is_null() && id.is_none())
+            {
+                return Err(INVALID);
+            }
+            observed
+                .entry((family.to_owned(), direction.to_owned()))
+                .or_default()
+                .push((digest.to_owned(), method, id));
+            session_bytes = session_bytes.checked_add(size).ok_or(INVALID)?;
+        }
+        if wire["total_bytes"].as_u64() != Some(session_bytes) {
+            return Err(INVALID);
+        }
+        total = total.checked_add(events.len()).ok_or(INVALID)?;
+        bytes = bytes.checked_add(session_bytes).ok_or(INVALID)?;
+    }
+    if families.len() != 2
+        || total != 24
+        || journal["event_count"] != total
+        || journal["observed_bytes"].as_u64() != Some(bytes)
+        || observed != expected
+    {
+        return Err(INVALID);
+    }
+    Ok(total)
+}
+
+pub(crate) fn matching_sdk_tap_native_frames(
+    record: &Value,
+    report: &Value,
+    terminal: &Value,
+    journal_raw: &[u8],
+    pins: &SdkTapOutsidePins<'_>,
+) -> Result<usize> {
+    if journal_raw.is_empty()
+        || journal_raw.len() > 1024 * 1024
+        || !is_sha256(pins.journal_sha256)
+        || sha256(journal_raw) != pins.journal_sha256
+        || canonicalize(journal_raw).map_err(|_| INVALID)? != journal_raw
+    {
+        return Err(INVALID);
+    }
+    let journal: Value = serde_json::from_slice(journal_raw).map_err(|_| INVALID)?;
+    let run_id = report["run_id"].as_str().ok_or(INVALID)?;
+    let receipt = &report["sdk_tap_v2"]["journal"];
+    if record["sdk_tap_v2_requested"] != true
+        || report["sdk_tap_v2"]["schema"] != "hol-gauntlet-staging-sdk-tap-summary.v1"
+        || report["sdk_tap_v2"]["native_peer_independently_observed_by_root"] != false
+        || report["sdk_tap_v2"]["execution_eligible"] != false
+        || receipt["schema"] != "hol-gauntlet-sdk-tap-journal-receipt.v1"
+        || receipt["run_id"] != run_id
+        || receipt["sha256"] != pins.journal_sha256
+        || receipt["bytes"] != journal_raw.len()
+        || receipt["sessions"] != 2
+        || receipt["events"] != 24
+        || receipt["child_report_authenticated"] != false
+        || receipt["host_pin_retained"] != false
+        || receipt["execution_eligible"] != false
+        || journal["schema"] != "hol-gauntlet-sdk-tap-journal.v1"
+        || journal["run_id"] != run_id
+        || journal["source_sha"] != pins.source_sha
+        || journal["started_marker_sha256"] != pins.started_marker_sha256
+        || journal["controller_public_key_hex"] != pins.controller_public_key_hex
+        || journal["child_report_authenticated"] != false
+        || journal["host_pin_retained"] != false
+        || journal["execution_eligible"] != false
+    {
+        return Err(INVALID);
+    }
+    let key = decode_hex(pins.controller_public_key_hex, 32).map_err(|_| INVALID)?;
+    let runtime_raw = serde_json::to_vec(&record["developer_runtime"]).map_err(|_| INVALID)?;
+    let runtime = verify_controller_envelope(&runtime_raw, &key)?;
+    let audit_raw = serde_json::to_vec(&runtime["native_mcp_audit"]).map_err(|_| INVALID)?;
+    let audit = verify_controller_envelope(&audit_raw, &key)?;
+    let agent_container = record["agent_container_inspection"]["Id"]
+        .as_str()
+        .filter(|id| is_sha256(id))
+        .ok_or(INVALID)?;
+    let agent_cgroup = format!("/machine.slice/libpod-{agent_container}.scope/container");
+    let gate_pid = &record["sdk_gate"]["observation"]["pid"];
+    let gate_start = record["sdk_gate"]["observation"]["identity"]["start_time"]
+        .as_str()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|value| *value > 0)
+        .ok_or(INVALID)?;
+    let controller_cgroup = format!("/system.slice/hol-gauntlet-rust-job-{run_id}");
+    let mut relays = BTreeSet::new();
+    for session in journal["sessions"].as_array().ok_or(INVALID)? {
+        let peer = &session["sdk_peer"];
+        let native = &session["native_peer"];
+        let ancestry = &session["sdk_ancestry"];
+        let pid = peer["pid"].as_u64().ok_or(INVALID)?;
+        let start = peer["start_ticks"].as_u64().ok_or(INVALID)?;
+        let matched = report["live_kernel_activity"]["container_processes"]
+            .as_array()
+            .ok_or(INVALID)?
+            .iter()
+            .filter(|row| {
+                row["container_id"] == agent_container
+                    && row["pid"] == pid
+                    && row["start_ticks"] == start
+                    && row["cgroup"] == agent_cgroup
+            })
+            .count();
+        if peer["schema"] != "hol-gauntlet-sdk-wire-peer.v1"
+            || peer["uid"] != 10001
+            || peer["gid"] != 10001
+            || peer["cgroup"] != agent_cgroup
+            || peer["sdk_ancestry_verified"] != false
+            || peer["execution_eligible"] != false
+            || !relays.insert((pid, start))
+            || matched != 1
+            || ancestry["schema"] != "hol-gauntlet-sdk-wire-ancestry.v1"
+            || ancestry["relay_pid"] != pid
+            || ancestry["ancestor_pid"] != *gate_pid
+            || ancestry["ancestor_start_ticks"] != gate_start
+            || ancestry["cgroup"] != agent_cgroup
+            || ancestry["hops"] != 1
+            || ancestry["ancestor_executable_verified"] != false
+            || ancestry["execution_eligible"] != false
+            || native["schema"] != "hol-gauntlet-sdk-wire-peer.v1"
+            || native["uid"] != 0
+            || native["gid"] != 0
+            || native["pid"] != terminal["pid"]
+            || native["start_ticks"] != terminal["process_start_ticks"]
+            || native["cgroup"] != controller_cgroup
+            || native["sdk_ancestry_verified"] != false
+            || native["execution_eligible"] != false
+        {
+            return Err(INVALID);
+        }
+    }
+    compare_frames(&audit, &journal)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn concurrent_family_frames_match_without_global_adjacency() {
+        let docs = json!({"jsonrpc":"2.0","method":"tools/call","id":"one"});
+        let mail = json!({"jsonrpc":"2.0","method":"initialize","id":"two"});
+        let audit = json!({"transport_observations":[
+            {"kind":"frame","family":"docs","direction":"client-to-service","message":docs},
+            {"kind":"frame","family":"mail","direction":"client-to-service","message":mail},
+        ]});
+        let frames = native_frames(&audit).unwrap();
+        assert_eq!(frames.len(), 2);
+        assert_eq!(
+            frames[&("docs".to_owned(), "client-to-service".to_owned())].len(),
+            1
+        );
+        let mut altered = audit.clone();
+        altered["transport_observations"][0]["message"]["method"] = json!("tools/other");
+        assert_ne!(native_frames(&altered).unwrap(), frames);
+        altered["transport_observations"][0]["message"]["id"] = Value::Null;
+        assert!(native_frames(&altered).is_err());
+    }
+
+    #[test]
+    fn exact_tap_frame_sequence_rejects_changed_or_missing_frames() {
+        let mut native = Vec::new();
+        let mut sessions = Vec::new();
+        for (number, family, count) in [(1, "docs", 13), (2, "mail", 11)] {
+            let mut events = Vec::new();
+            for index in 0..count {
+                let direction = if index % 2 == 0 {
+                    "client-to-service"
+                } else {
+                    "service-to-client"
+                };
+                let id = format!("{family}-{index}");
+                let message = json!({"jsonrpc":"2.0","method":"probe","id":id});
+                let canonical = canonicalize(message.to_string().as_bytes()).unwrap();
+                native.push(json!({
+                    "kind":"frame","family":family,"direction":direction,
+                    "message":message,
+                }));
+                events.push(json!({
+                    "sequence":index + 1,"family":family,"direction":direction,
+                    "frame_sha256":"a".repeat(64),
+                    "canonical_message_sha256":sha256(&canonical),
+                    "frame_bytes":40,"method":"probe",
+                    "id_json":serde_json::to_string(&id).unwrap(),
+                }));
+            }
+            sessions.push(json!({
+                "sequence":number,"family":family,
+                "wire":{
+                    "schema":"hol-gauntlet-sdk-wire-tap.v1","events":events,
+                    "completed_tool_calls":usize::from(family == "docs"),
+                    "total_bytes":count * 40,"peer_identity_verified":false,
+                    "journal_durable":false,"execution_eligible":false,
+                }
+            }));
+        }
+        let audit = json!({"transport_observations":native});
+        let mut journal = json!({
+            "sessions":sessions,"session_count":2,"event_count":24,
+            "observed_bytes":960,
+        });
+        assert_eq!(compare_frames(&audit, &journal).unwrap(), 24);
+        let original =
+            journal["sessions"][0]["wire"]["events"][0]["canonical_message_sha256"].clone();
+        journal["sessions"][0]["wire"]["events"][0]["canonical_message_sha256"] =
+            json!("b".repeat(64));
+        assert!(compare_frames(&audit, &journal).is_err());
+        journal["sessions"][0]["wire"]["events"][0]["canonical_message_sha256"] = original;
+        journal["sessions"][0]["wire"]["events"]
+            .as_array_mut()
+            .unwrap()
+            .pop();
+        assert!(compare_frames(&audit, &journal).is_err());
+    }
+}
