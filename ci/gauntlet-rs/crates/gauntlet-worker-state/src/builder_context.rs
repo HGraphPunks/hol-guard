@@ -50,6 +50,9 @@ pub struct BuilderContextProof {
     profile_name: String,
     policy_sha256: String,
     policy_bytes: Vec<u8>,
+    dockerfile_bytes: Vec<u8>,
+    entry_bytes: Vec<u8>,
+    artifact_bytes: Vec<u8>,
 }
 
 impl BuilderContextProof {
@@ -59,6 +62,22 @@ impl BuilderContextProof {
 
     pub fn image_tag(&self) -> &str {
         &self.image_tag
+    }
+
+    pub(crate) fn context_sha256(&self) -> &str {
+        &self.context_sha256
+    }
+
+    pub(crate) fn dockerfile_bytes(&self) -> &[u8] {
+        &self.dockerfile_bytes
+    }
+
+    pub(crate) fn entry_bytes(&self) -> &[u8] {
+        &self.entry_bytes
+    }
+
+    pub(crate) fn artifact_bytes(&self) -> &[u8] {
+        &self.artifact_bytes
     }
 
     pub fn to_json(&self) -> Value {
@@ -138,7 +157,7 @@ fn read_context_file(directory: &OwnedFd, name: &str) -> Result<Vec<u8>, Builder
     Ok(bytes)
 }
 
-fn derive_from_bytes(
+pub(crate) fn derive_from_bytes(
     tree_digest: &str,
     job_id: &str,
     dockerfile: &[u8],
@@ -170,6 +189,9 @@ fn derive_from_bytes(
         profile_name,
         policy_sha256,
         policy_bytes,
+        dockerfile_bytes: dockerfile.to_vec(),
+        entry_bytes: entry.to_vec(),
+        artifact_bytes: artifact.to_vec(),
     })
 }
 
