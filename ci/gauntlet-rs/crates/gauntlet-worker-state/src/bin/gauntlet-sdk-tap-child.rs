@@ -1,10 +1,14 @@
 //! Opt-in, single-session SDK MCP data-plane child. Only the future Root
 //! worker may supply its held FDs and outside-pinned process identities.
 
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 use gauntlet_worker_state::{run_sdk_tap_child_once_ineligible, SdkTapChildPins, SdkWirePeerPin};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 use std::os::fd::{FromRawFd, OwnedFd, RawFd};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 use std::os::unix::net::UnixStream;
 
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 fn fd(value: &str) -> Result<RawFd, String> {
     let parsed = value
         .parse::<RawFd>()
@@ -15,6 +19,7 @@ fn fd(value: &str) -> Result<RawFd, String> {
     Ok(parsed)
 }
 
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 fn pin(pid: &str, start: &str, cgroup: &str) -> Result<SdkWirePeerPin, String> {
     let pid = pid.parse::<u32>().map_err(|_| "invalid peer PID")?;
     let start_ticks = start.parse::<u64>().map_err(|_| "invalid peer start")?;
@@ -28,6 +33,7 @@ fn pin(pid: &str, start: &str, cgroup: &str) -> Result<SdkWirePeerPin, String> {
     })
 }
 
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 fn run() -> Result<(), String> {
     let arguments = std::env::args().collect::<Vec<_>>();
     if arguments.len() != 14 || !matches!(arguments[1].as_str(), "docs" | "mail") {
@@ -61,9 +67,16 @@ fn run() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 fn main() {
     if let Err(error) = run() {
         eprintln!("SDK tap child ineligible: {error}");
         std::process::exit(2);
     }
+}
+
+#[cfg(not(all(target_os = "linux", target_arch = "aarch64")))]
+fn main() {
+    eprintln!("SDK tap child requires Linux ARM64");
+    std::process::exit(2);
 }
