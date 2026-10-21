@@ -101,10 +101,10 @@ pub(crate) struct OwnedProbeGroup {
 }
 
 #[derive(Clone, Copy)]
-struct GroupLimits {
-    memory: &'static str,
-    pids: &'static str,
-    cpu: &'static str,
+pub(crate) struct GroupLimits {
+    pub(crate) memory: &'static str,
+    pub(crate) pids: &'static str,
+    pub(crate) cpu: &'static str,
 }
 
 const PROBE_LIMITS: GroupLimits = GroupLimits {
@@ -261,7 +261,7 @@ impl OwnedProbeGroup {
         Self::create_named(name, path, limits)
     }
 
-    fn create_named(
+    pub(crate) fn create_named(
         name: String,
         path: String,
         limits: GroupLimits,
@@ -362,7 +362,7 @@ impl OwnedProbeGroup {
         .map_err(|_| CgroupProbeError::ControlUnavailable)
     }
 
-    fn attach_child(&self, command: &mut Command) -> Result<(), CgroupProbeError> {
+    pub(crate) fn attach_child(&self, command: &mut Command) -> Result<(), CgroupProbeError> {
         let writer = self.writer()?;
         // SAFETY: the callback uses only getpid, stack digits and one write
         // syscall after fork. It runs before the fixed shell is executed.
@@ -435,6 +435,10 @@ impl OwnedProbeGroup {
                 Err(error) => return Err(error),
             }
         }
+    }
+
+    pub(crate) fn path(&self) -> &str {
+        &self.path
     }
 }
 

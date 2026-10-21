@@ -20,7 +20,7 @@ use std::io::{Read, Write};
 use std::os::fd::OwnedFd;
 use std::path::Path;
 
-const RUST_STATE: &str = "/var/lib/hol-gauntlet-rust/worker-state";
+pub(crate) const RUST_STATE: &str = "/var/lib/hol-gauntlet-rust/worker-state";
 const PYTHON_ROOT: &str = "/opt/hol-gauntlet";
 const PYTHON_LOCK: &str = "worker.lock";
 const BUILDS: &str = "/var/lib/hol-gauntlet/builds";
@@ -108,12 +108,12 @@ fn root_private_dir(descriptor: &OwnedFd) -> bool {
     })
 }
 
-struct PythonWorkerLease {
+pub(crate) struct PythonWorkerLease {
     parent: OwnedFd,
     descriptor: OwnedFd,
 }
 
-fn python_worker_lock() -> Result<PythonWorkerLease, BuilderImageContextError> {
+pub(crate) fn python_worker_lock() -> Result<PythonWorkerLease, BuilderImageContextError> {
     let parent = open_root_owned_public_directory(Path::new(PYTHON_ROOT))
         .map_err(|_| BuilderImageContextError::LeaseUnavailable)?;
     let descriptor = openat(
@@ -141,7 +141,9 @@ fn python_worker_lock() -> Result<PythonWorkerLease, BuilderImageContextError> {
     Ok(PythonWorkerLease { parent, descriptor })
 }
 
-fn verify_python_lock(lease: &PythonWorkerLease) -> Result<(), BuilderImageContextError> {
+pub(crate) fn verify_python_lock(
+    lease: &PythonWorkerLease,
+) -> Result<(), BuilderImageContextError> {
     let held = fstat(&lease.descriptor).map_err(|_| BuilderImageContextError::LeaseUnavailable)?;
     let visible = statat(&lease.parent, PYTHON_LOCK, AtFlags::SYMLINK_NOFOLLOW)
         .map_err(|_| BuilderImageContextError::LeaseUnavailable)?;
@@ -178,6 +180,14 @@ fn write_one(
     output
         .sync_all()
         .map_err(|_| BuilderImageContextError::WriteUncertain)?;
+    read_one(directory, name, bytes)
+}
+
+fn read_one(
+    directory: &OwnedFd,
+    name: &str,
+    bytes: &[u8],
+) -> Result<String, BuilderImageContextError> {
     let descriptor = openat(
         directory,
         name,
@@ -207,6 +217,40 @@ fn write_one(
         return Err(BuilderImageContextError::WriteUncertain);
     }
     Ok(format!("{:x}", Sha256::digest(&readback)))
+}
+
+pub(crate) fn verify_existing_context(
+    plan: &BuilderImagePlan,
+) -> Result<(), BuilderImageContextError> {
+    let builds = open_root_owned_public_directory(Path::new(BUILDS))
+        .map_err(|_| BuilderImageContextError::ContextUnavailable)?;
+    if !root_private_dir(&builds) {
+        return Err(BuilderImageContextError::ContextUnavailable);
+    }
+    let job = openat(
+        &builds,
+        plan.job_id.as_str(),
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|_| BuilderImageContextError::ContextUnavailable)?;
+    if !root_private_dir(&job) {
+        return Err(BuilderImageContextError::ContextUnavailable);
+    }
+    let directory = openat(
+        &job,
+        CONTEXT,
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|_| BuilderImageContextError::ContextUnavailable)?;
+    if !root_private_dir(&directory) {
+        return Err(BuilderImageContextError::ContextUnavailable);
+    }
+    read_one(&directory, FILES[0], plan.dockerfile_bytes())?;
+    read_one(&directory, FILES[1], plan.entry_bytes())?;
+    read_one(&directory, FILES[2], plan.artifact_bytes())?;
+    Ok(())
 }
 
 fn materialize_at(
