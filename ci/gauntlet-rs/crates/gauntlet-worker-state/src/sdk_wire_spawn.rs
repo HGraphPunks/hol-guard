@@ -7,7 +7,7 @@ use crate::sdk_wire_peer::{
 };
 use crate::sdk_wire_pipe::read_sdk_tap_frame_pipe_ineligible;
 use crate::sdk_wire_tap::SdkWireObservation;
-use crate::{hex, BoottimeDeadline};
+use crate::{hex, BoottimeDeadline, OwnedSdkTapCgroup};
 use rustix::fs::{fstat, open, FileType, Mode, OFlags, Stat};
 use rustix::process::{geteuid, pidfd_open, Pid, PidfdFlags};
 use sha2::{Digest, Sha256};
@@ -209,6 +209,65 @@ pub fn run_pinned_sdk_tap_child_ineligible(
     deadline: &BoottimeDeadline,
     cancellation: &AtomicBool,
 ) -> Result<(SdkWireObservation, SdkWirePeerPin), String> {
+    run_pinned_sdk_tap_child_impl(
+        executable,
+        sdk_connection,
+        native_directory,
+        family,
+        sdk_relay,
+        sdk_ancestor,
+        native_frontdoor,
+        child_cgroup,
+        None,
+        deadline,
+        cancellation,
+    )
+}
+
+/// Attach the exact pinned child to a distinct one-use tap cgroup before
+/// dropping UID/GID. The Root worker still owns cleanup under its lease.
+#[allow(clippy::too_many_arguments)]
+pub fn run_pinned_sdk_tap_child_in_group_ineligible(
+    executable: &HeldSdkTapExecutable,
+    sdk_connection: UnixStream,
+    native_directory: OwnedFd,
+    family: &str,
+    sdk_relay: &SdkWirePeerPin,
+    sdk_ancestor: &SdkWirePeerPin,
+    native_frontdoor: &SdkWirePeerPin,
+    group: &OwnedSdkTapCgroup,
+    deadline: &BoottimeDeadline,
+    cancellation: &AtomicBool,
+) -> Result<(SdkWireObservation, SdkWirePeerPin), String> {
+    run_pinned_sdk_tap_child_impl(
+        executable,
+        sdk_connection,
+        native_directory,
+        family,
+        sdk_relay,
+        sdk_ancestor,
+        native_frontdoor,
+        group.path(),
+        Some(group),
+        deadline,
+        cancellation,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_pinned_sdk_tap_child_impl(
+    executable: &HeldSdkTapExecutable,
+    sdk_connection: UnixStream,
+    native_directory: OwnedFd,
+    family: &str,
+    sdk_relay: &SdkWirePeerPin,
+    sdk_ancestor: &SdkWirePeerPin,
+    native_frontdoor: &SdkWirePeerPin,
+    child_cgroup: &str,
+    group: Option<&OwnedSdkTapCgroup>,
+    deadline: &BoottimeDeadline,
+    cancellation: &AtomicBool,
+) -> Result<(SdkWireObservation, SdkWirePeerPin), String> {
     if geteuid().as_raw() != 0
         || !matches!(family, "docs" | "mail")
         || !valid_cgroup(child_cgroup)
@@ -263,6 +322,14 @@ pub fn run_pinned_sdk_tap_child_ineligible(
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
+    if let Some(group) = group {
+        if group.path() != child_cgroup {
+            return Err("SDK tap cgroup differs from held one-use group".to_owned());
+        }
+        group
+            .attach_child(&mut command)
+            .map_err(|error| error.to_string())?;
+    }
     // SAFETY: the child only executes fixed syscalls over prebuilt pointers
     // and held FDs. The exact hashed executable is invoked by descriptor;
     // no child path lookup or candidate-controlled environment is used.

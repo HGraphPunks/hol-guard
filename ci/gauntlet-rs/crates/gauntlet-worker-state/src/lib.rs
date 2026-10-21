@@ -148,7 +148,7 @@ mod private_cell_shadow_artifacts;
 pub use contained_probe::{
     run_fixed_cgroup_probe, run_fixed_contained_interpreter_probe, run_fixed_job_cgroup_probe,
     CgroupProbeError, CgroupProbeProof, ContainedInterpreterProbeProof, JobCgroupProbeProof,
-    OwnedJobCgroup,
+    OwnedJobCgroup, OwnedSdkTapCgroup,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use controller_exec::{
@@ -388,8 +388,8 @@ pub use sdk_wire_peer::{
 pub use sdk_wire_pipe::{read_sdk_tap_frame_pipe_ineligible, SdkTapFramePipeWriter};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use sdk_wire_spawn::{
-    open_pinned_sdk_tap_executable_ineligible, run_pinned_sdk_tap_child_ineligible,
-    HeldSdkTapExecutable,
+    open_pinned_sdk_tap_executable_ineligible, run_pinned_sdk_tap_child_in_group_ineligible,
+    run_pinned_sdk_tap_child_ineligible, HeldSdkTapExecutable,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use sdk_wire_tap::{

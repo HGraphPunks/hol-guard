@@ -126,9 +126,10 @@ mod tests {
     use super::*;
     use crate::linux_process::parse_proc_stat;
     use crate::sdk_wire_spawn::{
-        open_pinned_sdk_tap_executable_ineligible, run_pinned_sdk_tap_child_ineligible,
+        open_pinned_sdk_tap_executable_ineligible, run_pinned_sdk_tap_child_in_group_ineligible,
+        run_pinned_sdk_tap_child_ineligible,
     };
-    use crate::BoottimeDeadline;
+    use crate::{BoottimeDeadline, OwnedSdkTapCgroup};
     use rustix::fs::{chownat, fchown, AtFlags};
     use rustix::process::Gid;
     use std::fs::{self, File};
@@ -301,7 +302,9 @@ time.sleep(2)
             &AtomicBool::new(false),
         )
         .is_err());
-        let parent_observation = run_pinned_sdk_tap_child_ineligible(
+        let mut tap_group = OwnedSdkTapCgroup::create("edcba98765432101").unwrap();
+        assert!(OwnedSdkTapCgroup::create("edcba98765432101").is_err());
+        let parent_observation = run_pinned_sdk_tap_child_in_group_ineligible(
             &executable,
             sdk_connection,
             native_directory.into(),
@@ -309,10 +312,14 @@ time.sleep(2)
             &sdk_pin,
             &ancestor_pin,
             &native_pin,
-            &native_pin.cgroup,
+            &tap_group,
             &deadline,
             &AtomicBool::new(false),
         );
+        if parent_observation.is_err() {
+            let _ = tap_group.kill();
+        }
+        tap_group.drain_and_remove().unwrap();
         let server_result = server.join().unwrap();
         let began = Instant::now();
         let sdk_status = loop {
@@ -338,7 +345,10 @@ time.sleep(2)
         }
         server_result.unwrap();
         let (parent_observation, child_pin) = parent_observation.unwrap();
-        assert_eq!(child_pin.cgroup, native_pin.cgroup);
+        assert_eq!(
+            child_pin.cgroup,
+            "/system.slice/hol-gauntlet-rust-tap-edcba98765432101"
+        );
         assert_eq!(parent_observation.completed_tool_calls, 1);
         assert_eq!(parent_observation.events.len(), 2);
     }

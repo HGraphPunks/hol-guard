@@ -1,10 +1,10 @@
-//! Fixed inert cgroup-v2 child/grandchild kill-and-drain proof. The API cannot
-//! select candidate code, a command, a cgroup path or a production job ID.
+//! Fixed cgroup-v2 containment and kill-and-drain primitives. Probe entrypoints
+//! cannot select candidate code; the SDK tap group is derived from one run ID.
 
 use crate::{
-    interpreter_exec::spawn_contained_interpreter_probe, launch_plan::rust_controller_cgroup_path,
-    observe_cgroup_drain, process_reap::reap_probe_child_bounded, CgroupDrainState,
-    HeldInterpreter,
+    hex, interpreter_exec::spawn_contained_interpreter_probe,
+    launch_plan::rust_controller_cgroup_path, observe_cgroup_drain,
+    process_reap::reap_probe_child_bounded, CgroupDrainState, HeldInterpreter,
 };
 use rustix::fs::{
     fstat, mkdirat, open, openat, statat, unlinkat, AtFlags, FileType, Mode, OFlags, Stat,
@@ -30,6 +30,9 @@ const CPU_LIMIT: &str = "100000 100000\n";
 const CONTROLLER_MEMORY_LIMIT: &str = "4294967296\n";
 const CONTROLLER_PID_LIMIT: &str = "256\n";
 const CONTROLLER_CPU_LIMIT: &str = "100000 100000\n";
+const TAP_MEMORY_LIMIT: &str = "268435456\n";
+const TAP_PID_LIMIT: &str = "32\n";
+const TAP_CPU_LIMIT: &str = "50000 100000\n";
 const MAX_CONTROL_BYTES: usize = 4096;
 const POLL: Duration = Duration::from_millis(20);
 const WAIT: Duration = Duration::from_secs(3);
@@ -119,11 +122,52 @@ const CONTROLLER_LIMITS: GroupLimits = GroupLimits {
     cpu: CONTROLLER_CPU_LIMIT,
 };
 
+const TAP_LIMITS: GroupLimits = GroupLimits {
+    memory: TAP_MEMORY_LIMIT,
+    pids: TAP_PID_LIMIT,
+    cpu: TAP_CPU_LIMIT,
+};
+
 /// A Root-owned, job-ID-derived controller cgroup with a fixed 4-GiB,
 /// 256-PID, one-CPU profile. Dropping this handle never implies cleanup;
 /// terminal code must kill, drain and remove it under the active lease.
 pub struct OwnedJobCgroup {
     inner: OwnedProbeGroup,
+}
+
+/// Separate one-use Root-owned SDK tap cgroup. It is never an eligibility
+/// result, and dropping the handle never implies descendant cleanup.
+pub struct OwnedSdkTapCgroup {
+    inner: OwnedProbeGroup,
+}
+
+impl OwnedSdkTapCgroup {
+    pub fn create(run_id: &str) -> Result<Self, CgroupProbeError> {
+        if !hex(run_id, 16) {
+            return Err(CgroupProbeError::InvalidJobId);
+        }
+        let name = format!("hol-gauntlet-rust-tap-{run_id}");
+        let path = format!("/system.slice/{name}");
+        Ok(Self {
+            inner: OwnedProbeGroup::create_named(name, path, TAP_LIMITS)?,
+        })
+    }
+
+    pub fn path(&self) -> &str {
+        &self.inner.path
+    }
+
+    pub fn attach_child(&self, command: &mut Command) -> Result<(), CgroupProbeError> {
+        self.inner.attach_child(command)
+    }
+
+    pub fn kill(&self) -> Result<(), CgroupProbeError> {
+        self.inner.kill()
+    }
+
+    pub fn drain_and_remove(&mut self) -> Result<(), CgroupProbeError> {
+        self.inner.drain_and_remove()
+    }
 }
 
 impl OwnedJobCgroup {
