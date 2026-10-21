@@ -333,6 +333,9 @@ fn terminal_and_cleanup(
                 &record,
                 &report["live_kernel_activity"],
                 string(row, "controller_public_key_hex")?,
+                string(common, "source_sha")?,
+                string(common, "prefix_tree_sha256")?,
+                string(common, "version")?,
             )?;
         }
         if record_raw != read_one(run, role)? {

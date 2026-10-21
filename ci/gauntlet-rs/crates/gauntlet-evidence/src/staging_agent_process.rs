@@ -15,7 +15,7 @@ use crate::{
 use gauntlet_contracts::canonicalize;
 use rustix::process::geteuid;
 use serde_json::{json, Value};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 const STAGING: &str = "/var/lib/hol-gauntlet-rust/staging-state";
@@ -73,6 +73,101 @@ fn positive_decimal(raw: &str) -> Option<u64> {
         return None;
     }
     raw.parse::<u64>().ok().filter(|value| *value > 0)
+}
+
+fn private_mcp_kernel_identity(identity: &Value, controller: &Value, agent: &Value) -> bool {
+    let uid_slots = json!([10005, 10005, 10005, 10005]);
+    let zero = "0000000000000000";
+    let caps = json!({
+        "CapEff":zero,"CapPrm":zero,"CapInh":zero,"CapBnd":zero,"CapAmb":zero,
+    });
+    if identity["effective_uid"] != 10005
+        || identity["effective_gid"] != 10005
+        || identity["effective_capabilities"] != zero
+        || identity["no_new_privileges"] != 1
+        || identity["uid_slots"] != uid_slots
+        || identity["gid_slots"] != uid_slots
+        || (identity["supplementary_groups"] != json!([])
+            && identity["supplementary_groups"] != json!([10005]))
+        || identity["capability_sets"] != caps
+        || identity["boot_id"].as_str().is_none_or(str::is_empty)
+        || identity["boot_id"] != controller["boot_id"]
+        || identity["start_time"]
+            .as_str()
+            .and_then(positive_decimal)
+            .is_none()
+    {
+        return false;
+    }
+    ["mount_namespace", "pid_namespace", "network_namespace"]
+        .iter()
+        .all(|field| {
+            let value = identity[field].as_str();
+            value.is_some_and(|value| {
+                !value.is_empty()
+                    && controller[field]
+                        .as_str()
+                        .is_some_and(|other| other != value)
+                    && agent[field].as_str().is_some_and(|other| other != value)
+            })
+        })
+}
+
+fn private_mcp_mounts(value: &Value) -> bool {
+    let Some(mounts) = value.as_array() else {
+        return false;
+    };
+    if mounts.len() != 5 {
+        return false;
+    }
+    let mut destinations = BTreeMap::new();
+    for mount in mounts {
+        if !exact_keys(mount, &["source", "destination", "mode"]) {
+            return false;
+        }
+        for field in ["source", "destination"] {
+            let Some(path) = mount[field].as_str() else {
+                return false;
+            };
+            if !path.starts_with('/')
+                || path.split('/').any(|part| part == "..")
+                || path.chars().any(|ch| matches!(ch, '\0' | '\n' | ':'))
+            {
+                return false;
+            }
+        }
+        let Some(destination) = mount["destination"].as_str() else {
+            return false;
+        };
+        if destinations.insert(destination, mount).is_some() {
+            return false;
+        }
+    }
+    for (destination, mode) in [
+        ("/product/public", "ro"),
+        ("/product/home", "rw"),
+        ("/product/guard", "rw"),
+        ("/upstream", "ro"),
+    ] {
+        if destinations
+            .get(destination)
+            .is_none_or(|mount| mount["mode"] != mode)
+        {
+            return false;
+        }
+    }
+    let remaining: Vec<_> = destinations
+        .iter()
+        .filter(|(destination, _)| {
+            !matches!(
+                **destination,
+                "/product/public" | "/product/home" | "/product/guard" | "/upstream"
+            )
+        })
+        .collect();
+    remaining.len() == 1
+        && remaining[0].1["source"] == *remaining[0].0
+        && remaining[0].1["mode"] == "ro"
 }
 
 pub(crate) fn matching_agent_process(
@@ -287,20 +382,66 @@ fn matching_verified_native_mcp_processes(
     audit: &Value,
     activity: &Value,
     agent_container_id: &str,
+    agent_identity: &Value,
 ) -> Result<(String, usize)> {
-    if audit["kind"] != "isolated-native-mcp-observation"
+    if !exact_keys(
+        audit,
+        &[
+            "schema_version",
+            "kind",
+            "collected_at",
+            "product_plane",
+            "product_events_self_reported",
+            "product_claims_authenticated",
+            "transport_observations",
+            "active_children",
+            "active_sessions",
+            "qualification_eligible",
+        ],
+    ) || audit["kind"] != "isolated-native-mcp-observation"
         || audit["schema_version"] != "1.0"
+        || audit["collected_at"]
+            .as_u64()
+            .is_none_or(|value| value == 0)
         || audit["active_children"] != 0
         || audit["active_sessions"] != 0
         || audit["qualification_eligible"] != false
         || audit["product_claims_authenticated"] != false
+        || audit["product_events_self_reported"]
+            .as_array()
+            .is_none_or(|events| events.len() > 1_000)
     {
         return Err(INVALID);
     }
     let plane = &audit["product_plane"];
-    if plane["kind"] != "isolated-product-plane.v2"
+    if !exact_keys(
+        plane,
+        &[
+            "schema_version",
+            "kind",
+            "container",
+            "image_id",
+            "source_sha_expected",
+            "uid",
+            "prefix_digest",
+            "prefix_unchanged",
+            "controller_identity",
+            "observations",
+            "product_identity_claim",
+            "product_claims_authenticated",
+            "cleanup_complete",
+            "cleanup_errors",
+            "audit_error",
+            "qualification_eligible",
+        ],
+    ) || plane["kind"] != "isolated-product-plane.v2"
         || plane["schema_version"] != "2.0"
+        || plane["uid"] != 10005
+        || plane["prefix_unchanged"] != true
+        || plane["controller_identity"]["effective_uid"] != 0
         || plane["cleanup_complete"] != true
+        || plane["cleanup_errors"] != json!([])
+        || !plane["audit_error"].is_null()
         || plane["qualification_eligible"] != false
         || plane["product_claims_authenticated"] != false
         || plane["container"]
@@ -313,7 +454,18 @@ fn matching_verified_native_mcp_processes(
     if observations.len() != 3 || observations[0]["kind"] != "container-boundary" {
         return Err(INVALID);
     }
+    if !exact_keys(&observations[0], &["kind", "identity", "mounts"]) {
+        return Err(INVALID);
+    }
     let boundary_identity = &observations[0]["identity"];
+    if !private_mcp_kernel_identity(
+        boundary_identity,
+        &plane["controller_identity"],
+        agent_identity,
+    ) || !private_mcp_mounts(&observations[0]["mounts"])
+    {
+        return Err(INVALID);
+    }
     let boundary_start = boundary_identity["start_time"]
         .as_str()
         .and_then(positive_decimal)
@@ -337,10 +489,27 @@ fn matching_verified_native_mcp_processes(
         return Err(INVALID);
     }
     let mut proxy_pids = BTreeSet::new();
+    let mut proxies = BTreeMap::new();
     for observation in &observations[1..] {
-        if observation["kind"] != "proxy-process" {
+        if !exact_keys(
+            observation,
+            &[
+                "kind",
+                "session_id",
+                "family",
+                "host_exec_pid",
+                "product_pid",
+                "identity",
+            ],
+        ) || observation["kind"] != "proxy-process"
+        {
             return Err(INVALID);
         }
+        let session = observation["session_id"].as_str().ok_or(INVALID)?;
+        let host_exec_pid = observation["host_exec_pid"]
+            .as_u64()
+            .filter(|value| *value > 0)
+            .ok_or(INVALID)?;
         let pid = observation["product_pid"]
             .as_u64()
             .and_then(|value| u32::try_from(value).ok())
@@ -351,6 +520,14 @@ fn matching_verified_native_mcp_processes(
             .and_then(positive_decimal)
             .ok_or(INVALID)?;
         if !proxy_pids.insert(pid)
+            || proxies
+                .insert(session, (host_exec_pid, observation))
+                .is_some()
+            || !private_mcp_kernel_identity(
+                &observation["identity"],
+                &plane["controller_identity"],
+                agent_identity,
+            )
             || [
                 "boot_id",
                 "effective_uid",
@@ -379,6 +556,47 @@ fn matching_verified_native_mcp_processes(
             return Err(INVALID);
         }
     }
+    let events = audit["transport_observations"].as_array().ok_or(INVALID)?;
+    if events.is_empty() || events.len() > 100_000 {
+        return Err(INVALID);
+    }
+    let mut run_ids = BTreeSet::new();
+    let mut children = BTreeSet::new();
+    let mut authenticated_peers = 0_usize;
+    let mut forwarded_tool_calls = 0_usize;
+    for (index, event) in events.iter().enumerate() {
+        if event["sequence"].as_u64() != Some((index + 1) as u64) {
+            return Err(INVALID);
+        }
+        run_ids.insert(event["run_id"].as_str().ok_or(INVALID)?);
+        if event["kind"] == "peer-authenticated" {
+            if event["peer_uid"] != 10001 || event["allowed_uid"] != 10001 {
+                return Err(INVALID);
+            }
+            authenticated_peers += 1;
+        } else if event["kind"] == "forwarded" && event["message"]["method"] == "tools/call" {
+            forwarded_tool_calls += 1;
+        } else if event["kind"] == "child-started" {
+            let session = event["session_id"].as_str().ok_or(INVALID)?;
+            let (host_exec_pid, proxy) = proxies.get(session).ok_or(INVALID)?;
+            if !children.insert(session)
+                || event["backend"] != "isolated-product-uid10005"
+                || event["pid"] != *host_exec_pid
+                || event["product_pid"] != proxy["product_pid"]
+                || event["product_identity"] != proxy["identity"]
+                || event["family"] != proxy["family"]
+            {
+                return Err(INVALID);
+            }
+        }
+    }
+    if run_ids.len() != 1
+        || children.len() != proxies.len()
+        || authenticated_peers < children.len()
+        || forwarded_tool_calls == 0
+    {
+        return Err(INVALID);
+    }
     Ok((product_container_id.to_owned(), proxy_pids.len()))
 }
 
@@ -389,6 +607,9 @@ pub(crate) fn matching_native_mcp_processes(
     record: &Value,
     activity: &Value,
     outside_public_key_hex: &str,
+    outside_source_sha: &str,
+    outside_prefix_digest: &str,
+    outside_version: &str,
 ) -> Result<(String, usize)> {
     let (agent_container_id, _, _, _) = matching_agent_process(record, activity)?;
     if record["controller_public_key_hex"] != outside_public_key_hex {
@@ -399,7 +620,27 @@ pub(crate) fn matching_native_mcp_processes(
     let runtime = verify_controller_envelope(&runtime_envelope, &key)?;
     let audit_envelope = serde_json::to_vec(&runtime["native_mcp_audit"]).map_err(|_| INVALID)?;
     let audit = verify_controller_envelope(&audit_envelope, &key)?;
-    matching_verified_native_mcp_processes(&audit, activity, &agent_container_id)
+    if runtime["settings"]["source_sha"] != outside_source_sha
+        || runtime["settings"]["prefix_digest"] != outside_prefix_digest
+        || runtime["settings"]["package_version"] != outside_version
+        || runtime["settings"]["mcp_identity_profile"] != "private-cell-mcp-v2"
+        || audit["product_plane"]["source_sha_expected"] != outside_source_sha
+        || audit["product_plane"]["prefix_digest"] != outside_prefix_digest
+        || audit["product_plane"]["image_id"] != runtime["settings"]["mcp_image_id"]
+        || audit["product_plane"]["product_identity_claim"]["package_version"] != outside_version
+        || audit["product_plane"]["product_identity_claim"]["manifest"]["package_version"]
+            != outside_version
+        || audit["product_plane"]["product_identity_claim"]["capabilities"]["runtime_version"]
+            != outside_version
+    {
+        return Err(INVALID);
+    }
+    matching_verified_native_mcp_processes(
+        &audit,
+        activity,
+        &agent_container_id,
+        &record["agent_identity"],
+    )
 }
 
 /// The caller supplies the independently retained host prelaunch fields and
@@ -617,10 +858,32 @@ mod tests {
     fn native_mcp_children_require_one_distinct_sampled_product_scope() {
         let agent_id = "a".repeat(64);
         let product_id = "b".repeat(64);
+        let controller = json!({
+            "effective_uid":0,
+            "boot_id":"test-boot",
+            "mount_namespace":"mnt:[1]",
+            "network_namespace":"net:[1]",
+            "pid_namespace":"pid:[1]",
+        });
+        let agent = json!({
+            "boot_id":"test-boot",
+            "mount_namespace":"mnt:[2]",
+            "network_namespace":"net:[2]",
+            "pid_namespace":"pid:[2]",
+        });
         let identity = json!({
             "boot_id":"test-boot",
             "effective_uid":10005,
             "effective_gid":10005,
+            "effective_capabilities":"0000000000000000",
+            "capability_sets":{
+                "CapEff":"0000000000000000","CapPrm":"0000000000000000",
+                "CapInh":"0000000000000000","CapBnd":"0000000000000000",
+                "CapAmb":"0000000000000000",
+            },
+            "uid_slots":[10005,10005,10005,10005],
+            "gid_slots":[10005,10005,10005,10005],
+            "supplementary_groups":[10005],
             "mount_namespace":"mnt:[100]",
             "network_namespace":"net:[101]",
             "pid_namespace":"pid:[102]",
@@ -634,21 +897,46 @@ mod tests {
         let audit = json!({
             "kind":"isolated-native-mcp-observation",
             "schema_version":"1.0",
+            "collected_at":1,
             "active_children":0,
             "active_sessions":0,
             "qualification_eligible":false,
             "product_claims_authenticated":false,
+            "product_events_self_reported":[],
+            "transport_observations":[
+                {"kind":"ready","sequence":1,"run_id":"test-run"},
+                {"kind":"peer-authenticated","sequence":2,"run_id":"test-run","peer_uid":10001,"allowed_uid":10001},
+                {"kind":"peer-authenticated","sequence":3,"run_id":"test-run","peer_uid":10001,"allowed_uid":10001},
+                {"kind":"child-started","sequence":4,"run_id":"test-run","session_id":"first","backend":"isolated-product-uid10005","pid":21,"product_pid":12,"product_identity":first,"family":"docs"},
+                {"kind":"child-started","sequence":5,"run_id":"test-run","session_id":"second","backend":"isolated-product-uid10005","pid":22,"product_pid":13,"product_identity":second,"family":"mail"},
+                {"kind":"forwarded","sequence":6,"run_id":"test-run","message":{"method":"tools/call"}},
+            ],
             "product_plane":{
                 "kind":"isolated-product-plane.v2",
                 "schema_version":"2.0",
                 "container":"native-product-test",
+                "image_id":format!("sha256:{}", "c".repeat(64)),
+                "source_sha_expected":"a".repeat(40),
+                "uid":10005,
+                "prefix_digest":"b".repeat(64),
+                "prefix_unchanged":true,
+                "controller_identity":controller,
                 "cleanup_complete":true,
+                "cleanup_errors":[],
+                "audit_error":null,
                 "qualification_eligible":false,
                 "product_claims_authenticated":false,
+                "product_identity_claim":{},
                 "observations":[
-                    {"kind":"container-boundary","identity":identity},
-                    {"kind":"proxy-process","product_pid":12,"identity":first},
-                    {"kind":"proxy-process","product_pid":13,"identity":second},
+                    {"kind":"container-boundary","identity":identity,"mounts":[
+                        {"source":"/prefix","destination":"/prefix","mode":"ro"},
+                        {"source":"/source/public","destination":"/product/public","mode":"ro"},
+                        {"source":"/source/home","destination":"/product/home","mode":"rw"},
+                        {"source":"/source/guard","destination":"/product/guard","mode":"rw"},
+                        {"source":"/source/upstream","destination":"/upstream","mode":"ro"},
+                    ]},
+                    {"kind":"proxy-process","session_id":"first","family":"docs","host_exec_pid":21,"product_pid":12,"identity":first},
+                    {"kind":"proxy-process","session_id":"second","family":"mail","host_exec_pid":22,"product_pid":13,"identity":second},
                 ],
             },
         });
@@ -661,22 +949,68 @@ mod tests {
             ],
         });
         assert_eq!(
-            matching_verified_native_mcp_processes(&audit, &activity, &agent_id).unwrap(),
+            matching_verified_native_mcp_processes(&audit, &activity, &agent_id, &agent).unwrap(),
             (product_id.clone(), 2)
         );
         let mut wrong = audit.clone();
         wrong["product_plane"]["observations"][1]["identity"]["start_time"] = json!("104");
-        assert!(matching_verified_native_mcp_processes(&wrong, &activity, &agent_id).is_err());
+        assert!(
+            matching_verified_native_mcp_processes(&wrong, &activity, &agent_id, &agent).is_err()
+        );
         wrong = audit.clone();
         wrong["product_plane"]["observations"][2]["product_pid"] = json!(12);
-        assert!(matching_verified_native_mcp_processes(&wrong, &activity, &agent_id).is_err());
+        assert!(
+            matching_verified_native_mcp_processes(&wrong, &activity, &agent_id, &agent).is_err()
+        );
         wrong = audit.clone();
         wrong["product_plane"]["observations"][2]["identity"]["pid_namespace"] = json!("pid:[999]");
-        assert!(matching_verified_native_mcp_processes(&wrong, &activity, &agent_id).is_err());
+        assert!(
+            matching_verified_native_mcp_processes(&wrong, &activity, &agent_id, &agent).is_err()
+        );
+        wrong = audit.clone();
+        wrong["product_plane"]["observations"][0]["mounts"][0]["mode"] = json!("rw");
+        assert!(
+            matching_verified_native_mcp_processes(&wrong, &activity, &agent_id, &agent).is_err()
+        );
+        wrong = audit.clone();
+        wrong["product_plane"]["observations"][1]["identity"]["capability_sets"]["CapBnd"] =
+            json!("0000000000000001");
+        assert!(
+            matching_verified_native_mcp_processes(&wrong, &activity, &agent_id, &agent).is_err()
+        );
+        wrong = audit.clone();
+        wrong["transport_observations"][4]["sequence"] = json!(6);
+        assert!(
+            matching_verified_native_mcp_processes(&wrong, &activity, &agent_id, &agent).is_err()
+        );
+        wrong = audit.clone();
+        wrong["transport_observations"][4]["run_id"] = json!("other-run");
+        assert!(
+            matching_verified_native_mcp_processes(&wrong, &activity, &agent_id, &agent).is_err()
+        );
+        wrong = audit.clone();
+        wrong["transport_observations"][1]["peer_uid"] = json!(10005);
+        assert!(
+            matching_verified_native_mcp_processes(&wrong, &activity, &agent_id, &agent).is_err()
+        );
+        wrong = audit.clone();
+        wrong["transport_observations"][3]["product_identity"]["start_time"] = json!("999");
+        assert!(
+            matching_verified_native_mcp_processes(&wrong, &activity, &agent_id, &agent).is_err()
+        );
+        wrong = audit.clone();
+        wrong["transport_observations"]
+            .as_array_mut()
+            .unwrap()
+            .pop();
+        assert!(
+            matching_verified_native_mcp_processes(&wrong, &activity, &agent_id, &agent).is_err()
+        );
         let mut wrong_activity = activity.clone();
         wrong_activity["container_processes"][2]["container_id"] = json!(agent_id);
         assert!(
-            matching_verified_native_mcp_processes(&audit, &wrong_activity, &agent_id).is_err()
+            matching_verified_native_mcp_processes(&audit, &wrong_activity, &agent_id, &agent)
+                .is_err()
         );
     }
 }
