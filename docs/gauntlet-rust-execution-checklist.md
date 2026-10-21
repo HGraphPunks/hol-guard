@@ -30,6 +30,7 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
   - [x] Both readers refuse each of 13 altered role digests with the expected broad failure stage.
   - [x] Both readers refuse 13 independent path, kind, version, source, symlink, execute-bit, changed-byte and unsafe-metadata cases on the same v7 deployment; the reviewed proof asserts each expected reason stage.
   - [x] Nine static ARM64 Rust unit tests pass in the idle VM, including a deterministic file change after hashing starts.
+  - [x] The inert Linux reader refuses a visible root replacement after scanning and a symlink target change between read and containment. A native ARM64 container passed all 29 evidence unit tests, and the final file layout passed the ARM64 PR check on `65b63ed2`; see [tree race proof](gauntlet-rust-tree-race-proof.md). These two scheduled interleavings do not complete the race proof.
   - [ ] Prove directory/symlink swap races and complete Python/Rust reason-class parity across v1–v7 without execution admission.
 
   The positive retained-VM inventory above used the earlier supervisor generation. The optional Rust slice edit changed both the fresh controller tree digest and the embedded 36-file private-cell source-map digest; those old VM artifact pins cannot qualify the current prelaunch. Rebuild and independently pin source-matched private-cell artifacts before a live Rust job.
