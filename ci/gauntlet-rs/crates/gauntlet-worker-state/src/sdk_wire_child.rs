@@ -124,13 +124,15 @@ pub fn run_sdk_tap_child_once_ineligible(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::linux_process::{observe_process, parse_proc_stat};
-    use crate::sdk_wire_pipe::read_sdk_tap_frame_pipe_ineligible;
+    use crate::linux_process::parse_proc_stat;
+    use crate::sdk_wire_spawn::{
+        open_pinned_sdk_tap_executable_ineligible, run_pinned_sdk_tap_child_ineligible,
+    };
+    use crate::BoottimeDeadline;
     use rustix::fs::{chownat, fchown, AtFlags};
     use rustix::process::Gid;
     use std::fs::{self, File};
     use std::io::{Read, Write};
-    use std::os::fd::AsRawFd;
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
     use std::os::unix::net::UnixListener;
     use std::os::unix::process::CommandExt;
@@ -180,6 +182,7 @@ mod tests {
     fn root_launches_uid_10001_child_and_reparses_actual_forwarded_frames() {
         assert_eq!(geteuid().as_raw(), 0);
         let binary = std::env::var("GAUNTLET_SDK_TAP_TEST_BINARY").unwrap();
+        let binary_sha256 = std::env::var("GAUNTLET_SDK_TAP_TEST_SHA256").unwrap();
         let binary_metadata = fs::metadata(&binary).unwrap();
         assert_eq!(binary_metadata.uid(), 0);
         assert_eq!(binary_metadata.nlink(), 1);
@@ -241,60 +244,6 @@ time.sleep(2)
         let sdk_pin = pin_for(sdk_process.id());
         let ancestor_pin = pin_for(std::process::id());
         let native_pin = ancestor_pin.clone();
-        let (report_parent, report_child) = UnixStream::pair().unwrap();
-        report_parent
-            .set_read_timeout(Some(Duration::from_secs(10)))
-            .unwrap();
-        let passed_fds = [
-            sdk_connection.as_raw_fd(),
-            native_directory.as_raw_fd(),
-            report_child.as_raw_fd(),
-        ];
-        let mut command = Command::new(&binary);
-        command
-            .env_clear()
-            .arg("docs")
-            .arg(passed_fds[0].to_string())
-            .arg(passed_fds[1].to_string())
-            .arg(passed_fds[2].to_string())
-            .arg(sdk_pin.pid.to_string())
-            .arg(sdk_pin.start_ticks.to_string())
-            .arg(&sdk_pin.cgroup)
-            .arg(ancestor_pin.pid.to_string())
-            .arg(ancestor_pin.start_ticks.to_string())
-            .arg(&ancestor_pin.cgroup)
-            .arg(native_pin.pid.to_string())
-            .arg(native_pin.start_ticks.to_string())
-            .arg(&native_pin.cgroup)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped());
-        // SAFETY: the closure uses only fixed syscalls and captured integers
-        // after fork. It exposes the three selected held FDs to this one child,
-        // drops all supplementary groups and irrevocably drops Root before exec.
-        unsafe {
-            command.pre_exec(move || {
-                for fd in passed_fds {
-                    let flags = libc::fcntl(fd, libc::F_GETFD);
-                    if flags < 0 || libc::fcntl(fd, libc::F_SETFD, flags & !libc::FD_CLOEXEC) < 0 {
-                        return Err(std::io::Error::last_os_error());
-                    }
-                }
-                if libc::setgroups(0, std::ptr::null()) != 0
-                    || libc::setresgid(TAP_GID, TAP_GID, TAP_GID) != 0
-                    || libc::setresuid(TAP_UID, TAP_UID, TAP_UID) != 0
-                    || libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0
-                {
-                    return Err(std::io::Error::last_os_error());
-                }
-                Ok(())
-            });
-        }
-        let mut tap_child = command.spawn().unwrap();
-        let child_pin = pin_for(tap_child.id());
-        observe_process(child_pin.pid, child_pin.start_ticks, &child_pin.cgroup).unwrap();
-        drop(report_child);
-        drop(sdk_connection);
         let server = std::thread::spawn(move || -> Result<(), String> {
             native_listener
                 .set_nonblocking(true)
@@ -322,6 +271,7 @@ time.sleep(2)
             if observed != request {
                 return Err("Native frontdoor received changed request".to_owned());
             }
+            std::thread::sleep(Duration::from_millis(200));
             connection
                 .write_all(response)
                 .map_err(|error| error.to_string())?;
@@ -330,20 +280,40 @@ time.sleep(2)
                 .map_err(|error| error.to_string())?;
             Ok(())
         });
-        let parent_observation = read_sdk_tap_frame_pipe_ineligible(report_parent, "docs");
+        let executable =
+            open_pinned_sdk_tap_executable_ineligible(Path::new(&binary), &binary_sha256).unwrap();
+        assert!(
+            open_pinned_sdk_tap_executable_ineligible(Path::new(&binary), &"0".repeat(64)).is_err()
+        );
+        let deadline = BoottimeDeadline::start(10).unwrap();
+        let mut wrong_sdk = sdk_pin.clone();
+        wrong_sdk.start_ticks += 1;
+        assert!(run_pinned_sdk_tap_child_ineligible(
+            &executable,
+            sdk_connection.try_clone().unwrap(),
+            native_directory.try_clone().unwrap().into(),
+            "docs",
+            &wrong_sdk,
+            &ancestor_pin,
+            &native_pin,
+            &native_pin.cgroup,
+            &deadline,
+            &AtomicBool::new(false),
+        )
+        .is_err());
+        let parent_observation = run_pinned_sdk_tap_child_ineligible(
+            &executable,
+            sdk_connection,
+            native_directory.into(),
+            "docs",
+            &sdk_pin,
+            &ancestor_pin,
+            &native_pin,
+            &native_pin.cgroup,
+            &deadline,
+            &AtomicBool::new(false),
+        );
         let server_result = server.join().unwrap();
-        let began = Instant::now();
-        let status = loop {
-            if let Some(status) = tap_child.try_wait().unwrap() {
-                break status;
-            }
-            if began.elapsed() >= Duration::from_secs(10) {
-                tap_child.kill().unwrap();
-                tap_child.wait().unwrap();
-                panic!("SDK tap child exceeded test deadline");
-            }
-            std::thread::sleep(Duration::from_millis(20));
-        };
         let began = Instant::now();
         let sdk_status = loop {
             if let Some(status) = sdk_process.try_wait().unwrap() {
@@ -356,16 +326,6 @@ time.sleep(2)
             }
             std::thread::sleep(Duration::from_millis(20));
         };
-        if !status.success() {
-            let mut stderr = String::new();
-            tap_child
-                .stderr
-                .take()
-                .unwrap()
-                .read_to_string(&mut stderr)
-                .unwrap();
-            panic!("tap child exited {status}: {stderr}");
-        }
         if !sdk_status.success() {
             let mut stderr = String::new();
             sdk_process
@@ -377,7 +337,8 @@ time.sleep(2)
             panic!("SDK exited {sdk_status}: {stderr}");
         }
         server_result.unwrap();
-        let parent_observation = parent_observation.unwrap();
+        let (parent_observation, child_pin) = parent_observation.unwrap();
+        assert_eq!(child_pin.cgroup, native_pin.cgroup);
         assert_eq!(parent_observation.completed_tool_calls, 1);
         assert_eq!(parent_observation.events.len(), 2);
     }

@@ -204,6 +204,8 @@ mod sdk_wire_peer;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod sdk_wire_pipe;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod sdk_wire_spawn;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod sdk_wire_tap;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod staging_kernel_observer;
@@ -379,6 +381,11 @@ pub use sdk_wire_peer::{
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use sdk_wire_pipe::{read_sdk_tap_frame_pipe_ineligible, SdkTapFramePipeWriter};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use sdk_wire_spawn::{
+    open_pinned_sdk_tap_executable_ineligible, run_pinned_sdk_tap_child_ineligible,
+    HeldSdkTapExecutable,
+};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use sdk_wire_tap::{
     relay_bounded_sdk_mcp_pair_ineligible, relay_bounded_sdk_mcp_pair_with_frame_sink_ineligible,
