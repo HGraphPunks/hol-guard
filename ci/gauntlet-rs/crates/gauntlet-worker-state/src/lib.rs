@@ -110,6 +110,8 @@ mod candidate_host_anchor;
 mod candidate_result_read;
 mod candidate_wheel;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod candidate_wheel_stage;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod contained_probe;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod controller_exec;
@@ -229,6 +231,11 @@ pub use candidate_result_read::{
     CandidateResultReadError, CandidateResultReadProof, HostBoundCandidateResultPins,
 };
 pub use candidate_wheel::{inspect_candidate_wheel, CandidateWheelError, CandidateWheelProof};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use candidate_wheel_stage::{
+    materialize_captured_candidate_wheel_ineligible, CandidateWheelStageError,
+    CandidateWheelStageProof,
+};
 #[cfg(target_os = "linux")]
 pub use deadline::{BoottimeDeadline, DeadlineError, MAX_ACTIVE_SECONDS};
 #[cfg(target_os = "linux")]
