@@ -7,11 +7,11 @@ use crate::io::open_absolute_directory;
 use crate::python_worker_files::{private_directory, read_private_file};
 use crate::staging_control_record::read_one;
 use crate::staging_suite::{cgroup_targets, require_absent_cgroup};
-use crate::verify_controller_envelope;
 use crate::{
     observe_staging_physical_files_root_owned_ineligible, EvidenceError, Result,
     StagingEvidencePins,
 };
+use crate::{verify_controller_envelope, verify_product_kernel_identity};
 use gauntlet_contracts::canonicalize;
 use rustix::process::geteuid;
 use serde_json::{json, Value};
@@ -73,44 +73,6 @@ fn positive_decimal(raw: &str) -> Option<u64> {
         return None;
     }
     raw.parse::<u64>().ok().filter(|value| *value > 0)
-}
-
-fn private_mcp_kernel_identity(identity: &Value, controller: &Value, agent: &Value) -> bool {
-    let uid_slots = json!([10005, 10005, 10005, 10005]);
-    let zero = "0000000000000000";
-    let caps = json!({
-        "CapEff":zero,"CapPrm":zero,"CapInh":zero,"CapBnd":zero,"CapAmb":zero,
-    });
-    if identity["effective_uid"] != 10005
-        || identity["effective_gid"] != 10005
-        || identity["effective_capabilities"] != zero
-        || identity["no_new_privileges"] != 1
-        || identity["uid_slots"] != uid_slots
-        || identity["gid_slots"] != uid_slots
-        || (identity["supplementary_groups"] != json!([])
-            && identity["supplementary_groups"] != json!([10005]))
-        || identity["capability_sets"] != caps
-        || identity["boot_id"].as_str().is_none_or(str::is_empty)
-        || identity["boot_id"] != controller["boot_id"]
-        || identity["start_time"]
-            .as_str()
-            .and_then(positive_decimal)
-            .is_none()
-    {
-        return false;
-    }
-    ["mount_namespace", "pid_namespace", "network_namespace"]
-        .iter()
-        .all(|field| {
-            let value = identity[field].as_str();
-            value.is_some_and(|value| {
-                !value.is_empty()
-                    && controller[field]
-                        .as_str()
-                        .is_some_and(|other| other != value)
-                    && agent[field].as_str().is_some_and(|other| other != value)
-            })
-        })
 }
 
 fn private_mcp_mounts(value: &Value) -> bool {
@@ -458,11 +420,14 @@ fn matching_verified_native_mcp_processes(
         return Err(INVALID);
     }
     let boundary_identity = &observations[0]["identity"];
-    if !private_mcp_kernel_identity(
+    if verify_product_kernel_identity(
         boundary_identity,
         &plane["controller_identity"],
-        agent_identity,
-    ) || !private_mcp_mounts(&observations[0]["mounts"])
+        Some(agent_identity),
+        10005,
+    )
+    .is_err()
+        || !private_mcp_mounts(&observations[0]["mounts"])
     {
         return Err(INVALID);
     }
@@ -523,11 +488,13 @@ fn matching_verified_native_mcp_processes(
             || proxies
                 .insert(session, (host_exec_pid, observation))
                 .is_some()
-            || !private_mcp_kernel_identity(
+            || verify_product_kernel_identity(
                 &observation["identity"],
                 &plane["controller_identity"],
-                agent_identity,
+                Some(agent_identity),
+                10005,
             )
+            .is_err()
             || [
                 "boot_id",
                 "effective_uid",
