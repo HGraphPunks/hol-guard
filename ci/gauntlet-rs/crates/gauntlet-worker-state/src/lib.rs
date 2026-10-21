@@ -15,6 +15,7 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Component, Path};
 
 const MARKER_SCHEMA: &str = "hol-gauntlet-worker-started.v1";
+const KEYED_MARKER_SCHEMA: &str = "hol-gauntlet-worker-started.v2";
 const MAX_MARKER_BYTES: u64 = 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,6 +24,7 @@ pub struct StartedMarker {
     pub job_id: String,
     pub deployment_digest: String,
     pub worker_generation: String,
+    pub controller_public_key_hex: Option<String>,
     pub sha256: String,
 }
 
@@ -80,6 +82,8 @@ mod controller_exec;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod controller_install;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod controller_key;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod controller_run;
 #[cfg(target_os = "linux")]
 mod deadline;
@@ -97,6 +101,8 @@ pub use controller_exec::{
 pub use controller_install::{
     install_fixed_controller, ControllerInstallError, ControllerInstallProof,
 };
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use controller_key::ControllerKeyError;
 #[cfg(target_os = "linux")]
 mod deployment;
 #[cfg(target_os = "linux")]
@@ -333,7 +339,13 @@ impl RunReservationJournal {
         if self.root_owned {
             return Err(ReservationError::UnsafeRoot);
         }
-        self.reserve_internal(request, source_sha, deployment_digest, worker_generation)
+        self.reserve_internal(
+            request,
+            source_sha,
+            deployment_digest,
+            worker_generation,
+            None,
+        )
     }
 
     /// Persist an immutable, source/deployment/job-bound marker before any
@@ -344,8 +356,12 @@ impl RunReservationJournal {
         source_sha: &str,
         deployment_digest: &str,
         worker_generation: &str,
+        controller_public_key_hex: Option<&str>,
     ) -> Result<StartedMarker, ReservationError> {
         if !is_git_sha(source_sha) || !hex(worker_generation, 64) || !hex(deployment_digest, 64) {
+            return Err(ReservationError::InvalidPins);
+        }
+        if controller_public_key_hex.is_some_and(|key| !hex(key, 64)) {
             return Err(ReservationError::InvalidPins);
         }
         if request.action() != WorkerAction::Run
@@ -354,7 +370,7 @@ impl RunReservationJournal {
             return Err(ReservationError::WrongRequest);
         }
         let name = marker_name(request.job_id())?;
-        for suffix in ["running", "report", "terminal"] {
+        for suffix in ["running", "report", "terminal", "controller-key"] {
             let sidecar_name = format!("{}.{suffix}.json", request.job_id());
             match statat(&self.root, sidecar_name.as_str(), AtFlags::SYMLINK_NOFOLLOW) {
                 Ok(_) => return Err(ReservationError::AlreadyStarted),
@@ -362,13 +378,16 @@ impl RunReservationJournal {
                 Err(error) => return Err(io(error)),
             }
         }
-        let value = json!({
-            "schema": MARKER_SCHEMA,
+        let mut value = json!({
+            "schema": if controller_public_key_hex.is_some() { KEYED_MARKER_SCHEMA } else { MARKER_SCHEMA },
             "source_sha": source_sha,
             "job_id": request.job_id(),
             "deployment_digest": deployment_digest,
             "worker_generation": worker_generation,
         });
+        if let Some(key) = controller_public_key_hex {
+            value["controller_public_key_hex"] = json!(key);
+        }
         let bytes = canonicalize(value.to_string().as_bytes())
             .map_err(|_| ReservationError::InvalidMarker)?;
         if bytes.len() as u64 > MAX_MARKER_BYTES {
@@ -396,6 +415,7 @@ impl RunReservationJournal {
             job_id: request.job_id().to_owned(),
             deployment_digest: deployment_digest.to_owned(),
             worker_generation: worker_generation.to_owned(),
+            controller_public_key_hex: controller_public_key_hex.map(str::to_owned),
             sha256: format!("{:x}", Sha256::digest(bytes)),
         })
     }
@@ -423,9 +443,20 @@ impl RunReservationJournal {
         let value: Value =
             serde_json::from_slice(&bytes).map_err(|_| ReservationError::InvalidMarker)?;
         let fields = value.as_object().ok_or(ReservationError::InvalidMarker)?;
-        if fields.len() != 5
-            || value["schema"] != MARKER_SCHEMA
-            || value["job_id"] != job_id
+        let controller_public_key_hex = match value["schema"].as_str() {
+            Some(MARKER_SCHEMA) if fields.len() == 5 => None,
+            Some(KEYED_MARKER_SCHEMA) if fields.len() == 6 => {
+                let key = value["controller_public_key_hex"]
+                    .as_str()
+                    .ok_or(ReservationError::InvalidMarker)?;
+                if !hex(key, 64) {
+                    return Err(ReservationError::InvalidMarker);
+                }
+                Some(key.to_owned())
+            }
+            _ => return Err(ReservationError::InvalidMarker),
+        };
+        if value["job_id"] != job_id
             || value["source_sha"] != source_sha
             || value["deployment_digest"] != deployment_digest
             || value["worker_generation"] != worker_generation
@@ -437,6 +468,7 @@ impl RunReservationJournal {
             job_id: job_id.to_owned(),
             deployment_digest: deployment_digest.to_owned(),
             worker_generation: worker_generation.to_owned(),
+            controller_public_key_hex,
             sha256: format!("{:x}", Sha256::digest(bytes)),
         }))
     }

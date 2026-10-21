@@ -4,9 +4,13 @@
 //! slice and terminal reconciliation; spawning is not a benchmark verdict.
 
 use crate::contained_probe::{CgroupProbeError, OwnedJobCgroup};
+use crate::controller_key::{
+    pin_controller_key_under_lease, require_pinned_controller_key_under_lease, ControllerKeyError,
+    ControllerKeyPin, SealedControllerKey,
+};
 use crate::interpreter_exec::InterpreterExecError;
 use crate::launch_plan::{rust_controller_cgroup_path, rust_job_slice_name};
-use crate::linux_process::{observe_process, parse_proc_stat, ProcessObservationError};
+use crate::linux_process::ProcessObservationError;
 use crate::prelaunch::{PrelaunchError, PreparedLaunch};
 use crate::process_reap::reap_probe_child_bounded;
 use crate::{
@@ -17,26 +21,26 @@ use gauntlet_contracts::WorkerRequest;
 use rustix::fs::{fstat, fsync, openat, statat, AtFlags, Mode, OFlags};
 use rustix::io::Errno;
 use rustix::process::geteuid;
-use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::ffi::CString;
 use std::fmt;
 use std::fs::File;
 use std::io;
-use std::os::fd::{AsRawFd, OwnedFd};
+use std::os::fd::{AsRawFd, OwnedFd, RawFd};
 use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
-use std::thread;
-use std::time::{Duration, Instant};
 
 const MAX_ARGV: usize = 22;
 const ENV_KEYS: [&str; 4] = ["HOL_GAUNTLET_RUST_JOB_SLICE", "HOME", "LANG", "PATH"];
-const PROBE_JOB_ID: &str = "a1b2c3d4e5f60718";
-const PROBE_CODE: &str = "import os,time;os.fork();time.sleep(5)";
+const SIGNED_ENV_KEYS: [&str; 5] = [
+    "HOL_GAUNTLET_RUST_JOB_SLICE",
+    "HOL_GAUNTLET_RUST_SIGNING_KEY_FD",
+    "HOME",
+    "LANG",
+    "PATH",
+];
 const OUTPUT_DIRECTORY: &str = "/var/lib/hol-gauntlet/outputs";
-const POLL: Duration = Duration::from_millis(20);
-const WAIT: Duration = Duration::from_secs(3);
 
 #[derive(Debug)]
 pub enum ControllerExecError {
@@ -46,6 +50,7 @@ pub enum ControllerExecError {
     OutputExists,
     Prelaunch(PrelaunchError),
     Reservation(ReservationError),
+    ControllerKey(ControllerKeyError),
     Interpreter(InterpreterExecError),
     Cgroup(CgroupProbeError),
     Process(ProcessObservationError),
@@ -66,6 +71,7 @@ impl fmt::Display for ControllerExecError {
             Self::OutputExists => f.write_str("fixed benchmark output path already exists"),
             Self::Prelaunch(error) => write!(f, "prelaunch custody changed: {error}"),
             Self::Reservation(error) => write!(f, "worker reservation: {error}"),
+            Self::ControllerKey(error) => write!(f, "worker controller key: {error}"),
             Self::Interpreter(error) => write!(f, "interpreter execution: {error}"),
             Self::Cgroup(error) => write!(f, "controller cgroup: {error}"),
             Self::Process(error) => write!(f, "controller process identity: {error:?}"),
@@ -87,9 +93,15 @@ fn cstring(value: &str) -> Result<CString, ControllerExecError> {
 
 fn fixed_environment(
     environment: &BTreeMap<&'static str, String>,
+    signing_fd: Option<RawFd>,
 ) -> Result<Vec<CString>, ControllerExecError> {
-    if environment.len() != ENV_KEYS.len()
-        || environment.keys().copied().collect::<Vec<_>>() != ENV_KEYS
+    let keys = environment.keys().copied().collect::<Vec<_>>();
+    if (signing_fd.is_some() && keys != SIGNED_ENV_KEYS)
+        || (signing_fd.is_none() && keys != ENV_KEYS)
+        || signing_fd.is_some_and(|fd| {
+            !(3..=4096).contains(&fd)
+                || environment["HOL_GAUNTLET_RUST_SIGNING_KEY_FD"] != fd.to_string()
+        })
     {
         return Err(ControllerExecError::InvalidPlan);
     }
@@ -103,6 +115,10 @@ fn fixed_environment(
 #[path = "controller_exec_tests.rs"]
 mod tests;
 
+#[path = "controller_exec_probe.rs"]
+mod probe;
+pub use probe::{run_fixed_root_controller_exec_probe, RootControllerProbeProof};
+
 /// Replace `/usr/bin/false` before it can execute. All strings, pointers,
 /// descriptors and output handles are prepared in the parent. The child
 /// performs only fixed syscalls before `execveat(AT_EMPTY_PATH)`.
@@ -113,6 +129,7 @@ fn spawn_root_fd(
     environment: &BTreeMap<&'static str, String>,
     cwd: OwnedFd,
     cgroup_writer: OwnedFd,
+    signing_key: Option<&File>,
     stdout: Stdio,
     stderr: Stdio,
 ) -> Result<Child, ControllerExecError> {
@@ -124,7 +141,8 @@ fn spawn_root_fd(
         .iter()
         .map(|value| cstring(value))
         .collect::<Result<_, _>>()?;
-    let env = fixed_environment(environment)?;
+    let signing_fd = signing_key.map(AsRawFd::as_raw_fd);
+    let env = fixed_environment(environment, signing_fd)?;
     let argument_ptrs: Vec<usize> = args.iter().map(|value| value.as_ptr() as usize).collect();
     let environment_ptrs: Vec<usize> = env.iter().map(|value| value.as_ptr() as usize).collect();
     let executable = interpreter
@@ -176,11 +194,20 @@ fn spawn_root_fd(
                 return Err(io::Error::last_os_error());
             }
             libc::umask(0o077);
+            if let Some(fd) = signing_fd {
+                let flags = libc::fcntl(fd, libc::F_GETFD);
+                if flags < 0
+                    || flags & libc::FD_CLOEXEC == 0
+                    || libc::fcntl(fd, libc::F_SETFD, flags & !libc::FD_CLOEXEC) < 0
+                {
+                    return Err(io::Error::last_os_error());
+                }
+            }
             let mut argv_ptrs = [std::ptr::null(); MAX_ARGV + 1];
             for (slot, pointer) in argv_ptrs.iter_mut().zip(&argument_ptrs) {
                 *slot = *pointer as *const libc::c_char;
             }
-            let mut env_ptrs = [std::ptr::null(); ENV_KEYS.len() + 1];
+            let mut env_ptrs = [std::ptr::null(); SIGNED_ENV_KEYS.len() + 1];
             for (slot, pointer) in env_ptrs.iter_mut().zip(&environment_ptrs) {
                 *slot = *pointer as *const libc::c_char;
             }
@@ -210,7 +237,7 @@ pub(crate) fn spawn_prepared_controller(
     lease: &ActiveLease,
     request: &WorkerRequest,
     worker_generation: &str,
-) -> Result<(Child, StartedMarker), ControllerExecError> {
+) -> Result<(Child, StartedMarker, ControllerKeyPin), ControllerExecError> {
     if geteuid().as_raw() != 0 {
         return Err(ControllerExecError::RootRequired);
     }
@@ -241,26 +268,37 @@ pub(crate) fn spawn_prepared_controller(
     let deployment_digest = request
         .deployment_digest()
         .ok_or(ControllerExecError::InvalidPlan)?;
+    let signing_key =
+        SealedControllerKey::generate().map_err(ControllerExecError::ControllerKey)?;
     let started = journal
-        .reserve_under_lease(
+        .reserve_keyed_under_lease(
             lease,
             request,
             request.source_sha(),
             deployment_digest,
             worker_generation,
+            signing_key.public_key_hex(),
         )
         .map_err(ControllerExecError::Reservation)?;
+    let pin = pin_controller_key_under_lease(journal, lease, &started, &signing_key)
+        .map_err(ControllerExecError::ControllerKey)?;
     require_fresh_output(request.job_id())?;
     let log = open_fixed_log(request.job_id(), &plan.fixed().log_path)?;
     let cwd = open_root_owned_public_directory(Path::new(&plan.fixed().cwd))
         .map_err(|_| ControllerExecError::InvalidPlan)?;
     let writer = group.writer().map_err(ControllerExecError::Cgroup)?;
+    let mut environment = plan.environment();
+    environment.insert(
+        "HOL_GAUNTLET_RUST_SIGNING_KEY_FD",
+        signing_key.fd().as_raw_fd().to_string(),
+    );
     let mut child = spawn_root_fd(
         prepared.interpreter(),
         &plan.fixed().argv,
-        &plan.environment(),
+        &environment,
         cwd,
         writer,
+        Some(signing_key.fd()),
         Stdio::from(
             log.try_clone()
                 .map_err(|_| ControllerExecError::UnsafeLog)?,
@@ -277,6 +315,10 @@ pub(crate) fn spawn_prepared_controller(
             lease
                 .verify(&journal.root)
                 .map_err(ControllerExecError::Reservation)
+        })
+        .and_then(|()| {
+            require_pinned_controller_key_under_lease(journal, lease, &started, &pin)
+                .map_err(ControllerExecError::ControllerKey)
         })
         .and_then(|()| {
             let retained = journal
@@ -303,7 +345,7 @@ pub(crate) fn spawn_prepared_controller(
         }
         return Err(ControllerExecError::PostLaunch(Box::new(error)));
     }
-    Ok((child, started))
+    Ok((child, started, pin))
 }
 
 fn require_absent_child(output: &OwnedFd, name: &str) -> Result<(), ControllerExecError> {
@@ -345,154 +387,4 @@ fn open_fixed_log(job_id: &str, declared_path: &str) -> Result<File, ControllerE
     fsync(&descriptor).map_err(|_| ControllerExecError::UnsafeLog)?;
     fsync(&output).map_err(|_| ControllerExecError::UnsafeLog)?;
     Ok(File::from(descriptor))
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RootControllerProbeProof {
-    pub cgroup: String,
-    pub observed_tasks: u64,
-    pub interpreter_sha256: String,
-    pub pid: u32,
-    pub start_ticks: u64,
-}
-
-impl RootControllerProbeProof {
-    pub fn to_json(&self) -> Value {
-        json!({
-            "schema":"hol-gauntlet-root-controller-exec-probe.v1",
-            "job_id":PROBE_JOB_ID,
-            "cgroup":self.cgroup,
-            "observed_tasks":self.observed_tasks,
-            "interpreter_sha256":self.interpreter_sha256,
-            "pid":self.pid,
-            "process_start_ticks":self.start_ticks,
-            "root_uid_kernel_observed":true,
-            "no_new_privileges_kernel_observed":true,
-            "execveat_fd_bound":true,
-            "resource_profile":{"memory_max":4294967296_u64,"pids_max":256,"cpu_max":"100000 100000"},
-            "recursive_kill_written":true,
-            "drained_observed":true,
-            "cgroup_removed":true,
-            "controller_executed":false,
-            "benchmark_executed":false,
-            "execution_eligible":false,
-        })
-    }
-}
-
-fn observe_root_probe_child(pid: u32, cgroup: &str) -> Result<u64, ControllerExecError> {
-    let stat = std::fs::read(format!("/proc/{pid}/stat"))
-        .map_err(|_| ControllerExecError::ChildIdentityUnknown)?;
-    let ticks = parse_proc_stat(&stat, pid)
-        .ok_or(ControllerExecError::ChildIdentityUnknown)?
-        .start_ticks;
-    observe_process(pid, ticks, cgroup).map_err(ControllerExecError::Process)?;
-    let status = std::fs::read_to_string(format!("/proc/{pid}/status"))
-        .map_err(|_| ControllerExecError::ChildIdentityUnknown)?;
-    let uid = status.lines().find(|line| line.starts_with("Uid:"));
-    let no_new_privs = status.lines().find(|line| line.starts_with("NoNewPrivs:"));
-    if uid.map(|line| line.split_ascii_whitespace().collect::<Vec<_>>())
-        != Some(vec!["Uid:", "0", "0", "0", "0"])
-        || no_new_privs.map(|line| line.split_ascii_whitespace().collect::<Vec<_>>())
-            != Some(vec!["NoNewPrivs:", "1"])
-    {
-        return Err(ControllerExecError::ChildIdentityUnknown);
-    }
-    observe_process(pid, ticks, cgroup).map_err(ControllerExecError::Process)?;
-    Ok(ticks)
-}
-
-/// Fixed inert proof of the same Root `execveat` syscall path that a future
-/// prepared controller will use. It does not import any controller code.
-pub fn run_fixed_root_controller_exec_probe(
-    interpreter: &HeldInterpreter,
-) -> Result<RootControllerProbeProof, ControllerExecError> {
-    if geteuid().as_raw() != 0 {
-        return Err(ControllerExecError::RootRequired);
-    }
-    let mut group = OwnedJobCgroup::create(PROBE_JOB_ID).map_err(ControllerExecError::Cgroup)?;
-    let cgroup = group.path().to_owned();
-    let argv = vec![
-        interpreter.declaration().python_path.clone(),
-        "-I".to_owned(),
-        "-S".to_owned(),
-        "-B".to_owned(),
-        "-c".to_owned(),
-        PROBE_CODE.to_owned(),
-    ];
-    let environment = BTreeMap::from([
-        ("PATH", "/usr/bin:/bin".to_owned()),
-        ("LANG", "C.UTF-8".to_owned()),
-        ("HOME", "/root".to_owned()),
-        (
-            "HOL_GAUNTLET_RUST_JOB_SLICE",
-            format!("holgauntletrust{PROBE_JOB_ID}.slice"),
-        ),
-    ]);
-    let cwd = match open_root_owned_public_directory(Path::new("/")) {
-        Ok(cwd) => cwd,
-        Err(_) => {
-            group
-                .drain_and_remove()
-                .map_err(ControllerExecError::Cgroup)?;
-            return Err(ControllerExecError::InvalidPlan);
-        }
-    };
-    let writer = match group.writer() {
-        Ok(writer) => writer,
-        Err(error) => {
-            group
-                .drain_and_remove()
-                .map_err(ControllerExecError::Cgroup)?;
-            return Err(ControllerExecError::Cgroup(error));
-        }
-    };
-    let mut child = match spawn_root_fd(
-        interpreter,
-        &argv,
-        &environment,
-        cwd,
-        writer,
-        Stdio::null(),
-        Stdio::null(),
-    ) {
-        Ok(child) => child,
-        Err(error) => {
-            group
-                .drain_and_remove()
-                .map_err(ControllerExecError::Cgroup)?;
-            return Err(error);
-        }
-    };
-    let started = Instant::now();
-    let observed_tasks = loop {
-        match group.tasks() {
-            Ok(tasks) if tasks >= 2 => break Ok(tasks),
-            Ok(_) if started.elapsed() < WAIT => thread::sleep(POLL),
-            Ok(_) => break Err(ControllerExecError::ChildIdentityUnknown),
-            Err(error) => break Err(ControllerExecError::Cgroup(error)),
-        }
-    };
-    let identity = observe_root_probe_child(child.id(), &cgroup);
-    let killed = group.kill().map_err(ControllerExecError::Cgroup);
-    let reaped = reap_probe_child_bounded(&mut child).map_err(ControllerExecError::Cgroup);
-    let drained = group
-        .drain_and_remove()
-        .map_err(ControllerExecError::Cgroup);
-    let interpreter_unchanged = interpreter
-        .assert_unchanged()
-        .map_err(|_| ControllerExecError::Interpreter(InterpreterExecError::InvalidInterpreter));
-    let observed_tasks = observed_tasks?;
-    let start_ticks = identity?;
-    killed?;
-    reaped?;
-    drained?;
-    interpreter_unchanged?;
-    Ok(RootControllerProbeProof {
-        cgroup,
-        observed_tasks,
-        interpreter_sha256: interpreter.declaration().sha256.clone(),
-        pid: child.id(),
-        start_ticks,
-    })
 }

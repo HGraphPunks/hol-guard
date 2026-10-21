@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn controller_environment_accepts_only_the_four_fixed_keys() {
+fn controller_environment_accepts_only_the_fixed_keys_and_exact_signing_fd() {
     let mut environment = BTreeMap::from([
         (
             "HOL_GAUNTLET_RUST_JOB_SLICE",
@@ -11,16 +11,21 @@ fn controller_environment_accepts_only_the_four_fixed_keys() {
         ("LANG", "C.UTF-8".to_owned()),
         ("PATH", "/usr/bin:/bin".to_owned()),
     ]);
-    assert_eq!(fixed_environment(&environment).unwrap().len(), 4);
+    assert_eq!(fixed_environment(&environment, None).unwrap().len(), 4);
+    environment.insert("HOL_GAUNTLET_RUST_SIGNING_KEY_FD", "9".to_owned());
+    assert_eq!(fixed_environment(&environment, Some(9)).unwrap().len(), 5);
+    assert!(fixed_environment(&environment, Some(10)).is_err());
+    assert!(fixed_environment(&environment, None).is_err());
+    environment.remove("HOL_GAUNTLET_RUST_SIGNING_KEY_FD");
     environment.remove("HOME");
     assert!(matches!(
-        fixed_environment(&environment),
+        fixed_environment(&environment, None),
         Err(ControllerExecError::InvalidPlan)
     ));
     environment.insert("HOME", "/root".to_owned());
     environment.insert("UNTRUSTED", "value".to_owned());
     assert!(matches!(
-        fixed_environment(&environment),
+        fixed_environment(&environment, None),
         Err(ControllerExecError::InvalidPlan)
     ));
 }

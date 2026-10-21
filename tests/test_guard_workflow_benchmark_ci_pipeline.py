@@ -2,6 +2,8 @@
 from contextlib import nullcontext
 import hashlib
 import json
+import os
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 import xml.etree.ElementTree as ET
@@ -14,6 +16,47 @@ from ci.gauntlet.benchmark.beta_profile import (
 from ci.gauntlet.benchmark.contracts import canonical_json
 
 SHA = '9'*40
+
+
+def test_rust_worker_key_descriptor_is_opt_in_and_rejects_text_selectors(monkeypatch):
+    monkeypatch.delenv('HOL_GAUNTLET_RUST_SIGNING_KEY_FD', raising=False)
+    assert pipeline._rust_worker_signing_key('deterministic') is None
+    monkeypatch.setenv('HOL_GAUNTLET_RUST_SIGNING_KEY_FD', '3;python')
+    with pytest.raises(ValueError, match='signing-key descriptor'):
+        pipeline._rust_worker_signing_key('deterministic')
+    assert 'HOL_GAUNTLET_RUST_SIGNING_KEY_FD' not in os.environ
+
+
+@pytest.mark.skipif(sys.platform != 'linux' or os.geteuid() != 0,
+                    reason='sealed Root memfd requires Linux Root')
+def test_rust_worker_key_requires_a_sealed_single_use_root_fd(monkeypatch):
+    import fcntl
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    seed = bytes(range(32))
+    required = (fcntl.F_SEAL_SEAL | fcntl.F_SEAL_SHRINK |
+                fcntl.F_SEAL_GROW | fcntl.F_SEAL_WRITE)
+    fd = os.memfd_create('gauntlet-test-key', os.MFD_ALLOW_SEALING | os.MFD_CLOEXEC)
+    os.write(fd, seed)
+    os.lseek(fd, 0, os.SEEK_SET)
+    monkeypatch.setenv('HOL_GAUNTLET_RUST_SIGNING_KEY_FD', str(fd))
+    with pytest.raises(ValueError, match='sealed Root-owned'):
+        pipeline._rust_worker_signing_key('deterministic')
+    with pytest.raises(OSError):
+        os.fstat(fd)
+
+    fd = os.memfd_create('gauntlet-test-key', os.MFD_ALLOW_SEALING | os.MFD_CLOEXEC)
+    os.write(fd, seed)
+    os.lseek(fd, 0, os.SEEK_SET)
+    fcntl.fcntl(fd, fcntl.F_ADD_SEALS, required)
+    monkeypatch.setenv('HOL_GAUNTLET_RUST_SIGNING_KEY_FD', str(fd))
+    key = pipeline._rust_worker_signing_key('deterministic')
+    assert isinstance(key, Ed25519PrivateKey)
+    assert key.public_key().public_bytes_raw() == (
+        Ed25519PrivateKey.from_private_bytes(seed).public_key().public_bytes_raw())
+    assert 'HOL_GAUNTLET_RUST_SIGNING_KEY_FD' not in os.environ
+    with pytest.raises(OSError):
+        os.fstat(fd)
 
 
 def loaded():

@@ -56,7 +56,8 @@ def test_embedded_peer_and_kernel_probes_remain_valid_python():
 
 
 @pytest.mark.parametrize('bad_role', [None, *ROLES])
-def test_profile_retains_every_required_case_on_failure(package, tmp_path, monkeypatch, bad_role):
+@pytest.mark.parametrize('external_key', [False, True])
+def test_profile_retains_every_required_case_on_failure(package, tmp_path, monkeypatch, bad_role, external_key):
     from ci.gauntlet.benchmark import deterministic as module
     from ci.gauntlet.benchmark import deterministic_control, local_campaign_custody
     # Unit orchestration only: genuine captured controls supply signed inputs;
@@ -68,7 +69,9 @@ def test_profile_retains_every_required_case_on_failure(package, tmp_path, monke
     def private(root, **kwargs):
         root.mkdir(mode=0o700)
         return root
-    def control(root, _loaded, role):
+    pinned_key = object() if external_key else None
+    def control(root, _loaded, role, *, controller_key=None):
+        assert controller_key is pinned_key
         root.mkdir()
         record = deepcopy(package['controls']['success' if role=='injection' else role]['record'])
         if role == bad_role:
@@ -85,7 +88,7 @@ def test_profile_retains_every_required_case_on_failure(package, tmp_path, monke
                        public_key=record['controller_public_key_hex'], expected=expected)
         return {'episode_id':role, 'status':'passed', 'reasons':[]}
     monkeypatch.setattr(module, 'evaluate_control', interpreted)
-    result = module.run_profile(loaded, tmp_path/'state')
+    result = module.run_profile(loaded, tmp_path/'state', controller_key=pinned_key)
     assert len(result['cells']) == len(ROLES)
     assert {row['episode_id'] for row in result['cells']} == set(ROLES)
     assert result['model_tokens'] == result['model_requests'] == 0

@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import signal
 import stat
+import sys
 import threading
 
 from . import ci_runner, deterministic
@@ -15,6 +16,35 @@ from .beta_profile import build_feature_ai_profile, build_profile, feature_ai_pr
 from .ci_gate_report import write_gate_artifacts
 from .ci_runner_config import file_digest, load_config, read_public
 from .contracts import canonical_json
+
+
+def _rust_worker_signing_key(profile):
+    """Consume the fixed sealed FD once; Python-worker runs have no such FD."""
+    raw = os.environ.pop('HOL_GAUNTLET_RUST_SIGNING_KEY_FD', None)
+    if raw is None:
+        return None
+    if profile != 'deterministic' or sys.platform != 'linux' or not re.fullmatch(r'[0-9]{1,4}', raw):
+        raise ValueError('invalid Rust worker signing-key descriptor')
+    fd = int(raw)
+    if fd < 3 or fd > 4096:
+        raise ValueError('invalid Rust worker signing-key descriptor')
+    try:
+        import fcntl
+        info = os.fstat(fd)
+        seals = fcntl.fcntl(fd, fcntl.F_GET_SEALS)
+        required = (fcntl.F_SEAL_SEAL | fcntl.F_SEAL_SHRINK |
+                    fcntl.F_SEAL_GROW | fcntl.F_SEAL_WRITE)
+        if (os.geteuid() != 0 or not stat.S_ISREG(info.st_mode) or info.st_uid != 0
+                or info.st_nlink != 0 or info.st_size != 32 or seals & required != required
+                or os.lseek(fd, 0, os.SEEK_CUR) != 0):
+            raise ValueError('sealed Root-owned Rust worker signing key required')
+        seed = os.read(fd, 33)
+        if len(seed) != 32:
+            raise ValueError('invalid Rust worker signing-key bytes')
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        return Ed25519PrivateKey.from_private_bytes(seed)
+    finally:
+        os.close(fd)
 
 
 @contextmanager
@@ -187,6 +217,7 @@ def main(args):
         output_created = True
         loaded = load_config(args.config, expected_digest=args.expected_config_digest, asset_root=args.asset_root)
         validate_profile(loaded, args.profile, args.expected_guard_source_sha)
+        rust_worker_key = _rust_worker_signing_key(args.profile)
         record('invocation', {'profile': args.profile, 'runner_config_digest': loaded['config_digest'],
             'expected_guard_source_sha': args.expected_guard_source_sha,
             'config': str(args.config), 'asset_root': str(args.asset_root),
@@ -195,7 +226,10 @@ def main(args):
         with vm_lease():
             root = ci_runner.private_state(args.state_root, create=True, immutable_ancestry=True)
             if args.profile == 'deterministic':
-                result = deterministic.run_profile(loaded, root/'d')
+                if rust_worker_key is None:
+                    result = deterministic.run_profile(loaded, root/'d')
+                else:
+                    result = deterministic.run_profile(loaded, root/'d', controller_key=rust_worker_key)
                 record('deterministic', result)
             else:
                 result, pin, usage_known = run_live(loaded, root, record, args.profile)

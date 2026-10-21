@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from .deterministic_probes import Lifecycle, seed_fixture, seed_canaries, binding_negatives, forbidden_command
 
-def run_control(ROOT, loaded, role):
+def run_control(ROOT, loaded, role, *, controller_key=None):
     ROOT.mkdir(mode=448)
     CELL = ROOT / 'product/builtin-product'
     CUSTODY = ROOT / 'tasks'
@@ -40,7 +40,9 @@ def run_control(ROOT, loaded, role):
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
         from ci.gauntlet.benchmark.developer_resources import DeveloperInputContext
         from ci.gauntlet.benchmark.developer_product_runtime import DeveloperProductRuntime
-        key = Ed25519PrivateKey.generate()
+        if controller_key is not None and not isinstance(controller_key, Ed25519PrivateKey):
+            raise ValueError('Rust worker controller key must be Ed25519')
+        key = controller_key if controller_key is not None else Ed25519PrivateKey.generate()
         record['controller_public_key_hex'] = key.public_key().public_bytes_raw().hex()
         inputs = DeveloperInputContext(ROOT, key, 'python-cli-with-tests',
             'text-injection' if role=='injection' else 'clean', None, 240, 4,

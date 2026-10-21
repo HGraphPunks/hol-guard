@@ -328,6 +328,7 @@ dependencies = [
  "gauntlet-contracts",
  "gauntlet-evidence",
  "libc",
+ "ring",
  "rustix",
  "serde_json",
  "sha2",

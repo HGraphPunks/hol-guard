@@ -89,6 +89,27 @@
       "sha256": "6b31150f68673fe90a88130331a10578d8bcfec0c7962aa8149232a1fdd68e26"
     },
     {
+      "base_sha256": "a95c3c36078bf4f9c02c6dbdb3a65b933eb16d215e7e34dc70f07d8292258fb6",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/benchmark/ci_pipeline.py",
+      "phase": 4,
+      "sha256": "ff3ece762f411439385fff86cc9ac017203f93a0ba0e4e63bae16ceceae2529b"
+    },
+    {
+      "base_sha256": "881aac633bb4a8c211165d37f3860fed6655c0dbc8395552fd75baeab6a3e879",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/benchmark/deterministic.py",
+      "phase": 4,
+      "sha256": "e819cf846a62506a3b3523f4b6471d3fb5f85c117578fafc5a1746ef925b06ae"
+    },
+    {
+      "base_sha256": "b5cb9c43f4138fa1fe890a3fc3cfac3b025742fdd402149370cf1a383bc72671",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/benchmark/deterministic_control.py",
+      "phase": 4,
+      "sha256": "138160dc6daa77d1fed591f73cab240b0f3824529dcbb337f7ebb8bce6fc4777"
+    },
+    {
       "base_sha256": "af2fa2036419ca3d927d9f3059e9f3e3f2bd3d8cb7be200c4a021c31137cd8c5",
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/benchmark/product_cell_supervisor.py",

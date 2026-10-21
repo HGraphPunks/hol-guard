@@ -99,7 +99,38 @@ impl RunReservationJournal {
             return Err(ReservationError::UnsafeRoot);
         }
         lease.verify(&self.root)?;
-        self.reserve_internal(request, source_sha, deployment_digest, worker_generation)
+        self.reserve_internal(
+            request,
+            source_sha,
+            deployment_digest,
+            worker_generation,
+            None,
+        )
+    }
+
+    /// The Rust-owned deterministic path anchors its public signing key in
+    /// the immutable started marker before any controller process exists.
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    pub(crate) fn reserve_keyed_under_lease(
+        &self,
+        lease: &ActiveLease,
+        request: &WorkerRequest,
+        source_sha: &str,
+        deployment_digest: &str,
+        worker_generation: &str,
+        controller_public_key_hex: &str,
+    ) -> Result<StartedMarker, ReservationError> {
+        if !self.root_owned {
+            return Err(ReservationError::UnsafeRoot);
+        }
+        lease.verify(&self.root)?;
+        self.reserve_internal(
+            request,
+            source_sha,
+            deployment_digest,
+            worker_generation,
+            Some(controller_public_key_hex),
+        )
     }
 
     /// The same lease must cover durable terminal writing and cleanup.

@@ -78,7 +78,7 @@ def evaluate_control(role, record, expected):
     return row
 
 
-def run_profile(loaded, root):
+def run_profile(loaded, root, *, controller_key=None):
     from .deterministic_control import run_control
     from .local_campaign_custody import freeze_isolation
     root = Path(root)
@@ -104,7 +104,8 @@ def run_profile(loaded, root):
             expected = read_public(loaded['paths']['conformance'])['runtime']
             for role in ROLES:
                 control_started = time.monotonic()
-                record = run_control(root/role, loaded, role)
+                record = (run_control(root/role, loaded, role) if controller_key is None else
+                          run_control(root/role, loaded, role, controller_key=controller_key))
                 row = evaluate_control(role, record, expected)
                 row['elapsed_seconds'] = time.monotonic()-control_started
                 row['record_sha256'] = hashlib.sha256((root/role/'control.json').read_bytes()).hexdigest()

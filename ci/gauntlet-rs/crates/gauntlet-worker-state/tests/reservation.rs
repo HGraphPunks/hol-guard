@@ -134,8 +134,8 @@ fn symlink_or_terminal_receipt_never_authorizes_another_run() {
 }
 
 #[test]
-fn orphan_running_report_or_terminal_sidecar_blocks_a_new_reservation() {
-    for suffix in ["running", "report", "terminal"] {
+fn orphan_running_report_terminal_or_key_sidecar_blocks_a_new_reservation() {
+    for suffix in ["running", "report", "terminal", "controller-key"] {
         let temporary = tempfile::tempdir().unwrap();
         let root = temporary.path().canonicalize().unwrap();
         fs::write(root.join(format!("{JOB}.{suffix}.json")), b"incomplete").unwrap();

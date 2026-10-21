@@ -3,6 +3,7 @@
 
 use crate::contained_probe::{CgroupProbeError, OwnedJobCgroup};
 use crate::controller_exec::{spawn_prepared_controller, ControllerExecError};
+use crate::controller_key::{require_pinned_controller_key_under_lease, ControllerKeyError};
 use crate::deadline::{BoottimeDeadline, DeadlineError};
 use crate::linux_process::{observe_process, parse_proc_stat, ProcessObservationError};
 use crate::prelaunch::PreparedLaunch;
@@ -26,6 +27,7 @@ pub(crate) enum ControllerRunError {
     Lease(ReservationError),
     Cgroup(CgroupProbeError),
     Launch(ControllerExecError),
+    ControllerKey(ControllerKeyError),
     PostRunCustody(crate::prelaunch::PrelaunchError),
     Report(EvidenceError),
     Identity(ProcessObservationError),
@@ -41,6 +43,7 @@ impl std::fmt::Display for ControllerRunError {
             Self::Lease(error) => write!(f, "worker lease or running marker: {error}"),
             Self::Cgroup(error) => write!(f, "controller cgroup: {error}"),
             Self::Launch(error) => write!(f, "controller launch: {error}"),
+            Self::ControllerKey(error) => write!(f, "controller public-key custody: {error}"),
             Self::PostRunCustody(error) => write!(f, "post-run input custody: {error}"),
             Self::Report(error) => write!(f, "controller report: {error}"),
             Self::Identity(error) => write!(f, "controller process identity: {error:?}"),
@@ -66,6 +69,8 @@ enum WaitOutcome {
 pub(crate) struct ControllerRunObservation {
     pub(crate) process: ProcessIdentity,
     pub(crate) started_marker_sha256: String,
+    pub(crate) controller_public_key_hex: String,
+    pub(crate) controller_key_pin_sha256: String,
     pub(crate) exit_code: Option<i32>,
     pub(crate) timed_out: bool,
     pub(crate) report: Option<DeterministicReportObservation>,
@@ -160,7 +165,7 @@ pub(crate) fn run_prepared_controller_ineligible(
     }
     let launched =
         spawn_prepared_controller(prepared, &group, journal, lease, request, worker_generation);
-    let (mut child, started) = match launched {
+    let (mut child, started, key_pin) = match launched {
         Ok(value) => value,
         Err(error) => {
             let spawned = matches!(
@@ -214,7 +219,9 @@ pub(crate) fn run_prepared_controller_ineligible(
         };
         Ok(ControllerRunObservation {
             process,
-            started_marker_sha256: started.sha256,
+            started_marker_sha256: started.sha256.clone(),
+            controller_public_key_hex: key_pin.public_key_hex.clone(),
+            controller_key_pin_sha256: key_pin.raw_sha256.clone(),
             exit_code,
             timed_out,
             report: None,
@@ -225,6 +232,8 @@ pub(crate) fn run_prepared_controller_ineligible(
     lease
         .verify(&journal.root)
         .map_err(ControllerRunError::Lease)?;
+    require_pinned_controller_key_under_lease(journal, lease, &started, &key_pin)
+        .map_err(ControllerRunError::ControllerKey)?;
     let mut observation = observed?;
     prepared
         .recheck_all_assets_after_cleanup()
