@@ -2,11 +2,12 @@
 //! with a bounded kernel sample retained by the Rust owner. This establishes
 //! one live container-process identity, not SDK, Native or Guard causality.
 
-use crate::crypto::{is_sha256, sha256};
+use crate::crypto::{decode_hex, is_sha256, sha256};
 use crate::io::open_absolute_directory;
 use crate::python_worker_files::{private_directory, read_private_file};
 use crate::staging_control_record::read_one;
 use crate::staging_suite::{cgroup_targets, require_absent_cgroup};
+use crate::verify_controller_envelope;
 use crate::{
     observe_staging_physical_files_root_owned_ineligible, EvidenceError, Result,
     StagingEvidencePins,
@@ -282,6 +283,125 @@ pub(crate) fn matching_sdk_executable(
     Ok(())
 }
 
+fn matching_verified_native_mcp_processes(
+    audit: &Value,
+    activity: &Value,
+    agent_container_id: &str,
+) -> Result<(String, usize)> {
+    if audit["kind"] != "isolated-native-mcp-observation"
+        || audit["schema_version"] != "1.0"
+        || audit["active_children"] != 0
+        || audit["active_sessions"] != 0
+        || audit["qualification_eligible"] != false
+        || audit["product_claims_authenticated"] != false
+    {
+        return Err(INVALID);
+    }
+    let plane = &audit["product_plane"];
+    if plane["kind"] != "isolated-product-plane.v2"
+        || plane["schema_version"] != "2.0"
+        || plane["cleanup_complete"] != true
+        || plane["qualification_eligible"] != false
+        || plane["product_claims_authenticated"] != false
+        || plane["container"]
+            .as_str()
+            .is_none_or(|name| !name.starts_with("native-product-"))
+    {
+        return Err(INVALID);
+    }
+    let observations = plane["observations"].as_array().ok_or(INVALID)?;
+    if observations.len() != 3 || observations[0]["kind"] != "container-boundary" {
+        return Err(INVALID);
+    }
+    let boundary_identity = &observations[0]["identity"];
+    let boundary_start = boundary_identity["start_time"]
+        .as_str()
+        .and_then(positive_decimal)
+        .ok_or(INVALID)?;
+    let rows = activity["container_processes"].as_array().ok_or(INVALID)?;
+    let boundary_rows: Vec<_> = rows
+        .iter()
+        .filter(|row| {
+            row["container_id"] != agent_container_id && row["start_ticks"] == boundary_start
+        })
+        .collect();
+    if boundary_rows.len() != 1 {
+        return Err(INVALID);
+    }
+    let product_container_id = boundary_rows[0]["container_id"]
+        .as_str()
+        .filter(|id| is_sha256(id))
+        .ok_or(INVALID)?;
+    let expected_cgroup = format!("/machine.slice/libpod-{product_container_id}.scope/container");
+    if boundary_rows[0]["cgroup"] != expected_cgroup {
+        return Err(INVALID);
+    }
+    let mut proxy_pids = BTreeSet::new();
+    for observation in &observations[1..] {
+        if observation["kind"] != "proxy-process" {
+            return Err(INVALID);
+        }
+        let pid = observation["product_pid"]
+            .as_u64()
+            .and_then(|value| u32::try_from(value).ok())
+            .filter(|value| *value > 0)
+            .ok_or(INVALID)?;
+        let start = observation["identity"]["start_time"]
+            .as_str()
+            .and_then(positive_decimal)
+            .ok_or(INVALID)?;
+        if !proxy_pids.insert(pid)
+            || [
+                "boot_id",
+                "effective_uid",
+                "effective_gid",
+                "mount_namespace",
+                "network_namespace",
+                "pid_namespace",
+                "no_new_privileges",
+            ]
+            .iter()
+            .any(|field| {
+                observation["identity"][field].is_null()
+                    || observation["identity"][field] != boundary_identity[field]
+            })
+            || rows
+                .iter()
+                .filter(|row| {
+                    row["container_id"] == product_container_id
+                        && row["pid"] == pid
+                        && row["start_ticks"] == start
+                        && row["cgroup"] == expected_cgroup
+                })
+                .count()
+                != 1
+        {
+            return Err(INVALID);
+        }
+    }
+    Ok((product_container_id.to_owned(), proxy_pids.len()))
+}
+
+/// Independently sampled Podman tuples must contain the signed Native MCP
+/// boundary and both proxy children in one container distinct from the SDK
+/// agent. This binds process identity only, not MCP frames or Guard decisions.
+pub(crate) fn matching_native_mcp_processes(
+    record: &Value,
+    activity: &Value,
+    outside_public_key_hex: &str,
+) -> Result<(String, usize)> {
+    let (agent_container_id, _, _, _) = matching_agent_process(record, activity)?;
+    if record["controller_public_key_hex"] != outside_public_key_hex {
+        return Err(INVALID);
+    }
+    let key = decode_hex(outside_public_key_hex, 32).map_err(|_| INVALID)?;
+    let runtime_envelope = serde_json::to_vec(&record["developer_runtime"]).map_err(|_| INVALID)?;
+    let runtime = verify_controller_envelope(&runtime_envelope, &key)?;
+    let audit_envelope = serde_json::to_vec(&runtime["native_mcp_audit"]).map_err(|_| INVALID)?;
+    let audit = verify_controller_envelope(&audit_envelope, &key)?;
+    matching_verified_native_mcp_processes(&audit, activity, &agent_container_id)
+}
+
 /// The caller supplies the independently retained host prelaunch fields and
 /// raw report hash. The signed control is reopened before comparing the
 /// producer's agent claim to the Rust owner's live pidfd/cgroup samples.
@@ -491,5 +611,72 @@ mod tests {
             .unwrap()
             .push(duplicate);
         assert!(matching_sdk_executable(&record, &activity, &bun).is_err());
+    }
+
+    #[test]
+    fn native_mcp_children_require_one_distinct_sampled_product_scope() {
+        let agent_id = "a".repeat(64);
+        let product_id = "b".repeat(64);
+        let identity = json!({
+            "boot_id":"test-boot",
+            "effective_uid":10005,
+            "effective_gid":10005,
+            "mount_namespace":"mnt:[100]",
+            "network_namespace":"net:[101]",
+            "pid_namespace":"pid:[102]",
+            "no_new_privileges":1,
+            "start_time":"100",
+        });
+        let mut first = identity.clone();
+        first["start_time"] = json!("102");
+        let mut second = identity.clone();
+        second["start_time"] = json!("103");
+        let audit = json!({
+            "kind":"isolated-native-mcp-observation",
+            "schema_version":"1.0",
+            "active_children":0,
+            "active_sessions":0,
+            "qualification_eligible":false,
+            "product_claims_authenticated":false,
+            "product_plane":{
+                "kind":"isolated-product-plane.v2",
+                "schema_version":"2.0",
+                "container":"native-product-test",
+                "cleanup_complete":true,
+                "qualification_eligible":false,
+                "product_claims_authenticated":false,
+                "observations":[
+                    {"kind":"container-boundary","identity":identity},
+                    {"kind":"proxy-process","product_pid":12,"identity":first},
+                    {"kind":"proxy-process","product_pid":13,"identity":second},
+                ],
+            },
+        });
+        let cgroup = format!("/machine.slice/libpod-{product_id}.scope/container");
+        let activity = json!({
+            "container_processes":[
+                {"container_id":product_id,"pid":10,"start_ticks":100,"cgroup":cgroup},
+                {"container_id":product_id,"pid":12,"start_ticks":102,"cgroup":cgroup},
+                {"container_id":product_id,"pid":13,"start_ticks":103,"cgroup":cgroup},
+            ],
+        });
+        assert_eq!(
+            matching_verified_native_mcp_processes(&audit, &activity, &agent_id).unwrap(),
+            (product_id.clone(), 2)
+        );
+        let mut wrong = audit.clone();
+        wrong["product_plane"]["observations"][1]["identity"]["start_time"] = json!("104");
+        assert!(matching_verified_native_mcp_processes(&wrong, &activity, &agent_id).is_err());
+        wrong = audit.clone();
+        wrong["product_plane"]["observations"][2]["product_pid"] = json!(12);
+        assert!(matching_verified_native_mcp_processes(&wrong, &activity, &agent_id).is_err());
+        wrong = audit.clone();
+        wrong["product_plane"]["observations"][2]["identity"]["pid_namespace"] = json!("pid:[999]");
+        assert!(matching_verified_native_mcp_processes(&wrong, &activity, &agent_id).is_err());
+        let mut wrong_activity = activity.clone();
+        wrong_activity["container_processes"][2]["container_id"] = json!(agent_id);
+        assert!(
+            matching_verified_native_mcp_processes(&audit, &wrong_activity, &agent_id).is_err()
+        );
     }
 }

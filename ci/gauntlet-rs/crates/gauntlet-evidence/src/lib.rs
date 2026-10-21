@@ -163,7 +163,10 @@ pub use staging_physical_files::{
     observe_staging_physical_files_root_owned_ineligible, StagingPhysicalFilesShadow,
 };
 #[cfg(target_os = "linux")]
-pub use staging_suite::{observe_staging_suite_root_owned_ineligible, StagingSuiteShadow};
+pub use staging_suite::{
+    observe_staging_suite_native_mcp_root_owned_ineligible,
+    observe_staging_suite_root_owned_ineligible, StagingSuiteShadow,
+};
 pub use tree_inventory::{inventory_tree, TreeInventory, TreeKind};
 pub use worker_receipt::{verify_python_worker_terminal, PythonWorkerTerminal};
 

@@ -6,7 +6,8 @@ use crate::io::open_absolute_directory;
 use crate::public_files::PublicRootReader;
 use crate::python_worker_files::{private_directory, read_private_file};
 use crate::staging_agent_process::{
-    matching_agent_process, matching_sdk_executable, matching_sdk_gate_process,
+    matching_agent_process, matching_native_mcp_processes, matching_sdk_executable,
+    matching_sdk_gate_process,
 };
 use crate::staging_control_record::read_one;
 use crate::{
@@ -45,11 +46,14 @@ pub struct StagingSuiteShadow {
     pub live_agent_roles_sampled: usize,
     pub live_sdk_gate_roles_sampled: usize,
     pub live_sdk_executable_roles_sampled: usize,
+    pub live_native_mcp_roles_sampled: usize,
 }
 
 impl StagingSuiteShadow {
     pub fn to_json(&self) -> Value {
-        let schema = if self.live_sdk_executable_roles_sampled == 6 {
+        let schema = if self.live_native_mcp_roles_sampled == 6 {
+            "hol-gauntlet-staging-native-mcp-suite-shadow.v1"
+        } else if self.live_sdk_executable_roles_sampled == 6 {
             "hol-gauntlet-staging-suite-shadow.v5"
         } else if self.live_sdk_gate_roles_sampled == 6 {
             "hol-gauntlet-staging-suite-shadow.v4"
@@ -82,6 +86,10 @@ impl StagingSuiteShadow {
         }
         if self.live_sdk_executable_roles_sampled == 6 {
             output["live_sdk_executable_roles_sampled"] = json!(6);
+        }
+        if self.live_native_mcp_roles_sampled == 6 {
+            output["live_native_mcp_roles_sampled"] = json!(6);
+            output["signed_native_mcp_proxy_processes_sampled"] = json!(12);
         }
         output
     }
@@ -252,7 +260,8 @@ fn terminal_and_cleanup(
     role: &str,
     common: &Value,
     row: &Value,
-) -> Result<(bool, bool, bool, bool)> {
+    require_native_mcp: bool,
+) -> Result<(bool, bool, bool, bool, bool)> {
     let run = string(row, "run_id")?;
     let report_name = format!("{run}.report.json");
     let terminal_name = format!("{run}.terminal.json");
@@ -319,6 +328,13 @@ fn terminal_and_cleanup(
         } else {
             matching_agent_process(&record, &report["live_kernel_activity"])?;
         }
+        if require_native_mcp {
+            matching_native_mcp_processes(
+                &record,
+                &report["live_kernel_activity"],
+                string(row, "controller_public_key_hex")?,
+            )?;
+        }
         if record_raw != read_one(run, role)? {
             return Err(INVALID);
         }
@@ -331,6 +347,7 @@ fn terminal_and_cleanup(
         agent_process_required,
         sdk_gate_required,
         sdk_executable_required,
+        require_native_mcp,
     ))
 }
 
@@ -367,10 +384,12 @@ fn valid_live_kernel_samples(value: &Value) -> bool {
 
 /// Require a Root-owned copy of the exact host manifest, then open all six
 /// distinct records, inspect retained files and reconcile guest journals.
-/// Independent live kernel/SDK attribution still needs a separate observer.
-pub fn observe_staging_suite_root_owned_ineligible(
+/// Process sampling does not establish SDK traffic, Native effects or Guard
+/// decisions, so every mode remains execution-ineligible.
+fn observe_staging_suite(
     build_job_id: &str,
     outside_manifest_sha256: &str,
+    require_native_mcp: bool,
 ) -> Result<StagingSuiteShadow> {
     if geteuid().as_raw() != 0
         || !lower_hex(build_job_id, 16)
@@ -394,6 +413,9 @@ pub fn observe_staging_suite_root_owned_ineligible(
     }
     let raw = root.read_file(&relative, 8192)?;
     let manifest = checked_manifest(&raw, outside_manifest_sha256, build_job_id)?;
+    if require_native_mcp && manifest["schema"] != "hol-gauntlet-staging-suite-pins.v5" {
+        return Err(INVALID);
+    }
     let journal = open_absolute_directory(Path::new(STAGING))?;
     private_directory(&journal, 0)?;
     let mut physical_files = 0;
@@ -402,6 +424,7 @@ pub fn observe_staging_suite_root_owned_ineligible(
     let mut live_agent_roles_sampled = 0;
     let mut live_sdk_gate_roles_sampled = 0;
     let mut live_sdk_executable_roles_sampled = 0;
+    let mut live_native_mcp_roles_sampled = 0;
     for role in ROLES {
         let row = &manifest["roles"][role];
         let pins = StagingEvidencePins {
@@ -419,12 +442,13 @@ pub fn observe_staging_suite_root_owned_ineligible(
         let opened = observe_staging_physical_files_root_owned_ineligible(&pins)?;
         physical_files += opened.observed_files;
         absent_effects += opened.absent_effects;
-        let (kernel, agent, sdk_gate, sdk_executable) =
-            terminal_and_cleanup(&journal, role, &manifest, row)?;
+        let (kernel, agent, sdk_gate, sdk_executable, native_mcp) =
+            terminal_and_cleanup(&journal, role, &manifest, row, require_native_mcp)?;
         live_kernel_roles_sampled += usize::from(kernel);
         live_agent_roles_sampled += usize::from(agent);
         live_sdk_gate_roles_sampled += usize::from(sdk_gate);
         live_sdk_executable_roles_sampled += usize::from(sdk_executable);
+        live_native_mcp_roles_sampled += usize::from(native_mcp);
     }
     if root.read_file(&relative, 8192)? != raw {
         return Err(INVALID);
@@ -439,7 +463,25 @@ pub fn observe_staging_suite_root_owned_ineligible(
         live_agent_roles_sampled,
         live_sdk_gate_roles_sampled,
         live_sdk_executable_roles_sampled,
+        live_native_mcp_roles_sampled,
     })
+}
+
+pub fn observe_staging_suite_root_owned_ineligible(
+    build_job_id: &str,
+    outside_manifest_sha256: &str,
+) -> Result<StagingSuiteShadow> {
+    observe_staging_suite(build_job_id, outside_manifest_sha256, false)
+}
+
+/// Opt-in stronger opening of the same immutable v5 host manifest. The
+/// separate mode preserves v5 output while requiring six sampled Native MCP
+/// product boundaries and twelve signed proxy-process identities.
+pub fn observe_staging_suite_native_mcp_root_owned_ineligible(
+    build_job_id: &str,
+    outside_manifest_sha256: &str,
+) -> Result<StagingSuiteShadow> {
+    observe_staging_suite(build_job_id, outside_manifest_sha256, true)
 }
 
 #[cfg(test)]
@@ -575,6 +617,7 @@ mod tests {
             live_agent_roles_sampled: 0,
             live_sdk_gate_roles_sampled: 0,
             live_sdk_executable_roles_sampled: 0,
+            live_native_mcp_roles_sampled: 0,
         };
         assert_eq!(
             proof.to_json()["schema"],
@@ -611,6 +654,18 @@ mod tests {
         assert_eq!(
             sdk_executable.to_json()["live_sdk_executable_roles_sampled"],
             6
+        );
+        let native_mcp = StagingSuiteShadow {
+            live_native_mcp_roles_sampled: 6,
+            ..sdk_executable
+        };
+        assert_eq!(
+            native_mcp.to_json()["schema"],
+            "hol-gauntlet-staging-native-mcp-suite-shadow.v1"
+        );
+        assert_eq!(
+            native_mcp.to_json()["signed_native_mcp_proxy_processes_sampled"],
+            12
         );
     }
 }
