@@ -3,7 +3,11 @@
 
 use crate::crypto::{decode_hex, is_sha256, sha256};
 use crate::payload::exact_keys;
-use crate::{verify_control_reported_tail, verify_native_review_summary, EvidenceError, Result};
+use crate::{
+    recompute_native_review_summary, verify_cancel_reported_relation,
+    verify_contained_output_custody, verify_contained_route_accounting,
+    verify_control_reported_tail, verify_native_review_summary, EvidenceError, Result,
+};
 use gauntlet_contracts::canonicalize;
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -90,6 +94,8 @@ pub struct LocalConformancePackageShadow {
     pub package_sha256: String,
     pub source_count: usize,
     pub role_session_ids: BTreeMap<String, String>,
+    pub contained_routes: usize,
+    pub output_bindings: usize,
     pub public_inputs_verified: bool,
     pub execution_eligible: bool,
 }
@@ -103,6 +109,9 @@ impl LocalConformancePackageShadow {
             "control_roles":self.role_session_ids.keys().collect::<Vec<_>>(),
             "distinct_signed_sessions":self.role_session_ids.len(),
             "native_review_summaries_recomputed":self.role_session_ids.len(),
+            "contained_routes_recomputed":self.contained_routes,
+            "output_bindings_recomputed":self.output_bindings,
+            "cancel_partial_relation_checked":true,
             "public_inputs_verified":self.public_inputs_verified,
             "signed_openings_checked":true,
             "independent_kernel_sdk_effects_verified":false,
@@ -232,6 +241,8 @@ pub fn verify_local_conformance_package_ineligible(
     }
     let mut role_session_ids = BTreeMap::new();
     let mut sessions = BTreeSet::new();
+    let mut contained_routes = 0;
+    let mut output_bindings = 0;
     for role in ROLES {
         let row = &package["controls"][role];
         if !exact_keys(row, &["public_key", "record", "record_digest"]) {
@@ -264,6 +275,28 @@ pub fn verify_local_conformance_package_ineligible(
                 "control Native review status differs from role",
             ));
         }
+        if role == "cancel" {
+            let builtin = &tail.session.signed.builtin;
+            let summary = recompute_native_review_summary(
+                &builtin["transport_observations"],
+                &builtin["contained_transport_observations"],
+            )?;
+            verify_cancel_reported_relation(&record_raw, &key, expected_runtime, &summary)?;
+        } else {
+            let route = verify_contained_route_accounting(
+                &tail.session.signed.builtin,
+                &tail.session.signed.plane,
+            )?;
+            let route_count = route["matched_routes"].as_u64().ok_or(CONTROL)? as usize;
+            let binding_count = verify_contained_output_custody(&tail.session.signed.builtin)?;
+            if route_count != 1 || binding_count != 1 {
+                return Err(EvidenceError::Invalid(
+                    "control contained-route or output count differs from role",
+                ));
+            }
+            contained_routes += route_count;
+            output_bindings += binding_count;
+        }
         let session_id = tail.session.session_id;
         if !sessions.insert(session_id.clone()) {
             return Err(EvidenceError::Invalid(
@@ -287,6 +320,8 @@ pub fn verify_local_conformance_package_ineligible(
         package_sha256: outside_package_sha256.to_owned(),
         source_count: sources.len(),
         role_session_ids,
+        contained_routes,
+        output_bindings,
         public_inputs_verified: observed_public_assets.is_some(),
         execution_eligible: false,
     })
