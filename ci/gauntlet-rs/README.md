@@ -89,6 +89,10 @@ The [controller signed-envelope verifier](../../docs/gauntlet-rust-controller-en
 matches a Python `cryptography` Ed25519 fixture and rejects altered or ambiguous
 records using an outside public key. It has no live controller-record custody or
 independent evidence for the effects asserted inside a signed record.
+The [signed injection composition](../../docs/gauntlet-rust-signed-injection-composition-proof.md)
+binds the synthetic `extra_probes` signature and declared key to the outside
+key before pure attribution. It still cannot authenticate the outer SDK result
+or award a deterministic control pass.
 The bounded HMAC VM bridge codec
 matches Python frame bytes and poisons replayed,
 tampered or misdirected connections; it has no live transport or key delivery.
