@@ -5,6 +5,8 @@ use crate::crypto::{is_sha256, sha256};
 use crate::io::open_absolute_directory;
 use crate::public_files::PublicRootReader;
 use crate::python_worker_files::{private_directory, read_private_file};
+use crate::staging_agent_process::matching_agent_process;
+use crate::staging_control_record::read_one;
 use crate::{
     observe_staging_physical_files_root_owned_ineligible, EvidenceError, Result,
     StagingEvidencePins,
@@ -38,16 +40,19 @@ pub struct StagingSuiteShadow {
     pub absent_effects: usize,
     pub cleanup_journals: usize,
     pub live_kernel_roles_sampled: usize,
+    pub live_agent_roles_sampled: usize,
 }
 
 impl StagingSuiteShadow {
     pub fn to_json(&self) -> Value {
-        let schema = if self.live_kernel_roles_sampled == 6 {
+        let schema = if self.live_agent_roles_sampled == 6 {
+            "hol-gauntlet-staging-suite-shadow.v3"
+        } else if self.live_kernel_roles_sampled == 6 {
             "hol-gauntlet-staging-suite-shadow.v2"
         } else {
             "hol-gauntlet-staging-suite-shadow.v1"
         };
-        json!({
+        let mut output = json!({
             "schema":schema,
             "manifest_sha256":self.manifest_sha256,
             "signed_records":self.signed_records,
@@ -60,7 +65,11 @@ impl StagingSuiteShadow {
             "independent_kernel_sdk_effects_verified":false,
             "conformance_package_created":false,
             "execution_eligible":false,
-        })
+        });
+        if self.live_agent_roles_sampled == 6 {
+            output["live_agent_roles_sampled"] = json!(6);
+        }
+        output
     }
 }
 
@@ -134,9 +143,10 @@ fn checked_manifest(raw: &[u8], outside_sha256: &str, build_job_id: &str) -> Res
         return Err(INVALID);
     }
     let manifest: Value = serde_json::from_slice(raw).map_err(|_| INVALID)?;
-    let live_kernel_required = match string(&manifest, "schema")? {
-        "hol-gauntlet-staging-suite-pins.v1" => false,
-        "hol-gauntlet-staging-suite-pins.v2" => true,
+    let (live_kernel_required, agent_process_required) = match string(&manifest, "schema")? {
+        "hol-gauntlet-staging-suite-pins.v1" => (false, false),
+        "hol-gauntlet-staging-suite-pins.v2" => (true, false),
+        "hol-gauntlet-staging-suite-pins.v3" => (true, true),
         _ => return Err(INVALID),
     };
     let mut fields = vec![
@@ -154,8 +164,12 @@ fn checked_manifest(raw: &[u8], outside_sha256: &str, build_job_id: &str) -> Res
     if live_kernel_required {
         fields.push("live_kernel_samples_required");
     }
+    if agent_process_required {
+        fields.push("agent_process_samples_required");
+    }
     if !exact_keys(&manifest, &fields)
         || (live_kernel_required && manifest["live_kernel_samples_required"] != true)
+        || (agent_process_required && manifest["agent_process_samples_required"] != true)
         || manifest["build_job_id"] != build_job_id
         || manifest["execution_eligible"] != false
         || !is_git_sha(string(&manifest, "source_sha")?)
@@ -210,7 +224,7 @@ fn terminal_and_cleanup(
     role: &str,
     common: &Value,
     row: &Value,
-) -> Result<bool> {
+) -> Result<(bool, bool)> {
     let run = string(row, "run_id")?;
     let report_name = format!("{run}.report.json");
     let terminal_name = format!("{run}.terminal.json");
@@ -247,14 +261,30 @@ fn terminal_and_cleanup(
     {
         return Err(INVALID);
     }
-    let live_kernel_required = common["schema"] == "hol-gauntlet-staging-suite-pins.v2";
-    if live_kernel_required && !valid_live_kernel_samples(&report["live_kernel_activity"]) {
+    let schema = string(common, "schema")?;
+    let agent_process_required = schema == "hol-gauntlet-staging-suite-pins.v3";
+    let live_kernel_required = schema != "hol-gauntlet-staging-suite-pins.v1";
+    if live_kernel_required
+        && !agent_process_required
+        && !valid_live_kernel_samples(&report["live_kernel_activity"])
+    {
         return Err(INVALID);
+    }
+    if agent_process_required {
+        let record_raw = read_one(run, role)?;
+        if sha256(&record_raw) != string(row, "record_sha256")? {
+            return Err(INVALID);
+        }
+        let record: Value = serde_json::from_slice(&record_raw).map_err(|_| INVALID)?;
+        matching_agent_process(&record, &report["live_kernel_activity"])?;
+        if record_raw != read_one(run, role)? {
+            return Err(INVALID);
+        }
     }
     for (parent, name) in cgroup_targets(run) {
         require_absent_cgroup(Path::new(parent), &name, 0)?;
     }
-    Ok(live_kernel_required)
+    Ok((live_kernel_required, agent_process_required))
 }
 
 fn valid_live_kernel_samples(value: &Value) -> bool {
@@ -322,6 +352,7 @@ pub fn observe_staging_suite_root_owned_ineligible(
     let mut physical_files = 0;
     let mut absent_effects = 0;
     let mut live_kernel_roles_sampled = 0;
+    let mut live_agent_roles_sampled = 0;
     for role in ROLES {
         let row = &manifest["roles"][role];
         let pins = StagingEvidencePins {
@@ -339,9 +370,9 @@ pub fn observe_staging_suite_root_owned_ineligible(
         let opened = observe_staging_physical_files_root_owned_ineligible(&pins)?;
         physical_files += opened.observed_files;
         absent_effects += opened.absent_effects;
-        if terminal_and_cleanup(&journal, role, &manifest, row)? {
-            live_kernel_roles_sampled += 1;
-        }
+        let (kernel, agent) = terminal_and_cleanup(&journal, role, &manifest, row)?;
+        live_kernel_roles_sampled += usize::from(kernel);
+        live_agent_roles_sampled += usize::from(agent);
     }
     if root.read_file(&relative, 8192)? != raw {
         return Err(INVALID);
@@ -353,6 +384,7 @@ pub fn observe_staging_suite_root_owned_ineligible(
         absent_effects,
         cleanup_journals: 6,
         live_kernel_roles_sampled,
+        live_agent_roles_sampled,
     })
 }
 
@@ -421,6 +453,14 @@ mod tests {
         value["live_kernel_samples_required"] = json!(true);
         let live = canonicalize(value.to_string().as_bytes()).unwrap();
         assert!(checked_manifest(&live, &sha256(&live), "0123456789abcdef").is_ok());
+        value["schema"] = json!("hol-gauntlet-staging-suite-pins.v3");
+        let missing_agent = canonicalize(value.to_string().as_bytes()).unwrap();
+        assert!(
+            checked_manifest(&missing_agent, &sha256(&missing_agent), "0123456789abcdef").is_err()
+        );
+        value["agent_process_samples_required"] = json!(true);
+        let agent = canonicalize(value.to_string().as_bytes()).unwrap();
+        assert!(checked_manifest(&agent, &sha256(&agent), "0123456789abcdef").is_ok());
         value["roles"]["cancel"]["run_id"] = value["roles"]["success"]["run_id"].clone();
         let duplicate = canonicalize(value.to_string().as_bytes()).unwrap();
         assert!(checked_manifest(&duplicate, &sha256(&duplicate), "0123456789abcdef").is_err());
@@ -455,10 +495,21 @@ mod tests {
             absent_effects: 5,
             cleanup_journals: 6,
             live_kernel_roles_sampled: 6,
+            live_agent_roles_sampled: 0,
         };
         assert_eq!(
             proof.to_json()["schema"],
             "hol-gauntlet-staging-suite-shadow.v2"
         );
+        assert!(proof.to_json().get("live_agent_roles_sampled").is_none());
+        let agent = StagingSuiteShadow {
+            live_agent_roles_sampled: 6,
+            ..proof
+        };
+        assert_eq!(
+            agent.to_json()["schema"],
+            "hol-gauntlet-staging-suite-shadow.v3"
+        );
+        assert_eq!(agent.to_json()["live_agent_roles_sampled"], 6);
     }
 }

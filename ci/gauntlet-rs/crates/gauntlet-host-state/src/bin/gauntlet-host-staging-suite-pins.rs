@@ -39,6 +39,7 @@ fn assemble(
     journal: &HostControllerKeyPinJournal,
     identity: &SuiteIdentity<'_>,
     selectors: &[(&str, &str); 6],
+    require_agent_processes: bool,
 ) -> Result<Vec<u8>, String> {
     if !hex(identity.build_job_id, 16)
         || !is_git_sha(identity.source_sha)
@@ -84,8 +85,13 @@ fn assemble(
             }),
         );
     }
-    let manifest: Value = json!({
-        "schema":"hol-gauntlet-staging-suite-pins.v2",
+    let schema = if require_agent_processes {
+        "hol-gauntlet-staging-suite-pins.v3"
+    } else {
+        "hol-gauntlet-staging-suite-pins.v2"
+    };
+    let mut manifest: Value = json!({
+        "schema":schema,
         "build_job_id":identity.build_job_id,
         "source_sha":identity.source_sha,
         "version":identity.version,
@@ -97,6 +103,9 @@ fn assemble(
         "live_kernel_samples_required":true,
         "execution_eligible":false,
     });
+    if require_agent_processes {
+        manifest["agent_process_samples_required"] = json!(true);
+    }
     canonicalize(manifest.to_string().as_bytes())
         .map_err(|_| "suite pin manifest could not be canonicalized".to_owned())
 }
@@ -106,8 +115,10 @@ fn run() -> Result<Value, String> {
         return Err("macOS host suite pin artifact required".to_owned());
     }
     let args: Vec<String> = std::env::args().collect();
-    if args.len() != 21 {
-        return Err("usage: gauntlet-host-staging-suite-pins PRIVATE_HOST_PIN_DIR BUILD_JOB SOURCE_SHA VERSION CONFIG_SHA PRIVATE_MANIFEST_SHA PREFIX_TREE_SHA WORKER_SHA SUCCESS_RUN SUCCESS_RECORD INPUT_RUN INPUT_RECORD INJECTION_RUN INJECTION_RECORD BOUNDARY_RUN BOUNDARY_RECORD TIMEOUT_RUN TIMEOUT_RECORD CANCEL_RUN CANCEL_RECORD".to_owned());
+    if (args.len() != 21 && args.len() != 22)
+        || (args.len() == 22 && args[21] != "--agent-processes")
+    {
+        return Err("usage: gauntlet-host-staging-suite-pins PRIVATE_HOST_PIN_DIR BUILD_JOB SOURCE_SHA VERSION CONFIG_SHA PRIVATE_MANIFEST_SHA PREFIX_TREE_SHA WORKER_SHA SUCCESS_RUN SUCCESS_RECORD INPUT_RUN INPUT_RECORD INJECTION_RUN INJECTION_RECORD BOUNDARY_RUN BOUNDARY_RECORD TIMEOUT_RUN TIMEOUT_RECORD CANCEL_RUN CANCEL_RECORD [--agent-processes]".to_owned());
     }
     let identity = SuiteIdentity {
         build_job_id: &args[2],
@@ -128,12 +139,13 @@ fn run() -> Result<Value, String> {
     ];
     let journal = HostControllerKeyPinJournal::open(Path::new(&args[1]))
         .map_err(|error| format!("private host pin directory unavailable: {error}"))?;
-    let bytes = assemble(&journal, &identity, &selectors)?;
+    let agent_processes = args.len() == 22;
+    let bytes = assemble(&journal, &identity, &selectors, agent_processes)?;
     let digest = journal
         .record_staging_suite_manifest(identity.build_job_id, selectors[0].0, &bytes)
         .map_err(|error| format!("one-use suite pin write failed: {error}"))?;
     Ok(json!({
-        "schema":"hol-gauntlet-host-staging-suite-pins-diagnostic.v2",
+        "schema":if agent_processes {"hol-gauntlet-host-staging-suite-pins-diagnostic.v3"} else {"hol-gauntlet-host-staging-suite-pins-diagnostic.v2"},
         "path":format!("{}/{}.{}.staging-suite-pins.json",args[1],identity.build_job_id,selectors[0].0),
         "manifest_sha256":digest,
         "roles":ROLES,
@@ -205,12 +217,16 @@ mod tests {
         assert!(hex(identity.private_manifest_sha256, 64));
         assert!(hex(identity.prefix_tree_sha256, 64));
         assert!(hex(identity.worker_generation_sha256, 64));
-        let raw = assemble(&journal, &identity, &selectors).unwrap();
+        let raw = assemble(&journal, &identity, &selectors, false).unwrap();
         let value: Value = serde_json::from_slice(&raw).unwrap();
         assert_eq!(value["schema"], "hol-gauntlet-staging-suite-pins.v2");
         assert_eq!(value["live_kernel_samples_required"], true);
         assert_eq!(value["roles"]["cancel"]["run_id"], records[5].0);
         assert_eq!(value["execution_eligible"], false);
+        let agent_raw = assemble(&journal, &identity, &selectors, true).unwrap();
+        let agent: Value = serde_json::from_slice(&agent_raw).unwrap();
+        assert_eq!(agent["schema"], "hol-gauntlet-staging-suite-pins.v3");
+        assert_eq!(agent["agent_process_samples_required"], true);
         assert!(assemble(
             &journal,
             &identity,
@@ -221,14 +237,15 @@ mod tests {
                 selectors[3],
                 selectors[4],
                 selectors[5]
-            ]
+            ],
+            false,
         )
         .is_err());
         let wrong = SuiteIdentity {
             worker_generation_sha256: &"f".repeat(64),
             ..identity
         };
-        assert!(assemble(&journal, &wrong, &selectors).is_err());
+        assert!(assemble(&journal, &wrong, &selectors, false).is_err());
         let digest = journal
             .record_staging_suite_manifest("0123456789abcdef", selectors[0].0, &raw)
             .unwrap();

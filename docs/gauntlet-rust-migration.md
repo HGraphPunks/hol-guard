@@ -24,11 +24,10 @@ the six terminals remain `invalid-evidence` and the Phase 2 exit remains open.
 
 A fresh [SDK-agent process identity diagnostic](gauntlet-rust-agent-process-proof.md)
 adds bounded Podman-scope PID/start-tick/cgroup samples from the Rust owner.
-For one `success` control, a separate Root verifier matched the exact signed
-agent container claim to a pidfd-checked live kernel tuple and the host-supplied
-prelaunch pins. The other five roles have not repeated this check. It does not
-authenticate SDK tool calls, Native effects, or Guard causality, and remains
-ineligible.
+The later [six-role v3 suite](gauntlet-rust-six-agent-staging-proof.md) matched
+each signed agent container claim to a pidfd-checked live kernel tuple and the
+host-supplied prelaunch pins. It does not authenticate SDK tool calls, Native
+effects, or Guard causality, and remains ineligible.
 
 A [contained interpreter probe](gauntlet-rust-contained-interpreter-proof.md) now joins descriptor-bound Python execution and that fixed cgroup. It ran only inert code as UID 65534 on the ARM VM, observed the child credential and two contained tasks, and verified recursive cleanup. It did not launch a controller or benchmark or qualify a result.
 

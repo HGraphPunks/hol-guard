@@ -72,7 +72,10 @@ fn positive_decimal(raw: &str) -> Option<u64> {
     raw.parse::<u64>().ok().filter(|value| *value > 0)
 }
 
-fn matching_agent_process(record: &Value, activity: &Value) -> Result<(String, u32, u64, usize)> {
+pub(crate) fn matching_agent_process(
+    record: &Value,
+    activity: &Value,
+) -> Result<(String, u32, u64, usize)> {
     let container_id = record["agent_container_inspection"]["Id"]
         .as_str()
         .filter(|value| is_sha256(value))
@@ -104,15 +107,15 @@ fn matching_agent_process(record: &Value, activity: &Value) -> Result<(String, u
     ) || activity["schema"] != "hol-gauntlet-staging-kernel-samples.v2"
         || activity["sample_count"]
             .as_u64()
-            .is_none_or(|count| count == 0)
+            .is_none_or(|count| !(1..=10_000).contains(&count))
         || activity["max_controller_tasks"]
             .as_u64()
-            .is_none_or(|count| count == 0)
+            .is_none_or(|count| !(1..=256).contains(&count))
         || activity["product_slice_observed"] != true
         || activity["product_slice_populated"] != true
         || activity["max_product_tasks"]
             .as_u64()
-            .is_none_or(|count| count == 0)
+            .is_none_or(|count| !(1..=1_000_000).contains(&count))
         || activity["container_processes_exhaustively_observed"] != false
         || activity["control_processes_exhaustively_observed"] != false
         || activity["guard_causality_verified"] != false
