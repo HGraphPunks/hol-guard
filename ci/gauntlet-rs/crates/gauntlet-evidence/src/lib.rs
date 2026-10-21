@@ -5,6 +5,7 @@ mod bridge_frames;
 mod campaign;
 mod campaign_gate;
 mod contained_output;
+mod contained_output_custody;
 mod control_opening;
 mod control_reported_tail;
 mod controller_envelope;
@@ -46,6 +47,7 @@ mod worker_receipt;
 pub use bridge_frames::FrameCodec;
 pub use campaign_gate::evaluate_audited_campaign;
 pub use contained_output::captured_contained_output;
+pub use contained_output_custody::verify_contained_output_custody;
 pub use control_opening::{
     verify_control_opening, verify_control_session_opening, ControlOpening, ControlSessionOpening,
 };
