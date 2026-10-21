@@ -104,6 +104,7 @@ mod candidate_archive;
 mod candidate_build_ready;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_capture;
+mod candidate_config_projection;
 mod candidate_dependencies;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_dependencies_live;
@@ -225,6 +226,10 @@ pub use candidate_build_ready::{
 pub use candidate_capture::{
     capture_local_candidate_archive_ineligible, verify_captured_candidate_wheel_ineligible,
     CandidateCaptureError, CandidateCaptureProof, CandidateWheelLiveProof,
+};
+pub use candidate_config_projection::{
+    project_candidate_config_ineligible, CandidateConfigProjection, CandidateConfigProjectionError,
+    CandidateConfigProjectionPins,
 };
 pub use candidate_dependencies::{
     check_candidate_dependencies, CandidateDependencyError, CandidateDependencyProof,
