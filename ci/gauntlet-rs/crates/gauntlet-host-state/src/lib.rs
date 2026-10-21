@@ -14,6 +14,11 @@ pub use git_controller_source::{
 };
 mod host_telemetry;
 pub use host_telemetry::{sample_host, HostTelemetryError};
+mod controller_key_pins;
+pub use controller_key_pins::{
+    HostControllerKeyPinJournal, HostControllerKeyPins, HostKeyPinError, HostKeyPinRecord,
+    HostKeyedTerminalObservation,
+};
 mod private_jobs;
 pub use private_jobs::{
     read_private_jobs, read_private_jobs_if_idle, read_private_operations, PrivateJobError,
