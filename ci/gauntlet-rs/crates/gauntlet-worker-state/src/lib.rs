@@ -194,6 +194,8 @@ mod projection;
 #[cfg(target_os = "linux")]
 mod running;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod sdk_wire_child;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod sdk_wire_journal;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod sdk_wire_listener;
@@ -360,6 +362,8 @@ pub use product_cell_units::{
 };
 #[cfg(target_os = "linux")]
 pub use running::RunningMarker;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use sdk_wire_child::{run_sdk_tap_child_once_ineligible, SdkTapChildPins};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use sdk_wire_journal::{
     read_sdk_tap_journal_ineligible, retain_sdk_tap_journal_ineligible, SdkTapJournalReceipt,

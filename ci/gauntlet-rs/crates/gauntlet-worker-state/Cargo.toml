@@ -13,6 +13,10 @@ path = "src/bin/gauntlet-vm-worker-shadow.rs"
 name = "gauntlet-controller-shadow"
 path = "src/bin/gauntlet-controller-shadow.rs"
 
+[[bin]]
+name = "gauntlet-sdk-tap-child"
+path = "src/bin/gauntlet-sdk-tap-child.rs"
+
 [dependencies]
 gauntlet-contracts = { path = "../gauntlet-contracts" }
 gauntlet-evidence = { path = "../gauntlet-evidence" }

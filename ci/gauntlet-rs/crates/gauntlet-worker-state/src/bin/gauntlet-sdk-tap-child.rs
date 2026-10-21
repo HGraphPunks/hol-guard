@@ -1,0 +1,69 @@
+//! Opt-in, single-session SDK MCP data-plane child. Only the future Root
+//! worker may supply its held FDs and outside-pinned process identities.
+
+use gauntlet_worker_state::{run_sdk_tap_child_once_ineligible, SdkTapChildPins, SdkWirePeerPin};
+use std::os::fd::{FromRawFd, OwnedFd, RawFd};
+use std::os::unix::net::UnixStream;
+
+fn fd(value: &str) -> Result<RawFd, String> {
+    let parsed = value
+        .parse::<RawFd>()
+        .map_err(|_| "invalid SDK tap child descriptor".to_owned())?;
+    if !(3..=4096).contains(&parsed) {
+        return Err("SDK tap child descriptor outside fixed range".to_owned());
+    }
+    Ok(parsed)
+}
+
+fn pin(pid: &str, start: &str, cgroup: &str) -> Result<SdkWirePeerPin, String> {
+    let pid = pid.parse::<u32>().map_err(|_| "invalid peer PID")?;
+    let start_ticks = start.parse::<u64>().map_err(|_| "invalid peer start")?;
+    if pid == 0 || start_ticks == 0 || cgroup.is_empty() || cgroup.len() > 4096 {
+        return Err("SDK tap child peer pin outside fixed bounds".to_owned());
+    }
+    Ok(SdkWirePeerPin {
+        pid,
+        start_ticks,
+        cgroup: cgroup.to_owned(),
+    })
+}
+
+fn run() -> Result<(), String> {
+    let arguments = std::env::args().collect::<Vec<_>>();
+    if arguments.len() != 14 || !matches!(arguments[1].as_str(), "docs" | "mail") {
+        return Err("fixed SDK tap child arguments required".to_owned());
+    }
+    let client_fd = fd(&arguments[2])?;
+    let directory_fd = fd(&arguments[3])?;
+    let report_fd = fd(&arguments[4])?;
+    if client_fd == directory_fd || client_fd == report_fd || directory_fd == report_fd {
+        return Err("SDK tap child descriptors must be distinct".to_owned());
+    }
+    let sdk_relay = pin(&arguments[5], &arguments[6], &arguments[7])?;
+    let sdk_ancestor = pin(&arguments[8], &arguments[9], &arguments[10])?;
+    let native_frontdoor = pin(&arguments[11], &arguments[12], &arguments[13])?;
+    // SAFETY: each distinct inherited FD was checked above and is adopted
+    // exactly once; the worker must pass held Unix sockets and a directory.
+    let (client, directory, report) = unsafe {
+        (
+            UnixStream::from_raw_fd(client_fd),
+            OwnedFd::from_raw_fd(directory_fd),
+            UnixStream::from_raw_fd(report_fd),
+        )
+    };
+    let pins = SdkTapChildPins {
+        family: &arguments[1],
+        sdk_relay: &sdk_relay,
+        sdk_ancestor: &sdk_ancestor,
+        native_frontdoor: &native_frontdoor,
+    };
+    run_sdk_tap_child_once_ineligible(client, directory, report, &pins)?;
+    Ok(())
+}
+
+fn main() {
+    if let Err(error) = run() {
+        eprintln!("SDK tap child ineligible: {error}");
+        std::process::exit(2);
+    }
+}
