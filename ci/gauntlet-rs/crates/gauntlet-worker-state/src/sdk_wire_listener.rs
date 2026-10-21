@@ -7,8 +7,8 @@ use crate::{
     RunReservationJournal, SdkWirePeerPin,
 };
 use rustix::fs::{
-    chmodat, chownat, fchmod, fchown, fstat, fsync, mkdirat, openat, statat, AtFlags, FileType,
-    Mode, OFlags, Stat,
+    chmodat, chownat, fchmod, fchown, fstat, fsync, mkdirat, openat, statat, unlinkat, AtFlags,
+    FileType, Mode, OFlags, Stat,
 };
 use rustix::process::{geteuid, Gid};
 use serde_json::{json, Value};
@@ -152,6 +152,43 @@ impl SdkTapListeners {
         }
         Ok(())
     }
+
+    /// Remove the exposed socket names only after the controller and tap
+    /// children have stopped. Keep the empty one-use directory as a durable
+    /// tombstone so a replay cannot bind fresh listeners for this run ID.
+    pub fn close_and_tombstone_ineligible(
+        self,
+        journal: &RunReservationJournal,
+        lease: &ActiveLease,
+    ) -> Result<(), String> {
+        self.recheck(journal, lease)?;
+        let Self {
+            directory,
+            directory_name,
+            listeners,
+            ..
+        } = self;
+        drop(listeners);
+        for name in FAMILY_NAMES {
+            unlinkat(&directory, name, AtFlags::empty())
+                .map_err(|error| format!("SDK tap socket teardown failed: {name}: {error}"))?;
+        }
+        fsync(&directory).map_err(|error| error.to_string())?;
+        let visible = statat(
+            &journal.root,
+            directory_name.as_str(),
+            AtFlags::SYMLINK_NOFOLLOW,
+        )
+        .map_err(|error| error.to_string())?;
+        if !exact_directory(&visible) {
+            return Err("SDK tap tombstone directory changed".to_owned());
+        }
+        fsync(&journal.root).map_err(|error| error.to_string())?;
+        lease
+            .verify(&journal.root)
+            .map_err(|error| error.to_string())?;
+        Ok(())
+    }
 }
 
 fn same_inode(left: &Stat, right: &Stat) -> bool {
@@ -279,6 +316,28 @@ mod tests {
     use std::os::unix::process::CommandExt;
     use std::path::Path;
     use std::process::Command;
+
+    #[test]
+    #[ignore = "requires Linux Root for the one-use tap journal"]
+    fn closed_tap_removes_sockets_but_refuses_rebinding() {
+        let temporary = tempfile::Builder::new()
+            .prefix("gauntlet-sdk-tombstone-")
+            .tempdir_in("/root")
+            .unwrap();
+        fs::set_permissions(temporary.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        let journal = RunReservationJournal::open_root_owned(temporary.path()).unwrap();
+        let lease = journal.acquire_active_lease().unwrap();
+        let run_id = "9876543210abcdef";
+        let listeners = bind_sdk_tap_listeners_ineligible(&journal, &lease, run_id).unwrap();
+        listeners
+            .close_and_tombstone_ineligible(&journal, &lease)
+            .unwrap();
+        let directory = temporary.path().join(format!("{run_id}.sdk-tap"));
+        assert!(directory.is_dir());
+        assert!(!directory.join("docs.sock").exists());
+        assert!(!directory.join("mail.sock").exists());
+        assert!(bind_sdk_tap_listeners_ineligible(&journal, &lease, run_id).is_err());
+    }
 
     #[test]
     #[ignore = "requires Linux Root for the private worker journal"]

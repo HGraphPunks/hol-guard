@@ -127,6 +127,8 @@ mod candidate_staging_config_revision;
 mod candidate_staging_plan;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_staging_run;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod candidate_staging_tap;
 mod candidate_wheel;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_wheel_stage;
@@ -322,9 +324,12 @@ pub use candidate_staging_plan::{
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_staging_run::{
-    run_fixed_candidate_staging_control_ineligible, CandidateStagingRunPins,
+    run_fixed_candidate_staging_control_ineligible,
+    run_fixed_candidate_staging_control_sdk_tap_v2_ineligible, CandidateStagingRunPins,
     CandidateStagingRunProof,
 };
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use candidate_staging_tap::CandidateSdkTapPins;
 pub use candidate_wheel::{inspect_candidate_wheel, CandidateWheelError, CandidateWheelProof};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_wheel_stage::{

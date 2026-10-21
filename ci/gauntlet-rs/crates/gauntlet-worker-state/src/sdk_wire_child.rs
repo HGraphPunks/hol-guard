@@ -96,7 +96,11 @@ pub fn run_sdk_tap_child_once_ineligible(
         .map_err(|error| error.to_string())?;
     let mut writer = SdkTapFramePipeWriter::new(report);
     let wire = {
-        let sink = Mutex::new(|direction, frame: &[u8]| writer.write_frame(direction, frame));
+        let sink = Mutex::new(|direction, frame: &[u8]| {
+            sdk_peer.recheck(&held_sdk)?;
+            native_peer.recheck(&held_native)?;
+            writer.write_frame(direction, frame)
+        });
         relay_bounded_sdk_mcp_pair_with_frame_sink_ineligible(
             sdk_connection,
             native_connection,
@@ -105,8 +109,9 @@ pub fn run_sdk_tap_child_once_ineligible(
             &sink,
         )?
     };
-    sdk_peer.recheck(&held_sdk)?;
-    native_peer.recheck(&held_native)?;
+    // A normal SDK stdio relay may exit immediately after EOF. Its live
+    // pidfd/start/cgroup were checked for every forwarded frame above, so
+    // requiring it to survive the final EOF would reject an honest session.
     require_private_frontdoor_directory(&native_directory)?;
     let report = writer.finish()?;
     report

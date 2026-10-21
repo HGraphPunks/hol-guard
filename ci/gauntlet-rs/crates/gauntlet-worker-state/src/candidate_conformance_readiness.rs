@@ -78,12 +78,19 @@ pub struct CandidateConformanceReadinessProof {
     controller_tree_sha256: String,
     controller_entries: usize,
     asset_roles: usize,
+    verified_bun_sha256: String,
     completion_present: bool,
 }
 
 impl CandidateConformanceReadinessProof {
     pub fn contained_completion_present(&self) -> bool {
         self.completion_present
+    }
+
+    /// The executable digest was recomputed from the declared asset under
+    /// both worker locks, rather than taken from the controller's record.
+    pub(crate) fn verified_bun_sha256(&self) -> &str {
+        &self.verified_bun_sha256
     }
 
     pub fn to_json(&self) -> Value {
@@ -289,6 +296,12 @@ fn inspect_readiness(
     }
     let assets = verify_runner_assets_inert(&loaded, Path::new(ASSET_ROOT))
         .map_err(|_| CandidateConformanceReadinessError::AssetMismatch)?;
+    let verified_bun_sha256 = assets
+        .observed
+        .get("bun")
+        .filter(|digest| lower_hex(digest, 64))
+        .ok_or(CandidateConformanceReadinessError::AssetMismatch)?
+        .clone();
     let prefix = Path::new(SHADOW_ROOT).join(pins.job_id).join("prefix");
     let completion = completion_present(&prefix)?;
     if inventory_tree(&prefix, TreeKind::InstalledPrefix)
@@ -317,6 +330,7 @@ fn inspect_readiness(
         controller_tree_sha256: pins.controller_tree_sha256.to_owned(),
         controller_entries: controller.entries(),
         asset_roles: assets.observed.len(),
+        verified_bun_sha256,
         completion_present: completion,
     })
 }

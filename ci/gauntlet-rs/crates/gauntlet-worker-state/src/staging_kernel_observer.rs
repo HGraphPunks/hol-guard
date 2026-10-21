@@ -3,6 +3,7 @@
 //! record, but polling cannot establish every short-lived process or Guard
 //! decision and never grants execution eligibility.
 
+use crate::sdk_wire_peer::SdkWirePeerPin;
 use crate::staging_machine_observer::{
     observe_sdk_executable, ContainerProcessIdentity, MachineSliceSampler, SdkExecutableIdentity,
 };
@@ -153,7 +154,56 @@ fn parse_populated(raw: &[u8]) -> Result<bool, String> {
     populated.ok_or_else(|| "missing populated event".to_owned())
 }
 
+fn select_unique_sdk_ancestor<'a>(
+    observed: &'a BTreeSet<SdkExecutableIdentity>,
+    expected_bun_sha256: &str,
+) -> Result<Option<&'a SdkExecutableIdentity>, String> {
+    if expected_bun_sha256.len() != 64
+        || !expected_bun_sha256
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err("verified Bun asset digest required for SDK peer selection".to_owned());
+    }
+    let mut matches = observed
+        .iter()
+        .filter(|identity| identity.executable_sha256 == expected_bun_sha256);
+    let one = matches.next();
+    if matches.next().is_some() {
+        return Err("more than one exact Bun SDK process is live in the staging sample".to_owned());
+    }
+    Ok(one)
+}
+
 impl StagingKernelSampler {
+    /// Select exactly one sampled Bun with the independently inventoried
+    /// executable bytes, then reobserve argv, executable and process identity
+    /// before its cgroup can authorize accepting an SDK relay connection.
+    pub(crate) fn unique_live_sdk_ancestor(
+        &self,
+        expected_bun_sha256: &str,
+    ) -> Result<Option<SdkWirePeerPin>, String> {
+        let Some(identity) =
+            select_unique_sdk_ancestor(&self.observed_sdk_executables, expected_bun_sha256)?
+        else {
+            return Ok(None);
+        };
+        let process = ContainerProcessIdentity {
+            container_id: identity.container_id.clone(),
+            pid: identity.pid,
+            start_ticks: identity.start_ticks,
+            cgroup: identity.cgroup.clone(),
+        };
+        if observe_sdk_executable(&process).as_ref() != Some(identity) {
+            return Err("sampled Bun SDK process changed before relay handoff".to_owned());
+        }
+        Ok(Some(SdkWirePeerPin {
+            pid: identity.pid,
+            start_ticks: identity.start_ticks,
+            cgroup: identity.cgroup.clone(),
+        }))
+    }
+
     pub(crate) fn new(run_id: &str) -> Result<Self, String> {
         let slice_name = rust_job_slice_name(run_id).map_err(|error| error.to_string())?;
         let root = open(
@@ -284,6 +334,36 @@ impl StagingKernelSampler {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sdk_handoff_requires_one_exact_inventoried_bun() {
+        let digest = "a".repeat(64);
+        let other = "b".repeat(64);
+        let identity = |pid, executable_sha256: String| SdkExecutableIdentity {
+            container_id: format!("container-{pid}"),
+            pid,
+            start_ticks: 123,
+            cgroup: format!("/machine.slice/libpod-{pid}.scope"),
+            argv_sha256: "c".repeat(64),
+            executable_sha256,
+        };
+        let mut observed = BTreeSet::new();
+        observed.insert(identity(10, other));
+        assert!(select_unique_sdk_ancestor(&observed, &digest)
+            .unwrap()
+            .is_none());
+        observed.insert(identity(11, digest.clone()));
+        assert_eq!(
+            select_unique_sdk_ancestor(&observed, &digest)
+                .unwrap()
+                .unwrap()
+                .pid,
+            11
+        );
+        observed.insert(identity(12, digest.clone()));
+        assert!(select_unique_sdk_ancestor(&observed, &digest).is_err());
+        assert!(select_unique_sdk_ancestor(&observed, &digest.to_uppercase()).is_err());
+    }
 
     #[test]
     fn kernel_counters_require_bounded_exact_numbers_and_unique_populated_event() {

@@ -7,8 +7,8 @@ use crate::sdk_wire_peer::{
 };
 use crate::sdk_wire_pipe::read_sdk_tap_frame_pipe_ineligible;
 use crate::sdk_wire_tap::SdkWireObservation;
-use crate::{hex, BoottimeDeadline, OwnedSdkTapCgroup};
-use rustix::fs::{fstat, open, FileType, Mode, OFlags, Stat};
+use crate::{hex, open_root_owned_public_directory, BoottimeDeadline, OwnedSdkTapCgroup};
+use rustix::fs::{fstat, openat, statat, AtFlags, FileType, Mode, OFlags, Stat};
 use rustix::process::{geteuid, pidfd_open, Pid, PidfdFlags};
 use sha2::{Digest, Sha256};
 use std::ffi::CString;
@@ -28,6 +28,16 @@ const READ_POLL: Duration = Duration::from_millis(250);
 const TAP_UID: u32 = 10001;
 const TAP_GID: u32 = 10001;
 const ARG_COUNT: usize = 14;
+
+fn fixed_arm64_elf(raw: &[u8]) -> bool {
+    raw.len() >= 64
+        && raw[..4] == [0x7f, b'E', b'L', b'F']
+        && raw[4] == 2
+        && raw[5] == 1
+        && raw[6] == 1
+        && matches!(u16::from_le_bytes([raw[16], raw[17]]), 2 | 3)
+        && u16::from_le_bytes([raw[18], raw[19]]) == 183
+}
 
 pub struct HeldSdkTapExecutable {
     descriptor: OwnedFd,
@@ -64,8 +74,8 @@ fn same_file(left: &Stat, right: &Stat) -> bool {
 }
 
 /// Hold and hash the exact Root-owned child ELF before any SDK socket is
-/// accepted. Only the final path component is protected from symlinks here;
-/// deployment ancestry and the outside SHA remain the worker caller's pins.
+/// accepted. Every directory ancestor is opened without following symlinks;
+/// the executable itself is opened relative to that held parent.
 pub fn open_pinned_sdk_tap_executable_ineligible(
     path: &Path,
     expected_sha256: &str,
@@ -73,8 +83,17 @@ pub fn open_pinned_sdk_tap_executable_ineligible(
     if geteuid().as_raw() != 0 || !hex(expected_sha256, 64) || !path.is_absolute() {
         return Err("Root and outside SDK tap executable pin required".to_owned());
     }
-    let descriptor = open(
-        path,
+    let parent_path = path
+        .parent()
+        .ok_or("SDK tap executable parent directory missing")?;
+    let name = path
+        .file_name()
+        .ok_or("SDK tap executable filename missing")?;
+    let parent = open_root_owned_public_directory(parent_path)
+        .map_err(|error| format!("SDK tap executable parent unsafe: {error}"))?;
+    let descriptor = openat(
+        &parent,
+        name,
         OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
         Mode::empty(),
     )
@@ -97,9 +116,13 @@ pub fn open_pinned_sdk_tap_executable_ineligible(
         .read_to_end(&mut raw)
         .map_err(|error| error.to_string())?;
     let after = fstat(&file).map_err(|error| error.to_string())?;
+    let visible = statat(&parent, name, AtFlags::SYMLINK_NOFOLLOW)
+        .map_err(|error| format!("SDK tap executable path changed: {error}"))?;
     let actual = format!("{:x}", Sha256::digest(&raw));
     if raw.len() as i64 != before.st_size
         || !same_file(&before, &after)
+        || !same_file(&before, &visible)
+        || !fixed_arm64_elf(&raw)
         || actual != expected_sha256
     {
         return Err("SDK tap executable bytes differ from outside pin".to_owned());
@@ -405,7 +428,21 @@ fn run_pinned_sdk_tap_child_impl(
         ))
     })();
     if result.is_err() {
+        #[cfg(test)]
+        eprintln!(
+            "SDK tap child test state before reap: {:?}",
+            child.try_wait()
+        );
         kill_and_reap(&mut child)?;
+        #[cfg(test)]
+        if let Some(stderr) = child.stderr.take() {
+            let mut raw = Vec::new();
+            let _ = stderr.take(1024).read_to_end(&mut raw);
+            eprintln!(
+                "SDK tap child test diagnostic: {}",
+                String::from_utf8_lossy(&raw)
+            );
+        }
     }
     result
 }
@@ -421,5 +458,20 @@ mod tests {
             &"0".repeat(64)
         )
         .is_err());
+    }
+
+    #[test]
+    fn refuses_pinned_script_or_foreign_architecture_as_tap_child() {
+        assert!(!fixed_arm64_elf(b"#!/usr/bin/python3\n"));
+        let mut header = [0_u8; 64];
+        header[..4].copy_from_slice(b"\x7fELF");
+        header[4] = 2;
+        header[5] = 1;
+        header[6] = 1;
+        header[16..18].copy_from_slice(&3_u16.to_le_bytes());
+        header[18..20].copy_from_slice(&62_u16.to_le_bytes());
+        assert!(!fixed_arm64_elf(&header));
+        header[18..20].copy_from_slice(&183_u16.to_le_bytes());
+        assert!(fixed_arm64_elf(&header));
     }
 }

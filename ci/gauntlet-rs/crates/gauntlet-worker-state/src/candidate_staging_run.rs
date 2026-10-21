@@ -6,6 +6,7 @@
 use crate::candidate_conformance_readiness::{
     inspect_candidate_staging_readiness_ineligible, CandidateConformanceReadinessPins,
 };
+use crate::candidate_staging_tap::{CandidateSdkTapPins, StagingTapV2, TapSessions};
 use crate::contained_probe::OwnedJobCgroup;
 use crate::controller_exec::{exchange_prelaunch_pipe, spawn_root_fd};
 use crate::controller_key::{
@@ -14,8 +15,9 @@ use crate::controller_key::{
 use crate::controller_run::{cleanup, observe_child, wait_for_child, WaitOutcome};
 use crate::staging_kernel_observer::{LiveStagingKernelObservation, StagingKernelSampler};
 use crate::{
-    fixed_staging_control_plan, open_root_owned_public_directory, read_fixed_interpreter_path_held,
-    ActiveLease, BoottimeDeadline, RunReservationJournal, StagingControlPins, StagingRole,
+    fixed_staging_control_plan, fixed_staging_control_plan_sdk_tap_v2,
+    open_root_owned_public_directory, read_fixed_interpreter_path_held, ActiveLease,
+    BoottimeDeadline, RunReservationJournal, SdkWirePeerPin, StagingControlPins, StagingRole,
     TerminalOutcome,
 };
 use gauntlet_contracts::{canonicalize, PrelaunchPrepared, WorkerRequest};
@@ -29,6 +31,9 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{sync_channel, RecvTimeoutError};
+use std::thread;
+use std::time::{Duration, Instant};
 
 const STAGING_STATE: &str = "/var/lib/hol-gauntlet-rust/staging-state";
 
@@ -62,11 +67,12 @@ pub struct CandidateStagingRunProof {
     timed_out: bool,
     post_run_controller_custody: bool,
     live_kernel_activity: LiveStagingKernelObservation,
+    sdk_tap_v2: Option<Value>,
 }
 
 impl CandidateStagingRunProof {
     pub fn to_json(&self) -> Value {
-        json!({
+        let mut value = json!({
             "schema":"hol-gauntlet-candidate-staging-run-diagnostic.v1",
             "run_id":self.run_id,
             "source_sha":self.source_sha,
@@ -82,7 +88,11 @@ impl CandidateStagingRunProof {
             "record_scored":false,
             "conformance_package_created":false,
             "execution_eligible":false,
-        })
+        });
+        if let Some(tap) = &self.sdk_tap_v2 {
+            value["sdk_tap_v2"] = tap.clone();
+        }
+        value
     }
 }
 
@@ -133,6 +143,50 @@ pub fn run_fixed_candidate_staging_control_ineligible(
     prepared_writer: &impl AsRawFd,
     acknowledgement_reader: &impl AsRawFd,
 ) -> Result<CandidateStagingRunProof, String> {
+    run_fixed_candidate_staging_control_impl(
+        pins,
+        None,
+        request,
+        deadline,
+        cancellation,
+        prepared_writer,
+        acknowledgement_reader,
+    )
+}
+
+/// Separate explicit v2 entry. Existing v1 callers never mount the tap and
+/// cannot silently change their controller transport or evidence semantics.
+#[allow(clippy::too_many_arguments)]
+pub fn run_fixed_candidate_staging_control_sdk_tap_v2_ineligible(
+    pins: &CandidateStagingRunPins<'_>,
+    tap_pins: &CandidateSdkTapPins<'_>,
+    request: &WorkerRequest,
+    deadline: &BoottimeDeadline,
+    cancellation: &AtomicBool,
+    prepared_writer: &impl AsRawFd,
+    acknowledgement_reader: &impl AsRawFd,
+) -> Result<CandidateStagingRunProof, String> {
+    run_fixed_candidate_staging_control_impl(
+        pins,
+        Some(tap_pins),
+        request,
+        deadline,
+        cancellation,
+        prepared_writer,
+        acknowledgement_reader,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_fixed_candidate_staging_control_impl(
+    pins: &CandidateStagingRunPins<'_>,
+    tap_pins: Option<&CandidateSdkTapPins<'_>>,
+    request: &WorkerRequest,
+    deadline: &BoottimeDeadline,
+    cancellation: &AtomicBool,
+    prepared_writer: &impl AsRawFd,
+    acknowledgement_reader: &impl AsRawFd,
+) -> Result<CandidateStagingRunProof, String> {
     if !cfg!(all(target_os = "linux", target_arch = "aarch64")) || geteuid().as_raw() != 0 {
         return Err("Linux ARM64 Root staging owner required".to_owned());
     }
@@ -149,20 +203,22 @@ pub fn run_fixed_candidate_staging_control_ineligible(
             "fixed staging request or worker generation differs from outside pins".to_owned(),
         );
     }
-    let plan = fixed_staging_control_plan(
-        &StagingControlPins {
-            build_job_id: pins.build_job_id,
-            run_id: pins.run_id,
-            source_sha: pins.source_sha,
-            version: pins.version,
-            config_digest: pins.config_digest,
-            private_manifest_sha256: pins.private_manifest_sha256,
-            controller_path: pins.controller_path,
-            python_path: pins.python_path,
-            interpreter_sha256: pins.interpreter_sha256,
-        },
-        pins.role,
-    )
+    let control_pins = StagingControlPins {
+        build_job_id: pins.build_job_id,
+        run_id: pins.run_id,
+        source_sha: pins.source_sha,
+        version: pins.version,
+        config_digest: pins.config_digest,
+        private_manifest_sha256: pins.private_manifest_sha256,
+        controller_path: pins.controller_path,
+        python_path: pins.python_path,
+        interpreter_sha256: pins.interpreter_sha256,
+    };
+    let plan = if tap_pins.is_some() {
+        fixed_staging_control_plan_sdk_tap_v2(&control_pins, pins.role)
+    } else {
+        fixed_staging_control_plan(&control_pins, pins.role)
+    }
     .map_err(|error| error.to_string())?;
     let readiness =
         inspect_candidate_staging_readiness_ineligible(&CandidateConformanceReadinessPins {
@@ -188,6 +244,23 @@ pub fn run_fixed_candidate_staging_control_ineligible(
         .map_err(|error| error.to_string())?;
     recheck_prelaunch(pins, &interpreter, &journal, &lease)?;
     let mut group = OwnedJobCgroup::create(pins.run_id).map_err(|error| error.to_string())?;
+    let mut tap = match tap_pins {
+        Some(tap_pins) => match StagingTapV2::prepare(
+            tap_pins,
+            readiness.verified_bun_sha256(),
+            pins.run_id,
+            &journal,
+            &lease,
+        ) {
+            Ok(tap) => Some(tap),
+            Err(error) => {
+                cleanup(&mut group, None, pins.run_id, false)
+                    .map_err(|cleanup| format!("SDK tap prelaunch cleanup uncertain: {cleanup}"))?;
+                return Err(error);
+            }
+        },
+        None => None,
+    };
     run_with_group(
         pins,
         request,
@@ -200,7 +273,105 @@ pub fn run_fixed_candidate_staging_control_ineligible(
         &journal,
         &lease,
         &mut group,
+        tap.as_mut(),
     )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn wait_with_sdk_tap_v2(
+    child: &mut std::process::Child,
+    sampler: &mut StagingKernelSampler,
+    group: &OwnedJobCgroup,
+    tap: &StagingTapV2,
+    pins: &CandidateStagingRunPins<'_>,
+    process: crate::ProcessIdentity,
+    journal: &RunReservationJournal,
+    lease: &ActiveLease,
+    deadline: &BoottimeDeadline,
+    cancellation: &AtomicBool,
+) -> Result<(WaitOutcome, Result<TapSessions, String>), String> {
+    let controller = SdkWirePeerPin {
+        pid: process.pid,
+        start_ticks: process.start_ticks,
+        cgroup: group.path().to_owned(),
+    };
+    let (sender, receiver) = sync_channel::<SdkWirePeerPin>(1);
+    let tap_stopped = AtomicBool::new(false);
+    thread::scope(|scope| {
+        let stopped = &tap_stopped;
+        let controller = &controller;
+        let tap_handle = scope.spawn(move || {
+            let ancestor = loop {
+                if stopped.load(Ordering::Acquire)
+                    || cancellation.load(Ordering::Acquire)
+                    || deadline
+                        .remaining()
+                        .map_err(|error| error.to_string())?
+                        .is_zero()
+                {
+                    return Err("SDK tap ended without an exact live Bun ancestor".to_owned());
+                }
+                match receiver.recv_timeout(Duration::from_millis(20)) {
+                    Ok(pin) => break pin,
+                    Err(RecvTimeoutError::Timeout) => continue,
+                    Err(RecvTimeoutError::Disconnected) => {
+                        return Err("SDK tap ancestor handoff closed".to_owned());
+                    }
+                }
+            };
+            tap.run_sessions(
+                journal,
+                lease,
+                pins.run_id,
+                pins.role,
+                controller,
+                &ancestor,
+                deadline,
+                stopped,
+            )
+        });
+        let mut sender = Some(sender);
+        let waited = wait_for_child(
+            child,
+            deadline,
+            || {
+                lease
+                    .verify(&journal.root)
+                    .map_err(crate::controller_run::ControllerRunError::Lease)?;
+                sampler
+                    .sample(group)
+                    .map_err(crate::controller_run::ControllerRunError::KernelObservation)?;
+                if sender.is_some() {
+                    if let Some(ancestor) = sampler
+                        .unique_live_sdk_ancestor(tap.bun_sha256())
+                        .map_err(crate::controller_run::ControllerRunError::KernelObservation)?
+                    {
+                        if let Some(sender) = sender.take() {
+                            let _ = sender.send(ancestor);
+                        }
+                    }
+                }
+                Ok(())
+            },
+            || cancellation.load(Ordering::Acquire),
+        );
+        // The Python controller has stopped. Give already active relay
+        // sessions a short bounded chance to finish their final frame/EOF.
+        let settle_until = Instant::now() + Duration::from_secs(2);
+        while waited.is_ok()
+            && !tap_handle.is_finished()
+            && !cancellation.load(Ordering::Acquire)
+            && Instant::now() < settle_until
+            && deadline.remaining().unwrap_or(Duration::ZERO) > Duration::ZERO
+        {
+            thread::sleep(Duration::from_millis(20));
+        }
+        tap_stopped.store(true, Ordering::Release);
+        let tap_result = tap_handle
+            .join()
+            .map_err(|_| "SDK tap worker thread panicked".to_owned())?;
+        Ok((waited.map_err(|error| error.to_string())?, tap_result))
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -216,6 +387,7 @@ fn run_with_group(
     journal: &RunReservationJournal,
     lease: &ActiveLease,
     group: &mut OwnedJobCgroup,
+    mut tap: Option<&mut StagingTapV2>,
 ) -> Result<CandidateStagingRunProof, String> {
     let launched = launch_control(
         pins,
@@ -233,8 +405,14 @@ fn run_with_group(
     let (mut child, started, key_pin) = match launched {
         Ok(value) => value,
         Err(error) => {
-            cleanup(group, None, pins.run_id, false)
+            let control_cleanup = cleanup(group, None, pins.run_id, false);
+            let tap_cleanup = tap
+                .as_mut()
+                .map(|tap| tap.cleanup(journal, lease))
+                .transpose();
+            control_cleanup
                 .map_err(|cleanup| format!("staging prelaunch cleanup uncertain: {cleanup}"))?;
+            tap_cleanup?;
             return Err(error);
         }
     };
@@ -254,25 +432,47 @@ fn run_with_group(
             .map_err(|error| error.to_string())?;
         let mut sampler = StagingKernelSampler::new(pins.run_id)?;
         sampler.sample(group)?;
-        let outcome = wait_for_child(
-            &mut child,
-            deadline,
-            || {
-                lease
-                    .verify(&journal.root)
-                    .map_err(crate::controller_run::ControllerRunError::Lease)?;
-                sampler
-                    .sample(group)
-                    .map_err(crate::controller_run::ControllerRunError::KernelObservation)
-            },
-            || cancellation.load(Ordering::Acquire),
-        )
-        .map_err(|error| error.to_string())?;
-        Ok::<_, String>((process, outcome, sampler.finish()))
+        let (outcome, tap_sessions) = if let Some(tap) = tap.as_ref() {
+            let (outcome, sessions) = wait_with_sdk_tap_v2(
+                &mut child,
+                &mut sampler,
+                group,
+                tap,
+                pins,
+                process,
+                journal,
+                lease,
+                deadline,
+                cancellation,
+            )?;
+            (outcome, Some(sessions))
+        } else {
+            let outcome = wait_for_child(
+                &mut child,
+                deadline,
+                || {
+                    lease
+                        .verify(&journal.root)
+                        .map_err(crate::controller_run::ControllerRunError::Lease)?;
+                    sampler
+                        .sample(group)
+                        .map_err(crate::controller_run::ControllerRunError::KernelObservation)
+                },
+                || cancellation.load(Ordering::Acquire),
+            )
+            .map_err(|error| error.to_string())?;
+            (outcome, None)
+        };
+        Ok::<_, String>((process, outcome, sampler.finish(), tap_sessions))
     })();
-    cleanup(group, Some(&mut child), pins.run_id, true)
-        .map_err(|error| format!("staging child cleanup uncertain: {error}"))?;
-    let (process, outcome, live_kernel_activity) = observed?;
+    let control_cleanup = cleanup(group, Some(&mut child), pins.run_id, true);
+    let tap_cleanup = tap
+        .as_mut()
+        .map(|tap| tap.cleanup(journal, lease))
+        .transpose();
+    control_cleanup.map_err(|error| format!("staging child cleanup uncertain: {error}"))?;
+    tap_cleanup?;
+    let (process, outcome, live_kernel_activity, tap_sessions) = observed?;
     let (exit_code, timed_out) = match outcome {
         WaitOutcome::Exited(status) => (
             status
@@ -286,7 +486,25 @@ fn run_with_group(
     let post_run_controller_custody = recheck_prelaunch(pins, interpreter, journal, lease).is_ok();
     require_pinned_controller_key_under_lease(journal, lease, &started, &key_pin)
         .map_err(|error| error.to_string())?;
-    let report = json!({
+    let sdk_tap_v2 = match (tap.as_ref(), tap_sessions) {
+        (Some(tap), Some(Ok(sessions))) => Some(
+            match tap.retain_sessions(journal, lease, &started, &sessions) {
+                Ok(receipt) => sessions.summary(&receipt),
+                Err(error) => {
+                    json!({"schema":"hol-gauntlet-staging-sdk-tap-summary.v1","status":"invalid-evidence","error":error,"execution_eligible":false})
+                }
+            },
+        ),
+        (Some(_), Some(Err(error))) => Some(json!({
+            "schema":"hol-gauntlet-staging-sdk-tap-summary.v1",
+            "status":"invalid-evidence",
+            "error":error,
+            "execution_eligible":false,
+        })),
+        (Some(_), None) => return Err("SDK tap outcome missing".to_owned()),
+        (None, _) => None,
+    };
+    let mut report = json!({
         "schema":"hol-gauntlet-staging-control-run-report.v1",
         "source_sha":pins.source_sha,
         "build_job_id":pins.build_job_id,
@@ -303,6 +521,9 @@ fn run_with_group(
         "record_scored":false,
         "execution_eligible":false,
     });
+    if let Some(tap) = &sdk_tap_v2 {
+        report["sdk_tap_v2"] = tap.clone();
+    }
     let raw = canonicalize(report.to_string().as_bytes()).map_err(|error| error.to_string())?;
     let terminal = journal
         .finish_under_lease(
@@ -331,6 +552,7 @@ fn run_with_group(
         timed_out,
         post_run_controller_custody,
         live_kernel_activity,
+        sdk_tap_v2,
     })
 }
 
