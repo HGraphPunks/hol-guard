@@ -100,6 +100,8 @@ mod linux_process;
 mod prelaunch;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod process_reap;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod product_cell_units;
 mod projection;
 #[cfg(target_os = "linux")]
 mod running;
@@ -125,6 +127,10 @@ pub use linux_process::{observe_process, ProcessObservation, ProcessObservationE
 pub use prelaunch::{
     prepare_fixed_prelaunch, verify_fixed_prelaunch, PrelaunchError, PrelaunchPins, PrelaunchProof,
     PreparedLaunch,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use product_cell_units::{
+    observe_product_cell_units, require_no_product_cell_units, ProductCellScanError,
 };
 #[cfg(target_os = "linux")]
 pub use running::RunningMarker;

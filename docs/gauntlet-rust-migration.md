@@ -9,6 +9,8 @@ A [fixed Root-only cgroup containment probe](gauntlet-rust-cgroup-containment-pr
 
 A [contained interpreter probe](gauntlet-rust-contained-interpreter-proof.md) now joins descriptor-bound Python execution and that fixed cgroup. It ran only inert code as UID 65534 on the ARM VM, observed the child credential and two contained tasks, and verified recursive cleanup. It did not launch a controller or benchmark or qualify a result.
 
+A [Root-only product-cell inventory](gauntlet-rust-product-cell-siblings-proof.md) found no retained product units on the idle ARM VM, but identified a necessary worker-design change: Python starts product cells as systemd sibling units under `system.slice`. The controller cgroup cannot kill those siblings. A Rust worker must bind, terminate and verify every product unit it creates, or prove a new job-owned slice arrangement, before it may write a successful cleanup receipt.
+
 A separate [Git-object diagnostic](gauntlet-rust-git-controller-source-proof.md) matches every proposed controller source byte at an exact local commit to the 426-file integration map and derives the expected install digest. The draft PR cannot serve as its own reviewed source pin or VM install authorization.
 
 An [isolated Rust installer](gauntlet-rust-controller-install-shadow-proof.md) has since retained a new Root-owned controller generation on the ARM VM, with the expected full-tree digest independently rechecked after installation. The active Python controller remains separate. The new bytes are not a reviewed execution generation, and no deployment or benchmark uses them.
