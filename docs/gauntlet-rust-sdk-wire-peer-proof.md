@@ -33,3 +33,18 @@ VM disk was 8,707,153,920 bytes, above the 8-GiB floor.
 This is an isolated identity primitive, not independent SDK wire evidence.
 The [execution checklist](gauntlet-rust-execution-checklist.md) keeps the
 listener, worker handoff, journal and fresh six-role proof open.
+
+At code pin `0dd62af7`, the reader can also discover the UID/GID-10001
+relay's PID/start-tick tuple from an accepted Unix socket **after** a separate
+worker observer supplies the exact agent cgroup. It checks that cgroup through
+the double-sampled `/proc` observer, then repeats fixed-peer authentication
+and returns a held pidfd. A real UID-10001 child on the ARM64 VM matched its
+separately sampled tuple; a wrong cgroup and an invalid root cgroup refused.
+The SHA-matched Root test binary was
+`33195851365223cd020ba211043176babd8cc5aa820828db9041dceaa7b15a6f`,
+mode 0500 with one link. Its explicit Root-only peer test passed; the full
+worker library suite passed 92 tests, eight intentionally ignored, zero
+failed. ARM64 warnings-denied Clippy, Rustfmt and `git diff --check` passed.
+The guest transfer inbox was removed; free VM disk was 8,677,048,320 bytes.
+The discovered tuple is still not a Bun executable, candidate-source or
+Native/Guard effect pin, and the live staging worker does not call this path.
