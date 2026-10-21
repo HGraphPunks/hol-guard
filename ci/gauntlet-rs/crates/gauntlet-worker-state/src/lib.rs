@@ -79,6 +79,8 @@ mod contained_probe;
 mod controller_exec;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod controller_install;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod controller_run;
 #[cfg(target_os = "linux")]
 mod deadline;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

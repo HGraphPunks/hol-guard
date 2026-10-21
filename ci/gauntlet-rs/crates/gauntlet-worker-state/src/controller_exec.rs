@@ -49,6 +49,7 @@ pub enum ControllerExecError {
     Process(ProcessObservationError),
     Spawn,
     ChildIdentityUnknown,
+    PostLaunch(Box<ControllerExecError>),
     CleanupUncertain,
 }
 
@@ -67,6 +68,9 @@ impl fmt::Display for ControllerExecError {
             Self::Process(error) => write!(f, "controller process identity: {error:?}"),
             Self::Spawn => f.write_str("descriptor-bound Root child could not start or be reaped"),
             Self::ChildIdentityUnknown => f.write_str("Root child credentials are unavailable"),
+            Self::PostLaunch(error) => {
+                write!(f, "controller spawned but post-check failed: {error}")
+            }
             Self::CleanupUncertain => f.write_str("Root child cleanup could not be proven"),
         }
     }
@@ -93,34 +97,8 @@ fn fixed_environment(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn controller_environment_accepts_only_the_four_fixed_keys() {
-        let mut environment = BTreeMap::from([
-            (
-                "HOL_GAUNTLET_RUST_JOB_SLICE",
-                "holgauntletrust1234567890abcdef.slice".to_owned(),
-            ),
-            ("HOME", "/root".to_owned()),
-            ("LANG", "C.UTF-8".to_owned()),
-            ("PATH", "/usr/bin:/bin".to_owned()),
-        ]);
-        assert_eq!(fixed_environment(&environment).unwrap().len(), 4);
-        environment.remove("HOME");
-        assert!(matches!(
-            fixed_environment(&environment),
-            Err(ControllerExecError::InvalidPlan)
-        ));
-        environment.insert("HOME", "/root".to_owned());
-        environment.insert("UNTRUSTED", "value".to_owned());
-        assert!(matches!(
-            fixed_environment(&environment),
-            Err(ControllerExecError::InvalidPlan)
-        ));
-    }
-}
+#[path = "controller_exec_tests.rs"]
+mod tests;
 
 /// Replace `/usr/bin/false` before it can execute. All strings, pointers,
 /// descriptors and output handles are prepared in the parent. The child
@@ -319,7 +297,7 @@ pub(crate) fn spawn_prepared_controller(
         if killed.is_err() || reaped.is_err() {
             return Err(ControllerExecError::CleanupUncertain);
         }
-        return Err(error);
+        return Err(ControllerExecError::PostLaunch(Box::new(error)));
     }
     Ok((child, started))
 }
