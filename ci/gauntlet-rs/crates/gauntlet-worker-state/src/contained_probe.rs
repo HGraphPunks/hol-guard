@@ -2,8 +2,9 @@
 //! select candidate code, a command, a cgroup path or a production job ID.
 
 use crate::{
-    interpreter_exec::spawn_contained_interpreter_probe, observe_cgroup_drain,
-    process_reap::reap_probe_child_bounded, CgroupDrainState, HeldInterpreter,
+    interpreter_exec::spawn_contained_interpreter_probe, launch_plan::rust_controller_cgroup_path,
+    observe_cgroup_drain, process_reap::reap_probe_child_bounded, CgroupDrainState,
+    HeldInterpreter,
 };
 use rustix::fs::{
     fstat, mkdirat, open, openat, statat, unlinkat, AtFlags, FileType, Mode, OFlags, Stat,
@@ -33,6 +34,7 @@ const WAIT: Duration = Duration::from_secs(3);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CgroupProbeError {
     RootRequired,
+    InvalidJobId,
     ExistingGroup,
     UnsafeGroup,
     ControlUnavailable,
@@ -49,6 +51,7 @@ impl fmt::Display for CgroupProbeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::RootRequired => "Linux Root required for isolated cgroup probe",
+            Self::InvalidJobId => "probe job ID must be exactly 16 lowercase hex characters",
             Self::ExistingGroup => "fixed probe cgroup already exists; inspect it before retry",
             Self::UnsafeGroup => "fixed probe cgroup identity is unsafe or changed",
             Self::ControlUnavailable => "fixed cgroup controls are unavailable",
@@ -90,6 +93,8 @@ pub(crate) struct OwnedProbeGroup {
     parent: OwnedFd,
     directory: OwnedFd,
     original: Stat,
+    name: String,
+    path: String,
 }
 
 fn root_directory(stat: &Stat) -> bool {
@@ -182,6 +187,20 @@ fn check_unprivileged_child(pid: u32) -> Result<(), CgroupProbeError> {
 
 impl OwnedProbeGroup {
     pub(crate) fn create() -> Result<Self, CgroupProbeError> {
+        Self::create_named(NAME.to_owned(), GROUP.to_owned())
+    }
+
+    fn create_job(job_id: &str) -> Result<Self, CgroupProbeError> {
+        let path =
+            rust_controller_cgroup_path(job_id).map_err(|_| CgroupProbeError::InvalidJobId)?;
+        let name = path
+            .strip_prefix("/system.slice/")
+            .ok_or(CgroupProbeError::InvalidJobId)?
+            .to_owned();
+        Self::create_named(name, path)
+    }
+
+    fn create_named(name: String, path: String) -> Result<Self, CgroupProbeError> {
         if geteuid().as_raw() != 0 {
             return Err(CgroupProbeError::RootRequired);
         }
@@ -194,7 +213,7 @@ impl OwnedProbeGroup {
         if !root_directory(&fstat(&parent).map_err(|_| CgroupProbeError::UnsafeGroup)?) {
             return Err(CgroupProbeError::UnsafeGroup);
         }
-        mkdirat(&parent, NAME, Mode::from_bits_truncate(0o755)).map_err(|error| {
+        mkdirat(&parent, name.as_str(), Mode::from_bits_truncate(0o755)).map_err(|error| {
             if error == Errno::EXIST {
                 CgroupProbeError::ExistingGroup
             } else {
@@ -203,20 +222,20 @@ impl OwnedProbeGroup {
         })?;
         let directory = match openat(
             &parent,
-            NAME,
+            name.as_str(),
             OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
             Mode::empty(),
         ) {
             Ok(directory) => directory,
             Err(_) => {
-                let _ = unlinkat(&parent, NAME, AtFlags::REMOVEDIR);
+                let _ = unlinkat(&parent, name.as_str(), AtFlags::REMOVEDIR);
                 return Err(CgroupProbeError::UnsafeGroup);
             }
         };
         let original = match fstat(&directory) {
             Ok(original) => original,
             Err(_) => {
-                let _ = unlinkat(&parent, NAME, AtFlags::REMOVEDIR);
+                let _ = unlinkat(&parent, name.as_str(), AtFlags::REMOVEDIR);
                 return Err(CgroupProbeError::UnsafeGroup);
             }
         };
@@ -224,6 +243,8 @@ impl OwnedProbeGroup {
             parent,
             directory,
             original,
+            name,
+            path,
         };
         if !root_directory(&group.original) || group.check_identity().is_err() {
             // An identity mismatch is retained for inspection, never removed
@@ -239,7 +260,7 @@ impl OwnedProbeGroup {
 
     fn check_identity(&self) -> Result<(), CgroupProbeError> {
         let held = fstat(&self.directory).map_err(|_| CgroupProbeError::UnsafeGroup)?;
-        let visible = statat(&self.parent, NAME, AtFlags::SYMLINK_NOFOLLOW)
+        let visible = statat(&self.parent, self.name.as_str(), AtFlags::SYMLINK_NOFOLLOW)
             .map_err(|_| CgroupProbeError::UnsafeGroup)?;
         if !root_directory(&held)
             || !same_identity(&self.original, &held)
@@ -329,10 +350,10 @@ impl OwnedProbeGroup {
 
     pub(crate) fn remove_empty(&mut self) -> Result<(), CgroupProbeError> {
         self.check_identity()?;
-        if observe_cgroup_drain(GROUP) != Ok(CgroupDrainState::Drained) {
+        if observe_cgroup_drain(&self.path) != Ok(CgroupDrainState::Drained) {
             return Err(CgroupProbeError::DrainUnknown);
         }
-        unlinkat(&self.parent, NAME, AtFlags::REMOVEDIR)
+        unlinkat(&self.parent, self.name.as_str(), AtFlags::REMOVEDIR)
             .map_err(|_| CgroupProbeError::CleanupUnavailable)
     }
 
@@ -357,7 +378,46 @@ impl OwnedProbeGroup {
 /// uncertain cleanup the cgroup is retained for inspection, never reported
 /// as a successful terminal benchmark or silently reused.
 pub fn run_fixed_cgroup_probe() -> Result<CgroupProbeProof, CgroupProbeError> {
-    let mut group = OwnedProbeGroup::create()?;
+    let observed_tasks = run_inert_group_probe(OwnedProbeGroup::create()?)?;
+    Ok(CgroupProbeProof { observed_tasks })
+}
+
+/// Inert per-job cgroup exercise. The job ID is fixed in the probe, and the
+/// same create/kill/drain code refuses any pre-existing or unsafe cgroup.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JobCgroupProbeProof {
+    pub observed_tasks: u64,
+    pub cgroup: String,
+}
+
+impl JobCgroupProbeProof {
+    pub fn to_json(&self) -> Value {
+        json!({
+            "schema":"hol-gauntlet-rust-job-cgroup-probe.v1",
+            "job_id":"0123456789abcdef",
+            "cgroup":self.cgroup,
+            "observed_tasks":self.observed_tasks,
+            "child_and_grandchild_observed":true,
+            "recursive_kill_written":true,
+            "drained_observed":true,
+            "cgroup_removed":true,
+            "controller_executed":false,
+            "execution_eligible":false,
+        })
+    }
+}
+
+pub fn run_fixed_job_cgroup_probe() -> Result<JobCgroupProbeProof, CgroupProbeError> {
+    let group = OwnedProbeGroup::create_job("0123456789abcdef")?;
+    let cgroup = group.path.clone();
+    let observed_tasks = run_inert_group_probe(group)?;
+    Ok(JobCgroupProbeProof {
+        observed_tasks,
+        cgroup,
+    })
+}
+
+fn run_inert_group_probe(mut group: OwnedProbeGroup) -> Result<u64, CgroupProbeError> {
     let mut command = Command::new("/bin/sh");
     command
         .args(["-c", "/usr/bin/sleep 5 & wait"])
@@ -397,7 +457,7 @@ pub fn run_fixed_cgroup_probe() -> Result<CgroupProbeProof, CgroupProbeError> {
     killed?;
     reaped?;
     drained?;
-    Ok(CgroupProbeProof { observed_tasks })
+    Ok(observed_tasks)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -480,4 +540,21 @@ pub fn run_fixed_contained_interpreter_probe(
         observed_tasks,
         interpreter_sha256: interpreter.declaration().sha256.clone(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn job_group_refuses_a_cgroup_name_selector() {
+        assert!(matches!(
+            OwnedProbeGroup::create_job("../system.slice"),
+            Err(CgroupProbeError::InvalidJobId)
+        ));
+        assert!(matches!(
+            OwnedProbeGroup::create_job("0123456789ABCDEF"),
+            Err(CgroupProbeError::InvalidJobId)
+        ));
+    }
 }

@@ -18,6 +18,13 @@ pub(crate) fn rust_job_slice_name(job_id: &str) -> Result<String, ReservationErr
     Ok(format!("holgauntletrust{job_id}.slice"))
 }
 
+pub(crate) fn rust_controller_cgroup_path(job_id: &str) -> Result<String, ReservationError> {
+    if !hex(job_id, 16) {
+        return Err(ReservationError::InvalidPins);
+    }
+    Ok(format!("/system.slice/hol-gauntlet-rust-job-{job_id}"))
+}
+
 /// The caller must obtain these bytes from independently verified, Root-owned
 /// deployment and interpreter readers. This data-only struct is not a receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,6 +53,7 @@ pub struct FixedLaunchPlan {
 pub struct RustJobLaunchPlan {
     fixed: FixedLaunchPlan,
     job_slice: String,
+    controller_cgroup: String,
 }
 
 impl RustJobLaunchPlan {
@@ -57,8 +65,15 @@ impl RustJobLaunchPlan {
         &self.job_slice
     }
 
+    /// The systemd-managed product-cell slice cgroup, distinct from the
+    /// directly owned controller cgroup below.
     pub fn job_cgroup(&self) -> String {
         format!("/{}", self.job_slice)
+    }
+
+    /// Separate contained-controller cgroup; product cells use `job_slice`.
+    pub fn controller_cgroup(&self) -> &str {
+        &self.controller_cgroup
     }
 
     pub fn environment(&self) -> BTreeMap<&'static str, String> {
@@ -174,5 +189,6 @@ pub fn fixed_rust_job_launch_plan(
     Ok(RustJobLaunchPlan {
         fixed,
         job_slice: rust_job_slice_name(request.job_id())?,
+        controller_cgroup: rust_controller_cgroup_path(request.job_id())?,
     })
 }

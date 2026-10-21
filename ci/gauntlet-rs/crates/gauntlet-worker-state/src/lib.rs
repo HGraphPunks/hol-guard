@@ -81,8 +81,8 @@ mod controller_install;
 mod deadline;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use contained_probe::{
-    run_fixed_cgroup_probe, run_fixed_contained_interpreter_probe, CgroupProbeError,
-    CgroupProbeProof, ContainedInterpreterProbeProof,
+    run_fixed_cgroup_probe, run_fixed_contained_interpreter_probe, run_fixed_job_cgroup_probe,
+    CgroupProbeError, CgroupProbeProof, ContainedInterpreterProbeProof, JobCgroupProbeProof,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use controller_install::{

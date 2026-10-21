@@ -111,6 +111,7 @@ impl PrelaunchProof {
             "fixed_launch_plan": self.plan.fixed().to_json(),
             "rust_job_slice": self.plan.job_slice(),
             "rust_job_cgroup": self.plan.job_cgroup(),
+            "rust_controller_cgroup": self.plan.controller_cgroup(),
             "rust_job_environment": self.plan.environment(),
             "outside_pin_provenance_verified": false,
             "interpreter_execution_bound": false,
