@@ -101,6 +101,8 @@ mod builder_run_plan;
 mod builder_source_capture;
 mod candidate_archive;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod candidate_build_ready;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_capture;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_host_anchor;
@@ -208,12 +210,19 @@ pub use candidate_archive::{
     inspect_candidate_archive, CandidateArchiveDeclaration, CandidateArchiveError,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use candidate_build_ready::{
+    probe_fixed_candidate_build_ready_ineligible, CandidateBuildReadyError,
+    CandidateBuildReadyProof,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_capture::{
     capture_local_candidate_archive_ineligible, verify_captured_candidate_wheel_ineligible,
     CandidateCaptureError, CandidateCaptureProof, CandidateWheelLiveProof,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-pub use candidate_host_anchor::HostCandidateRunAnchor;
+pub use candidate_host_anchor::{
+    verify_running_binary, CandidateBinaryError, HostCandidateRunAnchor,
+};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_result_read::{
     read_fixed_candidate_result_ineligible, read_fixed_hostbound_candidate_result_ineligible,

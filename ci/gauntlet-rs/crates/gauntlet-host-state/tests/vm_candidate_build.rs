@@ -101,6 +101,46 @@ fn fixed_invocation_exists_only_after_durable_host_pin() {
     fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
     let journal = HostCandidateBuildPinJournal::open(&root).unwrap();
     let plan = VmCandidateBuildPlan::new(&operations(), pins()).unwrap();
+    let preflight = plan.preflight_plan(&"e".repeat(64)).unwrap();
+    assert_eq!(preflight.argv().len(), 21);
+    assert_eq!(
+        preflight.argv()[6],
+        format!(
+            "/opt/hol-gauntlet/rust-candidate-build-ready-shadow-{}",
+            "e".repeat(64)
+        )
+    );
+    assert_eq!(preflight.argv()[9], JOB);
+    let response = json!({
+        "schema":"hol-gauntlet-candidate-build-ready-shadow.v1",
+        "job_id":JOB,
+        "source_sha":pins().source_sha,
+        "source_archive_sha256":pins().source_archive_sha256,
+        "image_id":pins().builder_image_id,
+        "policy_sha256":pins().policy_sha256,
+        "free_disk_bytes":13_000_000_000_u64,
+        "ready_at_probe":true,
+        "host_pin_recorded":false,
+        "candidate_started":false,
+        "artifact_admitted":false,
+        "execution_eligible":false,
+    });
+    let mut response_bytes = canonicalize(response.to_string().as_bytes()).unwrap();
+    response_bytes.push(b'\n');
+    assert_eq!(
+        preflight.parse_response(&response_bytes).unwrap()["ready_at_probe"],
+        true
+    );
+    let mut wrong = response.clone();
+    wrong["policy_sha256"] = json!("0".repeat(64));
+    let mut wrong_bytes = canonicalize(wrong.to_string().as_bytes()).unwrap();
+    wrong_bytes.push(b'\n');
+    assert!(preflight.parse_response(&wrong_bytes).is_err());
+    wrong = response;
+    wrong["free_disk_bytes"] = json!(1);
+    wrong_bytes = canonicalize(wrong.to_string().as_bytes()).unwrap();
+    wrong_bytes.push(b'\n');
+    assert!(preflight.parse_response(&wrong_bytes).is_err());
     assert_eq!(journal.read(JOB), Err(HostCandidateBuildPinError::Missing));
     let invocation = plan.record_before_launch(&journal).unwrap();
     assert_eq!(journal.read(JOB).unwrap(), *invocation.record());
@@ -184,5 +224,9 @@ fn invalid_config_and_mutable_paths_refuse_before_a_pin() {
         VmCandidateBuildPlan::new(&operations(), changed),
         Err(VmCandidateBuildError::InvalidPins)
     );
+    assert!(VmCandidateBuildPlan::new(&operations(), pins())
+        .unwrap()
+        .preflight_plan("mutable-tag")
+        .is_err());
     assert_eq!(journal.read(JOB), Err(HostCandidateBuildPinError::Missing));
 }

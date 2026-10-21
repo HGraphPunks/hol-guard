@@ -9,8 +9,8 @@ use std::path::Path;
 
 fn run() -> Result<Value, String> {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() != 18 {
-        return Err("usage: gauntlet-host-shadow-hostbound-candidate-run PRIVATE_PIN_DIR JOB_ID SOURCE_COMMIT SOURCE_ARCHIVE_SHA256 VERSION CONTROLLER_ROOT CONTROLLER_TREE_SHA256 UV_BASE_IMAGE_ID RUST_BASE_IMAGE_ID BUILDER_IMAGE_ID POLICY_SHA256 PODMAN_SHA256 SLIRP_SHA256 APPARMOR_PARSER_SHA256 SECCOMP_SHA256 RUNNER_BINARY_SHA256 RESULT_READER_BINARY_SHA256".to_owned());
+    if args.len() != 19 {
+        return Err("usage: gauntlet-host-shadow-hostbound-candidate-run PRIVATE_PIN_DIR JOB_ID SOURCE_COMMIT SOURCE_ARCHIVE_SHA256 VERSION CONTROLLER_ROOT CONTROLLER_TREE_SHA256 UV_BASE_IMAGE_ID RUST_BASE_IMAGE_ID BUILDER_IMAGE_ID POLICY_SHA256 PODMAN_SHA256 SLIRP_SHA256 APPARMOR_PARSER_SHA256 SECCOMP_SHA256 RUNNER_BINARY_SHA256 RESULT_READER_BINARY_SHA256 READINESS_BINARY_SHA256".to_owned());
     }
     let operations: Value = serde_json::from_str(include_str!("../../operations-defaults-v1.json"))
         .map_err(|_| "compiled public VM defaults invalid".to_owned())?;
@@ -35,6 +35,10 @@ fn run() -> Result<Value, String> {
     let journal = HostCandidateBuildPinJournal::open(Path::new(&args[1]))
         .map_err(|error| error.to_string())?;
     let plan = VmCandidateBuildPlan::new(&operations, pins).map_err(|error| error.to_string())?;
+    plan.preflight_plan(&args[18])
+        .map_err(|error| error.to_string())?
+        .execute_read_only()
+        .map_err(|error| error.to_string())?;
     let invocation = plan
         .record_before_launch(&journal)
         .map_err(|error| error.to_string())?;

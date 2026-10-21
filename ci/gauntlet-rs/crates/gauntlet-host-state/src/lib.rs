@@ -54,7 +54,7 @@ pub use vm_candidate_result_hostbound::{
 mod vm_candidate_build;
 pub use vm_candidate_build::{
     VmCandidateBuildError, VmCandidateBuildInvocation, VmCandidateBuildLaunchError,
-    VmCandidateBuildPlan,
+    VmCandidateBuildPlan, VmCandidateBuildPreflightError, VmCandidateBuildPreflightPlan,
 };
 mod vm_source_archive;
 pub use vm_source_archive::{VmSourceArchiveError, VmSourceArchiveProbePlan};

@@ -66,6 +66,24 @@ fn add_directory(tar: &mut Builder<GzEncoder<Vec<u8>>>, root: &Path, directory: 
     }
 }
 
+fn fixture_object_paths(temp: &TempDir) -> Vec<String> {
+    fn visit(root: &Path, directory: &Path, names: &mut Vec<String>) {
+        for entry in fs::read_dir(directory).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                visit(root, &path, names);
+            } else {
+                names.push(path.strip_prefix(root).unwrap().display().to_string());
+            }
+        }
+    }
+    let root = temp.path().join("repository.git");
+    let mut names = Vec::new();
+    visit(&root, &root.join("objects"), &mut names);
+    names.sort();
+    names
+}
+
 fn fixture(mode: FixtureMode, extra: Option<(&str, &[u8])>) -> (TempDir, PathBuf, String, String) {
     let temp = tempfile::tempdir().unwrap();
     let repo = temp.path().join("source");
@@ -168,7 +186,7 @@ fn fixture(mode: FixtureMode, extra: Option<(&str, &[u8])>) -> (TempDir, PathBuf
 
 #[test]
 fn exact_ref_and_reachable_git_graph_verify_without_execution() {
-    let (_temp, state, sha, archive_sha) = fixture(FixtureMode::Direct, None);
+    let (temp, state, sha, archive_sha) = fixture(FixtureMode::Direct, None);
     let proof = verify_retained_source_archive_commit(
         &state,
         JOB_ID,
@@ -176,7 +194,12 @@ fn exact_ref_and_reachable_git_graph_verify_without_execution() {
         &sha,
         "refs/tags/v3.49.0",
     )
-    .unwrap();
+    .unwrap_or_else(|error| {
+        panic!(
+            "{error:?}; fixture objects: {:?}",
+            fixture_object_paths(&temp)
+        )
+    });
     assert_eq!(proof.source_sha(), sha);
     assert_eq!(proof.ref_object_id(), sha);
     assert_eq!(proof.archive().archive_sha256, archive_sha);
@@ -252,7 +275,7 @@ fn shallow_fetch_graph_verifies() {
 
 #[test]
 fn annotated_tag_peels_to_exact_commit() {
-    let (_temp, state, sha, archive_sha) = fixture(FixtureMode::Annotated, None);
+    let (temp, state, sha, archive_sha) = fixture(FixtureMode::Annotated, None);
     let proof = verify_retained_source_archive_commit(
         &state,
         JOB_ID,
@@ -260,7 +283,12 @@ fn annotated_tag_peels_to_exact_commit() {
         &sha,
         "refs/tags/v3.49.0",
     )
-    .unwrap();
+    .unwrap_or_else(|error| {
+        panic!(
+            "{error:?}; fixture objects: {:?}",
+            fixture_object_paths(&temp)
+        )
+    });
     assert_ne!(proof.ref_object_id(), sha);
     assert!(proof.git_graph_verified());
 }

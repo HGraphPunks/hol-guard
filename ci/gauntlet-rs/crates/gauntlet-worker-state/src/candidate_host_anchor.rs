@@ -9,11 +9,29 @@ use crate::hex;
 use rustix::fs::{fstat, fsync, FileType};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use std::fmt;
 use std::fs::File;
 use std::io::Read;
 use std::os::fd::OwnedFd;
 
 pub(crate) const HOST_ANCHOR_FILE: &str = "candidate-run.host-anchor.json";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CandidateBinaryError {
+    InvalidPin,
+    Mismatch,
+}
+
+impl fmt::Display for CandidateBinaryError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::InvalidPin => "exact running binary SHA-256 required",
+            Self::Mismatch => "running Root binary differs from outside digest or mode",
+        })
+    }
+}
+
+impl std::error::Error for CandidateBinaryError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostCandidateRunAnchor {
@@ -26,12 +44,12 @@ pub struct HostCandidateRunAnchor {
 
 /// Hash the actual running executable, not its caller-supplied argv path.
 /// The host must separately pin the installed Root binary before launch.
-pub(crate) fn verify_running_binary(expected_sha256: &str) -> Result<(), ()> {
+pub fn verify_running_binary(expected_sha256: &str) -> Result<(), CandidateBinaryError> {
     if !hex(expected_sha256, 64) {
-        return Err(());
+        return Err(CandidateBinaryError::InvalidPin);
     }
-    let mut file = File::open("/proc/self/exe").map_err(|_| ())?;
-    let before = fstat(&file).map_err(|_| ())?;
+    let mut file = File::open("/proc/self/exe").map_err(|_| CandidateBinaryError::Mismatch)?;
+    let before = fstat(&file).map_err(|_| CandidateBinaryError::Mismatch)?;
     if FileType::from_raw_mode(before.st_mode) != FileType::RegularFile
         || before.st_uid != 0
         || before.st_gid != 0
@@ -40,28 +58,30 @@ pub(crate) fn verify_running_binary(expected_sha256: &str) -> Result<(), ()> {
         || before.st_size <= 0
         || before.st_size > 128 * 1024 * 1024
     {
-        return Err(());
+        return Err(CandidateBinaryError::Mismatch);
     }
     let mut hash = Sha256::new();
     let mut count = 0_u64;
     let mut buffer = [0_u8; 1024 * 1024];
     loop {
-        let n = file.read(&mut buffer).map_err(|_| ())?;
+        let n = file
+            .read(&mut buffer)
+            .map_err(|_| CandidateBinaryError::Mismatch)?;
         if n == 0 {
             break;
         }
         count += n as u64;
         if count > 128 * 1024 * 1024 {
-            return Err(());
+            return Err(CandidateBinaryError::Mismatch);
         }
         hash.update(&buffer[..n]);
     }
-    let after = fstat(&file).map_err(|_| ())?;
+    let after = fstat(&file).map_err(|_| CandidateBinaryError::Mismatch)?;
     if count != before.st_size as u64
         || !same_file(&before, &after)
         || format!("{:x}", hash.finalize()) != expected_sha256
     {
-        return Err(());
+        return Err(CandidateBinaryError::Mismatch);
     }
     Ok(())
 }
