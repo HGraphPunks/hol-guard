@@ -160,6 +160,38 @@ pub(crate) fn matching_agent_process(
     Ok((container_id.to_owned(), pid, start_ticks, rows.len()))
 }
 
+/// The SDK gate's producer-declared process must be a second, distinct live
+/// process in the same sampled Podman scope. The sample does not authenticate
+/// its executable or establish that an SDK tool call occurred.
+pub(crate) fn matching_sdk_gate_process(record: &Value, activity: &Value) -> Result<(u32, u64)> {
+    let (container_id, agent_pid, _, _) = matching_agent_process(record, activity)?;
+    let pid = record["sdk_gate"]["observation"]["pid"]
+        .as_u64()
+        .and_then(|value| u32::try_from(value).ok())
+        .filter(|value| *value > 0 && *value != agent_pid)
+        .ok_or(INVALID)?;
+    let start_ticks = record["sdk_gate"]["observation"]["identity"]["start_time"]
+        .as_str()
+        .and_then(positive_decimal)
+        .ok_or(INVALID)?;
+    let cgroup = format!("/machine.slice/libpod-{container_id}.scope/container");
+    let matches = activity["container_processes"]
+        .as_array()
+        .ok_or(INVALID)?
+        .iter()
+        .filter(|row| {
+            row["container_id"] == container_id
+                && row["pid"] == pid
+                && row["start_ticks"] == start_ticks
+                && row["cgroup"] == cgroup
+        })
+        .count();
+    if matches != 1 {
+        return Err(INVALID);
+    }
+    Ok((pid, start_ticks))
+}
+
 /// The caller supplies the independently retained host prelaunch fields and
 /// raw report hash. The signed control is reopened before comparing the
 /// producer's agent claim to the Rust owner's live pidfd/cgroup samples.
@@ -283,5 +315,41 @@ mod tests {
         activity["container_processes"][0]["start_ticks"] = json!(456);
         activity["container_processes"][0]["cgroup"] = json!("/system.slice/other");
         assert!(matching_agent_process(&record, &activity).is_err());
+    }
+
+    #[test]
+    fn sdk_gate_requires_a_second_exact_live_process_in_the_agent_scope() {
+        let id = "a".repeat(64);
+        let record = json!({
+            "agent_container_inspection":{"Id":id,"State":{"Pid":123}},
+            "agent_identity":{"start_time":"456"},
+            "sdk_gate":{"observation":{"pid":124,"identity":{"start_time":"457"}}},
+        });
+        let cgroup = format!("/machine.slice/libpod-{}.scope/container", "a".repeat(64));
+        let mut activity = json!({
+            "schema":"hol-gauntlet-staging-kernel-samples.v2",
+            "sample_count":5,
+            "max_controller_tasks":2,
+            "product_slice_observed":true,
+            "product_slice_populated":true,
+            "max_product_tasks":3,
+            "container_processes_exhaustively_observed":false,
+            "control_processes_exhaustively_observed":false,
+            "guard_causality_verified":false,
+            "execution_eligible":false,
+            "container_processes":[
+                {"container_id":id,"pid":123,"start_ticks":456,"cgroup":cgroup},
+                {"container_id":id,"pid":124,"start_ticks":457,"cgroup":cgroup},
+            ],
+        });
+        assert_eq!(
+            matching_sdk_gate_process(&record, &activity).unwrap(),
+            (124, 457)
+        );
+        activity["container_processes"][1]["start_ticks"] = json!(458);
+        assert!(matching_sdk_gate_process(&record, &activity).is_err());
+        activity["container_processes"][1]["start_ticks"] = json!(457);
+        activity["container_processes"][1]["cgroup"] = json!("/system.slice/other");
+        assert!(matching_sdk_gate_process(&record, &activity).is_err());
     }
 }
