@@ -133,7 +133,7 @@ mod tests;
 
 #[path = "controller_exec_pipe.rs"]
 mod pipe;
-pub(crate) use pipe::exchange_prelaunch_pipe;
+pub use pipe::exchange_prelaunch_pipe;
 
 #[path = "controller_exec_probe.rs"]
 mod probe;

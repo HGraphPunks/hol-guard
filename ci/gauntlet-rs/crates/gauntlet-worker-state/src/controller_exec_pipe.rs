@@ -135,8 +135,7 @@ fn read_frame(
 /// Send one canonical prepared frame and await the matching host ack. Both
 /// the active-run CLOCK_BOOTTIME budget and a 60-second handoff cap apply.
 /// The caller must retain the resulting uncertainty if the ack is lost.
-#[allow(dead_code)]
-pub(crate) fn exchange_prelaunch_pipe(
+pub fn exchange_prelaunch_pipe(
     prepared_raw: &[u8],
     prepared_writer: &impl AsRawFd,
     ack_reader: &impl AsRawFd,
