@@ -87,7 +87,7 @@ fn same_directory(first: &Stat, second: &Stat, owner: u32) -> bool {
         && first.st_mode == second.st_mode
 }
 
-fn require_absent_cgroup(parent_path: &Path, name: &str, owner: u32) -> Result<()> {
+pub(crate) fn require_absent_cgroup(parent_path: &Path, name: &str, owner: u32) -> Result<()> {
     let parent = open_absolute_directory(parent_path)?;
     let before = fstat(&parent).map_err(|_| INVALID)?;
     if !same_directory(&before, &before, owner) {
@@ -112,7 +112,7 @@ fn require_absent_cgroup(parent_path: &Path, name: &str, owner: u32) -> Result<(
     Ok(())
 }
 
-fn cgroup_targets(run: &str) -> [(&'static str, String); 2] {
+pub(crate) fn cgroup_targets(run: &str) -> [(&'static str, String); 2] {
     [
         (SYSTEM_SLICE, format!("hol-gauntlet-rust-job-{run}")),
         (CGROUP_ROOT, format!("holgauntletrust{run}.slice")),

@@ -3,16 +3,19 @@
 //! record, but polling cannot establish every short-lived process or Guard
 //! decision and never grants execution eligibility.
 
+use crate::staging_machine_observer::{ContainerProcessIdentity, MachineSliceSampler};
 use crate::{launch_plan::rust_job_slice_name, OwnedJobCgroup};
 use rustix::fs::{fstat, open, openat, statat, AtFlags, FileType, Mode, OFlags, Stat};
 use rustix::io::Errno;
 use serde_json::{json, Value};
+use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::Read;
 use std::os::fd::OwnedFd;
 
 const CGROUP_ROOT: &str = "/sys/fs/cgroup";
 const MAX_CONTROL_BYTES: u64 = 4096;
+const MAX_RETAINED_CONTAINER_PROCESSES: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct SliceSample {
@@ -27,17 +30,32 @@ pub(crate) struct LiveStagingKernelObservation {
     pub(crate) product_slice_observed: bool,
     pub(crate) product_slice_populated: bool,
     pub(crate) max_product_tasks: u64,
+    pub(crate) container_processes: Vec<ContainerProcessIdentity>,
 }
 
 impl LiveStagingKernelObservation {
     pub(crate) fn to_json(&self) -> Value {
+        let container_processes: Vec<_> = self
+            .container_processes
+            .iter()
+            .map(|process| {
+                json!({
+                    "container_id":process.container_id,
+                    "pid":process.pid,
+                    "start_ticks":process.start_ticks,
+                    "cgroup":process.cgroup,
+                })
+            })
+            .collect();
         json!({
-            "schema":"hol-gauntlet-staging-kernel-samples.v1",
+            "schema":"hol-gauntlet-staging-kernel-samples.v2",
             "sample_count":self.sample_count,
             "max_controller_tasks":self.max_controller_tasks,
             "product_slice_observed":self.product_slice_observed,
             "product_slice_populated":self.product_slice_populated,
             "max_product_tasks":self.max_product_tasks,
+            "container_processes":container_processes,
+            "container_processes_exhaustively_observed":false,
             "control_processes_exhaustively_observed":false,
             "guard_causality_verified":false,
             "execution_eligible":false,
@@ -49,6 +67,8 @@ pub(crate) struct StagingKernelSampler {
     root: OwnedFd,
     root_stat: Stat,
     slice_name: String,
+    machine: MachineSliceSampler,
+    observed_container_processes: BTreeSet<ContainerProcessIdentity>,
     observation: LiveStagingKernelObservation,
 }
 
@@ -126,16 +146,20 @@ impl StagingKernelSampler {
         if !same_root_directory(&root_stat, &root_stat) {
             return Err("unsafe cgroup root".to_owned());
         }
+        let machine = MachineSliceSampler::new()?;
         Ok(Self {
             root,
             root_stat,
             slice_name,
+            machine,
+            observed_container_processes: BTreeSet::new(),
             observation: LiveStagingKernelObservation {
                 sample_count: 0,
                 max_controller_tasks: 0,
                 product_slice_observed: false,
                 product_slice_populated: false,
                 max_product_tasks: 0,
+                container_processes: Vec::new(),
             },
         })
     }
@@ -191,6 +215,16 @@ impl StagingKernelSampler {
     pub(crate) fn sample(&mut self, group: &OwnedJobCgroup) -> Result<(), String> {
         let controller_tasks = group.tasks().map_err(|error| error.to_string())?;
         let product = self.sample_product_slice()?;
+        if self.observation.sample_count.is_multiple_of(5) {
+            for process in self.machine.sample()? {
+                if self.observed_container_processes.len() == MAX_RETAINED_CONTAINER_PROCESSES
+                    && !self.observed_container_processes.contains(&process)
+                {
+                    return Err("staging container process identity bound exceeded".to_owned());
+                }
+                self.observed_container_processes.insert(process);
+            }
+        }
         self.observation.sample_count += 1;
         self.observation.max_controller_tasks =
             self.observation.max_controller_tasks.max(controller_tasks);
@@ -203,7 +237,9 @@ impl StagingKernelSampler {
         Ok(())
     }
 
-    pub(crate) fn finish(self) -> LiveStagingKernelObservation {
+    pub(crate) fn finish(mut self) -> LiveStagingKernelObservation {
+        self.observation.container_processes =
+            self.observed_container_processes.into_iter().collect();
         self.observation
     }
 }

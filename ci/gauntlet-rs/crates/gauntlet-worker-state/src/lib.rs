@@ -195,6 +195,8 @@ mod projection;
 mod running;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod staging_kernel_observer;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod staging_machine_observer;
 mod terminal;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use builder_candidate_preflight::{CandidatePreflightError, CandidateRuntimePins};

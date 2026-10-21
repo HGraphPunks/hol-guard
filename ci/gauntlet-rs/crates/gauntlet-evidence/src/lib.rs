@@ -59,6 +59,8 @@ mod runner_asset_inventory;
 mod runner_inputs;
 mod runner_runtime;
 mod six_control_openings;
+#[cfg(target_os = "linux")]
+mod staging_agent_process;
 mod staging_control_record;
 #[cfg(target_os = "linux")]
 mod staging_physical_files;
@@ -146,6 +148,11 @@ pub use runner_runtime::{
 pub use six_control_openings::{
     observe_six_control_openings_root_owned_ineligible, verify_six_control_openings_ineligible,
     SixControlOpeningsShadow,
+};
+#[cfg(target_os = "linux")]
+pub use staging_agent_process::{
+    observe_staging_agent_process_root_owned_ineligible, StagingAgentProcessPins,
+    StagingAgentProcessShadow,
 };
 pub use staging_control_record::{
     observe_staging_control_root_owned_ineligible, verify_staging_control_opening_ineligible,
