@@ -31,7 +31,7 @@ fn lowercase_hex(value: &str, size: usize) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
-fn bounded_json(raw: &[u8], limit: usize) -> Result<Value> {
+pub(crate) fn bounded_json(raw: &[u8], limit: usize) -> Result<Value> {
     if raw.len() > limit {
         return Err(EvidenceError::Invalid("worker record exceeds byte limit"));
     }

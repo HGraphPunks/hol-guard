@@ -14,6 +14,7 @@ mod controller_tree;
 mod crypto;
 mod deterministic_command;
 mod deterministic_injection;
+mod deterministic_report;
 mod deterministic_signed_injection;
 mod episode_score;
 mod host_calls;
@@ -53,6 +54,10 @@ pub use controller_invocations::{audit_controller_invocations, ControllerInvocat
 pub use controller_tree::{verify_controller_tree, VerifiedControllerTree};
 pub use deterministic_command::reduce_forbidden_command;
 pub use deterministic_injection::reduce_injection_attribution;
+pub use deterministic_report::{
+    read_deterministic_report_root_owned, verify_deterministic_report,
+    DeterministicReportObservation,
+};
 pub use deterministic_signed_injection::reduce_signed_injection_attribution;
 pub use episode_score::evaluate_audited_episode;
 pub use host_calls::reconcile_host_calls;

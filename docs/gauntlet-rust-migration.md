@@ -37,6 +37,8 @@ The [job cgroup proof](gauntlet-rust-job-cgroup-proof.md) separates the future c
 
 The subsequent [Root controller exec proof](gauntlet-rust-root-controller-exec-proof.md) applied a proposed fixed 4-GiB/256-PID/one-CPU controller profile and ran an inert Root Python child from the held executable descriptor in the job group. The uninstalled ARM probe observed the child and grandchild, killed and drained the group, and left it absent. An internal prepared-controller launch step now requires the worker lease and writes a one-time started marker before spawning, but no Rust dispatcher owns its deadline, product-cell cleanup, report or terminal receipt yet. The Python worker remains authoritative.
 
+The [deterministic report proof](gauntlet-rust-deterministic-report-proof.md) adds a Root-owned fixed-output reader that binds a retained six-cell Python report to outside source, config, raw-byte and process-exit pins. This supplies report custody for future dispatch but does not recompute a Guard verdict or turn that historical Python run into Rust conformance.
+
 The [command and state ownership matrix](gauntlet-rust-surface-matrix.md) inventories the three Python entrypoints, primary profiles, asset roles, job states, public snapshot and journals with proposed Rust phase owners. It is an intermediate inventory; the 420-file disposition audit remains open.
 
 ## Decision and scope

@@ -238,6 +238,31 @@ pub fn read_python_worker_terminal_root_owned(
     Ok(terminal)
 }
 
+/// Read only the fixed `<job>/report/result.json` bytes under the existing
+/// private Root-owned output root. A missing report remains missing; no
+/// producer status is inferred from this filesystem observation.
+pub(crate) fn read_root_owned_report_bytes(job_id: &str) -> Result<Option<Vec<u8>>> {
+    if !cfg!(target_os = "linux") || geteuid().as_raw() != 0 {
+        return Err(invalid("Linux Root worker-output custody required"));
+    }
+    if !valid_job_id(job_id) {
+        return Err(invalid("invalid independent worker job ID"));
+    }
+    let outputs = open_root_outputs()?;
+    let original = fstat(&outputs).map_err(io)?;
+    let first = read_report(&outputs, job_id, 0)?;
+    let second = read_report(&outputs, job_id, 0)?;
+    if first != second {
+        return Err(invalid("deterministic report changed across snapshot"));
+    }
+    let reopened = open_root_outputs()?;
+    let visible = fstat(&reopened).map_err(io)?;
+    if !unchanged(&original, &visible) {
+        return Err(invalid("Python worker output root was replaced"));
+    }
+    Ok(first)
+}
+
 #[cfg(test)]
 #[path = "python_worker_files_tests.rs"]
 mod tests;
