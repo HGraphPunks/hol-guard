@@ -16,7 +16,7 @@ use std::io::{Read, Write};
 use std::os::fd::OwnedFd;
 use std::path::{Path, PathBuf};
 
-const SCHEMA: &str = "hol-gauntlet-host-candidate-build-pin.v1";
+const SCHEMA: &str = "hol-gauntlet-host-candidate-build-pin.v2";
 const MAX_PIN_BYTES: u64 = 2048;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,7 +25,10 @@ pub struct HostCandidateBuildPins {
     pub source_sha: String,
     pub source_archive_sha256: String,
     pub version: String,
+    pub controller_root: String,
     pub controller_tree_sha256: String,
+    pub uv_base_image_id: String,
+    pub rust_base_image_id: String,
     pub builder_image_id: String,
     pub policy_sha256: String,
     pub podman_sha256: String,
@@ -51,7 +54,10 @@ impl HostCandidateBuildPinRecord {
             "source_sha":self.pins.source_sha,
             "source_archive_sha256":self.pins.source_archive_sha256,
             "version":self.pins.version,
+            "controller_root":self.pins.controller_root,
             "controller_tree_sha256":self.pins.controller_tree_sha256,
+            "uv_base_image_id":self.pins.uv_base_image_id,
+            "rust_base_image_id":self.pins.rust_base_image_id,
             "builder_image_id":self.pins.builder_image_id,
             "policy_sha256":self.pins.policy_sha256,
             "podman_sha256":self.pins.podman_sha256,
@@ -105,12 +111,18 @@ fn hex(value: &str, length: usize) -> bool {
 }
 
 impl HostCandidateBuildPins {
-    fn valid(&self) -> bool {
+    pub(crate) fn valid(&self) -> bool {
         hex(&self.job_id, 16)
             && is_git_sha(&self.source_sha)
             && hex(&self.source_archive_sha256, 64)
             && valid_package_version(&self.version)
+            && self
+                .controller_root
+                .strip_prefix("/opt/hol-gauntlet/controller-")
+                .is_some_and(|generation| hex(generation, 16))
             && hex(&self.controller_tree_sha256, 64)
+            && hex(&self.uv_base_image_id, 64)
+            && hex(&self.rust_base_image_id, 64)
             && self
                 .builder_image_id
                 .strip_prefix("sha256:")
@@ -134,7 +146,10 @@ impl HostCandidateBuildPins {
             "source_sha":self.source_sha,
             "source_archive_sha256":self.source_archive_sha256,
             "version":self.version,
+            "controller_root":self.controller_root,
             "controller_tree_sha256":self.controller_tree_sha256,
+            "uv_base_image_id":self.uv_base_image_id,
+            "rust_base_image_id":self.rust_base_image_id,
             "builder_image_id":self.builder_image_id,
             "policy_sha256":self.policy_sha256,
             "podman_sha256":self.podman_sha256,
@@ -168,7 +183,7 @@ impl HostCandidateBuildPins {
                 .map(str::to_owned)
                 .ok_or(HostCandidateBuildPinError::UnsafeRecord)
         };
-        if object.len() != 15 || value["schema"] != SCHEMA {
+        if object.len() != 18 || value["schema"] != SCHEMA {
             return Err(HostCandidateBuildPinError::UnsafeRecord);
         }
         let pins = Self {
@@ -176,7 +191,10 @@ impl HostCandidateBuildPins {
             source_sha: string("source_sha")?,
             source_archive_sha256: string("source_archive_sha256")?,
             version: string("version")?,
+            controller_root: string("controller_root")?,
             controller_tree_sha256: string("controller_tree_sha256")?,
+            uv_base_image_id: string("uv_base_image_id")?,
+            rust_base_image_id: string("rust_base_image_id")?,
             builder_image_id: string("builder_image_id")?,
             policy_sha256: string("policy_sha256")?,
             podman_sha256: string("podman_sha256")?,

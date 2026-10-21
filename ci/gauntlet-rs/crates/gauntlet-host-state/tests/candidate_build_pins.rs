@@ -16,7 +16,12 @@ fn pins() -> HostCandidateBuildPins {
         source_archive_sha256: "bedd98ab7da8ca728484799e1ef6b13c854f7fcbb31a17ebdcc469c4c772af43"
             .to_owned(),
         version: "3.49.0".to_owned(),
+        controller_root: "/opt/hol-gauntlet/controller-18d31910a8cefbd6".to_owned(),
         controller_tree_sha256: "33c98333891743e6976bee9a123365fe7fe95dcf1bf9b65ee39a59fb41043c68"
+            .to_owned(),
+        uv_base_image_id: "08ab0fa4ca8748587f792f899a6beadc2a3177d5943e3a6a6571c683c0a1f312"
+            .to_owned(),
+        rust_base_image_id: "3e50f04c5161f9c0c00f1b3b09eb1073977a44dca86f9637ae3cbbcc4fcf7b95"
             .to_owned(),
         builder_image_id: "sha256:39a6e74e48b2619189e191b5f5038ce0e27fba1cb57177d713e2077e64c7bb29"
             .to_owned(),
