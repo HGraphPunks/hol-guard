@@ -310,6 +310,7 @@ mod tests {
         let builds_path = temp.path().join("builds");
         fs::create_dir(&inbox_path).unwrap();
         fs::create_dir(&builds_path).unwrap();
+        fs::set_permissions(&inbox_path, fs::Permissions::from_mode(0o700)).unwrap();
         fs::set_permissions(&builds_path, fs::Permissions::from_mode(0o700)).unwrap();
         let job = "0123456789abcdef";
         let bytes = vec![0x5a; 2 * 1024 * 1024];
@@ -357,6 +358,7 @@ mod tests {
         let builds_path = temp.path().join("builds");
         fs::create_dir(&inbox_path).unwrap();
         fs::create_dir(&builds_path).unwrap();
+        fs::set_permissions(&inbox_path, fs::Permissions::from_mode(0o700)).unwrap();
         fs::set_permissions(&builds_path, fs::Permissions::from_mode(0o700)).unwrap();
         let job = "fedcba9876543210";
         let file = inbox_path.join(format!("hol-gauntlet-source-{job}.tar.gz"));
