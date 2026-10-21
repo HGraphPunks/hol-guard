@@ -10,7 +10,7 @@ use crate::{
     StagingEvidencePins,
 };
 use gauntlet_contracts::{canonicalize, is_git_sha};
-use rustix::fs::{open, statat, AtFlags, Mode, OFlags};
+use rustix::fs::{fstat, statat, AtFlags, FileType, Stat};
 use rustix::io::Errno;
 use rustix::process::geteuid;
 use serde_json::{json, Value};
@@ -27,6 +27,8 @@ const ROLES: [&str; 6] = [
 ];
 const INVALID: EvidenceError = EvidenceError::Invalid("invalid host-pinned staging suite");
 const STAGING: &str = "/var/lib/hol-gauntlet-rust/staging-state";
+const CGROUP_ROOT: &str = "/sys/fs/cgroup";
+const SYSTEM_SLICE: &str = "/sys/fs/cgroup/system.slice";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagingSuiteShadow {
@@ -35,17 +37,24 @@ pub struct StagingSuiteShadow {
     pub physical_files: usize,
     pub absent_effects: usize,
     pub cleanup_journals: usize,
+    pub live_kernel_roles_sampled: usize,
 }
 
 impl StagingSuiteShadow {
     pub fn to_json(&self) -> Value {
+        let schema = if self.live_kernel_roles_sampled == 6 {
+            "hol-gauntlet-staging-suite-shadow.v2"
+        } else {
+            "hol-gauntlet-staging-suite-shadow.v1"
+        };
         json!({
-            "schema":"hol-gauntlet-staging-suite-shadow.v1",
+            "schema":schema,
             "manifest_sha256":self.manifest_sha256,
             "signed_records":self.signed_records,
             "physical_files":self.physical_files,
             "absent_effects":self.absent_effects,
             "cleanup_journals":self.cleanup_journals,
+            "live_kernel_roles_sampled":self.live_kernel_roles_sampled,
             "host_prelaunch_key_pins_matched":true,
             "outside_cgroups_absent":true,
             "independent_kernel_sdk_effects_verified":false,
@@ -68,6 +77,48 @@ fn exact_keys(value: &Value, expected: &[&str]) -> bool {
     })
 }
 
+fn same_directory(first: &Stat, second: &Stat, owner: u32) -> bool {
+    FileType::from_raw_mode(first.st_mode) == FileType::Directory
+        && first.st_uid == owner
+        && first.st_mode & 0o022 == 0
+        && first.st_dev == second.st_dev
+        && first.st_ino == second.st_ino
+        && first.st_uid == second.st_uid
+        && first.st_mode == second.st_mode
+}
+
+fn require_absent_cgroup(parent_path: &Path, name: &str, owner: u32) -> Result<()> {
+    let parent = open_absolute_directory(parent_path)?;
+    let before = fstat(&parent).map_err(|_| INVALID)?;
+    if !same_directory(&before, &before, owner) {
+        return Err(INVALID);
+    }
+    if !matches!(
+        statat(&parent, name, AtFlags::SYMLINK_NOFOLLOW),
+        Err(Errno::NOENT)
+    ) {
+        return Err(INVALID);
+    }
+    let reopened = open_absolute_directory(parent_path)?;
+    let after = fstat(&reopened).map_err(|_| INVALID)?;
+    if !same_directory(&before, &after, owner)
+        || !matches!(
+            statat(&reopened, name, AtFlags::SYMLINK_NOFOLLOW),
+            Err(Errno::NOENT)
+        )
+    {
+        return Err(INVALID);
+    }
+    Ok(())
+}
+
+fn cgroup_targets(run: &str) -> [(&'static str, String); 2] {
+    [
+        (SYSTEM_SLICE, format!("hol-gauntlet-rust-job-{run}")),
+        (CGROUP_ROOT, format!("holgauntletrust{run}.slice")),
+    ]
+}
+
 fn string<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
     value[key].as_str().ok_or(INVALID)
 }
@@ -83,21 +134,28 @@ fn checked_manifest(raw: &[u8], outside_sha256: &str, build_job_id: &str) -> Res
         return Err(INVALID);
     }
     let manifest: Value = serde_json::from_slice(raw).map_err(|_| INVALID)?;
-    if !exact_keys(
-        &manifest,
-        &[
-            "schema",
-            "build_job_id",
-            "source_sha",
-            "version",
-            "config_digest",
-            "private_manifest_sha256",
-            "prefix_tree_sha256",
-            "worker_generation_sha256",
-            "roles",
-            "execution_eligible",
-        ],
-    ) || manifest["schema"] != "hol-gauntlet-staging-suite-pins.v1"
+    let live_kernel_required = match string(&manifest, "schema")? {
+        "hol-gauntlet-staging-suite-pins.v1" => false,
+        "hol-gauntlet-staging-suite-pins.v2" => true,
+        _ => return Err(INVALID),
+    };
+    let mut fields = vec![
+        "schema",
+        "build_job_id",
+        "source_sha",
+        "version",
+        "config_digest",
+        "private_manifest_sha256",
+        "prefix_tree_sha256",
+        "worker_generation_sha256",
+        "roles",
+        "execution_eligible",
+    ];
+    if live_kernel_required {
+        fields.push("live_kernel_samples_required");
+    }
+    if !exact_keys(&manifest, &fields)
+        || (live_kernel_required && manifest["live_kernel_samples_required"] != true)
         || manifest["build_job_id"] != build_job_id
         || manifest["execution_eligible"] != false
         || !is_git_sha(string(&manifest, "source_sha")?)
@@ -152,7 +210,7 @@ fn terminal_and_cleanup(
     role: &str,
     common: &Value,
     row: &Value,
-) -> Result<()> {
+) -> Result<bool> {
     let run = string(row, "run_id")?;
     let report_name = format!("{run}.report.json");
     let terminal_name = format!("{run}.terminal.json");
@@ -189,22 +247,45 @@ fn terminal_and_cleanup(
     {
         return Err(INVALID);
     }
-    let cgroup = open(
-        "/sys/fs/cgroup/system.slice",
-        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
-        Mode::empty(),
-    )
-    .map_err(|error| EvidenceError::Io(error.to_string()))?;
-    for name in [
-        format!("hol-gauntlet-rust-job-{run}"),
-        format!("holgauntletrust{run}.slice"),
-    ] {
-        match statat(&cgroup, name.as_str(), AtFlags::SYMLINK_NOFOLLOW) {
-            Err(Errno::NOENT) => {}
-            _ => return Err(INVALID),
-        }
+    let live_kernel_required = common["schema"] == "hol-gauntlet-staging-suite-pins.v2";
+    if live_kernel_required && !valid_live_kernel_samples(&report["live_kernel_activity"]) {
+        return Err(INVALID);
     }
-    Ok(())
+    for (parent, name) in cgroup_targets(run) {
+        require_absent_cgroup(Path::new(parent), &name, 0)?;
+    }
+    Ok(live_kernel_required)
+}
+
+fn valid_live_kernel_samples(value: &Value) -> bool {
+    exact_keys(
+        value,
+        &[
+            "schema",
+            "sample_count",
+            "max_controller_tasks",
+            "product_slice_observed",
+            "product_slice_populated",
+            "max_product_tasks",
+            "control_processes_exhaustively_observed",
+            "guard_causality_verified",
+            "execution_eligible",
+        ],
+    ) && value["schema"] == "hol-gauntlet-staging-kernel-samples.v1"
+        && value["sample_count"]
+            .as_u64()
+            .is_some_and(|count| (1..=10_000).contains(&count))
+        && value["max_controller_tasks"]
+            .as_u64()
+            .is_some_and(|count| (1..=256).contains(&count))
+        && value["product_slice_observed"] == true
+        && value["product_slice_populated"] == true
+        && value["max_product_tasks"]
+            .as_u64()
+            .is_some_and(|count| (1..=1_000_000).contains(&count))
+        && value["control_processes_exhaustively_observed"] == false
+        && value["guard_causality_verified"] == false
+        && value["execution_eligible"] == false
 }
 
 /// Require a Root-owned copy of the exact host manifest, then open all six
@@ -240,6 +321,7 @@ pub fn observe_staging_suite_root_owned_ineligible(
     private_directory(&journal, 0)?;
     let mut physical_files = 0;
     let mut absent_effects = 0;
+    let mut live_kernel_roles_sampled = 0;
     for role in ROLES {
         let row = &manifest["roles"][role];
         let pins = StagingEvidencePins {
@@ -257,7 +339,9 @@ pub fn observe_staging_suite_root_owned_ineligible(
         let opened = observe_staging_physical_files_root_owned_ineligible(&pins)?;
         physical_files += opened.observed_files;
         absent_effects += opened.absent_effects;
-        terminal_and_cleanup(&journal, role, &manifest, row)?;
+        if terminal_and_cleanup(&journal, role, &manifest, row)? {
+            live_kernel_roles_sampled += 1;
+        }
     }
     if root.read_file(&relative, 8192)? != raw {
         return Err(INVALID);
@@ -268,12 +352,36 @@ pub fn observe_staging_suite_root_owned_ineligible(
         physical_files,
         absent_effects,
         cleanup_journals: 6,
+        live_kernel_roles_sampled,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rustix::process::getuid;
+    use std::fs;
+    use std::os::unix::fs::{symlink, PermissionsExt};
+
+    #[test]
+    fn product_slice_absence_is_checked_at_cgroup_root() {
+        let targets = cgroup_targets("0123456789abcdef");
+        assert_eq!(targets[0].0, "/sys/fs/cgroup/system.slice");
+        assert_eq!(targets[0].1, "hol-gauntlet-rust-job-0123456789abcdef");
+        assert_eq!(targets[1].0, "/sys/fs/cgroup");
+        assert_eq!(targets[1].1, "holgauntletrust0123456789abcdef.slice");
+
+        let parent = tempfile::tempdir().unwrap();
+        fs::set_permissions(parent.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        let name = &targets[1].1;
+        let owner = getuid().as_raw();
+        assert!(require_absent_cgroup(parent.path(), name, owner).is_ok());
+        fs::create_dir(parent.path().join(name)).unwrap();
+        assert!(require_absent_cgroup(parent.path(), name, owner).is_err());
+        fs::remove_dir(parent.path().join(name)).unwrap();
+        symlink("missing", parent.path().join(name)).unwrap();
+        assert!(require_absent_cgroup(parent.path(), name, owner).is_err());
+    }
 
     #[test]
     fn suite_pin_parser_requires_six_distinct_runs_and_keys() {
@@ -305,8 +413,52 @@ mod tests {
         });
         let raw = canonicalize(value.to_string().as_bytes()).unwrap();
         assert!(checked_manifest(&raw, &sha256(&raw), "0123456789abcdef").is_ok());
+        value["schema"] = json!("hol-gauntlet-staging-suite-pins.v2");
+        let missing_live = canonicalize(value.to_string().as_bytes()).unwrap();
+        assert!(
+            checked_manifest(&missing_live, &sha256(&missing_live), "0123456789abcdef").is_err()
+        );
+        value["live_kernel_samples_required"] = json!(true);
+        let live = canonicalize(value.to_string().as_bytes()).unwrap();
+        assert!(checked_manifest(&live, &sha256(&live), "0123456789abcdef").is_ok());
         value["roles"]["cancel"]["run_id"] = value["roles"]["success"]["run_id"].clone();
         let duplicate = canonicalize(value.to_string().as_bytes()).unwrap();
         assert!(checked_manifest(&duplicate, &sha256(&duplicate), "0123456789abcdef").is_err());
+    }
+
+    #[test]
+    fn live_kernel_samples_require_positive_root_cgroup_observations() {
+        let mut sample = json!({
+            "schema":"hol-gauntlet-staging-kernel-samples.v1",
+            "sample_count":331,
+            "max_controller_tasks":47,
+            "product_slice_observed":true,
+            "product_slice_populated":true,
+            "max_product_tasks":109,
+            "control_processes_exhaustively_observed":false,
+            "guard_causality_verified":false,
+            "execution_eligible":false,
+        });
+        assert!(valid_live_kernel_samples(&sample));
+        sample["product_slice_populated"] = json!(false);
+        assert!(!valid_live_kernel_samples(&sample));
+        sample["product_slice_populated"] = json!(true);
+        sample["sample_count"] = json!(0);
+        assert!(!valid_live_kernel_samples(&sample));
+        sample["sample_count"] = json!(331);
+        sample["guard_causality_verified"] = json!(true);
+        assert!(!valid_live_kernel_samples(&sample));
+        let proof = StagingSuiteShadow {
+            manifest_sha256: "a".repeat(64),
+            signed_records: 6,
+            physical_files: 32,
+            absent_effects: 5,
+            cleanup_journals: 6,
+            live_kernel_roles_sampled: 6,
+        };
+        assert_eq!(
+            proof.to_json()["schema"],
+            "hol-gauntlet-staging-suite-shadow.v2"
+        );
     }
 }

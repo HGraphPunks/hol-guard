@@ -12,6 +12,7 @@ use crate::controller_key::{
     pin_controller_key_under_lease, require_pinned_controller_key_under_lease, SealedControllerKey,
 };
 use crate::controller_run::{cleanup, observe_child, wait_for_child, WaitOutcome};
+use crate::staging_kernel_observer::{LiveStagingKernelObservation, StagingKernelSampler};
 use crate::{
     fixed_staging_control_plan, open_root_owned_public_directory, read_fixed_interpreter_path_held,
     ActiveLease, BoottimeDeadline, RunReservationJournal, StagingControlPins, StagingRole,
@@ -60,6 +61,7 @@ pub struct CandidateStagingRunProof {
     exit_code: i32,
     timed_out: bool,
     post_run_controller_custody: bool,
+    live_kernel_activity: LiveStagingKernelObservation,
 }
 
 impl CandidateStagingRunProof {
@@ -76,6 +78,7 @@ impl CandidateStagingRunProof {
             "exit_code":self.exit_code,
             "timed_out":self.timed_out,
             "post_run_controller_custody":self.post_run_controller_custody,
+            "live_kernel_activity":self.live_kernel_activity.to_json(),
             "record_scored":false,
             "conformance_package_created":false,
             "execution_eligible":false,
@@ -249,22 +252,27 @@ fn run_with_group(
                 group.path(),
             )
             .map_err(|error| error.to_string())?;
+        let mut sampler = StagingKernelSampler::new(pins.run_id)?;
+        sampler.sample(group)?;
         let outcome = wait_for_child(
             &mut child,
             deadline,
             || {
                 lease
                     .verify(&journal.root)
-                    .map_err(crate::controller_run::ControllerRunError::Lease)
+                    .map_err(crate::controller_run::ControllerRunError::Lease)?;
+                sampler
+                    .sample(group)
+                    .map_err(crate::controller_run::ControllerRunError::KernelObservation)
             },
             || cancellation.load(Ordering::Acquire),
         )
         .map_err(|error| error.to_string())?;
-        Ok::<_, String>((process, outcome))
+        Ok::<_, String>((process, outcome, sampler.finish()))
     })();
     cleanup(group, Some(&mut child), pins.run_id, true)
         .map_err(|error| format!("staging child cleanup uncertain: {error}"))?;
-    let (process, outcome) = observed?;
+    let (process, outcome, live_kernel_activity) = observed?;
     let (exit_code, timed_out) = match outcome {
         WaitOutcome::Exited(status) => (
             status
@@ -291,6 +299,7 @@ fn run_with_group(
         "timed_out":timed_out,
         "controller_and_product_slice_cleanup_verified":true,
         "post_run_controller_custody":post_run_controller_custody,
+        "live_kernel_activity":live_kernel_activity.to_json(),
         "record_scored":false,
         "execution_eligible":false,
     });
@@ -321,6 +330,7 @@ fn run_with_group(
         exit_code,
         timed_out,
         post_run_controller_custody,
+        live_kernel_activity,
     })
 }
 

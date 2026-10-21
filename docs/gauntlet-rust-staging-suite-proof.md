@@ -30,8 +30,9 @@ record and exact source/config/assets, checked the retained physical files,
 then read the Root-only report and `invalid-evidence` terminal. It matched
 terminal key, started-marker, controller-key-pin, worker-generation and report
 byte digest to the host manifest and guest report. It required the six reports
-to say cleanup completed, then independently found each controller cgroup and
-product slice absent. The result was `signed_records:6`,
+to say cleanup completed, then reported each controller cgroup and product
+slice absent. The product-slice path error in that first check was corrected
+and rerun as described below. The original result was `signed_records:6`,
 `physical_files:32`, `absent_effects:5`, `cleanup_journals:6`,
 `host_prelaunch_key_pins_matched:true`, `outside_cgroups_absent:true`, and
 `execution_eligible:false`. A separate post-run Podman listing was empty.
@@ -49,3 +50,23 @@ execution, or Guard causality. The verifier explicitly returns
 `conformance_package_created:false`. Source/image review, a live outside
 observer, full physical-effect scoring, fresh conformance, installed controls,
 model inference and PR-gate policy remain open.
+
+## Corrected product-slice location
+
+The first suite verifier checked both cgroup names under `system.slice`. That
+was correct for the Rust controller group but wrong for the systemd product
+slice: the worker's slice guard and a fresh live VM observation place
+`holgauntletrust<run>.slice` directly under `/sys/fs/cgroup`. The first suite
+result therefore did not establish product-slice absence. The corrected
+verifier checks the controller group under `system.slice` and the product
+slice at the cgroup root, reopening each parent before accepting absence.
+An ARM64 test refuses an existing or symlinked slice at the correct root.
+The corrected binary SHA-256 matched on host and VM at
+`5a412dd68776f57ed54086e81708d0cf679a09e823b04240a09454ab2ea36bb5`;
+its ARM64 test binary SHA-256 matched at
+`4eeaa30741786db92375de643efe77eb8c8ba5015fc6871fcf1d839083cabad6`.
+All 42 evidence library tests and warnings-denied ARM64 Clippy passed. A
+fresh read-only rerun of the six retained roles with the same host manifest
+returned the same counts and `outside_cgroups_absent:true`, now checking all
+twelve cgroup paths at their actual roots. This corrects the post-run absence
+claim only; it does not reconstruct the roles' live processes.

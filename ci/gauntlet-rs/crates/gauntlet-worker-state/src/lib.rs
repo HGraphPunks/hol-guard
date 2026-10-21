@@ -193,6 +193,8 @@ mod product_cell_units;
 mod projection;
 #[cfg(target_os = "linux")]
 mod running;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod staging_kernel_observer;
 mod terminal;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use builder_candidate_preflight::{CandidatePreflightError, CandidateRuntimePins};

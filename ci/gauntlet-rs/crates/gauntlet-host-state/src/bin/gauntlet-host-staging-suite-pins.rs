@@ -85,7 +85,7 @@ fn assemble(
         );
     }
     let manifest: Value = json!({
-        "schema":"hol-gauntlet-staging-suite-pins.v1",
+        "schema":"hol-gauntlet-staging-suite-pins.v2",
         "build_job_id":identity.build_job_id,
         "source_sha":identity.source_sha,
         "version":identity.version,
@@ -94,6 +94,7 @@ fn assemble(
         "prefix_tree_sha256":identity.prefix_tree_sha256,
         "worker_generation_sha256":identity.worker_generation_sha256,
         "roles":roles,
+        "live_kernel_samples_required":true,
         "execution_eligible":false,
     });
     canonicalize(manifest.to_string().as_bytes())
@@ -129,11 +130,11 @@ fn run() -> Result<Value, String> {
         .map_err(|error| format!("private host pin directory unavailable: {error}"))?;
     let bytes = assemble(&journal, &identity, &selectors)?;
     let digest = journal
-        .record_staging_suite_manifest(identity.build_job_id, &bytes)
+        .record_staging_suite_manifest(identity.build_job_id, selectors[0].0, &bytes)
         .map_err(|error| format!("one-use suite pin write failed: {error}"))?;
     Ok(json!({
-        "schema":"hol-gauntlet-host-staging-suite-pins-diagnostic.v1",
-        "path":format!("{}/{}.staging-suite-pins.json",args[1],identity.build_job_id),
+        "schema":"hol-gauntlet-host-staging-suite-pins-diagnostic.v2",
+        "path":format!("{}/{}.{}.staging-suite-pins.json",args[1],identity.build_job_id,selectors[0].0),
         "manifest_sha256":digest,
         "roles":ROLES,
         "execution_eligible":false,
@@ -206,6 +207,8 @@ mod tests {
         assert!(hex(identity.worker_generation_sha256, 64));
         let raw = assemble(&journal, &identity, &selectors).unwrap();
         let value: Value = serde_json::from_slice(&raw).unwrap();
+        assert_eq!(value["schema"], "hol-gauntlet-staging-suite-pins.v2");
+        assert_eq!(value["live_kernel_samples_required"], true);
         assert_eq!(value["roles"]["cancel"]["run_id"], records[5].0);
         assert_eq!(value["execution_eligible"], false);
         assert!(assemble(
@@ -227,11 +230,14 @@ mod tests {
         };
         assert!(assemble(&journal, &wrong, &selectors).is_err());
         let digest = journal
-            .record_staging_suite_manifest("0123456789abcdef", &raw)
+            .record_staging_suite_manifest("0123456789abcdef", selectors[0].0, &raw)
             .unwrap();
         assert!(hex(&digest, 64));
         assert!(journal
-            .record_staging_suite_manifest("0123456789abcdef", &raw)
+            .record_staging_suite_manifest("0123456789abcdef", selectors[0].0, &raw)
+            .is_err());
+        assert!(journal
+            .record_staging_suite_manifest("0123456789abcdef", selectors[1].0, &raw)
             .is_err());
     }
 }

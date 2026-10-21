@@ -276,17 +276,26 @@ impl HostControllerKeyPinJournal {
     pub fn record_staging_suite_manifest(
         &self,
         build_job_id: &str,
+        suite_id: &str,
         bytes: &[u8],
     ) -> Result<String, HostKeyPinError> {
         if !hex(build_job_id, 16)
+            || !hex(suite_id, 16)
             || bytes.is_empty()
             || bytes.len() as u64 > MAX_SUITE_BYTES
             || canonicalize(bytes).ok().as_deref() != Some(bytes)
         {
             return Err(HostKeyPinError::InvalidPins);
         }
+        let manifest: Value =
+            serde_json::from_slice(bytes).map_err(|_| HostKeyPinError::InvalidPins)?;
+        if manifest["build_job_id"] != build_job_id
+            || manifest["roles"]["success"]["run_id"] != suite_id
+        {
+            return Err(HostKeyPinError::InvalidPins);
+        }
         self.stable_directory()?;
-        let name = format!("{build_job_id}.staging-suite-pins.json");
+        let name = format!("{build_job_id}.{suite_id}.staging-suite-pins.json");
         let descriptor = openat(
             &self.directory,
             name.as_str(),
