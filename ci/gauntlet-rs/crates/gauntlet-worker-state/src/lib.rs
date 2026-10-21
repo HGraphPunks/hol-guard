@@ -75,6 +75,14 @@ pub struct RunReservationJournal {
 }
 
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod builder_candidate_preflight;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod builder_candidate_process;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod builder_candidate_run;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod builder_candidate_source;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod builder_cgroup;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod builder_context;
@@ -151,6 +159,14 @@ mod projection;
 #[cfg(target_os = "linux")]
 mod running;
 mod terminal;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use builder_candidate_preflight::{CandidatePreflightError, CandidateRuntimePins};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use builder_candidate_process::CandidateProcessError;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use builder_candidate_run::{
+    run_fixed_local_candidate_ineligible, CandidateRunError, CandidateRunProof,
+};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use builder_context::{
     inspect_fixed_builder_context, BuilderContextError, BuilderContextProof,

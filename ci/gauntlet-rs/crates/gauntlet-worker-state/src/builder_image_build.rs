@@ -102,7 +102,7 @@ impl BuilderImageBuildProof {
     }
 }
 
-fn free_bytes() -> Result<u64, BuilderImageBuildError> {
+pub(crate) fn free_bytes() -> Result<u64, BuilderImageBuildError> {
     let path = CString::new(BUILDS).map_err(|_| BuilderImageBuildError::LowDisk)?;
     let mut stat = std::mem::MaybeUninit::<libc::statvfs>::uninit();
     // SAFETY: the fixed NUL-terminated path and writable statvfs buffer are valid.

@@ -116,7 +116,7 @@ fn parser_available() -> Result<(), BuilderPolicyError> {
     Ok(())
 }
 
-fn profile_is_loaded(name: &str) -> Result<bool, BuilderPolicyError> {
+pub(crate) fn profile_is_loaded(name: &str) -> Result<bool, BuilderPolicyError> {
     let descriptor = open(
         PROFILES,
         OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
@@ -135,7 +135,7 @@ fn profile_is_loaded(name: &str) -> Result<bool, BuilderPolicyError> {
     Ok(text.lines().any(|line| line == format!("{name} (enforce)")))
 }
 
-fn run_parser(action: &str, policy_path: &str) -> Result<(), BuilderPolicyError> {
+pub(crate) fn run_parser(action: &str, policy_path: &str) -> Result<(), BuilderPolicyError> {
     let mut command = Command::new(PARSER);
     command.args([action, policy_path]);
     command.env_clear();
@@ -273,7 +273,7 @@ fn read_policy_at(
     Ok(digest)
 }
 
-fn read_policy(job_id: &str, expected: &str) -> Result<String, BuilderPolicyError> {
+pub(crate) fn read_policy(job_id: &str, expected: &str) -> Result<String, BuilderPolicyError> {
     let builds = open_root_owned_public_directory(Path::new(BUILDS))
         .map_err(|_| BuilderPolicyError::PolicyUncertain)?;
     let job = openat(
