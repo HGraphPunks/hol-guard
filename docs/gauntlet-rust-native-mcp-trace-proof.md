@@ -69,6 +69,22 @@ six-role command above with `/root/gauntlet-staging-suite-shadow-b64af16d`.
 It returned the same counts, schema and ineligible status. Warnings-denied
 ARM64 Clippy, Rustfmt and `git diff --check` passed for the refactor.
 
+Code commit `e6b7dc1f` added a bounded request/response reconciliation within
+the same opt-in signed trace. For every `frame` row, Rust requires the next
+`forwarded` or `delivered` row to have the same family, proxy session and
+JSON-RPC message, in the declared direction. It tracks request IDs per
+session, rejects duplicate or orphan IDs and unfinished requests, and
+requires one completed `docs.read` call for `developer-spec` in each role.
+Changing the paired request method or delivered ID refused in unit tests.
+The new SHA-matched static ARM64 test binary
+`c9879c2a9da2218c0563d6524000e0843ef671441626a11a2872abadf9a73707`
+passed all 47 tests. The optimized Root-owned mode-0500 verifier SHA-256
+`5b1dba940f75b94cb4659eb0eb2095b490331197b12c0b4eed793f413d6d3436`
+reran the six-role command above with `/root/gauntlet-staging-suite-shadow-5b1dba94`
+and returned the same ineligible schema and counts. ARM64 warnings-denied
+Clippy, Rustfmt and `git diff --check` passed; VM free disk was
+8,730,800,128 bytes after the run, above the 8-GiB floor.
+
 These are signed controller observations cross-checked with earlier Rust
 worker kernel samples. They do not independently capture MCP wire frames,
 prove the SDK caused a tool call, authenticate Native contained-test effects,
