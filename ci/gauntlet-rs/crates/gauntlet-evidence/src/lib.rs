@@ -27,6 +27,7 @@ mod host_calls;
 mod io;
 mod model_endpoint;
 mod native_review_summary;
+mod native_transport_relations;
 mod omp_transcript;
 mod package_version;
 mod payload;
@@ -81,6 +82,7 @@ pub use model_endpoint::{
 pub use native_review_summary::{
     native_review_completed, recompute_native_review_summary, verify_native_review_summary,
 };
+pub use native_transport_relations::verify_native_transport_relations;
 pub use omp_transcript::{parse_omp_transcript, read_omp_transcript, TRANSCRIPT_LIMIT};
 pub use package_version::{valid_package_version, verify_installed_version_metadata};
 pub use private_cell_files::{verify_private_cell_artifacts, PrivateCellInventory};
