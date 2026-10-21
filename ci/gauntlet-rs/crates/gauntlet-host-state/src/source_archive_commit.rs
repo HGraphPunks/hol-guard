@@ -50,6 +50,7 @@ impl std::error::Error for SourceArchiveCommitError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceArchiveCommitProof {
+    job_id: String,
     archive: SourceArchiveInventory,
     source_sha: String,
     source_ref: String,
@@ -59,6 +60,10 @@ pub struct SourceArchiveCommitProof {
 }
 
 impl SourceArchiveCommitProof {
+    pub fn job_id(&self) -> &str {
+        &self.job_id
+    }
+
     pub fn archive(&self) -> &SourceArchiveInventory {
         &self.archive
     }
@@ -265,6 +270,7 @@ pub fn verify_retained_source_archive_commit(
         ],
     )?;
     Ok(SourceArchiveCommitProof {
+        job_id: job_id.to_owned(),
         archive: archive_inventory,
         source_sha: source_sha.to_owned(),
         source_ref: source_ref.to_owned(),

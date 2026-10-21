@@ -35,12 +35,17 @@ mod source_archive_commit;
 pub use source_archive_commit::{
     verify_retained_source_archive_commit, SourceArchiveCommitError, SourceArchiveCommitProof,
 };
+mod stream_process;
 mod telemetry;
 pub use telemetry::{resource_admission_reasons, TelemetryError, VmProbePlan};
 mod vm_progress;
 pub use vm_progress::{VmProgressError, VmProgressPlan};
 mod vm_source_archive;
 pub use vm_source_archive::{VmSourceArchiveError, VmSourceArchiveProbePlan};
+mod vm_source_transfer;
+pub use vm_source_transfer::{
+    transfer_source_archive_one_use, VmSourceTransferError, VmSourceTransferProof,
+};
 mod vm_reconcile;
 pub use vm_reconcile::{VmReconcileError, VmReconcilePlan};
 mod vm_rust_shadow;
