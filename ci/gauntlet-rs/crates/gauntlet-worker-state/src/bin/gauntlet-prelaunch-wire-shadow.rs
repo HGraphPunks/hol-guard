@@ -4,7 +4,7 @@
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 fn run() -> Result<(), String> {
     use gauntlet_contracts::PrelaunchPrepared;
-    use gauntlet_worker_state::{exchange_prelaunch_pipe, BoottimeDeadline};
+    use gauntlet_worker_state::{exchange_prelaunch_pipe, read_run_request_pipe, BoottimeDeadline};
     use ring::rand::{SecureRandom, SystemRandom};
     use ring::signature::{Ed25519KeyPair, KeyPair};
     use sha2::{Digest, Sha256};
@@ -19,6 +19,13 @@ fn run() -> Result<(), String> {
             .to_str()
             .ok_or_else(|| "outside pins must be UTF-8".to_owned())
     };
+    let deadline = BoottimeDeadline::start(10).map_err(|error| error.to_string())?;
+    let cancellation = AtomicBool::new(false);
+    let request = read_run_request_pipe(&std::io::stdin(), &deadline, &cancellation)
+        .map_err(|error| error.to_string())?;
+    if request.job_id() != text(2)? || !request.matches_deployment(text(1)?, text(3)?) {
+        return Err("wire probe request differs from outside pins".to_owned());
+    }
     let mut seed = [0u8; 32];
     SystemRandom::new()
         .fill(&mut seed)
@@ -50,8 +57,8 @@ fn run() -> Result<(), String> {
         &raw,
         &std::io::stdout(),
         &std::io::stdin(),
-        &BoottimeDeadline::start(10).map_err(|error| error.to_string())?,
-        &AtomicBool::new(false),
+        &deadline,
+        &cancellation,
     )
     .map_err(|error| error.to_string())?;
     Ok(())

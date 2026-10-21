@@ -1,5 +1,6 @@
-use gauntlet_contracts::PrelaunchPrepared;
+use gauntlet_contracts::{canonicalize, PrelaunchPrepared, WorkerRequest};
 use gauntlet_host_state::{HostControllerKeyPinJournal, HostKeyPinError, HostPrelaunchIdentity};
+use serde_json::json;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::process::{Command, Stdio};
@@ -45,6 +46,17 @@ fn child(script: &str, argument: &str) -> std::process::Child {
         .stderr(Stdio::null())
         .spawn()
         .unwrap()
+}
+
+fn request(prepared: &PrelaunchPrepared, job_id: &str) -> WorkerRequest {
+    let value = json!({
+        "schema":"hol-gauntlet-worker-request.v1",
+        "action":"run",
+        "source_sha":prepared.source_sha,
+        "job_id":job_id,
+        "deployment_digest":prepared.deployment_digest,
+    });
+    WorkerRequest::parse(&canonicalize(value.to_string().as_bytes()).unwrap()).unwrap()
 }
 
 #[test]
@@ -135,4 +147,46 @@ fn host_process_timeout_after_ack_retains_the_one_use_pin() {
     );
     assert_eq!(journal.read(&prepared.job_id).unwrap(), *accepted.record());
     assert!(accepted.process_id().is_none());
+}
+
+#[test]
+fn fixed_run_request_precedes_prepared_and_wrong_job_refuses() {
+    let (_temporary, first_journal) = journal();
+    let prepared = prepared();
+    let expected = planned(&prepared);
+    let raw = String::from_utf8(prepared.to_bytes().unwrap()).unwrap();
+    let script = "IFS= read -r request; test -n \"$request\" || exit 2; printf '%s\\n' \"$1\"; IFS= read -r ack; test -n \"$ack\"";
+    let mut accepted = first_journal
+        .send_run_request_and_accept_prepared_child(
+            child(script, &raw),
+            &request(&prepared, &prepared.job_id),
+            &expected,
+            Duration::from_secs(2),
+        )
+        .unwrap();
+    assert!(accepted
+        .wait_bounded(Duration::from_secs(2))
+        .unwrap()
+        .success());
+    assert_eq!(
+        first_journal.read(&prepared.job_id).unwrap(),
+        *accepted.record()
+    );
+
+    let (_temporary, second_journal) = journal();
+    let refused = second_journal
+        .send_run_request_and_accept_prepared_child(
+            child(script, &raw),
+            &request(&prepared, &"1".repeat(16)),
+            &expected,
+            Duration::from_secs(2),
+        )
+        .err()
+        .unwrap();
+    assert_eq!(refused.reason, HostKeyPinError::WrongRequest);
+    assert!(!refused.pin_recorded_or_uncertain);
+    assert_eq!(
+        second_journal.read(&prepared.job_id),
+        Err(HostKeyPinError::Missing)
+    );
 }

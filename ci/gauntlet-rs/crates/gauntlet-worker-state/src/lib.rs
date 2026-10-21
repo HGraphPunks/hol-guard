@@ -95,8 +95,8 @@ pub use contained_probe::{
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use controller_exec::{
-    exchange_prelaunch_pipe, run_fixed_root_controller_exec_probe, ControllerExecError,
-    RootControllerProbeProof,
+    exchange_prelaunch_pipe, read_run_request_pipe, run_fixed_root_controller_exec_probe,
+    ControllerExecError, RootControllerProbeProof,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use controller_install::{

@@ -3,7 +3,7 @@
 
 use super::ControllerExecError;
 use crate::BoottimeDeadline;
-use gauntlet_contracts::PrelaunchPrepared;
+use gauntlet_contracts::{PrelaunchPrepared, WorkerAction, WorkerRequest};
 use std::os::fd::AsRawFd;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -166,10 +166,40 @@ pub fn exchange_prelaunch_pipe(
     Ok(acknowledgement)
 }
 
+/// Read one bounded, canonical `run` request on the same pipe used later for
+/// the host acknowledgement. The caller must compare the request to its own
+/// outside deployment and one-use job pins before doing any reservation.
+pub fn read_run_request_pipe(
+    request_reader: &impl AsRawFd,
+    deadline: &BoottimeDeadline,
+    cancellation: &AtomicBool,
+) -> Result<WorkerRequest, ControllerExecError> {
+    let budget = deadline
+        .remaining()
+        .map_err(ControllerExecError::Deadline)?
+        .min(MAX_HANDOFF_TIME);
+    if budget.is_zero() {
+        return Err(ControllerExecError::PrelaunchExpired);
+    }
+    let raw = read_frame(
+        request_reader.as_raw_fd(),
+        deadline,
+        Instant::now() + budget,
+        cancellation,
+    )?;
+    let request = WorkerRequest::parse(&raw).map_err(|_| ControllerExecError::InvalidPlan)?;
+    if request.action() != WorkerAction::Run || request.to_json().to_string().as_bytes() != raw {
+        return Err(ControllerExecError::InvalidPlan);
+    }
+    Ok(request)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gauntlet_contracts::canonicalize;
     use gauntlet_host_state::{HostControllerKeyPinJournal, HostPrelaunchIdentity};
+    use serde_json::json;
     use std::fs;
     use std::io::{Read, Write};
     use std::os::unix::fs::PermissionsExt;
@@ -186,6 +216,61 @@ mod tests {
             controller_key_pin_sha256: "f".repeat(64),
             controller_public_key_hex: "0".repeat(64),
         }
+    }
+
+    #[test]
+    fn worker_accepts_one_canonical_run_request_and_refuses_other_actions() {
+        let pins = prepared();
+        let value = json!({
+            "schema":"hol-gauntlet-worker-request.v1",
+            "action":"run",
+            "source_sha":pins.source_sha,
+            "job_id":pins.job_id,
+            "deployment_digest":pins.deployment_digest,
+        });
+        let mut raw = canonicalize(value.to_string().as_bytes()).unwrap();
+        let (mut host, worker) = UnixStream::pair().unwrap();
+        host.write_all(&raw).unwrap();
+        host.write_all(b"\n").unwrap();
+        let request = read_run_request_pipe(
+            &worker,
+            &BoottimeDeadline::start(10).unwrap(),
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        assert!(request.matches_deployment(&pins.source_sha, &pins.deployment_digest));
+
+        let (mut host, worker) = UnixStream::pair().unwrap();
+        raw.insert(0, b' ');
+        host.write_all(&raw).unwrap();
+        host.write_all(b"\n").unwrap();
+        assert!(matches!(
+            read_run_request_pipe(
+                &worker,
+                &BoottimeDeadline::start(10).unwrap(),
+                &AtomicBool::new(false),
+            ),
+            Err(ControllerExecError::InvalidPlan)
+        ));
+
+        let (mut host, worker) = UnixStream::pair().unwrap();
+        let progress = json!({
+            "schema":"hol-gauntlet-worker-request.v1",
+            "action":"progress",
+            "source_sha":pins.source_sha,
+            "job_id":pins.job_id,
+        });
+        host.write_all(&canonicalize(progress.to_string().as_bytes()).unwrap())
+            .unwrap();
+        host.write_all(b"\n").unwrap();
+        assert!(matches!(
+            read_run_request_pipe(
+                &worker,
+                &BoottimeDeadline::start(10).unwrap(),
+                &AtomicBool::new(false),
+            ),
+            Err(ControllerExecError::InvalidPlan)
+        ));
     }
 
     #[test]

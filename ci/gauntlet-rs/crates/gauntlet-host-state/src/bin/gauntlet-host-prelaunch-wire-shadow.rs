@@ -1,7 +1,7 @@
 //! Inert macOS-to-Lima prelaunch exchange. The guest emits ephemeral values
 //! without reserving a job or launching a controller.
 
-use gauntlet_contracts::is_git_sha;
+use gauntlet_contracts::{canonicalize, is_git_sha, WorkerRequest};
 use gauntlet_host_state::{HostControllerKeyPinJournal, HostPrelaunchIdentity};
 use serde_json::{json, Value};
 use std::path::Path;
@@ -43,6 +43,17 @@ fn run() -> Result<(), String> {
     }
     let journal = HostControllerKeyPinJournal::open(Path::new(&args[1]))
         .map_err(|error| format!("private host pin directory unavailable: {error}"))?;
+    let request_json = json!({
+        "schema":"hol-gauntlet-worker-request.v1",
+        "action":"run",
+        "source_sha":source,
+        "job_id":job,
+        "deployment_digest":deployment,
+    });
+    let request_raw = canonicalize(request_json.to_string().as_bytes())
+        .map_err(|_| "wire probe request could not be encoded".to_owned())?;
+    let request = WorkerRequest::parse(&request_raw)
+        .map_err(|_| "wire probe request is invalid".to_owned())?;
     let defaults: Value =
         serde_json::from_str(include_str!("../../operations-defaults-v1.json"))
             .map_err(|_| "compiled public operations defaults are invalid".to_owned())?;
@@ -76,7 +87,12 @@ fn run() -> Result<(), String> {
         worker_generation: generation.to_owned(),
     };
     let mut accepted = journal
-        .accept_prepared_child(child, &expected, Duration::from_secs(10))
+        .send_run_request_and_accept_prepared_child(
+            child,
+            &request,
+            &expected,
+            Duration::from_secs(10),
+        )
         .map_err(|failure| {
             format!(
                 "Lima prelaunch exchange refused: {}; host pin recorded or uncertain: {}",
@@ -98,6 +114,7 @@ fn run() -> Result<(), String> {
             "host_record_sha256":accepted.record().raw_sha256,
             "guest_ephemeral_public_key_hex":accepted.record().pins.controller_public_key_hex,
             "synthetic_guest_values":true,
+            "bounded_run_request_exchanged":true,
             "durable_guest_started_marker":false,
             "controller_executed":false,
             "execution_eligible":false,

@@ -83,6 +83,7 @@ impl HostKeyPinRecord {
 pub enum HostKeyPinError {
     UnsafeDirectory,
     InvalidPins,
+    WrongRequest,
     WrongPreparedIdentity,
     AlreadyRecorded,
     Missing,
@@ -100,6 +101,7 @@ impl fmt::Display for HostKeyPinError {
         f.write_str(match self {
             Self::UnsafeDirectory => "isolated private host pin directory required",
             Self::InvalidPins => "invalid outside controller key identity",
+            Self::WrongRequest => "VM run request differs from the planned host job",
             Self::WrongPreparedIdentity => "VM prepared frame differs from the planned host job",
             Self::AlreadyRecorded => "host already recorded this one-use job ID",
             Self::Missing => "host has no prelaunch controller key pin for this job",

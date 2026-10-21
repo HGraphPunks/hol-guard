@@ -80,7 +80,11 @@ fn read_frame(fd: libc::c_int, deadline: Instant) -> Result<Vec<u8>, HostKeyPinE
     }
 }
 
-fn write_frame(fd: libc::c_int, bytes: &[u8], deadline: Instant) -> Result<(), HostKeyPinError> {
+pub(super) fn write_frame(
+    fd: libc::c_int,
+    bytes: &[u8],
+    deadline: Instant,
+) -> Result<(), HostKeyPinError> {
     if bytes.is_empty() || bytes.len() > MAX_FRAME_BYTES {
         return Err(HostKeyPinError::FrameTooLarge);
     }

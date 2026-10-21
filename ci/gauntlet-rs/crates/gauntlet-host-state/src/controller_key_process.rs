@@ -2,8 +2,11 @@
 //! The caller must separately attest the Lima executable, VM and guest worker.
 
 use super::{
-    HostControllerKeyPinJournal, HostKeyPinError, HostKeyPinRecord, HostPrelaunchIdentity,
+    pipe::write_frame, HostControllerKeyPinJournal, HostKeyPinError, HostKeyPinRecord,
+    HostPrelaunchIdentity,
 };
+use gauntlet_contracts::{canonicalize, WorkerAction, WorkerRequest};
+use std::os::fd::AsRawFd;
 use std::process::{Child, ExitStatus};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -97,10 +100,44 @@ impl HostControllerKeyPinJournal {
         expected: &HostPrelaunchIdentity,
         timeout: Duration,
     ) -> Result<HostPreparedProcess, HostProcessFailure> {
+        self.accept_child_inner(child, None, expected, timeout)
+    }
+
+    /// Send one exact run request before receiving the prepared frame. The
+    /// entire request/prepared/ack sequence shares one 60-second deadline.
+    /// This still does not authenticate the Lima child or authorize a run.
+    pub fn send_run_request_and_accept_prepared_child(
+        &self,
+        child: Child,
+        request: &WorkerRequest,
+        expected: &HostPrelaunchIdentity,
+        timeout: Duration,
+    ) -> Result<HostPreparedProcess, HostProcessFailure> {
+        self.accept_child_inner(child, Some(request), expected, timeout)
+    }
+
+    fn accept_child_inner(
+        &self,
+        child: Child,
+        request: Option<&WorkerRequest>,
+        expected: &HostPrelaunchIdentity,
+        timeout: Duration,
+    ) -> Result<HostPreparedProcess, HostProcessFailure> {
         let owned = ChildOwner(Some(child));
         let result = (|| {
             if !expected.valid() {
                 return Err(HostKeyPinError::WrongPreparedIdentity);
+            }
+            if timeout.is_zero() || timeout > Duration::from_secs(60) {
+                return Err(HostKeyPinError::TransportTimedOut);
+            }
+            if request.is_some_and(|request| {
+                request.action() != WorkerAction::Run
+                    || !request
+                        .matches_deployment(&expected.source_sha, &expected.deployment_digest)
+                    || request.job_id() != expected.job_id
+            }) {
+                return Err(HostKeyPinError::WrongRequest);
             }
             match self.read(&expected.job_id) {
                 Err(HostKeyPinError::Missing) => (),
@@ -116,7 +153,20 @@ impl HostControllerKeyPinJournal {
                 .stdin
                 .as_ref()
                 .ok_or(HostKeyPinError::TransportFailed)?;
-            self.accept_prepared_pipe(reader, writer, expected, timeout)
+            if let Some(request) = request {
+                let raw = canonicalize(request.to_json().to_string().as_bytes())
+                    .map_err(|_| HostKeyPinError::WrongRequest)?;
+                let deadline = Instant::now() + timeout;
+                write_frame(writer.as_raw_fd(), &raw, deadline)?;
+                self.accept_prepared_pipe(
+                    reader,
+                    writer,
+                    expected,
+                    deadline.saturating_duration_since(Instant::now()),
+                )
+            } else {
+                self.accept_prepared_pipe(reader, writer, expected, timeout)
+            }
         })();
         match result {
             Ok(record) => Ok(HostPreparedProcess {
