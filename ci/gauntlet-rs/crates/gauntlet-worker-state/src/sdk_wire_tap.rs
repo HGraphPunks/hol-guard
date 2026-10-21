@@ -15,9 +15,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-const MAX_FRAME_BYTES: usize = 1024 * 1024;
-const MAX_TOTAL_BYTES: usize = 12 * 1024 * 1024;
-const MAX_FRAMES: usize = 1_000;
+pub(crate) const MAX_FRAME_BYTES: usize = 1024 * 1024;
+pub(crate) const MAX_TOTAL_BYTES: usize = 12 * 1024 * 1024;
+pub(crate) const MAX_FRAMES: usize = 1_000;
 const READ_TIMEOUT: Duration = Duration::from_millis(250);
 const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_LIFETIME: Duration = Duration::from_secs(300);
@@ -28,6 +28,7 @@ pub struct SdkWireEvent {
     pub family: String,
     pub direction: &'static str,
     pub frame_sha256: String,
+    pub canonical_message_sha256: String,
     pub frame_bytes: usize,
     pub method: Option<String>,
     /// Canonical JSON scalar: quoted for string IDs, unquoted for integer IDs.
@@ -50,6 +51,7 @@ impl SdkWireObservation {
                 "family":event.family,
                 "direction":event.direction,
                 "frame_sha256":event.frame_sha256,
+                "canonical_message_sha256":event.canonical_message_sha256,
                 "frame_bytes":event.frame_bytes,
                 "method":event.method,
                 "id_json":event.id_json,
@@ -71,6 +73,32 @@ struct Ledger {
     pending_service: BTreeMap<String, String>,
     completed_tool_calls: usize,
     poisoned: bool,
+}
+
+/// Root-side replay validator for raw frames delivered over a future private
+/// child pipe. It does not infer that the child actually forwarded a frame.
+pub struct SdkWireFrameObserver {
+    ledger: Ledger,
+}
+
+impl SdkWireFrameObserver {
+    pub fn new(family: &str) -> Result<Self, String> {
+        Ok(Self {
+            ledger: Ledger::new(family)?,
+        })
+    }
+
+    pub fn observe(
+        &mut self,
+        direction: &'static str,
+        frame: &[u8],
+    ) -> Result<SdkWireEvent, String> {
+        self.ledger.ingest(direction, frame, None)
+    }
+
+    pub fn finish(self) -> Result<SdkWireObservation, String> {
+        self.ledger.finish()
+    }
 }
 
 impl Ledger {
@@ -95,6 +123,15 @@ impl Ledger {
         frame: &[u8],
         destination: &mut UnixStream,
     ) -> Result<(), String> {
+        self.ingest(direction, frame, Some(destination)).map(|_| ())
+    }
+
+    fn ingest(
+        &mut self,
+        direction: &'static str,
+        frame: &[u8],
+        destination: Option<&mut UnixStream>,
+    ) -> Result<SdkWireEvent, String> {
         if self.poisoned
             || frame.len() < 2
             || frame.len() > MAX_FRAME_BYTES + 1
@@ -184,9 +221,11 @@ impl Ledger {
                 return Err("orphan MCP response ID".to_owned());
             }
         }
-        if let Err(error) = destination.write_all(frame) {
-            self.poisoned = true;
-            return Err(format!("MCP tap forwarding failed: {error}"));
+        if let Some(destination) = destination {
+            if let Err(error) = destination.write_all(frame) {
+                self.poisoned = true;
+                return Err(format!("MCP tap forwarding failed: {error}"));
+            }
         }
         if is_request {
             if let Some(id) = id.as_ref() {
@@ -208,17 +247,19 @@ impl Ledger {
                 self.completed_tool_calls += 1;
             }
         }
-        self.events.push(SdkWireEvent {
+        let event = SdkWireEvent {
             sequence: self.events.len() + 1,
             family: self.family.clone(),
             direction,
             frame_sha256: format!("{:x}", Sha256::digest(frame)),
+            canonical_message_sha256: format!("{:x}", Sha256::digest(&canonical)),
             frame_bytes: frame.len(),
             method: method.map(str::to_owned),
             id_json: id,
-        });
+        };
+        self.events.push(event.clone());
         self.total_bytes += frame.len();
-        Ok(())
+        Ok(event)
     }
 
     fn finish(self) -> Result<SdkWireObservation, String> {
@@ -237,15 +278,23 @@ impl Ledger {
     }
 }
 
-fn pump(
+struct RelayControl<'a> {
+    stop: &'a AtomicBool,
+    cancelled: &'a AtomicBool,
+    until: Instant,
+}
+
+fn pump<F>(
     mut source: UnixStream,
     mut destination: UnixStream,
     direction: &'static str,
     ledger: &Mutex<Ledger>,
-    stop: &AtomicBool,
-    cancelled: &AtomicBool,
-    until: Instant,
-) -> Result<(), String> {
+    frame_sink: &Mutex<F>,
+    control: &RelayControl<'_>,
+) -> Result<(), String>
+where
+    F: FnMut(&'static str, &[u8]) -> Result<(), String> + Send,
+{
     source
         .set_read_timeout(Some(READ_TIMEOUT))
         .map_err(|error| error.to_string())?;
@@ -255,9 +304,9 @@ fn pump(
     let mut chunk = [0_u8; 8192];
     let mut frame = Vec::new();
     loop {
-        if stop.load(Ordering::Acquire)
-            || cancelled.load(Ordering::Acquire)
-            || Instant::now() >= until
+        if control.stop.load(Ordering::Acquire)
+            || control.cancelled.load(Ordering::Acquire)
+            || Instant::now() >= control.until
         {
             return Err("MCP tap was cancelled or timed out".to_owned());
         }
@@ -289,10 +338,17 @@ fn pump(
                 if frame.len() > MAX_FRAME_BYTES + 1 {
                     return Err("MCP tap frame exceeds byte bound".to_owned());
                 }
-                ledger
+                let mut ledger = ledger
                     .lock()
-                    .map_err(|_| "MCP tap ledger lock poisoned".to_owned())?
-                    .forward(direction, &frame, &mut destination)?;
+                    .map_err(|_| "MCP tap ledger lock poisoned".to_owned())?;
+                ledger.forward(direction, &frame, &mut destination)?;
+                let mut sink = frame_sink
+                    .lock()
+                    .map_err(|_| "MCP tap frame sink lock poisoned".to_owned())?;
+                if let Err(error) = (*sink)(direction, &frame) {
+                    ledger.poisoned = true;
+                    return Err(format!("MCP tap frame report failed: {error}"));
+                }
                 frame.clear();
                 remaining = &remaining[index + 1..];
             } else {
@@ -314,9 +370,33 @@ pub fn relay_bounded_sdk_mcp_pair_ineligible(
     family: &str,
     cancelled: &AtomicBool,
 ) -> Result<SdkWireObservation, String> {
+    let sink = Mutex::new(|_direction: &'static str, _frame: &[u8]| Ok(()));
+    relay_bounded_sdk_mcp_pair_with_frame_sink_ineligible(
+        client, frontdoor, family, cancelled, &sink,
+    )
+}
+
+/// The sink is called in the same order as successfully forwarded frames.
+/// Its intended use is the bounded raw-frame child pipe; a failed sink poisons
+/// this exchange even when bytes reached the other socket.
+pub fn relay_bounded_sdk_mcp_pair_with_frame_sink_ineligible<F>(
+    client: UnixStream,
+    frontdoor: UnixStream,
+    family: &str,
+    cancelled: &AtomicBool,
+    frame_sink: &Mutex<F>,
+) -> Result<SdkWireObservation, String>
+where
+    F: FnMut(&'static str, &[u8]) -> Result<(), String> + Send,
+{
     let ledger = Mutex::new(Ledger::new(family)?);
     let stop = AtomicBool::new(false);
     let until = Instant::now() + MAX_LIFETIME;
+    let control = RelayControl {
+        stop: &stop,
+        cancelled,
+        until,
+    };
     let client_read = client.try_clone().map_err(|error| error.to_string())?;
     let frontdoor_read = frontdoor.try_clone().map_err(|error| error.to_string())?;
     let result = std::thread::scope(|scope| {
@@ -326,9 +406,8 @@ pub fn relay_bounded_sdk_mcp_pair_ineligible(
                 frontdoor,
                 "client-to-service",
                 &ledger,
-                &stop,
-                cancelled,
-                until,
+                frame_sink,
+                &control,
             );
             if outcome.is_err() {
                 stop.store(true, Ordering::Release);
@@ -341,9 +420,8 @@ pub fn relay_bounded_sdk_mcp_pair_ineligible(
                 client,
                 "service-to-client",
                 &ledger,
-                &stop,
-                cancelled,
-                until,
+                frame_sink,
+                &control,
             );
             if outcome.is_err() {
                 stop.store(true, Ordering::Release);
@@ -356,7 +434,14 @@ pub fn relay_bounded_sdk_mcp_pair_ineligible(
         let second = incoming
             .join()
             .map_err(|_| "incoming MCP tap thread panicked".to_owned())?;
-        first.and(second)
+        match (first, second) {
+            (Err(first), Err(second)) if first == "MCP tap was cancelled or timed out" => {
+                Err(second)
+            }
+            (Err(first), _) => Err(first),
+            (_, Err(second)) => Err(second),
+            (Ok(()), Ok(())) => Ok(()),
+        }
     });
     if cancelled.load(Ordering::Acquire) {
         return Err("MCP tap was cancelled".to_owned());
@@ -539,5 +624,30 @@ mod tests {
         )
         .is_err());
         assert!(began.elapsed() < Duration::from_secs(2));
+    }
+
+    #[test]
+    fn root_side_raw_frame_observer_recomputes_digest_and_refuses_missing_result() {
+        let request = b"{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\"}\n";
+        let response = b"{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{}}\n";
+        let mut observer = SdkWireFrameObserver::new("docs").unwrap();
+        let first = observer.observe("client-to-service", request).unwrap();
+        assert_eq!(first.frame_sha256, format!("{:x}", Sha256::digest(request)));
+        assert_eq!(
+            first.canonical_message_sha256,
+            format!(
+                "{:x}",
+                Sha256::digest(canonicalize(&request[..request.len() - 1]).unwrap())
+            )
+        );
+        assert_eq!(first.id_json.as_deref(), Some("2"));
+        let second = observer.observe("service-to-client", response).unwrap();
+        assert_eq!(second.sequence, 2);
+        assert_eq!(observer.finish().unwrap().completed_tool_calls, 1);
+        let mut missing = SdkWireFrameObserver::new("docs").unwrap();
+        missing.observe("client-to-service", request).unwrap();
+        assert!(missing.finish().is_err());
+        let mut forged = SdkWireFrameObserver::new("docs").unwrap();
+        assert!(forged.observe("service-to-client", response).is_err());
     }
 }

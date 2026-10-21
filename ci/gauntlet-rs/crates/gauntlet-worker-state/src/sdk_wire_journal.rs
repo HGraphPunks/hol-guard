@@ -129,6 +129,7 @@ fn validate_session(session: &SdkTapRetainedSession) -> Result<(usize, usize), S
             || event.family != session.family
             || !matches!(event.direction, "client-to-service" | "service-to-client")
             || !hex(&event.frame_sha256, 64)
+            || !hex(&event.canonical_message_sha256, 64)
             || !(2..=1024 * 1024 + 1).contains(&event.frame_bytes)
             || event
                 .method
@@ -365,6 +366,7 @@ mod tests {
                     family: family.to_owned(),
                     direction: "client-to-service",
                     frame_sha256: "a".repeat(64),
+                    canonical_message_sha256: "b".repeat(64),
                     frame_bytes: 35,
                     method: Some("notifications/initialized".to_owned()),
                     id_json: None,

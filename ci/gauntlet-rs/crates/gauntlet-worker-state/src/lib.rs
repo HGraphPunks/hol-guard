@@ -200,6 +200,8 @@ mod sdk_wire_listener;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod sdk_wire_peer;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod sdk_wire_pipe;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod sdk_wire_tap;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod staging_kernel_observer;
@@ -372,7 +374,12 @@ pub use sdk_wire_peer::{
     SdkWirePeerObservation, SdkWirePeerPin,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-pub use sdk_wire_tap::{relay_bounded_sdk_mcp_pair_ineligible, SdkWireEvent, SdkWireObservation};
+pub use sdk_wire_pipe::{read_sdk_tap_frame_pipe_ineligible, SdkTapFramePipeWriter};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use sdk_wire_tap::{
+    relay_bounded_sdk_mcp_pair_ineligible, relay_bounded_sdk_mcp_pair_with_frame_sink_ineligible,
+    SdkWireEvent, SdkWireFrameObserver, SdkWireObservation,
+};
 pub use terminal::{ProcessIdentity, TerminalOutcome, TerminalReceipt};
 
 pub(crate) fn hex(value: &str, length: usize) -> bool {
