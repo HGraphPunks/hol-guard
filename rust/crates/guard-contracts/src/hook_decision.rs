@@ -14,7 +14,12 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::{CodexToolOutputFactsV1, NativeExtensionControlLayerV1};
+use crate::{
+    ArtifactBrowserOutcomeInputsV1, ArtifactBrowserOutcomeV1, ArtifactFinalizeInputsV1,
+    ArtifactFinalizeV1, ArtifactReusePlanV1, ArtifactReuseStepInputsV1, CodexToolOutputFactsV1,
+    HookRouteInputsV1, HookRouteV1, NativeExtensionControlLayerV1, NativePermissionPersistInputsV1,
+    NativePermissionPersistPlanV1,
+};
 
 /// Schema discriminator for the request.
 pub const HOOK_DECISION_REQUEST_SCHEMA: &str = "guard-hook-decision-request.v1";
@@ -68,12 +73,35 @@ pub enum HookDecisionQueryV1 {
     ArtifactDirective {
         inputs: Box<ArtifactDirectiveInputsV1>,
     },
+    /// What to save for a Claude-native approval: the stored hash, the policy
+    /// action, the audit events and the inventory disposition.
+    NativePermissionPersistPlan {
+        inputs: Box<NativePermissionPersistInputsV1>,
+    },
     /// The artifact hook's review route: whether a review-tier or terminal
     /// verdict is recorded without a prompt, observed, answered natively or
     /// queued for approval.
     ArtifactReviewRoute {
         inputs: Box<ArtifactReviewRouteInputsV1>,
     },
+    /// The artifact hook's final-action settle: the normalized final action,
+    /// the decision record's key, the evidence patch and the receipt fields.
+    ArtifactFinalize {
+        inputs: Box<ArtifactFinalizeInputsV1>,
+    },
+    /// Whether a browser approval outcome settles the artifact hook, and how
+    /// the hook ends once it does.
+    ArtifactBrowserOutcome {
+        inputs: Box<ArtifactBrowserOutcomeInputsV1>,
+    },
+    /// The artifact hook's approval-reuse state machine: the plan of effects
+    /// (claim, revalidate) and the settlement the request reaches.
+    ArtifactReuseStep {
+        inputs: Box<ArtifactReuseStepInputsV1>,
+    },
+    /// The hook pipeline's dispatch route: which handlers answer a prepared
+    /// payload, in what order.
+    HookRoute { inputs: Box<HookRouteInputsV1> },
 }
 
 /// Facts the artifact hook's review route depends on. The transport gathers
@@ -395,7 +423,14 @@ pub enum HookDecisionPayloadV1 {
     },
     Finalize(Box<HookFinalV1>),
     ArtifactDirective(Box<HookResponseDirectiveV1>),
+    NativePermissionPersistPlan(Box<NativePermissionPersistPlanV1>),
     ArtifactReviewRoute(Box<ArtifactReviewRouteV1>),
+    ArtifactFinalize(Box<ArtifactFinalizeV1>),
+    ArtifactBrowserOutcome(Box<ArtifactBrowserOutcomeV1>),
+    ArtifactReuseStep {
+        plan: Box<ArtifactReusePlanV1>,
+    },
+    HookRoute(Box<HookRouteV1>),
     CopilotSettle {
         /// Facts still missing; resubmit with them when non-empty.
         needs_facts: Vec<String>,
