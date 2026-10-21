@@ -47,6 +47,14 @@ SHA-256 `6a1295d977303ab75c376ff56f14eeed2203fdca91059642439a1d8d0a68b52b`.
 VM free disk after deleting transfer inboxes was 8,754,790,400 bytes,
 above the 8-GiB floor.
 
+Code pin `7f88339f` adds a separate macOS
+`gauntlet-host-staging-control-tap` command. It keeps the v1 host executable
+untouched, derives the fixed guest v2 worker and child paths from outside
+SHA-256 pins, and uses the existing durable host prepared/ack key handoff.
+The new binary passed macOS `cargo check` and warnings-denied Clippy. It has
+not run a live Lima prelaunch; its output explicitly requires guest-terminal
+readback and a future outside host pin for the tap-journal digest.
+
 This is a synthetic Root/UID integration proof, not a source-matched
 candidate control. The test supplies a synthetic SDK ancestor and Native
 frontdoor; it does not run the candidate Bun, Guard, signed controller or
