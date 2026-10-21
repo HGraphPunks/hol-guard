@@ -4,8 +4,8 @@
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 fn run() -> Result<String, String> {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() != 18 {
-        return Err("usage: gauntlet-local-candidate-hostbound-shadow CONTROLLER_ROOT CONTROLLER_TREE_SHA256 JOB_ID UV_IMAGE_ID RUST_IMAGE_ID BUILDER_IMAGE_ID SOURCE_COMMIT SOURCE_ARCHIVE_SHA256 VERSION PODMAN_SHA256 SLIRP_SHA256 APPARMOR_PARSER_SHA256 SECCOMP_SHA256 POLICY_SHA256 RESULT_READER_BINARY_SHA256 HOST_PIN_SHA256 HOST_NONCE_HEX".to_owned());
+    if args.len() != 19 {
+        return Err("usage: gauntlet-local-candidate-hostbound-shadow CONTROLLER_ROOT CONTROLLER_TREE_SHA256 JOB_ID UV_IMAGE_ID RUST_IMAGE_ID BUILDER_IMAGE_ID SOURCE_COMMIT SOURCE_ARCHIVE_SHA256 VERSION TAG PODMAN_SHA256 SLIRP_SHA256 APPARMOR_PARSER_SHA256 SECCOMP_SHA256 POLICY_SHA256 RESULT_READER_BINARY_SHA256 HOST_PIN_SHA256 HOST_NONCE_HEX".to_owned());
     }
     const PREFIX: &str = "/opt/hol-gauntlet/rust-candidate-run-hostbound-shadow-";
     let runner_sha256 = args[0]
@@ -18,15 +18,16 @@ fn run() -> Result<String, String> {
         })
         .ok_or("exact hashed Root runner path required")?;
     let runtime = gauntlet_worker_state::CandidateRuntimePins::parse(
-        &args[10], &args[11], &args[12], &args[13],
+        &args[11], &args[12], &args[13], &args[14],
     )
     .map_err(|error| error.to_string())?;
-    let anchor = gauntlet_worker_state::HostCandidateRunAnchor::parse(
-        &args[14],
+    let anchor = gauntlet_worker_state::HostCandidateRunAnchor::parse_with_tag(
         &args[15],
         &args[16],
         &args[17],
+        &args[18],
         runner_sha256,
+        &args[10],
     )
     .ok_or("exact host candidate build anchor required")?;
     gauntlet_worker_state::run_fixed_local_candidate_hostbound_ineligible(
@@ -39,6 +40,7 @@ fn run() -> Result<String, String> {
         &args[7],
         &args[8],
         &args[9],
+        &args[10],
         runtime,
         anchor,
     )

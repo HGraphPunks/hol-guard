@@ -72,6 +72,7 @@ pub struct CandidateBuildReadyProof {
     job_id: String,
     source_sha: String,
     source_archive_sha256: String,
+    tag: String,
     image_id: String,
     policy_sha256: String,
     free_disk_bytes: u64,
@@ -80,10 +81,11 @@ pub struct CandidateBuildReadyProof {
 impl CandidateBuildReadyProof {
     pub fn to_json(&self) -> Value {
         json!({
-            "schema":"hol-gauntlet-candidate-build-ready-shadow.v1",
+            "schema":"hol-gauntlet-candidate-build-ready-shadow.v2",
             "job_id":self.job_id,
             "source_sha":self.source_sha,
             "source_archive_sha256":self.source_archive_sha256,
+            "tag":self.tag,
             "image_id":self.image_id,
             "policy_sha256":self.policy_sha256,
             "free_disk_bytes":self.free_disk_bytes,
@@ -107,6 +109,7 @@ pub fn probe_fixed_candidate_build_ready_ineligible(
     source_sha: &str,
     archive_sha256: &str,
     version: &str,
+    tag: &str,
     runtime: &CandidateRuntimePins,
     policy_sha256: &str,
 ) -> Result<CandidateBuildReadyProof, CandidateBuildReadyError> {
@@ -120,6 +123,8 @@ pub fn probe_fixed_candidate_build_ready_ineligible(
         || !hex(source_sha, 40)
         || !hex(archive_sha256, 64)
         || !hex(policy_sha256, 64)
+        || !(tag == format!("local-{source_sha}")
+            || matches!(tag, "v3.48.0" | "v3.49.0") && &tag[1..] == version)
         || image_id
             .strip_prefix("sha256:")
             .is_none_or(|digest| !hex(digest, 64))
@@ -131,9 +136,9 @@ pub fn probe_fixed_candidate_build_ready_ineligible(
         "job_id":job_id,
         "source_sha":source_sha,
         "source_archive_sha256":archive_sha256,
-        "tag":format!("local-{source_sha}"),
+        "tag":tag,
         "memory_gib":12,
-        "local_version":version,
+        "local_version":if tag.starts_with("local-") { Some(version) } else { None },
         "retest_build_job_id":null,
     });
     fixed_builder_run_plan(&request).map_err(|_| CandidateBuildReadyError::InvalidPins)?;
@@ -190,6 +195,7 @@ pub fn probe_fixed_candidate_build_ready_ineligible(
         job_id: job_id.to_owned(),
         source_sha: source_sha.to_owned(),
         source_archive_sha256: archive_sha256.to_owned(),
+        tag: tag.to_owned(),
         image_id: image_id.to_owned(),
         policy_sha256: policy_sha256.to_owned(),
         free_disk_bytes,

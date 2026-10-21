@@ -132,7 +132,17 @@ impl CandidateRunProof {
             "execution_eligible":false,
         });
         if let Some((anchor, anchor_file_sha256)) = &self.host_anchor {
-            body["schema"] = json!("hol-gauntlet-candidate-build-result.v2");
+            body["schema"] = json!(if anchor.tag.is_some() {
+                "hol-gauntlet-candidate-build-result.v3"
+            } else {
+                "hol-gauntlet-candidate-build-result.v2"
+            });
+            if let Some(tag) = &anchor.tag {
+                body["tag"] = json!(tag);
+                if !tag.starts_with("local-") {
+                    body["local_version"] = Value::Null;
+                }
+            }
             body["host_pin_sha256"] = json!(anchor.host_pin_sha256);
             body["host_nonce_hex"] = json!(anchor.host_nonce_hex);
             body["host_anchor_sha256"] = json!(anchor_file_sha256);
@@ -176,6 +186,7 @@ pub fn run_fixed_local_candidate_ineligible(
         source_sha,
         archive_sha256,
         version,
+        &format!("local-{source_sha}"),
         runtime,
         None,
     )
@@ -195,6 +206,7 @@ pub fn run_fixed_local_candidate_hostbound_ineligible(
     source_sha: &str,
     archive_sha256: &str,
     version: &str,
+    tag: &str,
     runtime: CandidateRuntimePins,
     anchor: HostCandidateRunAnchor,
 ) -> Result<CandidateRunProof, CandidateRunError> {
@@ -213,6 +225,7 @@ pub fn run_fixed_local_candidate_hostbound_ineligible(
         source_sha,
         archive_sha256,
         version,
+        tag,
         runtime,
         Some(anchor),
     )
@@ -229,6 +242,7 @@ fn run_fixed_local_candidate_inner(
     source_sha: &str,
     archive_sha256: &str,
     version: &str,
+    tag: &str,
     runtime: CandidateRuntimePins,
     host_anchor: Option<HostCandidateRunAnchor>,
 ) -> Result<CandidateRunProof, CandidateRunError> {
@@ -241,6 +255,8 @@ fn run_fixed_local_candidate_inner(
         || !hex(rust_id, 64)
         || !hex(source_sha, 40)
         || !hex(archive_sha256, 64)
+        || !(tag == format!("local-{source_sha}")
+            || matches!(tag, "v3.48.0" | "v3.49.0") && &tag[1..] == version)
         || image_id
             .strip_prefix("sha256:")
             .is_none_or(|digest| !hex(digest, 64))
@@ -252,9 +268,9 @@ fn run_fixed_local_candidate_inner(
         "job_id":job_id,
         "source_sha":source_sha,
         "source_archive_sha256":archive_sha256,
-        "tag":format!("local-{source_sha}"),
+        "tag":tag,
         "memory_gib":12,
-        "local_version":version,
+        "local_version":if tag.starts_with("local-") { Some(version) } else { None },
         "retest_build_job_id":null,
     });
     let plan = fixed_builder_run_plan(&request).map_err(|_| CandidateRunError::InvalidPins)?;
@@ -274,10 +290,10 @@ fn run_fixed_local_candidate_inner(
         return Err(CandidateRunError::ImageMismatch);
     }
     read_policy(job_id, context.policy_sha256()).map_err(|_| CandidateRunError::PolicyMismatch)?;
-    if host_anchor
-        .as_ref()
-        .is_some_and(|anchor| anchor.policy_sha256 != context.policy_sha256())
-    {
+    if host_anchor.as_ref().is_some_and(|anchor| {
+        anchor.policy_sha256 != context.policy_sha256()
+            || anchor.tag.as_deref().is_some_and(|pinned| pinned != tag)
+    }) {
         return Err(CandidateRunError::HostAnchorMismatch);
     }
     if profile_is_loaded(context.profile_name()).map_err(|_| CandidateRunError::PolicyMismatch)? {

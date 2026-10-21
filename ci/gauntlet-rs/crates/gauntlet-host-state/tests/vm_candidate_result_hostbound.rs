@@ -18,6 +18,7 @@ fn pins() -> HostCandidateBuildPins {
         source_sha: "1".repeat(40),
         source_archive_sha256: "2".repeat(64),
         version: "3.49.0".to_owned(),
+        tag: format!("local-{}", "1".repeat(40)),
         controller_root: "/opt/hol-gauntlet/controller-18d31910a8cefbd6".to_owned(),
         controller_tree_sha256: "3".repeat(64),
         uv_base_image_id: "4".repeat(64),
@@ -76,7 +77,7 @@ fn exact_terminal_frame_binds_host_record_and_refuses_alteration() {
         &"f".repeat(64),
     )
     .unwrap();
-    assert_eq!(plan.argv().len(), 24);
+    assert_eq!(plan.argv().len(), 25);
     assert_eq!(
         plan.argv()[6],
         format!(
@@ -84,10 +85,11 @@ fn exact_terminal_frame_binds_host_record_and_refuses_alteration() {
             pins().result_reader_binary_sha256
         )
     );
-    assert_eq!(plan.argv()[22], record.raw_sha256);
-    assert_eq!(plan.argv()[23], record.host_nonce_hex);
+    assert_eq!(plan.argv()[23], record.raw_sha256);
+    assert_eq!(plan.argv()[24], record.host_nonce_hex);
     let mut frame = json!({
-        "schema":"hol-gauntlet-candidate-result-read-shadow.v2",
+        "schema":"hol-gauntlet-candidate-result-read-shadow.v3",
+        "tag":pins().tag,
         "job_id":JOB,
         "source_sha":pins().source_sha,
         "result_sha256":"e".repeat(64),

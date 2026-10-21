@@ -40,6 +40,7 @@ pub struct HostCandidateRunAnchor {
     pub(crate) runner_binary_sha256: String,
     pub(crate) result_reader_binary_sha256: String,
     pub(crate) policy_sha256: String,
+    pub(crate) tag: Option<String>,
 }
 
 /// Hash the actual running executable, not its caller-supplied argv path.
@@ -112,7 +113,32 @@ impl HostCandidateRunAnchor {
             host_pin_sha256: host_pin_sha256.to_owned(),
             host_nonce_hex: host_nonce_hex.to_owned(),
             runner_binary_sha256: runner_binary_sha256.to_owned(),
+            tag: None,
         })
+    }
+
+    pub fn parse_with_tag(
+        policy_sha256: &str,
+        result_reader_binary_sha256: &str,
+        host_pin_sha256: &str,
+        host_nonce_hex: &str,
+        runner_binary_sha256: &str,
+        tag: &str,
+    ) -> Option<Self> {
+        if !(tag.starts_with("local-") && tag.len() == 46 && hex(&tag[6..], 40)
+            || matches!(tag, "v3.48.0" | "v3.49.0"))
+        {
+            return None;
+        }
+        let mut anchor = Self::parse(
+            policy_sha256,
+            result_reader_binary_sha256,
+            host_pin_sha256,
+            host_nonce_hex,
+            runner_binary_sha256,
+        )?;
+        anchor.tag = Some(tag.to_owned());
+        Some(anchor)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -126,7 +152,7 @@ impl HostCandidateRunAnchor {
         image_id: &str,
         runtime: &CandidateRuntimePins,
     ) -> Value {
-        json!({
+        let mut body = json!({
             "schema":"hol-gauntlet-candidate-host-anchor.v1",
             "job_id":job_id,
             "source_sha":source_sha,
@@ -143,7 +169,12 @@ impl HostCandidateRunAnchor {
             "pre_candidate_run":true,
             "artifact_admitted":false,
             "execution_eligible":false,
-        })
+        });
+        if let Some(tag) = &self.tag {
+            body["schema"] = json!("hol-gauntlet-candidate-host-anchor.v2");
+            body["tag"] = json!(tag);
+        }
+        body
     }
 }
 

@@ -173,6 +173,7 @@ impl VmCandidateBuildPlan {
             pins.source_sha.clone(),
             pins.source_archive_sha256.clone(),
             pins.version.clone(),
+            pins.tag.clone(),
             pins.podman_sha256.clone(),
             pins.slirp4netns_sha256.clone(),
             pins.apparmor_parser_sha256.clone(),
@@ -213,6 +214,7 @@ impl VmCandidateBuildPlan {
                 pins.source_sha.clone(),
                 pins.source_archive_sha256.clone(),
                 pins.version.clone(),
+                pins.tag.clone(),
                 pins.podman_sha256.clone(),
                 pins.slirp4netns_sha256.clone(),
                 pins.apparmor_parser_sha256.clone(),
@@ -247,11 +249,12 @@ impl VmCandidateBuildPreflightPlan {
         let object = value
             .as_object()
             .ok_or(VmCandidateBuildPreflightError::InvalidResponse)?;
-        if object.len() != 12
-            || value["schema"] != "hol-gauntlet-candidate-build-ready-shadow.v1"
+        if object.len() != 13
+            || value["schema"] != "hol-gauntlet-candidate-build-ready-shadow.v2"
             || value["job_id"] != self.pins.job_id
             || value["source_sha"] != self.pins.source_sha
             || value["source_archive_sha256"] != self.pins.source_archive_sha256
+            || value["tag"] != self.pins.tag
             || value["image_id"] != self.pins.builder_image_id
             || value["policy_sha256"] != self.pins.policy_sha256
             || value["free_disk_bytes"]
@@ -266,9 +269,10 @@ impl VmCandidateBuildPreflightPlan {
             return Err(VmCandidateBuildPreflightError::InvalidResponse);
         }
         Ok(json!({
-            "schema":"hol-gauntlet-host-candidate-build-ready-shadow.v1",
+            "schema":"hol-gauntlet-host-candidate-build-ready-shadow.v2",
             "job_id":self.pins.job_id,
             "source_sha":self.pins.source_sha,
+            "tag":self.pins.tag,
             "free_disk_bytes":value["free_disk_bytes"],
             "ready_at_probe":true,
             "host_pin_recorded":false,
@@ -368,6 +372,7 @@ impl VmCandidateBuildInvocation {
             "unadmitted_export_sha256",
         ];
         let pins = &self.record.pins;
+        let tagged = self.record.schema == "hol-gauntlet-host-candidate-build-pin.v3";
         let exited_zero = value["status"] == "exited-zero" && value["exit_code"] == 0;
         let failed = value["status"] == "build-failed"
             && value["exit_code"].as_i64().is_some_and(|code| code != 0);
@@ -388,13 +393,24 @@ impl VmCandidateBuildInvocation {
             }
             _ => return Err(VmCandidateBuildLaunchError::InvalidTerminal),
         };
-        if object.len() != expected_keys.len()
+        if object.len() != expected_keys.len() + usize::from(tagged)
             || !expected_keys.iter().all(|key| object.contains_key(*key))
-            || value["schema"] != "hol-gauntlet-candidate-build-result.v2"
+            || value["schema"]
+                != if tagged {
+                    "hol-gauntlet-candidate-build-result.v3"
+                } else {
+                    "hol-gauntlet-candidate-build-result.v2"
+                }
+            || tagged && value["tag"] != pins.tag
             || value["job_id"] != pins.job_id
             || value["source_sha"] != pins.source_sha
             || value["source_archive_sha256"] != pins.source_archive_sha256
-            || value["local_version"] != pins.version
+            || value["local_version"]
+                != if tagged && !pins.tag.starts_with("local-") {
+                    Value::Null
+                } else {
+                    json!(pins.version)
+                }
             || value["image_id"] != pins.builder_image_id
             || value["policy_sha256"] != pins.policy_sha256
             || value["runtime_pins"]

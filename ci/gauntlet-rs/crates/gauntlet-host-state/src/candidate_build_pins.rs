@@ -16,7 +16,8 @@ use std::io::{Read, Write};
 use std::os::fd::OwnedFd;
 use std::path::{Path, PathBuf};
 
-const SCHEMA: &str = "hol-gauntlet-host-candidate-build-pin.v2";
+const SCHEMA_V2: &str = "hol-gauntlet-host-candidate-build-pin.v2";
+const SCHEMA_V3: &str = "hol-gauntlet-host-candidate-build-pin.v3";
 const MAX_PIN_BYTES: u64 = 2048;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +26,7 @@ pub struct HostCandidateBuildPins {
     pub source_sha: String,
     pub source_archive_sha256: String,
     pub version: String,
+    pub tag: String,
     pub controller_root: String,
     pub controller_tree_sha256: String,
     pub uv_base_image_id: String,
@@ -44,12 +46,13 @@ pub struct HostCandidateBuildPinRecord {
     pub pins: HostCandidateBuildPins,
     pub host_nonce_hex: String,
     pub raw_sha256: String,
+    pub schema: &'static str,
 }
 
 impl HostCandidateBuildPinRecord {
     pub fn to_json(&self) -> Value {
-        json!({
-            "schema":SCHEMA,
+        let mut value = json!({
+            "schema":self.schema,
             "job_id":self.pins.job_id,
             "source_sha":self.pins.source_sha,
             "source_archive_sha256":self.pins.source_archive_sha256,
@@ -70,7 +73,11 @@ impl HostCandidateBuildPinRecord {
             "raw_sha256":self.raw_sha256,
             "prelaunch_host_pin_only":true,
             "execution_eligible":false,
-        })
+        });
+        if self.schema == SCHEMA_V3 {
+            value["tag"] = json!(self.pins.tag);
+        }
+        value
     }
 }
 
@@ -116,6 +123,9 @@ impl HostCandidateBuildPins {
             && is_git_sha(&self.source_sha)
             && hex(&self.source_archive_sha256, 64)
             && valid_package_version(&self.version)
+            && (self.tag == format!("local-{}", self.source_sha)
+                || matches!(self.tag.as_str(), "v3.48.0" | "v3.49.0")
+                    && self.version.as_str() == &self.tag[1..])
             && self
                 .controller_root
                 .strip_prefix("/opt/hol-gauntlet/controller-")
@@ -141,11 +151,12 @@ impl HostCandidateBuildPins {
             return Err(HostCandidateBuildPinError::InvalidPins);
         }
         let value = json!({
-            "schema":SCHEMA,
+            "schema":SCHEMA_V3,
             "job_id":self.job_id,
             "source_sha":self.source_sha,
             "source_archive_sha256":self.source_archive_sha256,
             "version":self.version,
+            "tag":self.tag,
             "controller_root":self.controller_root,
             "controller_tree_sha256":self.controller_tree_sha256,
             "uv_base_image_id":self.uv_base_image_id,
@@ -168,7 +179,10 @@ impl HostCandidateBuildPins {
         Ok(bytes)
     }
 
-    fn parse(bytes: &[u8], job_id: &str) -> Result<(Self, String), HostCandidateBuildPinError> {
+    fn parse(
+        bytes: &[u8],
+        job_id: &str,
+    ) -> Result<(Self, String, &'static str), HostCandidateBuildPinError> {
         if canonicalize(bytes).map_err(|_| HostCandidateBuildPinError::UnsafeRecord)? != bytes {
             return Err(HostCandidateBuildPinError::UnsafeRecord);
         }
@@ -183,14 +197,22 @@ impl HostCandidateBuildPins {
                 .map(str::to_owned)
                 .ok_or(HostCandidateBuildPinError::UnsafeRecord)
         };
-        if object.len() != 18 || value["schema"] != SCHEMA {
-            return Err(HostCandidateBuildPinError::UnsafeRecord);
-        }
+        let schema = match value["schema"].as_str() {
+            Some(SCHEMA_V2) if object.len() == 18 => SCHEMA_V2,
+            Some(SCHEMA_V3) if object.len() == 19 => SCHEMA_V3,
+            _ => return Err(HostCandidateBuildPinError::UnsafeRecord),
+        };
+        let source_sha = string("source_sha")?;
         let pins = Self {
             job_id: string("job_id")?,
-            source_sha: string("source_sha")?,
+            source_sha: source_sha.clone(),
             source_archive_sha256: string("source_archive_sha256")?,
             version: string("version")?,
+            tag: if schema == SCHEMA_V3 {
+                string("tag")?
+            } else {
+                format!("local-{source_sha}")
+            },
             controller_root: string("controller_root")?,
             controller_tree_sha256: string("controller_tree_sha256")?,
             uv_base_image_id: string("uv_base_image_id")?,
@@ -208,7 +230,7 @@ impl HostCandidateBuildPins {
         if !pins.valid() || pins.job_id != job_id || !hex(&host_nonce_hex, 64) {
             return Err(HostCandidateBuildPinError::UnsafeRecord);
         }
-        Ok((pins, host_nonce_hex))
+        Ok((pins, host_nonce_hex, schema))
     }
 }
 
@@ -356,12 +378,13 @@ impl HostCandidateBuildPinJournal {
         {
             return Err(HostCandidateBuildPinError::Changed);
         }
-        let (pins, host_nonce_hex) = HostCandidateBuildPins::parse(&bytes, job_id)?;
+        let (pins, host_nonce_hex, schema) = HostCandidateBuildPins::parse(&bytes, job_id)?;
         self.stable_directory()?;
         Ok(HostCandidateBuildPinRecord {
             pins,
             host_nonce_hex,
             raw_sha256: format!("{:x}", Sha256::digest(&bytes)),
+            schema,
         })
     }
 }

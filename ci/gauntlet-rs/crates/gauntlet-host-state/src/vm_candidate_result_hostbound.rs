@@ -82,7 +82,8 @@ impl VmHostBoundCandidateResultPlan {
             .read(job_id)
             .map_err(|_| VmHostBoundCandidateResultError::HostPinUnavailable)?;
         let pins = &record.pins;
-        let argv = vec![
+        let tagged = record.schema == "hol-gauntlet-host-candidate-build-pin.v3";
+        let mut argv = vec![
             limactl.to_owned(),
             "shell".to_owned(),
             vm.to_owned(),
@@ -99,6 +100,11 @@ impl VmHostBoundCandidateResultPlan {
             result_sha256.to_owned(),
             archive_sha256.to_owned(),
             pins.version.clone(),
+        ];
+        if tagged {
+            argv.push(pins.tag.clone());
+        }
+        argv.extend([
             pins.controller_tree_sha256.clone(),
             pins.builder_image_id.clone(),
             pins.policy_sha256.clone(),
@@ -110,7 +116,7 @@ impl VmHostBoundCandidateResultPlan {
             pins.result_reader_binary_sha256.clone(),
             record.raw_sha256.clone(),
             record.host_nonce_hex.clone(),
-        ];
+        ]);
         Ok(Self {
             argv,
             record,
@@ -138,8 +144,15 @@ impl VmHostBoundCandidateResultPlan {
             .as_object()
             .ok_or(VmHostBoundCandidateResultError::InvalidResponse)?;
         let pins = &self.record.pins;
-        if object.len() != 20
-            || value["schema"] != "hol-gauntlet-candidate-result-read-shadow.v2"
+        let tagged = self.record.schema == "hol-gauntlet-host-candidate-build-pin.v3";
+        if object.len() != 20 + usize::from(tagged)
+            || value["schema"]
+                != if tagged {
+                    "hol-gauntlet-candidate-result-read-shadow.v3"
+                } else {
+                    "hol-gauntlet-candidate-result-read-shadow.v2"
+                }
+            || tagged && value["tag"] != pins.tag
             || value["job_id"] != pins.job_id
             || value["source_sha"] != pins.source_sha
             || value["result_sha256"] != self.result_sha256
@@ -170,8 +183,8 @@ impl VmHostBoundCandidateResultPlan {
         {
             return Err(VmHostBoundCandidateResultError::InvalidResponse);
         }
-        Ok(json!({
-            "schema":"hol-gauntlet-host-candidate-result-shadow.v2",
+        let mut report = json!({
+            "schema":if tagged {"hol-gauntlet-host-candidate-result-shadow.v3"} else {"hol-gauntlet-host-candidate-result-shadow.v2"},
             "job_id":pins.job_id,
             "source_sha":pins.source_sha,
             "result_sha256":self.result_sha256,
@@ -187,7 +200,11 @@ impl VmHostBoundCandidateResultPlan {
             "host_pin_journal_match":true,
             "artifact_admitted":false,
             "execution_eligible":false,
-        }))
+        });
+        if tagged {
+            report["tag"] = json!(pins.tag);
+        }
+        Ok(report)
     }
 
     pub fn argv(&self) -> &[String] {

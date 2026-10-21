@@ -1,8 +1,10 @@
 //! Host journal mechanics only; these records do not authorize a VM build.
 
+use gauntlet_contracts::canonicalize;
 use gauntlet_host_state::{
     HostCandidateBuildPinError, HostCandidateBuildPinJournal, HostCandidateBuildPins,
 };
+use serde_json::json;
 use std::fs;
 use std::os::unix::fs::{symlink, PermissionsExt};
 use tempfile::tempdir;
@@ -16,6 +18,7 @@ fn pins() -> HostCandidateBuildPins {
         source_archive_sha256: "bedd98ab7da8ca728484799e1ef6b13c854f7fcbb31a17ebdcc469c4c772af43"
             .to_owned(),
         version: "3.49.0".to_owned(),
+        tag: "local-76c31929833b5571d25a56d9783e24a0997d5422".to_owned(),
         controller_root: "/opt/hol-gauntlet/controller-18d31910a8cefbd6".to_owned(),
         controller_tree_sha256: "33c98333891743e6976bee9a123365fe7fe95dcf1bf9b65ee39a59fb41043c68"
             .to_owned(),
@@ -53,6 +56,8 @@ fn one_use_host_pin_survives_reopen_and_refuses_replay() {
     assert_eq!(record.pins, expected);
     assert_eq!(record.host_nonce_hex.len(), 64);
     assert_eq!(record.raw_sha256.len(), 64);
+    assert_eq!(record.schema, "hol-gauntlet-host-candidate-build-pin.v3");
+    assert_eq!(record.to_json()["tag"], expected.tag);
     assert_eq!(record.to_json()["execution_eligible"], false);
     let file = root.join(format!("{JOB}.candidate-build-pin.json"));
     let meta = fs::symlink_metadata(file).unwrap();
@@ -64,6 +69,61 @@ fn one_use_host_pin_survives_reopen_and_refuses_replay() {
         reopened.record(&expected),
         Err(HostCandidateBuildPinError::AlreadyRecorded)
     );
+}
+
+#[test]
+fn release_ref_is_bound_and_legacy_v2_local_record_remains_readable() {
+    let dir = tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
+    let journal = HostCandidateBuildPinJournal::open(&root).unwrap();
+    let mut release = pins();
+    release.tag = "v3.48.0".to_owned();
+    release.version = "3.48.0".to_owned();
+    let record = journal.record(&release).unwrap();
+    assert_eq!(record.pins.tag, "v3.48.0");
+    assert_eq!(record.to_json()["tag"], "v3.48.0");
+    let mut wrong = release;
+    wrong.tag = "v3.49.0".to_owned();
+    assert_eq!(
+        journal.record(&wrong),
+        Err(HostCandidateBuildPinError::InvalidPins)
+    );
+
+    let legacy_dir = tempdir().unwrap();
+    let legacy_root = legacy_dir.path().canonicalize().unwrap();
+    fs::set_permissions(&legacy_root, fs::Permissions::from_mode(0o700)).unwrap();
+    let local = pins();
+    let value = json!({
+        "schema":"hol-gauntlet-host-candidate-build-pin.v2",
+        "job_id":local.job_id,
+        "source_sha":local.source_sha,
+        "source_archive_sha256":local.source_archive_sha256,
+        "version":local.version,
+        "controller_root":local.controller_root,
+        "controller_tree_sha256":local.controller_tree_sha256,
+        "uv_base_image_id":local.uv_base_image_id,
+        "rust_base_image_id":local.rust_base_image_id,
+        "builder_image_id":local.builder_image_id,
+        "policy_sha256":local.policy_sha256,
+        "podman_sha256":local.podman_sha256,
+        "slirp4netns_sha256":local.slirp4netns_sha256,
+        "apparmor_parser_sha256":local.apparmor_parser_sha256,
+        "seccomp_sha256":local.seccomp_sha256,
+        "runner_binary_sha256":local.runner_binary_sha256,
+        "result_reader_binary_sha256":local.result_reader_binary_sha256,
+        "host_nonce_hex":"e".repeat(64),
+    });
+    let path = legacy_root.join(format!("{JOB}.candidate-build-pin.json"));
+    fs::write(&path, canonicalize(value.to_string().as_bytes()).unwrap()).unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+    let legacy = HostCandidateBuildPinJournal::open(&legacy_root)
+        .unwrap()
+        .read(JOB)
+        .unwrap();
+    assert_eq!(legacy.schema, "hol-gauntlet-host-candidate-build-pin.v2");
+    assert_eq!(legacy.pins.tag, pins().tag);
+    assert!(legacy.to_json().get("tag").is_none());
 }
 
 #[test]

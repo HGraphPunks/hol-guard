@@ -75,6 +75,7 @@ pub struct CandidateResultReadProof {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct HostBoundProofFields {
+    tag: Option<String>,
     host_pin_sha256: String,
     host_anchor_sha256: String,
     runner_binary_sha256: String,
@@ -91,6 +92,7 @@ pub struct HostBoundCandidateResultPins {
     pub result_sha256: String,
     pub archive_sha256: String,
     pub version: String,
+    pub tag: Option<String>,
     pub controller_tree_sha256: String,
     pub image_id: String,
     pub policy_sha256: String,
@@ -106,6 +108,15 @@ impl HostBoundCandidateResultPins {
             && hex(&self.result_sha256, 64)
             && hex(&self.archive_sha256, 64)
             && valid_package_version(&self.version)
+            && match self.tag.as_deref() {
+                None => self.anchor.tag.is_none(),
+                Some(tag) => {
+                    self.anchor.tag.as_deref() == Some(tag)
+                        && (tag == format!("local-{}", self.source_sha)
+                            || matches!(tag, "v3.48.0" | "v3.49.0")
+                                && &tag[1..] == self.version.as_str())
+                }
+            }
             && hex(&self.controller_tree_sha256, 64)
             && self
                 .image_id
@@ -135,7 +146,14 @@ impl CandidateResultReadProof {
             "execution_eligible":false,
         });
         if let Some(bound) = &self.host_bound {
-            body["schema"] = json!("hol-gauntlet-candidate-result-read-shadow.v2");
+            body["schema"] = json!(if bound.tag.is_some() {
+                "hol-gauntlet-candidate-result-read-shadow.v3"
+            } else {
+                "hol-gauntlet-candidate-result-read-shadow.v2"
+            });
+            if let Some(tag) = &bound.tag {
+                body["tag"] = json!(tag);
+            }
             body["host_anchor_present"] = json!(true);
             body["host_pin_sha256"] = json!(bound.host_pin_sha256);
             body["host_anchor_sha256"] = json!(bound.host_anchor_sha256);
@@ -246,7 +264,8 @@ fn parse_result(
     } else {
         0
     };
-    if object.len() != keys.len() + extra_count
+    let tag = host_bound.and_then(|bound| bound.tag.as_deref());
+    if object.len() != keys.len() + extra_count + usize::from(tag.is_some())
         || !keys.iter().all(|key| object.contains_key(*key))
         || host_bound.is_some() && !host_keys.iter().all(|key| object.contains_key(*key))
     {
@@ -258,7 +277,9 @@ fn parse_result(
     let runtime = value["runtime_pins"]
         .as_object()
         .ok_or(CandidateResultReadError::InvalidResult)?;
-    let schema = if host_bound.is_some() {
+    let schema = if tag.is_some() {
+        "hol-gauntlet-candidate-build-result.v3"
+    } else if host_bound.is_some() {
         "hol-gauntlet-candidate-build-result.v2"
     } else {
         "hol-gauntlet-candidate-build-result.v1"
@@ -268,7 +289,13 @@ fn parse_result(
         || value["source_sha"] != source_sha
         || value["source_archive_sha256"] != source_archive_sha256
         || value["unadmitted_export_sha256"] != archive_sha256
-        || value["local_version"] != version
+        || value["local_version"]
+            != if tag.is_some_and(|tag| !tag.starts_with("local-")) {
+                Value::Null
+            } else {
+                json!(version)
+            }
+        || tag.is_some_and(|tag| value["tag"] != tag)
         || value["status"] != "exited-zero"
         || value["exit_code"] != 0
         || value["artifact_admitted"] != false
@@ -481,6 +508,7 @@ fn read_candidate_result_inner(
         client_pid: result["client_pid"].as_u64().unwrap_or_default() as u32,
         client_start_ticks: result["client_start_ticks"].as_u64().unwrap_or_default(),
         host_bound: host_bound.map(|pins| HostBoundProofFields {
+            tag: pins.tag.clone(),
             host_pin_sha256: pins.anchor.host_pin_sha256.clone(),
             host_anchor_sha256: result["host_anchor_sha256"]
                 .as_str()
@@ -627,6 +655,7 @@ mod tests {
             result_sha256: "8".repeat(64),
             archive_sha256: ARCHIVE.to_owned(),
             version: "3.49.0".to_owned(),
+            tag: None,
             controller_tree_sha256: "9".repeat(64),
             image_id: format!("sha256:{}", "a".repeat(64)),
             policy_sha256: "b".repeat(64),
@@ -675,5 +704,68 @@ mod tests {
         let mut legacy = value.clone();
         legacy["schema"] = json!("hol-gauntlet-candidate-build-result.v1");
         assert_eq!(check(&legacy), Err(CandidateResultReadError::InvalidResult));
+    }
+
+    #[test]
+    fn hostbound_v3_release_requires_tag_and_null_local_version() {
+        let runtime = CandidateRuntimePins::parse(
+            &"c".repeat(64),
+            &"d".repeat(64),
+            &"e".repeat(64),
+            &"f".repeat(64),
+        )
+        .unwrap();
+        let anchor = HostCandidateRunAnchor::parse_with_tag(
+            &"b".repeat(64),
+            &"4".repeat(64),
+            &"5".repeat(64),
+            &"6".repeat(64),
+            &"7".repeat(64),
+            "v3.49.0",
+        )
+        .unwrap();
+        let bound = HostBoundCandidateResultPins {
+            job_id: JOB.to_owned(),
+            source_sha: SOURCE.to_owned(),
+            source_archive_sha256: SOURCE_ARCHIVE.to_owned(),
+            result_sha256: "8".repeat(64),
+            archive_sha256: ARCHIVE.to_owned(),
+            version: "3.49.0".to_owned(),
+            tag: Some("v3.49.0".to_owned()),
+            controller_tree_sha256: "9".repeat(64),
+            image_id: format!("sha256:{}", "a".repeat(64)),
+            policy_sha256: "b".repeat(64),
+            runtime,
+            anchor,
+        };
+        assert!(bound.valid());
+        let mut value = fixture();
+        value["schema"] = json!("hol-gauntlet-candidate-build-result.v3");
+        value["tag"] = json!("v3.49.0");
+        value["local_version"] = Value::Null;
+        value["host_pin_sha256"] = json!(bound.anchor.host_pin_sha256);
+        value["host_nonce_hex"] = json!(bound.anchor.host_nonce_hex);
+        value["host_anchor_sha256"] = json!("a".repeat(64));
+        value["runner_binary_sha256"] = json!(bound.anchor.runner_binary_sha256);
+        value["result_reader_binary_sha256"] = json!(bound.anchor.result_reader_binary_sha256);
+        let check = |value: &Value| {
+            let bytes = canonicalize(value.to_string().as_bytes()).unwrap();
+            parse_result(
+                &bytes,
+                JOB,
+                SOURCE,
+                SOURCE_ARCHIVE,
+                ARCHIVE,
+                "3.49.0",
+                Some(&bound),
+            )
+        };
+        assert_eq!(check(&value), Ok(value.clone()));
+        let mut wrong = value.clone();
+        wrong["tag"] = json!("v3.48.0");
+        assert_eq!(check(&wrong), Err(CandidateResultReadError::InvalidResult));
+        wrong = value;
+        wrong["local_version"] = json!("3.49.0");
+        assert_eq!(check(&wrong), Err(CandidateResultReadError::InvalidResult));
     }
 }

@@ -21,6 +21,7 @@ fn pins() -> HostCandidateBuildPins {
         source_archive_sha256: "bedd98ab7da8ca728484799e1ef6b13c854f7fcbb31a17ebdcc469c4c772af43"
             .to_owned(),
         version: "3.49.0".to_owned(),
+        tag: "local-76c31929833b5571d25a56d9783e24a0997d5422".to_owned(),
         controller_root: "/opt/hol-gauntlet/controller-18d31910a8cefbd6".to_owned(),
         controller_tree_sha256: "33c98333891743e6976bee9a123365fe7fe95dcf1bf9b65ee39a59fb41043c68"
             .to_owned(),
@@ -54,12 +55,13 @@ fn operations() -> Value {
 fn terminal_bytes(invocation: &gauntlet_host_state::VmCandidateBuildInvocation) -> Vec<u8> {
     let pins = &invocation.record().pins;
     let mut body = json!({
-        "schema":"hol-gauntlet-candidate-build-result.v2",
+        "schema":"hol-gauntlet-candidate-build-result.v3",
         "job_id":pins.job_id,
         "source_sha":pins.source_sha,
         "source_archive_sha256":pins.source_archive_sha256,
         "source_bytes":45439546,
-        "local_version":pins.version,
+        "local_version":if pins.tag.starts_with("local-") {json!(pins.version)} else {Value::Null},
+        "tag":pins.tag,
         "image_id":pins.builder_image_id,
         "policy_sha256":pins.policy_sha256,
         "runtime_pins":{
@@ -95,6 +97,32 @@ fn terminal_bytes(invocation: &gauntlet_host_state::VmCandidateBuildInvocation) 
 }
 
 #[test]
+fn release_tag_is_carried_to_probe_and_guest_and_terminal_requires_it() {
+    let dir = tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
+    let journal = HostCandidateBuildPinJournal::open(&root).unwrap();
+    let mut release = pins();
+    release.version = "3.48.0".to_owned();
+    release.tag = "v3.48.0".to_owned();
+    let plan = VmCandidateBuildPlan::new(&operations(), release).unwrap();
+    let probe = plan.preflight_plan(&"e".repeat(64)).unwrap();
+    assert_eq!(probe.argv()[16], "v3.48.0");
+    let invocation = plan.record_before_launch(&journal).unwrap();
+    assert_eq!(invocation.argv()[16], "v3.48.0");
+    let frame = terminal_bytes(&invocation);
+    assert_eq!(
+        invocation.parse_terminal_claim(&frame).unwrap()["exit_code"],
+        0
+    );
+    let mut wrong: Value = serde_json::from_slice(&frame).unwrap();
+    wrong["tag"] = json!("v3.49.0");
+    let mut raw = canonicalize(wrong.to_string().as_bytes()).unwrap();
+    raw.push(b'\n');
+    assert!(invocation.parse_terminal_claim(&raw).is_err());
+}
+
+#[test]
 fn fixed_invocation_exists_only_after_durable_host_pin() {
     let dir = tempdir().unwrap();
     let root = dir.path().canonicalize().unwrap();
@@ -102,7 +130,7 @@ fn fixed_invocation_exists_only_after_durable_host_pin() {
     let journal = HostCandidateBuildPinJournal::open(&root).unwrap();
     let plan = VmCandidateBuildPlan::new(&operations(), pins()).unwrap();
     let preflight = plan.preflight_plan(&"e".repeat(64)).unwrap();
-    assert_eq!(preflight.argv().len(), 21);
+    assert_eq!(preflight.argv().len(), 22);
     assert_eq!(
         preflight.argv()[6],
         format!(
@@ -112,10 +140,11 @@ fn fixed_invocation_exists_only_after_durable_host_pin() {
     );
     assert_eq!(preflight.argv()[9], JOB);
     let response = json!({
-        "schema":"hol-gauntlet-candidate-build-ready-shadow.v1",
+        "schema":"hol-gauntlet-candidate-build-ready-shadow.v2",
         "job_id":JOB,
         "source_sha":pins().source_sha,
         "source_archive_sha256":pins().source_archive_sha256,
+        "tag":pins().tag,
         "image_id":pins().builder_image_id,
         "policy_sha256":pins().policy_sha256,
         "free_disk_bytes":13_000_000_000_u64,
@@ -145,7 +174,7 @@ fn fixed_invocation_exists_only_after_durable_host_pin() {
     let invocation = plan.record_before_launch(&journal).unwrap();
     assert_eq!(journal.read(JOB).unwrap(), *invocation.record());
     let argv = invocation.argv();
-    assert_eq!(argv.len(), 24);
+    assert_eq!(argv.len(), 25);
     assert_eq!(argv[0], "/opt/homebrew/bin/limactl");
     assert_eq!(
         &argv[1..6],
@@ -166,10 +195,10 @@ fn fixed_invocation_exists_only_after_durable_host_pin() {
     );
     assert_eq!(argv[7], pins().controller_root);
     assert_eq!(argv[9], JOB);
-    assert_eq!(argv[20], pins().policy_sha256);
-    assert_eq!(argv[21], pins().result_reader_binary_sha256);
-    assert_eq!(argv[22], invocation.record().raw_sha256);
-    assert_eq!(argv[23], invocation.record().host_nonce_hex);
+    assert_eq!(argv[21], pins().policy_sha256);
+    assert_eq!(argv[22], pins().result_reader_binary_sha256);
+    assert_eq!(argv[23], invocation.record().raw_sha256);
+    assert_eq!(argv[24], invocation.record().host_nonce_hex);
     assert_eq!(invocation.to_json()["vm_started"], false);
     assert_eq!(invocation.to_json()["execution_eligible"], false);
     let terminal = terminal_bytes(&invocation);
