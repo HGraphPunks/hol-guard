@@ -102,6 +102,8 @@ mod builder_source_capture;
 mod candidate_archive;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_capture;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod candidate_result_read;
 mod candidate_wheel;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod contained_probe;
@@ -206,6 +208,10 @@ pub use candidate_archive::{
 pub use candidate_capture::{
     capture_local_candidate_archive_ineligible, verify_captured_candidate_wheel_ineligible,
     CandidateCaptureError, CandidateCaptureProof, CandidateWheelLiveProof,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use candidate_result_read::{
+    read_fixed_candidate_result_ineligible, CandidateResultReadError, CandidateResultReadProof,
 };
 pub use candidate_wheel::{inspect_candidate_wheel, CandidateWheelError, CandidateWheelProof};
 #[cfg(target_os = "linux")]

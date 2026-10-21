@@ -137,7 +137,7 @@ fn lower_hex(raw: &str, len: usize) -> bool {
             .all(|ch| ch.is_ascii_digit() || (b'a'..=b'f').contains(&ch))
 }
 
-fn inactive(job_id: &str) -> Result<(), CandidateCaptureError> {
+pub(crate) fn inactive(job_id: &str) -> Result<(), CandidateCaptureError> {
     if container_absent(job_id) != Ok(true) {
         return Err(CandidateCaptureError::ContainerUncertain);
     }
@@ -220,7 +220,7 @@ fn digest_file(file: &mut File, maximum: u64) -> Result<(String, u64), Candidate
     Ok((format!("{:x}", digest.finalize()), count))
 }
 
-fn verify_captured(
+pub(crate) fn verify_captured(
     job: &OwnedFd,
     expected_sha: &str,
     expected_bytes: u64,
