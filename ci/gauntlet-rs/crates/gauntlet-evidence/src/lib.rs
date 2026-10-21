@@ -26,6 +26,7 @@ mod episode_score;
 mod host_calls;
 mod io;
 mod model_endpoint;
+mod native_review_summary;
 mod omp_transcript;
 mod package_version;
 mod payload;
@@ -76,6 +77,9 @@ pub use episode_score::evaluate_audited_episode;
 pub use host_calls::reconcile_host_calls;
 pub use model_endpoint::{
     model_endpoint, verify_advertised_model, verify_model_endpoint, ModelEndpoint, DEFAULT_BASE_URL,
+};
+pub use native_review_summary::{
+    native_review_completed, recompute_native_review_summary, verify_native_review_summary,
 };
 pub use omp_transcript::{parse_omp_transcript, read_omp_transcript, TRANSCRIPT_LIMIT};
 pub use package_version::{valid_package_version, verify_installed_version_metadata};
