@@ -25,18 +25,89 @@ HEX40 = re.compile(r'[0-9a-f]{40}\Z')
 HEX64 = re.compile(r'[0-9a-f]{64}\Z')
 MAX_CONTROL_BYTES = 8 * 1024 * 1024
 WORKER_LOCK = Path('/opt/hol-gauntlet/worker.lock')
+SDK_TAP_ROOT = Path('/var/lib/hol-gauntlet-rust/staging-state')
+SDK_TAP_V2 = '--sdk-tap-v2'
 
 
 def parse_args(argv):
-    if len(argv) != 7:
+    if len(argv) not in (7, 8) or (len(argv) == 8 and argv[-1] != SDK_TAP_V2):
         raise ValueError('exact build job, staging run, source, version, config, manifest and role required')
-    build_job, run_id, source, version, config_digest, private_manifest, role = argv
+    tap_v2 = len(argv) == 8
+    build_job, run_id, source, version, config_digest, private_manifest, role = argv[:7]
     if (HEX16.fullmatch(build_job) is None or HEX16.fullmatch(run_id) is None
             or HEX40.fullmatch(source) is None or HEX64.fullmatch(config_digest) is None
             or HEX64.fullmatch(private_manifest) is None or role not in ROLES):
         raise ValueError('invalid fixed staging control identity')
     validate_version(version)
-    return build_job, run_id, source, version, config_digest, private_manifest, role
+    return build_job, run_id, source, version, config_digest, private_manifest, role, tap_v2
+
+
+class _SdkTapMount:
+    """Hold the one-use Rust socket directory across the controller run."""
+
+    def __init__(self, run_id):
+        self.path = SDK_TAP_ROOT / (run_id + '.sdk-tap')
+        self.root_fd = self.tap_fd = None
+        try:
+            self.root_fd = os.open(SDK_TAP_ROOT, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+            root = os.fstat(self.root_fd)
+            if (not stat.S_ISDIR(root.st_mode) or root.st_uid != 0 or root.st_gid != 0
+                    or stat.S_IMODE(root.st_mode) != 0o700):
+                raise ValueError('Root-owned private SDK tap journal required')
+            self.root = root
+            self.tap_fd = os.open(run_id + '.sdk-tap',
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                dir_fd=self.root_fd)
+            self.directory = os.fstat(self.tap_fd)
+            self.sockets = {family: os.stat(family + '.sock', dir_fd=self.tap_fd, follow_symlinks=False)
+                            for family in ('docs', 'mail')}
+            self.recheck()
+        except BaseException:
+            self.close()
+            raise
+
+    def recheck(self):
+        root_held = os.fstat(self.root_fd)
+        root_visible = os.stat(SDK_TAP_ROOT, follow_symlinks=False)
+        for row in (root_held, root_visible):
+            if not _tap_root_matches(row, self.root):
+                raise ValueError('Root-owned SDK tap journal identity or mode changed')
+        held = os.fstat(self.tap_fd)
+        visible = os.stat(self.path.name, dir_fd=self.root_fd, follow_symlinks=False)
+        for row in (self.directory, held, visible):
+            if not _tap_directory_matches(row, self.directory):
+                raise ValueError('Rust SDK tap directory identity or mode changed')
+        for family, original in self.sockets.items():
+            current = os.stat(family + '.sock', dir_fd=self.tap_fd, follow_symlinks=False)
+            for row in (original, current):
+                if not _tap_socket_matches(row, original):
+                    raise ValueError('Rust SDK tap socket identity or mode changed')
+
+    def close(self):
+        if self.tap_fd is not None:
+            os.close(self.tap_fd)
+            self.tap_fd = None
+        if self.root_fd is not None:
+            os.close(self.root_fd)
+            self.root_fd = None
+
+
+def _tap_directory_matches(row, original):
+    return (stat.S_ISDIR(row.st_mode) and row.st_uid == 0 and row.st_gid == 10001
+            and stat.S_IMODE(row.st_mode) == 0o710 and row.st_nlink >= 2
+            and (row.st_dev, row.st_ino) == (original.st_dev, original.st_ino))
+
+
+def _tap_root_matches(row, original):
+    return (stat.S_ISDIR(row.st_mode) and row.st_uid == 0 and row.st_gid == 0
+            and stat.S_IMODE(row.st_mode) == 0o700
+            and (row.st_dev, row.st_ino) == (original.st_dev, original.st_ino))
+
+
+def _tap_socket_matches(row, original):
+    return (stat.S_ISSOCK(row.st_mode) and row.st_uid == 0 and row.st_gid == 10001
+            and stat.S_IMODE(row.st_mode) == 0o660 and row.st_nlink == 1
+            and (row.st_dev, row.st_ino) == (original.st_dev, original.st_ino))
 
 
 def staging_config_path(build_job, private_manifest, config_digest):
@@ -78,7 +149,7 @@ def _locked_worker():
 
 
 def run(argv):
-    build_job, run_id, source, version, config_digest, private_manifest, role = parse_args(argv)
+    build_job, run_id, source, version, config_digest, private_manifest, role, tap_v2 = parse_args(argv)
     if (sys.platform != 'linux' or os.geteuid() != 0 or not sys.flags.isolated
             or not sys.dont_write_bytecode or sys.flags.optimize):
         raise ValueError('isolated, assertion-enabled Linux Root controller required')
@@ -116,7 +187,17 @@ def run(argv):
         # Existing Python workers use this second lock for their CI checks.
         # Keep the same lock order as the installed lifecycle path.
         with vm_lease(), controller_environment(loaded):
-            record = run_control(state / role, loaded, role, controller_key=key)
+            tap = _SdkTapMount(run_id) if tap_v2 else None
+            try:
+                if tap is None:
+                    record = run_control(state / role, loaded, role, controller_key=key)
+                else:
+                    record = run_control(state / role, loaded, role, controller_key=key,
+                                         sdk_tap_directory=tap.path)
+                    tap.recheck()
+            finally:
+                if tap is not None:
+                    tap.close()
         digest, size = _read_control(state / role / 'control.json')
         cleanup = True
         try:
@@ -131,6 +212,8 @@ def run(argv):
             'control_completed_claim': record.get('control_completed') is True,
             'cleanup_verified_by_python': cleanup, 'execution_eligible': False,
         }
+        if tap_v2:
+            result['sdk_tap_v2_requested'] = True
         return result, 0 if cleanup else 2
     finally:
         os.close(worker_lock)

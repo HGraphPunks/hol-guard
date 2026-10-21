@@ -22,7 +22,7 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/benchmark/stage_control_adapter.py",
       "phase": 2,
-      "sha256": "8c7442b144bbf1c7d006de21904e38760381df6c0b7f429744f993227a059c13"
+      "sha256": "64aa18d054d8f9b714ceb19d11aaa0c3113649661e3e3876d449a171874e0bc4"
     },
     {
       "disposition": "port_to_rust",
@@ -113,7 +113,14 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/benchmark/deterministic_control.py",
       "phase": 4,
-      "sha256": "138160dc6daa77d1fed591f73cab240b0f3824529dcbb337f7ebb8bce6fc4777"
+      "sha256": "9763c804ac4014846f00f7bdb8ca6b91cac81060a3d07e77008cb38406831033"
+    },
+    {
+      "base_sha256": "50e64dcc1b8365cc33cc4ab0b0e0de97c9155f7ba50be14311ab174555a722ae",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/benchmark/developer_product_runtime.py",
+      "phase": 4,
+      "sha256": "6b4d1809059ed5a8ddb323c441d2dd83f73af790b74b2f7d849ce7031a8bbc8f"
     },
     {
       "base_sha256": "af2fa2036419ca3d927d9f3059e9f3e3f2bd3d8cb7be200c4a021c31137cd8c5",

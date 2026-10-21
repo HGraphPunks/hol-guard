@@ -315,7 +315,8 @@ pub use candidate_staging_config_revision::{
     revise_staging_config_ineligible, StagingConfigRevisionPins,
 };
 pub use candidate_staging_plan::{
-    fixed_staging_control_plan, FixedStagingControlPlan, StagingControlPins, StagingRole,
+    fixed_staging_control_plan, fixed_staging_control_plan_sdk_tap_v2, FixedStagingControlPlan,
+    StagingControlPins, StagingRole,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_staging_run::{

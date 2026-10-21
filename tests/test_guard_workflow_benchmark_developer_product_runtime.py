@@ -93,6 +93,36 @@ def test_declared_endpoint_and_mounts_expose_no_raw_upstream_or_guard_authority(
         runtime.resource_endpoints("/controller")
 
 
+def test_opt_in_sdk_resource_mount_changes_only_the_agent_source(runtime, tmp_path):
+    selected = tmp_path / 'root-owned-tap'
+    tapped = module.DeveloperProductRuntime(
+        root=runtime.root, upstream=runtime.upstream,
+        public_mcp_directory=runtime.public_mcp_directory,
+        public_hook_directory=runtime.public_hook_directory,
+        sdk_resource_directory=selected,
+        python=runtime.python, source_sha='a'*40, prefix_digest='a'*64,
+        bwrap_sha256='b'*64, workspace_source=runtime.workspace_source,
+        workspace_custody_root=runtime.workspace_custody_root,
+        public_prompt=runtime.public_prompt, controller_session_id=runtime.session_id,
+        deadline_seconds=60, max_tool_calls=2)
+    assert runtime.agent_mounts()[0]['source'] == str(runtime.public_mcp_directory)
+    assert tapped.agent_mounts()[0] == {
+        'source': str(selected), 'destination': '/runtime/resources', 'mode': 'ro'}
+    assert tapped.public_mcp_directory == runtime.public_mcp_directory
+    assert tapped.resource_endpoints() == runtime.resource_endpoints()
+    with pytest.raises(ValueError, match='distinct absolute mount'):
+        module.DeveloperProductRuntime(
+            root=runtime.root, upstream=runtime.upstream,
+            public_mcp_directory=runtime.public_mcp_directory,
+            public_hook_directory=runtime.public_hook_directory,
+            sdk_resource_directory=runtime.root / 'nested',
+            python=runtime.python, source_sha='a'*40, prefix_digest='a'*64,
+            bwrap_sha256='b'*64, workspace_source=runtime.workspace_source,
+            workspace_custody_root=runtime.workspace_custody_root,
+            public_prompt=runtime.public_prompt, controller_session_id=runtime.session_id,
+            deadline_seconds=60, max_tool_calls=2)
+
+
 def test_explicit_package_version_reaches_both_product_planes_and_signed_settings(runtime):
     product = module.DeveloperProductRuntime(root=runtime.root, upstream=runtime.upstream,
         public_mcp_directory=runtime.public_mcp_directory, public_hook_directory=runtime.public_hook_directory,

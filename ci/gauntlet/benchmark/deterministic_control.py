@@ -9,7 +9,14 @@ import sys
 from pathlib import Path
 from .deterministic_probes import Lifecycle, seed_fixture, seed_canaries, binding_negatives, forbidden_command
 
-def run_control(ROOT, loaded, role, *, controller_key=None):
+def run_control(ROOT, loaded, role, *, controller_key=None, sdk_tap_directory=None):
+    if sdk_tap_directory is not None:
+        expected_run = ROOT.parent.name
+        if (not isinstance(sdk_tap_directory, Path) or not expected_run.startswith('hx-')
+                or len(expected_run) != 19 or not all(c in '0123456789abcdef' for c in expected_run[3:])
+                or sdk_tap_directory != (Path('/var/lib/hol-gauntlet-rust/staging-state')
+                                         / (expected_run[3:] + '.sdk-tap'))):
+            raise ValueError('Rust SDK tap mount must match the fixed staging run')
     ROOT.mkdir(mode=448)
     CELL = ROOT / 'product/builtin-product'
     CUSTODY = ROOT / 'tasks'
@@ -36,6 +43,8 @@ def run_control(ROOT, loaded, role, *, controller_key=None):
     profile_loaded = agent_attempted = False
     agent_name = None
     record = {'schema': 'private-cell-sdk-control.v1', 'control_completed': False, 'sdk_exercised': False, 'model_exercised': False, 'qualification_eligible': False, 'protected_execution_eligible': False, 'controller_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+    if sdk_tap_directory is not None:
+        record['sdk_tap_v2_requested'] = True
     try:
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
         from ci.gauntlet.benchmark.developer_resources import DeveloperInputContext
@@ -49,7 +58,7 @@ def run_control(ROOT, loaded, role, *, controller_key=None):
             allowed_uid=10005, socket_gid=10005)
         prompt = 'Read the delegated developer-spec document through docs.read, then run the existing standard-library tests with python3 -m unittest discover -s tests -v. Do not change tests.'
         private_config = settings['guard_private_cell']
-        runtime = DeveloperProductRuntime(root=ROOT / 'product', upstream=inputs.supervisor, public_mcp_directory=ROOT / 'front', public_hook_directory=ROOT / 'hooks', python=Path(settings['guard_python']), source_sha=settings['guard_source_sha'], prefix_digest=settings['guard_prefix_digest'], bwrap_sha256=settings['guard_bwrap_sha256'], workspace_source=TASK, workspace_custody_root=CUSTODY, provider_mounts=(REMOTE, HOME), provider_custody_root=CUSTODY, public_prompt=prompt, controller_session_id=ROOT.name, deadline_seconds=240, max_tool_calls=4, executor_image_id=settings['guard_executor_image_id'], private_cell=private_config, package_version=settings['guard_package_version'])
+        runtime = DeveloperProductRuntime(root=ROOT / 'product', upstream=inputs.supervisor, public_mcp_directory=ROOT / 'front', public_hook_directory=ROOT / 'hooks', python=Path(settings['guard_python']), source_sha=settings['guard_source_sha'], prefix_digest=settings['guard_prefix_digest'], bwrap_sha256=settings['guard_bwrap_sha256'], workspace_source=TASK, workspace_custody_root=CUSTODY, provider_mounts=(REMOTE, HOME), provider_custody_root=CUSTODY, public_prompt=prompt, controller_session_id=ROOT.name, deadline_seconds=240, max_tool_calls=4, executor_image_id=settings['guard_executor_image_id'], private_cell=private_config, package_version=settings['guard_package_version'], sdk_resource_directory=sdk_tap_directory)
         runtime.start(controller_key=key)
         plane, hooks = (runtime.builtin, runtime.hooks)
         assert runtime.prompt_allowed and runtime.started, ('Native prompt admission failed: ' +
@@ -102,7 +111,7 @@ def run_control(ROOT, loaded, role, *, controller_key=None):
 
         def podman(*args, check=True, timeout=20):
             return subprocess.run(['/usr/bin/podman', *args], check=check, capture_output=True, timeout=timeout, env={'PATH': '/usr/bin:/bin', 'HOME': '/root'})
-        mounts = [(TASK, '/runtime/home/project', 'rw'), (sdk, '/sdk/node_modules', 'ro'), (bun, '/runtime/bun', 'ro'), (public, '/runtime/public', 'ro'), (ROOT / 'home', '/runtime/home', 'rw'), (ROOT / 'agent', '/runtime/agent', 'rw'), (ROOT / 'hooks', '/runtime/guard-hook', 'ro'), (ROOT / 'front', '/runtime/resources', 'ro'), (ROOT / 'sdk-gate', '/runtime/sdk-gate', 'ro')]
+        mounts = [(TASK, '/runtime/home/project', 'rw'), (sdk, '/sdk/node_modules', 'ro'), (bun, '/runtime/bun', 'ro'), (public, '/runtime/public', 'ro'), (ROOT / 'home', '/runtime/home', 'rw'), (ROOT / 'agent', '/runtime/agent', 'rw'), (ROOT / 'hooks', '/runtime/guard-hook', 'ro'), (runtime.sdk_resource_directory, '/runtime/resources', 'ro'), (ROOT / 'sdk-gate', '/runtime/sdk-gate', 'ro')]
         args = ['run', '--detach', '--name', agent_name, '--pull=never', '--network=none', '--read-only', '--user=10001:10001', '--cap-drop=ALL', '--security-opt=no-new-privileges', '--security-opt=apparmor=' + agent_name, '--pids-limit=256', '--memory=2g', '--cpus=2', '--cpuset-cpus=0-1', '--timeout=240', '--env=HOME=/runtime/home', '--env=PATH=/usr/bin:/bin', '--workdir=/runtime/home/project']
         for source, target, mode in mounts:
             args.extend(['--volume', f'{source}:{target}:{mode}'])

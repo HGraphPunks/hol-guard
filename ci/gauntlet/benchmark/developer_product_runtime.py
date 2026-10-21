@@ -78,7 +78,8 @@ class DeveloperProductRuntime:
                  provider_mounts: tuple[Path,...] = (), provider_custody_root: Path | None = None,
                  public_prompt: str, controller_session_id: str, deadline_seconds: int,
                  max_tool_calls: int, mcp_image_id: str = BASE_IMAGE, executor_image_id: str = EXECUTOR_IMAGE,
-                 private_cell: dict | None = None, package_version: str | None = None):
+                 private_cell: dict | None = None, package_version: str | None = None,
+                 sdk_resource_directory: Path | None = None):
         require_root_private(root,existing=False)
         mcp_uid=10004 if private_cell is None else 10005
         if (os.geteuid() != 0 or root.exists() or not isinstance(upstream,ServiceSupervisor)
@@ -100,8 +101,15 @@ class DeveloperProductRuntime:
         if any(a == b or a.is_relative_to(b) or b.is_relative_to(a)
                for i,a in enumerate(paths) for b in paths[i+1:]):
             raise ValueError("public sockets and all private custody directories must be disjoint")
+        if sdk_resource_directory is not None:
+            if (not isinstance(sdk_resource_directory, Path) or not sdk_resource_directory.is_absolute()
+                    or any(sdk_resource_directory == path or sdk_resource_directory.is_relative_to(path)
+                           or path.is_relative_to(sdk_resource_directory) for path in paths)):
+                raise ValueError("Rust SDK tap resource directory must be a distinct absolute mount")
         self.root,self.upstream,self.python = root,upstream,python
         self.public_mcp_directory,self.public_hook_directory = public_mcp_directory,public_hook_directory
+        self.sdk_resource_directory = (public_mcp_directory if sdk_resource_directory is None
+                                       else sdk_resource_directory)
         self.public_prompt,self.session_id = public_prompt,controller_session_id
         self.settings = dict(source_sha=source_sha,prefix_digest=prefix_digest,bwrap_sha256=bwrap_sha256,
             deadline_seconds=deadline_seconds,max_tool_calls=max_tool_calls,
@@ -209,7 +217,7 @@ class DeveloperProductRuntime:
             workspace=Path(workspace))
 
     def agent_mounts(self):
-        return [{"source":str(self.public_mcp_directory),"destination":"/runtime/resources","mode":"ro"},
+        return [{"source":str(self.sdk_resource_directory),"destination":"/runtime/resources","mode":"ro"},
                 {"source":str(self.public_hook_directory),"destination":"/runtime/guard-hook","mode":"ro"}]
 
     def bind_sdk(self, pid, *, expected_identity):

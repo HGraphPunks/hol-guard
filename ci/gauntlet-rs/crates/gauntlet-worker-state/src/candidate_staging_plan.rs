@@ -113,7 +113,7 @@ impl FixedStagingControlPlan {
     }
 
     pub fn to_json(&self) -> Value {
-        json!({
+        let mut value = json!({
             "schema":"hol-gauntlet-candidate-staging-plan.v1",
             "argv":self.argv,
             "cwd":self.cwd,
@@ -125,8 +125,24 @@ impl FixedStagingControlPlan {
             "environment":self.environment(),
             "control_started":false,
             "execution_eligible":false,
-        })
+        });
+        if self.argv.last().is_some_and(|arg| arg == "--sdk-tap-v2") {
+            value["schema"] = json!("hol-gauntlet-candidate-staging-plan.v2");
+            value["sdk_tap_v2_requested"] = json!(true);
+        }
+        value
     }
+}
+
+/// The v2 declaration changes only the final fixed adapter selector. It
+/// cannot affect an existing v1 run unless a separate worker dispatch opts in.
+pub fn fixed_staging_control_plan_sdk_tap_v2(
+    pins: &StagingControlPins<'_>,
+    role: StagingRole,
+) -> Result<FixedStagingControlPlan, ReservationError> {
+    let mut plan = fixed_staging_control_plan(pins, role)?;
+    plan.argv.push("--sdk-tap-v2".to_owned());
+    Ok(plan)
 }
 
 pub fn fixed_staging_control_plan(
@@ -250,5 +266,25 @@ mod tests {
         wrong = pins();
         wrong.version = "3.50.0;sh";
         assert!(fixed_staging_control_plan(&wrong, StagingRole::Success).is_err());
+    }
+
+    #[test]
+    fn opt_in_tap_plan_preserves_v1_and_adds_only_fixed_selector() {
+        let ordinary = fixed_staging_control_plan(&pins(), StagingRole::Success).unwrap();
+        let tap = fixed_staging_control_plan_sdk_tap_v2(&pins(), StagingRole::Success).unwrap();
+        assert_eq!(ordinary.argv().len(), 13);
+        assert_eq!(tap.argv().len(), 14);
+        assert_eq!(&tap.argv()[..13], ordinary.argv());
+        assert_eq!(tap.argv()[13], "--sdk-tap-v2");
+        assert_eq!(
+            tap.to_json()["schema"],
+            "hol-gauntlet-candidate-staging-plan.v2"
+        );
+        assert_eq!(tap.to_json()["execution_eligible"], false);
+        assert_eq!(
+            ordinary.to_json()["schema"],
+            "hol-gauntlet-candidate-staging-plan.v1"
+        );
+        assert!(ordinary.to_json().get("sdk_tap_v2_requested").is_none());
     }
 }
