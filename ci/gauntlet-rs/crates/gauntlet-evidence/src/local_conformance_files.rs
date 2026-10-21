@@ -2,7 +2,9 @@
 //! It never starts a control or grants candidate execution.
 
 use crate::local_conformance_package::{
-    verify_local_conformance_package_ineligible, LocalConformancePackageShadow, EXECUTION_SOURCES,
+    verify_local_conformance_package_ineligible,
+    verify_local_conformance_package_with_key_pins_ineligible, LocalConformancePackageShadow,
+    EXECUTION_SOURCES,
 };
 use crate::public_files::PublicRootReader;
 use crate::{
@@ -123,6 +125,45 @@ pub fn observe_local_conformance_package_from_paths_ineligible(
     controller_root: &Path,
     outside_controller_tree_sha256: &str,
 ) -> Result<LocalConformancePackageShadow> {
+    observe_package_from_paths(
+        config_path,
+        outside_config_sha256,
+        asset_root,
+        controller_root,
+        outside_controller_tree_sha256,
+        None,
+    )
+}
+
+/// Compare signed records with a complete, caller-supplied role-to-key map.
+/// The caller must separately authenticate that map before invoking this
+/// reader; the conformance package itself is not an acceptable source.
+pub fn observe_local_conformance_package_with_key_pins_ineligible(
+    config_path: &Path,
+    outside_config_sha256: &str,
+    asset_root: &Path,
+    controller_root: &Path,
+    outside_controller_tree_sha256: &str,
+    outside_control_keys: &BTreeMap<String, String>,
+) -> Result<LocalConformancePackageShadow> {
+    observe_package_from_paths(
+        config_path,
+        outside_config_sha256,
+        asset_root,
+        controller_root,
+        outside_controller_tree_sha256,
+        Some(outside_control_keys),
+    )
+}
+
+fn observe_package_from_paths(
+    config_path: &Path,
+    outside_config_sha256: &str,
+    asset_root: &Path,
+    controller_root: &Path,
+    outside_controller_tree_sha256: &str,
+    outside_control_keys: Option<&BTreeMap<String, String>>,
+) -> Result<LocalConformancePackageShadow> {
     if geteuid().as_raw() != 0 {
         return Err(invalid("Linux Root required for conformance shadow"));
     }
@@ -153,14 +194,25 @@ pub fn observe_local_conformance_package_from_paths_ineligible(
         source_hashes.insert(name.to_owned(), source_reader.file_digest(&path, false)?);
     }
     let platform = observed_platform()?;
-    let shadow = verify_local_conformance_package_ineligible(
-        &package,
-        package_sha256,
-        &expected,
-        &platform,
-        &source_hashes,
-        Some(&public_assets),
-    )?;
+    let shadow = match outside_control_keys {
+        Some(keys) => verify_local_conformance_package_with_key_pins_ineligible(
+            &package,
+            package_sha256,
+            &expected,
+            &platform,
+            &source_hashes,
+            Some(&public_assets),
+            keys,
+        )?,
+        None => verify_local_conformance_package_ineligible(
+            &package,
+            package_sha256,
+            &expected,
+            &platform,
+            &source_hashes,
+            Some(&public_assets),
+        )?,
+    };
     let after = verify_controller_tree(controller_root, outside_controller_tree_sha256)?;
     if after != controller
         || verify_runner_file_assets(&loaded.verified, asset_root)? != file_assets

@@ -100,6 +100,7 @@ pub struct LocalConformancePackageShadow {
     pub public_prompt_relations: usize,
     pub contained_cli_results: usize,
     pub public_inputs_verified: bool,
+    pub outside_control_keys_matched: bool,
     pub execution_eligible: bool,
 }
 
@@ -119,6 +120,7 @@ impl LocalConformancePackageShadow {
             "cancel_partial_relation_checked":true,
             "public_inputs_verified":self.public_inputs_verified,
             "signed_openings_checked":true,
+            "outside_control_keys_matched":self.outside_control_keys_matched,
             "independent_kernel_sdk_effects_verified":false,
             "qualification_eligible":false,
             "execution_eligible":false,
@@ -190,6 +192,62 @@ pub fn verify_local_conformance_package_ineligible(
     outside_source_hashes: &BTreeMap<String, String>,
     observed_public_assets: Option<&Value>,
 ) -> Result<LocalConformancePackageShadow> {
+    verify_package(
+        raw,
+        outside_package_sha256,
+        expected_runtime,
+        observed_platform,
+        outside_source_hashes,
+        observed_public_assets,
+        None,
+    )
+}
+
+/// Require each signed control to use a public key supplied by a distinct
+/// caller. The map must contain exactly the five deterministic conformance
+/// roles; a key repeated in the producer's own package is not an outside pin.
+pub fn verify_local_conformance_package_with_key_pins_ineligible(
+    raw: &[u8],
+    outside_package_sha256: &str,
+    expected_runtime: &Value,
+    observed_platform: &Value,
+    outside_source_hashes: &BTreeMap<String, String>,
+    observed_public_assets: Option<&Value>,
+    outside_control_keys: &BTreeMap<String, String>,
+) -> Result<LocalConformancePackageShadow> {
+    verify_package(
+        raw,
+        outside_package_sha256,
+        expected_runtime,
+        observed_platform,
+        outside_source_hashes,
+        observed_public_assets,
+        Some(outside_control_keys),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn verify_package(
+    raw: &[u8],
+    outside_package_sha256: &str,
+    expected_runtime: &Value,
+    observed_platform: &Value,
+    outside_source_hashes: &BTreeMap<String, String>,
+    observed_public_assets: Option<&Value>,
+    outside_control_keys: Option<&BTreeMap<String, String>>,
+) -> Result<LocalConformancePackageShadow> {
+    if outside_control_keys.is_some_and(|keys| {
+        keys.len() != ROLES.len()
+            || keys.values().collect::<BTreeSet<_>>().len() != ROLES.len()
+            || ROLES.iter().any(|role| {
+                keys.get(*role)
+                    .is_none_or(|key| !is_sha256(key) || decode_hex(key, 32).is_err())
+            })
+    }) {
+        return Err(EvidenceError::Invalid(
+            "exact outside control key pins required",
+        ));
+    }
     if raw.is_empty()
         || raw.len() > MAX_PACKAGE_BYTES
         || !is_sha256(outside_package_sha256)
@@ -258,6 +316,11 @@ pub fn verify_local_conformance_package_ineligible(
         let key_text = row["public_key"].as_str().ok_or(CONTROL)?;
         if !is_sha256(key_text) {
             return Err(CONTROL);
+        }
+        if outside_control_keys.is_some_and(|keys| keys[role] != key_text) {
+            return Err(EvidenceError::Invalid(
+                "control key differs from outside pin",
+            ));
         }
         let key = decode_hex(key_text, 32).map_err(|_| CONTROL)?;
         let record = &row["record"];
@@ -353,129 +416,11 @@ pub fn verify_local_conformance_package_ineligible(
         public_prompt_relations,
         contained_cli_results,
         public_inputs_verified: observed_public_assets.is_some(),
+        outside_control_keys_matched: outside_control_keys.is_some(),
         execution_eligible: false,
     })
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn structural_fixture() -> (Value, BTreeMap<String, String>, Value, Value) {
-        let sources: BTreeMap<String, String> = EXECUTION_SOURCES
-            .iter()
-            .map(|name| ((*name).to_owned(), "0".repeat(64)))
-            .collect();
-        let requirements: BTreeMap<String, String> = REQUIREMENTS
-            .iter()
-            .map(|name| ((*name).to_owned(), "reviewed".to_owned()))
-            .collect();
-        let runtime = json!({"source_sha":"outside"});
-        let platform = json!({"machine":"aarch64"});
-        let package = json!({
-            "schema":"local-executor-conformance.v1",
-            "scope":"local-diagnostic-only",
-            "qualification_eligible":false,
-            "platform":platform,
-            "runtime":runtime,
-            "public_assets":{"sdk":{},"bun":{}},
-            "execution_sources":sources,
-            "review":{
-                "schema":"local-executor-equivalence-review.v1",
-                "reviewer_role":"implementation-author",
-                "verdict":"scoped-local-conformance",
-                "requirements":requirements,
-                "document":"reviewed",
-                "document_sha256":sha256(b"reviewed"),
-            },
-            "controls":{},
-        });
-        (package, sources, runtime, platform)
-    }
-
-    fn inspect_fixture(
-        package: &Value,
-        sources: &BTreeMap<String, String>,
-        runtime: &Value,
-        platform: &Value,
-    ) -> Result<LocalConformancePackageShadow> {
-        let raw = canonical_value(package).unwrap();
-        verify_local_conformance_package_ineligible(
-            &raw,
-            &sha256(&raw),
-            runtime,
-            platform,
-            sources,
-            None,
-        )
-    }
-
-    #[test]
-    fn exact_source_and_role_sets_are_frozen() {
-        assert_eq!(EXECUTION_SOURCES.len(), 50);
-        assert_eq!(EXECUTION_SOURCES.iter().collect::<BTreeSet<_>>().len(), 50);
-        assert_eq!(ROLES.iter().collect::<BTreeSet<_>>().len(), 5);
-    }
-
-    #[test]
-    fn bounded_reader_refuses_digest_and_ambiguous_json() {
-        let raw = br#"{"schema":"x","schema":"y"}"#;
-        assert!(verify_local_conformance_package_ineligible(
-            raw,
-            &sha256(raw),
-            &json!({}),
-            &json!({}),
-            &BTreeMap::new(),
-            None
-        )
-        .is_err());
-        assert!(verify_local_conformance_package_ineligible(
-            b"{}",
-            &"0".repeat(64),
-            &json!({}),
-            &json!({}),
-            &BTreeMap::new(),
-            None
-        )
-        .is_err());
-        assert!(verify_local_conformance_package_ineligible(
-            &vec![b' '; MAX_PACKAGE_BYTES + 1],
-            &"0".repeat(64),
-            &json!({}),
-            &json!({}),
-            &BTreeMap::new(),
-            None
-        )
-        .is_err());
-    }
-
-    #[test]
-    fn package_cannot_choose_runtime_source_set_review_or_roles() {
-        let (mut package, sources, runtime, platform) = structural_fixture();
-        assert_eq!(
-            inspect_fixture(&package, &sources, &runtime, &platform)
-                .unwrap_err()
-                .to_string(),
-            INVALID.to_string()
-        );
-        package["runtime"]["source_sha"] = json!("candidate-chosen");
-        assert!(inspect_fixture(&package, &sources, &runtime, &platform)
-            .unwrap_err()
-            .to_string()
-            .contains("outside pins"));
-        package["runtime"] = runtime.clone();
-        package["execution_sources"][EXECUTION_SOURCES[0]] = json!("1".repeat(64));
-        assert_eq!(
-            inspect_fixture(&package, &sources, &runtime, &platform)
-                .unwrap_err()
-                .to_string(),
-            SOURCE.to_string()
-        );
-        package["execution_sources"][EXECUTION_SOURCES[0]] = json!("0".repeat(64));
-        package["review"]["document"] = json!("changed");
-        assert!(inspect_fixture(&package, &sources, &runtime, &platform)
-            .unwrap_err()
-            .to_string()
-            .contains("review digest"));
-    }
-}
+#[path = "local_conformance_package_tests.rs"]
+mod tests;

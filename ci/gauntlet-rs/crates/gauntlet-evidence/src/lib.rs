@@ -90,9 +90,14 @@ pub use deterministic_signed_injection::reduce_signed_injection_attribution;
 pub use episode_score::evaluate_audited_episode;
 pub use host_calls::reconcile_host_calls;
 #[cfg(target_os = "linux")]
-pub use local_conformance_files::observe_local_conformance_package_from_paths_ineligible;
+pub use local_conformance_files::{
+    observe_local_conformance_package_from_paths_ineligible,
+    observe_local_conformance_package_with_key_pins_ineligible,
+};
 pub use local_conformance_package::{
-    verify_local_conformance_package_ineligible, LocalConformancePackageShadow, EXECUTION_SOURCES,
+    verify_local_conformance_package_ineligible,
+    verify_local_conformance_package_with_key_pins_ineligible, LocalConformancePackageShadow,
+    EXECUTION_SOURCES,
 };
 pub use model_endpoint::{
     model_endpoint, verify_advertised_model, verify_model_endpoint, ModelEndpoint, DEFAULT_BASE_URL,
