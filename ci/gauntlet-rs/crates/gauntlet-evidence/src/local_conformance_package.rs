@@ -3,7 +3,7 @@
 
 use crate::crypto::{decode_hex, is_sha256, sha256};
 use crate::payload::exact_keys;
-use crate::{verify_control_reported_tail, EvidenceError, Result};
+use crate::{verify_control_reported_tail, verify_native_review_summary, EvidenceError, Result};
 use gauntlet_contracts::canonicalize;
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -102,6 +102,7 @@ impl LocalConformancePackageShadow {
             "execution_source_count":self.source_count,
             "control_roles":self.role_session_ids.keys().collect::<Vec<_>>(),
             "distinct_signed_sessions":self.role_session_ids.len(),
+            "native_review_summaries_recomputed":self.role_session_ids.len(),
             "public_inputs_verified":self.public_inputs_verified,
             "signed_openings_checked":true,
             "independent_kernel_sdk_effects_verified":false,
@@ -253,6 +254,16 @@ pub fn verify_local_conformance_package_ineligible(
             return Err(CONTROL);
         }
         let tail = verify_control_reported_tail(&record_raw, role, &key, expected_runtime)?;
+        let reviews = verify_native_review_summary(&tail.session.signed.builtin)?;
+        if reviews["review_complete"] != (role != "cancel")
+            || (role == "cancel"
+                && tail.session.signed.builtin["review_summary"]["missing_required_post_call_ids"]
+                    != json!(["sdk-contained-control"]))
+        {
+            return Err(EvidenceError::Invalid(
+                "control Native review status differs from role",
+            ));
+        }
         let session_id = tail.session.session_id;
         if !sessions.insert(session_id.clone()) {
             return Err(EvidenceError::Invalid(
