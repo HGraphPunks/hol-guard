@@ -92,6 +92,7 @@ impl PreparedLaunch {
         &self.proof.plan
     }
 
+    #[cfg(target_arch = "aarch64")]
     pub(crate) fn matches_run_request(&self, request: &WorkerRequest) -> bool {
         request.action() == WorkerAction::Run
             && request.matches_deployment(&self.proof.source_sha, &self.proof.deployment_digest)
