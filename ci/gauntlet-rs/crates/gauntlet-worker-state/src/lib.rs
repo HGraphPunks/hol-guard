@@ -100,7 +100,9 @@ pub use interpreter_exec::{
     probe_verified_interpreter_exec, InterpreterExecError, InterpreterExecProof,
 };
 #[cfg(target_os = "linux")]
-pub use job_slice_guard::require_rust_job_slice_absent;
+pub use job_slice_guard::{
+    require_rust_job_slice_absent, stop_rust_job_slice, JobSliceStopObservation,
+};
 mod lease;
 #[cfg(target_os = "linux")]
 mod linux_cgroup;
