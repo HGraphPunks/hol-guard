@@ -31,6 +31,7 @@ mod native_transport_relations;
 mod omp_transcript;
 mod package_version;
 mod payload;
+mod private_actor;
 mod private_cell_files;
 mod private_cell_manifest;
 mod private_cell_mounts;
@@ -88,6 +89,7 @@ pub use native_review_summary::{
 pub use native_transport_relations::verify_native_transport_relations;
 pub use omp_transcript::{parse_omp_transcript, read_omp_transcript, TRANSCRIPT_LIMIT};
 pub use package_version::{valid_package_version, verify_installed_version_metadata};
+pub use private_actor::verify_private_actor;
 pub use private_cell_files::{verify_private_cell_artifacts, PrivateCellInventory};
 pub use private_cell_manifest::{verify_private_cell_manifest, PrivateCellManifest};
 pub use private_cell_mounts::verify_private_cell_mount_relation;
