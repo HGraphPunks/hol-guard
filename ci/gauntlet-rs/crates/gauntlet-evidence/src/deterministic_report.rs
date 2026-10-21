@@ -106,6 +106,25 @@ pub fn read_deterministic_report_root_owned(
     )
 }
 
+/// Read a freshly produced, fixed-path Root-owned report after the launched
+/// controller and its product cells have stopped. Its raw digest is an
+/// observation, not an outside pin, and its status remains a producer claim.
+pub fn observe_deterministic_report_root_owned_ineligible(
+    job_id: &str,
+    expected_source_sha: &str,
+    expected_config_digest: &str,
+    expected_exit_code: i32,
+) -> Result<DeterministicReportObservation> {
+    let raw = read_root_owned_report_bytes(job_id)?
+        .ok_or(EvidenceError::Invalid("deterministic report is missing"))?;
+    verify_deterministic_report(
+        &raw,
+        expected_source_sha,
+        expected_config_digest,
+        expected_exit_code,
+    )
+}
+
 #[cfg(test)]
 #[path = "deterministic_report_tests.rs"]
 mod tests;

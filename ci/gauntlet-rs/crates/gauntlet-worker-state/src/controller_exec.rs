@@ -14,7 +14,8 @@ use crate::{
     ReservationError, RunReservationJournal, StartedMarker,
 };
 use gauntlet_contracts::WorkerRequest;
-use rustix::fs::{fstat, fsync, openat, Mode, OFlags};
+use rustix::fs::{fstat, fsync, openat, statat, AtFlags, Mode, OFlags};
+use rustix::io::Errno;
 use rustix::process::geteuid;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
@@ -42,6 +43,7 @@ pub enum ControllerExecError {
     RootRequired,
     InvalidPlan,
     UnsafeLog,
+    OutputExists,
     Prelaunch(PrelaunchError),
     Reservation(ReservationError),
     Interpreter(InterpreterExecError),
@@ -61,6 +63,7 @@ impl fmt::Display for ControllerExecError {
                 f.write_str("fixed controller launch plan differs from held inputs")
             }
             Self::UnsafeLog => f.write_str("Root-owned private controller log required"),
+            Self::OutputExists => f.write_str("fixed benchmark output path already exists"),
             Self::Prelaunch(error) => write!(f, "prelaunch custody changed: {error}"),
             Self::Reservation(error) => write!(f, "worker reservation: {error}"),
             Self::Interpreter(error) => write!(f, "interpreter execution: {error}"),
@@ -247,6 +250,7 @@ pub(crate) fn spawn_prepared_controller(
             worker_generation,
         )
         .map_err(ControllerExecError::Reservation)?;
+    require_fresh_output(request.job_id())?;
     let log = open_fixed_log(request.job_id(), &plan.fixed().log_path)?;
     let cwd = open_root_owned_public_directory(Path::new(&plan.fixed().cwd))
         .map_err(|_| ControllerExecError::InvalidPlan)?;
@@ -300,6 +304,20 @@ pub(crate) fn spawn_prepared_controller(
         return Err(ControllerExecError::PostLaunch(Box::new(error)));
     }
     Ok((child, started))
+}
+
+fn require_absent_child(output: &OwnedFd, name: &str) -> Result<(), ControllerExecError> {
+    match statat(output, name, AtFlags::SYMLINK_NOFOLLOW) {
+        Err(Errno::NOENT) => Ok(()),
+        Ok(_) => Err(ControllerExecError::OutputExists),
+        Err(_) => Err(ControllerExecError::UnsafeLog),
+    }
+}
+
+fn require_fresh_output(job_id: &str) -> Result<(), ControllerExecError> {
+    let output = open_canonical_directory(Path::new(OUTPUT_DIRECTORY), true)
+        .map_err(|_| ControllerExecError::UnsafeLog)?;
+    require_absent_child(&output, job_id)
 }
 
 fn open_fixed_log(job_id: &str, declared_path: &str) -> Result<File, ControllerExecError> {

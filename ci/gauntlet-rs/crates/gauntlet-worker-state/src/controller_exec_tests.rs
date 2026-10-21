@@ -24,3 +24,27 @@ fn controller_environment_accepts_only_the_four_fixed_keys() {
         Err(ControllerExecError::InvalidPlan)
     ));
 }
+
+#[test]
+fn stale_report_directory_or_symlink_blocks_a_fresh_job_output() {
+    let temp = tempfile::tempdir().unwrap();
+    let output = rustix::fs::open(
+        temp.path(),
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .unwrap();
+    let job = "a1b2c3d4e5f60718";
+    assert!(require_absent_child(&output, job).is_ok());
+    std::fs::create_dir(temp.path().join(job)).unwrap();
+    assert!(matches!(
+        require_absent_child(&output, job),
+        Err(ControllerExecError::OutputExists)
+    ));
+    std::fs::remove_dir(temp.path().join(job)).unwrap();
+    std::os::unix::fs::symlink("missing", temp.path().join(job)).unwrap();
+    assert!(matches!(
+        require_absent_child(&output, job),
+        Err(ControllerExecError::OutputExists)
+    ));
+}

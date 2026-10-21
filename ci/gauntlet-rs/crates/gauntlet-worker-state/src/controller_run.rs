@@ -11,6 +11,10 @@ use crate::{
     stop_rust_job_slice, ActiveLease, ProcessIdentity, ReservationError, RunReservationJournal,
 };
 use gauntlet_contracts::WorkerRequest;
+use gauntlet_evidence::{
+    observe_deterministic_report_root_owned_ineligible, DeterministicReportObservation,
+    EvidenceError,
+};
 use std::fs;
 use std::os::unix::process::ExitStatusExt;
 use std::process::{Child, ExitStatus};
@@ -22,6 +26,8 @@ pub(crate) enum ControllerRunError {
     Lease(ReservationError),
     Cgroup(CgroupProbeError),
     Launch(ControllerExecError),
+    PostRunCustody(crate::prelaunch::PrelaunchError),
+    Report(EvidenceError),
     Identity(ProcessObservationError),
     Deadline(DeadlineError),
     Cancelled,
@@ -35,6 +41,8 @@ impl std::fmt::Display for ControllerRunError {
             Self::Lease(error) => write!(f, "worker lease or running marker: {error}"),
             Self::Cgroup(error) => write!(f, "controller cgroup: {error}"),
             Self::Launch(error) => write!(f, "controller launch: {error}"),
+            Self::PostRunCustody(error) => write!(f, "post-run input custody: {error}"),
+            Self::Report(error) => write!(f, "controller report: {error}"),
             Self::Identity(error) => write!(f, "controller process identity: {error:?}"),
             Self::Deadline(error) => write!(f, "controller deadline: {error}"),
             Self::Cancelled => f.write_str("controller cancellation requested"),
@@ -60,6 +68,7 @@ pub(crate) struct ControllerRunObservation {
     pub(crate) started_marker_sha256: String,
     pub(crate) exit_code: Option<i32>,
     pub(crate) timed_out: bool,
+    pub(crate) report: Option<DeterministicReportObservation>,
 }
 
 fn wait_for_child(
@@ -192,7 +201,12 @@ pub(crate) fn run_prepared_controller_ineligible(
         )?;
         let (exit_code, timed_out) = match outcome {
             WaitOutcome::Exited(status) => (
-                status.code().or_else(|| status.signal().map(|s| 128 + s)),
+                Some(
+                    status
+                        .code()
+                        .or_else(|| status.signal().map(|signal| 128 + signal))
+                        .ok_or(ControllerRunError::Wait)?,
+                ),
                 false,
             ),
             WaitOutcome::TimedOut => (None, true),
@@ -202,13 +216,30 @@ pub(crate) fn run_prepared_controller_ineligible(
             started_marker_sha256: started.sha256,
             exit_code,
             timed_out,
+            report: None,
         })
     })();
     cleanup(&mut group, Some(&mut child), request.job_id(), true)?;
     lease
         .verify(&journal.root)
         .map_err(ControllerRunError::Lease)?;
-    observed
+    let mut observation = observed?;
+    prepared
+        .recheck_all_assets_after_cleanup()
+        .map_err(ControllerRunError::PostRunCustody)?;
+    if !observation.timed_out {
+        let exit_code = observation.exit_code.ok_or(ControllerRunError::Wait)?;
+        observation.report = Some(
+            observe_deterministic_report_root_owned_ineligible(
+                request.job_id(),
+                request.source_sha(),
+                prepared.config_digest(),
+                exit_code,
+            )
+            .map_err(ControllerRunError::Report)?,
+        );
+    }
+    Ok(observation)
 }
 
 #[cfg(test)]

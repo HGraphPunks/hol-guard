@@ -93,6 +93,11 @@ impl PreparedLaunch {
     }
 
     #[cfg(target_arch = "aarch64")]
+    pub(crate) fn config_digest(&self) -> &str {
+        &self.proof.config_digest
+    }
+
+    #[cfg(target_arch = "aarch64")]
     pub(crate) fn matches_run_request(&self, request: &WorkerRequest) -> bool {
         request.action() == WorkerAction::Run
             && request.matches_deployment(&self.proof.source_sha, &self.proof.deployment_digest)
@@ -113,6 +118,34 @@ impl PreparedLaunch {
         self.interpreter
             .assert_unchanged()
             .map_err(PrelaunchError::Interpreter)
+    }
+
+    /// Refuse a completed controller observation if any pinned execution
+    /// input changed while the child or its product cells were active. Call
+    /// this only after both containment domains have been drained; it is a
+    /// post-run custody check, not an independent control verdict.
+    #[cfg(target_arch = "aarch64")]
+    pub(crate) fn recheck_all_assets_after_cleanup(&self) -> Result<(), PrelaunchError> {
+        self.recheck_controller_and_interpreter()?;
+        let config_path = format!(
+            "/opt/hol-gauntlet/candidates/{}/config.json",
+            self.proof.source_sha
+        );
+        let loaded = load_runner_config_from_paths(
+            Path::new(&config_path),
+            &self.proof.config_digest,
+            Path::new(ASSET_ROOT),
+        )
+        .map_err(PrelaunchError::Config)?;
+        if loaded.verified.version != 7 {
+            return Err(PrelaunchError::InvalidPins);
+        }
+        let assets = verify_runner_assets_inert(&loaded, Path::new(ASSET_ROOT))
+            .map_err(PrelaunchError::Assets)?;
+        if assets.observed.len() != self.proof.asset_roles {
+            return Err(PrelaunchError::InvalidPins);
+        }
+        self.recheck_controller_and_interpreter()
     }
 
     pub fn into_parts(self) -> (PrelaunchProof, HeldInterpreter) {

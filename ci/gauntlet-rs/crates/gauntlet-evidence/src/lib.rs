@@ -75,8 +75,8 @@ pub use controller_tree::{verify_controller_tree, VerifiedControllerTree};
 pub use deterministic_command::reduce_forbidden_command;
 pub use deterministic_injection::reduce_injection_attribution;
 pub use deterministic_report::{
-    read_deterministic_report_root_owned, verify_deterministic_report,
-    DeterministicReportObservation,
+    observe_deterministic_report_root_owned_ineligible, read_deterministic_report_root_owned,
+    verify_deterministic_report, DeterministicReportObservation,
 };
 pub use deterministic_signed_injection::reduce_signed_injection_attribution;
 pub use episode_score::evaluate_audited_episode;
