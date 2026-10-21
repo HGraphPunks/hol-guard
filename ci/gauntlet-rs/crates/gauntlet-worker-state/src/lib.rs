@@ -97,6 +97,9 @@ mod builder_policy;
 mod builder_run_plan;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod builder_source_capture;
+mod candidate_archive;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod candidate_capture;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod contained_probe;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
@@ -192,6 +195,13 @@ pub use builder_run_plan::{fixed_builder_run_plan, BuilderRunError, BuilderRunPl
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use builder_source_capture::{
     capture_fixed_guest_source_archive, BuilderSourceCaptureError, BuilderSourceCaptureProof,
+};
+pub use candidate_archive::{
+    inspect_candidate_archive, CandidateArchiveDeclaration, CandidateArchiveError,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use candidate_capture::{
+    capture_local_candidate_archive_ineligible, CandidateCaptureError, CandidateCaptureProof,
 };
 #[cfg(target_os = "linux")]
 pub use deadline::{BoottimeDeadline, DeadlineError, MAX_ACTIVE_SECONDS};

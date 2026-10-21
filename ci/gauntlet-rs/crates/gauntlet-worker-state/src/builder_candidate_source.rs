@@ -38,7 +38,7 @@ impl fmt::Display for CandidateSourceError {
     }
 }
 
-fn same_file(a: &Stat, b: &Stat) -> bool {
+pub(crate) fn same_file(a: &Stat, b: &Stat) -> bool {
     a.st_dev == b.st_dev
         && a.st_ino == b.st_ino
         && a.st_mode == b.st_mode
