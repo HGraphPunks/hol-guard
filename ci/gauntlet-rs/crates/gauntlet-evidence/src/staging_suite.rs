@@ -5,7 +5,9 @@ use crate::crypto::{is_sha256, sha256};
 use crate::io::open_absolute_directory;
 use crate::public_files::PublicRootReader;
 use crate::python_worker_files::{private_directory, read_private_file};
-use crate::staging_agent_process::{matching_agent_process, matching_sdk_gate_process};
+use crate::staging_agent_process::{
+    matching_agent_process, matching_sdk_executable, matching_sdk_gate_process,
+};
 use crate::staging_control_record::read_one;
 use crate::{
     observe_staging_physical_files_root_owned_ineligible, EvidenceError, Result,
@@ -42,11 +44,14 @@ pub struct StagingSuiteShadow {
     pub live_kernel_roles_sampled: usize,
     pub live_agent_roles_sampled: usize,
     pub live_sdk_gate_roles_sampled: usize,
+    pub live_sdk_executable_roles_sampled: usize,
 }
 
 impl StagingSuiteShadow {
     pub fn to_json(&self) -> Value {
-        let schema = if self.live_sdk_gate_roles_sampled == 6 {
+        let schema = if self.live_sdk_executable_roles_sampled == 6 {
+            "hol-gauntlet-staging-suite-shadow.v5"
+        } else if self.live_sdk_gate_roles_sampled == 6 {
             "hol-gauntlet-staging-suite-shadow.v4"
         } else if self.live_agent_roles_sampled == 6 {
             "hol-gauntlet-staging-suite-shadow.v3"
@@ -74,6 +79,9 @@ impl StagingSuiteShadow {
         }
         if self.live_sdk_gate_roles_sampled == 6 {
             output["live_sdk_gate_roles_sampled"] = json!(6);
+        }
+        if self.live_sdk_executable_roles_sampled == 6 {
+            output["live_sdk_executable_roles_sampled"] = json!(6);
         }
         output
     }
@@ -149,12 +157,13 @@ fn checked_manifest(raw: &[u8], outside_sha256: &str, build_job_id: &str) -> Res
         return Err(INVALID);
     }
     let manifest: Value = serde_json::from_slice(raw).map_err(|_| INVALID)?;
-    let (live_kernel_required, agent_process_required, sdk_gate_required) =
+    let (live_kernel_required, agent_process_required, sdk_gate_required, sdk_executable_required) =
         match string(&manifest, "schema")? {
-            "hol-gauntlet-staging-suite-pins.v1" => (false, false, false),
-            "hol-gauntlet-staging-suite-pins.v2" => (true, false, false),
-            "hol-gauntlet-staging-suite-pins.v3" => (true, true, false),
-            "hol-gauntlet-staging-suite-pins.v4" => (true, true, true),
+            "hol-gauntlet-staging-suite-pins.v1" => (false, false, false, false),
+            "hol-gauntlet-staging-suite-pins.v2" => (true, false, false, false),
+            "hol-gauntlet-staging-suite-pins.v3" => (true, true, false, false),
+            "hol-gauntlet-staging-suite-pins.v4" => (true, true, true, false),
+            "hol-gauntlet-staging-suite-pins.v5" => (true, true, true, true),
             _ => return Err(INVALID),
         };
     let mut fields = vec![
@@ -178,10 +187,17 @@ fn checked_manifest(raw: &[u8], outside_sha256: &str, build_job_id: &str) -> Res
     if sdk_gate_required {
         fields.push("sdk_gate_process_samples_required");
     }
+    if sdk_executable_required {
+        fields.push("sdk_executable_samples_required");
+        fields.push("sdk_bun_sha256");
+    }
     if !exact_keys(&manifest, &fields)
         || (live_kernel_required && manifest["live_kernel_samples_required"] != true)
         || (agent_process_required && manifest["agent_process_samples_required"] != true)
         || (sdk_gate_required && manifest["sdk_gate_process_samples_required"] != true)
+        || (sdk_executable_required
+            && (manifest["sdk_executable_samples_required"] != true
+                || !is_sha256(string(&manifest, "sdk_bun_sha256")?)))
         || manifest["build_job_id"] != build_job_id
         || manifest["execution_eligible"] != false
         || !is_git_sha(string(&manifest, "source_sha")?)
@@ -236,7 +252,7 @@ fn terminal_and_cleanup(
     role: &str,
     common: &Value,
     row: &Value,
-) -> Result<(bool, bool, bool)> {
+) -> Result<(bool, bool, bool, bool)> {
     let run = string(row, "run_id")?;
     let report_name = format!("{run}.report.json");
     let terminal_name = format!("{run}.terminal.json");
@@ -274,7 +290,9 @@ fn terminal_and_cleanup(
         return Err(INVALID);
     }
     let schema = string(common, "schema")?;
-    let sdk_gate_required = schema == "hol-gauntlet-staging-suite-pins.v4";
+    let sdk_executable_required = schema == "hol-gauntlet-staging-suite-pins.v5";
+    let sdk_gate_required =
+        schema == "hol-gauntlet-staging-suite-pins.v4" || sdk_executable_required;
     let agent_process_required =
         schema == "hol-gauntlet-staging-suite-pins.v3" || sdk_gate_required;
     let live_kernel_required = schema != "hol-gauntlet-staging-suite-pins.v1";
@@ -290,7 +308,13 @@ fn terminal_and_cleanup(
             return Err(INVALID);
         }
         let record: Value = serde_json::from_slice(&record_raw).map_err(|_| INVALID)?;
-        if sdk_gate_required {
+        if sdk_executable_required {
+            matching_sdk_executable(
+                &record,
+                &report["live_kernel_activity"],
+                string(common, "sdk_bun_sha256")?,
+            )?;
+        } else if sdk_gate_required {
             matching_sdk_gate_process(&record, &report["live_kernel_activity"])?;
         } else {
             matching_agent_process(&record, &report["live_kernel_activity"])?;
@@ -306,6 +330,7 @@ fn terminal_and_cleanup(
         live_kernel_required,
         agent_process_required,
         sdk_gate_required,
+        sdk_executable_required,
     ))
 }
 
@@ -376,6 +401,7 @@ pub fn observe_staging_suite_root_owned_ineligible(
     let mut live_kernel_roles_sampled = 0;
     let mut live_agent_roles_sampled = 0;
     let mut live_sdk_gate_roles_sampled = 0;
+    let mut live_sdk_executable_roles_sampled = 0;
     for role in ROLES {
         let row = &manifest["roles"][role];
         let pins = StagingEvidencePins {
@@ -393,10 +419,12 @@ pub fn observe_staging_suite_root_owned_ineligible(
         let opened = observe_staging_physical_files_root_owned_ineligible(&pins)?;
         physical_files += opened.observed_files;
         absent_effects += opened.absent_effects;
-        let (kernel, agent, sdk_gate) = terminal_and_cleanup(&journal, role, &manifest, row)?;
+        let (kernel, agent, sdk_gate, sdk_executable) =
+            terminal_and_cleanup(&journal, role, &manifest, row)?;
         live_kernel_roles_sampled += usize::from(kernel);
         live_agent_roles_sampled += usize::from(agent);
         live_sdk_gate_roles_sampled += usize::from(sdk_gate);
+        live_sdk_executable_roles_sampled += usize::from(sdk_executable);
     }
     if root.read_file(&relative, 8192)? != raw {
         return Err(INVALID);
@@ -410,6 +438,7 @@ pub fn observe_staging_suite_root_owned_ineligible(
         live_kernel_roles_sampled,
         live_agent_roles_sampled,
         live_sdk_gate_roles_sampled,
+        live_sdk_executable_roles_sampled,
     })
 }
 
@@ -497,6 +526,18 @@ mod tests {
         value["sdk_gate_process_samples_required"] = json!(true);
         let sdk_gate = canonicalize(value.to_string().as_bytes()).unwrap();
         assert!(checked_manifest(&sdk_gate, &sha256(&sdk_gate), "0123456789abcdef").is_ok());
+        value["schema"] = json!("hol-gauntlet-staging-suite-pins.v5");
+        value["sdk_executable_samples_required"] = json!(true);
+        let missing_bun = canonicalize(value.to_string().as_bytes()).unwrap();
+        assert!(checked_manifest(&missing_bun, &sha256(&missing_bun), "0123456789abcdef").is_err());
+        value["sdk_bun_sha256"] = json!("f".repeat(64));
+        let sdk_executable = canonicalize(value.to_string().as_bytes()).unwrap();
+        assert!(checked_manifest(
+            &sdk_executable,
+            &sha256(&sdk_executable),
+            "0123456789abcdef"
+        )
+        .is_ok());
         value["roles"]["cancel"]["run_id"] = value["roles"]["success"]["run_id"].clone();
         let duplicate = canonicalize(value.to_string().as_bytes()).unwrap();
         assert!(checked_manifest(&duplicate, &sha256(&duplicate), "0123456789abcdef").is_err());
@@ -533,6 +574,7 @@ mod tests {
             live_kernel_roles_sampled: 6,
             live_agent_roles_sampled: 0,
             live_sdk_gate_roles_sampled: 0,
+            live_sdk_executable_roles_sampled: 0,
         };
         assert_eq!(
             proof.to_json()["schema"],
@@ -558,5 +600,17 @@ mod tests {
             "hol-gauntlet-staging-suite-shadow.v4"
         );
         assert_eq!(sdk_gate.to_json()["live_sdk_gate_roles_sampled"], 6);
+        let sdk_executable = StagingSuiteShadow {
+            live_sdk_executable_roles_sampled: 6,
+            ..sdk_gate
+        };
+        assert_eq!(
+            sdk_executable.to_json()["schema"],
+            "hol-gauntlet-staging-suite-shadow.v5"
+        );
+        assert_eq!(
+            sdk_executable.to_json()["live_sdk_executable_roles_sampled"],
+            6
+        );
     }
 }

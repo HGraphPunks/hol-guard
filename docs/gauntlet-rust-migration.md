@@ -35,6 +35,13 @@ same Podman container and cgroup. It still does not authenticate the SDK
 executable or tool call, Native effects, Guard causality or model inference;
 all six terminals remain `invalid-evidence` and the Phase 2 exit stays open.
 
+The [six-role v5 suite](gauntlet-rust-sdk-executable-proof.md) matched each
+live gate process's hashed Bun executable and exact private-cell SDK command
+to a host-supplied asset pin. This closes that narrow process identity gap.
+SDK calls, Native product effects, Guard decisions, fresh scored conformance
+and model inference remain open, so the Phase 2 exit and all six
+`invalid-evidence` terminals remain unchanged.
+
 A [contained interpreter probe](gauntlet-rust-contained-interpreter-proof.md) now joins descriptor-bound Python execution and that fixed cgroup. It ran only inert code as UID 65534 on the ARM VM, observed the child credential and two contained tasks, and verified recursive cleanup. It did not launch a controller or benchmark or qualify a result.
 
 A [Root-only product-cell inventory](gauntlet-rust-product-cell-siblings-proof.md) found no retained product units on the idle ARM VM, but identified a necessary worker-design change: Python starts product cells as systemd sibling units under `system.slice`. The controller cgroup cannot kill those siblings. A Rust worker must bind, terminate and verify every product unit it creates, or prove a new job-owned slice arrangement, before it may write a successful cleanup receipt.

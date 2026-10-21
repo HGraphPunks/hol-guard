@@ -3,7 +3,9 @@
 //! record, but polling cannot establish every short-lived process or Guard
 //! decision and never grants execution eligibility.
 
-use crate::staging_machine_observer::{ContainerProcessIdentity, MachineSliceSampler};
+use crate::staging_machine_observer::{
+    observe_sdk_executable, ContainerProcessIdentity, MachineSliceSampler, SdkExecutableIdentity,
+};
 use crate::{launch_plan::rust_job_slice_name, OwnedJobCgroup};
 use rustix::fs::{fstat, open, openat, statat, AtFlags, FileType, Mode, OFlags, Stat};
 use rustix::io::Errno;
@@ -16,6 +18,7 @@ use std::os::fd::OwnedFd;
 const CGROUP_ROOT: &str = "/sys/fs/cgroup";
 const MAX_CONTROL_BYTES: u64 = 4096;
 const MAX_RETAINED_CONTAINER_PROCESSES: usize = 64;
+const MAX_RETAINED_SDK_EXECUTABLES: usize = 16;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct SliceSample {
@@ -31,6 +34,7 @@ pub(crate) struct LiveStagingKernelObservation {
     pub(crate) product_slice_populated: bool,
     pub(crate) max_product_tasks: u64,
     pub(crate) container_processes: Vec<ContainerProcessIdentity>,
+    pub(crate) sdk_executables: Vec<SdkExecutableIdentity>,
 }
 
 impl LiveStagingKernelObservation {
@@ -47,14 +51,29 @@ impl LiveStagingKernelObservation {
                 })
             })
             .collect();
+        let sdk_executables: Vec<_> = self
+            .sdk_executables
+            .iter()
+            .map(|process| {
+                json!({
+                    "container_id":process.container_id,
+                    "pid":process.pid,
+                    "start_ticks":process.start_ticks,
+                    "cgroup":process.cgroup,
+                    "argv_sha256":process.argv_sha256,
+                    "executable_sha256":process.executable_sha256,
+                })
+            })
+            .collect();
         json!({
-            "schema":"hol-gauntlet-staging-kernel-samples.v2",
+            "schema":"hol-gauntlet-staging-kernel-samples.v3",
             "sample_count":self.sample_count,
             "max_controller_tasks":self.max_controller_tasks,
             "product_slice_observed":self.product_slice_observed,
             "product_slice_populated":self.product_slice_populated,
             "max_product_tasks":self.max_product_tasks,
             "container_processes":container_processes,
+            "sdk_executables":sdk_executables,
             "container_processes_exhaustively_observed":false,
             "control_processes_exhaustively_observed":false,
             "guard_causality_verified":false,
@@ -69,6 +88,7 @@ pub(crate) struct StagingKernelSampler {
     slice_name: String,
     machine: MachineSliceSampler,
     observed_container_processes: BTreeSet<ContainerProcessIdentity>,
+    observed_sdk_executables: BTreeSet<SdkExecutableIdentity>,
     observation: LiveStagingKernelObservation,
 }
 
@@ -153,6 +173,7 @@ impl StagingKernelSampler {
             slice_name,
             machine,
             observed_container_processes: BTreeSet::new(),
+            observed_sdk_executables: BTreeSet::new(),
             observation: LiveStagingKernelObservation {
                 sample_count: 0,
                 max_controller_tasks: 0,
@@ -160,6 +181,7 @@ impl StagingKernelSampler {
                 product_slice_populated: false,
                 max_product_tasks: 0,
                 container_processes: Vec::new(),
+                sdk_executables: Vec::new(),
             },
         })
     }
@@ -217,6 +239,20 @@ impl StagingKernelSampler {
         let product = self.sample_product_slice()?;
         if self.observation.sample_count.is_multiple_of(5) {
             for process in self.machine.sample()? {
+                if !self.observed_sdk_executables.iter().any(|observed| {
+                    observed.container_id == process.container_id
+                        && observed.pid == process.pid
+                        && observed.start_ticks == process.start_ticks
+                }) {
+                    if let Some(executable) = observe_sdk_executable(&process) {
+                        if self.observed_sdk_executables.len() == MAX_RETAINED_SDK_EXECUTABLES
+                            && !self.observed_sdk_executables.contains(&executable)
+                        {
+                            return Err("staging SDK executable identity bound exceeded".to_owned());
+                        }
+                        self.observed_sdk_executables.insert(executable);
+                    }
+                }
                 if self.observed_container_processes.len() == MAX_RETAINED_CONTAINER_PROCESSES
                     && !self.observed_container_processes.contains(&process)
                 {
@@ -240,6 +276,7 @@ impl StagingKernelSampler {
     pub(crate) fn finish(mut self) -> LiveStagingKernelObservation {
         self.observation.container_processes =
             self.observed_container_processes.into_iter().collect();
+        self.observation.sdk_executables = self.observed_sdk_executables.into_iter().collect();
         self.observation
     }
 }

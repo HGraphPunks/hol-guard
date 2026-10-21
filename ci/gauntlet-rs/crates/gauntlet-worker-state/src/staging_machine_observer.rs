@@ -5,10 +5,12 @@
 use crate::linux_process::{observe_process, parse_proc_stat};
 use rustix::fs::{fstat, open, openat, statat, AtFlags, Dir, FileType, Mode, OFlags, Stat};
 use rustix::io::Errno;
+use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::Read;
 use std::os::fd::OwnedFd;
+use std::os::unix::fs::MetadataExt;
 
 const MACHINE_SLICE: &str = "/sys/fs/cgroup/machine.slice";
 const MAX_ENTRIES: usize = 512;
@@ -16,6 +18,9 @@ const MAX_SCOPES: usize = 32;
 const MAX_PIDS_PER_SCOPE: usize = 256;
 const MAX_CONTROL_BYTES: u64 = 4096;
 const MAX_PROC_BYTES: usize = 4096;
+const MAX_BUN_BYTES: u64 = 256 * 1024 * 1024;
+const SDK_ARGV: &[u8] =
+    b"/runtime/bun\0/runtime/public/private_cell_sdk_conformance.ts\0/runtime/public/episode.json";
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct ContainerProcessIdentity {
@@ -23,6 +28,94 @@ pub(crate) struct ContainerProcessIdentity {
     pub(crate) pid: u32,
     pub(crate) start_ticks: u64,
     pub(crate) cgroup: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct SdkExecutableIdentity {
+    pub(crate) container_id: String,
+    pub(crate) pid: u32,
+    pub(crate) start_ticks: u64,
+    pub(crate) cgroup: String,
+    pub(crate) argv_sha256: String,
+    pub(crate) executable_sha256: String,
+}
+
+fn exact_sdk_argv(raw: &[u8]) -> bool {
+    raw.len() <= 512
+        && raw
+            .iter()
+            .rposition(|byte| *byte != 0)
+            .is_some_and(|last| &raw[..=last] == SDK_ARGV)
+}
+
+fn read_cmdline(path: &str) -> Option<Vec<u8>> {
+    let mut raw = Vec::new();
+    File::open(path)
+        .ok()?
+        .take(513)
+        .read_to_end(&mut raw)
+        .ok()?;
+    (raw.len() <= 512).then_some(raw)
+}
+
+/// Reopen one already pidfd-checked container PID. The kernel's exe link is
+/// followed deliberately; descriptor bytes are hashed between two process,
+/// command and executable identity observations. A disappearing process is
+/// absent evidence, never a successful executable sample.
+pub(crate) fn observe_sdk_executable(
+    process: &ContainerProcessIdentity,
+) -> Option<SdkExecutableIdentity> {
+    observe_process(process.pid, process.start_ticks, &process.cgroup).ok()?;
+    let cmdline_path = format!("/proc/{}/cmdline", process.pid);
+    let first_argv = read_cmdline(&cmdline_path)?;
+    if !exact_sdk_argv(&first_argv) {
+        return None;
+    }
+    let executable_path = format!("/proc/{}/exe", process.pid);
+    let mut executable = File::open(&executable_path).ok()?;
+    let before = executable.metadata().ok()?;
+    if !before.is_file() || before.len() == 0 || before.len() > MAX_BUN_BYTES {
+        return None;
+    }
+    let mut digest = Sha256::new();
+    let mut count = 0_u64;
+    let mut chunk = [0_u8; 64 * 1024];
+    loop {
+        let read = executable.read(&mut chunk).ok()?;
+        if read == 0 {
+            break;
+        }
+        count = count.checked_add(read as u64)?;
+        if count > MAX_BUN_BYTES {
+            return None;
+        }
+        digest.update(&chunk[..read]);
+    }
+    if count != before.len() {
+        return None;
+    }
+    let after = executable.metadata().ok()?;
+    let visible = std::fs::metadata(&executable_path).ok()?;
+    let final_argv = read_cmdline(&cmdline_path)?;
+    observe_process(process.pid, process.start_ticks, &process.cgroup).ok()?;
+    if first_argv != final_argv
+        || before.dev() != after.dev()
+        || before.ino() != after.ino()
+        || before.len() != after.len()
+        || before.dev() != visible.dev()
+        || before.ino() != visible.ino()
+        || before.len() != visible.len()
+    {
+        return None;
+    }
+    Some(SdkExecutableIdentity {
+        container_id: process.container_id.clone(),
+        pid: process.pid,
+        start_ticks: process.start_ticks,
+        cgroup: process.cgroup.clone(),
+        argv_sha256: format!("{:x}", Sha256::digest(SDK_ARGV)),
+        executable_sha256: format!("{:x}", digest.finalize()),
+    })
 }
 
 pub(crate) struct MachineSliceSampler {
@@ -214,5 +307,14 @@ mod tests {
         for value in [b"1\n1\n".as_slice(), b"0\n", b"-1\n", b"1", b"4294967296\n"] {
             assert!(parse_pids(value).is_err());
         }
+    }
+
+    #[test]
+    fn sdk_command_requires_the_fixed_complete_argv() {
+        assert!(exact_sdk_argv(b"/runtime/bun\0/runtime/public/private_cell_sdk_conformance.ts\0/runtime/public/episode.json\0"));
+        assert!(!exact_sdk_argv(
+            b"/runtime/bun\0/runtime/public/private_cell_sdk_conformance.ts\0/runtime/public/other.json\0"
+        ));
+        assert!(!exact_sdk_argv(b"/runtime/bun\0/runtime/public/private_cell_sdk_conformance.ts\0/runtime/public/episode.json\0--unsafe"));
     }
 }

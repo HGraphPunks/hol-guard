@@ -19,6 +19,8 @@ use std::path::Path;
 
 const STAGING: &str = "/var/lib/hol-gauntlet-rust/staging-state";
 const INVALID: EvidenceError = EvidenceError::Invalid("invalid live staging agent process");
+const SDK_ARGV: &[u8] =
+    b"/runtime/bun\0/runtime/public/private_cell_sdk_conformance.ts\0/runtime/public/episode.json";
 
 #[derive(Debug, Clone, Copy)]
 pub struct StagingAgentProcessPins<'a> {
@@ -89,22 +91,26 @@ pub(crate) fn matching_agent_process(
         .as_str()
         .and_then(positive_decimal)
         .ok_or(INVALID)?;
-    if !exact_keys(
-        activity,
-        &[
-            "schema",
-            "sample_count",
-            "max_controller_tasks",
-            "product_slice_observed",
-            "product_slice_populated",
-            "max_product_tasks",
-            "container_processes",
-            "container_processes_exhaustively_observed",
-            "control_processes_exhaustively_observed",
-            "guard_causality_verified",
-            "execution_eligible",
-        ],
-    ) || activity["schema"] != "hol-gauntlet-staging-kernel-samples.v2"
+    let sdk_executable_samples = activity["schema"] == "hol-gauntlet-staging-kernel-samples.v3";
+    let mut fields = vec![
+        "schema",
+        "sample_count",
+        "max_controller_tasks",
+        "product_slice_observed",
+        "product_slice_populated",
+        "max_product_tasks",
+        "container_processes",
+        "container_processes_exhaustively_observed",
+        "control_processes_exhaustively_observed",
+        "guard_causality_verified",
+        "execution_eligible",
+    ];
+    if sdk_executable_samples {
+        fields.push("sdk_executables");
+    }
+    if !exact_keys(activity, &fields)
+        || (!sdk_executable_samples
+            && activity["schema"] != "hol-gauntlet-staging-kernel-samples.v2")
         || activity["sample_count"]
             .as_u64()
             .is_none_or(|count| !(1..=10_000).contains(&count))
@@ -157,6 +163,53 @@ pub(crate) fn matching_agent_process(
     if matched != 1 {
         return Err(INVALID);
     }
+    if sdk_executable_samples {
+        let sdk_rows = activity["sdk_executables"].as_array().ok_or(INVALID)?;
+        if sdk_rows.len() > 16 {
+            return Err(INVALID);
+        }
+        let mut sdk_seen = BTreeSet::new();
+        for row in sdk_rows {
+            if !exact_keys(
+                row,
+                &[
+                    "container_id",
+                    "pid",
+                    "start_ticks",
+                    "cgroup",
+                    "argv_sha256",
+                    "executable_sha256",
+                ],
+            ) {
+                return Err(INVALID);
+            }
+            let id = row["container_id"]
+                .as_str()
+                .filter(|id| is_sha256(id))
+                .ok_or(INVALID)?;
+            let pid = row["pid"]
+                .as_u64()
+                .and_then(|pid| u32::try_from(pid).ok())
+                .filter(|pid| *pid > 0)
+                .ok_or(INVALID)?;
+            let start = row["start_ticks"]
+                .as_u64()
+                .filter(|start| *start > 0)
+                .ok_or(INVALID)?;
+            if row["cgroup"] != format!("/machine.slice/libpod-{id}.scope/container")
+                || !seen.contains(&(id, pid, start))
+                || !sdk_seen.insert((id, pid, start))
+                || row["argv_sha256"]
+                    .as_str()
+                    .is_none_or(|hash| !is_sha256(hash))
+                || row["executable_sha256"]
+                    .as_str()
+                    .is_none_or(|hash| !is_sha256(hash))
+            {
+                return Err(INVALID);
+            }
+        }
+    }
     Ok((container_id.to_owned(), pid, start_ticks, rows.len()))
 }
 
@@ -190,6 +243,43 @@ pub(crate) fn matching_sdk_gate_process(record: &Value, activity: &Value) -> Res
         return Err(INVALID);
     }
     Ok((pid, start_ticks))
+}
+
+/// Require the Rust owner's live kernel executable bytes and complete Bun
+/// command to match an outside-pinned asset hash for the signed gate process.
+/// This is process identity, not proof of an SDK tool call or Guard decision.
+pub(crate) fn matching_sdk_executable(
+    record: &Value,
+    activity: &Value,
+    expected_bun_sha256: &str,
+) -> Result<()> {
+    if activity["schema"] != "hol-gauntlet-staging-kernel-samples.v3"
+        || !is_sha256(expected_bun_sha256)
+    {
+        return Err(INVALID);
+    }
+    let (pid, start_ticks) = matching_sdk_gate_process(record, activity)?;
+    let container_id = record["agent_container_inspection"]["Id"]
+        .as_str()
+        .ok_or(INVALID)?;
+    let cgroup = format!("/machine.slice/libpod-{container_id}.scope/container");
+    let count = activity["sdk_executables"]
+        .as_array()
+        .ok_or(INVALID)?
+        .iter()
+        .filter(|row| {
+            row["container_id"] == container_id
+                && row["pid"] == pid
+                && row["start_ticks"] == start_ticks
+                && row["cgroup"] == cgroup
+                && row["argv_sha256"] == sha256(SDK_ARGV)
+                && row["executable_sha256"] == expected_bun_sha256
+        })
+        .count();
+    if count != 1 {
+        return Err(INVALID);
+    }
+    Ok(())
 }
 
 /// The caller supplies the independently retained host prelaunch fields and
@@ -351,5 +441,55 @@ mod tests {
         activity["container_processes"][1]["start_ticks"] = json!(457);
         activity["container_processes"][1]["cgroup"] = json!("/system.slice/other");
         assert!(matching_sdk_gate_process(&record, &activity).is_err());
+    }
+
+    #[test]
+    fn sdk_executable_requires_outside_bun_bytes_and_exact_argv() {
+        let id = "a".repeat(64);
+        let bun = "b".repeat(64);
+        let cgroup = format!("/machine.slice/libpod-{id}.scope/container");
+        let record = json!({
+            "agent_container_inspection":{"Id":id,"State":{"Pid":123}},
+            "agent_identity":{"start_time":"456"},
+            "sdk_gate":{"observation":{"pid":124,"identity":{"start_time":"457"}}},
+        });
+        let mut activity = json!({
+            "schema":"hol-gauntlet-staging-kernel-samples.v3",
+            "sample_count":5,
+            "max_controller_tasks":2,
+            "product_slice_observed":true,
+            "product_slice_populated":true,
+            "max_product_tasks":3,
+            "container_processes_exhaustively_observed":false,
+            "control_processes_exhaustively_observed":false,
+            "guard_causality_verified":false,
+            "execution_eligible":false,
+            "container_processes":[
+                {"container_id":id,"pid":123,"start_ticks":456,"cgroup":cgroup},
+                {"container_id":id,"pid":124,"start_ticks":457,"cgroup":cgroup},
+            ],
+            "sdk_executables":[{
+                "container_id":id,
+                "pid":124,
+                "start_ticks":457,
+                "cgroup":cgroup,
+                "argv_sha256":sha256(SDK_ARGV),
+                "executable_sha256":bun,
+            }],
+        });
+        assert!(matching_sdk_executable(&record, &activity, &bun).is_ok());
+        assert!(matching_sdk_executable(&record, &activity, &"c".repeat(64)).is_err());
+        activity["sdk_executables"][0]["argv_sha256"] = json!("d".repeat(64));
+        assert!(matching_sdk_executable(&record, &activity, &bun).is_err());
+        activity["sdk_executables"][0]["argv_sha256"] = json!(sha256(SDK_ARGV));
+        activity["sdk_executables"][0]["start_ticks"] = json!(458);
+        assert!(matching_sdk_executable(&record, &activity, &bun).is_err());
+        activity["sdk_executables"][0]["start_ticks"] = json!(457);
+        let duplicate = activity["sdk_executables"][0].clone();
+        activity["sdk_executables"]
+            .as_array_mut()
+            .unwrap()
+            .push(duplicate);
+        assert!(matching_sdk_executable(&record, &activity, &bun).is_err());
     }
 }

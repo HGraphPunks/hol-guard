@@ -25,6 +25,7 @@ fn hex(raw: &str, len: usize) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
+#[derive(Clone, Copy)]
 struct SuiteIdentity<'a> {
     build_job_id: &'a str,
     source_sha: &'a str,
@@ -33,6 +34,7 @@ struct SuiteIdentity<'a> {
     private_manifest_sha256: &'a str,
     prefix_tree_sha256: &'a str,
     worker_generation_sha256: &'a str,
+    sdk_bun_sha256: Option<&'a str>,
 }
 
 #[derive(Clone, Copy)]
@@ -40,6 +42,7 @@ enum SuiteMode {
     Kernel,
     Agent,
     SdkGate,
+    SdkExecutable,
 }
 
 fn assemble(
@@ -61,6 +64,11 @@ fn assemble(
         .all(|value| hex(value, 64))
     {
         return Err("invalid outside suite identity".to_owned());
+    }
+    if matches!(mode, SuiteMode::SdkExecutable)
+        && identity.sdk_bun_sha256.is_none_or(|value| !hex(value, 64))
+    {
+        return Err("invalid outside SDK Bun digest".to_owned());
     }
     let mut runs = BTreeSet::new();
     let mut keys = BTreeSet::new();
@@ -96,6 +104,7 @@ fn assemble(
         SuiteMode::Kernel => "hol-gauntlet-staging-suite-pins.v2",
         SuiteMode::Agent => "hol-gauntlet-staging-suite-pins.v3",
         SuiteMode::SdkGate => "hol-gauntlet-staging-suite-pins.v4",
+        SuiteMode::SdkExecutable => "hol-gauntlet-staging-suite-pins.v5",
     };
     let mut manifest: Value = json!({
         "schema":schema,
@@ -110,11 +119,18 @@ fn assemble(
         "live_kernel_samples_required":true,
         "execution_eligible":false,
     });
-    if matches!(mode, SuiteMode::Agent | SuiteMode::SdkGate) {
+    if matches!(
+        mode,
+        SuiteMode::Agent | SuiteMode::SdkGate | SuiteMode::SdkExecutable
+    ) {
         manifest["agent_process_samples_required"] = json!(true);
     }
-    if matches!(mode, SuiteMode::SdkGate) {
+    if matches!(mode, SuiteMode::SdkGate | SuiteMode::SdkExecutable) {
         manifest["sdk_gate_process_samples_required"] = json!(true);
+    }
+    if matches!(mode, SuiteMode::SdkExecutable) {
+        manifest["sdk_executable_samples_required"] = json!(true);
+        manifest["sdk_bun_sha256"] = json!(identity.sdk_bun_sha256.unwrap());
     }
     canonicalize(manifest.to_string().as_bytes())
         .map_err(|_| "suite pin manifest could not be canonicalized".to_owned())
@@ -125,12 +141,13 @@ fn run() -> Result<Value, String> {
         return Err("macOS host suite pin artifact required".to_owned());
     }
     let args: Vec<String> = std::env::args().collect();
-    if (args.len() != 21 && args.len() != 22)
+    if (args.len() != 21 && args.len() != 22 && args.len() != 23)
         || (args.len() == 22
             && args[21] != "--agent-processes"
             && args[21] != "--sdk-gate-processes")
+        || (args.len() == 23 && args[21] != "--sdk-executable-sha256")
     {
-        return Err("usage: gauntlet-host-staging-suite-pins PRIVATE_HOST_PIN_DIR BUILD_JOB SOURCE_SHA VERSION CONFIG_SHA PRIVATE_MANIFEST_SHA PREFIX_TREE_SHA WORKER_SHA SUCCESS_RUN SUCCESS_RECORD INPUT_RUN INPUT_RECORD INJECTION_RUN INJECTION_RECORD BOUNDARY_RUN BOUNDARY_RECORD TIMEOUT_RUN TIMEOUT_RECORD CANCEL_RUN CANCEL_RECORD [--agent-processes|--sdk-gate-processes]".to_owned());
+        return Err("usage: gauntlet-host-staging-suite-pins PRIVATE_HOST_PIN_DIR BUILD_JOB SOURCE_SHA VERSION CONFIG_SHA PRIVATE_MANIFEST_SHA PREFIX_TREE_SHA WORKER_SHA SUCCESS_RUN SUCCESS_RECORD INPUT_RUN INPUT_RECORD INJECTION_RUN INJECTION_RECORD BOUNDARY_RUN BOUNDARY_RECORD TIMEOUT_RUN TIMEOUT_RECORD CANCEL_RUN CANCEL_RECORD [--agent-processes|--sdk-gate-processes|--sdk-executable-sha256 BUN_SHA256]".to_owned());
     }
     let identity = SuiteIdentity {
         build_job_id: &args[2],
@@ -140,6 +157,7 @@ fn run() -> Result<Value, String> {
         private_manifest_sha256: &args[6],
         prefix_tree_sha256: &args[7],
         worker_generation_sha256: &args[8],
+        sdk_bun_sha256: args.get(22).map(String::as_str),
     };
     let selectors = [
         (args[9].as_str(), args[10].as_str()),
@@ -154,6 +172,7 @@ fn run() -> Result<Value, String> {
     let mode = match args.get(21).map(String::as_str) {
         Some("--agent-processes") => SuiteMode::Agent,
         Some("--sdk-gate-processes") => SuiteMode::SdkGate,
+        Some("--sdk-executable-sha256") => SuiteMode::SdkExecutable,
         _ => SuiteMode::Kernel,
     };
     let bytes = assemble(&journal, &identity, &selectors, mode)?;
@@ -165,6 +184,7 @@ fn run() -> Result<Value, String> {
             SuiteMode::Kernel => "hol-gauntlet-host-staging-suite-pins-diagnostic.v2",
             SuiteMode::Agent => "hol-gauntlet-host-staging-suite-pins-diagnostic.v3",
             SuiteMode::SdkGate => "hol-gauntlet-host-staging-suite-pins-diagnostic.v4",
+            SuiteMode::SdkExecutable => "hol-gauntlet-host-staging-suite-pins-diagnostic.v5",
         },
         "path":format!("{}/{}.{}.staging-suite-pins.json",args[1],identity.build_job_id,selectors[0].0),
         "manifest_sha256":digest,
@@ -227,6 +247,7 @@ mod tests {
             private_manifest_sha256: &private,
             prefix_tree_sha256: &prefix,
             worker_generation_sha256: &worker,
+            sdk_bun_sha256: None,
         };
         let selectors: [(&str, &str); 6] =
             std::array::from_fn(|index| (records[index].0.as_str(), records[index].1.as_str()));
@@ -252,6 +273,22 @@ mod tests {
         assert_eq!(sdk["schema"], "hol-gauntlet-staging-suite-pins.v4");
         assert_eq!(sdk["agent_process_samples_required"], true);
         assert_eq!(sdk["sdk_gate_process_samples_required"], true);
+        let bun = "f".repeat(64);
+        let sdk_identity = SuiteIdentity {
+            sdk_bun_sha256: Some(&bun),
+            ..identity
+        };
+        let exe_raw = assemble(
+            &journal,
+            &sdk_identity,
+            &selectors,
+            SuiteMode::SdkExecutable,
+        )
+        .unwrap();
+        let exe: Value = serde_json::from_slice(&exe_raw).unwrap();
+        assert_eq!(exe["schema"], "hol-gauntlet-staging-suite-pins.v5");
+        assert_eq!(exe["sdk_executable_samples_required"], true);
+        assert_eq!(exe["sdk_bun_sha256"], bun);
         assert!(assemble(
             &journal,
             &identity,
