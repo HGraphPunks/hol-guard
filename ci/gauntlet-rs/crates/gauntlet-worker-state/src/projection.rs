@@ -46,6 +46,12 @@ fn running_value(
 }
 
 fn terminal_value(receipt: TerminalReceipt) -> Value {
+    // The v1 wire response cannot carry the outside controller-key pin.
+    // A keyed local terminal must stay unknown until a versioned host reader
+    // authenticates that pin and independently scores its observations.
+    if receipt.controller_key_pin_sha256.is_some() {
+        return json!({"state": "unknown"});
+    }
     let status = match receipt.status {
         TerminalOutcome::Passed => "passed",
         TerminalOutcome::Failed => "failed",

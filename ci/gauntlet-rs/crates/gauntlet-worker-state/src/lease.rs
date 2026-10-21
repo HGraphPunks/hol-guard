@@ -147,6 +147,7 @@ impl RunReservationJournal {
         process: crate::ProcessIdentity,
         exit_code: i32,
         status: TerminalOutcome,
+        expected_controller_key_pin_sha256: Option<&str>,
     ) -> Result<TerminalReceipt, ReservationError> {
         if !self.root_owned {
             return Err(ReservationError::UnsafeRoot);
@@ -179,6 +180,7 @@ impl RunReservationJournal {
             process,
             exit_code,
             status,
+            expected_controller_key_pin_sha256,
         )
     }
 }

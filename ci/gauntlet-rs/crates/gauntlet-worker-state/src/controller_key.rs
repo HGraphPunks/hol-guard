@@ -186,7 +186,7 @@ fn require_started(
     Ok(())
 }
 
-fn write_pin(
+pub(crate) fn write_pin(
     journal: &RunReservationJournal,
     started: &StartedMarker,
     public_key_hex: &str,
@@ -236,7 +236,7 @@ pub(crate) fn pin_controller_key_under_lease(
     write_pin(journal, started, key.public_key_hex(), true)
 }
 
-fn read_pin(
+pub(crate) fn read_pin(
     journal: &RunReservationJournal,
     started: &StartedMarker,
     require_root: bool,

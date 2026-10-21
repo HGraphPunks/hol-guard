@@ -10,7 +10,8 @@ use sha2::{Digest, Sha256};
 use std::fs::File;
 use std::io::Write;
 
-const TERMINAL_SCHEMA: &str = "hol-gauntlet-worker-terminal.v1";
+const TERMINAL_SCHEMA_V1: &str = "hol-gauntlet-worker-terminal.v1";
+const TERMINAL_SCHEMA_V2: &str = "hol-gauntlet-worker-terminal.v2";
 const MAX_TERMINAL_BYTES: u64 = 2048;
 const MAX_REPORT_BYTES: u64 = 16 * 1024 * 1024;
 
@@ -53,6 +54,8 @@ pub struct TerminalReceipt {
     pub deployment_digest: String,
     pub worker_generation: String,
     pub started_marker_sha256: String,
+    pub controller_public_key_hex: Option<String>,
+    pub controller_key_pin_sha256: Option<String>,
     pub report_sha256: String,
     pub process: ProcessIdentity,
     pub exit_code: i32,
@@ -81,6 +84,51 @@ fn valid_process_outcome(
         && process.start_ticks > 0
         && (-128..=255).contains(&exit_code)
         && (status != TerminalOutcome::Passed || exit_code == 0)
+}
+
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+fn keyed_terminal_pin(
+    journal: &RunReservationJournal,
+    started: &crate::StartedMarker,
+    expected_pin_sha256: &str,
+) -> Result<(String, String), ReservationError> {
+    if !hex(expected_pin_sha256, 64) {
+        return Err(ReservationError::InvalidPins);
+    }
+    let pin = crate::controller_key::read_pin(journal, started, journal.root_owned)
+        .map_err(|_| ReservationError::InvalidMarker)?;
+    if pin.raw_sha256 != expected_pin_sha256
+        || started.controller_public_key_hex.as_deref() != Some(&pin.public_key_hex)
+    {
+        return Err(ReservationError::InvalidMarker);
+    }
+    Ok((pin.public_key_hex, pin.raw_sha256))
+}
+
+fn terminal_key_fields(
+    journal: &RunReservationJournal,
+    started: &crate::StartedMarker,
+    expected_pin_sha256: Option<&str>,
+) -> Result<Option<(String, String)>, ReservationError> {
+    if started.controller_public_key_hex.is_none() {
+        if expected_pin_sha256.is_some() {
+            return Err(ReservationError::InvalidPins);
+        }
+        let name = format!("{}.controller-key.json", started.job_id);
+        match statat(&journal.root, name.as_str(), AtFlags::SYMLINK_NOFOLLOW) {
+            Ok(_) => return Err(ReservationError::InvalidMarker),
+            Err(Errno::NOENT) => return Ok(None),
+            Err(error) => return Err(io(error)),
+        }
+    }
+    let expected = expected_pin_sha256.ok_or(ReservationError::InvalidPins)?;
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    return keyed_terminal_pin(journal, started, expected).map(Some);
+    #[cfg(not(all(target_os = "linux", target_arch = "aarch64")))]
+    {
+        let _ = (journal, expected);
+        Err(ReservationError::InvalidMarker)
+    }
 }
 
 fn create_durable(
@@ -137,6 +185,7 @@ impl RunReservationJournal {
             process,
             exit_code,
             status,
+            None,
         )
     }
 
@@ -155,6 +204,7 @@ impl RunReservationJournal {
         process: ProcessIdentity,
         exit_code: i32,
         status: TerminalOutcome,
+        expected_controller_key_pin_sha256: Option<&str>,
     ) -> Result<TerminalReceipt, ReservationError> {
         if request.action() != WorkerAction::Run
             || !request.matches_deployment(source_sha, deployment_digest)
@@ -186,6 +236,7 @@ impl RunReservationJournal {
         if started.sha256 != expected_started_sha256 {
             return Err(ReservationError::InvalidMarker);
         }
+        let key_fields = terminal_key_fields(self, &started, expected_controller_key_pin_sha256)?;
         let job_id = request.job_id();
         match statat(
             &self.root,
@@ -197,8 +248,8 @@ impl RunReservationJournal {
             Err(error) => return Err(io(error)),
         }
         let report_sha256 = digest(report_raw);
-        let value = json!({
-            "schema": TERMINAL_SCHEMA,
+        let mut value = json!({
+            "schema": if key_fields.is_some() { TERMINAL_SCHEMA_V2 } else { TERMINAL_SCHEMA_V1 },
             "source_sha": source_sha,
             "job_id": job_id,
             "deployment_digest": deployment_digest,
@@ -210,6 +261,10 @@ impl RunReservationJournal {
             "exit_code": exit_code,
             "status": status.as_str(),
         });
+        if let Some((public, pin_sha256)) = &key_fields {
+            value["controller_public_key_hex"] = json!(public);
+            value["controller_key_pin_sha256"] = json!(pin_sha256);
+        }
         let bytes = canonicalize(value.to_string().as_bytes())
             .map_err(|_| ReservationError::InvalidMarker)?;
         if bytes.len() as u64 > MAX_TERMINAL_BYTES {
@@ -217,12 +272,17 @@ impl RunReservationJournal {
         }
         create_durable(&self.root, &report_name(job_id), report_raw)?;
         create_durable(&self.root, &terminal_name(job_id), &bytes)?;
+        if key_fields.is_some() {
+            terminal_key_fields(self, &started, expected_controller_key_pin_sha256)?;
+        }
         Ok(TerminalReceipt {
             source_sha: source_sha.to_owned(),
             job_id: job_id.to_owned(),
             deployment_digest: deployment_digest.to_owned(),
             worker_generation: worker_generation.to_owned(),
             started_marker_sha256: expected_started_sha256.to_owned(),
+            controller_public_key_hex: key_fields.as_ref().map(|fields| fields.0.clone()),
+            controller_key_pin_sha256: key_fields.as_ref().map(|fields| fields.1.clone()),
             report_sha256,
             process,
             exit_code,
@@ -279,9 +339,25 @@ impl RunReservationJournal {
             .as_str()
             .filter(|sha| hex(sha, 64))
             .ok_or(ReservationError::InvalidMarker)?;
-        if fields.len() != 11
-            || value["schema"] != TERMINAL_SCHEMA
-            || value["source_sha"] != source_sha
+        let key_fields = if let Some(public) = started.controller_public_key_hex.as_deref() {
+            let pin_sha256 = value["controller_key_pin_sha256"]
+                .as_str()
+                .filter(|sha| hex(sha, 64))
+                .ok_or(ReservationError::InvalidMarker)?;
+            if fields.len() != 13
+                || value["schema"] != TERMINAL_SCHEMA_V2
+                || value["controller_public_key_hex"] != public
+            {
+                return Err(ReservationError::InvalidMarker);
+            }
+            terminal_key_fields(self, &started, Some(pin_sha256))?
+        } else {
+            if fields.len() != 11 || value["schema"] != TERMINAL_SCHEMA_V1 {
+                return Err(ReservationError::InvalidMarker);
+            }
+            terminal_key_fields(self, &started, None)?
+        };
+        if value["source_sha"] != source_sha
             || value["job_id"] != job_id
             || value["deployment_digest"] != deployment_digest
             || value["worker_generation"] != worker_generation
@@ -313,6 +389,8 @@ impl RunReservationJournal {
             deployment_digest: deployment_digest.to_owned(),
             worker_generation: worker_generation.to_owned(),
             started_marker_sha256: started.sha256,
+            controller_public_key_hex: key_fields.as_ref().map(|fields| fields.0.clone()),
+            controller_key_pin_sha256: key_fields.as_ref().map(|fields| fields.1.clone()),
             report_sha256: report_sha256.to_owned(),
             process,
             exit_code,
@@ -321,3 +399,7 @@ impl RunReservationJournal {
         }))
     }
 }
+
+#[cfg(all(test, target_os = "linux", target_arch = "aarch64"))]
+#[path = "terminal_keyed_tests.rs"]
+mod keyed_tests;
