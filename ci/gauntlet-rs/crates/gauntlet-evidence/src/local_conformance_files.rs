@@ -1,0 +1,171 @@
+//! Linux Root diagnostic over an outside-pinned config, package and controller.
+//! It never starts a control or grants candidate execution.
+
+use crate::local_conformance_package::{
+    verify_local_conformance_package_ineligible, LocalConformancePackageShadow, EXECUTION_SOURCES,
+};
+use crate::public_files::PublicRootReader;
+use crate::{
+    load_runner_config_from_paths, verify_controller_tree, verify_runner_file_assets,
+    EvidenceError, Result,
+};
+use rustix::process::geteuid;
+use serde_json::{json, Map, Value};
+use std::collections::BTreeMap;
+use std::path::Path;
+
+const MCP_IMAGE_ID: &str =
+    "sha256:827eaec482942aa5805beac1a75afd755b0daebade43024883b7d1637c27e52d";
+
+fn invalid(message: &'static str) -> EvidenceError {
+    EvidenceError::Invalid(message)
+}
+
+fn observed_platform() -> Result<Value> {
+    let kernel = std::fs::read_to_string("/proc/sys/kernel/osrelease")
+        .map_err(|error| EvidenceError::Io(error.to_string()))?;
+    let kernel = kernel.trim_end_matches('\n');
+    if kernel.is_empty() || kernel.len() > 128 || !kernel.is_ascii() {
+        return Err(invalid("Linux kernel release unavailable"));
+    }
+    let release = PublicRootReader::open(Path::new("/"))?.read_file("usr/lib/os-release", 8192)?;
+    let release = std::str::from_utf8(&release).map_err(|_| invalid("OS release is not UTF-8"))?;
+    let mut fields = BTreeMap::new();
+    for line in release.lines() {
+        if line.starts_with('#') || line.is_empty() {
+            continue;
+        }
+        let (key, value) = line
+            .split_once('=')
+            .ok_or(invalid("malformed OS release"))?;
+        let value = value.trim_matches('"');
+        if matches!(key, "ID" | "VERSION_ID")
+            && (fields.insert(key, value).is_some() || value.is_empty() || value.len() > 128)
+        {
+            return Err(invalid("ambiguous OS release"));
+        }
+    }
+    Ok(json!({
+        "kernel_release":kernel,
+        "machine":std::env::consts::ARCH,
+        "os_id":fields.get("ID").ok_or(invalid("OS ID missing"))?,
+        "os_version":fields.get("VERSION_ID").ok_or(invalid("OS version missing"))?,
+    }))
+}
+
+fn expected_runtime(config: &Value) -> Result<Value> {
+    let options = &config["runtime"];
+    let assets = &config["assets"];
+    let private = options["private_cell"]
+        .as_object()
+        .ok_or(invalid("private-cell config missing"))?;
+    let mut cell = Map::new();
+    cell.insert(
+        "artifact_manifest_sha256".into(),
+        assets["private_cell"]["sha256"].clone(),
+    );
+    for name in [
+        "initializer_sha256",
+        "native_sha256",
+        "runtime_tree_digest",
+        "idmap_runtime",
+        "cpu_profile",
+    ] {
+        cell.insert(
+            name.into(),
+            private
+                .get(name)
+                .cloned()
+                .ok_or(invalid("private-cell tuple missing"))?,
+        );
+    }
+    let mut expected = json!({
+        "source_sha":options["guard_source_sha"],
+        "prefix_digest":assets["guard_prefix"]["sha256"],
+        "bwrap_sha256":options["guard_bwrap_sha256"],
+        "executor_image_id":options["guard_executor_image_id"],
+        "mcp_image_id":MCP_IMAGE_ID,
+        "private_cell":Value::Object(cell),
+    });
+    if let Some(version) = options.get("guard_package_version") {
+        expected["package_version"] = version.clone();
+    }
+    Ok(expected)
+}
+
+/// Read the exact config-pinned package and 50 source files from a separately
+/// pinned Root-owned controller tree. The control records are signed openings
+/// only; this path intentionally omits independent SDK/Native/kernel verdicts.
+pub fn observe_local_conformance_package_from_paths_ineligible(
+    config_path: &Path,
+    outside_config_sha256: &str,
+    asset_root: &Path,
+    controller_root: &Path,
+    outside_controller_tree_sha256: &str,
+) -> Result<LocalConformancePackageShadow> {
+    if geteuid().as_raw() != 0 {
+        return Err(invalid("Linux Root required for conformance shadow"));
+    }
+    let controller = verify_controller_tree(controller_root, outside_controller_tree_sha256)?;
+    let loaded = load_runner_config_from_paths(config_path, outside_config_sha256, asset_root)?;
+    if loaded.verified.version != 7 {
+        return Err(invalid("v7 local conformance config required"));
+    }
+    let config = loaded.verified.config.value();
+    let expected = expected_runtime(config)?;
+    let file_assets = verify_runner_file_assets(&loaded.verified, asset_root)?;
+    let conformance = &config["assets"]["conformance"];
+    let package_sha256 = conformance["sha256"]
+        .as_str()
+        .ok_or(invalid("conformance pin missing"))?;
+    if file_assets.get("conformance").map(String::as_str) != Some(package_sha256) {
+        return Err(invalid("conformance file not in verified asset inventory"));
+    }
+    let package_path = conformance["path"]
+        .as_str()
+        .ok_or(invalid("conformance path missing"))?;
+    let package = PublicRootReader::open(asset_root)?.read_file(package_path, 8 * 1024 * 1024)?;
+    let source_reader = PublicRootReader::open(controller_root)?;
+    let mut source_hashes = BTreeMap::new();
+    for name in EXECUTION_SOURCES {
+        let path = format!("ci/gauntlet/benchmark/{name}");
+        source_hashes.insert(name.to_owned(), source_reader.file_digest(&path, false)?);
+    }
+    let platform = observed_platform()?;
+    let shadow = verify_local_conformance_package_ineligible(
+        &package,
+        package_sha256,
+        &expected,
+        &platform,
+        &source_hashes,
+        None,
+    )?;
+    let after = verify_controller_tree(controller_root, outside_controller_tree_sha256)?;
+    if after != controller
+        || verify_runner_file_assets(&loaded.verified, asset_root)? != file_assets
+    {
+        return Err(invalid("conformance inputs changed while reading"));
+    }
+    Ok(shadow)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expected_tuple_comes_from_config_not_package() {
+        let config = json!({
+            "runtime":{"guard_source_sha":"source", "guard_bwrap_sha256":"bwrap", "guard_executor_image_id":"executor", "guard_package_version":"3.49.0",
+                "private_cell":{"initializer_sha256":"init", "native_sha256":"native", "runtime_tree_digest":"tree", "idmap_runtime":"idmap", "cpu_profile":"cpu"}},
+            "assets":{"guard_prefix":{"sha256":"prefix"}, "private_cell":{"sha256":"manifest"}}
+        });
+        let expected = expected_runtime(&config).unwrap();
+        assert_eq!(
+            expected["private_cell"]["artifact_manifest_sha256"],
+            "manifest"
+        );
+        assert_eq!(expected["prefix_digest"], "prefix");
+        assert_eq!(expected["package_version"], "3.49.0");
+    }
+}
