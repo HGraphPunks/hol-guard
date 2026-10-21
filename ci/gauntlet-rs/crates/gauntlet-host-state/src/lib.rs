@@ -47,9 +47,14 @@ mod vm_progress;
 pub use vm_progress::{VmProgressError, VmProgressPlan};
 mod vm_candidate_result;
 pub use vm_candidate_result::{VmCandidateResultError, VmCandidateResultPlan};
+mod vm_candidate_result_hostbound;
+pub use vm_candidate_result_hostbound::{
+    VmHostBoundCandidateResultError, VmHostBoundCandidateResultPlan,
+};
 mod vm_candidate_build;
 pub use vm_candidate_build::{
-    VmCandidateBuildError, VmCandidateBuildInvocation, VmCandidateBuildPlan,
+    VmCandidateBuildError, VmCandidateBuildInvocation, VmCandidateBuildLaunchError,
+    VmCandidateBuildPlan,
 };
 mod vm_source_archive;
 pub use vm_source_archive::{VmSourceArchiveError, VmSourceArchiveProbePlan};

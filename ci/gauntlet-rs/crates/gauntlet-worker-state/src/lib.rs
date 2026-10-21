@@ -103,6 +103,8 @@ mod candidate_archive;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_capture;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod candidate_host_anchor;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_result_read;
 mod candidate_wheel;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
@@ -173,7 +175,8 @@ pub use builder_candidate_preflight::{CandidatePreflightError, CandidateRuntimeP
 pub use builder_candidate_process::CandidateProcessError;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use builder_candidate_run::{
-    run_fixed_local_candidate_ineligible, CandidateRunError, CandidateRunProof,
+    run_fixed_local_candidate_hostbound_ineligible, run_fixed_local_candidate_ineligible,
+    CandidateRunError, CandidateRunProof,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use builder_context::{
@@ -210,8 +213,11 @@ pub use candidate_capture::{
     CandidateCaptureError, CandidateCaptureProof, CandidateWheelLiveProof,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use candidate_host_anchor::HostCandidateRunAnchor;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_result_read::{
-    read_fixed_candidate_result_ineligible, CandidateResultReadError, CandidateResultReadProof,
+    read_fixed_candidate_result_ineligible, read_fixed_hostbound_candidate_result_ineligible,
+    CandidateResultReadError, CandidateResultReadProof, HostBoundCandidateResultPins,
 };
 pub use candidate_wheel::{inspect_candidate_wheel, CandidateWheelError, CandidateWheelProof};
 #[cfg(target_os = "linux")]

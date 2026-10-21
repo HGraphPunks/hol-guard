@@ -1,11 +1,15 @@
 //! Read-only reconciliation of a Rust candidate builder result with retained
 //! Root and unprivileged build files. No host trust anchor is created here.
 
+use crate::builder_candidate_preflight::CandidateRuntimePins;
 use crate::builder_candidate_source::{
     open_fixed_build_slot, same_file, unadmitted_export_identity, verify_captured_source,
 };
 use crate::builder_image_context::{python_worker_lock, verify_python_lock, RUST_STATE};
 use crate::candidate_capture::{inactive, verify_captured};
+use crate::candidate_host_anchor::{
+    verify_running_binary, HostCandidateRunAnchor, HOST_ANCHOR_FILE,
+};
 use crate::{hex, RunReservationJournal};
 use gauntlet_contracts::{canonicalize, is_git_sha};
 use gauntlet_evidence::valid_package_version;
@@ -33,6 +37,7 @@ pub enum CandidateResultReadError {
     InvalidResult,
     RetainedMismatch,
     CleanupUncertain,
+    HostAnchorMismatch,
 }
 
 impl fmt::Display for CandidateResultReadError {
@@ -48,6 +53,7 @@ impl fmt::Display for CandidateResultReadError {
                 "candidate result differs from retained source, logs or archive"
             }
             Self::CleanupUncertain => "candidate container, cgroup or profile absence unproven",
+            Self::HostAnchorMismatch => "host-bound candidate anchor or reader binary differs",
         })
     }
 }
@@ -64,11 +70,55 @@ pub struct CandidateResultReadProof {
     version: String,
     client_pid: u32,
     client_start_ticks: u64,
+    host_bound: Option<HostBoundProofFields>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct HostBoundProofFields {
+    host_pin_sha256: String,
+    host_anchor_sha256: String,
+    runner_binary_sha256: String,
+    result_reader_binary_sha256: String,
+    image_id: String,
+    policy_sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostBoundCandidateResultPins {
+    pub job_id: String,
+    pub source_sha: String,
+    pub source_archive_sha256: String,
+    pub result_sha256: String,
+    pub archive_sha256: String,
+    pub version: String,
+    pub controller_tree_sha256: String,
+    pub image_id: String,
+    pub policy_sha256: String,
+    pub runtime: CandidateRuntimePins,
+    pub anchor: HostCandidateRunAnchor,
+}
+
+impl HostBoundCandidateResultPins {
+    fn valid(&self) -> bool {
+        hex(&self.job_id, 16)
+            && is_git_sha(&self.source_sha)
+            && hex(&self.source_archive_sha256, 64)
+            && hex(&self.result_sha256, 64)
+            && hex(&self.archive_sha256, 64)
+            && valid_package_version(&self.version)
+            && hex(&self.controller_tree_sha256, 64)
+            && self
+                .image_id
+                .strip_prefix("sha256:")
+                .is_some_and(|digest| hex(digest, 64))
+            && hex(&self.policy_sha256, 64)
+            && self.policy_sha256 == self.anchor.policy_sha256
+    }
 }
 
 impl CandidateResultReadProof {
     pub fn to_json(&self) -> Value {
-        json!({
+        let mut body = json!({
             "schema":"hol-gauntlet-candidate-result-read-shadow.v1",
             "job_id":self.job_id,
             "source_sha":self.source_sha,
@@ -83,7 +133,18 @@ impl CandidateResultReadProof {
             "host_anchor_present":false,
             "artifact_admitted":false,
             "execution_eligible":false,
-        })
+        });
+        if let Some(bound) = &self.host_bound {
+            body["schema"] = json!("hol-gauntlet-candidate-result-read-shadow.v2");
+            body["host_anchor_present"] = json!(true);
+            body["host_pin_sha256"] = json!(bound.host_pin_sha256);
+            body["host_anchor_sha256"] = json!(bound.host_anchor_sha256);
+            body["runner_binary_sha256"] = json!(bound.runner_binary_sha256);
+            body["result_reader_binary_sha256"] = json!(bound.result_reader_binary_sha256);
+            body["image_id"] = json!(bound.image_id);
+            body["policy_sha256"] = json!(bound.policy_sha256);
+        }
+        body
     }
 }
 
@@ -139,6 +200,7 @@ fn parse_result(
     source_archive_sha256: &str,
     archive_sha256: &str,
     version: &str,
+    host_bound: Option<&HostBoundCandidateResultPins>,
 ) -> Result<Value, CandidateResultReadError> {
     if canonicalize(raw).map_err(|_| CandidateResultReadError::InvalidResult)? != raw {
         return Err(CandidateResultReadError::InvalidResult);
@@ -172,7 +234,22 @@ fn parse_result(
         "unadmitted_export_bytes",
         "unadmitted_export_sha256",
     ];
-    if object.len() != keys.len() || !keys.iter().all(|key| object.contains_key(*key)) {
+    let host_keys = [
+        "host_pin_sha256",
+        "host_nonce_hex",
+        "host_anchor_sha256",
+        "runner_binary_sha256",
+        "result_reader_binary_sha256",
+    ];
+    let extra_count = if host_bound.is_some() {
+        host_keys.len()
+    } else {
+        0
+    };
+    if object.len() != keys.len() + extra_count
+        || !keys.iter().all(|key| object.contains_key(*key))
+        || host_bound.is_some() && !host_keys.iter().all(|key| object.contains_key(*key))
+    {
         return Err(CandidateResultReadError::InvalidResult);
     }
     let image = value["image_id"]
@@ -181,7 +258,12 @@ fn parse_result(
     let runtime = value["runtime_pins"]
         .as_object()
         .ok_or(CandidateResultReadError::InvalidResult)?;
-    if value["schema"] != "hol-gauntlet-candidate-build-result.v1"
+    let schema = if host_bound.is_some() {
+        "hol-gauntlet-candidate-build-result.v2"
+    } else {
+        "hol-gauntlet-candidate-build-result.v1"
+    };
+    if value["schema"] != schema
         || value["job_id"] != job_id
         || value["source_sha"] != source_sha
         || value["source_archive_sha256"] != source_archive_sha256
@@ -229,6 +311,19 @@ fn parse_result(
     {
         return Err(CandidateResultReadError::InvalidResult);
     }
+    if let Some(bound) = host_bound {
+        if value["host_pin_sha256"] != bound.anchor.host_pin_sha256
+            || value["host_nonce_hex"] != bound.anchor.host_nonce_hex
+            || value["runner_binary_sha256"] != bound.anchor.runner_binary_sha256
+            || value["result_reader_binary_sha256"] != bound.anchor.result_reader_binary_sha256
+            || !hex(value["host_anchor_sha256"].as_str().unwrap_or(""), 64)
+            || value["image_id"] != bound.image_id
+            || value["policy_sha256"] != bound.policy_sha256
+            || value["runtime_pins"] != bound.runtime.to_json()
+        {
+            return Err(CandidateResultReadError::HostAnchorMismatch);
+        }
+    }
     Ok(value)
 }
 
@@ -239,6 +334,49 @@ pub fn read_fixed_candidate_result_ineligible(
     result_sha256: &str,
     archive_sha256: &str,
     version: &str,
+) -> Result<CandidateResultReadProof, CandidateResultReadError> {
+    read_candidate_result_inner(
+        job_id,
+        source_sha,
+        source_archive_sha256,
+        result_sha256,
+        archive_sha256,
+        version,
+        None,
+    )
+}
+
+pub fn read_fixed_hostbound_candidate_result_ineligible(
+    pins: &HostBoundCandidateResultPins,
+) -> Result<CandidateResultReadProof, CandidateResultReadError> {
+    if geteuid().as_raw() != 0 {
+        return Err(CandidateResultReadError::RootRequired);
+    }
+    if !pins.valid() {
+        return Err(CandidateResultReadError::InvalidPins);
+    }
+    verify_running_binary(&pins.anchor.result_reader_binary_sha256)
+        .map_err(|_| CandidateResultReadError::HostAnchorMismatch)?;
+    read_candidate_result_inner(
+        &pins.job_id,
+        &pins.source_sha,
+        &pins.source_archive_sha256,
+        &pins.result_sha256,
+        &pins.archive_sha256,
+        &pins.version,
+        Some(pins),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn read_candidate_result_inner(
+    job_id: &str,
+    source_sha: &str,
+    source_archive_sha256: &str,
+    result_sha256: &str,
+    archive_sha256: &str,
+    version: &str,
+    host_bound: Option<&HostBoundCandidateResultPins>,
 ) -> Result<CandidateResultReadProof, CandidateResultReadError> {
     if geteuid().as_raw() != 0 {
         return Err(CandidateResultReadError::RootRequired);
@@ -272,7 +410,27 @@ pub fn read_fixed_candidate_result_ineligible(
         source_archive_sha256,
         archive_sha256,
         version,
+        host_bound,
     )?;
+    if let Some(bound) = host_bound {
+        let (anchor_bytes, anchor_sha256) =
+            root_file_hash(&job, HOST_ANCHOR_FILE, MAX_RESULT, 0o600, false)
+                .map_err(|_| CandidateResultReadError::HostAnchorMismatch)?;
+        let expected = bound.anchor.body(
+            job_id,
+            source_sha,
+            source_archive_sha256,
+            version,
+            &bound.controller_tree_sha256,
+            &bound.image_id,
+            &bound.runtime,
+        );
+        let expected_bytes = canonicalize(expected.to_string().as_bytes())
+            .map_err(|_| CandidateResultReadError::HostAnchorMismatch)?;
+        if anchor_bytes != expected_bytes || result["host_anchor_sha256"] != anchor_sha256 {
+            return Err(CandidateResultReadError::HostAnchorMismatch);
+        }
+    }
     let source_bytes = verify_captured_source(&job, source_archive_sha256)
         .map_err(|_| CandidateResultReadError::RetainedMismatch)?;
     let export = unadmitted_export_identity(&job)
@@ -305,6 +463,14 @@ pub fn read_fixed_candidate_result_ineligible(
     if final_sha != result_sha256 {
         return Err(CandidateResultReadError::ResultMismatch);
     }
+    if host_bound.is_some() {
+        let (_, final_anchor_sha256) =
+            root_file_hash(&job, HOST_ANCHOR_FILE, MAX_RESULT, 0o600, false)
+                .map_err(|_| CandidateResultReadError::HostAnchorMismatch)?;
+        if result["host_anchor_sha256"] != final_anchor_sha256 {
+            return Err(CandidateResultReadError::HostAnchorMismatch);
+        }
+    }
     Ok(CandidateResultReadProof {
         job_id: job_id.to_owned(),
         source_sha: source_sha.to_owned(),
@@ -314,6 +480,17 @@ pub fn read_fixed_candidate_result_ineligible(
         version: version.to_owned(),
         client_pid: result["client_pid"].as_u64().unwrap_or_default() as u32,
         client_start_ticks: result["client_start_ticks"].as_u64().unwrap_or_default(),
+        host_bound: host_bound.map(|pins| HostBoundProofFields {
+            host_pin_sha256: pins.anchor.host_pin_sha256.clone(),
+            host_anchor_sha256: result["host_anchor_sha256"]
+                .as_str()
+                .unwrap_or_default()
+                .to_owned(),
+            runner_binary_sha256: pins.anchor.runner_binary_sha256.clone(),
+            result_reader_binary_sha256: pins.anchor.result_reader_binary_sha256.clone(),
+            image_id: pins.image_id.clone(),
+            policy_sha256: pins.policy_sha256.clone(),
+        }),
     })
 }
 
@@ -360,7 +537,7 @@ mod tests {
 
     fn parse(value: &Value) -> Result<Value, CandidateResultReadError> {
         let bytes = canonicalize(value.to_string().as_bytes()).expect("canonical fixture");
-        parse_result(&bytes, JOB, SOURCE, SOURCE_ARCHIVE, ARCHIVE, "3.49.0")
+        parse_result(&bytes, JOB, SOURCE, SOURCE_ARCHIVE, ARCHIVE, "3.49.0", None)
     }
 
     #[test]
@@ -419,9 +596,84 @@ mod tests {
                 SOURCE,
                 SOURCE_ARCHIVE,
                 ARCHIVE,
-                "3.49.0"
+                "3.49.0",
+                None
             ),
             Err(CandidateResultReadError::InvalidResult)
         );
+    }
+
+    #[test]
+    fn hostbound_v2_result_requires_the_exact_host_tuple() {
+        let runtime = CandidateRuntimePins::parse(
+            &"c".repeat(64),
+            &"d".repeat(64),
+            &"e".repeat(64),
+            &"f".repeat(64),
+        )
+        .unwrap();
+        let anchor = HostCandidateRunAnchor::parse(
+            &"b".repeat(64),
+            &"4".repeat(64),
+            &"5".repeat(64),
+            &"6".repeat(64),
+            &"7".repeat(64),
+        )
+        .unwrap();
+        let bound = HostBoundCandidateResultPins {
+            job_id: JOB.to_owned(),
+            source_sha: SOURCE.to_owned(),
+            source_archive_sha256: SOURCE_ARCHIVE.to_owned(),
+            result_sha256: "8".repeat(64),
+            archive_sha256: ARCHIVE.to_owned(),
+            version: "3.49.0".to_owned(),
+            controller_tree_sha256: "9".repeat(64),
+            image_id: format!("sha256:{}", "a".repeat(64)),
+            policy_sha256: "b".repeat(64),
+            runtime,
+            anchor,
+        };
+        assert!(bound.valid());
+        let mut value = fixture();
+        value["schema"] = json!("hol-gauntlet-candidate-build-result.v2");
+        value["host_pin_sha256"] = json!(bound.anchor.host_pin_sha256);
+        value["host_nonce_hex"] = json!(bound.anchor.host_nonce_hex);
+        value["host_anchor_sha256"] = json!("a".repeat(64));
+        value["runner_binary_sha256"] = json!(bound.anchor.runner_binary_sha256);
+        value["result_reader_binary_sha256"] = json!(bound.anchor.result_reader_binary_sha256);
+        let check = |value: &Value| {
+            let bytes = canonicalize(value.to_string().as_bytes()).unwrap();
+            parse_result(
+                &bytes,
+                JOB,
+                SOURCE,
+                SOURCE_ARCHIVE,
+                ARCHIVE,
+                "3.49.0",
+                Some(&bound),
+            )
+        };
+        assert_eq!(check(&value), Ok(value.clone()));
+        for field in [
+            "host_pin_sha256",
+            "host_nonce_hex",
+            "runner_binary_sha256",
+            "result_reader_binary_sha256",
+            "image_id",
+            "policy_sha256",
+        ] {
+            let mut wrong = value.clone();
+            wrong[field] = json!("0".repeat(64));
+            assert!(check(&wrong).is_err(), "{field}");
+        }
+        let mut bad_anchor_digest = value.clone();
+        bad_anchor_digest["host_anchor_sha256"] = json!("not-a-digest");
+        assert_eq!(
+            check(&bad_anchor_digest),
+            Err(CandidateResultReadError::HostAnchorMismatch)
+        );
+        let mut legacy = value.clone();
+        legacy["schema"] = json!("hol-gauntlet-candidate-build-result.v1");
+        assert_eq!(check(&legacy), Err(CandidateResultReadError::InvalidResult));
     }
 }

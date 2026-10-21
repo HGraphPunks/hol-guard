@@ -17,6 +17,9 @@ use crate::builder_image_context::{
     python_worker_lock, verify_existing_context, verify_python_lock, RUST_STATE,
 };
 use crate::builder_policy::{profile_is_loaded, read_policy, run_parser};
+use crate::candidate_host_anchor::{
+    verify_running_binary, write_host_anchor, HostCandidateRunAnchor,
+};
 use crate::{fixed_builder_run_plan, hex, RunReservationJournal};
 use rustix::process::geteuid;
 use serde_json::{json, Value};
@@ -43,6 +46,8 @@ pub enum CandidateRunError {
     Process(CandidateProcessError),
     CleanupUncertain,
     ReceiptUncertain,
+    HostAnchorMismatch,
+    HostAnchorUncertain,
 }
 
 impl fmt::Display for CandidateRunError {
@@ -71,6 +76,8 @@ impl fmt::Display for CandidateRunError {
             Self::ReceiptUncertain => {
                 f.write_str("one-use candidate result write or custody uncertain")
             }
+            Self::HostAnchorMismatch => f.write_str("host build pin or running binary differs"),
+            Self::HostAnchorUncertain => f.write_str("one-use guest host-anchor write uncertain"),
         }
     }
 }
@@ -95,11 +102,12 @@ pub struct CandidateRunProof {
     unadmitted_export_bytes: Option<u64>,
     unadmitted_export_sha256: Option<String>,
     result_sha256: String,
+    host_anchor: Option<(HostCandidateRunAnchor, String)>,
 }
 
 impl CandidateRunProof {
     fn result_body(&self) -> Value {
-        json!({
+        let mut body = json!({
             "schema":"hol-gauntlet-candidate-build-result.v1",
             "job_id":self.job_id,
             "source_sha":self.source_sha,
@@ -122,7 +130,16 @@ impl CandidateRunProof {
             "build_profile_removed":true,
             "artifact_admitted":false,
             "execution_eligible":false,
-        })
+        });
+        if let Some((anchor, anchor_file_sha256)) = &self.host_anchor {
+            body["schema"] = json!("hol-gauntlet-candidate-build-result.v2");
+            body["host_pin_sha256"] = json!(anchor.host_pin_sha256);
+            body["host_nonce_hex"] = json!(anchor.host_nonce_hex);
+            body["host_anchor_sha256"] = json!(anchor_file_sha256);
+            body["runner_binary_sha256"] = json!(anchor.runner_binary_sha256);
+            body["result_reader_binary_sha256"] = json!(anchor.result_reader_binary_sha256);
+        }
+        body
     }
 
     pub fn to_json(&self) -> Value {
@@ -148,6 +165,72 @@ pub fn run_fixed_local_candidate_ineligible(
     archive_sha256: &str,
     version: &str,
     runtime: CandidateRuntimePins,
+) -> Result<CandidateRunProof, CandidateRunError> {
+    run_fixed_local_candidate_inner(
+        controller_root,
+        tree_digest,
+        job_id,
+        uv_id,
+        rust_id,
+        image_id,
+        source_sha,
+        archive_sha256,
+        version,
+        runtime,
+        None,
+    )
+}
+
+/// The host-bound form requires its independently pinned executable to be the
+/// actual running Root binary. It consumes a one-use guest anchor before the
+/// candidate Podman run, then binds that anchor to a v2 terminal result.
+#[allow(clippy::too_many_arguments)]
+pub fn run_fixed_local_candidate_hostbound_ineligible(
+    controller_root: &Path,
+    tree_digest: &str,
+    job_id: &str,
+    uv_id: &str,
+    rust_id: &str,
+    image_id: &str,
+    source_sha: &str,
+    archive_sha256: &str,
+    version: &str,
+    runtime: CandidateRuntimePins,
+    anchor: HostCandidateRunAnchor,
+) -> Result<CandidateRunProof, CandidateRunError> {
+    if geteuid().as_raw() != 0 {
+        return Err(CandidateRunError::RootRequired);
+    }
+    verify_running_binary(&anchor.runner_binary_sha256)
+        .map_err(|_| CandidateRunError::HostAnchorMismatch)?;
+    run_fixed_local_candidate_inner(
+        controller_root,
+        tree_digest,
+        job_id,
+        uv_id,
+        rust_id,
+        image_id,
+        source_sha,
+        archive_sha256,
+        version,
+        runtime,
+        Some(anchor),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_fixed_local_candidate_inner(
+    controller_root: &Path,
+    tree_digest: &str,
+    job_id: &str,
+    uv_id: &str,
+    rust_id: &str,
+    image_id: &str,
+    source_sha: &str,
+    archive_sha256: &str,
+    version: &str,
+    runtime: CandidateRuntimePins,
+    host_anchor: Option<HostCandidateRunAnchor>,
 ) -> Result<CandidateRunProof, CandidateRunError> {
     if geteuid().as_raw() != 0 {
         return Err(CandidateRunError::RootRequired);
@@ -191,6 +274,12 @@ pub fn run_fixed_local_candidate_ineligible(
         return Err(CandidateRunError::ImageMismatch);
     }
     read_policy(job_id, context.policy_sha256()).map_err(|_| CandidateRunError::PolicyMismatch)?;
+    if host_anchor
+        .as_ref()
+        .is_some_and(|anchor| anchor.policy_sha256 != context.policy_sha256())
+    {
+        return Err(CandidateRunError::HostAnchorMismatch);
+    }
     if profile_is_loaded(context.profile_name()).map_err(|_| CandidateRunError::PolicyMismatch)? {
         return Err(CandidateRunError::ProfileAlreadyLoaded);
     }
@@ -206,6 +295,22 @@ pub fn run_fixed_local_candidate_ineligible(
     if free_bytes().map_err(|_| CandidateRunError::LowDisk)? < MIN_START_FREE {
         return Err(CandidateRunError::LowDisk);
     }
+    let host_anchor = if let Some(anchor) = host_anchor {
+        let body = anchor.body(
+            job_id,
+            source_sha,
+            archive_sha256,
+            version,
+            tree_digest,
+            image_id,
+            &runtime,
+        );
+        let digest =
+            write_host_anchor(&job, &body).map_err(|_| CandidateRunError::HostAnchorUncertain)?;
+        Some((anchor, digest))
+    } else {
+        None
+    };
     prepare_export(&job).map_err(|_| CandidateRunError::ExportUnavailable)?;
     let policy_path = format!("{BUILDS}/{job_id}/Builder.apparmor");
     let load = run_parser("--replace", &policy_path);
@@ -271,6 +376,7 @@ pub fn run_fixed_local_candidate_ineligible(
         unadmitted_export_bytes: unadmitted_export.as_ref().map(|(bytes, _)| *bytes),
         unadmitted_export_sha256: unadmitted_export.map(|(_, digest)| digest),
         result_sha256: String::new(),
+        host_anchor,
     };
     still_owned().map_err(|_| CandidateRunError::LeaseUnavailable)?;
     proof.result_sha256 = write_candidate_receipt(&job, &proof.result_body())

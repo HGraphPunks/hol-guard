@@ -1,11 +1,13 @@
 //! The host can only obtain a fixed candidate argv after a durable one-use
 //! intent. No test here launches Lima or claims guest execution.
 
+use gauntlet_contracts::canonicalize;
 use gauntlet_host_state::{
     HostCandidateBuildPinError, HostCandidateBuildPinJournal, HostCandidateBuildPins,
     VmCandidateBuildError, VmCandidateBuildPlan,
 };
-use serde_json::Value;
+use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use tempfile::tempdir;
@@ -49,6 +51,49 @@ fn operations() -> Value {
     serde_json::from_str(include_str!("../operations-defaults-v1.json")).unwrap()
 }
 
+fn terminal_bytes(invocation: &gauntlet_host_state::VmCandidateBuildInvocation) -> Vec<u8> {
+    let pins = &invocation.record().pins;
+    let mut body = json!({
+        "schema":"hol-gauntlet-candidate-build-result.v2",
+        "job_id":pins.job_id,
+        "source_sha":pins.source_sha,
+        "source_archive_sha256":pins.source_archive_sha256,
+        "source_bytes":45439546,
+        "local_version":pins.version,
+        "image_id":pins.builder_image_id,
+        "policy_sha256":pins.policy_sha256,
+        "runtime_pins":{
+            "podman_sha256":pins.podman_sha256,
+            "slirp4netns_sha256":pins.slirp4netns_sha256,
+            "apparmor_parser_sha256":pins.apparmor_parser_sha256,
+            "seccomp_sha256":pins.seccomp_sha256,
+        },
+        "client_pid":1234,
+        "client_start_ticks":5678,
+        "status":"exited-zero",
+        "exit_code":0,
+        "stdout_sha256":"1".repeat(64),
+        "stderr_sha256":"2".repeat(64),
+        "unadmitted_export_bytes":20274622,
+        "unadmitted_export_sha256":"3".repeat(64),
+        "container_absent":true,
+        "candidate_cgroup_drained":true,
+        "build_profile_removed":true,
+        "artifact_admitted":false,
+        "execution_eligible":false,
+        "host_pin_sha256":invocation.record().raw_sha256,
+        "host_nonce_hex":invocation.record().host_nonce_hex,
+        "host_anchor_sha256":"4".repeat(64),
+        "runner_binary_sha256":pins.runner_binary_sha256,
+        "result_reader_binary_sha256":pins.result_reader_binary_sha256,
+    });
+    let body_bytes = canonicalize(body.to_string().as_bytes()).unwrap();
+    body["result_sha256"] = json!(format!("{:x}", Sha256::digest(&body_bytes)));
+    let mut raw = canonicalize(body.to_string().as_bytes()).unwrap();
+    raw.push(b'\n');
+    raw
+}
+
 #[test]
 fn fixed_invocation_exists_only_after_durable_host_pin() {
     let dir = tempdir().unwrap();
@@ -87,6 +132,20 @@ fn fixed_invocation_exists_only_after_durable_host_pin() {
     assert_eq!(argv[23], invocation.record().host_nonce_hex);
     assert_eq!(invocation.to_json()["vm_started"], false);
     assert_eq!(invocation.to_json()["execution_eligible"], false);
+    let terminal = terminal_bytes(&invocation);
+    let claim = invocation.parse_terminal_claim(&terminal).unwrap();
+    assert_eq!(claim["retained_result_reconciled"], false);
+    assert_eq!(claim["artifact_admitted"], false);
+    let mut altered: Value = serde_json::from_slice(&terminal).unwrap();
+    altered["host_nonce_hex"] = json!("0".repeat(64));
+    let mut altered_bytes = canonicalize(altered.to_string().as_bytes()).unwrap();
+    altered_bytes.push(b'\n');
+    assert!(invocation.parse_terminal_claim(&altered_bytes).is_err());
+    altered["host_nonce_hex"] = json!(invocation.record().host_nonce_hex);
+    altered["result_sha256"] = json!("0".repeat(64));
+    altered_bytes = canonicalize(altered.to_string().as_bytes()).unwrap();
+    altered_bytes.push(b'\n');
+    assert!(invocation.parse_terminal_claim(&altered_bytes).is_err());
     assert!(matches!(
         plan.record_before_launch(&journal),
         Err(VmCandidateBuildError::HostPin(

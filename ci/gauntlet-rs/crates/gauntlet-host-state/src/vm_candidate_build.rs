@@ -2,12 +2,25 @@
 //! the invocation durably records the outside pins before a caller can spawn
 //! the fixed guest binary. This module does not execute or admit a build.
 
+use crate::fixed_process::{run_fixed, FixedProcessError};
 use crate::{
     load_operations_bytes, HostCandidateBuildPinError, HostCandidateBuildPinJournal,
     HostCandidateBuildPinRecord, HostCandidateBuildPins,
 };
+use gauntlet_contracts::canonicalize;
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::fmt;
+use std::time::Duration;
+
+const MAX_TERMINAL_BYTES: usize = 8192;
+
+fn lower_hex(value: &str, length: usize) -> bool {
+    value.len() == length
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VmCandidateBuildError {
@@ -27,6 +40,29 @@ impl fmt::Display for VmCandidateBuildError {
 }
 
 impl std::error::Error for VmCandidateBuildError {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VmCandidateBuildLaunchError {
+    HostPinChanged,
+    GuestUncertain,
+    TimedOut,
+    TooLarge,
+    InvalidTerminal,
+}
+
+impl fmt::Display for VmCandidateBuildLaunchError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::HostPinChanged => "prelaunch host candidate pin changed",
+            Self::GuestUncertain => "candidate VM execution uncertain; reconcile without retry",
+            Self::TimedOut => "candidate VM transport timed out; reconcile without retry",
+            Self::TooLarge => "candidate VM terminal output exceeded bound",
+            Self::InvalidTerminal => "candidate VM terminal claim differs from host pins",
+        })
+    }
+}
+
+impl std::error::Error for VmCandidateBuildLaunchError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VmCandidateBuildPlan {
@@ -139,5 +175,179 @@ impl VmCandidateBuildInvocation {
             "artifact_admitted":false,
             "execution_eligible":false,
         })
+    }
+
+    pub fn parse_terminal_claim(
+        &self,
+        stdout: &[u8],
+    ) -> Result<Value, VmCandidateBuildLaunchError> {
+        if stdout.len() > MAX_TERMINAL_BYTES + 1 {
+            return Err(VmCandidateBuildLaunchError::TooLarge);
+        }
+        let frame = stdout
+            .strip_suffix(b"\n")
+            .filter(|frame| !frame.is_empty() && !frame.contains(&b'\n'))
+            .ok_or(VmCandidateBuildLaunchError::InvalidTerminal)?;
+        if canonicalize(frame).map_err(|_| VmCandidateBuildLaunchError::InvalidTerminal)? != frame {
+            return Err(VmCandidateBuildLaunchError::InvalidTerminal);
+        }
+        let value: Value = serde_json::from_slice(frame)
+            .map_err(|_| VmCandidateBuildLaunchError::InvalidTerminal)?;
+        let object = value
+            .as_object()
+            .ok_or(VmCandidateBuildLaunchError::InvalidTerminal)?;
+        let expected_keys = [
+            "artifact_admitted",
+            "build_profile_removed",
+            "candidate_cgroup_drained",
+            "client_pid",
+            "client_start_ticks",
+            "container_absent",
+            "execution_eligible",
+            "exit_code",
+            "host_anchor_sha256",
+            "host_nonce_hex",
+            "host_pin_sha256",
+            "image_id",
+            "job_id",
+            "local_version",
+            "policy_sha256",
+            "result_reader_binary_sha256",
+            "result_sha256",
+            "runner_binary_sha256",
+            "runtime_pins",
+            "schema",
+            "source_archive_sha256",
+            "source_bytes",
+            "source_sha",
+            "status",
+            "stderr_sha256",
+            "stdout_sha256",
+            "unadmitted_export_bytes",
+            "unadmitted_export_sha256",
+        ];
+        let pins = &self.record.pins;
+        let exited_zero = value["status"] == "exited-zero" && value["exit_code"] == 0;
+        let failed = value["status"] == "build-failed"
+            && value["exit_code"].as_i64().is_some_and(|code| code != 0);
+        let export = match (
+            value["unadmitted_export_bytes"].as_u64(),
+            value["unadmitted_export_sha256"].as_str(),
+        ) {
+            (None, None)
+                if value["unadmitted_export_bytes"].is_null()
+                    && value["unadmitted_export_sha256"].is_null() =>
+            {
+                false
+            }
+            (Some(bytes), Some(digest))
+                if (1..=256 * 1024 * 1024).contains(&bytes) && lower_hex(digest, 64) =>
+            {
+                true
+            }
+            _ => return Err(VmCandidateBuildLaunchError::InvalidTerminal),
+        };
+        if object.len() != expected_keys.len()
+            || !expected_keys.iter().all(|key| object.contains_key(*key))
+            || value["schema"] != "hol-gauntlet-candidate-build-result.v2"
+            || value["job_id"] != pins.job_id
+            || value["source_sha"] != pins.source_sha
+            || value["source_archive_sha256"] != pins.source_archive_sha256
+            || value["local_version"] != pins.version
+            || value["image_id"] != pins.builder_image_id
+            || value["policy_sha256"] != pins.policy_sha256
+            || value["runtime_pins"]
+                != json!({
+                    "podman_sha256":pins.podman_sha256,
+                    "slirp4netns_sha256":pins.slirp4netns_sha256,
+                    "apparmor_parser_sha256":pins.apparmor_parser_sha256,
+                    "seccomp_sha256":pins.seccomp_sha256,
+                })
+            || value["host_pin_sha256"] != self.record.raw_sha256
+            || value["host_nonce_hex"] != self.record.host_nonce_hex
+            || value["runner_binary_sha256"] != pins.runner_binary_sha256
+            || value["result_reader_binary_sha256"] != pins.result_reader_binary_sha256
+            || ![
+                "result_sha256",
+                "host_anchor_sha256",
+                "stdout_sha256",
+                "stderr_sha256",
+            ]
+            .iter()
+            .all(|key| {
+                value[*key]
+                    .as_str()
+                    .is_some_and(|digest| lower_hex(digest, 64))
+            })
+            || value["client_pid"]
+                .as_u64()
+                .is_none_or(|pid| pid == 0 || pid > u32::MAX as u64)
+            || value["client_start_ticks"]
+                .as_u64()
+                .is_none_or(|ticks| ticks == 0)
+            || value["source_bytes"]
+                .as_u64()
+                .is_none_or(|bytes| bytes == 0)
+            || value["artifact_admitted"] != false
+            || value["execution_eligible"] != false
+            || value["container_absent"] != true
+            || value["candidate_cgroup_drained"] != true
+            || value["build_profile_removed"] != true
+            || !(exited_zero || failed)
+            || exited_zero && !export
+        {
+            return Err(VmCandidateBuildLaunchError::InvalidTerminal);
+        }
+        let mut body = value.clone();
+        body.as_object_mut()
+            .ok_or(VmCandidateBuildLaunchError::InvalidTerminal)?
+            .remove("result_sha256");
+        let raw = canonicalize(body.to_string().as_bytes())
+            .map_err(|_| VmCandidateBuildLaunchError::InvalidTerminal)?;
+        if value["result_sha256"] != format!("{:x}", Sha256::digest(&raw)) {
+            return Err(VmCandidateBuildLaunchError::InvalidTerminal);
+        }
+        Ok(json!({
+            "schema":"hol-gauntlet-host-candidate-run-claim-shadow.v1",
+            "job_id":pins.job_id,
+            "source_sha":pins.source_sha,
+            "status":value["status"],
+            "exit_code":value["exit_code"],
+            "result_sha256":value["result_sha256"],
+            "unadmitted_export_sha256":value["unadmitted_export_sha256"],
+            "host_pin_sha256":self.record.raw_sha256,
+            "host_pin_journal_match":true,
+            "retained_result_reconciled":false,
+            "artifact_admitted":false,
+            "execution_eligible":false,
+        }))
+    }
+
+    /// Spawn the fixed Lima command only after re-reading the durable host
+    /// record. Any post-spawn failure leaves this one-use job unresolved.
+    /// A zero transport exit is merely a guest claim; use the v2 result reader
+    /// before even describing the retained files as reconciled.
+    pub fn execute_once(
+        &self,
+        journal: &HostCandidateBuildPinJournal,
+    ) -> Result<Value, VmCandidateBuildLaunchError> {
+        if journal.read(&self.record.pins.job_id).ok() != Some(self.record.clone()) {
+            return Err(VmCandidateBuildLaunchError::HostPinChanged);
+        }
+        let output = run_fixed(
+            &self.argv,
+            Duration::from_secs(3600),
+            MAX_TERMINAL_BYTES + 1,
+            4096,
+            &[],
+        )
+        .map_err(|error| match error {
+            FixedProcessError::Unavailable | FixedProcessError::Failed => {
+                VmCandidateBuildLaunchError::GuestUncertain
+            }
+            FixedProcessError::TimedOut => VmCandidateBuildLaunchError::TimedOut,
+            FixedProcessError::TooLarge => VmCandidateBuildLaunchError::TooLarge,
+        })?;
+        self.parse_terminal_claim(&output)
     }
 }

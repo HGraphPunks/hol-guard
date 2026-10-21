@@ -32,8 +32,9 @@ impl fmt::Display for CandidateReceiptError {
     }
 }
 
-pub(crate) fn write_candidate_receipt(
+pub(crate) fn write_root_canonical_job_file(
     job: &OwnedFd,
+    name: &str,
     body: &Value,
 ) -> Result<String, CandidateReceiptError> {
     let bytes = canonicalize(body.to_string().as_bytes())
@@ -43,7 +44,7 @@ pub(crate) fn write_candidate_receipt(
     }
     let descriptor = openat(
         job,
-        RESULT,
+        name,
         OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
         Mode::from_bits_truncate(0o600),
     )
@@ -64,7 +65,7 @@ pub(crate) fn write_candidate_receipt(
     fsync(job).map_err(|_| CandidateReceiptError::WriteUncertain)?;
     let descriptor = openat(
         job,
-        RESULT,
+        name,
         OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
         Mode::empty(),
     )
@@ -86,10 +87,17 @@ pub(crate) fn write_candidate_receipt(
         .read_to_end(&mut readback)
         .map_err(|_| CandidateReceiptError::WriteUncertain)?;
     let after = fstat(&file).map_err(|_| CandidateReceiptError::WriteUncertain)?;
-    let visible = statat(job, RESULT, AtFlags::SYMLINK_NOFOLLOW)
+    let visible = statat(job, name, AtFlags::SYMLINK_NOFOLLOW)
         .map_err(|_| CandidateReceiptError::WriteUncertain)?;
     if readback != bytes || !same_file(&before, &after) || !same_file(&before, &visible) {
         return Err(CandidateReceiptError::WriteUncertain);
     }
     Ok(format!("{:x}", Sha256::digest(&bytes)))
+}
+
+pub(crate) fn write_candidate_receipt(
+    job: &OwnedFd,
+    body: &Value,
+) -> Result<String, CandidateReceiptError> {
+    write_root_canonical_job_file(job, RESULT, body)
 }
