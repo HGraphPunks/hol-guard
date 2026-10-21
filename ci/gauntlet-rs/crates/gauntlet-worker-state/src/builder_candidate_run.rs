@@ -6,8 +6,9 @@ use crate::builder_candidate_preflight::{verify_candidate_runtime, CandidateRunt
 use crate::builder_candidate_process::{
     container_absent, run_candidate_process, CandidateProcessError,
 };
+use crate::builder_candidate_receipt::write_candidate_receipt;
 use crate::builder_candidate_source::{
-    open_fixed_build_slot, prepare_export, unadmitted_export_size, verify_captured_source,
+    open_fixed_build_slot, prepare_export, unadmitted_export_identity, verify_captured_source,
 };
 use crate::builder_context::inspect_fixed_builder_context;
 use crate::builder_image::{fixed_builder_image_plan, inspect_fixed_builder_base_images};
@@ -41,6 +42,7 @@ pub enum CandidateRunError {
     LowDisk,
     Process(CandidateProcessError),
     CleanupUncertain,
+    ReceiptUncertain,
 }
 
 impl fmt::Display for CandidateRunError {
@@ -66,6 +68,9 @@ impl fmt::Display for CandidateRunError {
             Self::CleanupUncertain => {
                 f.write_str("candidate container, cgroup or profile cleanup uncertain")
             }
+            Self::ReceiptUncertain => {
+                f.write_str("one-use candidate result write or custody uncertain")
+            }
         }
     }
 }
@@ -82,16 +87,20 @@ pub struct CandidateRunProof {
     image_id: String,
     policy_sha256: String,
     runtime: CandidateRuntimePins,
+    client_pid: u32,
+    client_start_ticks: u64,
     exit_code: i32,
     stdout_sha256: String,
     stderr_sha256: String,
     unadmitted_export_bytes: Option<u64>,
+    unadmitted_export_sha256: Option<String>,
+    result_sha256: String,
 }
 
 impl CandidateRunProof {
-    pub fn to_json(&self) -> Value {
+    fn result_body(&self) -> Value {
         json!({
-            "schema":"hol-gauntlet-candidate-run-shadow.v1",
+            "schema":"hol-gauntlet-candidate-build-result.v1",
             "job_id":self.job_id,
             "source_sha":self.source_sha,
             "source_archive_sha256":self.source_archive_sha256,
@@ -100,17 +109,26 @@ impl CandidateRunProof {
             "image_id":self.image_id,
             "policy_sha256":self.policy_sha256,
             "runtime_pins":self.runtime.to_json(),
+            "client_pid":self.client_pid,
+            "client_start_ticks":self.client_start_ticks,
             "status":if self.exit_code == 0 {"exited-zero"} else {"build-failed"},
             "exit_code":self.exit_code,
             "stdout_sha256":self.stdout_sha256,
             "stderr_sha256":self.stderr_sha256,
             "unadmitted_export_bytes":self.unadmitted_export_bytes,
+            "unadmitted_export_sha256":self.unadmitted_export_sha256,
             "container_absent":true,
             "candidate_cgroup_drained":true,
             "build_profile_removed":true,
             "artifact_admitted":false,
             "execution_eligible":false,
         })
+    }
+
+    pub fn to_json(&self) -> Value {
+        let mut body = self.result_body();
+        body["result_sha256"] = json!(self.result_sha256);
+        body
     }
 }
 
@@ -231,12 +249,12 @@ pub fn run_fixed_local_candidate_ineligible(
     if inspect_result(&image_plan).map_err(|_| CandidateRunError::ImageMismatch)? != image_id {
         return Err(CandidateRunError::ImageMismatch);
     }
-    let unadmitted_export_bytes =
-        unadmitted_export_size(&job).map_err(|_| CandidateRunError::ExportUnavailable)?;
+    let unadmitted_export =
+        unadmitted_export_identity(&job).map_err(|_| CandidateRunError::ExportUnavailable)?;
     if free_bytes().map_err(|_| CandidateRunError::LowDisk)? < 8 * 1024 * 1024 * 1024 {
         return Err(CandidateRunError::LowDisk);
     }
-    Ok(CandidateRunProof {
+    let mut proof = CandidateRunProof {
         job_id: job_id.to_owned(),
         source_sha: source_sha.to_owned(),
         source_archive_sha256: archive_sha256.to_owned(),
@@ -245,9 +263,18 @@ pub fn run_fixed_local_candidate_ineligible(
         image_id: image_id.to_owned(),
         policy_sha256: context.policy_sha256().to_owned(),
         runtime,
+        client_pid: process.client_pid,
+        client_start_ticks: process.client_start_ticks,
         exit_code: process.exit_code,
         stdout_sha256: process.stdout_sha256,
         stderr_sha256: process.stderr_sha256,
-        unadmitted_export_bytes,
-    })
+        unadmitted_export_bytes: unadmitted_export.as_ref().map(|(bytes, _)| *bytes),
+        unadmitted_export_sha256: unadmitted_export.map(|(_, digest)| digest),
+        result_sha256: String::new(),
+    };
+    still_owned().map_err(|_| CandidateRunError::LeaseUnavailable)?;
+    proof.result_sha256 = write_candidate_receipt(&job, &proof.result_body())
+        .map_err(|_| CandidateRunError::ReceiptUncertain)?;
+    still_owned().map_err(|_| CandidateRunError::LeaseUnavailable)?;
+    Ok(proof)
 }

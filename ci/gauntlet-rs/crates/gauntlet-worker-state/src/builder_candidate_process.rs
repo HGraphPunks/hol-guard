@@ -58,6 +58,8 @@ impl fmt::Display for CandidateProcessError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CandidateProcessObservation {
+    pub(crate) client_pid: u32,
+    pub(crate) client_start_ticks: u64,
     pub(crate) exit_code: i32,
     pub(crate) stdout_sha256: String,
     pub(crate) stderr_sha256: String,
@@ -219,11 +221,15 @@ pub(crate) fn run_candidate_process(
     let observed = std::fs::read(format!("/proc/{}/stat", child.id()))
         .ok()
         .and_then(|raw| parse_proc_stat(&raw, child.id()))
-        .is_some_and(|stat| observe_process(child.id(), stat.start_ticks, group.path()).is_ok());
-    if !observed {
+        .and_then(|stat| {
+            observe_process(child.id(), stat.start_ticks, group.path())
+                .ok()
+                .map(|_| stat.start_ticks)
+        });
+    let Some(client_start_ticks) = observed else {
         cleanup(&mut group, &mut child)?;
         return Err(CandidateProcessError::ProcessMismatch);
-    }
+    };
     let (child_stdout, child_stderr) = match (child.stdout.take(), child.stderr.take()) {
         (Some(stdout), Some(stderr)) => (stdout, stderr),
         _ => {
@@ -287,6 +293,8 @@ pub(crate) fn run_candidate_process(
         (second, first)
     };
     Ok(CandidateProcessObservation {
+        client_pid: child.id(),
+        client_start_ticks,
         exit_code,
         stdout_sha256,
         stderr_sha256,

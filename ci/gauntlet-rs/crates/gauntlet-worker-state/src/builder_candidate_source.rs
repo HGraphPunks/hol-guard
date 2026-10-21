@@ -169,7 +169,9 @@ pub(crate) fn prepare_export(job: &OwnedFd) -> Result<(), CandidateSourceError> 
     fsync(job).map_err(|_| CandidateSourceError::ExportUncertain)
 }
 
-pub(crate) fn unadmitted_export_size(job: &OwnedFd) -> Result<Option<u64>, CandidateSourceError> {
+pub(crate) fn unadmitted_export_identity(
+    job: &OwnedFd,
+) -> Result<Option<(u64, String)>, CandidateSourceError> {
     let directory = openat(
         job,
         EXPORT,
@@ -207,5 +209,30 @@ pub(crate) fn unadmitted_export_size(job: &OwnedFd) -> Result<Option<u64>, Candi
     {
         return Err(CandidateSourceError::ExportUncertain);
     }
-    Ok(Some(stat.st_size as u64))
+    let mut file = File::from(descriptor);
+    let mut digest = Sha256::new();
+    let mut count = 0_u64;
+    let mut buffer = [0_u8; 1024 * 1024];
+    loop {
+        let n = file
+            .read(&mut buffer)
+            .map_err(|_| CandidateSourceError::ExportUncertain)?;
+        if n == 0 {
+            break;
+        }
+        count = count
+            .checked_add(n as u64)
+            .ok_or(CandidateSourceError::ExportUncertain)?;
+        if count > MAX_ARTIFACT {
+            return Err(CandidateSourceError::ExportUncertain);
+        }
+        digest.update(&buffer[..n]);
+    }
+    let after = fstat(&file).map_err(|_| CandidateSourceError::ExportUncertain)?;
+    let visible = statat(&directory, "candidate.zip", AtFlags::SYMLINK_NOFOLLOW)
+        .map_err(|_| CandidateSourceError::ExportUncertain)?;
+    if count != stat.st_size as u64 || !same_file(&stat, &after) || !same_file(&stat, &visible) {
+        return Err(CandidateSourceError::ExportUncertain);
+    }
+    Ok(Some((count, format!("{:x}", digest.finalize()))))
 }

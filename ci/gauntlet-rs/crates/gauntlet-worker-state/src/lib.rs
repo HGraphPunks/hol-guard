@@ -79,6 +79,8 @@ mod builder_candidate_preflight;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod builder_candidate_process;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod builder_candidate_receipt;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod builder_candidate_run;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod builder_candidate_source;
