@@ -14,6 +14,7 @@ use gauntlet_contracts::WorkerRequest;
 use std::fs;
 use std::os::unix::process::ExitStatusExt;
 use std::process::{Child, ExitStatus};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
 #[derive(Debug)]
@@ -23,6 +24,7 @@ pub(crate) enum ControllerRunError {
     Launch(ControllerExecError),
     Identity(ProcessObservationError),
     Deadline(DeadlineError),
+    Cancelled,
     Wait,
     CleanupUncertain,
 }
@@ -35,6 +37,7 @@ impl std::fmt::Display for ControllerRunError {
             Self::Launch(error) => write!(f, "controller launch: {error}"),
             Self::Identity(error) => write!(f, "controller process identity: {error:?}"),
             Self::Deadline(error) => write!(f, "controller deadline: {error}"),
+            Self::Cancelled => f.write_str("controller cancellation requested"),
             Self::Wait => f.write_str("controller child wait failed"),
             Self::CleanupUncertain => f.write_str("controller or product-cell cleanup uncertain"),
         }
@@ -63,9 +66,13 @@ fn wait_for_child(
     child: &mut Child,
     deadline: &BoottimeDeadline,
     mut check_owner: impl FnMut() -> Result<(), ControllerRunError>,
+    mut cancel_requested: impl FnMut() -> bool,
 ) -> Result<WaitOutcome, ControllerRunError> {
     loop {
         check_owner()?;
+        if cancel_requested() {
+            return Err(ControllerRunError::Cancelled);
+        }
         if let Some(status) = child.try_wait().map_err(|_| ControllerRunError::Wait)? {
             return Ok(WaitOutcome::Exited(status));
         }
@@ -93,8 +100,8 @@ fn observe_child(
     Ok(ProcessIdentity { pid, start_ticks })
 }
 
-/// Cleanup is attempted on every post-create path. A failed step keeps the
-/// reserved job unresolved; no retry or terminal success is inferred.
+/// Cleanup is attempted on every ordinary return after cgroup creation. A
+/// failed step keeps the reserved job unresolved; no retry is inferred.
 fn cleanup(
     group: &mut OwnedJobCgroup,
     child: Option<&mut Child>,
@@ -127,12 +134,20 @@ pub(crate) fn run_prepared_controller_ineligible(
     request: &WorkerRequest,
     worker_generation: &str,
     active_seconds: u64,
+    cancellation: &AtomicBool,
 ) -> Result<ControllerRunObservation, ControllerRunError> {
+    if cancellation.load(Ordering::Acquire) {
+        return Err(ControllerRunError::Cancelled);
+    }
     let deadline = BoottimeDeadline::start(active_seconds).map_err(ControllerRunError::Deadline)?;
     lease
         .verify(&journal.root)
         .map_err(ControllerRunError::Lease)?;
     let mut group = OwnedJobCgroup::create(request.job_id()).map_err(ControllerRunError::Cgroup)?;
+    if cancellation.load(Ordering::Acquire) {
+        cleanup(&mut group, None, request.job_id(), false)?;
+        return Err(ControllerRunError::Cancelled);
+    }
     let launched =
         spawn_prepared_controller(prepared, &group, journal, lease, request, worker_generation);
     let (mut child, started) = match launched {
@@ -147,6 +162,9 @@ pub(crate) fn run_prepared_controller_ineligible(
         }
     };
     let observed = (|| {
+        if cancellation.load(Ordering::Acquire) {
+            return Err(ControllerRunError::Cancelled);
+        }
         let process = observe_child(&child, group.path())?;
         journal
             .mark_running_under_lease(
@@ -162,11 +180,16 @@ pub(crate) fn run_prepared_controller_ineligible(
                 group.path(),
             )
             .map_err(ControllerRunError::Lease)?;
-        let outcome = wait_for_child(&mut child, &deadline, || {
-            lease
-                .verify(&journal.root)
-                .map_err(ControllerRunError::Lease)
-        })?;
+        let outcome = wait_for_child(
+            &mut child,
+            &deadline,
+            || {
+                lease
+                    .verify(&journal.root)
+                    .map_err(ControllerRunError::Lease)
+            },
+            || cancellation.load(Ordering::Acquire),
+        )?;
         let (exit_code, timed_out) = match outcome {
             WaitOutcome::Exited(status) => (
                 status.code().or_else(|| status.signal().map(|s| 128 + s)),
@@ -198,13 +221,13 @@ mod tests {
         let mut quick = Command::new("/usr/bin/true").spawn().unwrap();
         let deadline = BoottimeDeadline::start(5).unwrap();
         assert!(matches!(
-            wait_for_child(&mut quick, &deadline, || Ok(())),
+            wait_for_child(&mut quick, &deadline, || Ok(()), || false),
             Ok(WaitOutcome::Exited(status)) if status.success()
         ));
 
         let mut slow = Command::new("/usr/bin/sleep").arg("3").spawn().unwrap();
         let deadline = BoottimeDeadline::start(1).unwrap();
-        let outcome = wait_for_child(&mut slow, &deadline, || Ok(()));
+        let outcome = wait_for_child(&mut slow, &deadline, || Ok(()), || false);
         slow.kill().unwrap();
         slow.wait().unwrap();
         assert!(matches!(outcome, Ok(WaitOutcome::TimedOut)));
@@ -214,9 +237,24 @@ mod tests {
     fn owner_loss_aborts_wait_before_deadline() {
         let mut slow = Command::new("/usr/bin/sleep").arg("3").spawn().unwrap();
         let deadline = BoottimeDeadline::start(5).unwrap();
-        let result = wait_for_child(&mut slow, &deadline, || Err(ControllerRunError::Wait));
+        let result = wait_for_child(
+            &mut slow,
+            &deadline,
+            || Err(ControllerRunError::Wait),
+            || false,
+        );
         slow.kill().unwrap();
         slow.wait().unwrap();
         assert!(matches!(result, Err(ControllerRunError::Wait)));
+    }
+
+    #[test]
+    fn cancellation_aborts_a_live_wait_without_claiming_exit() {
+        let mut slow = Command::new("/usr/bin/sleep").arg("3").spawn().unwrap();
+        let deadline = BoottimeDeadline::start(5).unwrap();
+        let result = wait_for_child(&mut slow, &deadline, || Ok(()), || true);
+        slow.kill().unwrap();
+        slow.wait().unwrap();
+        assert!(matches!(result, Err(ControllerRunError::Cancelled)));
     }
 }
