@@ -104,6 +104,9 @@ mod candidate_archive;
 mod candidate_build_ready;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_capture;
+mod candidate_dependencies;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod candidate_dependencies_live;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_host_anchor;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
@@ -222,6 +225,14 @@ pub use candidate_build_ready::{
 pub use candidate_capture::{
     capture_local_candidate_archive_ineligible, verify_captured_candidate_wheel_ineligible,
     CandidateCaptureError, CandidateCaptureProof, CandidateWheelLiveProof,
+};
+pub use candidate_dependencies::{
+    check_candidate_dependencies, CandidateDependencyError, CandidateDependencyProof,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use candidate_dependencies_live::{
+    verify_cloned_candidate_dependencies_ineligible, CandidateDependencyLiveError,
+    CandidateDependencyLivePins, CandidateDependencyLiveProof,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_host_anchor::{
