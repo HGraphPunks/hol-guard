@@ -78,6 +78,8 @@ pub struct RunReservationJournal {
 mod builder_context;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod builder_image;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod builder_image_context;
 mod builder_run_plan;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod builder_source_capture;
@@ -151,6 +153,10 @@ pub use builder_context::{
 pub use builder_image::{
     fixed_builder_image_plan, inspect_fixed_builder_base_images, BuilderImageError,
     BuilderImagePlan,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use builder_image_context::{
+    materialize_fixed_builder_image_context, BuilderImageContextError, BuilderImageContextProof,
 };
 pub use builder_run_plan::{fixed_builder_run_plan, BuilderRunError, BuilderRunPlan};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
