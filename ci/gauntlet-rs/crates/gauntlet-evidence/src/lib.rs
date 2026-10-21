@@ -36,6 +36,7 @@ mod private_cell_files;
 mod private_cell_manifest;
 mod private_cell_mounts;
 mod private_hook_samples;
+mod private_network;
 mod private_runtime_prompt;
 mod product_kernel_identity;
 mod provider_quota;
@@ -94,6 +95,7 @@ pub use private_cell_files::{verify_private_cell_artifacts, PrivateCellInventory
 pub use private_cell_manifest::{verify_private_cell_manifest, PrivateCellManifest};
 pub use private_cell_mounts::verify_private_cell_mount_relation;
 pub use private_hook_samples::verify_private_hook_samples;
+pub use private_network::verify_private_network_topology;
 pub use private_runtime_prompt::verify_private_runtime_prompt_relation;
 pub use product_kernel_identity::verify_product_kernel_identity;
 pub use provider_quota::read_provider_quota_snapshot;
