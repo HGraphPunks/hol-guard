@@ -1,6 +1,6 @@
 use super::{
-    hash_file_after_chunk, inventory_tree, inventory_tree_with_after_scan, stable_symlink_target,
-    TreeContext, TreeKind,
+    hash_file_after_chunk, inventory_tree, inventory_tree_with_after_scan,
+    inventory_tree_with_hooks, stable_symlink_target, TreeContext, TreeKind,
 };
 use crate::io::open_absolute_directory;
 use rustix::fs::{fstat, open, Mode, OFlags};
@@ -58,6 +58,25 @@ fn refuses_a_replaced_visible_root_after_scanning() {
     assert_eq!(
         result.unwrap_err().to_string(),
         "tree root changed during inventory"
+    );
+}
+
+#[test]
+fn refuses_a_new_nested_entry_after_that_directory_was_scanned() {
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().join("sdk");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::create_dir(root.join("nested")).unwrap();
+    std::fs::write(root.join("nested/data"), b"first").unwrap();
+    let root = root.canonicalize().unwrap();
+    let result = inventory_tree_with_hooks(&root, TreeKind::Sdk, || {}, &mut |relative| {
+        if relative == "nested" {
+            std::fs::write(root.join("nested/late"), b"unaccounted").unwrap();
+        }
+    });
+    assert_eq!(
+        result.unwrap_err().to_string(),
+        "tree directory changed while scanning"
     );
 }
 

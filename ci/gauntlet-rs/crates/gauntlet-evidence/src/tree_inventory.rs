@@ -195,7 +195,7 @@ fn inspect_one(
     context: &TreeContext<'_>,
     name: &str,
     relative: &str,
-) -> Result<(Value, u64, Option<OwnedFd>)> {
+) -> Result<(Value, u64, Option<OwnedFd>, Stat)> {
     if !canonical_relative_asset_path(relative) {
         return Err(EvidenceError::Invalid("noncanonical tree entry"));
     }
@@ -297,20 +297,10 @@ fn inspect_one(
             "tree entry changed during inventory",
         ));
     }
-    Ok((row, bytes, child))
+    Ok((row, bytes, child, before))
 }
 
-fn scan(
-    descriptor: &OwnedFd,
-    context: &TreeContext<'_>,
-    prefix: &str,
-    depth: usize,
-    rows: &mut Map<String, Value>,
-    total: &mut u64,
-) -> Result<()> {
-    if depth > MAX_DEPTH {
-        return Err(EvidenceError::Invalid("tree exceeds depth budget"));
-    }
+fn directory_names(descriptor: &OwnedFd) -> Result<Vec<String>> {
     let entries =
         Dir::read_from(descriptor).map_err(|error| EvidenceError::Io(error.to_string()))?;
     let mut names = Vec::new();
@@ -328,13 +318,29 @@ fn scan(
         }
     }
     names.sort();
-    for name in names {
+    Ok(names)
+}
+
+fn scan<F: FnMut(&str)>(
+    descriptor: &OwnedFd,
+    context: &TreeContext<'_>,
+    prefix: &str,
+    depth: usize,
+    rows: &mut Map<String, Value>,
+    total: &mut u64,
+    after_directory_scan: &mut F,
+) -> Result<()> {
+    if depth > MAX_DEPTH {
+        return Err(EvidenceError::Invalid("tree exceeds depth budget"));
+    }
+    let names = directory_names(descriptor)?;
+    for name in &names {
         let relative = if prefix.is_empty() {
             name.clone()
         } else {
             format!("{prefix}/{name}")
         };
-        let (row, bytes, child) = inspect_one(descriptor, context, &name, &relative)?;
+        let (row, bytes, child, before) = inspect_one(descriptor, context, name, &relative)?;
         *total = total
             .checked_add(bytes)
             .filter(|size| *size <= MAX_BYTES)
@@ -343,16 +349,30 @@ fn scan(
             return Err(EvidenceError::Invalid("tree exceeds entry budget"));
         }
         if let Some(child) = child {
-            scan(&child, context, &relative, depth + 1, rows, total)?;
+            scan(
+                &child,
+                context,
+                &relative,
+                depth + 1,
+                rows,
+                total,
+                after_directory_scan,
+            )?;
             let current = statat(descriptor, name.as_str(), AtFlags::SYMLINK_NOFOLLOW)
                 .map_err(|error| EvidenceError::Io(error.to_string()))?;
             let opened = fstat(&child).map_err(|error| EvidenceError::Io(error.to_string()))?;
-            if !unchanged(&current, &opened) {
+            if !unchanged(&before, &current) || !unchanged(&before, &opened) {
                 return Err(EvidenceError::Invalid(
                     "tree directory changed while scanning",
                 ));
             }
         }
+    }
+    after_directory_scan(prefix);
+    if names != directory_names(descriptor)? {
+        return Err(EvidenceError::Invalid(
+            "tree directory changed while scanning",
+        ));
     }
     Ok(())
 }
@@ -366,6 +386,16 @@ fn inventory_tree_with_after_scan(
     root: &Path,
     kind: TreeKind,
     after_scan: impl FnOnce(),
+) -> Result<TreeInventory> {
+    let mut no_directory_change = |_: &str| {};
+    inventory_tree_with_hooks(root, kind, after_scan, &mut no_directory_change)
+}
+
+fn inventory_tree_with_hooks<F: FnMut(&str)>(
+    root: &Path,
+    kind: TreeKind,
+    after_scan: impl FnOnce(),
+    after_directory_scan: &mut F,
 ) -> Result<TreeInventory> {
     let descriptor = open_absolute_directory(root)?;
     let metadata = fstat(&descriptor).map_err(|error| EvidenceError::Io(error.to_string()))?;
@@ -388,7 +418,15 @@ fn inventory_tree_with_after_scan(
         root_fd: &descriptor,
         kind,
     };
-    scan(&descriptor, &context, "", 0, &mut rows, &mut total)?;
+    scan(
+        &descriptor,
+        &context,
+        "",
+        0,
+        &mut rows,
+        &mut total,
+        after_directory_scan,
+    )?;
     after_scan();
     let after = fstat(&descriptor).map_err(|error| EvidenceError::Io(error.to_string()))?;
     if !unchanged(&metadata, &after) {
