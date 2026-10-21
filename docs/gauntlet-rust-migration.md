@@ -35,6 +35,8 @@ The [job-owned slice proof](gauntlet-rust-job-slice-proof.md) verifies an option
 
 The [job cgroup proof](gauntlet-rust-job-cgroup-proof.md) separates the future contained controller cgroup under `system.slice` from the product-cell systemd slice. A job-ID-derived, exclusively created group held an inert child and grandchild on the ARM VM, then was killed, drained and removed. Its probe limits are not the reviewed production resource budget, and no controller or benchmark used it.
 
+The subsequent [Root controller exec proof](gauntlet-rust-root-controller-exec-proof.md) applied a proposed fixed 4-GiB/256-PID/one-CPU controller profile and ran an inert Root Python child from the held executable descriptor in the job group. The uninstalled ARM probe observed the child and grandchild, killed and drained the group, and left it absent. An internal prepared-controller launch step now requires the worker lease and writes a one-time started marker before spawning, but no Rust dispatcher owns its deadline, product-cell cleanup, report or terminal receipt yet. The Python worker remains authoritative.
+
 The [command and state ownership matrix](gauntlet-rust-surface-matrix.md) inventories the three Python entrypoints, primary profiles, asset roles, job states, public snapshot and journals with proposed Rust phase owners. It is an intermediate inventory; the 420-file disposition audit remains open.
 
 ## Decision and scope

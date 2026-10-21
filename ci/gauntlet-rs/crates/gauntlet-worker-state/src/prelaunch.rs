@@ -92,6 +92,28 @@ impl PreparedLaunch {
         &self.proof.plan
     }
 
+    pub(crate) fn matches_run_request(&self, request: &WorkerRequest) -> bool {
+        request.action() == WorkerAction::Run
+            && request.matches_deployment(&self.proof.source_sha, &self.proof.deployment_digest)
+    }
+
+    /// Re-hash the Root-owned controller and recheck the held interpreter
+    /// immediately around a future descriptor-bound child launch. Other
+    /// deployment assets still need their own post-run custody checks.
+    pub fn recheck_controller_and_interpreter(&self) -> Result<(), PrelaunchError> {
+        let controller = verify_controller_tree(
+            Path::new(&self.proof.plan.fixed().cwd),
+            &self.proof.controller_tree_digest,
+        )
+        .map_err(PrelaunchError::Controller)?;
+        if controller.entries() != self.proof.controller_entries {
+            return Err(PrelaunchError::InvalidPins);
+        }
+        self.interpreter
+            .assert_unchanged()
+            .map_err(PrelaunchError::Interpreter)
+    }
+
     pub fn into_parts(self) -> (PrelaunchProof, HeldInterpreter) {
         (self.proof, self.interpreter)
     }

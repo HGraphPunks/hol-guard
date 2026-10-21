@@ -76,6 +76,8 @@ mod builder_run_plan;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod contained_probe;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod controller_exec;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod controller_install;
 #[cfg(target_os = "linux")]
 mod deadline;
@@ -83,6 +85,11 @@ mod deadline;
 pub use contained_probe::{
     run_fixed_cgroup_probe, run_fixed_contained_interpreter_probe, run_fixed_job_cgroup_probe,
     CgroupProbeError, CgroupProbeProof, ContainedInterpreterProbeProof, JobCgroupProbeProof,
+    OwnedJobCgroup,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use controller_exec::{
+    run_fixed_root_controller_exec_probe, ControllerExecError, RootControllerProbeProof,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use controller_install::{

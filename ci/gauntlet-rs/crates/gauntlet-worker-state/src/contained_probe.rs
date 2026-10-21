@@ -27,6 +27,9 @@ const GROUP: &str = "/system.slice/hol-gauntlet-rust-probe-20261020";
 const MEMORY_LIMIT: &str = "536870912\n";
 const PID_LIMIT: &str = "16\n";
 const CPU_LIMIT: &str = "100000 100000\n";
+const CONTROLLER_MEMORY_LIMIT: &str = "4294967296\n";
+const CONTROLLER_PID_LIMIT: &str = "256\n";
+const CONTROLLER_CPU_LIMIT: &str = "100000 100000\n";
 const MAX_CONTROL_BYTES: usize = 4096;
 const POLL: Duration = Duration::from_millis(20);
 const WAIT: Duration = Duration::from_secs(3);
@@ -95,6 +98,60 @@ pub(crate) struct OwnedProbeGroup {
     original: Stat,
     name: String,
     path: String,
+}
+
+#[derive(Clone, Copy)]
+struct GroupLimits {
+    memory: &'static str,
+    pids: &'static str,
+    cpu: &'static str,
+}
+
+const PROBE_LIMITS: GroupLimits = GroupLimits {
+    memory: MEMORY_LIMIT,
+    pids: PID_LIMIT,
+    cpu: CPU_LIMIT,
+};
+
+const CONTROLLER_LIMITS: GroupLimits = GroupLimits {
+    memory: CONTROLLER_MEMORY_LIMIT,
+    pids: CONTROLLER_PID_LIMIT,
+    cpu: CONTROLLER_CPU_LIMIT,
+};
+
+/// A Root-owned, job-ID-derived controller cgroup with a fixed 4-GiB,
+/// 256-PID, one-CPU profile. Dropping this handle never implies cleanup;
+/// terminal code must kill, drain and remove it under the active lease.
+pub struct OwnedJobCgroup {
+    inner: OwnedProbeGroup,
+}
+
+impl OwnedJobCgroup {
+    pub fn create(job_id: &str) -> Result<Self, CgroupProbeError> {
+        Ok(Self {
+            inner: OwnedProbeGroup::create_job_with_limits(job_id, CONTROLLER_LIMITS)?,
+        })
+    }
+
+    pub fn path(&self) -> &str {
+        &self.inner.path
+    }
+
+    pub fn writer(&self) -> Result<OwnedFd, CgroupProbeError> {
+        self.inner.writer()
+    }
+
+    pub fn tasks(&self) -> Result<u64, CgroupProbeError> {
+        self.inner.tasks()
+    }
+
+    pub fn kill(&self) -> Result<(), CgroupProbeError> {
+        self.inner.kill()
+    }
+
+    pub fn drain_and_remove(&mut self) -> Result<(), CgroupProbeError> {
+        self.inner.drain_and_remove()
+    }
 }
 
 fn root_directory(stat: &Stat) -> bool {
@@ -187,20 +244,28 @@ fn check_unprivileged_child(pid: u32) -> Result<(), CgroupProbeError> {
 
 impl OwnedProbeGroup {
     pub(crate) fn create() -> Result<Self, CgroupProbeError> {
-        Self::create_named(NAME.to_owned(), GROUP.to_owned())
+        Self::create_named(NAME.to_owned(), GROUP.to_owned(), PROBE_LIMITS)
     }
 
     fn create_job(job_id: &str) -> Result<Self, CgroupProbeError> {
+        Self::create_job_with_limits(job_id, PROBE_LIMITS)
+    }
+
+    fn create_job_with_limits(job_id: &str, limits: GroupLimits) -> Result<Self, CgroupProbeError> {
         let path =
             rust_controller_cgroup_path(job_id).map_err(|_| CgroupProbeError::InvalidJobId)?;
         let name = path
             .strip_prefix("/system.slice/")
             .ok_or(CgroupProbeError::InvalidJobId)?
             .to_owned();
-        Self::create_named(name, path)
+        Self::create_named(name, path, limits)
     }
 
-    fn create_named(name: String, path: String) -> Result<Self, CgroupProbeError> {
+    fn create_named(
+        name: String,
+        path: String,
+        limits: GroupLimits,
+    ) -> Result<Self, CgroupProbeError> {
         if geteuid().as_raw() != 0 {
             return Err(CgroupProbeError::RootRequired);
         }
@@ -251,7 +316,7 @@ impl OwnedProbeGroup {
             // through a name that could now refer to another cgroup.
             return Err(CgroupProbeError::UnsafeGroup);
         }
-        if group.configure().is_err() {
+        if group.configure(limits).is_err() {
             group.remove_empty()?;
             return Err(CgroupProbeError::ControlUnavailable);
         }
@@ -271,12 +336,12 @@ impl OwnedProbeGroup {
         Ok(())
     }
 
-    fn configure(&self) -> Result<(), CgroupProbeError> {
+    fn configure(&self, limits: GroupLimits) -> Result<(), CgroupProbeError> {
         self.check_identity()?;
         for (name, value) in [
-            ("memory.max", MEMORY_LIMIT),
-            ("pids.max", PID_LIMIT),
-            ("cpu.max", CPU_LIMIT),
+            ("memory.max", limits.memory),
+            ("pids.max", limits.pids),
+            ("cpu.max", limits.cpu),
         ] {
             write_control(&self.directory, name, value.as_bytes())?;
             if read_control(&self.directory, name)? != value.as_bytes() {
