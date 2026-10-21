@@ -109,6 +109,8 @@ mod candidate_config_projection;
 mod candidate_config_projection_live;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_config_shadow_write;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod candidate_conformance_readiness;
 mod candidate_dependencies;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_dependencies_live;
@@ -251,6 +253,11 @@ pub use candidate_config_shadow_write::{
     write_shadow_candidate_config_ineligible,
     write_shadow_candidate_config_with_private_cell_ineligible, CandidateConfigShadowWriteError,
     CandidateConfigShadowWriteProof,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use candidate_conformance_readiness::{
+    inspect_candidate_conformance_readiness_ineligible, CandidateConformanceReadinessError,
+    CandidateConformanceReadinessPins, CandidateConformanceReadinessProof,
 };
 pub use candidate_dependencies::{
     check_candidate_dependencies, CandidateDependencyError, CandidateDependencyProof,
