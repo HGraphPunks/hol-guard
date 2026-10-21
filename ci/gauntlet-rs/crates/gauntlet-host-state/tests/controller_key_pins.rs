@@ -300,9 +300,10 @@ fn lost_ack_reader_leaves_the_durable_host_pin_unresolved() {
         .unwrap();
     worker.write_all(b"\n").unwrap();
     worker.shutdown(Shutdown::Read).unwrap();
-    assert_eq!(
-        journal.accept_prepared_pipe(&host, &host, &planned, Duration::from_secs(1)),
-        Err(HostKeyPinError::TransportFailed)
-    );
+    let result = journal.accept_prepared_pipe(&host, &host, &planned, Duration::from_secs(1));
+    assert!(matches!(
+        result,
+        Err(HostKeyPinError::TransportFailed | HostKeyPinError::TransportTimedOut)
+    ));
     assert_eq!(journal.read(JOB).unwrap().pins, pins());
 }

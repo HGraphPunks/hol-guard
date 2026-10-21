@@ -2,7 +2,9 @@
 //! cleanup. This path does not read a benchmark report or issue a verdict.
 
 use crate::contained_probe::{CgroupProbeError, OwnedJobCgroup};
-use crate::controller_exec::{spawn_prepared_controller, ControllerExecError};
+use crate::controller_exec::{
+    exchange_prelaunch_pipe, spawn_prepared_controller, ControllerExecError,
+};
 use crate::controller_key::{require_pinned_controller_key_under_lease, ControllerKeyError};
 use crate::deadline::{BoottimeDeadline, DeadlineError};
 use crate::linux_process::{observe_process, parse_proc_stat, ProcessObservationError};
@@ -17,6 +19,7 @@ use gauntlet_evidence::{
     DeterministicReportObservation, EvidenceError, SixDeterministicControlRecords,
 };
 use std::fs;
+use std::os::fd::AsRawFd;
 use std::os::unix::process::ExitStatusExt;
 use std::process::{Child, ExitStatus};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -150,7 +153,11 @@ pub(crate) fn run_prepared_controller_ineligible(
     worker_generation: &str,
     active_seconds: u64,
     cancellation: &AtomicBool,
-    acknowledge: impl FnOnce(&[u8]) -> Result<Vec<u8>, ControllerExecError>,
+    acknowledge: impl FnOnce(
+        &[u8],
+        &BoottimeDeadline,
+        &AtomicBool,
+    ) -> Result<Vec<u8>, ControllerExecError>,
 ) -> Result<ControllerRunObservation, ControllerRunError> {
     if cancellation.load(Ordering::Acquire) {
         return Err(ControllerRunError::Cancelled);
@@ -275,6 +282,35 @@ pub(crate) fn run_prepared_controller_ineligible(
         observation.report = Some(report);
     }
     Ok(observation)
+}
+
+/// Connect the fixed launch owner to caller-owned prelaunch pipes. A reviewed
+/// dispatcher must attest both peers and retain the host record on uncertain
+/// delivery before calling this internal path for a live job.
+#[allow(dead_code, clippy::too_many_arguments)]
+pub(crate) fn run_prepared_controller_pipe_ineligible(
+    prepared: &PreparedLaunch,
+    journal: &RunReservationJournal,
+    lease: &ActiveLease,
+    request: &WorkerRequest,
+    worker_generation: &str,
+    active_seconds: u64,
+    cancellation: &AtomicBool,
+    prepared_writer: &impl AsRawFd,
+    ack_reader: &impl AsRawFd,
+) -> Result<ControllerRunObservation, ControllerRunError> {
+    run_prepared_controller_ineligible(
+        prepared,
+        journal,
+        lease,
+        request,
+        worker_generation,
+        active_seconds,
+        cancellation,
+        |frame, deadline, cancellation| {
+            exchange_prelaunch_pipe(frame, prepared_writer, ack_reader, deadline, cancellation)
+        },
+    )
 }
 
 #[cfg(test)]

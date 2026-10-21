@@ -54,6 +54,8 @@ pub enum ControllerExecError {
     Reservation(ReservationError),
     ControllerKey(ControllerKeyError),
     HostHandoff(PrelaunchHandoffError),
+    HostPipeUnavailable,
+    HostPipeTooLarge,
     Deadline(DeadlineError),
     PrelaunchExpired,
     Cancelled,
@@ -79,6 +81,8 @@ impl fmt::Display for ControllerExecError {
             Self::Reservation(error) => write!(f, "worker reservation: {error}"),
             Self::ControllerKey(error) => write!(f, "worker controller key: {error}"),
             Self::HostHandoff(error) => write!(f, "host prelaunch handoff: {error}"),
+            Self::HostPipeUnavailable => f.write_str("host prelaunch pipe unavailable"),
+            Self::HostPipeTooLarge => f.write_str("host prelaunch frame exceeds 1024 bytes"),
             Self::Deadline(error) => write!(f, "host prelaunch deadline: {error}"),
             Self::PrelaunchExpired => f.write_str("host prelaunch deadline expired before spawn"),
             Self::Cancelled => {
@@ -126,6 +130,10 @@ fn fixed_environment(
 #[cfg(test)]
 #[path = "controller_exec_tests.rs"]
 mod tests;
+
+#[path = "controller_exec_pipe.rs"]
+mod pipe;
+pub(crate) use pipe::exchange_prelaunch_pipe;
 
 #[path = "controller_exec_probe.rs"]
 mod probe;
@@ -252,7 +260,11 @@ pub(crate) fn spawn_prepared_controller(
     worker_generation: &str,
     deadline: &BoottimeDeadline,
     cancellation: &AtomicBool,
-    acknowledge: impl FnOnce(&[u8]) -> Result<Vec<u8>, ControllerExecError>,
+    acknowledge: impl FnOnce(
+        &[u8],
+        &BoottimeDeadline,
+        &AtomicBool,
+    ) -> Result<Vec<u8>, ControllerExecError>,
 ) -> Result<(Child, StartedMarker, ControllerKeyPin), ControllerExecError> {
     if geteuid().as_raw() != 0 {
         return Err(ControllerExecError::RootRequired);
@@ -310,7 +322,7 @@ pub(crate) fn spawn_prepared_controller(
     let frame = prepared_frame
         .to_bytes()
         .map_err(ControllerExecError::HostHandoff)?;
-    let acknowledgement = acknowledge(&frame)?;
+    let acknowledgement = acknowledge(&frame, deadline, cancellation)?;
     prepared_frame
         .verify_acknowledgement(&acknowledgement)
         .map_err(ControllerExecError::HostHandoff)?;

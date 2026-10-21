@@ -23,4 +23,5 @@ serde_json = { version = "=1.0.151", features = ["arbitrary_precision"] }
 sha2 = "=0.10.9"
 
 [dev-dependencies]
+gauntlet-host-state = { path = "../gauntlet-host-state" }
 tempfile = "=3.27.0"
