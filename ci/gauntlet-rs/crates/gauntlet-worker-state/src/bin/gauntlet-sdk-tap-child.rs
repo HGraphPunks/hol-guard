@@ -36,25 +36,33 @@ fn pin(pid: &str, start: &str, cgroup: &str) -> Result<SdkWirePeerPin, String> {
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 fn run() -> Result<(), String> {
     let arguments = std::env::args().collect::<Vec<_>>();
-    if arguments.len() != 14 || !matches!(arguments[1].as_str(), "docs" | "mail") {
+    if arguments.len() != 15 || !matches!(arguments[1].as_str(), "docs" | "mail") {
         return Err("fixed SDK tap child arguments required".to_owned());
     }
     let client_fd = fd(&arguments[2])?;
     let directory_fd = fd(&arguments[3])?;
     let report_fd = fd(&arguments[4])?;
-    if client_fd == directory_fd || client_fd == report_fd || directory_fd == report_fd {
+    let handoff_fd = fd(&arguments[5])?;
+    if client_fd == directory_fd
+        || client_fd == report_fd
+        || client_fd == handoff_fd
+        || directory_fd == report_fd
+        || directory_fd == handoff_fd
+        || report_fd == handoff_fd
+    {
         return Err("SDK tap child descriptors must be distinct".to_owned());
     }
-    let sdk_relay = pin(&arguments[5], &arguments[6], &arguments[7])?;
-    let sdk_ancestor = pin(&arguments[8], &arguments[9], &arguments[10])?;
-    let native_frontdoor = pin(&arguments[11], &arguments[12], &arguments[13])?;
+    let sdk_relay = pin(&arguments[6], &arguments[7], &arguments[8])?;
+    let sdk_ancestor = pin(&arguments[9], &arguments[10], &arguments[11])?;
+    let native_frontdoor = pin(&arguments[12], &arguments[13], &arguments[14])?;
     // SAFETY: each distinct inherited FD was checked above and is adopted
     // exactly once; the worker must pass held Unix sockets and a directory.
-    let (client, directory, report) = unsafe {
+    let (client, directory, report, handoff) = unsafe {
         (
             UnixStream::from_raw_fd(client_fd),
             OwnedFd::from_raw_fd(directory_fd),
             UnixStream::from_raw_fd(report_fd),
+            UnixStream::from_raw_fd(handoff_fd),
         )
     };
     let pins = SdkTapChildPins {
@@ -63,7 +71,7 @@ fn run() -> Result<(), String> {
         sdk_ancestor: &sdk_ancestor,
         native_frontdoor: &native_frontdoor,
     };
-    run_sdk_tap_child_once_ineligible(client, directory, report, &pins)?;
+    run_sdk_tap_child_once_ineligible(client, directory, report, handoff, &pins)?;
     Ok(())
 }
 

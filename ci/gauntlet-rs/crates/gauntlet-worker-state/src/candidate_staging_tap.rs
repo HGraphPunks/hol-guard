@@ -7,8 +7,8 @@ use crate::{
     open_fixed_native_frontdoor_ineligible, open_pinned_sdk_tap_executable_ineligible,
     retain_sdk_tap_journal_ineligible, run_pinned_sdk_tap_child_in_group_ineligible, ActiveLease,
     BoottimeDeadline, HeldSdkTapExecutable, OwnedSdkTapCgroup, RunReservationJournal,
-    SdkTapJournalReceipt, SdkTapListeners, SdkTapRetainedSession, SdkWirePeerObservation,
-    SdkWirePeerPin, StagingRole, StartedMarker,
+    SdkTapJournalReceipt, SdkTapListeners, SdkTapRetainedSession, SdkWirePeerPin, StagingRole,
+    StartedMarker,
 };
 use serde_json::{json, Value};
 use std::path::Path;
@@ -103,7 +103,7 @@ impl StagingTapV2 {
                         sdk_ancestor,
                     )?;
                     let native_directory = native.duplicate_directory()?;
-                    let (wire, child) = run_pinned_sdk_tap_child_in_group_ineligible(
+                    let (wire, child, native_peer) = run_pinned_sdk_tap_child_in_group_ineligible(
                         &self.executable,
                         sdk_connection,
                         native_directory,
@@ -118,16 +118,7 @@ impl StagingTapV2 {
                     let session = SdkTapRetainedSession {
                         family: family.to_owned(),
                         sdk_peer: sdk_held.observation().clone(),
-                        // The child authenticates its Native peer against this
-                        // Root-observed controller pin before a successful exit.
-                        // The Root side does not independently read that socket.
-                        native_peer: SdkWirePeerObservation {
-                            pid: controller.pid,
-                            start_ticks: controller.start_ticks,
-                            cgroup: controller.cgroup.clone(),
-                            uid: 0,
-                            gid: 0,
-                        },
+                        native_peer,
                         sdk_ancestry,
                         wire,
                     };
@@ -186,14 +177,14 @@ impl StagingTapV2 {
 impl TapSessions {
     pub(crate) fn summary(&self, receipt: &SdkTapJournalReceipt) -> Value {
         json!({
-            "schema":"hol-gauntlet-staging-sdk-tap-summary.v1",
+            "schema":"hol-gauntlet-staging-sdk-tap-summary.v2",
             "journal":receipt.to_json(),
             "child_processes":self.children.iter().map(|child| json!({
                 "pid":child.pid,
                 "start_ticks":child.start_ticks,
                 "cgroup":child.cgroup,
             })).collect::<Vec<_>>(),
-            "native_peer_independently_observed_by_root":false,
+            "native_peer_independently_observed_by_root":true,
             "execution_eligible":false,
         })
     }
@@ -419,6 +410,9 @@ for pid in children:
         assert_eq!(receipt.sessions, 2);
         assert_eq!(receipt.events, 4);
         assert!(!retained.is_empty());
+        let summary = result.summary(&receipt);
+        assert_eq!(summary["schema"], "hol-gauntlet-staging-sdk-tap-summary.v2");
+        assert_eq!(summary["native_peer_independently_observed_by_root"], true);
         assert!(tap
             .retain_sessions(&journal, &lease, &started, &result)
             .is_err());
@@ -427,6 +421,12 @@ for pid in children:
         assert!(result.sessions.iter().all(
             |session| session.wire.completed_tool_calls == 1 && session.wire.events.len() == 2
         ));
+        assert!(result.sessions.iter().all(|session| {
+            session.native_peer.pid == controller.pid
+                && session.native_peer.start_ticks == controller.start_ticks
+                && session.native_peer.cgroup == controller.cgroup
+                && (session.native_peer.uid, session.native_peer.gid) == (0, 0)
+        }));
         assert!(!temporary
             .path()
             .join(format!("{run_id}.sdk-tap/docs.sock"))

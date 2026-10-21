@@ -149,8 +149,14 @@ pub(crate) fn matching_sdk_tap_native_frames(
     let run_id = report["run_id"].as_str().ok_or(INVALID)?;
     let receipt = &report["sdk_tap_v2"]["journal"];
     if record["sdk_tap_v2_requested"] != true
-        || report["sdk_tap_v2"]["schema"] != "hol-gauntlet-staging-sdk-tap-summary.v1"
-        || report["sdk_tap_v2"]["native_peer_independently_observed_by_root"] != false
+        || !matches!(
+            (
+                report["sdk_tap_v2"]["schema"].as_str(),
+                report["sdk_tap_v2"]["native_peer_independently_observed_by_root"].as_bool()
+            ),
+            (Some("hol-gauntlet-staging-sdk-tap-summary.v1"), Some(false))
+                | (Some("hol-gauntlet-staging-sdk-tap-summary.v2"), Some(true))
+        )
         || report["sdk_tap_v2"]["execution_eligible"] != false
         || receipt["schema"] != "hol-gauntlet-sdk-tap-journal-receipt.v1"
         || receipt["run_id"] != run_id

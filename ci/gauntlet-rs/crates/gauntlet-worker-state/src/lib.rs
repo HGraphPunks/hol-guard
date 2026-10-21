@@ -198,6 +198,8 @@ mod running;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod sdk_wire_child;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod sdk_wire_fd_handoff;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod sdk_wire_journal;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod sdk_wire_listener;

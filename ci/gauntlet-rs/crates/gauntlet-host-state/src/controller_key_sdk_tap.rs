@@ -188,9 +188,15 @@ impl HostKeyPinRecord {
             || report["controller_public_key_hex"] != self.pins.controller_public_key_hex
             || report["execution_eligible"] != false
             || report["record_scored"] != false
-            || report["sdk_tap_v2"]["schema"] != "hol-gauntlet-staging-sdk-tap-summary.v1"
+            || !matches!(
+                (
+                    report["sdk_tap_v2"]["schema"].as_str(),
+                    report["sdk_tap_v2"]["native_peer_independently_observed_by_root"].as_bool()
+                ),
+                (Some("hol-gauntlet-staging-sdk-tap-summary.v1"), Some(false))
+                    | (Some("hol-gauntlet-staging-sdk-tap-summary.v2"), Some(true))
+            )
             || report["sdk_tap_v2"]["execution_eligible"] != false
-            || report["sdk_tap_v2"]["native_peer_independently_observed_by_root"] != false
             || receipt["schema"] != "hol-gauntlet-sdk-tap-journal-receipt.v1"
             || receipt["run_id"] != self.pins.job_id
             || receipt["sha256"] != journal_sha256
@@ -593,6 +599,26 @@ mod tests {
         let path = temp.path().join(format!("{run_id}.sdk-tap-pin.json"));
         std::fs::write(&path, b"{}").unwrap();
         assert!(host.read_sdk_tap_journal_pin(run_id).is_err());
+    }
+
+    #[test]
+    fn host_accepts_only_matching_summary_version_and_root_socket_claim() {
+        let (_temp, _host, key, terminal, report, journal) = sample();
+        let mut value: Value = serde_json::from_slice(&report).unwrap();
+        value["sdk_tap_v2"]["native_peer_independently_observed_by_root"] = json!(true);
+        let forged = canonical(value.clone());
+        let mut terminal_value: Value = serde_json::from_slice(&terminal).unwrap();
+        terminal_value["report_sha256"] = json!(digest(&forged));
+        assert_eq!(
+            key.observe_sdk_tap_journal(&canonical(terminal_value.clone()), &forged, &journal),
+            Err(HostKeyPinError::InvalidTapJournal)
+        );
+        value["sdk_tap_v2"]["schema"] = json!("hol-gauntlet-staging-sdk-tap-summary.v2");
+        let v2 = canonical(value);
+        terminal_value["report_sha256"] = json!(digest(&v2));
+        assert!(key
+            .observe_sdk_tap_journal(&canonical(terminal_value), &v2, &journal)
+            .is_ok());
     }
 
     #[test]

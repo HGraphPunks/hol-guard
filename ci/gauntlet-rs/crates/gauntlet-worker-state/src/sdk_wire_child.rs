@@ -2,6 +2,7 @@
 //! launch this executable, pass only held descriptors, track its pidfd/cgroup,
 //! independently read its raw-frame pipe, and reap it under the job deadline.
 
+use crate::sdk_wire_fd_handoff::send_native_socket;
 use crate::sdk_wire_journal::SdkTapRetainedSession;
 use crate::sdk_wire_peer::{
     authenticate_native_frontdoor_peer_ineligible, authenticate_sdk_relay_peer_ineligible,
@@ -66,6 +67,7 @@ pub fn run_sdk_tap_child_once_ineligible(
     sdk_connection: UnixStream,
     native_directory: OwnedFd,
     report: UnixStream,
+    native_handoff: UnixStream,
     pins: &SdkTapChildPins<'_>,
 ) -> Result<SdkTapRetainedSession, String> {
     require_unprivileged_child()?;
@@ -85,6 +87,10 @@ pub fn run_sdk_tap_child_once_ineligible(
         .map_err(|error| format!("fixed Native MCP frontdoor unavailable: {error}"))?;
     let native_peer =
         authenticate_native_frontdoor_peer_ineligible(&native_connection, pins.native_frontdoor)?;
+    native_handoff
+        .set_write_timeout(Some(Duration::from_secs(5)))
+        .map_err(|error| error.to_string())?;
+    send_native_socket(&native_handoff, &native_connection)?;
     let held_sdk = sdk_connection
         .try_clone()
         .map_err(|error| error.to_string())?;
@@ -349,12 +355,15 @@ time.sleep(2)
             panic!("SDK exited {sdk_status}: {stderr}");
         }
         server_result.unwrap();
-        let (parent_observation, child_pin) = parent_observation.unwrap();
+        let (parent_observation, child_pin, observed_native) = parent_observation.unwrap();
         assert_eq!(
             child_pin.cgroup,
             "/system.slice/hol-gauntlet-rust-tap-edcba98765432101"
         );
         assert_eq!(parent_observation.completed_tool_calls, 1);
         assert_eq!(parent_observation.events.len(), 2);
+        assert_eq!(observed_native.pid, native_pin.pid);
+        assert_eq!(observed_native.start_ticks, native_pin.start_ticks);
+        assert_eq!((observed_native.uid, observed_native.gid), (0, 0));
     }
 }

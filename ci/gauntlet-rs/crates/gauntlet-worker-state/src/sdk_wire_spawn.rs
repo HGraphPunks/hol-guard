@@ -2,12 +2,15 @@
 //! job lease, fixed cgroup, listener, controller mount and terminal pin.
 
 use crate::linux_process::{observe_process, parse_proc_stat, valid_cgroup};
+use crate::sdk_wire_fd_handoff::receive_native_socket;
 use crate::sdk_wire_peer::{
-    authenticate_sdk_relay_peer_ineligible, bind_sdk_relay_to_ancestor_ineligible, SdkWirePeerPin,
+    authenticate_native_frontdoor_peer_ineligible, authenticate_sdk_relay_peer_ineligible,
+    bind_sdk_relay_to_ancestor_ineligible, SdkWirePeerObservation, SdkWirePeerPin,
 };
 use crate::sdk_wire_pipe::read_sdk_tap_frame_pipe_ineligible;
 use crate::sdk_wire_tap::SdkWireObservation;
 use crate::{hex, open_root_owned_public_directory, BoottimeDeadline, OwnedSdkTapCgroup};
+use rustix::event::{poll, PollFd, PollFlags, Timespec};
 use rustix::fs::{fstat, openat, statat, AtFlags, FileType, Mode, OFlags, Stat};
 use rustix::process::{geteuid, pidfd_open, Pid, PidfdFlags};
 use sha2::{Digest, Sha256};
@@ -27,7 +30,7 @@ const MAX_EXECUTABLE_BYTES: u64 = 32 * 1024 * 1024;
 const READ_POLL: Duration = Duration::from_millis(250);
 const TAP_UID: u32 = 10001;
 const TAP_GID: u32 = 10001;
-const ARG_COUNT: usize = 14;
+const ARG_COUNT: usize = 15;
 
 fn fixed_arm64_elf(raw: &[u8]) -> bool {
     raw.len() >= 64
@@ -176,6 +179,28 @@ fn process_start(pid: u32, expected_cgroup: &str) -> Result<u64, String> {
     Ok(parsed.start_ticks)
 }
 
+fn await_native_handoff(
+    socket: &UnixStream,
+    deadline: &BoottimeDeadline,
+    cancellation: &AtomicBool,
+) -> Result<UnixStream, String> {
+    let wait = Timespec {
+        tv_sec: 0,
+        tv_nsec: 250_000_000,
+    };
+    loop {
+        if cancellation.load(Ordering::Acquire)
+            || deadline.remaining().map_err(|error| error.to_string())? == Duration::ZERO
+        {
+            return Err("Native socket handoff cancelled or timed out".to_owned());
+        }
+        let mut descriptors = [PollFd::new(socket, PollFlags::IN)];
+        if poll(&mut descriptors, Some(&wait)).map_err(|error| error.to_string())? != 0 {
+            return receive_native_socket(socket);
+        }
+    }
+}
+
 fn kill_and_reap(child: &mut Child) -> Result<(), String> {
     let _ = child.kill();
     let began = Instant::now();
@@ -231,7 +256,7 @@ pub fn run_pinned_sdk_tap_child_ineligible(
     child_cgroup: &str,
     deadline: &BoottimeDeadline,
     cancellation: &AtomicBool,
-) -> Result<(SdkWireObservation, SdkWirePeerPin), String> {
+) -> Result<(SdkWireObservation, SdkWirePeerPin, SdkWirePeerObservation), String> {
     run_pinned_sdk_tap_child_impl(
         executable,
         sdk_connection,
@@ -261,7 +286,7 @@ pub fn run_pinned_sdk_tap_child_in_group_ineligible(
     group: &OwnedSdkTapCgroup,
     deadline: &BoottimeDeadline,
     cancellation: &AtomicBool,
-) -> Result<(SdkWireObservation, SdkWirePeerPin), String> {
+) -> Result<(SdkWireObservation, SdkWirePeerPin, SdkWirePeerObservation), String> {
     run_pinned_sdk_tap_child_impl(
         executable,
         sdk_connection,
@@ -290,7 +315,7 @@ fn run_pinned_sdk_tap_child_impl(
     group: Option<&OwnedSdkTapCgroup>,
     deadline: &BoottimeDeadline,
     cancellation: &AtomicBool,
-) -> Result<(SdkWireObservation, SdkWirePeerPin), String> {
+) -> Result<(SdkWireObservation, SdkWirePeerPin, SdkWirePeerObservation), String> {
     if geteuid().as_raw() != 0
         || !matches!(family, "docs" | "mail")
         || !valid_cgroup(child_cgroup)
@@ -303,6 +328,7 @@ fn run_pinned_sdk_tap_child_impl(
     let sdk_peer = authenticate_sdk_relay_peer_ineligible(&sdk_connection, sdk_relay)?;
     bind_sdk_relay_to_ancestor_ineligible(&sdk_connection, &sdk_peer, sdk_ancestor)?;
     let (report_parent, report_child) = UnixStream::pair().map_err(|error| error.to_string())?;
+    let (handoff_parent, handoff_child) = UnixStream::pair().map_err(|error| error.to_string())?;
     report_parent
         .set_read_timeout(Some(READ_POLL))
         .map_err(|error| error.to_string())?;
@@ -310,6 +336,7 @@ fn run_pinned_sdk_tap_child_impl(
         sdk_connection.as_raw_fd(),
         native_directory.as_raw_fd(),
         report_child.as_raw_fd(),
+        handoff_child.as_raw_fd(),
     ];
     let arguments = [
         "gauntlet-sdk-tap-child".to_owned(),
@@ -317,6 +344,7 @@ fn run_pinned_sdk_tap_child_impl(
         passed[0].to_string(),
         passed[1].to_string(),
         passed[2].to_string(),
+        passed[3].to_string(),
         sdk_relay.pid.to_string(),
         sdk_relay.start_ticks.to_string(),
         sdk_relay.cgroup.clone(),
@@ -394,6 +422,7 @@ fn run_pinned_sdk_tap_child_impl(
         .spawn()
         .map_err(|error| format!("pinned SDK tap child spawn failed: {error}"))?;
     drop(report_child);
+    drop(handoff_child);
     let pid = child.id();
     let result = (|| {
         let child_start = process_start(pid, child_cgroup)?;
@@ -404,6 +433,9 @@ fn run_pinned_sdk_tap_child_impl(
         )
         .map_err(|error| format!("SDK tap child pidfd unavailable: {error}"))?;
         sdk_peer.recheck(&sdk_connection)?;
+        let native_socket = await_native_handoff(&handoff_parent, deadline, cancellation)?;
+        let native_peer =
+            authenticate_native_frontdoor_peer_ineligible(&native_socket, native_frontdoor)?;
         let report = read_sdk_tap_frame_pipe_ineligible(
             DeadlineReader {
                 stream: &report_parent,
@@ -415,6 +447,7 @@ fn run_pinned_sdk_tap_child_impl(
         if cancellation.load(Ordering::Acquire) {
             return Err("SDK tap child cancelled".to_owned());
         }
+        native_peer.recheck(&native_socket)?;
         executable.recheck()?;
         wait_success(&mut child, deadline, cancellation)?;
         let _held_pidfd = pidfd;
@@ -425,6 +458,7 @@ fn run_pinned_sdk_tap_child_impl(
                 start_ticks: child_start,
                 cgroup: child_cgroup.to_owned(),
             },
+            native_peer.observation().clone(),
         ))
     })();
     if result.is_err() {
