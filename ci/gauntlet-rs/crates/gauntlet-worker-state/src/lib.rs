@@ -194,6 +194,8 @@ mod projection;
 #[cfg(target_os = "linux")]
 mod running;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod sdk_wire_listener;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod sdk_wire_peer;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod sdk_wire_tap;
@@ -354,6 +356,8 @@ pub use product_cell_units::{
 };
 #[cfg(target_os = "linux")]
 pub use running::RunningMarker;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use sdk_wire_listener::{bind_sdk_tap_listeners_ineligible, SdkTapListeners};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use sdk_wire_peer::{
     authenticate_native_frontdoor_peer_ineligible, authenticate_sdk_relay_peer_ineligible,
