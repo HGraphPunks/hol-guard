@@ -10,6 +10,7 @@ mod contained_output;
 mod contained_output_custody;
 mod contained_route_accounting;
 mod control_opening;
+mod control_reported_relations;
 mod control_reported_tail;
 mod controller_envelope;
 mod controller_install_plan;
@@ -71,6 +72,7 @@ pub use contained_route_accounting::verify_contained_route_accounting;
 pub use control_opening::{
     verify_control_opening, verify_control_session_opening, ControlOpening, ControlSessionOpening,
 };
+pub use control_reported_relations::{verify_control_reported_relations, ControlReportedRelations};
 pub use control_reported_tail::{verify_control_reported_tail, ControlReportedTail};
 pub use controller_envelope::verify_controller_envelope;
 pub use controller_install_plan::{plan_controller_install, ControllerInstallPlan};

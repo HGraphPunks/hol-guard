@@ -4,10 +4,7 @@
 use crate::crypto::{decode_hex, is_sha256, sha256};
 use crate::payload::exact_keys;
 use crate::{
-    recompute_native_review_summary, verify_cancel_reported_relation, verify_contained_cli_results,
-    verify_contained_output_custody, verify_contained_route_accounting,
-    verify_control_reported_tail, verify_native_review_summary,
-    verify_private_runtime_prompt_relation, EvidenceError, Result,
+    verify_control_reported_relations, verify_control_reported_tail, EvidenceError, Result,
 };
 use gauntlet_contracts::canonicalize;
 use serde_json::{json, Value};
@@ -335,59 +332,12 @@ fn verify_package(
             return Err(CONTROL);
         }
         let tail = verify_control_reported_tail(&record_raw, role, &key, expected_runtime)?;
-        let reviews = verify_native_review_summary(&tail.session.signed.builtin)?;
-        if reviews["review_complete"] != (role != "cancel")
-            || (role == "cancel"
-                && tail.session.signed.builtin["review_summary"]["missing_required_post_call_ids"]
-                    != json!(["sdk-contained-control"]))
-        {
-            return Err(EvidenceError::Invalid(
-                "control Native review status differs from role",
-            ));
-        }
-        if role == "cancel" {
-            let builtin = &tail.session.signed.builtin;
-            let summary = recompute_native_review_summary(
-                &builtin["transport_observations"],
-                &builtin["contained_transport_observations"],
-            )?;
-            verify_cancel_reported_relation(&record_raw, &key, expected_runtime, &summary)?;
-        } else {
-            let runtime_raw = canonical_value(&record["developer_runtime"])?;
-            let prompt_digest = tail.session.public_prompt_digest.as_str().ok_or(CONTROL)?;
-            let prompt = verify_private_runtime_prompt_relation(
-                &runtime_raw,
-                &key,
-                &tail.session.session_id,
-                prompt_digest,
-            )?;
-            if prompt["matched_public_prompts"].as_u64() != Some(1) {
-                return Err(CONTROL);
-            }
-            let cli = verify_contained_cli_results(
-                &tail.session.signed.plane,
-                &tail.session.signed.settings,
-                &tail.session.agent_identity,
-            )?;
-            if cli["checked_executions"].as_u64() != Some(1) {
-                return Err(CONTROL);
-            }
-            let route = verify_contained_route_accounting(
-                &tail.session.signed.builtin,
-                &tail.session.signed.plane,
-            )?;
-            let route_count = route["matched_routes"].as_u64().ok_or(CONTROL)? as usize;
-            let binding_count = verify_contained_output_custody(&tail.session.signed.builtin)?;
-            if route_count != 1 || binding_count != 1 {
-                return Err(EvidenceError::Invalid(
-                    "control contained-route or output count differs from role",
-                ));
-            }
-            contained_routes += route_count;
-            output_bindings += binding_count;
-            public_prompt_relations += 1;
-            contained_cli_results += 1;
-        }
+        let relations =
+            verify_control_reported_relations(&record_raw, role, &key, expected_runtime, &tail)?;
+        contained_routes += relations.contained_routes;
+        output_bindings += relations.output_bindings;
+        public_prompt_relations += relations.public_prompts;
+        contained_cli_results += relations.contained_cli_results;
         let session_id = tail.session.session_id;
         if !sessions.insert(session_id.clone()) {
             return Err(EvidenceError::Invalid(
