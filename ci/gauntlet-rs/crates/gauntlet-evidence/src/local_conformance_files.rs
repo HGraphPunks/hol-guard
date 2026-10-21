@@ -6,8 +6,8 @@ use crate::local_conformance_package::{
 };
 use crate::public_files::PublicRootReader;
 use crate::{
-    load_runner_config_from_paths, verify_controller_tree, verify_runner_file_assets,
-    EvidenceError, Result,
+    inventory_tree, load_runner_config_from_paths, verify_controller_tree,
+    verify_runner_file_assets, EvidenceError, Result, TreeKind,
 };
 use rustix::process::geteuid;
 use serde_json::{json, Map, Value};
@@ -93,6 +93,26 @@ fn expected_runtime(config: &Value) -> Result<Value> {
     Ok(expected)
 }
 
+fn observed_public_assets(config: &Value, asset_root: &Path) -> Result<Value> {
+    let sdk = &config["assets"]["sdk"];
+    let sdk_path = sdk["path"].as_str().ok_or(invalid("SDK path missing"))?;
+    let sdk_inventory = inventory_tree(&asset_root.join(sdk_path), TreeKind::Sdk)?;
+    if sdk_inventory.digest != sdk["sha256"] {
+        return Err(invalid("SDK differs from config pin"));
+    }
+    let bun = &config["assets"]["bun"];
+    let bun_path = bun["path"].as_str().ok_or(invalid("Bun path missing"))?;
+    let bun_inventory = PublicRootReader::open(asset_root)?.file_inventory(bun_path, true)?;
+    if bun_inventory.sha256 != bun["sha256"] {
+        return Err(invalid("Bun differs from config pin"));
+    }
+    Ok(json!({
+        "sdk":{"tree_digest":sdk_inventory.digest,"entries":sdk_inventory.entries,"bytes":sdk_inventory.bytes},
+        "bun":{"sha256":bun_inventory.sha256,"size":bun_inventory.size,"mode":bun_inventory.mode,
+            "uid":bun_inventory.uid,"gid":bun_inventory.gid},
+    }))
+}
+
 /// Read the exact config-pinned package and 50 source files from a separately
 /// pinned Root-owned controller tree. The control records are signed openings
 /// only; this path intentionally omits independent SDK/Native/kernel verdicts.
@@ -125,6 +145,7 @@ pub fn observe_local_conformance_package_from_paths_ineligible(
         .as_str()
         .ok_or(invalid("conformance path missing"))?;
     let package = PublicRootReader::open(asset_root)?.read_file(package_path, 8 * 1024 * 1024)?;
+    let public_assets = observed_public_assets(config, asset_root)?;
     let source_reader = PublicRootReader::open(controller_root)?;
     let mut source_hashes = BTreeMap::new();
     for name in EXECUTION_SOURCES {
@@ -138,11 +159,12 @@ pub fn observe_local_conformance_package_from_paths_ineligible(
         &expected,
         &platform,
         &source_hashes,
-        None,
+        Some(&public_assets),
     )?;
     let after = verify_controller_tree(controller_root, outside_controller_tree_sha256)?;
     if after != controller
         || verify_runner_file_assets(&loaded.verified, asset_root)? != file_assets
+        || observed_public_assets(config, asset_root)? != public_assets
     {
         return Err(invalid("conformance inputs changed while reading"));
     }

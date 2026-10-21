@@ -17,6 +17,15 @@ pub(crate) struct PublicRootReader {
     root: OwnedFd,
 }
 
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub(crate) struct PublicFileInventory {
+    pub sha256: String,
+    pub size: u64,
+    pub mode: u32,
+    pub uid: u32,
+    pub gid: u32,
+}
+
 fn unchanged(before: &Metadata, after: &Metadata) -> bool {
     before.dev() == after.dev()
         && before.ino() == after.ino()
@@ -99,7 +108,11 @@ impl PublicRootReader {
         Ok(raw)
     }
 
-    pub(crate) fn file_digest(&self, path: &str, require_execute: bool) -> Result<String> {
+    pub(crate) fn file_inventory(
+        &self,
+        path: &str,
+        require_execute: bool,
+    ) -> Result<PublicFileInventory> {
         let (mut file, before) = self.open_regular(path)?;
         if require_execute && before.mode() & 0o111 == 0 {
             return Err(EvidenceError::Invalid(
@@ -130,6 +143,16 @@ impl PublicRootReader {
         if total != before.len() || !unchanged(&before, &after) {
             return Err(EvidenceError::Invalid("public file changed while hashing"));
         }
-        Ok(format!("{:x}", hasher.finalize()))
+        Ok(PublicFileInventory {
+            sha256: format!("{:x}", hasher.finalize()),
+            size: before.len(),
+            mode: before.mode() & 0o7777,
+            uid: before.uid(),
+            gid: before.gid(),
+        })
+    }
+
+    pub(crate) fn file_digest(&self, path: &str, require_execute: bool) -> Result<String> {
+        Ok(self.file_inventory(path, require_execute)?.sha256)
     }
 }
