@@ -63,7 +63,7 @@ jobs:
       - name: Compare deterministic forbidden-command reducer with Python on ARM64
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence --test forbidden_command_parity --locked
       - name: Compare signed control opening, output custody, and reported role checks on ARM64
-        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence --test controller_envelope --test injection_attribution_parity --test signed_injection_attribution --test control_opening --test control_session_opening --test control_reported_tail --test contained_output_custody --locked
+        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence --test controller_envelope --test injection_attribution_parity --test signed_injection_attribution --test control_opening --test control_session_opening --test control_reported_tail --test contained_output_custody --test contained_cli_results --locked
       - name: Compare OMP host and SDK bridge event reconciliation with Python on ARM64
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence --test host_calls_parity --locked
       - name: Compare bounded OMP transcript ingestion with Python on ARM64
