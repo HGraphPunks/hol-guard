@@ -24,6 +24,7 @@ pytest_plugins = [
     "tests.approval_reuse_fixtures",
     "tests.containment_resident",
     "tests.native_runtime_fixtures",
+    "tests.native_object_runtime",
     "tests.native_resident_teardown",
     "tests.optional_command_catalog_fixtures",
 ]
@@ -106,10 +107,10 @@ def _checkout_runtime_judges_distribution(monkeypatch: pytest.MonkeyPatch) -> No
 @pytest.fixture(autouse=True)
 def _fresh_native_answer_caches(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep reused native answers from crossing tests that stub native replies."""
-    from codex_plugin_scanner.guard.catalog_delivery import active_security, installed_bundle
+    from codex_plugin_scanner.guard.catalog_delivery import installed_bundle, object_native
 
-    monkeypatch.setattr(installed_bundle, "_ANSWERS", {})
-    monkeypatch.setattr(active_security, "_ANSWERS", type(active_security._ANSWERS)())
+    for module in (installed_bundle, object_native):
+        monkeypatch.setattr(module, "_ANSWERS", type(module._ANSWERS)())
 
 
 @pytest.fixture(autouse=True)

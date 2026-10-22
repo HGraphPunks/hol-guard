@@ -227,19 +227,19 @@ pub mod staging_effect_events;
 pub mod staging_effect_file;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub mod staging_effect_journal;
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod staging_file_handle;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod staging_kernel_observer;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod staging_machine_observer;
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub mod staging_product_effect;
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod staging_product_mounts;
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod staging_product_observer;
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod staging_product_process;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod staging_writer_capture;

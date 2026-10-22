@@ -67,6 +67,7 @@ from tests.benign_fp_gate_projects import (
     _node_toolchain,
     _python_toolchain,
     _sibling_test_runner,
+    _vendored_toolchain,
     _write,
 )
 
@@ -278,6 +279,7 @@ def build_fixture(root: Path) -> BenignFixture:
     _bun_lockfile(worktree, _INSTALLED_PACKAGES)
     _python_toolchain(worktree)
     _build_toolchain(worktree)
+    _vendored_toolchain(worktree)
     _write(worktree / "test_calc.py", "assert 1 + 1 == 2\nprint('ok')\n")
     _write(worktree / "scripts" / "rebuild.sh", "#!/bin/sh\necho rebuilt\n")
     # Reply drafted for a PR review conversation, posted with `gh pr comment --body-file`.
@@ -431,6 +433,10 @@ def build_fixture(root: Path) -> BenignFixture:
     _write(tmp_org / "app" / "README.md", "# app\n")
     _write(home / ".nvm" / "versions" / "node" / "v25.2.1" / "lib" / "node_modules" / "npm" / "package.json", "{}\n")
     _write(home / ".bun" / "install" / "global" / "node_modules" / "vite" / "package.json", "{}\n")
+    # A tool directory that keeps a credential store of its own, so a walk of
+    # it would print that store's layout rather than an inventory.
+    _write(home / ".toolbox" / "bin" / "tool.sh", "#!/bin/sh\necho tool\n")
+    _write(home / ".toolbox" / ".aws" / "config", "[default]\nregion = us-east-1\n")
     # Installed dependency and toolchain source under hidden home directories.
     pipx_site = home / ".local" / "pipx" / "venvs" / "tool" / "lib" / "python3.12" / "site-packages"
     _write(pipx_site / "pkg" / "mod.py", "_COLD_START = 0.5\n")

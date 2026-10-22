@@ -3,6 +3,8 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::fs;
 
+mod host_event_source_compatibility;
+
 fn decode_hex(hex: &str) -> Vec<u8> {
     hex.as_bytes()
         .chunks_exact(2)
@@ -22,7 +24,9 @@ fn bounded_ndjson_acceptance_matches_pinned_python() {
         .iter()
         .find(|row| row["path"] == "ci/gauntlet/evidence.py")
         .unwrap();
-    assert_eq!(fixture["source_sha256"], source["sha256"]);
+    let current =
+        host_event_source_compatibility::verify("omp-transcript", &fixture["source_sha256"], 15);
+    assert_eq!(current, source["sha256"]);
     assert_eq!(fixture["schema"], "gauntlet-omp-transcript-fixtures.v1");
     let cases = fixture["cases"].as_array().unwrap();
     assert_eq!(cases.len(), 15);

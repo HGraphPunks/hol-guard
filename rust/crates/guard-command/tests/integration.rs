@@ -14,6 +14,9 @@ pub(crate) mod git_helper_fixture;
 #[path = "support/business_properties.rs"]
 pub(crate) mod business_properties;
 
+#[path = "../../../test_support/unique_nanos.rs"]
+pub(crate) mod unique_nanos;
+
 pub mod business_command_properties;
 pub mod business_gmail_plain;
 pub mod business_gmail_transfer;
@@ -36,6 +39,7 @@ pub mod native_command_source_stream;
 pub mod package_context_vectors;
 pub mod portable_command_source_fixtures;
 pub mod pretool_agent_metadata;
+pub mod pretool_bare_assignment_lists;
 pub mod pretool_brew_reads;
 pub mod pretool_bun_eval;
 pub mod pretool_cd_canonical_workspace;
@@ -68,6 +72,7 @@ pub mod pretool_file_copies;
 pub mod pretool_file_mutations;
 pub mod pretool_file_reads;
 pub mod pretool_find_brace_expansion;
+pub mod pretool_find_exec_programs;
 pub mod pretool_find_hidden_home_match;
 pub mod pretool_forged_worktree;
 pub mod pretool_generic;
@@ -197,6 +202,7 @@ pub mod pretool_rg_replace_reads;
 pub mod pretool_rg_sibling_bracket_search;
 pub mod pretool_ripgrep_config;
 pub mod pretool_root_removal;
+pub mod pretool_rsync_local_copies;
 pub mod pretool_rust_version_probe;
 pub mod pretool_scratch_checkout_copies;
 pub mod pretool_scratch_edits;
