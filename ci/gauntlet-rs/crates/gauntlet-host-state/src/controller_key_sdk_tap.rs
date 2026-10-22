@@ -68,8 +68,16 @@ fn count(value: &Value, maximum: usize) -> Option<usize> {
         .filter(|value| *value > 0 && *value <= maximum)
 }
 
-fn fixed_guest_readout_argv(run_id: &str, suffix: &str) -> Result<Vec<String>, HostKeyPinError> {
-    if !hex(run_id, 16) || !matches!(suffix, "terminal.json" | "report.json" | "sdk-tap.json") {
+pub(super) fn fixed_guest_readout_argv(
+    run_id: &str,
+    suffix: &str,
+) -> Result<Vec<String>, HostKeyPinError> {
+    if !hex(run_id, 16)
+        || !matches!(
+            suffix,
+            "terminal.json" | "report.json" | "sdk-tap.json" | "effect-events.json"
+        )
+    {
         return Err(HostKeyPinError::InvalidPins);
     }
     let defaults: Value = serde_json::from_str(include_str!("../operations-defaults-v1.json"))

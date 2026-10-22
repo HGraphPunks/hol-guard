@@ -13,6 +13,8 @@ use crate::controller_key::{
     pin_controller_key_under_lease, require_pinned_controller_key_under_lease, SealedControllerKey,
 };
 use crate::controller_run::{cleanup, observe_child, wait_for_child, WaitOutcome};
+use crate::staging_effect_events::{FinishedStagingEffectEvents, StagingEffectEvents};
+use crate::staging_effect_journal::retain_staging_effect_journal_ineligible;
 use crate::staging_kernel_observer::{LiveStagingKernelObservation, StagingKernelSampler};
 use crate::{
     fixed_staging_control_plan, fixed_staging_control_plan_sdk_tap_v2,
@@ -32,10 +34,70 @@ use std::path::Path;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{sync_channel, RecvTimeoutError};
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
 const STAGING_STATE: &str = "/var/lib/hol-gauntlet-rust/staging-state";
+
+struct EffectMonitorThread {
+    stop: Arc<AtomicBool>,
+    failed: Arc<AtomicBool>,
+    handle: Option<thread::JoinHandle<Result<FinishedStagingEffectEvents, String>>>,
+}
+
+impl EffectMonitorThread {
+    fn start(mut events: StagingEffectEvents) -> Result<Self, String> {
+        let stop = Arc::new(AtomicBool::new(false));
+        let failed = Arc::new(AtomicBool::new(false));
+        let thread_stop = Arc::clone(&stop);
+        let thread_failed = Arc::clone(&failed);
+        let handle = thread::Builder::new()
+            .name("staging-effect-observer".to_owned())
+            .spawn(move || {
+                while !thread_stop.load(Ordering::Acquire) {
+                    if let Err(error) = events.drain() {
+                        thread_failed.store(true, Ordering::Release);
+                        return Err(error);
+                    }
+                    thread::sleep(Duration::from_millis(1));
+                }
+                let finished = events.finish();
+                if finished.is_err() {
+                    thread_failed.store(true, Ordering::Release);
+                }
+                finished
+            })
+            .map_err(|error| format!("effect observer thread unavailable: {error}"))?;
+        Ok(Self {
+            stop,
+            failed,
+            handle: Some(handle),
+        })
+    }
+
+    fn failed(&self) -> bool {
+        self.failed.load(Ordering::Acquire)
+    }
+
+    fn finish(mut self) -> Result<FinishedStagingEffectEvents, String> {
+        self.stop.store(true, Ordering::Release);
+        self.handle
+            .take()
+            .ok_or("effect observer thread already reaped")?
+            .join()
+            .map_err(|_| "effect observer thread panicked".to_owned())?
+    }
+}
+
+impl Drop for EffectMonitorThread {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Release);
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct CandidateStagingRunPins<'a> {
@@ -68,6 +130,7 @@ pub struct CandidateStagingRunProof {
     post_run_controller_custody: bool,
     live_kernel_activity: LiveStagingKernelObservation,
     sdk_tap_v2: Option<Value>,
+    effect_events: Option<Value>,
 }
 
 impl CandidateStagingRunProof {
@@ -91,6 +154,9 @@ impl CandidateStagingRunProof {
         });
         if let Some(tap) = &self.sdk_tap_v2 {
             value["sdk_tap_v2"] = tap.clone();
+        }
+        if let Some(events) = &self.effect_events {
+            value["effect_events"] = events.clone();
         }
         value
     }
@@ -304,6 +370,13 @@ fn run_fixed_candidate_staging_control_impl(
         .acquire_active_lease()
         .map_err(|error| error.to_string())?;
     recheck_prelaunch(pins, &interpreter, &journal, &lease)?;
+    let effect_events = if root_relay {
+        Some(EffectMonitorThread::start(StagingEffectEvents::start(
+            Path::new("/home"),
+        )?)?)
+    } else {
+        None
+    };
     let mut group = OwnedJobCgroup::create(pins.run_id).map_err(|error| error.to_string())?;
     let mut tap = match tap_pins {
         Some(tap_pins) => match if root_relay {
@@ -353,6 +426,7 @@ fn run_fixed_candidate_staging_control_impl(
         &lease,
         &mut group,
         tap.as_mut(),
+        effect_events,
     )
 }
 
@@ -368,6 +442,7 @@ fn wait_with_sdk_tap_v2(
     lease: &ActiveLease,
     deadline: &BoottimeDeadline,
     cancellation: &AtomicBool,
+    effect_events: Option<&EffectMonitorThread>,
 ) -> Result<(WaitOutcome, Result<TapSessions, String>), String> {
     let controller = SdkWirePeerPin {
         pid: process.pid,
@@ -420,6 +495,13 @@ fn wait_with_sdk_tap_v2(
                 sampler
                     .sample(group)
                     .map_err(crate::controller_run::ControllerRunError::KernelObservation)?;
+                if effect_events.is_some_and(EffectMonitorThread::failed) {
+                    return Err(
+                        crate::controller_run::ControllerRunError::KernelObservation(
+                            "effect observer stopped before controller exit".to_owned(),
+                        ),
+                    );
+                }
                 if sender.is_some() {
                     if let Some(ancestor) = sampler
                         .unique_live_sdk_ancestor(tap.bun_sha256())
@@ -467,6 +549,7 @@ fn run_with_group(
     lease: &ActiveLease,
     group: &mut OwnedJobCgroup,
     mut tap: Option<&mut StagingTapV2>,
+    effect_events: Option<EffectMonitorThread>,
 ) -> Result<CandidateStagingRunProof, String> {
     let launched = launch_control(
         pins,
@@ -523,6 +606,7 @@ fn run_with_group(
                 lease,
                 deadline,
                 cancellation,
+                effect_events.as_ref(),
             )?;
             (outcome, Some(sessions))
         } else {
@@ -535,7 +619,18 @@ fn run_with_group(
                         .map_err(crate::controller_run::ControllerRunError::Lease)?;
                     sampler
                         .sample(group)
-                        .map_err(crate::controller_run::ControllerRunError::KernelObservation)
+                        .map_err(crate::controller_run::ControllerRunError::KernelObservation)?;
+                    if effect_events
+                        .as_ref()
+                        .is_some_and(EffectMonitorThread::failed)
+                    {
+                        return Err(
+                            crate::controller_run::ControllerRunError::KernelObservation(
+                                "effect observer stopped before controller exit".to_owned(),
+                            ),
+                        );
+                    }
+                    Ok(())
                 },
                 || cancellation.load(Ordering::Acquire),
             )
@@ -552,6 +647,7 @@ fn run_with_group(
     control_cleanup.map_err(|error| format!("staging child cleanup uncertain: {error}"))?;
     tap_cleanup?;
     let (process, outcome, live_kernel_activity, tap_sessions) = observed?;
+    let finished_effect_events = effect_events.map(EffectMonitorThread::finish).transpose()?;
     let (exit_code, timed_out) = match outcome {
         WaitOutcome::Exited(status) => (
             status
@@ -583,6 +679,13 @@ fn run_with_group(
         (Some(_), None) => return Err("SDK tap outcome missing".to_owned()),
         (None, _) => None,
     };
+    let effect_events = finished_effect_events
+        .as_ref()
+        .map(|finished| {
+            retain_staging_effect_journal_ineligible(journal, lease, &started, finished)
+                .map(|receipt| receipt.to_json())
+        })
+        .transpose()?;
     let mut report = json!({
         "schema":"hol-gauntlet-staging-control-run-report.v1",
         "source_sha":pins.source_sha,
@@ -602,6 +705,9 @@ fn run_with_group(
     });
     if let Some(tap) = &sdk_tap_v2 {
         report["sdk_tap_v2"] = tap.clone();
+    }
+    if let Some(events) = &effect_events {
+        report["effect_events"] = events.clone();
     }
     let raw = canonicalize(report.to_string().as_bytes()).map_err(|error| error.to_string())?;
     let terminal = journal
@@ -632,6 +738,7 @@ fn run_with_group(
         post_run_controller_custody,
         live_kernel_activity,
         sdk_tap_v2,
+        effect_events,
     })
 }
 
@@ -719,4 +826,36 @@ fn launch_control(
     )
     .map_err(|error| error.to_string())?;
     Ok((child, started, key_pin))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "requires dedicated Linux ARM64 Root VM fanotify"]
+    fn effect_thread_retains_a_live_writer_after_cleanup_boundary() {
+        let directory = tempfile::tempdir_in("/home").unwrap();
+        let path = directory.path().join("effect.txt");
+        let monitor =
+            EffectMonitorThread::start(StagingEffectEvents::start(Path::new("/home")).unwrap())
+                .unwrap();
+        std::fs::write(&path, b"synthetic-effect").unwrap();
+        thread::sleep(Duration::from_millis(20));
+        assert!(!monitor.failed());
+        let finished = monitor.finish().unwrap();
+        let held = std::fs::File::open(&path).unwrap();
+        let target = held.metadata().unwrap();
+        use std::os::unix::fs::MetadataExt;
+        let event = finished
+            .events()
+            .iter()
+            .find(|event| event.device == target.dev() && event.inode == target.ino())
+            .unwrap();
+        assert_eq!(event.reported_pid, std::process::id());
+        assert!(event.pidfd_available);
+        let writer = event.writer.as_ref().unwrap();
+        let correlated = finished.correlate_file(&held, &writer.cgroup).unwrap();
+        assert_eq!(correlated.close_writes, 1);
+    }
 }

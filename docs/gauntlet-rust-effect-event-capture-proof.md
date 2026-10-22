@@ -12,7 +12,8 @@ and [pidfd reporting flag](https://man7.org/linux/man-pages/man2/fanotify_init.2
 primitive. It holds an outside-selected Root-owned directory descriptor and
 marks its filesystem relative to that descriptor, so a changed visible path
 cannot redirect the mark. It parses only the expected 32-byte close-write
-event shape, refuses queue overflow and more than 4096 events, and poisons the
+event shape, refused queue overflow and more than 4096 events at this initial
+code pin, and poisoned the
 capture on any read or shape error. For each event it compares the event file
 device with the marked filesystem, retains its inode and owner, and samples
 the writer's start tick and unified cgroup twice while holding the kernel
@@ -41,8 +42,12 @@ writer event for that inode also refused. Four pre-existing library tests
 that require a non-root cgroup path fail in that container because Docker
 places the test process at cgroup `/`; all four passed in the VM suite.
 
-This primitive is not yet wired into a staging run or host-pinned journal.
-The filesystem-wide mark may observe unrelated writes. The current event
+The initial primitive was not yet wired into a staging run or host-pinned
+journal. The later [live effect-event proof](gauntlet-rust-live-effect-events-proof.md)
+records the opt-in Root-relay integration, a final 32,768-event cap and
+16-MiB canonical journal ceiling, four fresh controls and one-use host
+effect pins. The filesystem-wide mark
+may observe unrelated writes. The current event
 shape cannot identify a file that was deleted before post-run inode matching,
 and the monitor does not capture create/delete events. An unknown writer or
 missed event must remain ineligible. It does not establish that a Native

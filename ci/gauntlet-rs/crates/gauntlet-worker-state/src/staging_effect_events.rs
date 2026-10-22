@@ -12,7 +12,10 @@ use std::io::Read;
 use std::os::fd::{AsFd, AsRawFd, FromRawFd, OwnedFd};
 use std::path::Path;
 
-const MAX_EVENTS: usize = 4096;
+// A known-writer row consumes at most twelve canonical JSON nodes. Keep
+// the capture below the contracts parser's 500,000-node ceiling.
+pub const MAX_EFFECT_EVENTS: usize = 32_768;
+const _: () = assert!(MAX_EFFECT_EVENTS * 12 + 64 <= gauntlet_contracts::MAX_NODES);
 const READ_BYTES: usize = 64 * 1024;
 const MAX_PROC_BYTES: u64 = 4096;
 const METADATA_BYTES: usize = 24;
@@ -30,6 +33,8 @@ pub struct CloseWriteEvent {
     pub device: u64,
     pub inode: u64,
     pub owner: u32,
+    pub reported_pid: u32,
+    pub pidfd_available: bool,
     pub writer: Option<EffectWriter>,
 }
 
@@ -246,7 +251,7 @@ impl StagingEffectEvents {
             };
             let mut position = 0;
             while position < count {
-                if self.events.len() >= MAX_EVENTS {
+                if self.events.len() >= MAX_EFFECT_EVENTS {
                     return Err("fanotify event bound exceeded".to_owned());
                 }
                 let (length, header) = parse_event(&buffer[position..count])?;
@@ -264,6 +269,8 @@ impl StagingEffectEvents {
                     device: metadata.st_dev,
                     inode: metadata.st_ino,
                     owner: metadata.st_uid,
+                    reported_pid: header.pid,
+                    pidfd_available: pidfd.is_some(),
                     // Keep the kernel pidfd open through both /proc samples.
                     // The immutable PID/start/cgroup tuple is then retained,
                     // while descriptors are promptly released.
@@ -330,7 +337,10 @@ impl FinishedStagingEffectEvents {
                 .writer
                 .as_ref()
                 .ok_or("effect writer process was not observed live")?;
-            if event.owner != metadata.st_uid || writer.cgroup != expected_cgroup {
+            if event.owner != metadata.st_uid
+                || writer.pid != event.reported_pid
+                || writer.cgroup != expected_cgroup
+            {
                 return Err("effect writer or file owner differs from outside pin".to_owned());
             }
             count += 1;
@@ -435,6 +445,8 @@ mod tests {
             device: metadata.dev(),
             inode: metadata.ino(),
             owner: 0,
+            reported_pid: 42,
+            pidfd_available: false,
             writer: None,
         });
         assert!(finished.correlate_file(&held, &expected_cgroup).is_err());

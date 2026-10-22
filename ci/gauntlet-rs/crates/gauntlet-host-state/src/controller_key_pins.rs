@@ -28,6 +28,9 @@ pub use readback::HostDeterministicReadbackObservation;
 #[path = "controller_key_sdk_tap.rs"]
 mod sdk_tap;
 pub use sdk_tap::HostSdkTapJournalPin;
+#[path = "controller_key_effect_events.rs"]
+mod effect_events;
+pub use effect_events::HostEffectEventsPin;
 #[path = "controller_key_staging_readback.rs"]
 mod staging_readback;
 pub use staging_readback::HostStagingRestartReadbackObservation;
@@ -100,6 +103,7 @@ pub enum HostKeyPinError {
     UnsafeRecord,
     InvalidTerminal,
     InvalidTapJournal,
+    InvalidEffectJournal,
     TransportTimedOut,
     TransportFailed,
     FrameTooLarge,
@@ -119,6 +123,7 @@ impl fmt::Display for HostKeyPinError {
             Self::UnsafeRecord => "host controller key pin is malformed or unsafe",
             Self::InvalidTerminal => "keyed VM terminal differs from the host prelaunch pin",
             Self::InvalidTapJournal => "SDK tap journal differs from the keyed VM run",
+            Self::InvalidEffectJournal => "effect event journal differs from the keyed VM run",
             Self::TransportTimedOut => "VM prelaunch frame or acknowledgement timed out",
             Self::TransportFailed => "VM prelaunch transport failed",
             Self::FrameTooLarge => "VM prelaunch frame exceeds its byte limit",

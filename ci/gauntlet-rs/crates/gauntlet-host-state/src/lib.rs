@@ -29,8 +29,8 @@ pub use live_provider_manifest::{
 mod controller_key_pins;
 pub use controller_key_pins::{
     HostControllerKeyPinJournal, HostControllerKeyPins, HostDeterministicReadbackObservation,
-    HostKeyPinError, HostKeyPinRecord, HostKeyedTerminalObservation, HostPrelaunchIdentity,
-    HostPreparedProcess, HostProcessFailure, HostSdkTapJournalPin,
+    HostEffectEventsPin, HostKeyPinError, HostKeyPinRecord, HostKeyedTerminalObservation,
+    HostPrelaunchIdentity, HostPreparedProcess, HostProcessFailure, HostSdkTapJournalPin,
     HostStagingRestartReadbackObservation,
 };
 mod candidate_build_pins;
