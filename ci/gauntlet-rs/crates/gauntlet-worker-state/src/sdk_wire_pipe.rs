@@ -83,9 +83,23 @@ impl<W: Write> SdkTapFramePipeWriter<W> {
 /// raw byte the child reported. The caller must supply a bounded/deadlined
 /// private reader and independently authenticate the child process.
 pub fn read_sdk_tap_frame_pipe_ineligible<R: Read>(
-    mut input: R,
+    input: R,
     family: &str,
 ) -> Result<SdkWireObservation, String> {
+    read_sdk_tap_frame_pipe_checked_ineligible(input, family, |_, _| Ok(()))
+}
+
+/// Let the Root owner recheck its held SDK and Native process identities at
+/// each child-reported frame, before the frame enters the retained observer.
+/// The callback must fail closed when either peer has disappeared or changed.
+pub(crate) fn read_sdk_tap_frame_pipe_checked_ineligible<R: Read, F>(
+    mut input: R,
+    family: &str,
+    mut check_peers: F,
+) -> Result<SdkWireObservation, String>
+where
+    F: FnMut(&'static str, &[u8]) -> Result<(), String>,
+{
     let mut observer = SdkWireFrameObserver::new(family)?;
     let mut frames = 0_usize;
     let mut bytes = 0_usize;
@@ -124,6 +138,7 @@ pub fn read_sdk_tap_frame_pipe_ineligible<R: Read>(
         input
             .read_exact(&mut raw)
             .map_err(|error| format!("SDK tap pipe raw frame missing: {error}"))?;
+        check_peers(direction, &raw)?;
         observer.observe(direction, &raw)?;
         frames += 1;
         bytes += length;
@@ -150,7 +165,7 @@ mod tests {
         writer.write_frame("client-to-service", request).unwrap();
         writer.write_frame("service-to-client", response).unwrap();
         let raw = writer.finish().unwrap();
-        let observation = read_sdk_tap_frame_pipe_ineligible(Cursor::new(raw), "docs").unwrap();
+        let observation = read_sdk_tap_frame_pipe_ineligible(Cursor::new(&raw), "docs").unwrap();
         assert_eq!(observation.completed_tool_calls, 1);
         assert_eq!(
             observation.events[0].frame_sha256,
@@ -160,6 +175,28 @@ mod tests {
             observation.events[1].frame_sha256,
             format!("{:x}", Sha256::digest(response))
         );
+        let mut checked = 0;
+        let observation =
+            read_sdk_tap_frame_pipe_checked_ineligible(Cursor::new(&raw), "docs", |_, _| {
+                checked += 1;
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(checked, 2);
+        assert_eq!(observation.completed_tool_calls, 1);
+        let mut checked = 0;
+        assert!(
+            read_sdk_tap_frame_pipe_checked_ineligible(Cursor::new(&raw), "docs", |_, _| {
+                checked += 1;
+                if checked == 2 {
+                    Err("peer identity changed".to_owned())
+                } else {
+                    Ok(())
+                }
+            },)
+            .is_err()
+        );
+        assert_eq!(checked, 2);
     }
 
     #[test]

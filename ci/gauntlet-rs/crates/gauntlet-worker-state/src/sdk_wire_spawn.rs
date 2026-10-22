@@ -7,7 +7,7 @@ use crate::sdk_wire_peer::{
     authenticate_native_frontdoor_peer_ineligible, authenticate_sdk_relay_peer_ineligible,
     bind_sdk_relay_to_ancestor_ineligible, SdkWirePeerObservation, SdkWirePeerPin,
 };
-use crate::sdk_wire_pipe::read_sdk_tap_frame_pipe_ineligible;
+use crate::sdk_wire_pipe::read_sdk_tap_frame_pipe_checked_ineligible;
 use crate::sdk_wire_tap::SdkWireObservation;
 use crate::{hex, open_root_owned_public_directory, BoottimeDeadline, OwnedSdkTapCgroup};
 use rustix::event::{poll, PollFd, PollFlags, Timespec};
@@ -557,13 +557,18 @@ fn run_pinned_sdk_tap_child_impl(
         let native_socket = await_native_handoff(&handoff_parent, deadline, cancellation)?;
         let native_peer =
             authenticate_native_frontdoor_peer_ineligible(&native_socket, native_frontdoor)?;
-        let report = read_sdk_tap_frame_pipe_ineligible(
+        let report = read_sdk_tap_frame_pipe_checked_ineligible(
             DeadlineReader {
                 stream: &report_parent,
                 deadline,
                 cancellation,
             },
             family,
+            |_, _| {
+                sdk_peer.recheck(&sdk_connection)?;
+                native_peer.recheck(&native_socket)?;
+                Ok(())
+            },
         )?;
         if cancellation.load(Ordering::Acquire) {
             return Err("SDK tap child cancelled".to_owned());
