@@ -4,14 +4,22 @@ on:
   pull_request:
     branches: [main, "codex/gauntlet-rust-integration-*"]
     paths:
+      - "ci/gauntlet/**"
       - "ci/gauntlet-rs/**"
-      - "docs/gauntlet-rust-migration.md"
+      - "rust/crates/guard-runtime/**"
+      - "rust/Cargo.toml"
+      - "rust/Cargo.lock"
+      - "docs/gauntlet-rust-*.md"
       - ".github/workflows/gauntlet-rust-contracts.yml"
   push:
     branches: [main, "codex/gauntlet-rust-integration-*"]
     paths:
+      - "ci/gauntlet/**"
       - "ci/gauntlet-rs/**"
-      - "docs/gauntlet-rust-migration.md"
+      - "rust/crates/guard-runtime/**"
+      - "rust/Cargo.toml"
+      - "rust/Cargo.lock"
+      - "docs/gauntlet-rust-*.md"
       - ".github/workflows/gauntlet-rust-contracts.yml"
   workflow_dispatch:
 
