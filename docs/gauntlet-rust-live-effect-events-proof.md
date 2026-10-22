@@ -84,3 +84,8 @@ controller, worker and private-cell artifacts still require independent
 review. No independent Guard-effect scorer, six-control verdict, fresh
 conformance package or model inference is produced by these runs. The PR
 gate remains passive.
+
+The later [held provider-effect diagnostic](gauntlet-rust-fixed-effect-file-proof.md)
+matched both fixed provider-control files in the retained `injection` run to
+their journal rows and physical bytes. It remains ineligible because live
+idmap attestation and Guard causality are still absent.

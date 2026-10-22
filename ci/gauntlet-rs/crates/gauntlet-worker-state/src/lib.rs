@@ -222,6 +222,8 @@ mod sdk_wire_tap;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub mod staging_effect_events;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub mod staging_effect_file;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub mod staging_effect_journal;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod staging_kernel_observer;
