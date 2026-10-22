@@ -310,6 +310,58 @@ pub fn observe_kernel_bound_provider_effect_ineligible(
     Ok(value)
 }
 
+/// Compose the held-file attribution with the signed product process and
+/// mount relation under the host-pinned one-use controller key. The two
+/// provider writes are diagnostic probes, not Guard-mediated tool effects.
+#[allow(clippy::too_many_arguments)]
+pub fn observe_signed_kernel_bound_provider_effect_ineligible(
+    journal: &RunReservationJournal,
+    lease: &ActiveLease,
+    started: &StartedMarker,
+    outside_journal_sha: &str,
+    outside_report_sha: &str,
+    role: &str,
+    surface: &str,
+) -> Result<Value, String> {
+    use gauntlet_evidence::{
+        observe_staging_product_relation_root_owned_ineligible, StagingProductRelationPins,
+    };
+    let mut effect = observe_kernel_bound_provider_effect_ineligible(
+        journal,
+        lease,
+        started,
+        outside_journal_sha,
+        outside_report_sha,
+        role,
+        surface,
+    )?;
+    if effect["file_generation_verified"] != true {
+        return Err("signed effect relation requires observed file generation".to_owned());
+    }
+    let report = read_report(journal, started, outside_report_sha, role)?;
+    let sample = matching_sample(&report, &started.job_id, role)?;
+    let relation = observe_staging_product_relation_root_owned_ineligible(
+        &StagingProductRelationPins {
+            run_id: &started.job_id,
+            role,
+            source_sha: &started.source_sha,
+            controller_public_key_hex: started
+                .controller_public_key_hex
+                .as_deref()
+                .ok_or("signed effect relation lacks outside controller key")?,
+        },
+        sample,
+    )
+    .map_err(|e| e.to_string())?;
+    if report != read_report(journal, started, outside_report_sha, role)? {
+        return Err("kernel report changed during signed product comparison".to_owned());
+    }
+    lease.verify(&journal.root).map_err(|e| e.to_string())?;
+    effect["schema"] = json!("hol-gauntlet-staging-signed-kernel-bound-effect.v1");
+    effect["signed_control_relation"] = relation;
+    Ok(effect)
+}
+
 #[cfg(test)]
 #[path = "staging_product_effect_tests.rs"]
 mod tests;

@@ -9,9 +9,10 @@ fn run() -> Result<Vec<u8>, String> {
         return Err("macOS Lima host artifact required".to_owned());
     }
     let args: Vec<String> = std::env::args().collect();
-    let product = args.len() == 9 && args[7] == "--kernel-effect-reader";
+    let signed_product = args.len() == 9 && args[7] == "--signed-control-effect-reader";
+    let product = args.len() == 9 && (args[7] == "--kernel-effect-reader" || signed_product);
     if args.len() != 7 && !product {
-        return Err("usage: gauntlet-host-staging-effect-restart-readback PRIVATE_HOST_PIN_DIR RUN_ID SOURCE_SHA CONFIG_SHA WORKER_GENERATION_SHA READBACK_BINARY_SHA [--kernel-effect-reader READER_SHA]".to_owned());
+        return Err("usage: gauntlet-host-staging-effect-restart-readback PRIVATE_HOST_PIN_DIR RUN_ID SOURCE_SHA CONFIG_SHA WORKER_GENERATION_SHA READBACK_BINARY_SHA [{--kernel-effect-reader | --signed-control-effect-reader} READER_SHA]".to_owned());
     }
     let journal = HostControllerKeyPinJournal::open(Path::new(&args[1]))
         .map_err(|error| format!("private host pins unavailable: {error}"))?;
@@ -49,15 +50,30 @@ fn run() -> Result<Vec<u8>, String> {
     let mut product_effects = Vec::new();
     if product {
         for surface in ["provider-remote", "provider-home"] {
-            product_effects.push(
+            let result = if signed_product {
+                key.observe_fixed_vm_signed_kernel_provider_effect(
+                    &args[8],
+                    &effect,
+                    &tap_restart.role,
+                    surface,
+                )
+            } else {
                 key.observe_fixed_vm_kernel_provider_effect(
                     &args[8],
                     &effect,
                     &tap_restart.role,
                     surface,
                 )
-                .map_err(|e| format!("kernel-bound {surface} readback uncertain: {e}"))?,
+            };
+            product_effects.push(
+                result.map_err(|e| format!("kernel-bound {surface} readback uncertain: {e}"))?,
             );
+        }
+        if signed_product
+            && product_effects[0]["signed_control_relation"]
+                != product_effects[1]["signed_control_relation"]
+        {
+            return Err("provider effects do not share one signed product relation".to_owned());
         }
     }
     if effect_restart != effect
@@ -95,6 +111,10 @@ fn run() -> Result<Vec<u8>, String> {
     if product {
         value["schema"] = json!("hol-gauntlet-host-staging-kernel-effect-restart-readback.v1");
         value["kernel_bound_provider_effects"] = json!(product_effects);
+        if signed_product {
+            value["schema"] =
+                json!("hol-gauntlet-host-staging-signed-kernel-effect-restart-readback.v1");
+        }
     }
     gauntlet_contracts::canonicalize(value.to_string().as_bytes())
         .map_err(|error| error.to_string())

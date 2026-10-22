@@ -120,6 +120,70 @@ fn validate(
     Ok(value)
 }
 
+fn validate_signed(
+    raw: &[u8],
+    pin: &HostEffectEventsPin,
+    role: &str,
+    surface: &str,
+    key: &HostKeyPinRecord,
+) -> Result<Value, HostKeyPinError> {
+    let invalid = HostKeyPinError::InvalidEffectJournal;
+    if raw.len() > 8192 {
+        return Err(invalid);
+    }
+    let canonical = canonicalize(raw).map_err(|_| invalid)?;
+    let value: Value = serde_json::from_slice(&canonical).map_err(|_| invalid)?;
+    if value["schema"] != "hol-gauntlet-staging-signed-kernel-bound-effect.v1" {
+        return Err(invalid);
+    }
+    let relation = &value["signed_control_relation"];
+    let fields = [
+        "schema",
+        "run_id",
+        "signed_session_id",
+        "source_sha",
+        "record_sha256",
+        "controller_public_key_hex",
+        "product_pid",
+        "product_start_ticks",
+        "task_mounts_matched",
+        "namespaces_matched",
+        "argv_sha256",
+        "mountinfo_sha256",
+        "outside_control_key_matched",
+        "guard_causality_verified",
+        "execution_eligible",
+    ];
+    if relation
+        .as_object()
+        .is_none_or(|o| o.len() != fields.len() || fields.iter().any(|f| !o.contains_key(*f)))
+        || relation["schema"] != "hol-gauntlet-staging-signed-product-relation.v1"
+        || relation["run_id"] != pin.run_id
+        || relation["signed_session_id"] != role
+        || relation["source_sha"] != key.pins.source_sha
+        || relation["controller_public_key_hex"] != key.pins.controller_public_key_hex
+        || relation["product_pid"] != value["kernel_product_pid"]
+        || relation["product_start_ticks"] != value["kernel_product_start_ticks"]
+        || relation["task_mounts_matched"] != 3
+        || relation["namespaces_matched"] != 6
+        || relation["outside_control_key_matched"] != true
+        || relation["guard_causality_verified"] != false
+        || relation["execution_eligible"] != false
+        || ["record_sha256", "argv_sha256", "mountinfo_sha256"]
+            .iter()
+            .any(|f| relation[*f].as_str().is_none_or(|s| !hex(s, 64)))
+    {
+        return Err(invalid);
+    }
+    let mut base = value.clone();
+    base.as_object_mut()
+        .ok_or(invalid)?
+        .remove("signed_control_relation");
+    base["schema"] = Value::String("hol-gauntlet-staging-kernel-bound-effect.v2".to_owned());
+    validate(base.to_string().as_bytes(), pin, role, surface)?;
+    Ok(value)
+}
+
 impl HostKeyPinRecord {
     pub fn observe_fixed_vm_kernel_provider_effect(
         &self,
@@ -127,6 +191,27 @@ impl HostKeyPinRecord {
         pin: &HostEffectEventsPin,
         role: &str,
         surface: &str,
+    ) -> Result<Value, HostKeyPinError> {
+        self.observe_product_effect(reader_sha, pin, role, surface, false)
+    }
+
+    pub fn observe_fixed_vm_signed_kernel_provider_effect(
+        &self,
+        reader_sha: &str,
+        pin: &HostEffectEventsPin,
+        role: &str,
+        surface: &str,
+    ) -> Result<Value, HostKeyPinError> {
+        self.observe_product_effect(reader_sha, pin, role, surface, true)
+    }
+
+    fn observe_product_effect(
+        &self,
+        reader_sha: &str,
+        pin: &HostEffectEventsPin,
+        role: &str,
+        surface: &str,
+        signed_control: bool,
     ) -> Result<Value, HostKeyPinError> {
         if !hex(reader_sha, 64)
             || pin.run_id != self.pins.job_id
@@ -147,7 +232,7 @@ impl HostKeyPinRecord {
         let vm = defaults["vm"]
             .as_str()
             .ok_or(HostKeyPinError::InvalidPins)?;
-        let argv = vec![
+        let mut argv = vec![
             limactl.to_owned(),
             "shell".to_owned(),
             vm.to_owned(),
@@ -168,6 +253,9 @@ impl HostKeyPinRecord {
             "--reader-sha".to_owned(),
             reader_sha.to_owned(),
         ];
+        if signed_control {
+            argv.push("--signed-control".to_owned());
+        }
         let raw =
             run_fixed(&argv, Duration::from_secs(60), 8192, 1024, &[]).map_err(
                 |error| match error {
@@ -178,7 +266,11 @@ impl HostKeyPinRecord {
                     }
                 },
             )?;
-        validate(&raw, pin, role, surface)
+        if signed_control {
+            validate_signed(&raw, pin, role, surface, self)
+        } else {
+            validate(&raw, pin, role, surface)
+        }
     }
 }
 

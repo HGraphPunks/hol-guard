@@ -68,6 +68,7 @@ mod staging_agent_process;
 mod staging_control_record;
 #[cfg(target_os = "linux")]
 mod staging_physical_files;
+mod staging_product_relation;
 #[cfg(target_os = "linux")]
 mod staging_sdk_tap_frames;
 #[cfg(target_os = "linux")]
@@ -173,6 +174,10 @@ pub use staging_control_record::{
 #[cfg(target_os = "linux")]
 pub use staging_physical_files::{
     observe_staging_physical_files_root_owned_ineligible, StagingPhysicalFilesShadow,
+};
+pub use staging_product_relation::{
+    observe_staging_product_relation_root_owned_ineligible,
+    verify_staging_product_relation_ineligible, StagingProductRelationPins,
 };
 #[cfg(target_os = "linux")]
 pub use staging_suite::{
