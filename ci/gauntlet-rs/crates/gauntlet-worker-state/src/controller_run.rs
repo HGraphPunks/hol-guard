@@ -402,6 +402,7 @@ pub fn run_fixed_deterministic_controller_pipe_ineligible(
         "job_id":request.job_id(),
         "source_sha":request.source_sha(),
         "deployment_digest":pins.deployment_digest,
+        "config_digest":report.config_digest,
         "worker_generation":worker_generation,
         "started_marker_sha256":observation.started_marker_sha256,
         "controller_public_key_hex":observation.controller_public_key_hex,

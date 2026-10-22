@@ -68,8 +68,8 @@ fn run() -> Result<(), String> {
         return Err("macOS Lima host artifact required".to_owned());
     }
     let args: Vec<String> = std::env::args().collect();
-    if args.len() != 8 {
-        return Err("usage: gauntlet-host-deterministic-run-diagnostic PRIVATE_HOST_PIN_DIR SOURCE_SHA JOB_ID DEPLOYMENT_SHA256 CONTROLLER_TREE_SHA256 INTERPRETER_SHA256 GUEST_BINARY_SHA256".to_owned());
+    if args.len() != 9 {
+        return Err("usage: gauntlet-host-deterministic-run-diagnostic PRIVATE_HOST_PIN_DIR SOURCE_SHA JOB_ID DEPLOYMENT_SHA256 CONTROLLER_TREE_SHA256 INTERPRETER_SHA256 GUEST_BINARY_SHA256 READBACK_BINARY_SHA256".to_owned());
     }
     let pin_dir = &args[1];
     let source = &args[2];
@@ -78,9 +78,10 @@ fn run() -> Result<(), String> {
     let controller = &args[5];
     let interpreter = &args[6];
     let binary = &args[7];
+    let readback_binary = &args[8];
     if !is_git_sha(source)
         || !lower_hex(job, 16)
-        || ![deployment, controller, interpreter, binary]
+        || ![deployment, controller, interpreter, binary, readback_binary]
             .iter()
             .all(|value| lower_hex(value, 64))
     {
@@ -150,6 +151,28 @@ fn run() -> Result<(), String> {
         .wait_bounded_result(Duration::from_secs(1850), 4096)
         .map_err(|error| format!("guest result unknown after host pin; reconcile VM: {error}"))?;
     let guest = validate_guest_result(&guest_raw, accepted.record())?;
+    let retained = journal
+        .read(job)
+        .map_err(|error| format!("host pin changed before readback: {error}"))?;
+    if retained != *accepted.record() {
+        return Err("host pin changed before readback".to_owned());
+    }
+    let readback = retained
+        .observe_fixed_vm_deterministic_readback(
+            limactl,
+            vm,
+            readback_binary,
+            guest["terminal_sha256"]
+                .as_str()
+                .ok_or("guest terminal hash unavailable")?,
+            guest["diagnostic_report_sha256"]
+                .as_str()
+                .ok_or("guest diagnostic report hash unavailable")?,
+            guest["deterministic_report_sha256"]
+                .as_str()
+                .ok_or("guest deterministic report hash unavailable")?,
+        )
+        .map_err(|error| format!("keyed VM terminal readback refused: {error}"))?;
     println!(
         "{}",
         json!({
@@ -159,10 +182,9 @@ fn run() -> Result<(), String> {
             "host_record_sha256":accepted.record().raw_sha256,
             "controller_public_key_hex":accepted.record().pins.controller_public_key_hex,
             "host_key_pinned_before_spawn":true,
-            "guest_claimed_terminal_sha256":guest["terminal_sha256"],
-            "guest_claimed_deterministic_report_sha256":guest["deterministic_report_sha256"],
-            "guest_claimed_producer_status":guest["producer_status_claim"],
-            "guest_terminal_requires_readback":true,
+            "keyed_guest_readback":readback.to_json(),
+            "guest_terminal_readback_verified":true,
+            "deterministic_report_digest_reopened_in_vm":true,
             "independent_control_verdict":false,
             "execution_eligible":false,
         })

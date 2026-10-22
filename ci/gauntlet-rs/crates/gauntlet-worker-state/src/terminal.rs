@@ -398,6 +398,102 @@ impl RunReservationJournal {
             sha256: digest(&bytes),
         }))
     }
+
+    /// Reopen an already completed Rust deterministic diagnostic for a host
+    /// that retained the key before launch. This exports only the bounded
+    /// invalid-evidence terminal and diagnostic summary, then independently
+    /// reopens the fixed deterministic controller report to check its digest.
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    pub fn read_deterministic_diagnostic_root_owned(
+        &self,
+        job_id: &str,
+        source_sha: &str,
+        deployment_digest: &str,
+        worker_generation: &str,
+    ) -> Result<Value, ReservationError> {
+        use gauntlet_evidence::observe_deterministic_report_root_owned_ineligible;
+
+        if !self.root_owned {
+            return Err(ReservationError::UnsafeRoot);
+        }
+        let first = self
+            .terminal(job_id, source_sha, deployment_digest, worker_generation)?
+            .ok_or(ReservationError::InvalidMarker)?;
+        if first.status != TerminalOutcome::InvalidEvidence
+            || first.controller_key_pin_sha256.is_none()
+        {
+            return Err(ReservationError::InvalidMarker);
+        }
+        crate::require_rust_job_slice_absent(job_id)?;
+        let terminal_raw =
+            read_bounded_regular(&self.root, &terminal_name(job_id), MAX_TERMINAL_BYTES)?
+                .ok_or(ReservationError::InvalidMarker)?;
+        let report_raw = read_bounded_regular(&self.root, &report_name(job_id), 8192)?
+            .ok_or(ReservationError::InvalidMarker)?;
+        if digest(&terminal_raw) != first.sha256 || digest(&report_raw) != first.report_sha256 {
+            return Err(ReservationError::InvalidMarker);
+        }
+        let terminal: Value =
+            serde_json::from_slice(&terminal_raw).map_err(|_| ReservationError::InvalidMarker)?;
+        let report: Value =
+            serde_json::from_slice(&report_raw).map_err(|_| ReservationError::InvalidMarker)?;
+        let config_digest = report["config_digest"]
+            .as_str()
+            .filter(|value| hex(value, 64))
+            .ok_or(ReservationError::InvalidMarker)?;
+        let expected_deterministic_sha = report["deterministic_report_sha256"]
+            .as_str()
+            .filter(|value| hex(value, 64))
+            .ok_or(ReservationError::InvalidMarker)?;
+        if report["schema"] != "hol-gauntlet-rust-deterministic-run-diagnostic.v1"
+            || report["job_id"] != job_id
+            || report["source_sha"] != source_sha
+            || report["deployment_digest"] != deployment_digest
+            || report["worker_generation"] != worker_generation
+            || report["started_marker_sha256"] != first.started_marker_sha256
+            || report["controller_key_pin_sha256"].as_str()
+                != first.controller_key_pin_sha256.as_deref()
+            || report["controller_public_key_hex"].as_str()
+                != first.controller_public_key_hex.as_deref()
+            || report["exit_code"] != first.exit_code
+            || report["process"]["pid"] != first.process.pid
+            || report["process"]["start_ticks"] != first.process.start_ticks
+            || report["independent_control_verdict"] != false
+            || report["execution_eligible"] != false
+        {
+            return Err(ReservationError::InvalidMarker);
+        }
+        let observed = observe_deterministic_report_root_owned_ineligible(
+            job_id,
+            source_sha,
+            config_digest,
+            first.exit_code,
+        )
+        .map_err(|_| ReservationError::InvalidMarker)?;
+        if observed.raw_sha256 != expected_deterministic_sha
+            || report["producer_status_claim"] != observed.producer_status
+            || report["producer_cell_count"] != observed.cell_count
+        {
+            return Err(ReservationError::InvalidMarker);
+        }
+        if self.terminal(job_id, source_sha, deployment_digest, worker_generation)?
+            != Some(first.clone())
+        {
+            return Err(ReservationError::InvalidMarker);
+        }
+        crate::require_rust_job_slice_absent(job_id)?;
+        Ok(json!({
+            "schema":"hol-gauntlet-rust-deterministic-readback.v1",
+            "job_id":job_id,
+            "source_sha":source_sha,
+            "terminal":terminal,
+            "diagnostic_report":report,
+            "terminal_sha256":first.sha256,
+            "diagnostic_report_sha256":first.report_sha256,
+            "deterministic_report_sha256":observed.raw_sha256,
+            "execution_eligible":false,
+        }))
+    }
 }
 
 #[cfg(all(test, target_os = "linux", target_arch = "aarch64"))]

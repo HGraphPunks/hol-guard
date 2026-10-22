@@ -22,6 +22,9 @@ const MAX_SUITE_BYTES: u64 = 8192;
 #[path = "controller_key_terminal.rs"]
 mod terminal;
 pub use terminal::HostKeyedTerminalObservation;
+#[path = "controller_key_readback.rs"]
+mod readback;
+pub use readback::HostDeterministicReadbackObservation;
 #[path = "controller_key_sdk_tap.rs"]
 mod sdk_tap;
 pub use sdk_tap::HostSdkTapJournalPin;
