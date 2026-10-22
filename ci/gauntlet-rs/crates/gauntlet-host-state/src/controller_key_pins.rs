@@ -28,6 +28,9 @@ pub use readback::HostDeterministicReadbackObservation;
 #[path = "controller_key_sdk_tap.rs"]
 mod sdk_tap;
 pub use sdk_tap::HostSdkTapJournalPin;
+#[path = "controller_key_staging_readback.rs"]
+mod staging_readback;
+pub use staging_readback::HostStagingRestartReadbackObservation;
 
 #[path = "controller_key_pipe.rs"]
 mod pipe;

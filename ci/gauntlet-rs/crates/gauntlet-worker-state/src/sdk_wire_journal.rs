@@ -341,11 +341,14 @@ pub fn read_sdk_tap_journal_ineligible(
     }
     let value: Value = serde_json::from_slice(&raw).map_err(|error| error.to_string())?;
     let root_forwarded = value["schema"] == "hol-gauntlet-sdk-tap-journal.v2";
-    if (value["schema"] != "hol-gauntlet-sdk-tap-journal.v1" && !root_forwarded)
-        || (root_forwarded
-            && (value["wire_owner"] != "root-forwarded" || value["root_forwarded"] != true))
-        || (!root_forwarded
-            && (value.get("wire_owner").is_some() || value.get("root_forwarded").is_some()))
+    let valid_owner = if root_forwarded {
+        value["wire_owner"] == "root-forwarded" && value["root_forwarded"] == true
+    } else {
+        value["schema"] == "hol-gauntlet-sdk-tap-journal.v1"
+            && value.get("wire_owner").is_none()
+            && value.get("root_forwarded").is_none()
+    };
+    if !valid_owner
         || value["sessions"].as_array().is_none_or(|sessions| {
             sessions.iter().any(|session| {
                 if root_forwarded {

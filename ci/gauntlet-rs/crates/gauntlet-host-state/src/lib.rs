@@ -31,6 +31,7 @@ pub use controller_key_pins::{
     HostControllerKeyPinJournal, HostControllerKeyPins, HostDeterministicReadbackObservation,
     HostKeyPinError, HostKeyPinRecord, HostKeyedTerminalObservation, HostPrelaunchIdentity,
     HostPreparedProcess, HostProcessFailure, HostSdkTapJournalPin,
+    HostStagingRestartReadbackObservation,
 };
 mod candidate_build_pins;
 pub use candidate_build_pins::{

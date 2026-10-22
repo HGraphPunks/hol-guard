@@ -126,6 +126,8 @@ mod candidate_shadow_assets;
 mod candidate_staging_config_revision;
 mod candidate_staging_plan;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod candidate_staging_reconcile;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_staging_run;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_staging_tap;
@@ -327,6 +329,10 @@ pub use candidate_staging_config_revision::{
 pub use candidate_staging_plan::{
     fixed_staging_control_plan, fixed_staging_control_plan_sdk_tap_v2, FixedStagingControlPlan,
     StagingControlPins, StagingRole,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use candidate_staging_reconcile::{
+    read_restarted_staging_tap_ineligible, StagingTapReadbackPins,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_staging_run::{
