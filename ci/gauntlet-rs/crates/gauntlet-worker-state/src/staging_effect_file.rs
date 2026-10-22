@@ -1,5 +1,5 @@
 //! Read-only correlation of a host-digest-pinned effect journal with a held
-//! final provider-control file. The caller supplies the outside cgroup pin;
+//! final provider-control file. The caller supplies a cgroup value;
 //! matching an inode and writer does not prove a Guard decision.
 
 use crate::linux_process::valid_cgroup;

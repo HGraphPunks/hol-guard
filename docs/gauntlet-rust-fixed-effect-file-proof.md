@@ -8,8 +8,8 @@ was already retained in a one-use macOS host pin. The diagnostic binary's
 host, container and VM SHA-256 was
 `a8a30da8f47d04e69d52647c57a31c84efa8891dc2449aad3a69c36c07e3e77e`.
 
-The command requires outside source, deployment, worker, started-marker,
-journal and product-cgroup pins. It reopens the Root-owned started marker
+The command requires outside source, deployment, worker, started-marker and
+journal pins, plus a caller-supplied product-cgroup value. It reopens the Root-owned started marker
 under the one-use lease and reads only the canonical journal matching the
 outside digest. For either allowlisted provider surface, it opens the fixed
 file with `openat2` beneath the exact run/role directory, refusing symlink
@@ -26,6 +26,10 @@ directory and file to refuse replacement. The result always says
 
 Both writer rows named
 `/holgauntletrust8c425d7e1a09f3b6.slice/hol-product-cell-20cc58e5720440edbe38a41e2192da30.service`.
+A caller selected this cgroup from the same journal for the live trial; it
+was **not independently pinned** to the product process. The result proves
+only internal consistency for that cgroup field until an outside process
+observation supplies it.
 A wrong cgroup and a wrong outside journal digest each refused with exit 2.
 The focused ARM64 test refused an unknown writer, a foreign writer, wrong
 event owner, missing event, symlink and changed final bytes. Rust 1.88
