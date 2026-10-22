@@ -73,10 +73,14 @@ def get_json(url):
     return json.loads(raw)
 
 
-def start(job_id, profile='beta-e2e'):
+def start(job_id, profile, candidate_source_sha):
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
     if re.fullmatch(r'[0-9a-f]{16}', job_id) is None:
         raise ValueError('fixed live job identity required')
+    if (not isinstance(candidate_source_sha, str)
+            or re.fullmatch(r'[0-9a-f]{40}', candidate_source_sha) is None
+            or candidate_source_sha != 'c1d18f931eaba02a37a2c9515db769fc2219bee8'):
+        raise ValueError('candidate source identity differs from local model allowance')
     if profile not in RESERVATIONS:
         raise ValueError('reviewed live profile required')
     reservation = RESERVATIONS[profile]
@@ -287,9 +291,10 @@ def start(job_id, profile='beta-e2e'):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('job_id')
-    parser.add_argument('profile', nargs='?', choices=tuple(RESERVATIONS), default='beta-e2e')
+    parser.add_argument('profile', choices=tuple(RESERVATIONS))
+    parser.add_argument('candidate_source_sha')
     args = parser.parse_args()
-    print(json.dumps(start(args.job_id, args.profile), sort_keys=True), flush=True)
+    print(json.dumps(start(args.job_id, args.profile, args.candidate_source_sha), sort_keys=True), flush=True)
 
 
 if __name__ == '__main__':

@@ -179,6 +179,20 @@
       "sha256": "5ccc33ace975a72228fbb1a4e859efe47b43642f08814cd0c5b3dbf068446f94"
     },
     {
+      "base_sha256": "791505fc39dd7af5f65270bdbabae6f083a82b9a7c952262455653dffada2ac1",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/control_plane/live_local.py",
+      "phase": 3,
+      "sha256": "71c243e73702aef416db1a55108635a755f0a4ba4158c89723ca41d76e56af60"
+    },
+    {
+      "base_sha256": "9199eb7295ca0bd52734b0482ace636b24e624eb5409903239715716c09dff02",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/control_plane/live_provider.py",
+      "phase": 3,
+      "sha256": "fbd31e26092c1010cacc6d83d00ae04a1b088b7a87191119cdae6c26bb5fe129"
+    },
+    {
       "base_sha256": "7d5a6e17217805cb0df10c85f86f7be2e4910010c7f9d6ffa49c918718c30ec5",
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/event_exports.py",

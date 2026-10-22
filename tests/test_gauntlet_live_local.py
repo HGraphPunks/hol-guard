@@ -23,6 +23,11 @@ class LiveTerminalTests(unittest.TestCase):
         self.assertLess(live_provider.RESERVATIONS['feature-ai'],
                         live_provider.RESERVATIONS['beta-e2e'])
 
+    def test_provider_refuses_other_candidate_before_reading_or_starting_model(self):
+        with patch.object(live_provider, 'sha', side_effect=AssertionError('provider files read')), \
+             self.assertRaisesRegex(ValueError, 'candidate source identity differs'):
+            live_provider.start(JOB, 'feature-ai', SHA)
+
     def test_vm_prepare_accepts_only_fixed_source_bound_live_stage_id(self):
         request = {'action': 'prepare', 'job_id': JOB, 'source_sha': SHA,
                    'provider_sha256': 'c'*64, 'model_sha256': 'd'*64,

@@ -168,7 +168,8 @@ def run(config, state, checkout, *, profile='beta-e2e'):
         row['status']='provider-startup'
         publish(state,row)
         command = [UV,'run','--no-project','--with','cryptography==50.0.0',
-            'python','-B','-m','ci.gauntlet.control_plane.live_provider',job,profile]
+            'python','-B','-m','ci.gauntlet.control_plane.live_provider',
+            job,profile,candidate['sha']]
         result = subprocess.run(command,cwd=REPO,capture_output=True,text=True,timeout=900)
         (private/'provider-startup.stdout').write_text(result.stdout)
         (private/'provider-startup.stderr').write_text(result.stderr)

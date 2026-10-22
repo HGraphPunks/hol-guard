@@ -13,6 +13,7 @@ const CEILING: u64 = 14_468_885;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LiveProviderPreflightError {
     JobIdentity,
+    CandidateSource,
     Profile,
     Template,
     AllowanceDigest,
@@ -25,6 +26,7 @@ impl fmt::Display for LiveProviderPreflightError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::JobIdentity => "fixed live job identity required",
+            Self::CandidateSource => "candidate source identity differs from local model allowance",
             Self::Profile => "reviewed live profile required",
             Self::Template => "reviewed provider template changed",
             Self::AllowanceDigest => "local model allowance authorization changed",
@@ -59,6 +61,13 @@ pub fn evaluate_live_provider_preflight(
     {
         return Err(LiveProviderPreflightError::JobIdentity);
     }
+    if input
+        .get("requested_candidate_source_sha")
+        .and_then(Value::as_str)
+        != Some(CANDIDATE_SOURCE)
+    {
+        return Err(LiveProviderPreflightError::CandidateSource);
+    }
     let reservation = match input.get("profile").and_then(Value::as_str) {
         Some("beta-e2e") => 1_200_000_u64,
         Some("feature-ai" | "feature-ai-protocol") => 200_000_u64,
@@ -78,10 +87,6 @@ pub fn evaluate_live_provider_preflight(
         || number(allowance, "total_tokens") != Some(CEILING)
         || allowance
             .get("candidate_source_sha")
-            .and_then(Value::as_str)
-            != Some(CANDIDATE_SOURCE)
-        || input
-            .get("requested_candidate_source_sha")
             .and_then(Value::as_str)
             != Some(CANDIDATE_SOURCE)
     {

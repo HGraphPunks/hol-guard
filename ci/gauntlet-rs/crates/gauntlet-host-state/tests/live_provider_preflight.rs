@@ -7,23 +7,32 @@ fn live_provider_admission_matches_exact_python_branch() {
         serde_json::from_str(include_str!("python_live_provider_preflight_v1.json")).unwrap();
     let baseline: Value =
         serde_json::from_str(include_str!("../../../parity-manifest.v1.json")).unwrap();
-    let source = baseline["files"]
+    let baseline_source = baseline["files"]
         .as_array()
         .unwrap()
         .iter()
         .find(|entry| entry["path"] == "ci/gauntlet/control_plane/live_provider.py")
         .unwrap();
+    let delta: Value =
+        serde_json::from_str(include_str!("../../../integration-source-delta.v1.json")).unwrap();
+    let source = delta["changed"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["path"] == "ci/gauntlet/control_plane/live_provider.py")
+        .unwrap();
+    assert_eq!(source["base_sha256"], baseline_source["sha256"]);
     assert_eq!(fixture["source_sha256"], source["sha256"]);
     assert_eq!(
         fixture["branch_ast_sha256"],
-        "d2c6f3e6297796727b4ba6aa3389965fc3dbe34093c6b95f441a72c65fdafbb9"
+        "68f8fd0b97bb6c8181bd446fdc1e43dd72a0f21a1bc23cf6725843e7ff187ad8"
     );
     assert_eq!(
         fixture["schema"],
         "hol-gauntlet-python-live-provider-preflight-fixtures.v1"
     );
     let cases = fixture["cases"].as_array().unwrap();
-    assert_eq!(cases.len(), 21);
+    assert_eq!(cases.len(), 22);
     for case in cases {
         let actual = evaluate_live_provider_preflight(&case["input"]);
         if case["expected"]["accepted"] == true {

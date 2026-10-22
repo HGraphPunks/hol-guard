@@ -29,7 +29,7 @@ def extract():
         and any(isinstance(target, ast.Name) and target.id == "root" for target in node.targets)
     )
     selected = deepcopy(function.body[1:root_index])
-    if len(selected) != 12:
+    if len(selected) != 13:
         raise ValueError("Python provider preflight branch shape changed")
     module = ast.fix_missing_locations(ast.Module(body=selected, type_ignores=[]))
     source = ast.unparse(module)
@@ -88,6 +88,7 @@ def classify(value):
 
         scope = {
             "job_id": value["job_id"],
+            "candidate_source_sha": value["requested_candidate_source_sha"],
             "profile": value["profile"],
             "re": re,
             "sha": pinned_sha,
@@ -130,6 +131,7 @@ cases = [
     case("beta_e2e_too_large", profile="beta-e2e"),
     case("job_id_wrong_length", job_id="bad"),
     case("job_id_uppercase", job_id="ABCDEF0123456789"),
+    case("other_requested_candidate", requested_candidate_source_sha="b" * 40),
     case("unknown_profile", profile="full"),
     case("changed_template", template_sha="b" * 64),
     case("changed_allowance", allowance_sha="b" * 64),
