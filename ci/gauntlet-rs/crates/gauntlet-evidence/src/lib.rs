@@ -32,6 +32,7 @@ mod io;
 mod local_conformance_files;
 mod local_conformance_package;
 mod local_conformance_runtime;
+mod model_budget;
 mod model_endpoint;
 mod native_review_summary;
 mod native_transport_relations;
@@ -117,6 +118,7 @@ pub use local_conformance_package::{
     verify_local_conformance_package_with_key_pins_ineligible, LocalConformancePackageShadow,
     EXECUTION_SOURCES,
 };
+pub use model_budget::verify_signed_model_budget;
 pub use model_endpoint::{
     model_endpoint, verify_advertised_model, verify_model_endpoint, ModelEndpoint, DEFAULT_BASE_URL,
 };

@@ -1,0 +1,113 @@
+use gauntlet_evidence::{verify_signed_model_budget, DEFAULT_BASE_URL};
+use serde_json::{json, Value};
+
+fn public_key(hex: &str) -> Vec<u8> {
+    hex.as_bytes()
+        .chunks_exact(2)
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+        .collect()
+}
+
+fn fixture() -> Value {
+    serde_json::from_str(include_str!("fixtures/model_budget_v1.json")).unwrap()
+}
+
+#[test]
+fn signed_provider_accounting_matches_pinned_python() {
+    let fixture = fixture();
+    let baseline: Value =
+        serde_json::from_str(include_str!("../../../parity-manifest.v1.json")).unwrap();
+    for (path, field) in [
+        (
+            "ci/gauntlet/benchmark/business_model_budget.py",
+            "python_source_sha256",
+        ),
+        (
+            "ci/gauntlet/benchmark/model_endpoint.py",
+            "model_endpoint_source_sha256",
+        ),
+    ] {
+        let source = baseline["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|entry| entry["path"] == path)
+            .unwrap();
+        assert_eq!(fixture[field], source["sha256"], "{path}");
+    }
+    assert_eq!(
+        fixture["schema"],
+        "hol-gauntlet-python-model-budget-fixtures.v1"
+    );
+    let cases = fixture["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 33);
+    let key = public_key(fixture["public_key_hex"].as_str().unwrap());
+    for case in cases {
+        let raw = serde_json::to_vec(&case["envelope"]).unwrap();
+        let observed = verify_signed_model_budget(
+            &raw,
+            &key,
+            "qwen3.6",
+            100,
+            Some(&"a".repeat(64)),
+            Some(5),
+            &case["outside_sources"],
+            DEFAULT_BASE_URL,
+        );
+        if case["expected"]["accepted"] == true {
+            assert_eq!(
+                observed.unwrap(),
+                case["expected"]["usage"],
+                "{}",
+                case["name"]
+            );
+        } else {
+            assert!(observed.is_err(), "{}", case["name"]);
+        }
+    }
+}
+
+#[test]
+fn outside_key_source_and_byte_budget_refuse_forgeries() {
+    let fixture = fixture();
+    let sample = &fixture["cases"][0];
+    let raw = serde_json::to_vec(&sample["envelope"]).unwrap();
+    let mut wrong_key = public_key(fixture["public_key_hex"].as_str().unwrap());
+    wrong_key[0] ^= 1;
+    assert!(verify_signed_model_budget(
+        &raw,
+        &wrong_key,
+        "qwen3.6",
+        100,
+        Some(&"a".repeat(64)),
+        Some(5),
+        &sample["outside_sources"],
+        DEFAULT_BASE_URL,
+    )
+    .is_err());
+    let key = public_key(fixture["public_key_hex"].as_str().unwrap());
+    let mut wrong_sources = sample["outside_sources"].clone();
+    wrong_sources["business_model_budget.py"] = json!("b".repeat(64));
+    assert!(verify_signed_model_budget(
+        &raw,
+        &key,
+        "qwen3.6",
+        100,
+        Some(&"a".repeat(64)),
+        Some(5),
+        &wrong_sources,
+        DEFAULT_BASE_URL,
+    )
+    .is_err());
+    assert!(verify_signed_model_budget(
+        &vec![b'x'; 8 * 1024 * 1024 + 1],
+        &key,
+        "qwen3.6",
+        100,
+        None,
+        None,
+        &sample["outside_sources"],
+        DEFAULT_BASE_URL,
+    )
+    .is_err());
+}
