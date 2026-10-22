@@ -143,6 +143,8 @@ cargo +1.88.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gaunt
 
 On 2026-10-20, a side-by-side read of the live public directory produced equal status JSON after excluding the time-sampled `collector_age_seconds`; the health values were equal and the three static assets were byte-identical. The Rust server does not change the authoritative Python controller or its port.
 
+To verify the standalone shadow's port, run `ci/gauntlet-rs/target/debug/gauntlet-dashboard --healthcheck --port 8792` after building it. The check requires Gauntlet's JSON service name and a valid instance ID, so an unrelated local HTTP 200 cannot appear healthy. In the container, `--healthcheck` keeps the internal port 8787 default.
+
 The Rust dashboard also has an isolated Compose shadow. Supply the absolute **public** status directory, then build and launch it with one command. This Mac uses the `colima` Docker context and port 8793 because the local process shadow already uses 8792:
 
 ```sh
