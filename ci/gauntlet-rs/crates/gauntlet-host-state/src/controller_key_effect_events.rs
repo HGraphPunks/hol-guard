@@ -3,7 +3,7 @@
 
 use super::{
     hex, sdk_tap::fixed_guest_readout_argv, HostControllerKeyPinJournal, HostKeyPinError,
-    HostKeyPinRecord,
+    HostKeyPinRecord, HostSdkTapJournalPin,
 };
 use crate::private_jobs::same_file;
 use crate::stream_process::run_streamed;
@@ -91,6 +91,25 @@ fn valid_cgroup(path: &str) -> bool {
 }
 
 impl HostKeyPinRecord {
+    /// A completed effect pin must name the same outside key, terminal and
+    /// report as the independently retained Root-forwarded SDK tap pin.
+    pub fn match_effect_events_tap_ineligible(
+        &self,
+        tap: &HostSdkTapJournalPin,
+        effect: &HostEffectEventsPin,
+    ) -> Result<(), HostKeyPinError> {
+        if tap.run_id != self.pins.job_id
+            || effect.run_id != self.pins.job_id
+            || tap.host_key_record_sha256 != self.raw_sha256
+            || effect.host_key_record_sha256 != self.raw_sha256
+            || tap.terminal_sha256 != effect.terminal_sha256
+            || tap.report_sha256 != effect.report_sha256
+        {
+            return Err(HostKeyPinError::InvalidEffectJournal);
+        }
+        Ok(())
+    }
+
     pub fn observe_effect_events_ineligible(
         &self,
         terminal_raw: &[u8],

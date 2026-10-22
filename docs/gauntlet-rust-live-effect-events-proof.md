@@ -89,3 +89,14 @@ The later [held provider-effect diagnostic](gauntlet-rust-fixed-effect-file-proo
 matched both fixed provider-control files in the retained `injection` run to
 their journal rows and physical bytes. It remains ineligible because live
 idmap attestation and Guard causality are still absent.
+
+A separate macOS `gauntlet-host-staging-effect-restart-readback` command now
+requires the durable host key, SDK tap pin and effect pin to share the exact
+terminal/report hashes. It invokes the SHA-named Root tap restart reader,
+rereads terminal/report/effect journal through fixed Lima paths, and rechecks
+all three host pins before returning. Its release SHA-256 was
+`4485cd47af2e4af311d527171458aaa9027e447fafc6ee63c89ad0d4951eb8c0`.
+All four retained effect runs returned `verified-ineligible-terminal` with
+their original 5,433/400, 15,049/163, 9,570/149 and 10,848/152
+event/unknown counts. This establishes joint point-in-time custody, not
+independent VM attestation, repair or a Guard verdict.

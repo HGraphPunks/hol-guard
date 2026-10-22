@@ -57,6 +57,25 @@ fn one_use_effect_pin_binds_key_terminal_and_all_event_rows() {
         .record_effect_events_ineligible(&pins.job_id, &terminal, &report, &journal)
         .unwrap();
     assert_eq!((pin.events, pin.unknown_writers), (1, 0));
+    let tap = HostSdkTapJournalPin {
+        run_id: pins.job_id.clone(),
+        host_key_record_sha256: key.raw_sha256.clone(),
+        terminal_sha256: pin.terminal_sha256.clone(),
+        report_sha256: pin.report_sha256.clone(),
+        journal_sha256: "1".repeat(64),
+        journal_bytes: 128,
+        sessions: 2,
+        events: 24,
+        observed_bytes: 2048,
+        raw_sha256: "2".repeat(64),
+    };
+    key.match_effect_events_tap_ineligible(&tap, &pin).unwrap();
+    let mut wrong_tap = tap.clone();
+    wrong_tap.report_sha256 = "3".repeat(64);
+    assert_eq!(
+        key.match_effect_events_tap_ineligible(&wrong_tap, &pin),
+        Err(HostKeyPinError::InvalidEffectJournal)
+    );
     assert_eq!(host.read_effect_events_pin(&pins.job_id).unwrap(), pin);
     assert_eq!(
         host.verify_effect_events_ineligible(&pins.job_id, &terminal, &report, &journal)
