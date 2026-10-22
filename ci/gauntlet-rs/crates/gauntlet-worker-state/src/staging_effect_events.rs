@@ -9,7 +9,7 @@ use rustix::io::{read, Errno};
 use rustix::process::geteuid;
 use std::fs::File;
 use std::io::Read;
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::os::fd::{AsFd, AsRawFd, FromRawFd, OwnedFd};
 use std::path::Path;
 
 const MAX_EVENTS: usize = 4096;
@@ -33,11 +33,25 @@ pub struct CloseWriteEvent {
     pub writer: Option<EffectWriter>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CorrelatedFileEffect {
+    pub device: u64,
+    pub inode: u64,
+    pub close_writes: usize,
+    pub writers: Vec<EffectWriter>,
+    pub cgroup: String,
+}
+
 pub struct StagingEffectEvents {
     group: OwnedFd,
     filesystem_device: u64,
     events: Vec<CloseWriteEvent>,
     poisoned: bool,
+}
+
+pub struct FinishedStagingEffectEvents {
+    filesystem_device: u64,
+    events: Vec<CloseWriteEvent>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -267,6 +281,75 @@ impl StagingEffectEvents {
             Ok(&self.events)
         }
     }
+
+    /// Consume the watcher only after the independently owned producer has
+    /// stopped. A final drain is required before any inode correlation.
+    pub fn finish(mut self) -> Result<FinishedStagingEffectEvents, String> {
+        self.drain()?;
+        Ok(FinishedStagingEffectEvents {
+            filesystem_device: self.filesystem_device,
+            events: self.events,
+        })
+    }
+}
+
+impl FinishedStagingEffectEvents {
+    pub fn events(&self) -> &[CloseWriteEvent] {
+        &self.events
+    }
+
+    /// Compare a retained, already-open file with every close-write event
+    /// for its device/inode. The expected cgroup must come from an outside
+    /// process pin. A missing event, unknown writer or foreign writer refuses;
+    /// this still cannot identify deleted files or prove Guard causality.
+    pub fn correlate_file(
+        &self,
+        file: &impl AsFd,
+        expected_cgroup: &str,
+    ) -> Result<CorrelatedFileEffect, String> {
+        if !valid_cgroup(expected_cgroup) {
+            return Err("invalid outside effect writer cgroup".to_owned());
+        }
+        let metadata = fstat(file).map_err(|error| error.to_string())?;
+        if FileType::from_raw_mode(metadata.st_mode) != FileType::RegularFile
+            || metadata.st_nlink != 1
+            || metadata.st_dev != self.filesystem_device
+        {
+            return Err(
+                "retained effect is not one regular file on the marked filesystem".to_owned(),
+            );
+        }
+        let matching = self
+            .events
+            .iter()
+            .filter(|event| event.device == metadata.st_dev && event.inode == metadata.st_ino);
+        let mut count = 0;
+        let mut writers = Vec::new();
+        for event in matching {
+            let writer = event
+                .writer
+                .as_ref()
+                .ok_or("effect writer process was not observed live")?;
+            if event.owner != metadata.st_uid || writer.cgroup != expected_cgroup {
+                return Err("effect writer or file owner differs from outside pin".to_owned());
+            }
+            count += 1;
+            if !writers.contains(writer) {
+                writers.push(writer.clone());
+            }
+        }
+        if count == 0 {
+            return Err("retained effect has no captured close-write".to_owned());
+        }
+        writers.sort_by_key(|writer| (writer.pid, writer.start_ticks));
+        Ok(CorrelatedFileEffect {
+            device: metadata.st_dev,
+            inode: metadata.st_ino,
+            close_writes: count,
+            writers,
+            cgroup: expected_cgroup.to_owned(),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -331,14 +414,29 @@ mod tests {
             }
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
-        let event = monitor
+        let mut finished = monitor.finish().unwrap();
+        let event = finished
             .events()
-            .unwrap()
             .iter()
             .find(|event| event.device == metadata.dev() && event.inode == metadata.ino())
             .unwrap();
         assert_eq!(event.owner, 0);
         assert_eq!(event.writer.as_ref().unwrap().pid, std::process::id());
         assert!(event.writer.as_ref().unwrap().start_ticks > 0);
+        let expected_cgroup = event.writer.as_ref().unwrap().cgroup.clone();
+        let held = File::open(&path).unwrap();
+        let correlated = finished.correlate_file(&held, &expected_cgroup).unwrap();
+        assert_eq!(correlated.close_writes, 1);
+        assert_eq!(correlated.writers[0].pid, std::process::id());
+        assert!(finished
+            .correlate_file(&held, "/system.slice/unrelated.service")
+            .is_err());
+        finished.events.push(CloseWriteEvent {
+            device: metadata.dev(),
+            inode: metadata.ino(),
+            owner: 0,
+            writer: None,
+        });
+        assert!(finished.correlate_file(&held, &expected_cgroup).is_err());
     }
 }

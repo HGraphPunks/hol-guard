@@ -20,13 +20,24 @@ pidfd. A writer whose pidfd or live process cannot be sampled remains
 `None`, so a future scorer must treat its attribution as unknown. Event file
 descriptors and pidfds are closed after sampling.
 
+The watcher must be consumed with a final drain before it can correlate a
+retained file. Given a held file descriptor and an outside cgroup pin, the
+finished reader requires at least one close-write for the same device/inode,
+and requires **every** such event to have a live writer in that exact cgroup
+and the same file owner. It returns the distinct PID/start/cgroup tuples;
+missing, unknown or foreign writers refuse. The caller still has to prove
+that the writer stopped before `finish`, open the file through a trusted
+no-symlink path, and independently compare its final bytes.
+
 The final test ELF had host and guest SHA-256
-`532618e982d1ea3dbf97a14ade0ebebaca4fb9b0b15138f084c667f9208acb09`.
+`03227cbeb0ec008f63edcf6a582d8c5d7f858bd048d51b34e0e89296a37a9f87`.
 Its ARM VM library suite passed 104 tests with 21 intentional fixture/Root
 ignores. The separately selected Root test wrote a synthetic file under
 `/home`, then matched the returned event to that file's device/inode, UID 0,
 the test process PID and a nonzero start tick. Warnings-denied Rust 1.88
-Clippy passed in the native ARM64 container. Four pre-existing library tests
+Clippy passed in the native ARM64 container. The retained-file correlation
+matched the same writer and refused an unrelated cgroup; adding an unknown
+writer event for that inode also refused. Four pre-existing library tests
 that require a non-root cgroup path fail in that container because Docker
 places the test process at cgroup `/`; all four passed in the VM suite.
 
