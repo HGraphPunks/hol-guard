@@ -1,0 +1,7 @@
+# Rust shadow of Python live-provider admission
+
+Code pin `adc6697c` adds `gauntlet_host_state::evaluate_live_provider_preflight`. The fixture generator extracts the exact Python `live_provider.start` branch before `root.mkdir`; controlled in-memory quota and socket mocks prevent provider creation or model use. Python source SHA-256 `9199eb7295ca0bd52734b0482ace636b24e624eb5409903239715716c09dff02` and branch AST SHA-256 `d2c6f3e6297796727b4ba6aa3389965fc3dbe34093c6b95f441a72c65fdafbb9` are pinned by the Rust test. All 21 Python decisions and refusal messages match, including job/profile, provider template and allowance hashes, candidate-source binding, settled quota, reservation capacity and occupied port. Rust additionally refuses malformed boolean/count input.
+
+The full macOS `gauntlet-host-state` crate, targeted native Linux ARM64 Rust 1.88 test, local warnings-denied Clippy, Python generator Ruff and workspace format checks passed. A dedicated ARM64 CI step runs the fixture test on PR heads.
+
+The retained quota has 721,979 tokens left; a 200,000-token two-cell reservation fits arithmetically, while the 1,200,000-token twelve-cell reservation does not. The retained allowance names an older candidate source. This reducer consumes supplied data and never reads or locks the actual journal, checks a live socket, verifies template/allowance file custody, creates a provider directory or launches MLX. Host-owned provider generation, authorization, serial quota handoff, live inference and source-matched campaign evidence remain open.
