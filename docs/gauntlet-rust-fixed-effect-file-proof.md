@@ -39,6 +39,16 @@ The focused ARM64 test refused an unknown writer, a foreign writer, wrong
 event owner, missing event, symlink and changed final bytes. Rust 1.88
 warnings-denied ARM64 Clippy passed.
 
+The same final binary checked both provider files in three other retained
+runs. `input-binding` `cda32c146f28704b` and `success`
+`1ec56d984caf72b0` each returned two ineligible held-file matches, one
+known product-cell close-write per inode. The earlier `input-binding`
+`b7d9daabcc785762` refused both files: each inode had two known
+product-cell close-writes **and one unknown writer**, so the known writes
+cannot erase the uncertainty. In total, six provider-file diagnostics
+matched and two refused across the four retained runs. None can award a
+control verdict.
+
 The first live call intentionally refused because the fanotify file
 descriptor reported UID 10004 through the product's idmapped mount while
 the Root final path reported physical UID 10001. The revised diagnostic
