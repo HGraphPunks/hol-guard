@@ -113,3 +113,8 @@ MCP request and Guard decision. Native effects, fresh conformance, model
 campaigns, reviewed installation and observer cutover remain open. The gate
 stays passive.
 
+The later [signed product readback](gauntlet-rust-signed-product-proof.md)
+joins these same six retained runs to the controller's signed process and
+task mappings under the original host key pins. It does not rerun or promote
+the historical captures, and it records the remaining contained-writer gap.
+
