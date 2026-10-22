@@ -6,6 +6,7 @@ mod bridge_rpc;
 mod campaign;
 mod campaign_gate;
 mod cancel_reported;
+mod ci_check_failure;
 mod contained_cli_results;
 mod contained_output;
 mod contained_output_custody;
@@ -80,6 +81,7 @@ pub use bridge_rpc::{
 };
 pub use campaign_gate::evaluate_audited_campaign;
 pub use cancel_reported::{verify_cancel_reported_relation, CancelReportedRelation};
+pub use ci_check_failure::{project_ci_check_failure_ineligible, CiCheckFailureProjection};
 pub use contained_cli_results::verify_contained_cli_results;
 pub use contained_output::captured_contained_output;
 pub use contained_output_custody::verify_contained_output_custody;

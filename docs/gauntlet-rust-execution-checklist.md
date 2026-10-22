@@ -290,6 +290,7 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
 - [ ] Run a fresh Rust-controlled two-cell MCP feature pair with actual inference, real tool calls and positive known provider usage.
 - [ ] Run a fresh Rust-controlled 12-cell `beta-e2e` selection, then the wider 800/140/160-cell schedule; retain every attempt and treat missing/unknown evidence as red.
 - [ ] Match current `ci check` status/exit semantics or introduce an explicit versioned successor; never promote unprotected attack measurements to Guard passes.
+  - [x] Match the pinned Python pre-execution `failed()` body for all four declared `ci check` profiles, codes 2 and 130, and their fixed selected-case lists. Eight source-pinned Python cases match the Rust ineligible projection on macOS and Linux ARM64; see [CI-check failure proof](gauntlet-rust-ci-check-failure-proof.md). Final envelope/JUnit parity, execution, independent scoring and eligibility remain open.
 
 ## 5. Legacy qualification, installed acceptance, and publication
 

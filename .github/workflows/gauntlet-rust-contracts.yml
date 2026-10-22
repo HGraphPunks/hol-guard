@@ -89,6 +89,8 @@ jobs:
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence --test omp_transcript_parity --locked
       - name: Compare Python pilot terminal and retry decisions on ARM64
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence --test pilot_terminal_parity --locked
+      - name: Compare fixed ci-check failure status and exit codes on ARM64
+        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence --test ci_check_failure_parity --locked
       - name: Compare provider round and zero-byte retry classification with Python on ARM64
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence --test provider_rounds_parity --locked
       - name: Verify Python-signed model-budget accounting on ARM64

@@ -7,6 +7,7 @@ This is a migration inventory for Python Gauntlet PR #5263 at `b4efd8171b06d0e13
 | Current entrypoint and commands | Current effect | Proposed Rust owner / phase |
 | --- | --- | --- |
 | `scripts/gauntlet up`, `down`, `doctor`, `status`, `agent`, `hold`, `resume` | Own the passive dashboard/observer lifecycle, VM readiness and admission hold. | Host controller, Phase 3. |
+| `scripts/gauntlet dashboard-rust-up`, `dashboard-rust-restore` (combined migration branch) | Switch only the loopback dashboard HTTP server between a state-keyed Rust container and the existing Python server. | Dashboard lifecycle handoff is exercised on port 8791; Python still owns the observer and jobs, Phase 3. |
 | `scripts/gauntlet repair`, `diagnose`, `reconcile`, `retry-staging`, `probe-runtime`, `audit-staging` | Repair an idle deployment, inspect retained failures, reconcile exact receipts, reuse a verified build, run bounded diagnostics. | Host controller plus fixed VM worker, Phases 2–3. Recovery must not replay an uncertain job. |
 | `scripts/gauntlet test-local`, `features-local` | Queue a clean exact-commit candidate and run source-bound product feature audit. | Host admission plus VM builder/stager, Phases 2–3. |
 | `scripts/gauntlet live-local`, `feature-ai-local`, `refresh-live-candidate`, `live-reconcile` | Run 12-cell or two-cell local Qwen E2E, refresh exact deployment, reconcile model/VM outcome. | Host model supervisor and campaign controller, Phases 3–4. |
