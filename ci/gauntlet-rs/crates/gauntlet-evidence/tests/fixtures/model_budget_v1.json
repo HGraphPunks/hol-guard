@@ -552,6 +552,519 @@
             },
             "records": [
               {
+                "kind": "model-request",
+                "model_id": "qwen3.6",
+                "model_request_id": 1,
+                "sequence": 1
+              },
+              {
+                "complete": true,
+                "cumulative_tokens": 17,
+                "error": null,
+                "kind": "model-response",
+                "method": "POST",
+                "model_id": "qwen3.6",
+                "model_request_id": 1,
+                "provider_tokens": 17,
+                "sequence": 2,
+                "status": 200
+              }
+            ],
+            "threshold_overrun": 0,
+            "usage_known": true
+          },
+          "cleanup": {
+            "connections_drained": true,
+            "server_thread_stopped": true,
+            "socket_removed": true
+          },
+          "mcp_protocol_profile": {
+            "id": "tool-description",
+            "schema": "gauntlet-mcp-protocol-profile.v1"
+          },
+          "mode": "provider-relay",
+          "provider": {
+            "base_url": "http://host.lima.internal:8001/v1",
+            "host": "192.168.5.2",
+            "port": 8001
+          },
+          "public_config_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "qualification": false,
+          "schema": "gauntlet-business-model-budget.v1",
+          "sdk_stdout_authoritative": false,
+          "sources": {
+            "business_model_budget.py": "1b72f0af2653b6c2e9da345a9009d056402f3a278dc9e07536a936c916f7fd4a",
+            "developer_budget.py": "79d30b7d52fee51a3953536f2eab1ae888a46bc75077a952d74347ec4078721d",
+            "developer_model_relay.py": "2ba5768aa464e408a1a6ae8520307dc6fe7c21c90b85d75cccc1879035acd3ca",
+            "mcp_protocol_campaign.py": "c68da185acdfd0f4853c9d0dbbbc9a25d0a7d9956e28ee11d0513e76706c84d0",
+            "mcp_protocol_profiles.py": "86b4fabe851a815298c285667342ccae53c3bfff3a26a694b15cf4b6fe3b5429",
+            "model_endpoint.py": "82cf4f951340e0c9cc65315b31f042aef235d378a661d4b5246f36db29d3f302"
+          }
+        },
+        "signature": "VgFi8k0fSdNVkwEcwe3EB2TqQ4yB4DDUPIyaN5I/Iqvj4Ftxnn6h/S4YMPe/cshLwF3jzLlU9A5t05WG2OwoBA=="
+      },
+      "expected": {
+        "accepted": true,
+        "usage": {
+          "budget_exhausted": false,
+          "cleanup_complete": true,
+          "inference_started": true,
+          "model_budget_authority": "controller-provider-relay",
+          "model_requests": 1,
+          "model_usage_known": true,
+          "observed_model_tokens": 17,
+          "token_threshold_overrun": 0,
+          "zero_model_requests_proven": false
+        }
+      },
+      "name": "protocol",
+      "outside_sources": {
+        "business_model_budget.py": "1b72f0af2653b6c2e9da345a9009d056402f3a278dc9e07536a936c916f7fd4a",
+        "developer_budget.py": "79d30b7d52fee51a3953536f2eab1ae888a46bc75077a952d74347ec4078721d",
+        "developer_model_relay.py": "2ba5768aa464e408a1a6ae8520307dc6fe7c21c90b85d75cccc1879035acd3ca",
+        "mcp_protocol_campaign.py": "c68da185acdfd0f4853c9d0dbbbc9a25d0a7d9956e28ee11d0513e76706c84d0",
+        "mcp_protocol_profiles.py": "86b4fabe851a815298c285667342ccae53c3bfff3a26a694b15cf4b6fe3b5429",
+        "model_endpoint.py": "82cf4f951340e0c9cc65315b31f042aef235d378a661d4b5246f36db29d3f302"
+      }
+    },
+    {
+      "envelope": {
+        "record": {
+          "budget": {
+            "cleanup_complete": true,
+            "max_tokens": 100,
+            "maximum_requests": 5,
+            "mcp_agent_surfaces": "mcp-agent-surfaces.v1",
+            "model_id": "qwen3.6",
+            "model_requests": 1,
+            "observed_tokens": 17,
+            "provider": {
+              "base_url": "http://host.lima.internal:8001/v1",
+              "host": "192.168.5.2",
+              "port": 8001
+            },
+            "records": [
+              {
+                "kind": "model-request",
+                "model_id": "qwen3.6",
+                "model_request_id": 1,
+                "sequence": 1
+              },
+              {
+                "complete": true,
+                "cumulative_tokens": 17,
+                "error": null,
+                "kind": "model-response",
+                "method": "POST",
+                "model_id": "qwen3.6",
+                "model_request_id": 1,
+                "provider_tokens": 17,
+                "sequence": 2,
+                "status": 200
+              }
+            ],
+            "threshold_overrun": 0,
+            "usage_known": true
+          },
+          "cleanup": {
+            "connections_drained": true,
+            "server_thread_stopped": true,
+            "socket_removed": true
+          },
+          "mcp_agent_surfaces": "mcp-agent-surfaces.v1",
+          "mode": "provider-relay",
+          "provider": {
+            "base_url": "http://host.lima.internal:8001/v1",
+            "host": "192.168.5.2",
+            "port": 8001
+          },
+          "public_config_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "qualification": false,
+          "schema": "gauntlet-business-model-budget.v1",
+          "sdk_stdout_authoritative": false,
+          "sources": {
+            "business_model_budget.py": "1b72f0af2653b6c2e9da345a9009d056402f3a278dc9e07536a936c916f7fd4a",
+            "developer_budget.py": "79d30b7d52fee51a3953536f2eab1ae888a46bc75077a952d74347ec4078721d",
+            "developer_model_relay.py": "2ba5768aa464e408a1a6ae8520307dc6fe7c21c90b85d75cccc1879035acd3ca",
+            "mcp_agent_profile.py": "f9b39e158d081c89bcd5c6b616d89a90ac90e29725181cd0f8966f4921ab8d0e",
+            "model_endpoint.py": "82cf4f951340e0c9cc65315b31f042aef235d378a661d4b5246f36db29d3f302"
+          }
+        },
+        "signature": "6OPXO3qPr2088q+dq7/gEfPeDw5MKXgC617WAOkqSfqOUIk1mncjhCTGTMSjcS1Y3GhtW/boC9dVmKZ/JMlXDw=="
+      },
+      "expected": {
+        "accepted": true,
+        "usage": {
+          "budget_exhausted": false,
+          "cleanup_complete": true,
+          "inference_started": true,
+          "model_budget_authority": "controller-provider-relay",
+          "model_requests": 1,
+          "model_usage_known": true,
+          "observed_model_tokens": 17,
+          "token_threshold_overrun": 0,
+          "zero_model_requests_proven": false
+        }
+      },
+      "name": "agent",
+      "outside_sources": {
+        "business_model_budget.py": "1b72f0af2653b6c2e9da345a9009d056402f3a278dc9e07536a936c916f7fd4a",
+        "developer_budget.py": "79d30b7d52fee51a3953536f2eab1ae888a46bc75077a952d74347ec4078721d",
+        "developer_model_relay.py": "2ba5768aa464e408a1a6ae8520307dc6fe7c21c90b85d75cccc1879035acd3ca",
+        "mcp_agent_profile.py": "f9b39e158d081c89bcd5c6b616d89a90ac90e29725181cd0f8966f4921ab8d0e",
+        "model_endpoint.py": "82cf4f951340e0c9cc65315b31f042aef235d378a661d4b5246f36db29d3f302"
+      }
+    },
+    {
+      "envelope": {
+        "record": {
+          "budget": {
+            "cleanup_complete": true,
+            "max_tokens": 100,
+            "maximum_requests": 5,
+            "mcp_agent_surfaces": "mcp-agent-surfaces.v1",
+            "model_id": "qwen3.6",
+            "model_requests": 1,
+            "observed_tokens": 17,
+            "provider": {
+              "base_url": "http://host.lima.internal:8001/v1",
+              "host": "192.168.5.2",
+              "port": 8001
+            },
+            "records": [
+              {
+                "kind": "model-request",
+                "model_id": "qwen3.6",
+                "model_request_id": 1,
+                "sequence": 1
+              },
+              {
+                "complete": true,
+                "cumulative_tokens": 17,
+                "error": null,
+                "kind": "model-response",
+                "method": "POST",
+                "model_id": "qwen3.6",
+                "model_request_id": 1,
+                "provider_tokens": 17,
+                "sequence": 2,
+                "status": 200
+              }
+            ],
+            "threshold_overrun": 0,
+            "usage_known": true
+          },
+          "cleanup": {
+            "connections_drained": true,
+            "server_thread_stopped": true,
+            "socket_removed": true
+          },
+          "mcp_agent_surfaces": "mcp-agent-surfaces.v1",
+          "mcp_protocol_profile": {
+            "id": "tool-description",
+            "schema": "gauntlet-mcp-protocol-profile.v1"
+          },
+          "mode": "provider-relay",
+          "provider": {
+            "base_url": "http://host.lima.internal:8001/v1",
+            "host": "192.168.5.2",
+            "port": 8001
+          },
+          "public_config_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "qualification": false,
+          "schema": "gauntlet-business-model-budget.v1",
+          "sdk_stdout_authoritative": false,
+          "sources": {
+            "business_model_budget.py": "1b72f0af2653b6c2e9da345a9009d056402f3a278dc9e07536a936c916f7fd4a",
+            "developer_budget.py": "79d30b7d52fee51a3953536f2eab1ae888a46bc75077a952d74347ec4078721d",
+            "developer_model_relay.py": "2ba5768aa464e408a1a6ae8520307dc6fe7c21c90b85d75cccc1879035acd3ca",
+            "mcp_agent_profile.py": "f9b39e158d081c89bcd5c6b616d89a90ac90e29725181cd0f8966f4921ab8d0e",
+            "mcp_protocol_campaign.py": "c68da185acdfd0f4853c9d0dbbbc9a25d0a7d9956e28ee11d0513e76706c84d0",
+            "mcp_protocol_profiles.py": "86b4fabe851a815298c285667342ccae53c3bfff3a26a694b15cf4b6fe3b5429",
+            "model_endpoint.py": "82cf4f951340e0c9cc65315b31f042aef235d378a661d4b5246f36db29d3f302"
+          }
+        },
+        "signature": "3EjaAbhC2cleP6nAtbHHsyJr2FyDWMgBNOyYswEVWhy2vB1JT6AV7WIyOv7vqb2rjmXJs7JEzXh2K/QB+8gqAw=="
+      },
+      "expected": {
+        "accepted": true,
+        "usage": {
+          "budget_exhausted": false,
+          "cleanup_complete": true,
+          "inference_started": true,
+          "model_budget_authority": "controller-provider-relay",
+          "model_requests": 1,
+          "model_usage_known": true,
+          "observed_model_tokens": 17,
+          "token_threshold_overrun": 0,
+          "zero_model_requests_proven": false
+        }
+      },
+      "name": "both_profiles",
+      "outside_sources": {
+        "business_model_budget.py": "1b72f0af2653b6c2e9da345a9009d056402f3a278dc9e07536a936c916f7fd4a",
+        "developer_budget.py": "79d30b7d52fee51a3953536f2eab1ae888a46bc75077a952d74347ec4078721d",
+        "developer_model_relay.py": "2ba5768aa464e408a1a6ae8520307dc6fe7c21c90b85d75cccc1879035acd3ca",
+        "mcp_agent_profile.py": "f9b39e158d081c89bcd5c6b616d89a90ac90e29725181cd0f8966f4921ab8d0e",
+        "mcp_protocol_campaign.py": "c68da185acdfd0f4853c9d0dbbbc9a25d0a7d9956e28ee11d0513e76706c84d0",
+        "mcp_protocol_profiles.py": "86b4fabe851a815298c285667342ccae53c3bfff3a26a694b15cf4b6fe3b5429",
+        "model_endpoint.py": "82cf4f951340e0c9cc65315b31f042aef235d378a661d4b5246f36db29d3f302"
+      }
+    },
+    {
+      "envelope": {
+        "record": {
+          "budget": {
+            "cleanup_complete": true,
+            "max_tokens": 100,
+            "maximum_requests": 5,
+            "model_id": "qwen3.6",
+            "model_requests": 1,
+            "observed_tokens": 17,
+            "provider": {
+              "base_url": "http://host.lima.internal:8001/v1",
+              "host": "192.168.5.2",
+              "port": 8001
+            },
+            "records": [
+              {
+                "kind": "model-request",
+                "model_id": "qwen3.6",
+                "model_request_id": 1,
+                "sequence": 1
+              },
+              {
+                "complete": true,
+                "cumulative_tokens": 17,
+                "error": null,
+                "kind": "model-response",
+                "method": "POST",
+                "model_id": "qwen3.6",
+                "model_request_id": 1,
+                "provider_tokens": 17,
+                "sequence": 2,
+                "status": 200
+              }
+            ],
+            "threshold_overrun": 0,
+            "usage_known": true
+          },
+          "cleanup": {
+            "connections_drained": true,
+            "server_thread_stopped": true,
+            "socket_removed": true
+          },
+          "mcp_protocol_profile": {
+            "id": "unknown",
+            "schema": "gauntlet-mcp-protocol-profile.v1"
+          },
+          "mode": "provider-relay",
+          "provider": {
+            "base_url": "http://host.lima.internal:8001/v1",
+            "host": "192.168.5.2",
+            "port": 8001
+          },
+          "public_config_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "qualification": false,
+          "schema": "gauntlet-business-model-budget.v1",
+          "sdk_stdout_authoritative": false,
+          "sources": {
+            "business_model_budget.py": "1b72f0af2653b6c2e9da345a9009d056402f3a278dc9e07536a936c916f7fd4a",
+            "developer_budget.py": "79d30b7d52fee51a3953536f2eab1ae888a46bc75077a952d74347ec4078721d",
+            "developer_model_relay.py": "2ba5768aa464e408a1a6ae8520307dc6fe7c21c90b85d75cccc1879035acd3ca",
+            "mcp_protocol_campaign.py": "c68da185acdfd0f4853c9d0dbbbc9a25d0a7d9956e28ee11d0513e76706c84d0",
+            "mcp_protocol_profiles.py": "86b4fabe851a815298c285667342ccae53c3bfff3a26a694b15cf4b6fe3b5429",
+            "model_endpoint.py": "82cf4f951340e0c9cc65315b31f042aef235d378a661d4b5246f36db29d3f302"
+          }
+        },
+        "signature": "uSgMy0a3Li6n3X9DynJtzrQy8E16n+eHQnsTjdqmRm8onWh0X0HpQQY5OGOW33FNkqubIOdJsYJjuk+OG5a1Bw=="
+      },
+      "expected": {
+        "accepted": false,
+        "error_type": "ValueError"
+      },
+      "name": "bad_protocol_id",
+      "outside_sources": {
+        "business_model_budget.py": "1b72f0af2653b6c2e9da345a9009d056402f3a278dc9e07536a936c916f7fd4a",
+        "developer_budget.py": "79d30b7d52fee51a3953536f2eab1ae888a46bc75077a952d74347ec4078721d",
+        "developer_model_relay.py": "2ba5768aa464e408a1a6ae8520307dc6fe7c21c90b85d75cccc1879035acd3ca",
+        "mcp_protocol_campaign.py": "c68da185acdfd0f4853c9d0dbbbc9a25d0a7d9956e28ee11d0513e76706c84d0",
+        "mcp_protocol_profiles.py": "86b4fabe851a815298c285667342ccae53c3bfff3a26a694b15cf4b6fe3b5429",
+        "model_endpoint.py": "82cf4f951340e0c9cc65315b31f042aef235d378a661d4b5246f36db29d3f302"
+      }
+    },
+    {
+      "envelope": {
+        "record": {
+          "budget": {
+            "cleanup_complete": true,
+            "max_tokens": 100,
+            "maximum_requests": 5,
+            "model_id": "qwen3.6",
+            "model_requests": 1,
+            "observed_tokens": 17,
+            "provider": {
+              "base_url": "http://host.lima.internal:8001/v1",
+              "host": "192.168.5.2",
+              "port": 8001
+            },
+            "records": [
+              {
+                "kind": "model-request",
+                "model_id": "qwen3.6",
+                "model_request_id": 1,
+                "sequence": 1
+              },
+              {
+                "complete": true,
+                "cumulative_tokens": 17,
+                "error": null,
+                "kind": "model-response",
+                "method": "POST",
+                "model_id": "qwen3.6",
+                "model_request_id": 1,
+                "provider_tokens": 17,
+                "sequence": 2,
+                "status": 200
+              }
+            ],
+            "threshold_overrun": 0,
+            "usage_known": true
+          },
+          "cleanup": {
+            "connections_drained": true,
+            "server_thread_stopped": true,
+            "socket_removed": true
+          },
+          "mcp_agent_surfaces": "mcp-agent-surfaces.v1",
+          "mode": "provider-relay",
+          "provider": {
+            "base_url": "http://host.lima.internal:8001/v1",
+            "host": "192.168.5.2",
+            "port": 8001
+          },
+          "public_config_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "qualification": false,
+          "schema": "gauntlet-business-model-budget.v1",
+          "sdk_stdout_authoritative": false,
+          "sources": {
+            "business_model_budget.py": "1b72f0af2653b6c2e9da345a9009d056402f3a278dc9e07536a936c916f7fd4a",
+            "developer_budget.py": "79d30b7d52fee51a3953536f2eab1ae888a46bc75077a952d74347ec4078721d",
+            "developer_model_relay.py": "2ba5768aa464e408a1a6ae8520307dc6fe7c21c90b85d75cccc1879035acd3ca",
+            "mcp_agent_profile.py": "f9b39e158d081c89bcd5c6b616d89a90ac90e29725181cd0f8966f4921ab8d0e",
+            "model_endpoint.py": "82cf4f951340e0c9cc65315b31f042aef235d378a661d4b5246f36db29d3f302"
+          }
+        },
+        "signature": "wTYGK+61KNGVNyDFJR1AAffCASNJmDm7yrqDzMPMjjWrTC4k9PdHWA+2V3koQ9+HOG08mJvdzCtD+6aP5l2bDA=="
+      },
+      "expected": {
+        "accepted": false,
+        "error_type": "ValueError"
+      },
+      "name": "agent_missing_budget",
+      "outside_sources": {
+        "business_model_budget.py": "1b72f0af2653b6c2e9da345a9009d056402f3a278dc9e07536a936c916f7fd4a",
+        "developer_budget.py": "79d30b7d52fee51a3953536f2eab1ae888a46bc75077a952d74347ec4078721d",
+        "developer_model_relay.py": "2ba5768aa464e408a1a6ae8520307dc6fe7c21c90b85d75cccc1879035acd3ca",
+        "mcp_agent_profile.py": "f9b39e158d081c89bcd5c6b616d89a90ac90e29725181cd0f8966f4921ab8d0e",
+        "model_endpoint.py": "82cf4f951340e0c9cc65315b31f042aef235d378a661d4b5246f36db29d3f302"
+      }
+    },
+    {
+      "envelope": {
+        "record": {
+          "budget": {
+            "cleanup_complete": true,
+            "max_tokens": 100,
+            "maximum_requests": 5,
+            "mcp_agent_surfaces": "mcp-agent-surfaces.v1",
+            "model_id": "qwen3.6",
+            "model_requests": 1,
+            "observed_tokens": 17,
+            "provider": {
+              "base_url": "http://host.lima.internal:8001/v1",
+              "host": "192.168.5.2",
+              "port": 8001
+            },
+            "records": [
+              {
+                "kind": "model-request",
+                "model_id": "qwen3.6",
+                "model_request_id": 1,
+                "sequence": 1
+              },
+              {
+                "complete": true,
+                "cumulative_tokens": 17,
+                "error": null,
+                "kind": "model-response",
+                "method": "POST",
+                "model_id": "qwen3.6",
+                "model_request_id": 1,
+                "provider_tokens": 17,
+                "sequence": 2,
+                "status": 200
+              }
+            ],
+            "threshold_overrun": 0,
+            "usage_known": true
+          },
+          "cleanup": {
+            "connections_drained": true,
+            "server_thread_stopped": true,
+            "socket_removed": true
+          },
+          "mcp_agent_surfaces": "unknown",
+          "mode": "provider-relay",
+          "provider": {
+            "base_url": "http://host.lima.internal:8001/v1",
+            "host": "192.168.5.2",
+            "port": 8001
+          },
+          "public_config_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "qualification": false,
+          "schema": "gauntlet-business-model-budget.v1",
+          "sdk_stdout_authoritative": false,
+          "sources": {
+            "business_model_budget.py": "1b72f0af2653b6c2e9da345a9009d056402f3a278dc9e07536a936c916f7fd4a",
+            "developer_budget.py": "79d30b7d52fee51a3953536f2eab1ae888a46bc75077a952d74347ec4078721d",
+            "developer_model_relay.py": "2ba5768aa464e408a1a6ae8520307dc6fe7c21c90b85d75cccc1879035acd3ca",
+            "mcp_agent_profile.py": "f9b39e158d081c89bcd5c6b616d89a90ac90e29725181cd0f8966f4921ab8d0e",
+            "model_endpoint.py": "82cf4f951340e0c9cc65315b31f042aef235d378a661d4b5246f36db29d3f302"
+          }
+        },
+        "signature": "IBfl1JWUXaJvhTMKe6xD/dQJFSyt2cIuqexSh7cC0X5gOqbrbG086/vVMqxtpjyRMcNBbBfTNzHdhnsyKpuRAg=="
+      },
+      "expected": {
+        "accepted": false,
+        "error_type": "ValueError"
+      },
+      "name": "wrong_agent_profile",
+      "outside_sources": {
+        "business_model_budget.py": "1b72f0af2653b6c2e9da345a9009d056402f3a278dc9e07536a936c916f7fd4a",
+        "developer_budget.py": "79d30b7d52fee51a3953536f2eab1ae888a46bc75077a952d74347ec4078721d",
+        "developer_model_relay.py": "2ba5768aa464e408a1a6ae8520307dc6fe7c21c90b85d75cccc1879035acd3ca",
+        "mcp_agent_profile.py": "f9b39e158d081c89bcd5c6b616d89a90ac90e29725181cd0f8966f4921ab8d0e",
+        "model_endpoint.py": "82cf4f951340e0c9cc65315b31f042aef235d378a661d4b5246f36db29d3f302"
+      }
+    },
+    {
+      "envelope": {
+        "record": {
+          "budget": {
+            "cleanup_complete": true,
+            "max_tokens": 100,
+            "maximum_requests": 5,
+            "model_id": "qwen3.6",
+            "model_requests": 1,
+            "observed_tokens": 17,
+            "provider": {
+              "base_url": "http://host.lima.internal:8001/v1",
+              "host": "192.168.5.2",
+              "port": 8001
+            },
+            "records": [
+              {
                 "complete": true,
                 "cumulative_tokens": 0,
                 "error": null,

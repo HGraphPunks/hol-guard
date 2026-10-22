@@ -1,4 +1,4 @@
-//! Signed provider relay accounting for the fixed unprofiled Python v1 record.
+//! Signed provider relay accounting for the fixed Python v1 record.
 //! The public key and source hashes must come from outside the candidate.
 
 use crate::crypto::is_sha256;
@@ -39,16 +39,47 @@ fn flag(value: &Map<String, Value>, name: &str) -> Result<bool> {
     field(value, name)?.as_bool().ok_or_else(invalid)
 }
 
-fn sources_valid(value: &Value, legacy: bool) -> Result<()> {
+fn sources_valid(value: &Value, legacy: bool, protocol: bool, agent: bool) -> Result<()> {
     let sources = object(value)?;
-    let expected = if legacy { 3 } else { 4 };
-    if sources.len() != expected
-        || SOURCE_NAMES[..expected].iter().any(|name| {
+    let mut names = SOURCE_NAMES[..if legacy { 3 } else { 4 }].to_vec();
+    if protocol {
+        names.extend(["mcp_protocol_campaign.py", "mcp_protocol_profiles.py"]);
+    }
+    if agent {
+        names.push("mcp_agent_profile.py");
+    }
+    if sources.len() != names.len()
+        || names.iter().any(|name| {
             !sources
                 .get(*name)
                 .and_then(Value::as_str)
                 .is_some_and(is_sha256)
         })
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn protocol_profile_valid(value: &Value) -> Result<()> {
+    let profile = object(value)?;
+    if profile.len() != 2
+        || text(profile, "schema")? != "gauntlet-mcp-protocol-profile.v1"
+        || !matches!(
+            text(profile, "id")?,
+            "clean"
+                | "tool-description"
+                | "misleading-annotations"
+                | "schema-change"
+                | "tool-list-change"
+                | "resource-link"
+                | "structured-content"
+                | "resource-read"
+                | "prompt-get"
+                | "reconnect-schema"
+                | "server-identity-collision"
+                | "error-content"
+        )
     {
         return Err(invalid());
     }
@@ -81,8 +112,8 @@ fn sampling_valid(row: &Map<String, Value>) -> Result<()> {
 }
 
 /// Verify an 8-MiB-bounded signed controller record and recompute provider
-/// cost from ordered request/response rows. Optional MCP profile extensions
-/// are deliberately refused until their independent declarations are ported.
+/// cost from ordered request/response rows. Optional MCP profile declarations
+/// are validated here; effect and exposure scoring remain separate.
 #[allow(clippy::too_many_arguments)]
 pub fn verify_signed_model_budget(
     envelope_bytes: &[u8],
@@ -106,8 +137,6 @@ pub fn verify_signed_model_budget(
         )
         || flag(record, "sdk_stdout_authoritative")?
         || flag(record, "qualification")?
-        || record.contains_key("mcp_protocol_profile")
-        || record.contains_key("mcp_agent_surfaces")
         || config_digest
             .is_some_and(|digest| record.get("public_config_digest") != Some(&json!(digest)))
     {
@@ -116,12 +145,25 @@ pub fn verify_signed_model_budget(
     let provider = field(record, "provider")?;
     let legacy = provider == &json!({"host":"192.168.5.2","port":8001});
     verify_model_endpoint(if legacy { None } else { Some(provider) }, base_url)?;
+    let protocol = record.get("mcp_protocol_profile");
+    if let Some(profile) = protocol {
+        protocol_profile_valid(profile)?;
+    }
+    let agent = record.get("mcp_agent_surfaces");
+    if agent.is_some_and(|value| value.as_str() != Some("mcp-agent-surfaces.v1")) {
+        return Err(invalid());
+    }
     let sources = field(record, "sources")?;
-    sources_valid(sources, legacy)?;
+    sources_valid(sources, legacy, protocol.is_some(), agent.is_some())?;
     if sources != expected_sources {
         return Err(invalid());
     }
     let budget = object(field(record, "budget")?)?;
+    if text(record, "mode")? == "provider-relay"
+        && agent.is_some_and(|profile| budget.get("mcp_agent_surfaces") != Some(profile))
+    {
+        return Err(invalid());
+    }
     if !legacy {
         verify_model_endpoint(budget.get("provider").or(Some(provider)), base_url)?;
     }

@@ -99,6 +99,24 @@ def legacy(record):
     record["sources"].pop("model_endpoint.py")
 
 
+def protocol(record):
+    record["mcp_protocol_profile"] = {"schema": "gauntlet-mcp-protocol-profile.v1", "id": "tool-description"}
+    for name in ("mcp_protocol_campaign.py", "mcp_protocol_profiles.py"):
+        record["sources"][name] = hashlib.sha256(SOURCE.with_name(name).read_bytes()).hexdigest()
+
+
+def agent(record):
+    record["mcp_agent_surfaces"] = "mcp-agent-surfaces.v1"
+    record["budget"]["mcp_agent_surfaces"] = "mcp-agent-surfaces.v1"
+    name = "mcp_agent_profile.py"
+    record["sources"][name] = hashlib.sha256(SOURCE.with_name(name).read_bytes()).hexdigest()
+
+
+def both_profiles(record):
+    protocol(record)
+    agent(record)
+
+
 def discovery(record):
     row = {
         "sequence": 1,
@@ -152,7 +170,20 @@ def classify(name, change=None, *, envelope_change=None):
     if change is not None:
         change(record)
     envelope = signed(record)
-    outside_sources = record["sources"] if name == "legacy" else SOURCES
+    outside_sources = (
+        record["sources"]
+        if name
+        in {
+            "legacy",
+            "protocol",
+            "agent",
+            "both_profiles",
+            "bad_protocol_id",
+            "agent_missing_budget",
+            "wrong_agent_profile",
+        }
+        else SOURCES
+    )
     if envelope_change is not None:
         envelope_change(envelope)
     try:
@@ -180,6 +211,12 @@ cases = [
     classify("pending", pending),
     classify("partial", partial),
     classify("legacy", legacy),
+    classify("protocol", protocol),
+    classify("agent", agent),
+    classify("both_profiles", both_profiles),
+    classify("bad_protocol_id", lambda r: (protocol(r), r["mcp_protocol_profile"].update(id="unknown"))),
+    classify("agent_missing_budget", lambda r: (agent(r), r["budget"].pop("mcp_agent_surfaces"))),
+    classify("wrong_agent_profile", lambda r: (agent(r), r.update(mcp_agent_surfaces="unknown"))),
     classify("discovery", discovery),
     classify("second_request", second_request),
     classify("unknown_cost_allowed", unknown_cost_allowed),

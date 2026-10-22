@@ -40,9 +40,19 @@ fn signed_provider_accounting_matches_pinned_python() {
         "hol-gauntlet-python-model-budget-fixtures.v1"
     );
     let cases = fixture["cases"].as_array().unwrap();
-    assert_eq!(cases.len(), 33);
+    assert_eq!(cases.len(), 39);
     let key = public_key(fixture["public_key_hex"].as_str().unwrap());
     for case in cases {
+        for (name, digest) in case["outside_sources"].as_object().unwrap() {
+            let path = format!("ci/gauntlet/benchmark/{name}");
+            let source = baseline["files"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|entry| entry["path"] == path)
+                .unwrap();
+            assert_eq!(*digest, source["sha256"], "{path}");
+        }
         let raw = serde_json::to_vec(&case["envelope"]).unwrap();
         let observed = verify_signed_model_budget(
             &raw,
