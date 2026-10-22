@@ -1,4 +1,4 @@
-//! Bounded HMAC frames for the trusted VM collector bridge.
+//! Bounded HMAC frames for distinct VM-collector and product-cell bridges.
 //!
 //! Keys must arrive through an already authenticated private channel. The
 //! codec authenticates transport custody, never benchmark eligibility.
@@ -10,11 +10,18 @@ use gauntlet_contracts::canonicalize;
 use ring::hmac;
 use serde_json::{json, Value};
 
-const SCHEMA: &str = "gauntlet-vm-bridge-frame.v1";
-const DOMAIN: &[u8] = b"gauntlet-vm-bridge-frame.v1\0";
+const VM_SCHEMA: &str = "gauntlet-vm-bridge-frame.v1";
+const VM_DOMAIN: &[u8] = b"gauntlet-vm-bridge-frame.v1\0";
+const CELL_SCHEMA: &str = "gauntlet-product-cell-frame.v1";
+const CELL_DOMAIN: &[u8] = b"gauntlet-product-cell-frame.v1\0";
 const MAX_FRAME_BYTES: usize = 12 * 1024 * 1024;
 const MAX_TOTAL_BYTES: usize = 256 * 1024 * 1024;
 const MAX_FRAMES: u64 = 10_000;
+
+struct FrameLimits {
+    frames: u64,
+    bytes: usize,
+}
 
 pub(crate) fn canonical_uuid(value: &str) -> bool {
     let bytes = value.as_bytes();
@@ -36,16 +43,18 @@ fn hex(raw: &[u8]) -> String {
     result
 }
 
-fn sign(key: &hmac::Key, message: &Value) -> Result<String> {
+fn sign(key: &hmac::Key, domain: &[u8], message: &Value) -> Result<String> {
     let canonical = canonical_value(message)?;
-    let mut input = Vec::with_capacity(DOMAIN.len() + canonical.len());
-    input.extend_from_slice(DOMAIN);
+    let mut input = Vec::with_capacity(domain.len() + canonical.len());
+    input.extend_from_slice(domain);
     input.extend_from_slice(&canonical);
     Ok(hex(hmac::sign(key, &input).as_ref()))
 }
 
 pub struct FrameCodec {
     key: hmac::Key,
+    schema: &'static str,
+    domain: &'static [u8],
     session: String,
     local_role: &'static str,
     peer_role: &'static str,
@@ -70,31 +79,83 @@ impl FrameCodec {
         max_frames: u64,
         max_bytes: usize,
     ) -> Result<Self> {
+        Self::new_realm(
+            key,
+            session,
+            local_role,
+            local_boot,
+            peer_boot,
+            FrameLimits {
+                frames: max_frames,
+                bytes: max_bytes,
+            },
+            false,
+        )
+    }
+
+    /// Python `product_cell_protocol.CellCodec`: same bounded framing, with
+    /// a separate MAC domain, schema and role pair from the VM collector.
+    pub fn new_product_cell(
+        key: &[u8],
+        session: &str,
+        local_role: &str,
+        local_boot: &str,
+        peer_boot: &str,
+        max_frames: u64,
+        max_bytes: usize,
+    ) -> Result<Self> {
+        Self::new_realm(
+            key,
+            session,
+            local_role,
+            local_boot,
+            peer_boot,
+            FrameLimits {
+                frames: max_frames,
+                bytes: max_bytes,
+            },
+            true,
+        )
+    }
+
+    fn new_realm(
+        key: &[u8],
+        session: &str,
+        local_role: &str,
+        local_boot: &str,
+        peer_boot: &str,
+        limits: FrameLimits,
+        product_cell: bool,
+    ) -> Result<Self> {
         if key.len() != 32
             || !canonical_uuid(session)
             || !canonical_uuid(local_boot)
             || !canonical_uuid(peer_boot)
-            || !(1..=MAX_FRAMES).contains(&max_frames)
-            || !(1024..=MAX_TOTAL_BYTES).contains(&max_bytes)
+            || !(1..=MAX_FRAMES).contains(&limits.frames)
+            || !(1024..=MAX_TOTAL_BYTES).contains(&limits.bytes)
         {
             return Err(EvidenceError::Invalid(
                 "invalid private bridge identity or bounds",
             ));
         }
-        let (local_role, peer_role) = match local_role {
-            "controller" => ("controller", "product-collector"),
-            "product-collector" => ("product-collector", "controller"),
+        let (local_role, peer_role) = match (product_cell, local_role) {
+            (false, "controller") => ("controller", "product-collector"),
+            (false, "product-collector") => ("product-collector", "controller"),
+            (true, "cell-supervisor") => ("cell-supervisor", "cell-actor"),
+            (true, "cell-actor") => ("cell-actor", "cell-supervisor"),
             _ => return Err(EvidenceError::Invalid("invalid bridge collector role")),
         };
         Ok(Self {
             key: hmac::Key::new(hmac::HMAC_SHA256, key),
+            schema: if product_cell { CELL_SCHEMA } else { VM_SCHEMA },
+            domain: if product_cell { CELL_DOMAIN } else { VM_DOMAIN },
             session: session.to_owned(),
             local_role,
             peer_role,
             local_boot: local_boot.to_owned(),
             peer_boot: peer_boot.to_owned(),
-            max_frames,
-            max_bytes,
+            max_frames: limits.frames,
+            max_bytes: limits.bytes,
             sent: 0,
             received: 0,
             bytes_sent: 0,
@@ -157,7 +218,7 @@ impl FrameCodec {
             ));
         }
         let message = json!({
-            "schema": SCHEMA,
+            "schema": self.schema,
             "session": self.session,
             "source_role": self.local_role,
             "destination_role": self.peer_role,
@@ -167,7 +228,9 @@ impl FrameCodec {
             "kind": kind,
             "body": body,
         });
-        let raw = canonical_value(&json!({"message":message,"mac":sign(&self.key,&message)?}))?;
+        let raw = canonical_value(
+            &json!({"message":message,"mac":sign(&self.key,self.domain,&message)?}),
+        )?;
         if raw.len() > MAX_FRAME_BYTES
             || self
                 .bytes_sent
@@ -233,13 +296,13 @@ impl FrameCodec {
         }
         let provided = decode_hex(mac, 32)?;
         let canonical_message = canonical_value(message)?;
-        let mut authenticated = Vec::with_capacity(DOMAIN.len() + canonical_message.len());
-        authenticated.extend_from_slice(DOMAIN);
+        let mut authenticated = Vec::with_capacity(self.domain.len() + canonical_message.len());
+        authenticated.extend_from_slice(self.domain);
         authenticated.extend_from_slice(&canonical_message);
         if hmac::verify(&self.key, &authenticated, &provided).is_err() {
             return Err(EvidenceError::Invalid("bridge authentication failed"));
         }
-        if message["schema"] != SCHEMA
+        if message["schema"] != self.schema
             || message["session"] != self.session
             || message["source_role"] != self.peer_role
             || message["destination_role"] != self.local_role

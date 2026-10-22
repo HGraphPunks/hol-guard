@@ -18,20 +18,23 @@ import json, socket, sys, time
 from ci.gauntlet.benchmark.vm_bridge_frames import FrameCodec
 from ci.gauntlet.benchmark.vm_bridge_io import BridgeIO
 from ci.gauntlet.benchmark.vm_bridge_rpc import BridgeClient, serve_one
+from ci.gauntlet.benchmark.product_cell_protocol import CellCodec
 
 mode, to_python, to_rust = sys.argv[1:]
 reader = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 writer = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 reader.connect(to_python)
 writer.connect(to_rust)
-role = 'product-collector' if mode == 'server' else 'controller'
-codec = FrameCodec(b'K'*32,
+cell = mode.startswith('cell_')
+server = mode.endswith('server')
+role = ('cell-actor' if server else 'cell-supervisor') if cell else ('product-collector' if server else 'controller')
+codec = (CellCodec if cell else FrameCodec)((b'C' if cell else b'K')*32,
     session='11111111-1111-1111-1111-111111111111',
     local_role=role,
-    local_boot='33333333-3333-3333-3333-333333333333' if mode == 'server' else '22222222-2222-2222-2222-222222222222',
-    peer_boot='22222222-2222-2222-2222-222222222222' if mode == 'server' else '33333333-3333-3333-3333-333333333333')
+    local_boot='22222222-2222-2222-2222-222222222222' if cell or not server else '33333333-3333-3333-3333-333333333333',
+    peer_boot='22222222-2222-2222-2222-222222222222' if cell or server else '33333333-3333-3333-3333-333333333333')
 channel = BridgeIO(reader.fileno(), writer.fileno(), codec)
-if mode == 'server':
+if server:
     serve_one(channel, {'read_docs':lambda payload: {'python':True, 'path':payload['path']}},
         deadline=time.monotonic()+5)
 else:
@@ -79,7 +82,21 @@ fn start(mode: &str) -> (BridgeChannel, Child, tempfile::TempDir) {
         .unwrap();
     let writer = accept_bounded(&rust_writer_listener);
     let reader = accept_bounded(&rust_reader_listener);
-    let (role, local, peer) = if mode == "server" {
+    let cell = mode.starts_with("cell_");
+    let server = mode.ends_with("server");
+    let (role, local, peer) = if cell && server {
+        (
+            "cell-supervisor",
+            "22222222-2222-2222-2222-222222222222",
+            "22222222-2222-2222-2222-222222222222",
+        )
+    } else if cell {
+        (
+            "cell-actor",
+            "22222222-2222-2222-2222-222222222222",
+            "22222222-2222-2222-2222-222222222222",
+        )
+    } else if server {
         (
             "controller",
             "22222222-2222-2222-2222-222222222222",
@@ -92,15 +109,28 @@ fn start(mode: &str) -> (BridgeChannel, Child, tempfile::TempDir) {
             "22222222-2222-2222-2222-222222222222",
         )
     };
-    let codec = FrameCodec::new(
-        &[b'K'; 32],
-        "11111111-1111-1111-1111-111111111111",
-        role,
-        local,
-        peer,
-        10_000,
-        256 * 1024 * 1024,
-    )
+    let key = if cell { [b'C'; 32] } else { [b'K'; 32] };
+    let codec = if cell {
+        FrameCodec::new_product_cell(
+            &key,
+            "11111111-1111-1111-1111-111111111111",
+            role,
+            local,
+            peer,
+            10_000,
+            256 * 1024 * 1024,
+        )
+    } else {
+        FrameCodec::new(
+            &key,
+            "11111111-1111-1111-1111-111111111111",
+            role,
+            local,
+            peer,
+            10_000,
+            256 * 1024 * 1024,
+        )
+    }
     .unwrap();
     (
         BridgeChannel::new(reader.into(), writer.into(), codec).unwrap(),
@@ -109,13 +139,12 @@ fn start(mode: &str) -> (BridgeChannel, Child, tempfile::TempDir) {
     )
 }
 
-#[test]
-fn rust_client_calls_pinned_python_bridge_server() {
+fn rust_client_calls_python(mode: &str) {
     if !python_available() {
         eprintln!("python3 unavailable; live interop skipped");
         return;
     }
-    let (channel, child, _directory) = start("server");
+    let (channel, child, _directory) = start(mode);
     let client = BridgeClient::new(channel);
     let reply = client
         .call(
@@ -134,13 +163,12 @@ fn rust_client_calls_pinned_python_bridge_server() {
     );
 }
 
-#[test]
-fn pinned_python_client_calls_rust_fixed_registry() {
+fn python_client_calls_rust(mode: &str) {
     if !python_available() {
         eprintln!("python3 unavailable; live interop skipped");
         return;
     }
-    let (mut channel, child, _directory) = start("client");
+    let (mut channel, child, _directory) = start(mode);
     let mut handler =
         |payload: &Value| -> OperationResult { Ok(json!({"rust":true,"path":payload["path"]})) };
     let mut operations = [BridgeOperation {
@@ -165,4 +193,24 @@ fn pinned_python_client_calls_rust_fixed_registry() {
     );
     let reply: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(reply, json!({"rust":true,"path":"/from-python"}));
+}
+
+#[test]
+fn rust_client_calls_pinned_python_bridge_server() {
+    rust_client_calls_python("server");
+}
+
+#[test]
+fn pinned_python_client_calls_rust_fixed_registry() {
+    python_client_calls_rust("client");
+}
+
+#[test]
+fn rust_client_calls_pinned_python_product_cell_actor() {
+    rust_client_calls_python("cell_server");
+}
+
+#[test]
+fn pinned_python_product_cell_supervisor_calls_rust_actor() {
+    python_client_calls_rust("cell_client");
 }
