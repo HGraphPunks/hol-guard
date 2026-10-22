@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 mod rpc;
 pub use rpc::{serve_one, BridgeClient, BridgeOperation, OperationResult};
 mod bootstrap;
-pub use bootstrap::{read_private_bootstrap, Bootstrap, BootstrapKind};
+pub use bootstrap::{read_private_bootstrap, Bootstrap, BootstrapKind, OutboundBootstrap};
 
 const MAX_POLL: Duration = Duration::from_millis(100);
 const IO_CHUNK: usize = 64 * 1024;

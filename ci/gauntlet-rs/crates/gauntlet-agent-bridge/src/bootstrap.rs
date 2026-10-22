@@ -2,11 +2,12 @@
 //! The caller must authenticate the inherited management pipe and kernel
 //! boot ID before supplying them here. Key bytes never enter an error.
 
-use crate::{nonblocking, read_exact, validate_management_fd, BridgeIoError, Result};
+use crate::{nonblocking, read_exact, validate_management_fd, write_all, BridgeIoError, Result};
 use gauntlet_contracts::canonicalize;
 use gauntlet_evidence::FrameCodec;
 use ring::digest::{digest, SHA256};
-use serde_json::Value;
+use ring::rand::{SecureRandom, SystemRandom};
+use serde_json::{json, Value};
 use std::os::fd::{AsRawFd, OwnedFd};
 use std::sync::atomic::AtomicBool;
 use std::time::Instant;
@@ -38,6 +39,12 @@ pub struct Bootstrap {
     session: String,
     local_boot: String,
     peer_boot: String,
+}
+
+/// One-use outbound bootstrap. A failed or partial write consumes the object.
+pub struct OutboundBootstrap {
+    bootstrap: Bootstrap,
+    body: Vec<u8>,
 }
 
 fn exact_keys(value: &Value, keys: &[&str]) -> bool {
@@ -227,5 +234,158 @@ impl Bootstrap {
             )
         };
         result.map_err(|error| BridgeIoError::Frame(error.to_string()))
+    }
+}
+
+impl OutboundBootstrap {
+    /// The boot IDs and VM source map must be reviewed outside the child.
+    /// The key and session are freshly generated here, never selected by a
+    /// candidate payload or serialized anywhere except the private pipe.
+    pub fn generate(
+        kind: BootstrapKind,
+        local_boot: &str,
+        peer_boot: &str,
+        expected_vm_hashes: Option<&Value>,
+    ) -> Result<Self> {
+        let mut key = [0_u8; 32];
+        let mut session_bytes = [0_u8; 16];
+        SystemRandom::new()
+            .fill(&mut key)
+            .map_err(|_| BridgeIoError::Invalid("private bootstrap randomness unavailable"))?;
+        SystemRandom::new()
+            .fill(&mut session_bytes)
+            .map_err(|_| BridgeIoError::Invalid("private bootstrap randomness unavailable"))?;
+        session_bytes[6] = (session_bytes[6] & 0x0f) | 0x40;
+        session_bytes[8] = (session_bytes[8] & 0x3f) | 0x80;
+        let session = Uuid::from_bytes(session_bytes).to_string();
+        Self::assemble(
+            kind,
+            local_boot,
+            peer_boot,
+            expected_vm_hashes,
+            &key,
+            &session,
+        )
+    }
+
+    fn assemble(
+        kind: BootstrapKind,
+        local_boot: &str,
+        peer_boot: &str,
+        expected_vm_hashes: Option<&Value>,
+        key: &[u8; 32],
+        session: &str,
+    ) -> Result<Self> {
+        let key_hex: String = key.iter().map(|byte| format!("{byte:02x}")).collect();
+        let vm = matches!(
+            kind,
+            BootstrapKind::VmController | BootstrapKind::VmProductCollector
+        );
+        let value = if vm {
+            let hashes = expected_vm_hashes
+                .ok_or(BridgeIoError::Invalid("outside VM source hashes required"))?;
+            let (controller, product) = if kind == BootstrapKind::VmController {
+                (local_boot, peer_boot)
+            } else {
+                (peer_boot, local_boot)
+            };
+            json!({
+                "schema": VM_SCHEMA,
+                "session": session,
+                "key_hex": key_hex,
+                "controller_boot": controller,
+                "product_boot": product,
+                "hashes": hashes,
+            })
+        } else {
+            if local_boot != peer_boot || expected_vm_hashes.is_some() {
+                return Err(BridgeIoError::Invalid("private cell bootstrap mismatch"));
+            }
+            json!({
+                "schema": CELL_SCHEMA,
+                "session": session,
+                "key_hex": key_hex,
+                "boot_id": local_boot,
+            })
+        };
+        let body = canonicalize(
+            &serde_json::to_vec(&value)
+                .map_err(|_| BridgeIoError::Invalid("private bootstrap JSON invalid"))?,
+        )
+        .map_err(|_| BridgeIoError::Invalid("private bootstrap JSON invalid"))?;
+        let bootstrap = Bootstrap::parse(&body, kind, local_boot, expected_vm_hashes)?;
+        Ok(Self { bootstrap, body })
+    }
+
+    pub fn vm_auth_fingerprint(&self) -> Option<String> {
+        self.bootstrap.vm_auth_fingerprint()
+    }
+
+    pub fn deliver(
+        self,
+        writer: &OwnedFd,
+        deadline: Instant,
+        cancelled: &AtomicBool,
+        max_frames: u64,
+        max_bytes: usize,
+    ) -> Result<FrameCodec> {
+        let codec = self.bootstrap.into_codec(max_frames, max_bytes)?;
+        validate_management_fd(writer.as_raw_fd())?;
+        nonblocking(writer.as_raw_fd())?;
+        let length: u32 = self
+            .body
+            .len()
+            .try_into()
+            .map_err(|_| BridgeIoError::Invalid("private bootstrap byte budget"))?;
+        write_all(
+            writer.as_raw_fd(),
+            &length.to_be_bytes(),
+            deadline,
+            cancelled,
+        )?;
+        write_all(writer.as_raw_fd(), &self.body, deadline, cancelled)?;
+        Ok(codec)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn bytes(hex: &str) -> Vec<u8> {
+        hex.as_bytes()
+            .chunks_exact(2)
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn supplied_synthetic_material_matches_pinned_python_bootstrap_bytes() {
+        let fixture: Value =
+            serde_json::from_str(include_str!("../tests/fixtures/python_bootstrap_v1.json"))
+                .unwrap();
+        let vm = OutboundBootstrap::assemble(
+            BootstrapKind::VmController,
+            "22222222-2222-2222-2222-222222222222",
+            "33333333-3333-3333-3333-333333333333",
+            Some(&fixture["vm"]["body"]["hashes"]),
+            &[b'B'; 32],
+            "11111111-1111-1111-1111-111111111111",
+        )
+        .unwrap();
+        assert_eq!(vm.body, bytes(fixture["vm"]["bytes_hex"].as_str().unwrap()));
+        let cell = OutboundBootstrap::assemble(
+            BootstrapKind::ProductCellSupervisor,
+            "22222222-2222-2222-2222-222222222222",
+            "22222222-2222-2222-2222-222222222222",
+            None,
+            &[b'C'; 32],
+            "11111111-1111-1111-1111-111111111111",
+        )
+        .unwrap();
+        assert_eq!(
+            cell.body,
+            bytes(fixture["cell"]["bytes_hex"].as_str().unwrap())
+        );
     }
 }

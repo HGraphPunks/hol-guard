@@ -1,4 +1,6 @@
-use gauntlet_agent_bridge::{read_private_bootstrap, Bootstrap, BootstrapKind, BridgeIoError};
+use gauntlet_agent_bridge::{
+    read_private_bootstrap, Bootstrap, BootstrapKind, BridgeIoError, OutboundBootstrap,
+};
 use ring::digest::{digest, SHA256};
 use serde_json::{json, Value};
 use std::io::Write;
@@ -187,4 +189,88 @@ fn truncated_idle_cancelled_and_wrong_descriptor_refuse() {
         read_private_bootstrap(&file, deadline(), &AtomicBool::new(false)),
         Err(BridgeIoError::Invalid(_))
     ));
+}
+
+#[test]
+fn fresh_vm_bootstrap_delivers_once_and_authenticates_peer_frames() {
+    let fixture = fixture();
+    let hashes = &fixture["vm"]["body"]["hashes"];
+    let outbound = OutboundBootstrap::generate(
+        BootstrapKind::VmController,
+        "22222222-2222-2222-2222-222222222222",
+        "33333333-3333-3333-3333-333333333333",
+        Some(hashes),
+    )
+    .unwrap();
+    let fingerprint = outbound.vm_auth_fingerprint().unwrap();
+    let other = OutboundBootstrap::generate(
+        BootstrapKind::VmController,
+        "22222222-2222-2222-2222-222222222222",
+        "33333333-3333-3333-3333-333333333333",
+        Some(hashes),
+    )
+    .unwrap();
+    assert_ne!(fingerprint, other.vm_auth_fingerprint().unwrap());
+    let (reader, writer) = UnixStream::pair().unwrap();
+    let reader: OwnedFd = reader.into();
+    let writer: OwnedFd = writer.into();
+    let mut controller = outbound
+        .deliver(
+            &writer,
+            deadline(),
+            &AtomicBool::new(false),
+            64,
+            1024 * 1024,
+        )
+        .unwrap();
+    let raw = read_private_bootstrap(&reader, deadline(), &AtomicBool::new(false)).unwrap();
+    let peer = Bootstrap::parse(
+        &raw,
+        BootstrapKind::VmProductCollector,
+        "33333333-3333-3333-3333-333333333333",
+        Some(hashes),
+    )
+    .unwrap();
+    assert_eq!(peer.vm_auth_fingerprint().unwrap(), fingerprint);
+    let mut collector = peer.into_codec(64, 1024 * 1024).unwrap();
+    let frame = controller
+        .encode("request", &json!({"operation":"observe"}))
+        .unwrap();
+    assert_eq!(
+        collector.decode(&frame[4..], "request").unwrap(),
+        json!({"operation":"observe"})
+    );
+}
+
+#[test]
+fn outbound_product_cell_requires_one_boot_and_valid_bounds_before_writing() {
+    assert!(OutboundBootstrap::generate(
+        BootstrapKind::ProductCellSupervisor,
+        "22222222-2222-2222-2222-222222222222",
+        "33333333-3333-3333-3333-333333333333",
+        None,
+    )
+    .is_err());
+    let outbound = OutboundBootstrap::generate(
+        BootstrapKind::ProductCellSupervisor,
+        "22222222-2222-2222-2222-222222222222",
+        "22222222-2222-2222-2222-222222222222",
+        None,
+    )
+    .unwrap();
+    let (reader, writer) = UnixStream::pair().unwrap();
+    let reader: OwnedFd = reader.into();
+    let writer: OwnedFd = writer.into();
+    assert!(outbound
+        .deliver(&writer, deadline(), &AtomicBool::new(false), 0, 1024 * 1024)
+        .is_err());
+    assert_eq!(
+        read_private_bootstrap(
+            &reader,
+            Instant::now() + Duration::from_millis(30),
+            &AtomicBool::new(false),
+        )
+        .unwrap_err(),
+        BridgeIoError::Deadline
+    );
 }
