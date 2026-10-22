@@ -14,6 +14,8 @@ pub use git_controller_source::{
 };
 mod host_telemetry;
 pub use host_telemetry::{sample_host, HostTelemetryError};
+mod live_provider_preflight;
+pub use live_provider_preflight::{evaluate_live_provider_preflight, LiveProviderPreflightError};
 mod controller_key_pins;
 pub use controller_key_pins::{
     HostControllerKeyPinJournal, HostControllerKeyPins, HostKeyPinError, HostKeyPinRecord,
