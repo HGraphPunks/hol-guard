@@ -5,10 +5,10 @@
 use crate::{
     bind_sdk_relay_to_ancestor_ineligible, bind_sdk_tap_listeners_ineligible,
     open_fixed_native_frontdoor_ineligible, open_pinned_sdk_tap_executable_ineligible,
-    retain_sdk_tap_journal_ineligible, run_pinned_sdk_tap_child_in_group_ineligible, ActiveLease,
-    BoottimeDeadline, HeldSdkTapExecutable, OwnedSdkTapCgroup, RunReservationJournal,
-    SdkTapJournalReceipt, SdkTapListeners, SdkTapRetainedSession, SdkWirePeerPin, StagingRole,
-    StartedMarker,
+    retain_sdk_tap_journal_ineligible, run_pinned_sdk_tap_child_in_group_ineligible,
+    run_pinned_sdk_tap_child_in_pidns_ineligible, ActiveLease, BoottimeDeadline,
+    HeldSdkTapExecutable, OwnedSdkTapCgroup, RunReservationJournal, SdkTapJournalReceipt,
+    SdkTapListeners, SdkTapRetainedSession, SdkWirePeerPin, StagingRole, StartedMarker,
 };
 use serde_json::{json, Value};
 use std::path::Path;
@@ -25,6 +25,7 @@ pub(crate) struct StagingTapV2 {
     listeners: Option<SdkTapListeners>,
     group: OwnedSdkTapCgroup,
     bun_sha256: String,
+    pidns: bool,
 }
 
 pub(crate) struct TapSessions {
@@ -39,6 +40,27 @@ impl StagingTapV2 {
         run_id: &str,
         journal: &RunReservationJournal,
         lease: &ActiveLease,
+    ) -> Result<Self, String> {
+        Self::prepare_mode(pins, bun_sha256, run_id, journal, lease, false)
+    }
+
+    pub(crate) fn prepare_pidns(
+        pins: &CandidateSdkTapPins<'_>,
+        bun_sha256: &str,
+        run_id: &str,
+        journal: &RunReservationJournal,
+        lease: &ActiveLease,
+    ) -> Result<Self, String> {
+        Self::prepare_mode(pins, bun_sha256, run_id, journal, lease, true)
+    }
+
+    fn prepare_mode(
+        pins: &CandidateSdkTapPins<'_>,
+        bun_sha256: &str,
+        run_id: &str,
+        journal: &RunReservationJournal,
+        lease: &ActiveLease,
+        pidns: bool,
     ) -> Result<Self, String> {
         let executable = open_pinned_sdk_tap_executable_ineligible(
             Path::new(pins.executable_path),
@@ -59,6 +81,7 @@ impl StagingTapV2 {
             listeners: Some(listeners),
             group,
             bun_sha256: bun_sha256.to_owned(),
+            pidns,
         })
     }
 
@@ -103,18 +126,33 @@ impl StagingTapV2 {
                         sdk_ancestor,
                     )?;
                     let native_directory = native.duplicate_directory()?;
-                    let (wire, child, native_peer) = run_pinned_sdk_tap_child_in_group_ineligible(
-                        &self.executable,
-                        sdk_connection,
-                        native_directory,
-                        family,
-                        &sdk_relay,
-                        sdk_ancestor,
-                        controller,
-                        &self.group,
-                        deadline,
-                        cancellation,
-                    )?;
+                    let (wire, child, native_peer) = if self.pidns {
+                        run_pinned_sdk_tap_child_in_pidns_ineligible(
+                            &self.executable,
+                            sdk_connection,
+                            native_directory,
+                            family,
+                            &sdk_relay,
+                            sdk_ancestor,
+                            controller,
+                            &self.group,
+                            deadline,
+                            cancellation,
+                        )?
+                    } else {
+                        run_pinned_sdk_tap_child_in_group_ineligible(
+                            &self.executable,
+                            sdk_connection,
+                            native_directory,
+                            family,
+                            &sdk_relay,
+                            sdk_ancestor,
+                            controller,
+                            &self.group,
+                            deadline,
+                            cancellation,
+                        )?
+                    };
                     let session = SdkTapRetainedSession {
                         family: family.to_owned(),
                         sdk_peer: sdk_held.observation().clone(),
@@ -217,9 +255,7 @@ mod tests {
         }
     }
 
-    #[test]
-    #[ignore = "requires Linux Root, UID 10001 and separately pinned ARM64 tap-child ELF"]
-    fn worker_owns_both_real_sdk_sessions_and_tombstones_after_drain() {
+    fn run_two_family_root_exchange(pidns: bool) {
         let binary = std::env::var("GAUNTLET_SDK_TAP_TEST_BINARY").unwrap();
         let binary_sha = std::env::var("GAUNTLET_SDK_TAP_TEST_SHA256").unwrap();
         let run_id = format!(
@@ -306,16 +342,15 @@ mod tests {
                 &"d".repeat(64),
             )
             .unwrap();
-        let mut tap = StagingTapV2::prepare(
-            &CandidateSdkTapPins {
-                executable_path: &binary,
-                executable_sha256: &binary_sha,
-            },
-            &"a".repeat(64),
-            &run_id,
-            &journal,
-            &lease,
-        )
+        let tap_pins = CandidateSdkTapPins {
+            executable_path: &binary,
+            executable_sha256: &binary_sha,
+        };
+        let mut tap = if pidns {
+            StagingTapV2::prepare_pidns(&tap_pins, &"a".repeat(64), &run_id, &journal, &lease)
+        } else {
+            StagingTapV2::prepare(&tap_pins, &"a".repeat(64), &run_id, &journal, &lease)
+        }
         .unwrap();
         let tap_directory = openat(
             &journal.root,
@@ -436,5 +471,17 @@ for pid in children:
             "/sys/fs/cgroup/system.slice/hol-gauntlet-rust-tap-{run_id}"
         ))
         .exists());
+    }
+
+    #[test]
+    #[ignore = "requires Linux Root, UID 10001 and separately pinned ARM64 tap-child ELF"]
+    fn worker_owns_both_real_sdk_sessions_and_tombstones_after_drain() {
+        run_two_family_root_exchange(false);
+    }
+
+    #[test]
+    #[ignore = "requires Linux Root, UID 10001 and separately pinned ARM64 tap-child ELF"]
+    fn worker_owns_both_pid_one_sdk_sessions_and_tombstones_after_drain() {
+        run_two_family_root_exchange(true);
     }
 }

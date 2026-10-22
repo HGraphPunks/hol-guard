@@ -146,6 +146,7 @@ pub fn run_fixed_candidate_staging_control_ineligible(
     run_fixed_candidate_staging_control_impl(
         pins,
         None,
+        false,
         request,
         deadline,
         cancellation,
@@ -169,6 +170,32 @@ pub fn run_fixed_candidate_staging_control_sdk_tap_v2_ineligible(
     run_fixed_candidate_staging_control_impl(
         pins,
         Some(tap_pins),
+        false,
+        request,
+        deadline,
+        cancellation,
+        prepared_writer,
+        acknowledgement_reader,
+    )
+}
+
+/// Explicit PID-namespace variant of the ineligible v2 SDK tap. The Python
+/// controller still receives the same `--sdk-tap-v2` mount and evidence stays
+/// diagnostic; only the Rust-owned relay child changes isolation profile.
+#[allow(clippy::too_many_arguments)]
+pub fn run_fixed_candidate_staging_control_sdk_tap_pidns_ineligible(
+    pins: &CandidateStagingRunPins<'_>,
+    tap_pins: &CandidateSdkTapPins<'_>,
+    request: &WorkerRequest,
+    deadline: &BoottimeDeadline,
+    cancellation: &AtomicBool,
+    prepared_writer: &impl AsRawFd,
+    acknowledgement_reader: &impl AsRawFd,
+) -> Result<CandidateStagingRunProof, String> {
+    run_fixed_candidate_staging_control_impl(
+        pins,
+        Some(tap_pins),
+        true,
         request,
         deadline,
         cancellation,
@@ -181,12 +208,16 @@ pub fn run_fixed_candidate_staging_control_sdk_tap_v2_ineligible(
 fn run_fixed_candidate_staging_control_impl(
     pins: &CandidateStagingRunPins<'_>,
     tap_pins: Option<&CandidateSdkTapPins<'_>>,
+    pidns: bool,
     request: &WorkerRequest,
     deadline: &BoottimeDeadline,
     cancellation: &AtomicBool,
     prepared_writer: &impl AsRawFd,
     acknowledgement_reader: &impl AsRawFd,
 ) -> Result<CandidateStagingRunProof, String> {
+    if pidns && tap_pins.is_none() {
+        return Err("PID-namespace SDK tap requires exact child pins".to_owned());
+    }
     if !cfg!(all(target_os = "linux", target_arch = "aarch64")) || geteuid().as_raw() != 0 {
         return Err("Linux ARM64 Root staging owner required".to_owned());
     }
@@ -245,13 +276,23 @@ fn run_fixed_candidate_staging_control_impl(
     recheck_prelaunch(pins, &interpreter, &journal, &lease)?;
     let mut group = OwnedJobCgroup::create(pins.run_id).map_err(|error| error.to_string())?;
     let mut tap = match tap_pins {
-        Some(tap_pins) => match StagingTapV2::prepare(
-            tap_pins,
-            readiness.verified_bun_sha256(),
-            pins.run_id,
-            &journal,
-            &lease,
-        ) {
+        Some(tap_pins) => match if pidns {
+            StagingTapV2::prepare_pidns(
+                tap_pins,
+                readiness.verified_bun_sha256(),
+                pins.run_id,
+                &journal,
+                &lease,
+            )
+        } else {
+            StagingTapV2::prepare(
+                tap_pins,
+                readiness.verified_bun_sha256(),
+                pins.run_id,
+                &journal,
+                &lease,
+            )
+        } {
             Ok(tap) => Some(tap),
             Err(error) => {
                 cleanup(&mut group, None, pins.run_id, false)

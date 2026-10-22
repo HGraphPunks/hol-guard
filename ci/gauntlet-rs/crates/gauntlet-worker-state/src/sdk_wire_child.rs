@@ -9,7 +9,9 @@ use crate::sdk_wire_peer::{
     bind_sdk_relay_to_ancestor_ineligible, SdkWirePeerPin,
 };
 use crate::sdk_wire_pipe::SdkTapFramePipeWriter;
-use crate::sdk_wire_tap::relay_bounded_sdk_mcp_pair_with_frame_sink_ineligible;
+use crate::sdk_wire_tap::{
+    relay_bounded_sdk_mcp_pair_with_frame_sink_ineligible, SdkWireObservation,
+};
 use rustix::fs::{fstat, FileType};
 use rustix::process::{getegid, geteuid};
 use std::net::Shutdown;
@@ -132,10 +134,63 @@ pub fn run_sdk_tap_child_once_ineligible(
     })
 }
 
+/// The PID-namespace child cannot resolve an outside socket peer's host PID:
+/// Linux reports it as zero through SO_PEERCRED. Root authenticates both held
+/// sockets before launch and before independently parsing every reported
+/// frame. This child only forwards one bounded exchange and reports raw bytes.
+pub fn run_sdk_tap_child_once_pidns_ineligible(
+    sdk_connection: UnixStream,
+    native_directory: OwnedFd,
+    report: UnixStream,
+    native_handoff: UnixStream,
+    family: &str,
+) -> Result<SdkWireObservation, String> {
+    require_unprivileged_child()?;
+    if unsafe { libc::getpid() } != 1 {
+        return Err("PID-1 SDK tap child required".to_owned());
+    }
+    require_private_frontdoor_directory(&native_directory)?;
+    if !matches!(family, "docs" | "mail") {
+        return Err("fixed SDK tap family required".to_owned());
+    }
+    let backend_path = format!(
+        "/proc/self/fd/{}/{}.sock",
+        native_directory.as_raw_fd(),
+        family
+    );
+    let native_connection = UnixStream::connect(&backend_path)
+        .map_err(|error| format!("fixed Native MCP frontdoor unavailable: {error}"))?;
+    native_handoff
+        .set_write_timeout(Some(Duration::from_secs(5)))
+        .map_err(|error| error.to_string())?;
+    send_native_socket(&native_handoff, &native_connection)?;
+    report
+        .set_write_timeout(Some(Duration::from_secs(5)))
+        .map_err(|error| error.to_string())?;
+    let mut writer = SdkTapFramePipeWriter::new(report);
+    let wire = {
+        let sink = Mutex::new(|direction, frame: &[u8]| writer.write_frame(direction, frame));
+        relay_bounded_sdk_mcp_pair_with_frame_sink_ineligible(
+            sdk_connection,
+            native_connection,
+            family,
+            &AtomicBool::new(false),
+            &sink,
+        )?
+    };
+    require_private_frontdoor_directory(&native_directory)?;
+    let report = writer.finish()?;
+    report
+        .shutdown(Shutdown::Write)
+        .map_err(|error| error.to_string())?;
+    Ok(wire)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::linux_process::parse_proc_stat;
+    use crate::run_pinned_sdk_tap_child_in_pidns_ineligible;
     use crate::sdk_wire_spawn::{
         open_pinned_sdk_tap_executable_ineligible, run_pinned_sdk_tap_child_in_group_ineligible,
         run_pinned_sdk_tap_child_ineligible,
@@ -189,9 +244,7 @@ mod tests {
         assert!(require_unprivileged_child().is_err());
     }
 
-    #[test]
-    #[ignore = "requires Linux Root and a separately installed Root-owned ARM64 SDK tap child binary"]
-    fn root_launches_uid_10001_child_and_reparses_actual_forwarded_frames() {
+    fn run_root_child_exchange(use_pidns: bool) {
         assert_eq!(geteuid().as_raw(), 0);
         let binary = std::env::var("GAUNTLET_SDK_TAP_TEST_BINARY").unwrap();
         let binary_sha256 = std::env::var("GAUNTLET_SDK_TAP_TEST_SHA256").unwrap();
@@ -313,20 +366,40 @@ time.sleep(2)
             &AtomicBool::new(false),
         )
         .is_err());
-        let mut tap_group = OwnedSdkTapCgroup::create("edcba98765432101").unwrap();
-        assert!(OwnedSdkTapCgroup::create("edcba98765432101").is_err());
-        let parent_observation = run_pinned_sdk_tap_child_in_group_ineligible(
-            &executable,
-            sdk_connection,
-            native_directory.into(),
-            "docs",
-            &sdk_pin,
-            &ancestor_pin,
-            &native_pin,
-            &tap_group,
-            &deadline,
-            &AtomicBool::new(false),
-        );
+        let run_id = if use_pidns {
+            "edcba98765432102"
+        } else {
+            "edcba98765432101"
+        };
+        let mut tap_group = OwnedSdkTapCgroup::create(run_id).unwrap();
+        assert!(OwnedSdkTapCgroup::create(run_id).is_err());
+        let parent_observation = if use_pidns {
+            run_pinned_sdk_tap_child_in_pidns_ineligible(
+                &executable,
+                sdk_connection,
+                native_directory.into(),
+                "docs",
+                &sdk_pin,
+                &ancestor_pin,
+                &native_pin,
+                &tap_group,
+                &deadline,
+                &AtomicBool::new(false),
+            )
+        } else {
+            run_pinned_sdk_tap_child_in_group_ineligible(
+                &executable,
+                sdk_connection,
+                native_directory.into(),
+                "docs",
+                &sdk_pin,
+                &ancestor_pin,
+                &native_pin,
+                &tap_group,
+                &deadline,
+                &AtomicBool::new(false),
+            )
+        };
         if parent_observation.is_err() {
             let _ = tap_group.kill();
         }
@@ -358,12 +431,24 @@ time.sleep(2)
         let (parent_observation, child_pin, observed_native) = parent_observation.unwrap();
         assert_eq!(
             child_pin.cgroup,
-            "/system.slice/hol-gauntlet-rust-tap-edcba98765432101"
+            format!("/system.slice/hol-gauntlet-rust-tap-{run_id}")
         );
         assert_eq!(parent_observation.completed_tool_calls, 1);
         assert_eq!(parent_observation.events.len(), 2);
         assert_eq!(observed_native.pid, native_pin.pid);
         assert_eq!(observed_native.start_ticks, native_pin.start_ticks);
         assert_eq!((observed_native.uid, observed_native.gid), (0, 0));
+    }
+
+    #[test]
+    #[ignore = "requires Linux Root and a separately installed Root-owned ARM64 SDK tap child binary"]
+    fn root_launches_uid_10001_child_and_reparses_actual_forwarded_frames() {
+        run_root_child_exchange(false);
+    }
+
+    #[test]
+    #[ignore = "requires Linux Root and a separately installed Root-owned ARM64 SDK tap child binary"]
+    fn root_launches_pid_one_child_and_reparses_actual_forwarded_frames() {
+        run_root_child_exchange(true);
     }
 }

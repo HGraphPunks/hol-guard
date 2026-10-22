@@ -172,12 +172,16 @@ impl HeldSdkTapExecutable {
         &self.sha256
     }
 
-    fn recheck(&self) -> Result<(), String> {
+    pub(crate) fn recheck(&self) -> Result<(), String> {
         let current = fstat(&self.descriptor).map_err(|error| error.to_string())?;
         if !same_file(&current, &self.snapshot) {
             return Err("SDK tap executable inode or metadata changed".to_owned());
         }
         Ok(())
+    }
+
+    pub(crate) fn descriptor_fd(&self) -> libc::c_int {
+        self.descriptor.as_raw_fd()
     }
 }
 
@@ -256,10 +260,10 @@ pub fn open_pinned_sdk_tap_executable_ineligible(
     })
 }
 
-struct DeadlineReader<'a> {
-    stream: &'a UnixStream,
-    deadline: &'a BoottimeDeadline,
-    cancellation: &'a AtomicBool,
+pub(crate) struct DeadlineReader<'a> {
+    pub(crate) stream: &'a UnixStream,
+    pub(crate) deadline: &'a BoottimeDeadline,
+    pub(crate) cancellation: &'a AtomicBool,
 }
 
 impl Read for DeadlineReader<'_> {
@@ -298,7 +302,7 @@ pub(crate) fn process_start(pid: u32, expected_cgroup: &str) -> Result<u64, Stri
     Ok(parsed.start_ticks)
 }
 
-fn await_native_handoff(
+pub(crate) fn await_native_handoff(
     socket: &UnixStream,
     deadline: &BoottimeDeadline,
     cancellation: &AtomicBool,

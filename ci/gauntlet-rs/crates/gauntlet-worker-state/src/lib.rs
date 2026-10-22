@@ -208,9 +208,9 @@ mod sdk_wire_native;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod sdk_wire_peer;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-mod sdk_wire_pipe;
-#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod sdk_wire_pidns;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod sdk_wire_pipe;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod sdk_wire_spawn;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
@@ -329,6 +329,7 @@ pub use candidate_staging_plan::{
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_staging_run::{
     run_fixed_candidate_staging_control_ineligible,
+    run_fixed_candidate_staging_control_sdk_tap_pidns_ineligible,
     run_fixed_candidate_staging_control_sdk_tap_v2_ineligible, CandidateStagingRunPins,
     CandidateStagingRunProof,
 };
@@ -377,7 +378,9 @@ pub use product_cell_units::{
 #[cfg(target_os = "linux")]
 pub use running::RunningMarker;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-pub use sdk_wire_child::{run_sdk_tap_child_once_ineligible, SdkTapChildPins};
+pub use sdk_wire_child::{
+    run_sdk_tap_child_once_ineligible, run_sdk_tap_child_once_pidns_ineligible, SdkTapChildPins,
+};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use sdk_wire_journal::{
     read_sdk_tap_journal_ineligible, retain_sdk_tap_journal_ineligible, SdkTapJournalReceipt,
@@ -394,9 +397,11 @@ pub use sdk_wire_peer::{
     HeldSdkWirePeer, SdkWireAncestryObservation, SdkWirePeerObservation, SdkWirePeerPin,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-pub use sdk_wire_pipe::{read_sdk_tap_frame_pipe_ineligible, SdkTapFramePipeWriter};
+pub use sdk_wire_pidns::{
+    probe_owned_tap_pid_namespace_ineligible, run_pinned_sdk_tap_child_in_pidns_ineligible,
+};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-pub use sdk_wire_pidns::probe_owned_tap_pid_namespace_ineligible;
+pub use sdk_wire_pipe::{read_sdk_tap_frame_pipe_ineligible, SdkTapFramePipeWriter};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use sdk_wire_spawn::{
     open_pinned_sdk_tap_executable_ineligible, run_pinned_sdk_tap_child_in_group_ineligible,
