@@ -130,6 +130,83 @@ fn compare_frames(audit: &Value, journal: &Value) -> Result<usize> {
     Ok(total)
 }
 
+/// The tap comparison authenticates the transport digest of the signed
+/// Native frames. Also require the one completed docs.read response to be
+/// exactly the value delivered to the SDK's first tool result. The separate
+/// physical-file reader binds that SDK result to the retained stdout bytes.
+fn sdk_result_matches_docs_response(audit: &Value, sdk_result: &Value) -> Result<()> {
+    let events = audit["transport_observations"].as_array().ok_or(INVALID)?;
+    let requests = events
+        .iter()
+        .filter(|event| {
+            event["kind"] == "frame"
+                && event["family"] == "docs"
+                && event["direction"] == "client-to-service"
+                && event["message"]["method"] == "tools/call"
+                && event["message"]["params"]["name"] == "docs.read"
+        })
+        .collect::<Vec<_>>();
+    if requests.len() != 1 {
+        return Err(INVALID);
+    }
+    let request = &requests[0]["message"];
+    let id = request
+        .get("id")
+        .filter(|id| !id.is_null())
+        .ok_or(INVALID)?;
+    let args = request["params"]["arguments"].as_object().ok_or(INVALID)?;
+    if args.len() != 1 || args.get("record_id") != Some(&Value::from("developer-spec")) {
+        return Err(INVALID);
+    }
+    let responses = events
+        .iter()
+        .filter(|event| {
+            event["kind"] == "frame"
+                && event["family"] == "docs"
+                && event["direction"] == "service-to-client"
+                && event["message"].get("id") == Some(id)
+        })
+        .collect::<Vec<_>>();
+    if responses.len() != 1 {
+        return Err(INVALID);
+    }
+    let response = &responses[0]["message"];
+    let result = response["result"].as_object().ok_or(INVALID)?;
+    if response.get("error").is_some()
+        || result.get("isError") != Some(&Value::Bool(false))
+        || result.get("content").and_then(Value::as_array).is_none()
+        || !result.contains_key("structuredContent")
+    {
+        return Err(INVALID);
+    }
+    let outputs = sdk_result["results"].as_array().ok_or(INVALID)?;
+    if outputs.len() != 2 {
+        return Err(INVALID);
+    }
+    let first = &outputs[0];
+    let expected_tool = match sdk_result.get("mcpAgentSurfaces") {
+        None => "mcp__docs_read",
+        Some(value) if value == "mcp-agent-surfaces.v1" => "mcp_call_tool",
+        _ => return Err(INVALID),
+    };
+    let details = &first["details"];
+    if sdk_result["schema"] != "private-cell-sdk-conformance-result.v1"
+        || first["role"] != "toolResult"
+        || first["toolCallId"] != "sdk-mcp-control"
+        || first["toolName"] != expected_tool
+        || first["isError"] != false
+        || first["content"] != result["content"]
+        || details["serverName"] != "docs"
+        || details["mcpToolName"] != "docs.read"
+        || details["isError"] != result["isError"]
+        || details["rawContent"] != result["content"]
+        || details["structuredContent"] != result["structuredContent"]
+    {
+        return Err(INVALID);
+    }
+    Ok(())
+}
+
 pub(crate) fn matching_sdk_tap_native_frames(
     record: &Value,
     report: &Value,
@@ -183,6 +260,7 @@ pub(crate) fn matching_sdk_tap_native_frames(
     let runtime = verify_controller_envelope(&runtime_raw, &key)?;
     let audit_raw = serde_json::to_vec(&runtime["native_mcp_audit"]).map_err(|_| INVALID)?;
     let audit = verify_controller_envelope(&audit_raw, &key)?;
+    sdk_result_matches_docs_response(&audit, &record["sdk_result"])?;
     let agent_container = record["agent_container_inspection"]["Id"]
         .as_str()
         .filter(|id| is_sha256(id))
@@ -248,6 +326,56 @@ pub(crate) fn matching_sdk_tap_native_frames(
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::path::Path;
+
+    #[test]
+    fn frozen_python_sdk_results_match_only_the_completed_native_docs_response() {
+        for case in ["006", "010"] {
+            let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../../tests/fixtures/workflow_benchmark")
+                .join(format!("local_executor_conformance_{case}.json"));
+            let package: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+            let record = &package["controls"]["success"]["record"];
+            let audit = &record["developer_runtime"]["record"]["native_mcp_audit"]["record"];
+            let sdk_result = &record["sdk_result"];
+            sdk_result_matches_docs_response(audit, sdk_result).unwrap();
+
+            let mut altered_sdk = sdk_result.clone();
+            altered_sdk["results"][0]["details"]["rawContent"] = json!([]);
+            assert!(sdk_result_matches_docs_response(audit, &altered_sdk).is_err());
+            let mut altered_sdk = sdk_result.clone();
+            altered_sdk["results"][0]["toolCallId"] = json!("different-call");
+            assert!(sdk_result_matches_docs_response(audit, &altered_sdk).is_err());
+
+            let mut altered_audit = audit.clone();
+            let events = altered_audit["transport_observations"]
+                .as_array_mut()
+                .unwrap();
+            let call_id = events
+                .iter()
+                .find(|event| {
+                    event["kind"] == "frame"
+                        && event["family"] == "docs"
+                        && event["direction"] == "client-to-service"
+                        && event["message"]["method"] == "tools/call"
+                        && event["message"]["params"]["name"] == "docs.read"
+                })
+                .unwrap()["message"]["id"]
+                .clone();
+            let response = events
+                .iter()
+                .find(|event| {
+                    event["kind"] == "frame"
+                        && event["family"] == "docs"
+                        && event["direction"] == "service-to-client"
+                        && event["message"]["id"] == call_id
+                })
+                .unwrap()
+                .clone();
+            events.push(response);
+            assert!(sdk_result_matches_docs_response(&altered_audit, sdk_result).is_err());
+        }
+    }
 
     #[test]
     fn concurrent_family_frames_match_without_global_adjacency() {
