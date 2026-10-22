@@ -99,5 +99,7 @@ jobs:
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-host-state --test operations_config --test release_queue --test release_source --test private_jobs --test public_jobs --test source_archive --test source_archive_commit --test telemetry --test vm_progress --test vm_reconcile --locked
       - name: Compare live-provider admission with pinned Python on ARM64
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-host-state --test live_provider_preflight --locked
+      - name: Compare fixed local-model launch and startup claim with Python on ARM64
+        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-host-state --test live_provider_start --locked
       - name: Check one-use host candidate build pins and terminal binding on ARM64
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-host-state --test candidate_build_pins --test vm_candidate_build --test vm_candidate_result_hostbound --locked

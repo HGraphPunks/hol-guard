@@ -18,6 +18,10 @@ mod live_provider_preflight;
 pub use live_provider_preflight::{evaluate_live_provider_preflight, LiveProviderPreflightError};
 mod live_provider_observe;
 pub use live_provider_observe::observe_live_provider_preflight_shadow;
+mod live_provider_start;
+pub use live_provider_start::{
+    fixed_live_provider_start_plan, LiveProviderStartError, LiveProviderStartPlan,
+};
 mod controller_key_pins;
 pub use controller_key_pins::{
     HostControllerKeyPinJournal, HostControllerKeyPins, HostKeyPinError, HostKeyPinRecord,
