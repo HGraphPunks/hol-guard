@@ -321,6 +321,7 @@ dependencies = [
 name = "gauntlet-agent-bridge"
 version = "0.1.0"
 dependencies = [
+ "gauntlet-contracts",
  "gauntlet-evidence",
  "libc",
  "ring",
