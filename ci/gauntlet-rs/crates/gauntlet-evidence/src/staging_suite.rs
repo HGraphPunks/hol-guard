@@ -280,15 +280,19 @@ fn checked_manifest(raw: &[u8], outside_sha256: &str, build_job_id: &str) -> Res
     Ok(manifest)
 }
 
+struct TapReadout<'a> {
+    journal_sha256: Option<&'a str>,
+    expected_docs_record: Option<&'a Value>,
+    root_forwarded: bool,
+}
+
 fn terminal_and_cleanup(
     journal: &std::os::fd::OwnedFd,
     role: &str,
     common: &Value,
     row: &Value,
     require_native_mcp: bool,
-    tap_journal_sha256: Option<&str>,
-    expected_docs_record: Option<&Value>,
-    root_forwarded: bool,
+    tap: TapReadout<'_>,
 ) -> Result<(bool, bool, bool, bool, bool, usize)> {
     let run = string(row, "run_id")?;
     let report_name = format!("{run}.report.json");
@@ -371,7 +375,7 @@ fn terminal_and_cleanup(
             )
             .map_err(|error| EvidenceError::Context("Native MCP", Box::new(error)))?;
         }
-        if let Some(outside_sha) = tap_journal_sha256 {
+        if let Some(outside_sha) = tap.journal_sha256 {
             if !require_native_mcp {
                 return Err(INVALID);
             }
@@ -387,8 +391,8 @@ fn terminal_and_cleanup(
                     source_sha: string(common, "source_sha")?,
                     started_marker_sha256: string(row, "started_marker_sha256")?,
                     controller_public_key_hex: string(row, "controller_public_key_hex")?,
-                    expected_docs_record,
-                    root_forwarded,
+                    expected_docs_record: tap.expected_docs_record,
+                    root_forwarded: tap.root_forwarded,
                 },
             )
             .map_err(|error| EvidenceError::Context("SDK tap", Box::new(error)))?;
@@ -556,17 +560,17 @@ fn observe_staging_suite(
                 &manifest,
                 row,
                 require_native_mcp,
-                tap_journal_sha256.map(|pins| pins[index].as_str()),
-                fixture_records.as_ref().map(
-                    |(clean, injected)| {
+                TapReadout {
+                    journal_sha256: tap_journal_sha256.map(|pins| pins[index].as_str()),
+                    expected_docs_record: fixture_records.as_ref().map(|(clean, injected)| {
                         if role == "injection" {
                             injected
                         } else {
                             clean
                         }
-                    },
-                ),
-                root_forwarded,
+                    }),
+                    root_forwarded,
+                },
             )
             .map_err(|error| EvidenceError::Context(role, Box::new(error)))?;
         live_kernel_roles_sampled += usize::from(kernel);

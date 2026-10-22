@@ -76,8 +76,27 @@ rebuilt worker ELF SHA-256
 completed a new success role `f8b74a8f9fedd0bb` with 24 events and host
 tap-journal pin
 `267b2834e2c77f7a0c864c34f0a4ebe05c7df8dc5e368036c9e99cc2113f1886`.
-The full six-role suite above remains pinned to the preceding worker digest;
-the final timeout adjustment has one live role and the two-family VM test.
+After inspecting and removing seven unheld transient `/tmp` test executables,
+the VM had 9,055,580,160 free bytes. Six more fresh roles ran on that final
+worker digest, with each key pinned before worker acknowledgement and each
+tap journal pinned from the completed guest run:
+
+| Final worker role | Fresh run ID | Host-pinned tap journal SHA-256 |
+| --- | --- | --- |
+| success | `59f657ed0536d244` | `375619d47b3f65b184f2264774d278b88bfd6b42deaf9d03d34c66cb1ece0bde` |
+| input-binding | `98e8725a123c1eb2` | `9aec5ad548ad26820577965e85bcdb7f7b49a4a070de14dab7f32d68d94278bf` |
+| injection | `bf60214e33b06859` | `7d482e03e385d07ae83588cf85305b9da9f4f3e4d708ceea2782328db07b43ee` |
+| boundary | `9230965c86a75e92` | `5be22b63d12f81a59495a64b7ba186c0d537bb4c929b1dbd1f76e72c0d2a267f` |
+| timeout | `4a1595b46287deff` | `be0b96f577c49fd8487d4e1a87b67e6e9ca17e6276eb8e49cb79f23396bffe12` |
+| cancel | `529608d2e640f37a` | `332cb7220c0e795d701fcfa0e9327214135bfee90f1590c73f275fb1255b31c1` |
+
+The final worker's one-use host v5 suite manifest SHA-256 was
+`5342eb9896519202b0329eca7aa9d166487e4a481ed934f60342561d48ad6437`.
+The same Root reader matched all six roles, 144 frames, six source-bound docs
+records, twelve signed Native proxy processes, 32 physical files, five
+absent effects, six cleanup journals and absent cgroups. It again reported
+`execution_eligible:false` and no conformance package. The VM finished with
+8,962,187,264 free bytes, 372,252,672 above the 8-GiB admission floor.
 
 This diagnostic proves Root observed and forwarded the socket traffic under
 the pinned process identities and matched the signed Native transcript. It
