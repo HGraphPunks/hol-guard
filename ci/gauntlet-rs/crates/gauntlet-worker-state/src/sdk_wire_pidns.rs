@@ -493,7 +493,8 @@ pub fn run_pinned_sdk_tap_child_in_pidns_ineligible(
     }
     executable.recheck()?;
     let sdk_peer = authenticate_sdk_relay_peer_ineligible(&sdk_connection, sdk_relay)?;
-    bind_sdk_relay_to_ancestor_ineligible(&sdk_connection, &sdk_peer, sdk_ancestor)?;
+    let sdk_ancestry =
+        bind_sdk_relay_to_ancestor_ineligible(&sdk_connection, &sdk_peer, sdk_ancestor)?;
     let (report_parent, report_child) = UnixStream::pair().map_err(|error| error.to_string())?;
     let (handoff_parent, handoff_child) = UnixStream::pair().map_err(|error| error.to_string())?;
     let (mut ready_parent, ready_child) = UnixStream::pair().map_err(|error| error.to_string())?;
@@ -652,6 +653,11 @@ pub fn run_pinned_sdk_tap_child_in_pidns_ineligible(
             family,
             |_, _| {
                 sdk_peer.recheck(&sdk_connection)?;
+                if bind_sdk_relay_to_ancestor_ineligible(&sdk_connection, &sdk_peer, sdk_ancestor)?
+                    != sdk_ancestry
+                {
+                    return Err("SDK relay ancestry changed during tap exchange".to_owned());
+                }
                 native_peer.recheck(&native_socket)?;
                 Ok(())
             },
