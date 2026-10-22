@@ -30,15 +30,19 @@ fn healthcheck(port: u16) -> Result<(), Box<dyn std::error::Error>> {
         return Err("Rust dashboard health endpoint did not identify JSON service".into());
     }
     let health: Value = serde_json::from_slice(body)?;
-    let instance = health.get("instance_id").and_then(Value::as_str);
-    if health.get("service").and_then(Value::as_str) != Some("hol-gauntlet-dashboard")
-        || health.get("server").and_then(Value::as_str) != Some("online")
-        || !instance.is_some_and(|id| {
+    let instance = match health.get("instance_id") {
+        Some(Value::Null) => true,
+        Some(Value::String(id)) => {
             id.len() == 32
                 && id
                     .bytes()
                     .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-        })
+        }
+        _ => false,
+    };
+    if health.get("service").and_then(Value::as_str) != Some("hol-gauntlet-dashboard")
+        || health.get("server").and_then(Value::as_str) != Some("online")
+        || !instance
     {
         return Err("Rust dashboard identity differs from Gauntlet".into());
     }
@@ -127,8 +131,11 @@ mod tests {
         assert!(!fake_service(
             r#"{"service":"torch","instance_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","server":"online"}"#
         ));
-        assert!(!fake_service(
+        assert!(fake_service(
             r#"{"service":"hol-gauntlet-dashboard","instance_id":null,"server":"online"}"#
+        ));
+        assert!(!fake_service(
+            r#"{"service":"hol-gauntlet-dashboard","instance_id":"invalid","server":"online"}"#
         ));
         assert!(fake_service(
             r#"{"service":"hol-gauntlet-dashboard","instance_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","server":"online"}"#
