@@ -60,6 +60,10 @@ The [product-cell frame proof](gauntlet-rust-product-cell-frames-proof.md)
 also matches Python's separate product-cell HMAC dialect and exchanges live
 RPCs with the Python codec in both directions. Product actor ownership,
 bootstrap and effect attribution remain open.
+The [private bootstrap proof](gauntlet-rust-private-bootstrap-proof.md)
+adds a bounded Rust reader and source/boot-bound parser for the VM and
+product-cell key handoff. It has only synthetic identity evidence; live
+descriptor provenance, fresh key delivery and collector ownership remain open.
 
 A [contained interpreter probe](gauntlet-rust-contained-interpreter-proof.md) now joins descriptor-bound Python execution and that fixed cgroup. It ran only inert code as UID 65534 on the ARM VM, observed the child credential and two contained tasks, and verified recursive cleanup. It did not launch a controller or benchmark or qualify a result.
 
