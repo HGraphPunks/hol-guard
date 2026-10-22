@@ -56,6 +56,10 @@ owned bounded Unix-socket/pipe I/O, cancellation, single-flight RPC and a
 fixed trusted operation registry. Rust and pinned Python exchanged live RPC
 bytes in both directions on macOS. Independent descriptor/key custody,
 OMP/Bun identity, terminal markers and model-backed execution remain open.
+The [product-cell frame proof](gauntlet-rust-product-cell-frames-proof.md)
+also matches Python's separate product-cell HMAC dialect and exchanges live
+RPCs with the Python codec in both directions. Product actor ownership,
+bootstrap and effect attribution remain open.
 
 A [contained interpreter probe](gauntlet-rust-contained-interpreter-proof.md) now joins descriptor-bound Python execution and that fixed cgroup. It ran only inert code as UID 65534 on the ARM VM, observed the child credential and two contained tasks, and verified recursive cleanup. It did not launch a controller or benchmark or qualify a result.
 
