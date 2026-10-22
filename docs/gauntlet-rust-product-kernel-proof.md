@@ -1,5 +1,9 @@
 # Independently sampled product service and task mounts
 
+Follow-up: [v2 file generation proof](gauntlet-rust-file-generation-proof.md)
+records six newer runs with opaque kernel handles. The v1 observations below
+retain their original refusals and limits.
+
 Implementation source: `849dda6e6ffec0b60f685fc3c231101078e3f903`.
 
 The Rust staging worker now discovers the private product service directly
