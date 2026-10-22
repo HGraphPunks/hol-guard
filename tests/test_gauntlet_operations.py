@@ -10,6 +10,7 @@ import errno
 import io
 import json
 from pathlib import Path
+import signal
 import stat
 import tempfile
 import threading
@@ -408,6 +409,33 @@ class RustDashboardHandoffTests(unittest.TestCase):
                              [('build',), ('up', '--no-build', '-d', '--wait'), ('down',)])
             kill.assert_called_once()
             restart.assert_called_once()
+            self.assertEqual(json.loads((state/'private/dashboard-mode.json').read_text())['mode'],
+                             'native')
+
+    def test_termination_during_handoff_restores_python_and_signal_handler(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = self.state(directory)
+            previous_handler = signal.getsignal(signal.SIGTERM)
+            events = []
+
+            def compose(*args, **kwargs):
+                events.append(args[2:])
+                if args[2] == 'up':
+                    signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+
+            with patch.object(cli, 'dashboard_identity', return_value='a'*32), \
+                 patch.object(cli, 'check_dashboard_port'), \
+                 patch.object(cli, 'docker_available', return_value=(True, '')), \
+                 patch.object(cli, 'process_alive', side_effect=[True, False, True]), \
+                 patch.object(cli, 'rust_dashboard_compose', side_effect=compose), \
+                 patch.object(cli.os, 'kill'), \
+                 patch.object(cli, 'wait_dashboard_identity', return_value='http://127.0.0.1:8791'), \
+                 patch.object(cli, 'start_process') as restart:
+                with self.assertRaisesRegex(KeyboardInterrupt, 'Dashboard handoff interrupted'):
+                    cli.switch_dashboard_to_rust(state, docker_context='colima')
+            self.assertEqual(events, [('build',), ('up', '--no-build', '-d', '--wait'), ('down',)])
+            restart.assert_called_once()
+            self.assertIs(signal.getsignal(signal.SIGTERM), previous_handler)
             self.assertEqual(json.loads((state/'private/dashboard-mode.json').read_text())['mode'],
                              'native')
 

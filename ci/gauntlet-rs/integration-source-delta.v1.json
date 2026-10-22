@@ -183,7 +183,7 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/control_plane/cli.py",
       "phase": 3,
-      "sha256": "08e0f7b4a0308b0f1cc6db269174c0c7015f2f5d778446eb1561102bf35fdcb6"
+      "sha256": "45efba6187d34f58ea0d0b5fb3b14347d35af8cd1f2441ca1823db38caf85eba"
     },
     {
       "base_sha256": "791505fc39dd7af5f65270bdbabae6f083a82b9a7c952262455653dffada2ac1",

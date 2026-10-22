@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import errno
 import hashlib
 import json
@@ -14,6 +15,7 @@ import secrets
 import socket
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 
@@ -170,6 +172,23 @@ def stop_owned_python_dashboard(state):
     return True
 
 
+@contextmanager
+def dashboard_rollback_on_termination():
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    previous = signal.getsignal(signal.SIGTERM)
+
+    def terminate(_signum, _frame):
+        raise KeyboardInterrupt('Dashboard handoff interrupted')
+
+    signal.signal(signal.SIGTERM, terminate)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
 def switch_dashboard_to_rust(state, port=None, docker_context=None):
     mode_file = state/'private/dashboard-mode.json'
     existing = json.loads(mode_file.read_text()) if mode_file.exists() else None
@@ -192,40 +211,41 @@ def switch_dashboard_to_rust(state, port=None, docker_context=None):
         raise RuntimeError('Rust dashboard requires Docker: ' + diagnostic)
     rust_dashboard_compose(state, port, 'build', context=docker_context)
     stopped_python = False
-    try:
-        if existing is not None and existing['mode'] == 'native':
-            stopped_python = stop_owned_python_dashboard(state)
-        rust_dashboard_compose(state, port, 'up', '--no-build', '-d', '--wait',
-                               context=docker_context)
-        url = wait_dashboard_identity(port, instance_id)
-        atomic_json(mode_file, {'mode': 'rust', 'port': port,
-                                'docker_context': docker_context})
-    except Exception as handoff_error:
-        cleanup_error = None
-        if not existing or existing['mode'] != 'rust':
-            try:
-                rust_dashboard_compose(state, port, 'down', context=docker_context)
-            except Exception as error:
-                cleanup_error = error
-        if existing and existing['mode'] == 'native' and not stopped_python:
-            pidfile = state/'private/dashboard.pid.json'
-            previous = json.loads(pidfile.read_text()) if pidfile.exists() else None
-            stopped_python = bool(previous and not process_alive(
-                previous, 'ci.gauntlet.control_plane.server', state))
-        if stopped_python:
-            try:
-                start_process(state, 'dashboard', 'ci.gauntlet.control_plane.server',
-                              ['--state', str(state/'public'), '--port', str(port)],
-                              source_sha256=hashlib.sha256((PACKAGE/'server.py').read_bytes()).hexdigest())
-                wait_dashboard_identity(port, instance_id)
-                record = json.loads((state/'private/dashboard.pid.json').read_text())
-                if not process_alive(record, 'ci.gauntlet.control_plane.server', state):
-                    raise RuntimeError('Python dashboard process exited during rollback')
-            except Exception as rollback_error:
-                raise RuntimeError('Rust handoff failed and Python dashboard rollback failed') from rollback_error
-        if cleanup_error is not None:
-            raise RuntimeError('Rust handoff failed and partial container cleanup failed') from cleanup_error
-        raise handoff_error
+    with dashboard_rollback_on_termination():
+        try:
+            if existing is not None and existing['mode'] == 'native':
+                stopped_python = stop_owned_python_dashboard(state)
+            rust_dashboard_compose(state, port, 'up', '--no-build', '-d', '--wait',
+                                   context=docker_context)
+            url = wait_dashboard_identity(port, instance_id)
+            atomic_json(mode_file, {'mode': 'rust', 'port': port,
+                                    'docker_context': docker_context})
+        except BaseException as handoff_error:
+            cleanup_error = None
+            if not existing or existing['mode'] != 'rust':
+                try:
+                    rust_dashboard_compose(state, port, 'down', context=docker_context)
+                except Exception as error:
+                    cleanup_error = error
+            if existing and existing['mode'] == 'native' and not stopped_python:
+                pidfile = state/'private/dashboard.pid.json'
+                previous = json.loads(pidfile.read_text()) if pidfile.exists() else None
+                stopped_python = bool(previous and not process_alive(
+                    previous, 'ci.gauntlet.control_plane.server', state))
+            if stopped_python:
+                try:
+                    start_process(state, 'dashboard', 'ci.gauntlet.control_plane.server',
+                                  ['--state', str(state/'public'), '--port', str(port)],
+                                  source_sha256=hashlib.sha256((PACKAGE/'server.py').read_bytes()).hexdigest())
+                    wait_dashboard_identity(port, instance_id)
+                    record = json.loads((state/'private/dashboard.pid.json').read_text())
+                    if not process_alive(record, 'ci.gauntlet.control_plane.server', state):
+                        raise RuntimeError('Python dashboard process exited during rollback')
+                except Exception as rollback_error:
+                    raise RuntimeError('Rust handoff failed and Python dashboard rollback failed') from rollback_error
+            if cleanup_error is not None:
+                raise RuntimeError('Rust handoff failed and partial container cleanup failed') from cleanup_error
+            raise handoff_error
     print(url)
     return url
 
@@ -238,22 +258,23 @@ def restore_python_dashboard(state):
     port = existing['port']
     instance_id = dashboard_identity(state)
     check_dashboard_port(port, instance_id)
-    try:
-        rust_dashboard_compose(state, port, 'down', context=existing['docker_context'])
-        start_process(state, 'dashboard', 'ci.gauntlet.control_plane.server',
-                      ['--state', str(state/'public'), '--port', str(port)],
-                      source_sha256=hashlib.sha256((PACKAGE/'server.py').read_bytes()).hexdigest())
-        url = wait_dashboard_identity(port, instance_id)
-        record = json.loads((state/'private/dashboard.pid.json').read_text())
-        if not process_alive(record, 'ci.gauntlet.control_plane.server', state):
-            raise RuntimeError('Python dashboard process exited during restore')
-        atomic_json(mode_file, {'mode': 'native', 'port': port})
-    except Exception:
-        stop_owned_python_dashboard(state)
-        rust_dashboard_compose(state, port, 'up', '--no-build', '-d', '--wait',
-                               context=existing['docker_context'])
-        wait_dashboard_identity(port, instance_id)
-        raise
+    with dashboard_rollback_on_termination():
+        try:
+            rust_dashboard_compose(state, port, 'down', context=existing['docker_context'])
+            start_process(state, 'dashboard', 'ci.gauntlet.control_plane.server',
+                          ['--state', str(state/'public'), '--port', str(port)],
+                          source_sha256=hashlib.sha256((PACKAGE/'server.py').read_bytes()).hexdigest())
+            url = wait_dashboard_identity(port, instance_id)
+            record = json.loads((state/'private/dashboard.pid.json').read_text())
+            if not process_alive(record, 'ci.gauntlet.control_plane.server', state):
+                raise RuntimeError('Python dashboard process exited during restore')
+            atomic_json(mode_file, {'mode': 'native', 'port': port})
+        except BaseException:
+            stop_owned_python_dashboard(state)
+            rust_dashboard_compose(state, port, 'up', '--no-build', '-d', '--wait',
+                                   context=existing['docker_context'])
+            wait_dashboard_identity(port, instance_id)
+            raise
     print(url)
     return url
 
