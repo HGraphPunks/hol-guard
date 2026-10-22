@@ -18,6 +18,8 @@ use std::ffi::CString;
 use std::fs::File;
 use std::io::{self, Read};
 use std::os::fd::{AsRawFd, OwnedFd};
+#[cfg(target_os = "linux")]
+use std::os::unix::fs::MetadataExt;
 use std::os::unix::net::UnixStream;
 use std::os::unix::process::CommandExt;
 use std::path::Path;
@@ -31,6 +33,84 @@ const READ_POLL: Duration = Duration::from_millis(250);
 const TAP_UID: u32 = 10001;
 const TAP_GID: u32 = 10001;
 const ARG_COUNT: usize = 15;
+#[cfg(target_os = "linux")]
+const TMPFS_MAGIC: libc::c_long = 0x0102_1994;
+
+#[cfg(target_os = "linux")]
+fn isolate_tap_mounts() -> io::Result<()> {
+    // SAFETY: all pointers are static NUL-terminated strings; this runs in
+    // pre_exec before privilege drop, after the worker attached the cgroup.
+    unsafe {
+        if libc::unshare(libc::CLONE_NEWNS) != 0
+            || libc::mount(
+                std::ptr::null(),
+                c"/".as_ptr(),
+                std::ptr::null(),
+                libc::MS_PRIVATE | libc::MS_REC,
+                std::ptr::null(),
+            ) != 0
+            || libc::mount(
+                c"tmpfs".as_ptr(),
+                c"/tmp".as_ptr(),
+                c"tmpfs".as_ptr(),
+                libc::MS_NOSUID | libc::MS_NODEV | libc::MS_NOEXEC,
+                c"size=1048576,mode=0700,uid=10001,gid=10001"
+                    .as_ptr()
+                    .cast(),
+            ) != 0
+        {
+            return Err(io::Error::last_os_error());
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn isolate_tap_mounts() -> io::Result<()> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "SDK tap mount isolation requires Linux",
+    ))
+}
+
+#[cfg(target_os = "linux")]
+fn verify_tap_mounts(pid: u32) -> Result<(), String> {
+    let parent = std::fs::read_link("/proc/self/ns/mnt").map_err(|error| error.to_string())?;
+    let child =
+        std::fs::read_link(format!("/proc/{pid}/ns/mnt")).map_err(|error| error.to_string())?;
+    let child_tmp = format!("/proc/{pid}/root/tmp");
+    let stat = std::fs::metadata(&child_tmp).map_err(|error| error.to_string())?;
+    let host_tmp = std::fs::metadata("/tmp").map_err(|error| error.to_string())?;
+    let name = CString::new(child_tmp).map_err(|error| error.to_string())?;
+    let mut filesystem = std::mem::MaybeUninit::<libc::statfs>::uninit();
+    let mut mount = std::mem::MaybeUninit::<libc::statvfs>::uninit();
+    // SAFETY: name is NUL-terminated and both outputs point to writable storage.
+    if unsafe { libc::statfs(name.as_ptr(), filesystem.as_mut_ptr()) } != 0
+        || unsafe { libc::statvfs(name.as_ptr(), mount.as_mut_ptr()) } != 0
+    {
+        return Err(io::Error::last_os_error().to_string());
+    }
+    // SAFETY: both calls succeeded and initialized their outputs.
+    let filesystem = unsafe { filesystem.assume_init() };
+    let mount = unsafe { mount.assume_init() };
+    if parent == child
+        || stat.dev() == host_tmp.dev()
+        || stat.uid() != TAP_UID
+        || stat.gid() != TAP_GID
+        || stat.mode() & 0o7777 != 0o700
+        || filesystem.f_type != TMPFS_MAGIC
+        || mount.f_flag & (libc::ST_NOSUID | libc::ST_NODEV | libc::ST_NOEXEC)
+            != libc::ST_NOSUID | libc::ST_NODEV | libc::ST_NOEXEC
+    {
+        return Err("SDK tap mount namespace or private tmp differs from fixed profile".to_owned());
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn verify_tap_mounts(_pid: u32) -> Result<(), String> {
+    Err("SDK tap mount isolation requires Linux".to_owned())
+}
 
 fn fixed_arm64_elf(raw: &[u8]) -> bool {
     raw.len() >= 64
@@ -387,6 +467,7 @@ fn run_pinned_sdk_tap_child_impl(
     unsafe {
         command.pre_exec(move || {
             let _keep_arguments = &arguments;
+            isolate_tap_mounts()?;
             for fd in passed {
                 let flags = libc::fcntl(fd, libc::F_GETFD);
                 if flags < 0 || libc::fcntl(fd, libc::F_SETFD, flags & !libc::FD_CLOEXEC) < 0 {
@@ -432,6 +513,7 @@ fn run_pinned_sdk_tap_child_impl(
             PidfdFlags::empty(),
         )
         .map_err(|error| format!("SDK tap child pidfd unavailable: {error}"))?;
+        verify_tap_mounts(pid)?;
         sdk_peer.recheck(&sdk_connection)?;
         let native_socket = await_native_handoff(&handoff_parent, deadline, cancellation)?;
         let native_peer =
@@ -484,6 +566,12 @@ fn run_pinned_sdk_tap_child_impl(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn parent_mount_namespace_cannot_satisfy_tap_profile() {
+        assert!(verify_tap_mounts(std::process::id()).is_err());
+    }
 
     #[test]
     fn rejects_missing_root_executable_pin() {
