@@ -2,6 +2,7 @@
 //! The optional quota writer is excluded from default read-only builds.
 
 mod bridge_frames;
+mod bridge_rpc;
 mod campaign;
 mod campaign_gate;
 mod cancel_reported;
@@ -72,6 +73,9 @@ mod tree_inventory;
 mod worker_receipt;
 
 pub use bridge_frames::FrameCodec;
+pub use bridge_rpc::{
+    parse_bridge_rpc_request, parse_bridge_rpc_response, BridgeRpcReply, BridgeRpcRequest,
+};
 pub use campaign_gate::evaluate_audited_campaign;
 pub use cancel_reported::{verify_cancel_reported_relation, CancelReportedRelation};
 pub use contained_cli_results::verify_contained_cli_results;

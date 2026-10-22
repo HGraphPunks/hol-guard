@@ -48,6 +48,12 @@ identical Rust and Python snapshots on the retained Mac Qwen journal. Its
 the existing allowance is tied to an older candidate source. This does not
 start the provider or supply a model-backed result.
 
+The [VM bridge RPC parity proof](gauntlet-rust-bridge-rpc-proof.md) adds a
+data-only Rust request/response validator above the existing HMAC frame
+codec. Thirty source-hashed Python cases match on macOS and Linux ARM64;
+live management I/O, trusted dispatch, cancellation, terminal markers and
+model-backed execution remain open.
+
 A [contained interpreter probe](gauntlet-rust-contained-interpreter-proof.md) now joins descriptor-bound Python execution and that fixed cgroup. It ran only inert code as UID 65534 on the ARM VM, observed the child credential and two contained tasks, and verified recursive cleanup. It did not launch a controller or benchmark or qualify a result.
 
 A [Root-only product-cell inventory](gauntlet-rust-product-cell-siblings-proof.md) found no retained product units on the idle ARM VM, but identified a necessary worker-design change: Python starts product cells as systemd sibling units under `system.slice`. The controller cgroup cannot kill those siblings. A Rust worker must bind, terminate and verify every product unit it creates, or prove a new job-owned slice arrangement, before it may write a successful cleanup receipt.

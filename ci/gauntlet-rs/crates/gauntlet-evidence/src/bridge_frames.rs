@@ -16,7 +16,7 @@ const MAX_FRAME_BYTES: usize = 12 * 1024 * 1024;
 const MAX_TOTAL_BYTES: usize = 256 * 1024 * 1024;
 const MAX_FRAMES: u64 = 10_000;
 
-fn canonical_uuid(value: &str) -> bool {
+pub(crate) fn canonical_uuid(value: &str) -> bool {
     let bytes = value.as_bytes();
     bytes.len() == 36
         && bytes.iter().enumerate().all(|(index, byte)| {
