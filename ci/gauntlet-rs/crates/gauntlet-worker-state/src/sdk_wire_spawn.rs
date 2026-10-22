@@ -58,6 +58,20 @@ fn isolate_tap_mounts() -> io::Result<()> {
                     .as_ptr()
                     .cast(),
             ) != 0
+            || libc::mount(
+                c"tmpfs".as_ptr(),
+                c"/home".as_ptr(),
+                c"tmpfs".as_ptr(),
+                libc::MS_RDONLY | libc::MS_NOSUID | libc::MS_NODEV | libc::MS_NOEXEC,
+                c"size=4096,mode=0000,uid=0,gid=0".as_ptr().cast(),
+            ) != 0
+            || libc::mount(
+                c"tmpfs".as_ptr(),
+                c"/opt".as_ptr(),
+                c"tmpfs".as_ptr(),
+                libc::MS_RDONLY | libc::MS_NOSUID | libc::MS_NODEV | libc::MS_NOEXEC,
+                c"size=4096,mode=0000,uid=0,gid=0".as_ptr().cast(),
+            ) != 0
         {
             return Err(io::Error::last_os_error());
         }
@@ -78,31 +92,56 @@ fn verify_tap_mounts(pid: u32) -> Result<(), String> {
     let parent = std::fs::read_link("/proc/self/ns/mnt").map_err(|error| error.to_string())?;
     let child =
         std::fs::read_link(format!("/proc/{pid}/ns/mnt")).map_err(|error| error.to_string())?;
-    let child_tmp = format!("/proc/{pid}/root/tmp");
-    let stat = std::fs::metadata(&child_tmp).map_err(|error| error.to_string())?;
-    let host_tmp = std::fs::metadata("/tmp").map_err(|error| error.to_string())?;
-    let name = CString::new(child_tmp).map_err(|error| error.to_string())?;
-    let mut filesystem = std::mem::MaybeUninit::<libc::statfs>::uninit();
-    let mut mount = std::mem::MaybeUninit::<libc::statvfs>::uninit();
-    // SAFETY: name is NUL-terminated and both outputs point to writable storage.
-    if unsafe { libc::statfs(name.as_ptr(), filesystem.as_mut_ptr()) } != 0
-        || unsafe { libc::statvfs(name.as_ptr(), mount.as_mut_ptr()) } != 0
-    {
-        return Err(io::Error::last_os_error().to_string());
+    if parent == child {
+        return Err("SDK tap mount namespace differs from fixed profile".to_owned());
     }
-    // SAFETY: both calls succeeded and initialized their outputs.
-    let filesystem = unsafe { filesystem.assume_init() };
-    let mount = unsafe { mount.assume_init() };
-    if parent == child
-        || stat.dev() == host_tmp.dev()
-        || stat.uid() != TAP_UID
-        || stat.gid() != TAP_GID
-        || stat.mode() & 0o7777 != 0o700
-        || filesystem.f_type != TMPFS_MAGIC
-        || mount.f_flag & (libc::ST_NOSUID | libc::ST_NODEV | libc::ST_NOEXEC)
-            != libc::ST_NOSUID | libc::ST_NODEV | libc::ST_NOEXEC
-    {
-        return Err("SDK tap mount namespace or private tmp differs from fixed profile".to_owned());
+    for (path, uid, gid, mode, flags) in [
+        (
+            "/tmp",
+            TAP_UID,
+            TAP_GID,
+            0o700,
+            libc::ST_NOSUID | libc::ST_NODEV | libc::ST_NOEXEC,
+        ),
+        (
+            "/home",
+            0,
+            0,
+            0,
+            libc::ST_RDONLY | libc::ST_NOSUID | libc::ST_NODEV | libc::ST_NOEXEC,
+        ),
+        (
+            "/opt",
+            0,
+            0,
+            0,
+            libc::ST_RDONLY | libc::ST_NOSUID | libc::ST_NODEV | libc::ST_NOEXEC,
+        ),
+    ] {
+        let child_path = format!("/proc/{pid}/root{path}");
+        let stat = std::fs::metadata(&child_path).map_err(|error| error.to_string())?;
+        let host = std::fs::metadata(path).map_err(|error| error.to_string())?;
+        let name = CString::new(child_path).map_err(|error| error.to_string())?;
+        let mut filesystem = std::mem::MaybeUninit::<libc::statfs>::uninit();
+        let mut mount = std::mem::MaybeUninit::<libc::statvfs>::uninit();
+        // SAFETY: name is NUL-terminated and both outputs point to writable storage.
+        if unsafe { libc::statfs(name.as_ptr(), filesystem.as_mut_ptr()) } != 0
+            || unsafe { libc::statvfs(name.as_ptr(), mount.as_mut_ptr()) } != 0
+        {
+            return Err(io::Error::last_os_error().to_string());
+        }
+        // SAFETY: both calls succeeded and initialized their outputs.
+        let filesystem = unsafe { filesystem.assume_init() };
+        let mount = unsafe { mount.assume_init() };
+        if stat.dev() == host.dev()
+            || stat.uid() != uid
+            || stat.gid() != gid
+            || stat.mode() & 0o7777 != mode
+            || filesystem.f_type != TMPFS_MAGIC
+            || mount.f_flag & flags != flags
+        {
+            return Err("SDK tap private path mount differs from fixed profile".to_owned());
+        }
     }
     Ok(())
 }
