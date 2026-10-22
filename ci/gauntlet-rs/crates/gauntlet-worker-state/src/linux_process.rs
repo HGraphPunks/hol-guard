@@ -38,7 +38,7 @@ pub struct ProcessObservation {
 pub(crate) struct ProcStat {
     pub(crate) start_ticks: u64,
     pub(crate) parent_pid: u32,
-    state: char,
+    pub(crate) state: char,
     rss_pages: i64,
 }
 
