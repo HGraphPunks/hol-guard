@@ -1,7 +1,7 @@
 //! Select only the three fixed diagnostic effects for post-close process
 //! image sampling. A proc-fd name is a cheap filter, never a path to open.
 
-use crate::staging_effect_events::CloseWriteEvent;
+use crate::staging_effect_events::{CloseWriteEvent, EffectWriter};
 use crate::staging_file_handle::sample_file_handle;
 use crate::staging_writer_process::observe_writer_image;
 use crate::{hex, open_root_owned_public_directory, StagingRole};
@@ -10,6 +10,8 @@ use rustix::fs::{fstat, openat2, FileType, Mode, OFlags, ResolveFlags};
 use serde_json::{json, Value};
 use std::os::fd::{AsRawFd, OwnedFd};
 use std::path::Path;
+use std::sync::mpsc::{sync_channel, SyncSender};
+use std::thread::JoinHandle;
 
 const SURFACES: [(&str, &str); 3] = [
     (
@@ -23,8 +25,33 @@ const SURFACES: [(&str, &str); 3] = [
 pub(crate) struct WriterImageCapture {
     run_id: String,
     role: StagingRole,
-    images: Vec<Value>,
+    sender: Option<SyncSender<PendingImage>>,
+    worker: Option<JoinHandle<Vec<Value>>>,
+    queued: usize,
     overflowed: bool,
+}
+
+struct PendingImage {
+    sequence: usize,
+    surface: &'static str,
+    pid: u32,
+    start_ticks: Option<u64>,
+    source: Result<(EffectWriter, OwnedFd), &'static str>,
+}
+
+impl PendingImage {
+    fn sample(self) -> Value {
+        let result = self.source.and_then(|(writer, pidfd)| {
+            observe_writer_image(&writer, &pidfd).map_err(|_| "process-sample-unavailable")
+        });
+        let (sample, reason) = match result {
+            Ok(sample) => (sample, Value::Null),
+            Err(reason) => (Value::Null, json!(reason)),
+        };
+        json!({"event_sequence":self.sequence,"surface":self.surface,
+            "writer_pid":self.pid,"writer_start_ticks":self.start_ticks,
+            "sample":sample,"unavailable_reason":reason})
+    }
 }
 
 impl WriterImageCapture {
@@ -32,10 +59,17 @@ impl WriterImageCapture {
         if !hex(run_id, 16) {
             return Err("writer image capture requires an exact run ID".to_owned());
         }
+        let (sender, receiver) = sync_channel::<PendingImage>(MAX_EFFECT_WRITER_IMAGES);
+        let worker = std::thread::Builder::new()
+            .name("gauntlet-writer-images".to_owned())
+            .spawn(move || receiver.into_iter().map(PendingImage::sample).collect())
+            .map_err(|error| format!("writer image collector unavailable: {error}"))?;
         Ok(Self {
             run_id: run_id.to_owned(),
             role,
-            images: Vec::new(),
+            sender: Some(sender),
+            worker: Some(worker),
+            queued: 0,
             overflowed: false,
         })
     }
@@ -50,30 +84,43 @@ impl WriterImageCapture {
         let Some(surface) = self.match_target(event, file) else {
             return;
         };
-        if self.images.len() >= MAX_EFFECT_WRITER_IMAGES {
-            // The caller drains/closes the rest of this kernel batch before
-            // propagating the bound error. Never silently truncate evidence.
-            self.overflowed = true;
-            return;
-        }
-        let result = match (pidfd, event.writer.as_ref()) {
+        let source = match (pidfd, event.writer.as_ref()) {
             (None, _) => Err("pidfd-unavailable"),
             (Some(_), None) => Err("writer-unavailable"),
             (Some(pidfd), Some(writer)) => {
                 if !product_service(&self.run_id, &writer.cgroup) {
                     Err("outside-product-service")
                 } else {
-                    observe_writer_image(writer, pidfd).map_err(|_| "process-sample-unavailable")
+                    rustix::io::fcntl_dupfd_cloexec(pidfd, 0)
+                        .map(|held| (writer.clone(), held))
+                        .map_err(|_| "process-sample-unavailable")
                 }
             }
         };
-        let (sample, reason) = match result {
-            Ok(sample) => (sample, Value::Null),
-            Err(reason) => (Value::Null, json!(reason)),
-        };
-        self.images.push(json!({"event_sequence":sequence,"surface":surface,
-            "writer_pid":event.reported_pid,"writer_start_ticks":event.writer.as_ref().map(|writer| writer.start_ticks),
-            "sample":sample,"unavailable_reason":reason}));
+        self.enqueue(PendingImage {
+            sequence,
+            surface,
+            pid: event.reported_pid,
+            start_ticks: event.writer.as_ref().map(|writer| writer.start_ticks),
+            source,
+        });
+    }
+
+    fn enqueue(&mut self, image: PendingImage) {
+        // Hashing an executable can outlive a short-lived probe. Keep it off
+        // the fanotify thread, which must promptly sample all writer tuples.
+        // At most 64 duplicated pidfds can be owned by the queue and worker.
+        if self.queued >= MAX_EFFECT_WRITER_IMAGES
+            || self
+                .sender
+                .as_ref()
+                .is_none_or(|sender| sender.try_send(image).is_err())
+        {
+            // The caller closes the rest of the batch before refusing it.
+            self.overflowed = true;
+        } else {
+            self.queued += 1;
+        }
     }
 
     fn match_target(&self, event: &CloseWriteEvent, file: &OwnedFd) -> Option<&'static str> {
@@ -146,9 +193,28 @@ impl WriterImageCapture {
         }
     }
 
-    pub(crate) fn finish(self) -> Result<Vec<Value>, String> {
+    pub(crate) fn finish(mut self) -> Result<Vec<Value>, String> {
         self.check_bound()?;
-        Ok(self.images)
+        self.sender.take();
+        let images = self
+            .worker
+            .take()
+            .ok_or("writer image collector missing")?
+            .join()
+            .map_err(|_| "writer image collector panicked")?;
+        if images.len() != self.queued {
+            return Err("writer image collector lost a queued sample".to_owned());
+        }
+        Ok(images)
+    }
+}
+
+impl Drop for WriterImageCapture {
+    fn drop(&mut self) {
+        self.sender.take();
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
     }
 }
 
@@ -174,5 +240,36 @@ mod tests {
         assert!(!product_service("fedcba9876543210", &group));
         assert!(!product_service(run, &format!("{group}/child")));
         assert!(WriterImageCapture::new("../outside", StagingRole::Success).is_err());
+    }
+
+    #[test]
+    fn asynchronous_images_drain_in_order_and_never_silently_truncate() {
+        let pending = |sequence| PendingImage {
+            sequence,
+            surface: "contained-output",
+            pid: 42,
+            start_ticks: None,
+            source: Err("writer-unavailable"),
+        };
+        for overflow in [false, true] {
+            let mut capture =
+                WriterImageCapture::new("0123456789abcdef", StagingRole::Success).unwrap();
+            for sequence in 1..=MAX_EFFECT_WRITER_IMAGES {
+                capture.enqueue(pending(sequence));
+            }
+            if overflow {
+                capture.enqueue(pending(MAX_EFFECT_WRITER_IMAGES + 1));
+                assert!(capture.check_bound().is_err());
+                assert!(capture.finish().is_err());
+            } else {
+                let images = capture.finish().unwrap();
+                assert_eq!(images.len(), MAX_EFFECT_WRITER_IMAGES);
+                for (i, image) in images.iter().enumerate() {
+                    assert_eq!(image["event_sequence"], i + 1);
+                    assert_eq!(image["unavailable_reason"], "writer-unavailable");
+                    assert!(image["sample"].is_null());
+                }
+            }
+        }
     }
 }
