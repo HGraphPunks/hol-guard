@@ -10,10 +10,12 @@ use crate::staging_agent_process::{
     matching_sdk_gate_process,
 };
 use crate::staging_control_record::read_one;
-use crate::staging_sdk_tap_frames::{matching_sdk_tap_native_frames, SdkTapOutsidePins};
+use crate::staging_sdk_tap_frames::{
+    matching_sdk_tap_native_frames, source_bound_docs_records, SdkTapOutsidePins,
+};
 use crate::{
-    observe_staging_physical_files_root_owned_ineligible, EvidenceError, Result,
-    StagingEvidencePins,
+    observe_staging_physical_files_root_owned_ineligible, verify_controller_tree, EvidenceError,
+    Result, StagingEvidencePins,
 };
 use gauntlet_contracts::{canonicalize, is_git_sha};
 use rustix::fs::{fstat, statat, AtFlags, FileType, Stat};
@@ -50,11 +52,14 @@ pub struct StagingSuiteShadow {
     pub live_native_mcp_roles_sampled: usize,
     pub live_sdk_tap_roles_matched: usize,
     pub live_sdk_tap_frames_matched: usize,
+    pub source_bound_docs_roles_matched: usize,
 }
 
 impl StagingSuiteShadow {
     pub fn to_json(&self) -> Value {
-        let schema = if self.live_sdk_tap_roles_matched == 6 {
+        let schema = if self.source_bound_docs_roles_matched == 6 {
+            "hol-gauntlet-staging-sdk-docs-oracle-suite-shadow.v1"
+        } else if self.live_sdk_tap_roles_matched == 6 {
             "hol-gauntlet-staging-sdk-tap-suite-shadow.v1"
         } else if self.live_native_mcp_roles_sampled == 6 {
             "hol-gauntlet-staging-native-mcp-suite-shadow.v1"
@@ -99,6 +104,9 @@ impl StagingSuiteShadow {
         if self.live_sdk_tap_roles_matched == 6 {
             output["live_sdk_tap_roles_matched"] = json!(6);
             output["live_sdk_tap_frames_matched"] = json!(self.live_sdk_tap_frames_matched);
+        }
+        if self.source_bound_docs_roles_matched == 6 {
+            output["source_bound_docs_roles_matched"] = json!(6);
         }
         output
     }
@@ -271,6 +279,7 @@ fn terminal_and_cleanup(
     row: &Value,
     require_native_mcp: bool,
     tap_journal_sha256: Option<&str>,
+    expected_docs_record: Option<&Value>,
 ) -> Result<(bool, bool, bool, bool, bool, usize)> {
     let run = string(row, "run_id")?;
     let report_name = format!("{run}.report.json");
@@ -365,6 +374,7 @@ fn terminal_and_cleanup(
                     source_sha: string(common, "source_sha")?,
                     started_marker_sha256: string(row, "started_marker_sha256")?,
                     controller_public_key_hex: string(row, "controller_public_key_hex")?,
+                    expected_docs_record,
                 },
             )?;
             if raw != read_private_file(journal, &name, 0, 1024 * 1024)?.ok_or(INVALID)? {
@@ -428,6 +438,8 @@ fn observe_staging_suite(
     outside_manifest_sha256: &str,
     require_native_mcp: bool,
     tap_journal_sha256: Option<&[String; 6]>,
+    outside_controller_source_sha: Option<&str>,
+    outside_controller_tree_sha256: Option<&str>,
 ) -> Result<StagingSuiteShadow> {
     if geteuid().as_raw() != 0
         || !lower_hex(build_job_id, 16)
@@ -451,6 +463,34 @@ fn observe_staging_suite(
     }
     let raw = root.read_file(&relative, 8192)?;
     let manifest = checked_manifest(&raw, outside_manifest_sha256, build_job_id)?;
+    let controller_root = if let (Some(source), Some(digest)) = (
+        outside_controller_source_sha,
+        outside_controller_tree_sha256,
+    ) {
+        if !is_git_sha(source) || !is_sha256(digest) || tap_journal_sha256.is_none() {
+            return Err(INVALID);
+        }
+        let path = format!("/opt/hol-gauntlet/controller-{}", &source[..16]);
+        verify_controller_tree(Path::new(&path), digest)?;
+        Some(path)
+    } else {
+        if outside_controller_source_sha.is_some() || outside_controller_tree_sha256.is_some() {
+            return Err(INVALID);
+        }
+        None
+    };
+    let fixture_raw = if let Some(path) = &controller_root {
+        Some(PublicRootReader::open(Path::new(path))?.read_file(
+            "ci/gauntlet/benchmark/fixtures/python-cli-with-tests.json",
+            32 * 1024,
+        )?)
+    } else {
+        None
+    };
+    let fixture_records = fixture_raw
+        .as_deref()
+        .map(source_bound_docs_records)
+        .transpose()?;
     if require_native_mcp && manifest["schema"] != "hol-gauntlet-staging-suite-pins.v5" {
         return Err(INVALID);
     }
@@ -472,6 +512,7 @@ fn observe_staging_suite(
     let mut live_native_mcp_roles_sampled = 0;
     let mut live_sdk_tap_roles_matched = 0;
     let mut live_sdk_tap_frames_matched = 0;
+    let mut source_bound_docs_roles_matched = 0;
     for (index, role) in ROLES.into_iter().enumerate() {
         let row = &manifest["roles"][role];
         let pins = StagingEvidencePins {
@@ -497,6 +538,15 @@ fn observe_staging_suite(
                 row,
                 require_native_mcp,
                 tap_journal_sha256.map(|pins| pins[index].as_str()),
+                fixture_records.as_ref().map(
+                    |(clean, injected)| {
+                        if role == "injection" {
+                            injected
+                        } else {
+                            clean
+                        }
+                    },
+                ),
             )?;
         live_kernel_roles_sampled += usize::from(kernel);
         live_agent_roles_sampled += usize::from(agent);
@@ -505,9 +555,24 @@ fn observe_staging_suite(
         live_native_mcp_roles_sampled += usize::from(native_mcp);
         live_sdk_tap_roles_matched += usize::from(tap_frames > 0);
         live_sdk_tap_frames_matched += tap_frames;
+        source_bound_docs_roles_matched += usize::from(fixture_records.is_some());
     }
     if root.read_file(&relative, 8192)? != raw {
         return Err(INVALID);
+    }
+    if let (Some(path), Some(before), Some(digest)) = (
+        controller_root.as_deref(),
+        fixture_raw.as_deref(),
+        outside_controller_tree_sha256,
+    ) {
+        if PublicRootReader::open(Path::new(path))?.read_file(
+            "ci/gauntlet/benchmark/fixtures/python-cli-with-tests.json",
+            32 * 1024,
+        )? != before
+        {
+            return Err(INVALID);
+        }
+        verify_controller_tree(Path::new(path), digest)?;
     }
     Ok(StagingSuiteShadow {
         manifest_sha256: outside_manifest_sha256.to_owned(),
@@ -522,6 +587,7 @@ fn observe_staging_suite(
         live_native_mcp_roles_sampled,
         live_sdk_tap_roles_matched,
         live_sdk_tap_frames_matched,
+        source_bound_docs_roles_matched,
     })
 }
 
@@ -529,7 +595,14 @@ pub fn observe_staging_suite_root_owned_ineligible(
     build_job_id: &str,
     outside_manifest_sha256: &str,
 ) -> Result<StagingSuiteShadow> {
-    observe_staging_suite(build_job_id, outside_manifest_sha256, false, None)
+    observe_staging_suite(
+        build_job_id,
+        outside_manifest_sha256,
+        false,
+        None,
+        None,
+        None,
+    )
 }
 
 /// Opt-in stronger opening of the same immutable v5 host manifest. The
@@ -539,7 +612,14 @@ pub fn observe_staging_suite_native_mcp_root_owned_ineligible(
     build_job_id: &str,
     outside_manifest_sha256: &str,
 ) -> Result<StagingSuiteShadow> {
-    observe_staging_suite(build_job_id, outside_manifest_sha256, true, None)
+    observe_staging_suite(
+        build_job_id,
+        outside_manifest_sha256,
+        true,
+        None,
+        None,
+        None,
+    )
 }
 
 /// Add six outside host-pinned Root tap digests to the signed Native/SDK
@@ -554,6 +634,28 @@ pub fn observe_staging_suite_sdk_tap_root_owned_ineligible(
         outside_manifest_sha256,
         true,
         Some(tap_journal_sha256),
+        None,
+        None,
+    )
+}
+
+/// Opt-in source-bound docs result oracle. The caller separately supplies the
+/// complete Root controller-tree digest in addition to the six host tap pins.
+/// This remains an ineligible observation, not a Guard or model verdict.
+pub fn observe_staging_suite_sdk_docs_oracle_root_owned_ineligible(
+    build_job_id: &str,
+    outside_manifest_sha256: &str,
+    outside_controller_source_sha: &str,
+    outside_controller_tree_sha256: &str,
+    tap_journal_sha256: &[String; 6],
+) -> Result<StagingSuiteShadow> {
+    observe_staging_suite(
+        build_job_id,
+        outside_manifest_sha256,
+        true,
+        Some(tap_journal_sha256),
+        Some(outside_controller_source_sha),
+        Some(outside_controller_tree_sha256),
     )
 }
 
@@ -693,6 +795,7 @@ mod tests {
             live_native_mcp_roles_sampled: 0,
             live_sdk_tap_roles_matched: 0,
             live_sdk_tap_frames_matched: 0,
+            source_bound_docs_roles_matched: 0,
         };
         assert_eq!(
             proof.to_json()["schema"],
@@ -745,6 +848,7 @@ mod tests {
         let sdk_tap = StagingSuiteShadow {
             live_sdk_tap_roles_matched: 6,
             live_sdk_tap_frames_matched: 144,
+            source_bound_docs_roles_matched: 0,
             ..native_mcp
         };
         assert_eq!(
@@ -752,5 +856,14 @@ mod tests {
             "hol-gauntlet-staging-sdk-tap-suite-shadow.v1"
         );
         assert_eq!(sdk_tap.to_json()["live_sdk_tap_frames_matched"], 144);
+        let docs_oracle = StagingSuiteShadow {
+            source_bound_docs_roles_matched: 6,
+            ..sdk_tap
+        };
+        assert_eq!(
+            docs_oracle.to_json()["schema"],
+            "hol-gauntlet-staging-sdk-docs-oracle-suite-shadow.v1"
+        );
+        assert_eq!(docs_oracle.to_json()["source_bound_docs_roles_matched"], 6);
     }
 }

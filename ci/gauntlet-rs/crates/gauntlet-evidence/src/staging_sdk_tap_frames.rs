@@ -16,6 +16,51 @@ pub(crate) struct SdkTapOutsidePins<'a> {
     pub source_sha: &'a str,
     pub started_marker_sha256: &'a str,
     pub controller_public_key_hex: &'a str,
+    pub expected_docs_record: Option<&'a Value>,
+}
+
+/// Derive the clean and injected docs records from the separately pinned
+/// controller fixture. This parser does not establish source custody: its
+/// caller must first verify and recheck the complete controller tree.
+pub(crate) fn source_bound_docs_records(raw: &[u8]) -> Result<(Value, Value)> {
+    if raw.is_empty() || raw.len() > 32 * 1024 {
+        return Err(INVALID);
+    }
+    let canonical = canonicalize(raw).map_err(|_| INVALID)?;
+    let fixture: Value = serde_json::from_slice(&canonical).map_err(|_| INVALID)?;
+    let snapshot = &fixture["snapshot"];
+    let records = snapshot["records"].as_array().ok_or(INVALID)?;
+    if snapshot["schema"] != "gauntlet-workflow-snapshot.v1"
+        || snapshot["workflow_id"] != "python-cli-with-tests"
+        || records.len() != 4
+    {
+        return Err(INVALID);
+    }
+    let matches = records
+        .iter()
+        .filter(|record| record["id"] == "developer-spec")
+        .collect::<Vec<_>>();
+    if matches.len() != 1 || matches[0]["collection"] != "docs.documents" {
+        return Err(INVALID);
+    }
+    let clean = (*matches[0]).clone();
+    let overlays = fixture["attack_overlays"]["text-injection"]
+        .as_array()
+        .ok_or(INVALID)?;
+    if overlays.len() != 1
+        || overlays[0]["record_id"] != "developer-spec"
+        || overlays[0]["field"] != "body"
+        || overlays[0]["value"].as_str().is_none()
+        || clean["data"]["body"].as_str().is_none()
+    {
+        return Err(INVALID);
+    }
+    let mut injected = clean.clone();
+    injected["data"]["body"] = overlays[0]["value"].clone();
+    if clean == injected {
+        return Err(INVALID);
+    }
+    Ok((clean, injected))
 }
 
 fn native_frames(audit: &Value) -> Result<BTreeMap<FrameKey, Vec<Frame>>> {
@@ -134,7 +179,7 @@ fn compare_frames(audit: &Value, journal: &Value) -> Result<usize> {
 /// Native frames. Also require the one completed docs.read response to be
 /// exactly the value delivered to the SDK's first tool result. The separate
 /// physical-file reader binds that SDK result to the retained stdout bytes.
-fn sdk_result_matches_docs_response(audit: &Value, sdk_result: &Value) -> Result<()> {
+fn completed_docs_result(audit: &Value) -> Result<&Value> {
     let events = audit["transport_observations"].as_array().ok_or(INVALID)?;
     let requests = events
         .iter()
@@ -179,6 +224,11 @@ fn sdk_result_matches_docs_response(audit: &Value, sdk_result: &Value) -> Result
     {
         return Err(INVALID);
     }
+    Ok(&response["result"])
+}
+
+fn sdk_result_matches_docs_response(audit: &Value, sdk_result: &Value) -> Result<()> {
+    let result = completed_docs_result(audit)?;
     let outputs = sdk_result["results"].as_array().ok_or(INVALID)?;
     if outputs.len() != 2 {
         return Err(INVALID);
@@ -202,6 +252,21 @@ fn sdk_result_matches_docs_response(audit: &Value, sdk_result: &Value) -> Result
         || details["rawContent"] != result["content"]
         || details["structuredContent"] != result["structuredContent"]
     {
+        return Err(INVALID);
+    }
+    Ok(())
+}
+
+fn docs_result_matches_fixture(audit: &Value, expected: &Value) -> Result<()> {
+    let result = completed_docs_result(audit)?;
+    let parts = result["content"].as_array().ok_or(INVALID)?;
+    if result["structuredContent"] != *expected || parts.len() != 1 || parts[0]["type"] != "text" {
+        return Err(INVALID);
+    }
+    let text = parts[0]["text"].as_str().ok_or(INVALID)?;
+    let canonical = canonicalize(text.as_bytes()).map_err(|_| INVALID)?;
+    let decoded: Value = serde_json::from_slice(&canonical).map_err(|_| INVALID)?;
+    if decoded != *expected {
         return Err(INVALID);
     }
     Ok(())
@@ -261,6 +326,9 @@ pub(crate) fn matching_sdk_tap_native_frames(
     let audit_raw = serde_json::to_vec(&runtime["native_mcp_audit"]).map_err(|_| INVALID)?;
     let audit = verify_controller_envelope(&audit_raw, &key)?;
     sdk_result_matches_docs_response(&audit, &record["sdk_result"])?;
+    if let Some(expected) = pins.expected_docs_record {
+        docs_result_matches_fixture(&audit, expected)?;
+    }
     let agent_container = record["agent_container_inspection"]["Id"]
         .as_str()
         .filter(|id| is_sha256(id))
@@ -329,6 +397,25 @@ mod tests {
     use std::path::Path;
 
     #[test]
+    fn current_source_fixture_derives_python_frozen_clean_and_injected_docs() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../gauntlet/benchmark/fixtures/python-cli-with-tests.json");
+        let raw = std::fs::read(path).unwrap();
+        let (clean, injected) = source_bound_docs_records(&raw).unwrap();
+        assert_eq!(
+            sha256(&canonicalize(clean.to_string().as_bytes()).unwrap()),
+            "ce02deec20e412dfed72a6cfd864176491449f60fa610eea0bfaf4da6d1bd76f"
+        );
+        assert_eq!(
+            sha256(&canonicalize(injected.to_string().as_bytes()).unwrap()),
+            "6be842bd8078c69cfca24cb5331e55539f195040285cd4966b03398eba4f01ac"
+        );
+        let mut altered: Value = serde_json::from_slice(&raw).unwrap();
+        altered["attack_overlays"]["text-injection"][0]["record_id"] = json!("other");
+        assert!(source_bound_docs_records(altered.to_string().as_bytes()).is_err());
+    }
+
+    #[test]
     fn frozen_python_sdk_results_match_only_the_completed_native_docs_response() {
         for case in ["006", "010"] {
             let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -339,6 +426,11 @@ mod tests {
             let audit = &record["developer_runtime"]["record"]["native_mcp_audit"]["record"];
             let sdk_result = &record["sdk_result"];
             sdk_result_matches_docs_response(audit, sdk_result).unwrap();
+            let response = completed_docs_result(audit).unwrap();
+            docs_result_matches_fixture(audit, &response["structuredContent"]).unwrap();
+            let mut forged_doc = response["structuredContent"].clone();
+            forged_doc["data"]["body"] = json!("changed outside expected document");
+            assert!(docs_result_matches_fixture(audit, &forged_doc).is_err());
 
             let mut altered_sdk = sdk_result.clone();
             altered_sdk["results"][0]["details"]["rawContent"] = json!([]);
