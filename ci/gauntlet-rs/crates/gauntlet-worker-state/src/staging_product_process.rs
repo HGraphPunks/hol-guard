@@ -17,7 +17,7 @@ const PROC_LIMIT: u64 = 16 * 1024;
 const MOUNT_LIMIT: u64 = 1024 * 1024;
 const EXE_LIMIT: u64 = 64 * 1024 * 1024;
 
-fn read_at(directory: &OwnedFd, name: &str, limit: u64) -> Result<Vec<u8>, String> {
+pub(crate) fn read_at(directory: &OwnedFd, name: &str, limit: u64) -> Result<Vec<u8>, String> {
     let fd = openat(
         directory,
         name,
@@ -36,7 +36,7 @@ fn read_at(directory: &OwnedFd, name: &str, limit: u64) -> Result<Vec<u8>, Strin
     Ok(raw)
 }
 
-fn alive(pidfd: &OwnedFd) -> Result<(), String> {
+pub(crate) fn alive(pidfd: &OwnedFd) -> Result<(), String> {
     let mut fds = [PollFd::new(pidfd, PollFlags::IN)];
     if poll(
         &mut fds,
@@ -89,7 +89,7 @@ fn selected_status(raw: &[u8], pid: u32) -> Result<BTreeMap<&str, Vec<u64>>, Str
     Ok(fields)
 }
 
-fn same_inode(a: &Stat, b: &Stat) -> bool {
+pub(crate) fn same_inode(a: &Stat, b: &Stat) -> bool {
     a.st_dev == b.st_dev
         && a.st_ino == b.st_ino
         && a.st_mode == b.st_mode
@@ -97,7 +97,7 @@ fn same_inode(a: &Stat, b: &Stat) -> bool {
         && a.st_gid == b.st_gid
 }
 
-fn same_executable(a: &Stat, b: &Stat) -> bool {
+pub(crate) fn same_executable(a: &Stat, b: &Stat) -> bool {
     same_inode(a, b)
         && a.st_size == b.st_size
         && a.st_nlink == b.st_nlink
@@ -107,7 +107,7 @@ fn same_executable(a: &Stat, b: &Stat) -> bool {
         && a.st_ctime_nsec == b.st_ctime_nsec
 }
 
-fn executable(proc: &OwnedFd) -> Result<(OwnedFd, Stat, String), String> {
+pub(crate) fn executable(proc: &OwnedFd) -> Result<(OwnedFd, Stat, String), String> {
     // This is the kernel's exe magic link under our held /proc/PID directory.
     let fd = openat(proc, "exe", OFlags::RDONLY | OFlags::CLOEXEC, Mode::empty())
         .map_err(|e| e.to_string())?;

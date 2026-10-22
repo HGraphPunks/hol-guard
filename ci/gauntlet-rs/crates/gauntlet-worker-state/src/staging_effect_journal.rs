@@ -4,7 +4,10 @@
 use crate::linux_process::valid_cgroup;
 use crate::staging_effect_events::{FinishedStagingEffectEvents, MAX_EFFECT_EVENTS};
 use crate::{hex, ActiveLease, RunReservationJournal, StartedMarker};
-use gauntlet_contracts::{canonicalize, EffectFileHandle, MAX_RECORD_BYTES};
+use gauntlet_contracts::{
+    canonicalize, validate_effect_writer_images, EffectFileHandle, EFFECT_IMAGE_JOURNAL_SCHEMA,
+    EFFECT_IMAGE_RECEIPT_SCHEMA, MAX_RECORD_BYTES,
+};
 use rustix::fs::{fstat, fsync, openat, statat, AtFlags, FileType, Mode, OFlags};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -22,12 +25,13 @@ pub struct EffectJournalReceipt {
     pub bytes: usize,
     pub events: usize,
     pub unknown_writers: usize,
+    pub writer_images_captured: bool,
 }
 
 impl EffectJournalReceipt {
     pub fn to_json(&self) -> Value {
         json!({
-            "schema":"hol-gauntlet-staging-effect-events-receipt.v2",
+            "schema":if self.writer_images_captured { EFFECT_IMAGE_RECEIPT_SCHEMA } else { "hol-gauntlet-staging-effect-events-receipt.v2" },
             "run_id":self.run_id,
             "sha256":self.sha256,
             "bytes":self.bytes,
@@ -130,7 +134,7 @@ fn journal_bytes(
             "writer":writer,
         }));
     }
-    let document = json!({
+    let mut document = json!({
         "schema":SCHEMA,
         "run_id":started.job_id,
         "source_sha":started.source_sha,
@@ -144,6 +148,14 @@ fn journal_bytes(
         "guard_causality_verified":false,
         "execution_eligible":false,
     });
+    if let Some(images) = finished.writer_images() {
+        let images = json!(images);
+        if !validate_effect_writer_images(&images, document["events"].as_array().unwrap()) {
+            return Err("staging effect writer images malformed".to_owned());
+        }
+        document["schema"] = json!(EFFECT_IMAGE_JOURNAL_SCHEMA);
+        document["writer_images"] = images;
+    }
     let raw = canonicalize(document.to_string().as_bytes()).map_err(|error| error.to_string())?;
     if raw.len() > MAX_JOURNAL_BYTES {
         return Err("staging effect journal byte bound exceeded".to_owned());
@@ -191,6 +203,7 @@ pub fn retain_staging_effect_journal_ineligible(
         bytes: raw.len(),
         events,
         unknown_writers,
+        writer_images_captured: finished.writer_images().is_some(),
     })
 }
 
@@ -241,23 +254,26 @@ pub fn read_staging_effect_journal_ineligible(
         return Err("effect journal differs from outside pin".to_owned());
     }
     let document: Value = serde_json::from_slice(&raw).map_err(|error| error.to_string())?;
-    if !exact_keys(
-        &document,
-        &[
-            "schema",
-            "run_id",
-            "source_sha",
-            "started_marker_sha256",
-            "controller_public_key_hex",
-            "scope",
-            "events",
-            "event_count",
-            "unknown_writer_count",
-            "host_pin_retained",
-            "guard_causality_verified",
-            "execution_eligible",
-        ],
-    ) || (document["schema"] != SCHEMA && document["schema"] != LEGACY_SCHEMA)
+    let images = document["schema"] == EFFECT_IMAGE_JOURNAL_SCHEMA;
+    let mut fields = vec![
+        "schema",
+        "run_id",
+        "source_sha",
+        "started_marker_sha256",
+        "controller_public_key_hex",
+        "scope",
+        "events",
+        "event_count",
+        "unknown_writer_count",
+        "host_pin_retained",
+        "guard_causality_verified",
+        "execution_eligible",
+    ];
+    if images {
+        fields.push("writer_images");
+    }
+    if !exact_keys(&document, &fields)
+        || (document["schema"] != SCHEMA && document["schema"] != LEGACY_SCHEMA && !images)
         || document["run_id"] != started.job_id
         || document["source_sha"] != started.source_sha
         || document["started_marker_sha256"] != started.sha256
@@ -275,7 +291,7 @@ pub fn read_staging_effect_journal_ineligible(
         .filter(|rows| rows.len() <= MAX_EFFECT_EVENTS)
         .ok_or("effect journal events are malformed")?;
     let mut unknown = 0;
-    let handles = document["schema"] == SCHEMA;
+    let handles = document["schema"] == SCHEMA || images;
     for (index, row) in rows.iter().enumerate() {
         let mut fields = vec![
             "sequence",
@@ -324,6 +340,7 @@ pub fn read_staging_effect_journal_ineligible(
     }
     if document["event_count"].as_u64() != Some(rows.len() as u64)
         || document["unknown_writer_count"].as_u64() != Some(unknown as u64)
+        || images && !validate_effect_writer_images(&document["writer_images"], rows)
     {
         return Err("effect journal event totals differ".to_owned());
     }
@@ -342,6 +359,11 @@ mod tests {
     #[test]
     #[ignore = "requires dedicated Linux ARM64 Root VM fanotify and private journal"]
     fn keyed_journal_is_one_use_and_reader_requires_outside_digest() {
+        check_keyed_journal(false);
+        check_keyed_journal(true);
+    }
+
+    fn check_keyed_journal(images: bool) {
         let state = tempfile::tempdir_in("/root").unwrap();
         std::fs::set_permissions(state.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
         let journal = RunReservationJournal::open_root_owned(state.path()).unwrap();
@@ -357,7 +379,16 @@ mod tests {
                 &"d".repeat(64),
             )
             .unwrap();
-        let mut monitor = StagingEffectEvents::start(Path::new("/home")).unwrap();
+        let mut monitor = if images {
+            StagingEffectEvents::start_for_run(
+                Path::new("/home"),
+                &started.job_id,
+                crate::StagingRole::Success,
+            )
+        } else {
+            StagingEffectEvents::start(Path::new("/home"))
+        }
+        .unwrap();
         let effect_dir = tempfile::tempdir_in("/home").unwrap();
         std::fs::write(effect_dir.path().join("effect.txt"), b"synthetic-effect").unwrap();
         monitor.drain().unwrap();
@@ -371,6 +402,18 @@ mod tests {
             read_staging_effect_journal_ineligible(&journal, &lease, &started, &receipt.sha256)
                 .unwrap();
         assert_eq!(format!("{:x}", Sha256::digest(&raw)), receipt.sha256);
+        let document: Value = serde_json::from_slice(&raw).unwrap();
+        assert_eq!(
+            document["schema"],
+            if images {
+                EFFECT_IMAGE_JOURNAL_SCHEMA
+            } else {
+                SCHEMA
+            }
+        );
+        if images {
+            assert_eq!(document["writer_images"], json!([]));
+        }
         assert!(
             retain_staging_effect_journal_ineligible(&journal, &lease, &started, &finished)
                 .is_err()

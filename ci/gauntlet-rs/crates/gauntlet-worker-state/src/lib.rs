@@ -239,6 +239,10 @@ mod staging_product_mounts;
 mod staging_product_observer;
 #[cfg(target_os = "linux")]
 mod staging_product_process;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod staging_writer_capture;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod staging_writer_process;
 mod terminal;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use builder_candidate_preflight::{CandidatePreflightError, CandidateRuntimePins};

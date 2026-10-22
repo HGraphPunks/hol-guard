@@ -8,7 +8,9 @@ fn canonical(value: Value) -> Vec<u8> {
 
 #[test]
 fn one_use_effect_pin_binds_key_terminal_and_all_event_rows() {
-    for handles in [false, true] {
+    for version in 1..=3 {
+        let handles = version >= 2;
+        let images = version == 3;
         let temp = tempfile::tempdir().unwrap();
         std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
         let host = HostControllerKeyPinJournal::open(&temp.path().canonicalize().unwrap()).unwrap();
@@ -23,7 +25,7 @@ fn one_use_effect_pin_binds_key_terminal_and_all_event_rows() {
         };
         let key = host.record(&pins).unwrap();
         let mut journal = json!({
-            "schema":if handles { HANDLE_JOURNAL_SCHEMA } else { JOURNAL_SCHEMA },
+            "schema":if images { EFFECT_IMAGE_JOURNAL_SCHEMA } else if handles { HANDLE_JOURNAL_SCHEMA } else { JOURNAL_SCHEMA },
             "run_id":pins.job_id,"source_sha":pins.source_sha,
             "started_marker_sha256":pins.started_marker_sha256,
             "controller_public_key_hex":pins.controller_public_key_hex,
@@ -36,11 +38,15 @@ fn one_use_effect_pin_binds_key_terminal_and_all_event_rows() {
         if handles {
             journal["events"][0]["file_handle"] = json!({"kind":1,"bytes":"0123456789abcdef"});
         }
+        if images {
+            journal["writer_images"] = json!([{"event_sequence":1,"surface":"contained-output",
+                "writer_pid":42,"writer_start_ticks":1234,"sample":null,"unavailable_reason":"process-sample-unavailable"}]);
+        }
         let journal = canonical(journal);
         let report = canonical(json!({
             "schema":"hol-gauntlet-staging-control-run-report.v1",
             "run_id":pins.job_id,"source_sha":pins.source_sha,"execution_eligible":false,
-            "effect_events":{"schema":if handles { HANDLE_RECEIPT_SCHEMA } else { RECEIPT_SCHEMA },"run_id":pins.job_id,"sha256":digest(&journal),
+            "effect_events":{"schema":if images { EFFECT_IMAGE_RECEIPT_SCHEMA } else if handles { HANDLE_RECEIPT_SCHEMA } else { RECEIPT_SCHEMA },"run_id":pins.job_id,"sha256":digest(&journal),
                 "bytes":journal.len(),"events":1,"unknown_writers":0,
                 "host_pin_retained":false,"guard_causality_verified":false,"execution_eligible":false}
         }));
@@ -119,6 +125,9 @@ fn one_use_effect_pin_binds_key_terminal_and_all_event_rows() {
         let mut zero_journal: Value = serde_json::from_slice(&journal).unwrap();
         zero_journal["events"] = json!([]);
         zero_journal["event_count"] = json!(0);
+        if images {
+            zero_journal["writer_images"] = json!([]);
+        }
         let zero_journal = canonical(zero_journal);
         let mut zero_report: Value = serde_json::from_slice(&report).unwrap();
         zero_report["effect_events"]["sha256"] = json!(digest(&zero_journal));
@@ -179,13 +188,29 @@ fn one_use_effect_pin_binds_key_terminal_and_all_event_rows() {
             assert!(read_changed(missing).is_err());
             let mut unknown = original.clone();
             unknown["events"][0]["file_handle"] = Value::Null;
-            assert!(read_changed(unknown).is_ok()); // custody only; correlation refuses it
+            // A v3 image reference cannot outlive its file-generation observation.
+            assert_eq!(read_changed(unknown).is_ok(), !images);
             let mut malformed = original.clone();
             malformed["events"][0]["file_handle"]["kind"] = json!(true);
             assert!(read_changed(malformed).is_err());
-            let mut wrong_version = original;
+            let mut wrong_version = original.clone();
             wrong_version["schema"] = json!(JOURNAL_SCHEMA);
             assert!(read_changed(wrong_version).is_err());
+            if images {
+                for (path, value) in [
+                    ("/writer_images/0/writer_pid", json!(43)),
+                    ("/writer_images/0/event_sequence", json!(2)),
+                    ("/writer_images/0/unavailable_reason", Value::Null),
+                    ("/writer_images", Value::Null),
+                ] {
+                    let mut malformed = original.clone();
+                    *malformed.pointer_mut(path).unwrap() = value;
+                    assert!(read_changed(malformed).is_err(), "{path}");
+                }
+                let mut downgrade = original;
+                downgrade["schema"] = json!(HANDLE_JOURNAL_SCHEMA);
+                assert!(read_changed(downgrade).is_err());
+            }
         }
     }
 }

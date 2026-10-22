@@ -8,7 +8,7 @@ use crate::staging_file_handle::sample_file_handle;
 use crate::{
     hex, open_root_owned_public_directory, ActiveLease, RunReservationJournal, StartedMarker,
 };
-use gauntlet_contracts::EffectFileHandle;
+use gauntlet_contracts::{EffectFileHandle, EFFECT_IMAGE_JOURNAL_SCHEMA};
 use rustix::fs::{fstat, openat2, statat, AtFlags, FileType, Mode, OFlags, ResolveFlags, Stat};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -139,7 +139,10 @@ fn correlate_rows(
     }
     let journal: Value = serde_json::from_slice(journal_raw)
         .map_err(|_| "effect journal JSON is invalid".to_owned())?;
-    if (journal["schema"] == "hol-gauntlet-staging-effect-events.v2") != final_handle.is_some() {
+    if (journal["schema"] == "hol-gauntlet-staging-effect-events.v2"
+        || journal["schema"] == EFFECT_IMAGE_JOURNAL_SCHEMA)
+        != final_handle.is_some()
+    {
         return Err("effect journal and final file identity versions differ".to_owned());
     }
     let rows = journal["events"]
@@ -227,7 +230,9 @@ pub fn observe_staging_fixed_provider_effect_ineligible(
     }
     let (file, before) = open_fixed_provider_file(&role_dir, relative, PRODUCT_OWNER)?;
     let document: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
-    let file_handle = if document["schema"] == "hol-gauntlet-staging-effect-events.v2" {
+    let file_handle = if document["schema"] == "hol-gauntlet-staging-effect-events.v2"
+        || document["schema"] == EFFECT_IMAGE_JOURNAL_SCHEMA
+    {
         Some(sample_file_handle(&file)?)
     } else {
         None
@@ -404,6 +409,10 @@ mod tests {
             )
         };
         assert_eq!(read(&journal).unwrap(), (1, vec![(42, 123)]));
+        let mut with_images = journal.clone();
+        with_images["schema"] = json!(EFFECT_IMAGE_JOURNAL_SCHEMA);
+        with_images["writer_images"] = json!([]);
+        assert_eq!(read(&with_images).unwrap(), (1, vec![(42, 123)]));
         let mut unknown = journal.clone();
         unknown["events"][0]["file_handle"] = handle.to_json();
         assert!(read(&unknown).is_err());

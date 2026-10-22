@@ -4,7 +4,9 @@
 
 use crate::linux_process::{parse_proc_stat, valid_cgroup};
 use crate::staging_file_handle::sample_file_handle;
-use gauntlet_contracts::EffectFileHandle;
+use crate::staging_writer_capture::WriterImageCapture;
+use crate::StagingRole;
+use gauntlet_contracts::{EffectFileHandle, MAX_EFFECT_WRITER_IMAGES};
 use rustix::event::{poll, PollFd, PollFlags, Timespec};
 use rustix::fs::{fstat, FileType};
 use rustix::io::{read, Errno};
@@ -17,7 +19,9 @@ use std::path::Path;
 // A known-writer row with a handle consumes at most fifteen JSON nodes. Keep
 // the capture below the contracts parser's 500,000-node ceiling.
 pub const MAX_EFFECT_EVENTS: usize = 32_768;
-const _: () = assert!(MAX_EFFECT_EVENTS * 15 + 64 <= gauntlet_contracts::MAX_NODES);
+const _: () = assert!(
+    MAX_EFFECT_EVENTS * 15 + MAX_EFFECT_WRITER_IMAGES * 32 + 64 <= gauntlet_contracts::MAX_NODES
+);
 const READ_BYTES: usize = 64 * 1024;
 const MAX_PROC_BYTES: u64 = 4096;
 const METADATA_BYTES: usize = 24;
@@ -54,12 +58,14 @@ pub struct StagingEffectEvents {
     group: OwnedFd,
     filesystem_device: u64,
     events: Vec<CloseWriteEvent>,
+    writer_images: Option<WriterImageCapture>,
     poisoned: bool,
 }
 
 pub struct FinishedStagingEffectEvents {
     filesystem_device: u64,
     events: Vec<CloseWriteEvent>,
+    writer_images: Option<Vec<serde_json::Value>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -227,8 +233,22 @@ impl StagingEffectEvents {
             group,
             filesystem_device: before.st_dev,
             events: Vec::new(),
+            writer_images: None,
             poisoned: false,
         })
+    }
+
+    /// Opt in to bounded post-event images for this outside-selected run's
+    /// three fixed effect paths. The original start API retains v2 evidence.
+    pub fn start_for_run(
+        directory: &Path,
+        run_id: &str,
+        role: StagingRole,
+    ) -> Result<Self, String> {
+        let capture = WriterImageCapture::new(run_id, role)?;
+        let mut monitor = Self::start(directory)?;
+        monitor.writer_images = Some(capture);
+        Ok(monitor)
     }
 
     pub fn drain(&mut self) -> Result<usize, String> {
@@ -268,7 +288,7 @@ impl StagingEffectEvents {
                 if metadata.st_dev != self.filesystem_device {
                     return Err("fanotify event outside marked filesystem".to_owned());
                 }
-                self.events.push(CloseWriteEvent {
+                let event = CloseWriteEvent {
                     device: metadata.st_dev,
                     inode: metadata.st_ino,
                     owner: metadata.st_uid,
@@ -282,7 +302,14 @@ impl StagingEffectEvents {
                     // The immutable PID/start/cgroup tuple is then retained,
                     // while descriptors are promptly released.
                     writer: pidfd.as_ref().and_then(|fd| sample_writer(header.pid, fd)),
-                });
+                };
+                if let Some(capture) = &mut self.writer_images {
+                    capture.record(self.events.len() + 1, &event, &file, pidfd.as_ref());
+                }
+                self.events.push(event);
+            }
+            if let Some(capture) = &self.writer_images {
+                capture.check_bound()?;
             }
         }
         Ok(self.events.len() - before)
@@ -303,11 +330,19 @@ impl StagingEffectEvents {
         Ok(FinishedStagingEffectEvents {
             filesystem_device: self.filesystem_device,
             events: self.events,
+            writer_images: self
+                .writer_images
+                .map(WriterImageCapture::finish)
+                .transpose()?,
         })
     }
 }
 
 impl FinishedStagingEffectEvents {
+    pub(crate) fn writer_images(&self) -> Option<&[serde_json::Value]> {
+        self.writer_images.as_deref()
+    }
+
     pub fn events(&self) -> &[CloseWriteEvent] {
         &self.events
     }
@@ -378,93 +413,5 @@ impl FinishedStagingEffectEvents {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn event(mask: u64, pidfd: i32) -> Vec<u8> {
-        let mut raw = Vec::new();
-        raw.extend_from_slice(&32u32.to_ne_bytes());
-        raw.push(libc::FANOTIFY_METADATA_VERSION);
-        raw.push(0);
-        raw.extend_from_slice(&24u16.to_ne_bytes());
-        raw.extend_from_slice(&mask.to_ne_bytes());
-        raw.extend_from_slice(&4i32.to_ne_bytes());
-        raw.extend_from_slice(&42i32.to_ne_bytes());
-        raw.push(libc::FAN_EVENT_INFO_TYPE_PIDFD);
-        raw.push(0);
-        raw.extend_from_slice(&8u16.to_ne_bytes());
-        raw.extend_from_slice(&pidfd.to_ne_bytes());
-        raw
-    }
-
-    #[test]
-    fn parser_refuses_overflow_and_incomplete_identity() {
-        assert_eq!(
-            parse_event(&event(libc::FAN_CLOSE_WRITE, 5)).unwrap().1.pid,
-            42
-        );
-        assert_eq!(
-            parse_event(&event(libc::FAN_CLOSE_WRITE, -1))
-                .unwrap()
-                .1
-                .pidfd,
-            -1
-        );
-        assert!(parse_event(&event(libc::FAN_Q_OVERFLOW, -1)).is_err());
-        assert!(parse_event(&event(libc::FAN_MODIFY, 5)).is_err());
-        assert!(parse_event(&event(libc::FAN_CLOSE_WRITE, -2)).is_err());
-        assert!(parse_event(&event(libc::FAN_CLOSE_WRITE, 5)[..31]).is_err());
-    }
-
-    /// Explicitly invoked only on the dedicated ARM64 VM. Container Root
-    /// normally lacks CAP_SYS_ADMIN, and this test makes no benchmark claim.
-    #[test]
-    #[ignore]
-    fn root_vm_captures_close_write_inode_and_live_writer() {
-        use std::os::unix::fs::MetadataExt;
-        let mut monitor = StagingEffectEvents::start(Path::new("/home")).unwrap();
-        let directory = tempfile::tempdir_in("/home").unwrap();
-        let path = directory.path().join("effect.txt");
-        std::fs::write(&path, b"synthetic-effect").unwrap();
-        let metadata = std::fs::metadata(&path).unwrap();
-        for _ in 0..20 {
-            monitor.drain().unwrap();
-            if monitor
-                .events()
-                .unwrap()
-                .iter()
-                .any(|event| event.device == metadata.dev() && event.inode == metadata.ino())
-            {
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-        let mut finished = monitor.finish().unwrap();
-        let event = finished
-            .events()
-            .iter()
-            .find(|event| event.device == metadata.dev() && event.inode == metadata.ino())
-            .unwrap();
-        assert_eq!(event.owner, 0);
-        assert_eq!(event.writer.as_ref().unwrap().pid, std::process::id());
-        assert!(event.writer.as_ref().unwrap().start_ticks > 0);
-        let expected_cgroup = event.writer.as_ref().unwrap().cgroup.clone();
-        let held = File::open(&path).unwrap();
-        let correlated = finished.correlate_file(&held, &expected_cgroup).unwrap();
-        assert_eq!(correlated.close_writes, 1);
-        assert_eq!(correlated.writers[0].pid, std::process::id());
-        assert!(finished
-            .correlate_file(&held, "/system.slice/unrelated.service")
-            .is_err());
-        finished.events.push(CloseWriteEvent {
-            device: metadata.dev(),
-            inode: metadata.ino(),
-            owner: 0,
-            file_handle: Some(sample_file_handle(&held).unwrap()),
-            reported_pid: 42,
-            pidfd_available: false,
-            writer: None,
-        });
-        assert!(finished.correlate_file(&held, &expected_cgroup).is_err());
-    }
-}
+#[path = "staging_effect_events_tests.rs"]
+mod tests;

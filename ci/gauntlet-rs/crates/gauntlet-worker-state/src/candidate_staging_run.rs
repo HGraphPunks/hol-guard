@@ -374,9 +374,9 @@ fn run_fixed_candidate_staging_control_impl(
         .map_err(|error| error.to_string())?;
     recheck_prelaunch(pins, &interpreter, &journal, &lease)?;
     let effect_events = if root_relay {
-        Some(EffectMonitorThread::start(StagingEffectEvents::start(
-            Path::new("/home"),
-        )?)?)
+        Some(EffectMonitorThread::start(
+            StagingEffectEvents::start_for_run(Path::new("/home"), pins.run_id, pins.role)?,
+        )?)
     } else {
         None
     };

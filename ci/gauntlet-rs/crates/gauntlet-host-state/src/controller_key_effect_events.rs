@@ -7,7 +7,10 @@ use super::{
 };
 use crate::private_jobs::same_file;
 use crate::stream_process::run_streamed;
-use gauntlet_contracts::{canonicalize, EffectFileHandle, MAX_RECORD_BYTES};
+use gauntlet_contracts::{
+    canonicalize, validate_effect_writer_images, EffectFileHandle, EFFECT_IMAGE_JOURNAL_SCHEMA,
+    EFFECT_IMAGE_RECEIPT_SCHEMA, MAX_RECORD_BYTES,
+};
 use rustix::fs::{fstat, fsync, openat, statat, AtFlags, FileType, Mode, OFlags};
 use rustix::io::Errno;
 use serde_json::{json, Value};
@@ -132,7 +135,8 @@ impl HostKeyPinRecord {
         let journal: Value = serde_json::from_slice(journal_raw)
             .map_err(|_| HostKeyPinError::InvalidEffectJournal)?;
         let receipt = &report["effect_events"];
-        let handles = journal["schema"] == HANDLE_JOURNAL_SCHEMA;
+        let images = journal["schema"] == EFFECT_IMAGE_JOURNAL_SCHEMA;
+        let handles = journal["schema"] == HANDLE_JOURNAL_SCHEMA || images;
         if report["schema"] != "hol-gauntlet-staging-control-run-report.v1"
             || report["run_id"] != self.pins.job_id
             || report["source_sha"] != self.pins.source_sha
@@ -152,7 +156,9 @@ impl HostKeyPinRecord {
                 ],
             )
             || receipt["schema"]
-                != if handles {
+                != if images {
+                    EFFECT_IMAGE_RECEIPT_SCHEMA
+                } else if handles {
                     HANDLE_RECEIPT_SCHEMA
                 } else {
                     RECEIPT_SCHEMA
@@ -165,26 +171,27 @@ impl HostKeyPinRecord {
             return Err(HostKeyPinError::InvalidEffectJournal);
         }
         let journal_sha256 = digest(journal_raw);
+        let mut journal_fields = vec![
+            "schema",
+            "run_id",
+            "source_sha",
+            "started_marker_sha256",
+            "controller_public_key_hex",
+            "scope",
+            "events",
+            "event_count",
+            "unknown_writer_count",
+            "host_pin_retained",
+            "guard_causality_verified",
+            "execution_eligible",
+        ];
+        if images {
+            journal_fields.push("writer_images");
+        }
         if receipt["sha256"] != journal_sha256
             || count(&receipt["bytes"], MAX_JOURNAL_BYTES) != Some(journal_raw.len())
             || journal_raw.is_empty()
-            || !exact_keys(
-                &journal,
-                &[
-                    "schema",
-                    "run_id",
-                    "source_sha",
-                    "started_marker_sha256",
-                    "controller_public_key_hex",
-                    "scope",
-                    "events",
-                    "event_count",
-                    "unknown_writer_count",
-                    "host_pin_retained",
-                    "guard_causality_verified",
-                    "execution_eligible",
-                ],
-            )
+            || !exact_keys(&journal, &journal_fields)
             || (journal["schema"] != JOURNAL_SCHEMA && !handles)
             || journal["run_id"] != self.pins.job_id
             || journal["source_sha"] != self.pins.source_sha
@@ -247,6 +254,7 @@ impl HostKeyPinRecord {
             || count(&journal["unknown_writer_count"], MAX_EVENTS) != Some(unknown)
             || receipt["events"] != journal["event_count"]
             || receipt["unknown_writers"] != journal["unknown_writer_count"]
+            || images && !validate_effect_writer_images(&journal["writer_images"], rows)
         {
             return Err(HostKeyPinError::InvalidEffectJournal);
         }
