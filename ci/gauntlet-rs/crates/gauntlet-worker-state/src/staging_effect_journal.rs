@@ -4,7 +4,7 @@
 use crate::linux_process::valid_cgroup;
 use crate::staging_effect_events::{FinishedStagingEffectEvents, MAX_EFFECT_EVENTS};
 use crate::{hex, ActiveLease, RunReservationJournal, StartedMarker};
-use gauntlet_contracts::{canonicalize, MAX_RECORD_BYTES};
+use gauntlet_contracts::{canonicalize, EffectFileHandle, MAX_RECORD_BYTES};
 use rustix::fs::{fstat, fsync, openat, statat, AtFlags, FileType, Mode, OFlags};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -12,7 +12,8 @@ use std::fs::File;
 use std::io::{Read, Write};
 
 const MAX_JOURNAL_BYTES: usize = MAX_RECORD_BYTES;
-const SCHEMA: &str = "hol-gauntlet-staging-effect-events.v1";
+const SCHEMA: &str = "hol-gauntlet-staging-effect-events.v2";
+const LEGACY_SCHEMA: &str = "hol-gauntlet-staging-effect-events.v1";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EffectJournalReceipt {
@@ -26,7 +27,7 @@ pub struct EffectJournalReceipt {
 impl EffectJournalReceipt {
     pub fn to_json(&self) -> Value {
         json!({
-            "schema":"hol-gauntlet-staging-effect-events-receipt.v1",
+            "schema":"hol-gauntlet-staging-effect-events-receipt.v2",
             "run_id":self.run_id,
             "sha256":self.sha256,
             "bytes":self.bytes,
@@ -123,6 +124,7 @@ fn journal_bytes(
             "device":event.device,
             "inode":event.inode,
             "owner":event.owner,
+            "file_handle":event.file_handle.as_ref().map(EffectFileHandle::to_json),
             "reported_pid":event.reported_pid,
             "pidfd_available":event.pidfd_available,
             "writer":writer,
@@ -255,7 +257,7 @@ pub fn read_staging_effect_journal_ineligible(
             "guard_causality_verified",
             "execution_eligible",
         ],
-    ) || document["schema"] != SCHEMA
+    ) || (document["schema"] != SCHEMA && document["schema"] != LEGACY_SCHEMA)
         || document["run_id"] != started.job_id
         || document["source_sha"] != started.source_sha
         || document["started_marker_sha256"] != started.sha256
@@ -273,19 +275,27 @@ pub fn read_staging_effect_journal_ineligible(
         .filter(|rows| rows.len() <= MAX_EFFECT_EVENTS)
         .ok_or("effect journal events are malformed")?;
     let mut unknown = 0;
+    let handles = document["schema"] == SCHEMA;
     for (index, row) in rows.iter().enumerate() {
-        if !exact_keys(
-            row,
-            &[
-                "sequence",
-                "device",
-                "inode",
-                "owner",
-                "reported_pid",
-                "pidfd_available",
-                "writer",
-            ],
-        ) || row["sequence"].as_u64() != Some(index as u64 + 1)
+        let mut fields = vec![
+            "sequence",
+            "device",
+            "inode",
+            "owner",
+            "reported_pid",
+            "pidfd_available",
+            "writer",
+        ];
+        if handles {
+            fields.push("file_handle");
+            if !row["file_handle"].is_null()
+                && EffectFileHandle::from_json(&row["file_handle"]).is_none()
+            {
+                return Err("effect journal file handle is invalid".to_owned());
+            }
+        }
+        if !exact_keys(row, &fields)
+            || row["sequence"].as_u64() != Some(index as u64 + 1)
             || row["device"].as_u64().is_none_or(|value| value == 0)
             || row["inode"].as_u64().is_none_or(|value| value == 0)
             || row["owner"]

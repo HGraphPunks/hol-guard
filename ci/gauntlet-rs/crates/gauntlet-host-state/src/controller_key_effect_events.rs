@@ -7,7 +7,7 @@ use super::{
 };
 use crate::private_jobs::same_file;
 use crate::stream_process::run_streamed;
-use gauntlet_contracts::{canonicalize, MAX_RECORD_BYTES};
+use gauntlet_contracts::{canonicalize, EffectFileHandle, MAX_RECORD_BYTES};
 use rustix::fs::{fstat, fsync, openat, statat, AtFlags, FileType, Mode, OFlags};
 use rustix::io::Errno;
 use serde_json::{json, Value};
@@ -19,6 +19,8 @@ use std::time::Duration;
 const SCHEMA: &str = "hol-gauntlet-host-effect-events-pin.v1";
 const JOURNAL_SCHEMA: &str = "hol-gauntlet-staging-effect-events.v1";
 const RECEIPT_SCHEMA: &str = "hol-gauntlet-staging-effect-events-receipt.v1";
+const HANDLE_JOURNAL_SCHEMA: &str = "hol-gauntlet-staging-effect-events.v2";
+const HANDLE_RECEIPT_SCHEMA: &str = "hol-gauntlet-staging-effect-events-receipt.v2";
 const MAX_JOURNAL_BYTES: usize = MAX_RECORD_BYTES;
 const MAX_EVENTS: usize = 32_768;
 const MAX_PIN_BYTES: u64 = 2048;
@@ -130,6 +132,7 @@ impl HostKeyPinRecord {
         let journal: Value = serde_json::from_slice(journal_raw)
             .map_err(|_| HostKeyPinError::InvalidEffectJournal)?;
         let receipt = &report["effect_events"];
+        let handles = journal["schema"] == HANDLE_JOURNAL_SCHEMA;
         if report["schema"] != "hol-gauntlet-staging-control-run-report.v1"
             || report["run_id"] != self.pins.job_id
             || report["source_sha"] != self.pins.source_sha
@@ -148,7 +151,12 @@ impl HostKeyPinRecord {
                     "execution_eligible",
                 ],
             )
-            || receipt["schema"] != RECEIPT_SCHEMA
+            || receipt["schema"]
+                != if handles {
+                    HANDLE_RECEIPT_SCHEMA
+                } else {
+                    RECEIPT_SCHEMA
+                }
             || receipt["run_id"] != self.pins.job_id
             || receipt["host_pin_retained"] != false
             || receipt["guard_causality_verified"] != false
@@ -177,7 +185,7 @@ impl HostKeyPinRecord {
                     "execution_eligible",
                 ],
             )
-            || journal["schema"] != JOURNAL_SCHEMA
+            || (journal["schema"] != JOURNAL_SCHEMA && !handles)
             || journal["run_id"] != self.pins.job_id
             || journal["source_sha"] != self.pins.source_sha
             || journal["started_marker_sha256"] != self.pins.started_marker_sha256
@@ -195,18 +203,25 @@ impl HostKeyPinRecord {
             .ok_or(HostKeyPinError::InvalidEffectJournal)?;
         let mut unknown = 0;
         for (index, row) in rows.iter().enumerate() {
-            if !exact_keys(
-                row,
-                &[
-                    "sequence",
-                    "device",
-                    "inode",
-                    "owner",
-                    "reported_pid",
-                    "pidfd_available",
-                    "writer",
-                ],
-            ) || row["sequence"].as_u64() != Some(index as u64 + 1)
+            let mut fields = vec![
+                "sequence",
+                "device",
+                "inode",
+                "owner",
+                "reported_pid",
+                "pidfd_available",
+                "writer",
+            ];
+            if handles {
+                fields.push("file_handle");
+                if !row["file_handle"].is_null()
+                    && EffectFileHandle::from_json(&row["file_handle"]).is_none()
+                {
+                    return Err(HostKeyPinError::InvalidEffectJournal);
+                }
+            }
+            if !exact_keys(row, &fields)
+                || row["sequence"].as_u64() != Some(index as u64 + 1)
                 || row["device"].as_u64().is_none_or(|n| n == 0)
                 || row["inode"].as_u64().is_none_or(|n| n == 0)
                 || row["owner"].as_u64().is_none_or(|n| n > u32::MAX as u64)

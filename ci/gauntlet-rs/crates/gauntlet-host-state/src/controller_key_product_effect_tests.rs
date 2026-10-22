@@ -49,4 +49,21 @@ fn kernel_effect_readback_requires_host_pins_known_writers_and_exact_surface() {
     changed = value.clone();
     changed["caller_expected_cgroup"] = json!("/system.slice/other.service");
     assert!(read(&changed).is_err());
+    let mut v2 = value.clone();
+    v2["schema"] = json!("hol-gauntlet-staging-kernel-bound-effect.v2");
+    v2["file_handle"] = json!({"kind":1,"bytes":"0123456789abcdef"});
+    v2["file_generation_verified"] = json!(true);
+    assert!(read(&v2).is_ok());
+    for (field, change) in [
+        ("file_handle", Value::Null),
+        ("file_generation_verified", json!(false)),
+        (
+            "schema",
+            json!("hol-gauntlet-staging-kernel-bound-effect.v1"),
+        ),
+    ] {
+        let mut bad = v2.clone();
+        bad[field] = change;
+        assert!(read(&bad).is_err());
+    }
 }

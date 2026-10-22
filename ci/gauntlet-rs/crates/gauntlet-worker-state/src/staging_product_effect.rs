@@ -292,7 +292,11 @@ pub fn observe_kernel_bound_provider_effect_ineligible(
     }
     lease.verify(&journal.root).map_err(|e| e.to_string())?;
     let mut value = effect.to_json();
-    value["schema"] = json!("hol-gauntlet-staging-kernel-bound-effect.v1");
+    value["schema"] = json!(if effect.file_handle.is_some() {
+        "hol-gauntlet-staging-kernel-bound-effect.v2"
+    } else {
+        "hol-gauntlet-staging-kernel-bound-effect.v1"
+    });
     value
         .as_object_mut()
         .unwrap()

@@ -3,7 +3,7 @@
 
 use super::{hex, HostEffectEventsPin, HostKeyPinError, HostKeyPinRecord};
 use crate::fixed_process::{run_fixed, FixedProcessError};
-use gauntlet_contracts::canonicalize;
+use gauntlet_contracts::{canonicalize, EffectFileHandle};
 use serde_json::Value;
 use std::time::Duration;
 
@@ -23,7 +23,7 @@ fn validate(
     }
     let canonical = canonicalize(raw).map_err(|_| invalid)?;
     let value: Value = serde_json::from_slice(&canonical).map_err(|_| invalid)?;
-    let fields = [
+    let mut fields = vec![
         "schema",
         "run_id",
         "role",
@@ -47,6 +47,15 @@ fn validate(
         "outside_report_sha256",
         "continuously_observed",
     ];
+    let handles = value["schema"] == "hol-gauntlet-staging-kernel-bound-effect.v2";
+    if handles {
+        fields.extend(["file_handle", "file_generation_verified"]);
+        if value["file_generation_verified"] != true
+            || EffectFileHandle::from_json(&value["file_handle"]).is_none()
+        {
+            return Err(invalid);
+        }
+    }
     let prefix = format!("/holgauntletrust{}.slice/hol-product-cell-", pin.run_id);
     let service = value["kernel_observed_cgroup"]
         .as_str()
@@ -55,7 +64,7 @@ fn validate(
     if value
         .as_object()
         .is_none_or(|o| o.len() != fields.len() || fields.iter().any(|f| !o.contains_key(*f)))
-        || value["schema"] != "hol-gauntlet-staging-kernel-bound-effect.v1"
+        || (value["schema"] != "hol-gauntlet-staging-kernel-bound-effect.v1" && !handles)
         || value["run_id"] != pin.run_id
         || value["role"] != role
         || value["surface"] != surface

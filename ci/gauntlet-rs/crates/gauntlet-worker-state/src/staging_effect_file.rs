@@ -4,9 +4,11 @@
 
 use crate::linux_process::valid_cgroup;
 use crate::staging_effect_journal::read_staging_effect_journal_ineligible;
+use crate::staging_file_handle::sample_file_handle;
 use crate::{
     hex, open_root_owned_public_directory, ActiveLease, RunReservationJournal, StartedMarker,
 };
+use gauntlet_contracts::EffectFileHandle;
 use rustix::fs::{fstat, openat2, statat, AtFlags, FileType, Mode, OFlags, ResolveFlags, Stat};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -28,6 +30,7 @@ pub struct StagingFixedEffectShadow {
     pub final_sha256: String,
     pub device: u64,
     pub inode: u64,
+    pub file_handle: Option<EffectFileHandle>,
     pub close_writes: usize,
     pub writers: Vec<(u32, u64)>,
     pub expected_cgroup: String,
@@ -41,7 +44,7 @@ impl StagingFixedEffectShadow {
             .iter()
             .map(|(pid, start_ticks)| json!({"pid":pid,"start_ticks":start_ticks}))
             .collect();
-        json!({
+        let mut value = json!({
             "schema":"hol-gauntlet-staging-fixed-effect-shadow.v1",
             "run_id":self.run_id,
             "role":self.role,
@@ -60,7 +63,13 @@ impl StagingFixedEffectShadow {
             "idmap_kernel_verified":false,
             "guard_causality_verified":false,
             "execution_eligible":false,
-        })
+        });
+        if let Some(handle) = &self.file_handle {
+            value["schema"] = json!("hol-gauntlet-staging-fixed-effect-shadow.v2");
+            value["file_handle"] = handle.to_json();
+            value["file_generation_verified"] = json!(true);
+        }
+        value
     }
 }
 
@@ -123,12 +132,16 @@ fn correlate_rows(
     file: &Stat,
     expected_event_owner: u32,
     expected_cgroup: &str,
+    final_handle: Option<&EffectFileHandle>,
 ) -> Result<(usize, Vec<(u32, u64)>), String> {
     if !valid_cgroup(expected_cgroup) {
         return Err("outside product cgroup pin is invalid".to_owned());
     }
     let journal: Value = serde_json::from_slice(journal_raw)
         .map_err(|_| "effect journal JSON is invalid".to_owned())?;
+    if (journal["schema"] == "hol-gauntlet-staging-effect-events.v2") != final_handle.is_some() {
+        return Err("effect journal and final file identity versions differ".to_owned());
+    }
     let rows = journal["events"]
         .as_array()
         .ok_or("effect journal rows are unavailable")?;
@@ -138,6 +151,15 @@ fn correlate_rows(
         if row["device"].as_u64() != Some(file.st_dev) || row["inode"].as_u64() != Some(file.st_ino)
         {
             continue;
+        }
+        if let Some(handle) = final_handle {
+            let observed = EffectFileHandle::from_json(&row["file_handle"])
+                .ok_or("matching inode has an unavailable file generation")?;
+            if &observed != handle {
+                // This is a different filesystem object that reused the
+                // inode. Its writer cannot be attributed to the held file.
+                continue;
+            }
         }
         let writer = &row["writer"];
         let pid = writer["pid"].as_u64().and_then(|n| u32::try_from(n).ok());
@@ -204,11 +226,22 @@ pub fn observe_staging_fixed_provider_effect_ineligible(
         return Err("fixed effect role directory is not Root-private".to_owned());
     }
     let (file, before) = open_fixed_provider_file(&role_dir, relative, PRODUCT_OWNER)?;
+    let document: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
+    let file_handle = if document["schema"] == "hol-gauntlet-staging-effect-events.v2" {
+        Some(sample_file_handle(&file)?)
+    } else {
+        None
+    };
     // The product's idmapped mount projects the physical UID 10001 as 10004.
     // Same device/inode and these fixed UIDs are a diagnostic relation until
     // Root independently attests that live mount's idmapping.
-    let (close_writes, writers) =
-        correlate_rows(&raw, &before, PRODUCT_VIEW_OWNER, expected_cgroup)?;
+    let (close_writes, writers) = correlate_rows(
+        &raw,
+        &before,
+        PRODUCT_VIEW_OWNER,
+        expected_cgroup,
+        file_handle.as_ref(),
+    )?;
     let final_role_dir = open_root_owned_public_directory(Path::new(&role_path))
         .map_err(|error| error.to_string())?;
     let final_role_stat = fstat(&final_role_dir).map_err(|error| error.to_string())?;
@@ -221,6 +254,9 @@ pub fn observe_staging_fixed_provider_effect_ineligible(
     )
     .map_err(|error| format!("fixed effect visible path changed: {error}"))?;
     if !same_file(&before, &fstat(&file).map_err(|error| error.to_string())?)
+        || file_handle
+            .as_ref()
+            .is_some_and(|handle| sample_file_handle(&file).as_ref() != Ok(handle))
         || role_stat.st_dev != final_role_stat.st_dev
         || role_stat.st_ino != final_role_stat.st_ino
         || !same_file(
@@ -239,6 +275,7 @@ pub fn observe_staging_fixed_provider_effect_ineligible(
         final_sha256: format!("{:x}", Sha256::digest(PROVIDER_BYTES)),
         device: before.st_dev,
         inode: before.st_ino,
+        file_handle,
         close_writes,
         writers,
         expected_cgroup: expected_cgroup.to_owned(),
@@ -289,7 +326,8 @@ mod tests {
                 row.to_string().as_bytes(),
                 &stat,
                 PRODUCT_VIEW_OWNER,
-                "/product-cell.service"
+                "/product-cell.service",
+                None,
             )
             .unwrap(),
             (1, vec![(42, 123)])
@@ -300,7 +338,8 @@ mod tests {
             wrong.to_string().as_bytes(),
             &stat,
             PRODUCT_VIEW_OWNER,
-            "/product-cell.service"
+            "/product-cell.service",
+            None,
         )
         .is_err());
         let mut wrong = row.clone();
@@ -309,21 +348,24 @@ mod tests {
             wrong.to_string().as_bytes(),
             &stat,
             PRODUCT_VIEW_OWNER,
-            "/product-cell.service"
+            "/product-cell.service",
+            None,
         )
         .is_err());
         assert!(correlate_rows(
             row.to_string().as_bytes(),
             &stat,
             PRODUCT_VIEW_OWNER + 1,
-            "/product-cell.service"
+            "/product-cell.service",
+            None,
         )
         .is_err());
         assert!(correlate_rows(
             br#"{"events":[]}"#,
             &stat,
             PRODUCT_VIEW_OWNER,
-            "/product-cell.service"
+            "/product-cell.service",
+            None,
         )
         .is_err());
         symlink(&path, directory.path().join("linked.txt")).unwrap();
@@ -335,5 +377,44 @@ mod tests {
     fn stat_uid(path: &Path) -> u32 {
         use std::os::unix::fs::MetadataExt;
         std::fs::metadata(path).unwrap().uid()
+    }
+
+    #[test]
+    fn generation_match_excludes_reused_inode_but_never_unknown_matching_writer() {
+        let temp = tempfile::NamedTempFile::new().unwrap();
+        let stat = fstat(temp.as_file()).unwrap();
+        let handle = EffectFileHandle::from_kernel(1, &[1, 2, 3, 4]).unwrap();
+        let row = json!({"device":stat.st_dev,"inode":stat.st_ino,"owner":PRODUCT_VIEW_OWNER,
+            "file_handle":handle.to_json(),"reported_pid":42,"pidfd_available":true,
+            "writer":{"pid":42,"start_ticks":123,"cgroup":"/product-cell.service"}});
+        let mut old = row.clone();
+        old["file_handle"] = EffectFileHandle::from_kernel(1, &[1, 2, 3, 5])
+            .unwrap()
+            .to_json();
+        old["writer"] = Value::Null;
+        old["pidfd_available"] = json!(false);
+        let journal = json!({"schema":"hol-gauntlet-staging-effect-events.v2","events":[old,row]});
+        let read = |j: &Value| {
+            correlate_rows(
+                j.to_string().as_bytes(),
+                &stat,
+                PRODUCT_VIEW_OWNER,
+                "/product-cell.service",
+                Some(&handle),
+            )
+        };
+        assert_eq!(read(&journal).unwrap(), (1, vec![(42, 123)]));
+        let mut unknown = journal.clone();
+        unknown["events"][0]["file_handle"] = handle.to_json();
+        assert!(read(&unknown).is_err());
+        let mut missing = journal.clone();
+        missing["events"][0]["file_handle"] = Value::Null;
+        assert!(read(&missing).is_err());
+        let mut no_match = journal.clone();
+        no_match["events"].as_array_mut().unwrap().pop();
+        assert!(read(&no_match).is_err());
+        let mut downgrade = journal;
+        downgrade["schema"] = json!("hol-gauntlet-staging-effect-events.v1");
+        assert!(read(&downgrade).is_err());
     }
 }

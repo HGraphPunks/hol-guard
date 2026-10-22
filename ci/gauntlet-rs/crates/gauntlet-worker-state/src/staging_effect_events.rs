@@ -3,6 +3,8 @@
 //! a Guard decision caused an effect. No caller uses this for admission yet.
 
 use crate::linux_process::{parse_proc_stat, valid_cgroup};
+use crate::staging_file_handle::sample_file_handle;
+use gauntlet_contracts::EffectFileHandle;
 use rustix::event::{poll, PollFd, PollFlags, Timespec};
 use rustix::fs::{fstat, FileType};
 use rustix::io::{read, Errno};
@@ -12,10 +14,10 @@ use std::io::Read;
 use std::os::fd::{AsFd, AsRawFd, FromRawFd, OwnedFd};
 use std::path::Path;
 
-// A known-writer row consumes at most twelve canonical JSON nodes. Keep
+// A known-writer row with a handle consumes at most fifteen JSON nodes. Keep
 // the capture below the contracts parser's 500,000-node ceiling.
 pub const MAX_EFFECT_EVENTS: usize = 32_768;
-const _: () = assert!(MAX_EFFECT_EVENTS * 12 + 64 <= gauntlet_contracts::MAX_NODES);
+const _: () = assert!(MAX_EFFECT_EVENTS * 15 + 64 <= gauntlet_contracts::MAX_NODES);
 const READ_BYTES: usize = 64 * 1024;
 const MAX_PROC_BYTES: u64 = 4096;
 const METADATA_BYTES: usize = 24;
@@ -33,6 +35,7 @@ pub struct CloseWriteEvent {
     pub device: u64,
     pub inode: u64,
     pub owner: u32,
+    pub file_handle: Option<EffectFileHandle>,
     pub reported_pid: u32,
     pub pidfd_available: bool,
     pub writer: Option<EffectWriter>,
@@ -269,6 +272,10 @@ impl StagingEffectEvents {
                     device: metadata.st_dev,
                     inode: metadata.st_ino,
                     owner: metadata.st_uid,
+                    // The handle preserves object identity after this event
+                    // descriptor closes, including across inode reuse. A
+                    // missing handle is explicit and cannot match in v2.
+                    file_handle: sample_file_handle(&file).ok(),
                     reported_pid: header.pid,
                     pidfd_available: pidfd.is_some(),
                     // Keep the kernel pidfd open through both /proc samples.
@@ -330,9 +337,17 @@ impl FinishedStagingEffectEvents {
             .events
             .iter()
             .filter(|event| event.device == metadata.st_dev && event.inode == metadata.st_ino);
+        let final_handle = sample_file_handle(file)?;
         let mut count = 0;
         let mut writers = Vec::new();
         for event in matching {
+            let event_handle = event
+                .file_handle
+                .as_ref()
+                .ok_or("effect file generation was not observed")?;
+            if event_handle != &final_handle {
+                continue;
+            }
             let writer = event
                 .writer
                 .as_ref()
@@ -445,6 +460,7 @@ mod tests {
             device: metadata.dev(),
             inode: metadata.ino(),
             owner: 0,
+            file_handle: Some(sample_file_handle(&held).unwrap()),
             reported_pid: 42,
             pidfd_available: false,
             writer: None,

@@ -9,6 +9,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
 
+mod effect_file_handle;
 mod identity;
 mod policy;
 mod prelaunch_handoff;
@@ -16,6 +17,7 @@ mod runner_config;
 mod schema;
 mod worker_request;
 mod worker_response;
+pub use effect_file_handle::{EffectFileHandle, MAX_EFFECT_HANDLE_BYTES};
 pub use identity::{is_git_sha, validate_source_identity, IdentityError};
 pub use policy::{bind_gate_policy, GatePolicyError};
 pub use prelaunch_handoff::{PrelaunchHandoffError, PrelaunchPrepared};
