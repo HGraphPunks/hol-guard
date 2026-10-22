@@ -66,10 +66,18 @@ jobs:
       - uses: ./.github/actions/stage-command-projections
       - name: Build this checkout's Native runtime for judge tests
         run: cargo +1.88.0 build --manifest-path rust/Cargo.toml --locked --release -p hol-guard-runtime --bin hol-guard-runtime
-      - name: Test the judge, not the product outcome
+      # Replay cases exercise the real Native hook. Match product CI's
+      # verified overlay-capable sandbox instead of measuring missing support.
+      - uses: ./.github/actions/setup-bubblewrap
+      - name: Prepare complete Native test projections
+        run: uv run --no-sync python scripts/ci/verify_native_command_program.py --compiler "${{ github.workspace }}/rust/target/debug/guard-command-source" --prepare-directory
+      - name: Test judge contracts and Native replay gates
         env:
           HOL_GUARD_NATIVE_BINARY: ${{ github.workspace }}/rust/target/release/hol-guard-runtime
-        run: uv run --no-sync pytest -q -x tests/test_guard_gauntlet*.py
+          HOL_GUARD_NATIVE_SOURCE_COMPILER: ${{ github.workspace }}/rust/target/debug/guard-command-source
+          HOL_GUARD_NATIVE_TEST_SOURCE_COMPILER: ${{ github.workspace }}/rust/target/debug/guard-command-source
+          HOL_GUARD_NATIVE_REGRESSION: "1"
+        run: uv run --no-sync pytest -q -x -n 2 --dist worksteal --max-worker-restart 0 tests/test_guard_gauntlet*.py
 
   verify:
     env:
