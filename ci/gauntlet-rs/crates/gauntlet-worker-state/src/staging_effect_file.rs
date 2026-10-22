@@ -159,6 +159,17 @@ fn correlate_rows(
     Ok((count, writers.into_iter().collect()))
 }
 
+fn product_service_under_run_slice(run_id: &str, cgroup: &str) -> bool {
+    let Ok(slice) = crate::launch_plan::rust_job_slice_name(run_id) else {
+        return false;
+    };
+    let prefix = format!("/{slice}/hol-product-cell-");
+    cgroup
+        .strip_prefix(&prefix)
+        .and_then(|unit| unit.strip_suffix(".service"))
+        .is_some_and(|unit_id| hex(unit_id, 32))
+}
+
 pub fn observe_staging_fixed_provider_effect_ineligible(
     journal: &RunReservationJournal,
     lease: &ActiveLease,
@@ -174,6 +185,7 @@ pub fn observe_staging_fixed_provider_effect_ineligible(
             "success" | "input-binding" | "injection" | "boundary" | "timeout" | "cancel"
         )
         || !valid_cgroup(expected_cgroup)
+        || !product_service_under_run_slice(&started.job_id, expected_cgroup)
     {
         return Err("fixed effect outside run, role or cgroup pin is invalid".to_owned());
     }
@@ -242,6 +254,20 @@ mod tests {
 
     #[test]
     fn fixed_file_and_rows_refuse_changed_bytes_links_and_unknown_writers() {
+        let run_id = "0123456789abcdef";
+        let product_cgroup = format!(
+            "/holgauntletrust{run_id}.slice/hol-product-cell-{}.service",
+            "a".repeat(32)
+        );
+        assert!(product_service_under_run_slice(run_id, &product_cgroup));
+        assert!(!product_service_under_run_slice(
+            "fedcba9876543210",
+            &product_cgroup
+        ));
+        assert!(!product_service_under_run_slice(
+            run_id,
+            &format!("{product_cgroup}/child")
+        ));
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("provider.txt");
         std::fs::write(&path, PROVIDER_BYTES).unwrap();

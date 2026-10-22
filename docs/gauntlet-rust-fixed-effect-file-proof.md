@@ -6,7 +6,7 @@ fixed provider-control files from the retained `injection` run
 `c78241b27ca3c4e023a45b03f18b7d6d05e9cc028e34a3a6ec8921f5ba9b6052`
 was already retained in a one-use macOS host pin. The diagnostic binary's
 host, container and VM SHA-256 was
-`a8a30da8f47d04e69d52647c57a31c84efa8891dc2449aad3a69c36c07e3e77e`.
+`b37d485f3167991972d8319117dc0113ad0b806cd16059f85cd7edc1adade584`.
 
 The command requires outside source, deployment, worker, started-marker and
 journal pins, plus a caller-supplied product-cgroup value. It reopens the Root-owned started marker
@@ -29,7 +29,11 @@ Both writer rows named
 A caller selected this cgroup from the same journal for the live trial; it
 was **not independently pinned** to the product process. The result proves
 only internal consistency for that cgroup field until an outside process
-observation supplies it.
+observation supplies it. The final diagnostic additionally requires the
+service cgroup to have exactly one `hol-product-cell-<32 lowercase hex>.service`
+component beneath the run-ID-derived Rust job slice; both fixed files passed
+under that bound. An unrelated slice, wrong run ID, malformed unit or nested
+child path refuses.
 A wrong cgroup and a wrong outside journal digest each refused with exit 2.
 The focused ARM64 test refused an unknown writer, a foreign writer, wrong
 event owner, missing event, symlink and changed final bytes. Rust 1.88
