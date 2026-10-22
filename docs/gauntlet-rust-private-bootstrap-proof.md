@@ -27,3 +27,21 @@ caller must authenticate the inherited descriptor, obtain an independently
 observed kernel boot ID and reviewed source pins, generate and deliver a fresh
 private key, and close the session on uncertain failure. It does not run a
 collector, actor, model or Guard and grants no benchmark eligibility.
+
+Code pin `8021a101` adds the outbound half. Rust now generates a fresh random
+32-byte key and v4 session UUID, constructs the exact Python canonical
+bootstrap bytes, validates them against the same outside pins, and consumes
+the one-use object when delivering the length-prefixed body over a bounded
+management descriptor. Invalid codec bounds refuse before any write; a
+failed or partial write cannot retry the same object. Synthetic supplied
+material matches Python's exact VM and cell bootstrap bytes. On macOS, two
+new process tests delivered fresh Rust keys to the pinned Python VM collector
+and product-cell actor over real Unix sockets, then completed an authenticated
+`hello` RPC in each realm. The Rust 1.88 Linux ARM64 container passed the
+non-Python tests; its Python-process tests skipped because that offline image
+lacks Python. The isolated ARM64 CI job includes Python and runs them.
+
+The live interop uses synthetic boot IDs and reviewed-in-test source hashes.
+It does not attest a production child process, VM boot, executable, private
+descriptor ancestry, or effect. Those are required before execution
+admission or a benchmark verdict.

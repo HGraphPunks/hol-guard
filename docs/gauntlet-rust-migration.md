@@ -63,7 +63,11 @@ bootstrap and effect attribution remain open.
 The [private bootstrap proof](gauntlet-rust-private-bootstrap-proof.md)
 adds a bounded Rust reader and source/boot-bound parser for the VM and
 product-cell key handoff. It has only synthetic identity evidence; live
-descriptor provenance, fresh key delivery and collector ownership remain open.
+descriptor provenance, production key delivery and collector ownership remain open.
+The opt-in [outbound bootstrap extension](gauntlet-rust-private-bootstrap-proof.md)
+now generates fresh Rust keys and proves delivery to both pinned Python frame
+dialects on real management sockets. Production descriptor ancestry, child
+identity and model-backed terminal evidence remain open.
 
 A [contained interpreter probe](gauntlet-rust-contained-interpreter-proof.md) now joins descriptor-bound Python execution and that fixed cgroup. It ran only inert code as UID 65534 on the ARM VM, observed the child credential and two contained tasks, and verified recursive cleanup. It did not launch a controller or benchmark or qualify a result.
 
