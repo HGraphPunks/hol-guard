@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sqlite3
 import sys
 from pathlib import Path
@@ -144,8 +145,14 @@ def _python_toolchain(workspace: Path) -> None:
     _write(workspace / "src" / "fixture_app" / "__init__.py", "VERSION = '0.1.0'\n")
     _write(workspace / "tests" / "test_fixture_app.py", "def test_version():\n    assert True\n")
     venv = workspace / ".venv"
-    _write(venv / "pyvenv.cfg", "home = /usr/bin\nversion = 3.12.3\ninclude-system-site-packages = false\n")
-    for name in ("pytest", "ruff", "mypy"):
+    base = workspace / ".fixture-python" / "bin" / "python3"
+    base.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(sys.executable, base)
+    base.chmod(0o755)
+    _write(venv / "pyvenv.cfg", f"home = {base.parent}\nversion = 3.12.3\ninclude-system-site-packages = false\n")
+    # `pip` and `pip3` come with the environment itself, so a project reads
+    # its installed packages through them as readily as it runs its tools.
+    for name in ("pytest", "ruff", "mypy", "pip", "pip3"):
         script = venv / "bin" / name
         _write(script, f"#!/bin/sh\nexec echo '{name}'\n")
         script.chmod(0o755)
@@ -161,8 +168,10 @@ def _python_toolchain(workspace: Path) -> None:
     # `unset -f`, an `alias`/`unalias` pair, command substitutions and
     # `hash -r`. A fixture without them proves nothing about a real venv.
     _write(venv / "bin" / "activate", activate_script(venv))
-    # A venv links its interpreter to the base one; the gate never runs it.
-    (venv / "bin" / "python").symlink_to(sys.executable)
+    # Keep the real executable's bytes and the venv's symlink, but place the
+    # base in the fixture's executable roots. The gate never runs Python; a
+    # link to the host's interpreter otherwise measures the runner's layout.
+    (venv / "bin" / "python").symlink_to(base)
     (venv / "bin" / "python3").symlink_to("python")
 
 
@@ -201,6 +210,29 @@ def _build_toolchain(workspace: Path) -> None:
     )
 
 
+def _vendored_toolchain(workspace: Path) -> None:
+    """Composer and Bundler projects whose dependencies live beside the manifest."""
+    _write(
+        workspace / "composer.json",
+        '{\n  "name": "fixture/app",\n  "require": {},\n'
+        '  "scripts": {\n    "test": "phpunit",\n    "lint": "php-cs-fixer fix --dry-run"\n  }\n}\n',
+    )
+    _write(workspace / "composer.lock", '{\n  "packages": [],\n  "packages-dev": []\n}\n')
+    _write(workspace / "vendor" / "autoload.php", "<?php\n")
+    _write(workspace / "vendor" / "bin" / "phpunit", "#!/bin/sh\nexit 0\n")
+    (workspace / "vendor" / "bin" / "phpunit").chmod(0o755)
+    _write(workspace / "Gemfile", 'source "https://rubygems.invalid"\n\ngem "rspec"\n')
+    _write(
+        workspace / "Gemfile.lock",
+        "GEM\n  remote: https://rubygems.invalid/\n  specs:\n\nDEPENDENCIES\n  rspec\n\nBUNDLED WITH\n   2.5.9\n",
+    )
+    # `bundle exec` only reads the workspace when the bundle is installed into
+    # it; the fixture's `.bundle/config` is what points Bundler there.
+    _write(workspace / ".bundle" / "config", '---\nBUNDLE_PATH: "vendor/bundle"\n')
+    _write(workspace / "vendor" / "bundle" / "ruby" / "3.3.0" / "bin" / "rspec", "#!/bin/sh\nexit 0\n")
+    (workspace / "vendor" / "bundle" / "ruby" / "3.3.0" / "bin" / "rspec").chmod(0o755)
+
+
 def _bun_lockfile(project: Path, packages: dict[str, str]) -> None:
     """A text ``bun.lock`` pinning registry packages, as ``bun install`` writes it."""
     manifest = {"devDependencies": {name: f"^{version}" for name, version in packages.items()}}
@@ -225,19 +257,48 @@ def host_tool_path(home: Path, search_path: str) -> str:
     executes from, so the gate would be measuring that host's package layout rather than the command
     a model ran. The synthetic connector CLIs install into ``~/.local/bin``, which a real login
     shell has on PATH; it goes first so the fixture CLI, not a host program, is the one a grant was
-    recorded for.
+    recorded for. ``uv`` is there for the same reason as SQLite: a runner installs it wherever its
+    own setup put it, often a directory the sandbox executes nothing from, so a stand-in sits in
+    the Cargo bin directory a developer's own ``uv`` resolves from and the gate measures the
+    command rather than the runner's layout.
     """
     stand_in = "#!/bin/sh\nexit 0\n"
     bun = home / ".bun" / "bin"
     node = home / ".nvm" / "versions" / "node" / "v25.2.1" / "bin"
     sqlite = home / ".asdf" / "installs" / "sqlite" / "3.46.1" / "bin"
-    tools = ((bun, ("bun",)), (node, ("node", "npm", "npx", "yarn")), (sqlite, ("sqlite3",)))
+    cargo = home / ".cargo" / "bin"
+    local_bin = home / ".local" / "bin"
+    php = home / ".asdf" / "installs" / "php" / "8.3.6" / "bin"
+    ruby = home / ".asdf" / "installs" / "ruby" / "3.3.0" / "bin"
+    tools = (
+        (bun, ("bun",)),
+        (node, ("node", "npm", "npx", "yarn")),
+        (sqlite, ("sqlite3",)),
+        (cargo, ("uv",)),
+        # Composer and Bundler install themselves wherever the host's PHP or
+        # Ruby setup put them, often a directory the sandbox executes nothing
+        # from. The stand-ins sit in version-manager installs, which the sandbox
+        # accepts the way it accepts a developer's own, so the gate measures the
+        # command rather than this host's package layout.
+        (php, ("composer",)),
+        (ruby, ("bundle", "bundler")),
+    )
     for directory, names in tools:
         for name in names:
             _write(directory / name, stand_in)
             (directory / name).chmod(0o755)
-    local_bin = home / ".local" / "bin"
-    return os.pathsep.join([str(local_bin), str(node), str(sqlite), search_path, str(bun)])
+    return os.pathsep.join(
+        [
+            str(local_bin),
+            str(node),
+            str(sqlite),
+            str(cargo),
+            str(php),
+            str(ruby),
+            search_path,
+            str(bun),
+        ]
+    )
 
 
 def _application_database(path: Path) -> None:
