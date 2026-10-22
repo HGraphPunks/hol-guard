@@ -35,6 +35,8 @@ jobs:
         run: rustup toolchain install 1.88.0 --profile minimal
       - name: Test Mac host custody and observer shadows
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-host-state --locked
+      - name: Exercise the authenticated Rust/Python bridge on macOS
+        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-agent-bridge --locked
 
   contracts:
     runs-on: ubuntu-24.04
@@ -69,6 +71,8 @@ jobs:
         run: rustup toolchain install 1.88.0 --profile minimal
       - name: Link all Rust Gauntlet executables on Linux ARM64
         run: cargo +1.88.0 build --manifest-path ci/gauntlet-rs/Cargo.toml --workspace --bins --locked
+      - name: Exercise the authenticated Rust/Python bridge on Linux ARM64
+        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-agent-bridge --locked
       - name: Test Linux worker, host, evidence, and provider readers
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence -p gauntlet-host-state -p gauntlet-provider-observer -p gauntlet-worker-state --lib --locked
       - name: Compare fresh controller install plan with pinned Python on ARM64

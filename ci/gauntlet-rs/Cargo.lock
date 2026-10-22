@@ -318,6 +318,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "gauntlet-agent-bridge"
+version = "0.1.0"
+dependencies = [
+ "gauntlet-evidence",
+ "libc",
+ "ring",
+ "serde_json",
+ "tempfile",
+ "uuid",
+]
+
+[[package]]
 name = "gauntlet-contracts"
 version = "0.1.0"
 dependencies = [
