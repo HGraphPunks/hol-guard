@@ -50,9 +50,12 @@ start the provider or supply a model-backed result.
 
 The [VM bridge RPC parity proof](gauntlet-rust-bridge-rpc-proof.md) adds a
 data-only Rust request/response validator above the existing HMAC frame
-codec. Thirty source-hashed Python cases match on macOS and Linux ARM64;
-live management I/O, trusted dispatch, cancellation, terminal markers and
-model-backed execution remain open.
+codec. Thirty source-hashed Python cases match on macOS and Linux ARM64. The
+[management transport proof](gauntlet-rust-bridge-transport-proof.md) adds
+owned bounded Unix-socket/pipe I/O, cancellation, single-flight RPC and a
+fixed trusted operation registry. Rust and pinned Python exchanged live RPC
+bytes in both directions on macOS. Independent descriptor/key custody,
+OMP/Bun identity, terminal markers and model-backed execution remain open.
 
 A [contained interpreter probe](gauntlet-rust-contained-interpreter-proof.md) now joins descriptor-bound Python execution and that fixed cgroup. It ran only inert code as UID 65534 on the ARM VM, observed the child credential and two contained tasks, and verified recursive cleanup. It did not launch a controller or benchmark or qualify a result.
 
