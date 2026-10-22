@@ -16,6 +16,8 @@ mod host_telemetry;
 pub use host_telemetry::{sample_host, HostTelemetryError};
 mod live_provider_preflight;
 pub use live_provider_preflight::{evaluate_live_provider_preflight, LiveProviderPreflightError};
+mod live_provider_observe;
+pub use live_provider_observe::observe_live_provider_preflight_shadow;
 mod controller_key_pins;
 pub use controller_key_pins::{
     HostControllerKeyPinJournal, HostControllerKeyPins, HostKeyPinError, HostKeyPinRecord,

@@ -4,9 +4,11 @@
 use serde_json::{json, Value};
 use std::fmt;
 
-const TEMPLATE_SHA: &str = "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244";
-const ALLOWANCE_SHA: &str = "269508fcb01074d6bb07ef20505e90bc863fc85fca65a3a930ab93a8c23e2b28";
-const CANDIDATE_SOURCE: &str = "c1d18f931eaba02a37a2c9515db769fc2219bee8";
+pub(crate) const TEMPLATE_SHA: &str =
+    "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244";
+pub(crate) const ALLOWANCE_SHA: &str =
+    "269508fcb01074d6bb07ef20505e90bc863fc85fca65a3a930ab93a8c23e2b28";
+pub(crate) const CANDIDATE_SOURCE: &str = "c1d18f931eaba02a37a2c9515db769fc2219bee8";
 const ALLOWANCE_START: u64 = 9_468_885;
 const CEILING: u64 = 14_468_885;
 

@@ -1,4 +1,6 @@
 # Deterministic SHA-256 digests of canonical source files, not credentials.
+# Python-generated VM bridge auth fingerprint from the public B*32 test key.
+64471ed42b2ec57fc780ebf818620013d8310578:ci/gauntlet-rs/crates/gauntlet-agent-bridge/tests/fixtures/python_bootstrap_v1.json:generic-api-key:17
 8cca7abdb8f27a4ed1070d1f15e383806a4010ef:contributions/command-sources/migration-manifest.json:generic-api-key:7
 8cca7abdb8f27a4ed1070d1f15e383806a4010ef:contributions/command-sources/migration-manifest.json:generic-api-key:41
 5554b7b0dce523b7097bfd4824d06c4e3d082767:rust/crates/guard-scanner/src/staged_scanner.rs:aws-access-token:425
