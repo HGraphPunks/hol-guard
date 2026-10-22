@@ -221,6 +221,10 @@ impl StagingTapV2 {
                 })
                 .collect::<Result<Vec<_>, _>>()
         })?;
+        // A successful exchange through a held socket is insufficient if the
+        // controller replaced its visible frontdoor while the sessions ran.
+        // Refuse the trace before it can be retained under an outside pin.
+        native.recheck()?;
         let (sessions, children): (Vec<_>, Vec<_>) = results.into_iter().unzip();
         Ok(TapSessions { sessions, children })
     }
@@ -316,7 +320,7 @@ mod tests {
         }
     }
 
-    fn run_two_family_root_exchange(mode: TapMode) {
+    fn run_two_family_root_exchange(mode: TapMode, replace_frontdoor: bool) {
         let binary = std::env::var("GAUNTLET_SDK_TAP_TEST_BINARY").unwrap();
         let binary_sha = std::env::var("GAUNTLET_SDK_TAP_TEST_SHA256").unwrap();
         let run_id = format!(
@@ -355,6 +359,12 @@ mod tests {
         });
         let servers = sockets.map(|listener| {
             thread::spawn(move || -> Result<(), String> {
+                let socket_path = listener
+                    .local_addr()
+                    .map_err(|error| error.to_string())?
+                    .as_pathname()
+                    .ok_or("Native test socket path missing")?
+                    .to_owned();
                 listener.set_nonblocking(true).map_err(|e| e.to_string())?;
                 let began = Instant::now();
                 let mut connection = loop {
@@ -379,6 +389,21 @@ mod tests {
                     return Err("Native test request changed through tap".to_owned());
                 }
                 connection.write_all(response).map_err(|e| e.to_string())?;
+                if replace_frontdoor && socket_path.ends_with("docs.sock") {
+                    fs::remove_file(&socket_path).map_err(|e| e.to_string())?;
+                    let _replacement =
+                        UnixListener::bind(&socket_path).map_err(|e| e.to_string())?;
+                    chownat(
+                        rustix::fs::CWD,
+                        &socket_path,
+                        None,
+                        Some(Gid::from_raw(10001)),
+                        AtFlags::empty(),
+                    )
+                    .map_err(|e| e.to_string())?;
+                    fs::set_permissions(&socket_path, fs::Permissions::from_mode(0o660))
+                        .map_err(|e| e.to_string())?;
+                }
                 Ok(())
             })
         });
@@ -488,7 +513,7 @@ for pid in children:
             &AtomicBool::new(false),
         );
         let tap_error = result.as_ref().err().cloned();
-        if result.is_err() {
+        if result.is_err() && !replace_frontdoor {
             let _ = sdk.kill();
         }
         let status = sdk.wait().unwrap();
@@ -497,6 +522,14 @@ for pid in children:
         fs::remove_dir_all(&state).unwrap();
         for server in server_results {
             server.unwrap();
+        }
+        if replace_frontdoor {
+            assert!(status.success());
+            assert_eq!(
+                result.err().unwrap(),
+                "Native frontdoor socket changed: docs.sock"
+            );
+            return;
         }
         if !status.success() {
             let mut stderr = String::new();
@@ -554,18 +587,24 @@ for pid in children:
     #[test]
     #[ignore = "requires Linux Root, UID 10001 and separately pinned ARM64 tap-child ELF"]
     fn worker_owns_both_real_sdk_sessions_and_tombstones_after_drain() {
-        run_two_family_root_exchange(TapMode::LegacyChild);
+        run_two_family_root_exchange(TapMode::LegacyChild, false);
     }
 
     #[test]
     #[ignore = "requires Linux Root, UID 10001 and separately pinned ARM64 tap-child ELF"]
     fn worker_owns_both_pid_one_sdk_sessions_and_tombstones_after_drain() {
-        run_two_family_root_exchange(TapMode::PidnsChild);
+        run_two_family_root_exchange(TapMode::PidnsChild, false);
     }
 
     #[test]
     #[ignore = "requires Linux Root, UID 10001 and a separately pinned ARM64 PID-1 connector ELF"]
     fn worker_owns_both_root_forwarded_pid_one_sessions_and_tombstones_after_drain() {
-        run_two_family_root_exchange(TapMode::PidnsRoot);
+        run_two_family_root_exchange(TapMode::PidnsRoot, false);
+    }
+
+    #[test]
+    #[ignore = "requires Linux Root, UID 10001 and a separately pinned ARM64 PID-1 connector ELF"]
+    fn root_forwarded_sessions_refuse_native_socket_replacement_after_exchange() {
+        run_two_family_root_exchange(TapMode::PidnsRoot, true);
     }
 }

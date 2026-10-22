@@ -241,5 +241,28 @@ mod tests {
         fs::set_permissions(front.join("mail.sock"), fs::Permissions::from_mode(0o600)).unwrap();
         assert!(held.recheck().is_err());
         assert!(held.duplicate_directory().is_err());
+        fs::set_permissions(
+            front.join("mail.sock"),
+            fs::Permissions::from_mode(SOCKET_MODE),
+        )
+        .unwrap();
+        held.recheck().unwrap();
+        fs::remove_file(front.join("mail.sock")).unwrap();
+        let _replacement = UnixListener::bind(front.join("mail.sock")).unwrap();
+        chownat(
+            rustix::fs::CWD,
+            front.join("mail.sock"),
+            None,
+            Some(Gid::from_raw(FRONT_GID)),
+            AtFlags::empty(),
+        )
+        .unwrap();
+        fs::set_permissions(
+            front.join("mail.sock"),
+            fs::Permissions::from_mode(SOCKET_MODE),
+        )
+        .unwrap();
+        assert!(held.recheck().is_err());
+        assert!(held.duplicate_directory().is_err());
     }
 }
