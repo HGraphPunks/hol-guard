@@ -118,3 +118,8 @@ joins these same six retained runs to the controller's signed process and
 task mappings under the original host key pins. It does not rerun or promote
 the historical captures, and it records the remaining contained-writer gap.
 
+The [v3 writer-image extension](gauntlet-rust-writer-image-proof.md) adds
+bounded post-event executable/command samples while preserving these file
+handle checks. Its fresh success run identified a contained-output writer
+whose executable matched the pinned Native asset; request attribution remains open.
+
