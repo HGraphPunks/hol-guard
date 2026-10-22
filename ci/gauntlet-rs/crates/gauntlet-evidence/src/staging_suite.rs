@@ -342,11 +342,14 @@ fn terminal_and_cleanup(
                 &record,
                 &report["live_kernel_activity"],
                 string(common, "sdk_bun_sha256")?,
-            )?;
+            )
+            .map_err(|error| EvidenceError::Context("SDK executable", Box::new(error)))?;
         } else if sdk_gate_required {
-            matching_sdk_gate_process(&record, &report["live_kernel_activity"])?;
+            matching_sdk_gate_process(&record, &report["live_kernel_activity"])
+                .map_err(|error| EvidenceError::Context("SDK gate", Box::new(error)))?;
         } else {
-            matching_agent_process(&record, &report["live_kernel_activity"])?;
+            matching_agent_process(&record, &report["live_kernel_activity"])
+                .map_err(|error| EvidenceError::Context("SDK agent", Box::new(error)))?;
         }
         if require_native_mcp {
             matching_native_mcp_processes(
@@ -356,7 +359,8 @@ fn terminal_and_cleanup(
                 string(common, "source_sha")?,
                 string(common, "prefix_tree_sha256")?,
                 string(common, "version")?,
-            )?;
+            )
+            .map_err(|error| EvidenceError::Context("Native MCP", Box::new(error)))?;
         }
         if let Some(outside_sha) = tap_journal_sha256 {
             if !require_native_mcp {
@@ -376,7 +380,8 @@ fn terminal_and_cleanup(
                     controller_public_key_hex: string(row, "controller_public_key_hex")?,
                     expected_docs_record,
                 },
-            )?;
+            )
+            .map_err(|error| EvidenceError::Context("SDK tap", Box::new(error)))?;
             if raw != read_private_file(journal, &name, 0, 1024 * 1024)?.ok_or(INVALID)? {
                 return Err(INVALID);
             }
@@ -547,7 +552,8 @@ fn observe_staging_suite(
                         }
                     },
                 ),
-            )?;
+            )
+            .map_err(|error| EvidenceError::Context(role, Box::new(error)))?;
         live_kernel_roles_sampled += usize::from(kernel);
         live_agent_roles_sampled += usize::from(agent);
         live_sdk_gate_roles_sampled += usize::from(sdk_gate);

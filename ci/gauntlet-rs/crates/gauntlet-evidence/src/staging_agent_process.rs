@@ -533,9 +533,9 @@ fn matching_verified_native_mcp_processes(
     let mut forwarded_tool_calls = 0_usize;
     let mut completed_tool_calls = 0_usize;
     let mut pending = BTreeMap::new();
-    // Native sessions are concurrent. A frame and its forwarding event stay
-    // ordered within one session, but another session may emit events between
-    // them in the global audit sequence.
+    // Native sessions and both directions of one session are concurrent.
+    // Keep at most one unmatched frame per session and delivery direction;
+    // the matching forwarding event must carry the exact same message.
     let mut pending_frames = BTreeMap::new();
     for (index, event) in events.iter().enumerate() {
         if event["sequence"].as_u64() != Some((index + 1) as u64) {
@@ -543,10 +543,13 @@ fn matching_verified_native_mcp_processes(
         }
         run_ids.insert(event["run_id"].as_str().ok_or(INVALID)?);
         if let Some(session) = event["session_id"].as_str() {
-            if let Some((_, expected)) = pending_frames.keys().find(|(held, _)| held == session) {
-                if event["kind"] != *expected {
-                    return Err(INVALID);
-                }
+            if pending_frames.keys().any(|(held, _)| held == session)
+                && !matches!(
+                    event["kind"].as_str(),
+                    Some("frame" | "forwarded" | "delivered")
+                )
+            {
+                return Err(INVALID);
             }
         }
         if event["kind"] == "peer-authenticated" {
@@ -1066,6 +1069,24 @@ mod tests {
         }
         assert!(matching_verified_native_mcp_processes(
             &same_session,
+            &activity,
+            &agent_id,
+            &agent
+        )
+        .is_ok());
+        let mut reaped_before_delivery = audit.clone();
+        let events = reaped_before_delivery["transport_observations"]
+            .as_array_mut()
+            .unwrap();
+        events.insert(
+            8,
+            json!({"kind":"child-reaped","run_id":"test-run","session_id":"first"}),
+        );
+        for (index, event) in events.iter_mut().enumerate() {
+            event["sequence"] = json!(index + 1);
+        }
+        assert!(matching_verified_native_mcp_processes(
+            &reaped_before_delivery,
             &activity,
             &agent_id,
             &agent

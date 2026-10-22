@@ -65,6 +65,13 @@ SHA-matched ARM64 binary accepted all six Native boundaries and 12 proxy
 processes. A regression test exercises permitted cross-session interleaving
 and refused same-session interleaving.
 
+The later [mount-isolated six-role rerun](gauntlet-rust-sdk-tap-mount-isolation-proof.md)
+found a valid response-frame/client-notification interleaving within one
+session. The current reader allows traffic in the opposite direction while
+still requiring each pending frame to match its forwarding or delivery
+event exactly; the adjacency statement above describes this historical code
+pin only.
+
 The final optimized suite reader SHA-256 was
 `4274eb15dcbb6b00a980e18a569e2ee5f06244609fad9d30be05ebea15ebf9b3`.
 With the six outside host journal digests in role order, its new opt-in

@@ -194,6 +194,7 @@ const MAX_FILES: usize = 2048;
 pub enum EvidenceError {
     Invalid(&'static str),
     Io(String),
+    Context(&'static str, Box<Self>),
 }
 
 impl fmt::Display for EvidenceError {
@@ -201,6 +202,7 @@ impl fmt::Display for EvidenceError {
         match self {
             Self::Invalid(message) => f.write_str(message),
             Self::Io(message) => write!(f, "bundle I/O error: {message}"),
+            Self::Context(context, error) => write!(f, "{context}: {error}"),
         }
     }
 }
