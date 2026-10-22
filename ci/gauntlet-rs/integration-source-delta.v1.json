@@ -46,11 +46,18 @@
   "base_source_commit": "b4efd8171b06d0e13cbe12a077c376ecdc891fd1",
   "changed": [
     {
+      "base_sha256": "a329cc13ce90ea1ef58cb428290d53657953be1b1292d1e81eeb60d9fc7fb9dc",
+      "disposition": "reference_documentation",
+      "path": "ci/gauntlet/BATTLE_PLAN.md",
+      "phase": 0,
+      "sha256": "fc8c85753b418236ff59567bd0f96e6af82a30375746a1ab355e0a14466ab2be"
+    },
+    {
       "base_sha256": "d70e30084998979a6ebcca6e15b046c0a7593a96fc02588e966093d4957accff",
       "disposition": "reference_documentation",
       "path": "ci/gauntlet/README.md",
       "phase": 0,
-      "sha256": "1d307c7be2725b40894492dc76c2f7c56ccd7f1e204e85a08d25e77b4e9220de"
+      "sha256": "66214dfe5c4daefa00d8f70686a3dfb1bfa2c524fbb6059f79fcb8ec94eb73b0"
     },
     {
       "base_sha256": "be550727703aa7639c360fa4b97980d4ebaee767340b1791996985c2f9127196",
@@ -379,7 +386,7 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/proofs.py",
       "phase": 5,
-      "sha256": "11c86189d7339df3ec9608574790e4b6afa9250d7718405637ba215ad64865a3"
+      "sha256": "07a3dd29ea771bf95cd1b76a0b36331bd6d70fda500f2371a76b694864a75092"
     },
     {
       "base_sha256": "a869e7161f55d754ff676f7d356aa7a335bb033a6c4f2eae6371fdd0bb88cd78",
@@ -407,7 +414,7 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/review_fixtures.py",
       "phase": 5,
-      "sha256": "b119e617e8258e0eefd896baf2f38552d5d2ec1f72eb6f604fec15a24cf63633"
+      "sha256": "9ed6cd8348564188a319275f60c8d0d57ac283443c13aa60228f11d2e65cc629"
     },
     {
       "base_sha256": "7d697cf80ae1ffe3f3c49454fd40578db4d065cc0e9a45b72c5232a55cf5ed6d",
@@ -421,7 +428,7 @@
       "disposition": "frozen_data_or_schema",
       "path": "ci/gauntlet/scenarios.json",
       "phase": 1,
-      "sha256": "1e5bc6adcaf54ba2036d1b36ba2bac4d79dd916f58d656e530103aa2194ceebf"
+      "sha256": "7ed4714793dd61fde757a3a2b3d9d53a95225b4b820149fa426019fc719b2899"
     },
     {
       "base_sha256": "8443830bfc26c8e7a853d0d558d297d61cec4658dd26039c485e1e1767541f46",

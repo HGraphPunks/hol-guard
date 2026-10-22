@@ -30,9 +30,9 @@ fn merged_gauntlet_source_matches_the_explicit_pinned_delta() {
         .collect();
     let changed = delta["changed"].as_array().unwrap();
     let added = delta["added"].as_array().unwrap();
-    // main at 76efccff adds five reviewed baseline deltas for the image,
-    // installed acceptance and latency. Every tracked byte is still checked.
-    assert_eq!(changed.len(), 57);
+    // Main through 4a654ea8 updates the catalog, metadata probes and CI docs.
+    // Every tracked byte is still checked against the reviewed source map.
+    assert_eq!(changed.len(), 58);
     assert_eq!(added.len(), 7);
     for entry in changed {
         let path = entry["path"].as_str().unwrap();
