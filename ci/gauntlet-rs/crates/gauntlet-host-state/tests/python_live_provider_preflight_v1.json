@@ -27,6 +27,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "feature_ai"
@@ -57,6 +58,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "feature_ai_protocol"
@@ -87,6 +89,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "beta_e2e_too_large"
@@ -117,6 +120,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "job_id_wrong_length"
@@ -147,6 +151,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "job_id_uppercase"
@@ -177,6 +182,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "unknown_profile"
@@ -207,6 +213,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
       },
       "name": "changed_template"
@@ -237,6 +244,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "changed_allowance"
@@ -267,6 +275,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "wrong_allowance_schema"
@@ -297,6 +306,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "wrong_previous"
@@ -327,6 +337,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "wrong_additional"
@@ -357,6 +368,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "wrong_ceiling"
@@ -387,6 +399,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "wrong_candidate"
@@ -417,6 +430,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "charged_unknown"
@@ -447,6 +461,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "halted"
@@ -477,6 +492,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "pending"
@@ -507,6 +523,7 @@
           "reserved_tokens": 1,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "reserved"
@@ -537,6 +554,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468884
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "quota_cap"
@@ -567,6 +585,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "below_allowance_start"
@@ -597,6 +616,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "feature_reservation_too_large"
@@ -627,6 +647,7 @@
           "reserved_tokens": 0,
           "token_cap": 14468885
         },
+        "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
         "template_sha": "f95dde32317bb5a2c09a2295c51524126c8c81ee4c16618a1b2a27ccfa8c8244"
       },
       "name": "port_busy"

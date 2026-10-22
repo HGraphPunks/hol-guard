@@ -80,6 +80,10 @@ pub fn evaluate_live_provider_preflight(
             .get("candidate_source_sha")
             .and_then(Value::as_str)
             != Some(CANDIDATE_SOURCE)
+        || input
+            .get("requested_candidate_source_sha")
+            .and_then(Value::as_str)
+            != Some(CANDIDATE_SOURCE)
     {
         return Err(LiveProviderPreflightError::AllowanceRecord);
     }

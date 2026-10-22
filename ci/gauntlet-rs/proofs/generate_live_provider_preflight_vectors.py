@@ -42,6 +42,7 @@ BASE = {
     "profile": "feature-ai",
     "template_sha": live_provider.TEMPLATE_SHA,
     "allowance_sha": live_provider.ALLOWANCE_SHA,
+    "requested_candidate_source_sha": "c1d18f931eaba02a37a2c9515db769fc2219bee8",
     "allowance": {
         "schema": "gauntlet-local-allowance-authorization.v1",
         "previous_charged_tokens": live_provider.ALLOWANCE_START,

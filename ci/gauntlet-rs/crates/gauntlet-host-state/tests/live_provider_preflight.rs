@@ -57,4 +57,7 @@ fn malformed_external_snapshot_cannot_admit_a_provider() {
     input["quota"]["known_tokens"] = json!(13_746_906);
     input["port_busy"] = json!("false");
     assert!(evaluate_live_provider_preflight(&input).is_err());
+    input["port_busy"] = json!(false);
+    input["requested_candidate_source_sha"] = json!("b".repeat(40));
+    assert!(evaluate_live_provider_preflight(&input).is_err());
 }
