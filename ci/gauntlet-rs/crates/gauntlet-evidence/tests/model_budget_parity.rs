@@ -1,5 +1,8 @@
-use gauntlet_evidence::{verify_signed_model_budget, DEFAULT_BASE_URL};
+use gauntlet_evidence::{read_signed_model_budget, verify_signed_model_budget, DEFAULT_BASE_URL};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
+use std::fs;
+use std::os::unix::fs::symlink;
 
 fn public_key(hex: &str) -> Vec<u8> {
     hex.as_bytes()
@@ -120,4 +123,48 @@ fn outside_key_source_and_byte_budget_refuse_forgeries() {
         DEFAULT_BASE_URL,
     )
     .is_err());
+}
+
+#[test]
+fn digest_pinned_budget_file_reader_refuses_mutable_or_ambiguous_custody() {
+    let fixture = fixture();
+    let sample = &fixture["cases"][0];
+    let key = public_key(fixture["public_key_hex"].as_str().unwrap());
+    let raw = serde_json::to_vec(&sample["envelope"]).unwrap();
+    let digest = format!("{:x}", Sha256::digest(&raw));
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    let path = root.join("model-budget.json");
+    fs::write(&path, &raw).unwrap();
+    let read = |path: &std::path::Path, pin: &str| {
+        read_signed_model_budget(
+            path,
+            pin,
+            &key,
+            "qwen3.6",
+            100,
+            Some(&"a".repeat(64)),
+            Some(5),
+            &sample["outside_sources"],
+            DEFAULT_BASE_URL,
+        )
+    };
+    assert_eq!(read(&path, &digest).unwrap(), sample["expected"]["usage"]);
+    assert!(read(&path, &"0".repeat(64)).is_err());
+    let linked = root.join("linked.json");
+    fs::hard_link(&path, &linked).unwrap();
+    assert!(read(&path, &digest).is_err());
+    fs::remove_file(&linked).unwrap();
+    let alias = root.join("alias");
+    symlink(&root, &alias).unwrap();
+    assert!(read(&alias.join("model-budget.json"), &digest).is_err());
+    let hidden = root.join("retained.json");
+    fs::rename(&path, &hidden).unwrap();
+    symlink(&hidden, &path).unwrap();
+    assert!(read(&path, &digest).is_err());
+    fs::remove_file(&path).unwrap();
+    fs::write(&path, b"changed").unwrap();
+    assert!(read(&path, &digest).is_err());
+    fs::write(&path, vec![b'x'; 8 * 1024 * 1024 + 1]).unwrap();
+    assert!(read(&path, &digest).is_err());
 }

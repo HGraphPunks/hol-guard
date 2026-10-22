@@ -1,10 +1,15 @@
 //! Signed provider relay accounting for the fixed Python v1 record.
 //! The public key and source hashes must come from outside the candidate.
 
-use crate::crypto::is_sha256;
+use crate::crypto::{is_sha256, sha256};
+use crate::io::open_absolute_directory;
 use crate::model_endpoint::verify_model_endpoint;
 use crate::{verify_controller_envelope, EvidenceError, Result};
+use rustix::fs::{fstat, openat, FileType, Mode, OFlags};
 use serde_json::{json, Map, Value};
+use std::fs::File;
+use std::io::Read;
+use std::path::Path;
 
 const MAX_BYTES: usize = 8 * 1024 * 1024;
 const MAX_ROWS: usize = 3_000;
@@ -298,4 +303,80 @@ pub fn verify_signed_model_budget(
         "model_budget_authority": "controller-provider-relay",
         "zero_model_requests_proven": requests == 0 && complete && usage_known,
     }))
+}
+
+/// Read one immutable-looking retained budget through no-symlink ancestry and
+/// verify an outside byte digest before signature/accounting checks. File owner
+/// and the origin of the digest/key remain separate caller obligations.
+#[allow(clippy::too_many_arguments)]
+pub fn read_signed_model_budget(
+    path: &Path,
+    expected_sha256: &str,
+    external_public_key: &[u8],
+    model_id: &str,
+    max_tokens: u64,
+    config_digest: Option<&str>,
+    maximum_requests: Option<u64>,
+    expected_sources: &Value,
+    base_url: &str,
+) -> Result<Value> {
+    if !is_sha256(expected_sha256)
+        || path.file_name().and_then(|name| name.to_str()) != Some("model-budget.json")
+    {
+        return Err(EvidenceError::Invalid(
+            "outside model-budget digest or fixed filename missing",
+        ));
+    }
+    let parent = path.parent().ok_or(EvidenceError::Invalid(
+        "absolute model-budget path required",
+    ))?;
+    let directory = open_absolute_directory(parent)?;
+    let fd = openat(
+        &directory,
+        "model-budget.json",
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|error| EvidenceError::Io(error.to_string()))?;
+    let before = fstat(&fd).map_err(|error| EvidenceError::Io(error.to_string()))?;
+    if !FileType::from_raw_mode(before.st_mode).is_file()
+        || before.st_size < 0
+        || before.st_size as usize > MAX_BYTES
+        || before.st_nlink != 1
+    {
+        return Err(EvidenceError::Invalid(
+            "nonregular or oversized model-budget file",
+        ));
+    }
+    let mut file = File::from(fd);
+    let mut raw = Vec::with_capacity(before.st_size as usize);
+    file.by_ref()
+        .take((MAX_BYTES + 1) as u64)
+        .read_to_end(&mut raw)
+        .map_err(|error| EvidenceError::Io(error.to_string()))?;
+    let after = fstat(&file).map_err(|error| EvidenceError::Io(error.to_string()))?;
+    if raw.len() != before.st_size as usize
+        || raw.len() > MAX_BYTES
+        || after.st_size != before.st_size
+        || after.st_ino != before.st_ino
+        || after.st_dev != before.st_dev
+        || after.st_nlink != 1
+    {
+        return Err(EvidenceError::Invalid(
+            "model-budget file changed while read",
+        ));
+    }
+    if sha256(&raw) != expected_sha256 {
+        return Err(EvidenceError::Invalid("model-budget SHA-256 differs"));
+    }
+    verify_signed_model_budget(
+        &raw,
+        external_public_key,
+        model_id,
+        max_tokens,
+        config_digest,
+        maximum_requests,
+        expected_sources,
+        base_url,
+    )
 }

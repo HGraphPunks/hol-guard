@@ -118,7 +118,7 @@ pub use local_conformance_package::{
     verify_local_conformance_package_with_key_pins_ineligible, LocalConformancePackageShadow,
     EXECUTION_SOURCES,
 };
-pub use model_budget::verify_signed_model_budget;
+pub use model_budget::{read_signed_model_budget, verify_signed_model_budget};
 pub use model_endpoint::{
     model_endpoint, verify_advertised_model, verify_model_endpoint, ModelEndpoint, DEFAULT_BASE_URL,
 };
