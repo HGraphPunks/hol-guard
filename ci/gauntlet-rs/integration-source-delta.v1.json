@@ -190,7 +190,14 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/control_plane/live_provider.py",
       "phase": 3,
-      "sha256": "fbd31e26092c1010cacc6d83d00ae04a1b088b7a87191119cdae6c26bb5fe129"
+      "sha256": "650b1964a1aba988ccd239f13a933ea0697d9b169656f72a86999d5b015a25db"
+    },
+    {
+      "base_sha256": "b21cbba99384e343a61b2bce3f6ac005207faf90ba7d8abf5ff6f00f32ff1873",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/control_plane/vm_live.py",
+      "phase": 3,
+      "sha256": "54e75a012721ce388b27e841f715c58c3b3281a94056570b6728d2aea134e474"
     },
     {
       "base_sha256": "7d5a6e17217805cb0df10c85f86f7be2e4910010c7f9d6ffa49c918718c30ec5",

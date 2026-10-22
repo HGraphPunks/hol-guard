@@ -120,6 +120,7 @@ def start(job_id, profile, candidate_source_sha):
         'schema': 'gauntlet-live-inference-authorization.v1',
         'user_request': 'Use a local mounted model to do actual model inference and testing, GLM 5.3 or Qwen 3.6',
         'model_id': MODEL_ID, 'job_id': job_id, 'profile': profile,
+        'candidate_source_sha': candidate_source_sha,
         'scope': ('One source-bound twelve-cell beta E2E run' if profile == 'beta-e2e'
                   else 'One source-bound two-cell MCP feature AI probe')
                  + '; retained failures; no automatic inference retry',
@@ -146,6 +147,8 @@ def start(job_id, profile, candidate_source_sha):
     (root/'serve_model_v9.py').chmod(0o444)
     binding = dict(previous)
     binding.update(previous_binding_sha256=TEMPLATE_SHA,
+        candidate_source_sha=candidate_source_sha,
+        job_id=job_id, profile=profile,
         lifetime_token_cap=CEILING,
         lifetime_authorization_record_sha256=ALLOWANCE_SHA,
         quota_allowance_digest=ALLOWANCE_SHA,
@@ -206,8 +209,11 @@ def start(job_id, profile, candidate_source_sha):
     write_new(run/'config.json', config)
     write_new(run/'public-anchor-before.json', anchor)
     process = None
-    record = {'config_sha256': anchor['config_sha256'], 'started': False,
-              'qualification': False}
+    record = {'config_sha256': anchor['config_sha256'],
+              'binding_sha256': config['binding_sha256'],
+              'candidate_source_sha': candidate_source_sha,
+              'job_id': job_id, 'profile': profile,
+              'started': False, 'qualification': False}
     try:
         with (run/'stdout.txt').open('xb') as output, (run/'stderr.txt').open('xb') as errors:
             process = subprocess.Popen(args, env=environment, cwd=root,

@@ -1,11 +1,14 @@
 """Terminal reconciliation must never replay inference or release an uncertain hold."""
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from ci.gauntlet.control_plane import live_local
 from ci.gauntlet.control_plane import vm_live
@@ -41,6 +44,61 @@ class LiveTerminalTests(unittest.TestCase):
         vm_live.fixed({**request, 'profile': 'feature-ai-protocol'}, 'prepare')
         with self.assertRaisesRegex(ValueError, 'reviewed optional'):
             vm_live.fixed({**request, 'profile': 'unreviewed'}, 'prepare')
+
+    def test_vm_refuses_provider_manifest_for_another_candidate_or_changed_binding(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            inbox = Path(temporary)
+            key = Ed25519PrivateKey.generate()
+            loaded = {'model_id': vm_live.MODEL_ID,
+                      'weights_verified_before_and_after_load': True}
+            binding = {'job_id': JOB, 'profile': 'feature-ai',
+                       'candidate_source_sha': SHA, 'model_identity': {'id': vm_live.MODEL_ID},
+                       'model_identity_digest': 'e'*64,
+                       'maximum_accounted_tokens': 14_468_885,
+                       'lifetime_token_cap': 14_468_885}
+            record = {'started': True, 'qualification': False,
+                      'job_id': JOB, 'profile': 'feature-ai',
+                      'candidate_source_sha': SHA, 'config_sha256': 'f'*64,
+                      'binding_sha256': vm_live.digest(vm_live.canonical(binding)+b'\n'),
+                      'loaded': loaded,
+                      'quota_before_any_control': {'binding_sha256':
+                          vm_live.digest(vm_live.canonical(binding)+b'\n'), 'quota': {
+                          'pending_requests': 0, 'reserved_tokens': 0}}}
+            provider = {'anchor': {
+                'public_key': base64.b64encode(key.public_key().public_bytes_raw()).decode(),
+                'config_sha256': record['config_sha256'], 'qualification': False},
+                'binding': binding, 'signed_result': {'record': record,
+                'signature': base64.b64encode(key.sign(vm_live.canonical(record))).decode()}}
+            model = {'loaded': loaded, 'model_identity': binding['model_identity'],
+                     'model_identity_digest': binding['model_identity_digest']}
+
+            def write_manifest(role, value):
+                raw = vm_live.canonical(value)+b'\n'
+                (inbox/('hol-live-'+JOB+'-'+role+'.json')).write_bytes(raw)
+                return vm_live.digest(raw)
+
+            request = {'job_id': JOB, 'profile': 'feature-ai', 'source_sha': SHA,
+                       'provider_sha256': write_manifest('provider', provider),
+                       'model_sha256': write_manifest('model', model)}
+            settings = {'guest_inbox': str(inbox)}
+            vm_live.inputs(request, settings, {})
+            with self.assertRaisesRegex(ValueError, 'requested candidate'):
+                vm_live.inputs({**request, 'source_sha': 'c'*40}, settings, {})
+            with self.assertRaisesRegex(ValueError, 'requested candidate'):
+                vm_live.inputs({**request, 'profile': 'beta-e2e'}, settings, {})
+            record['quota_before_any_control']['binding_sha256'] = '0'*64
+            provider['signed_result']['signature'] = base64.b64encode(
+                key.sign(vm_live.canonical(record))).decode()
+            request['provider_sha256'] = write_manifest('provider', provider)
+            with self.assertRaisesRegex(ValueError, 'requested candidate and binding'):
+                vm_live.inputs(request, settings, {})
+            record['quota_before_any_control']['binding_sha256'] = record['binding_sha256']
+            provider['signed_result']['signature'] = base64.b64encode(
+                key.sign(vm_live.canonical(record))).decode()
+            provider['binding']['model_identity_digest'] = 'd'*64
+            request['provider_sha256'] = write_manifest('provider', provider)
+            with self.assertRaisesRegex(ValueError, 'requested candidate and binding'):
+                vm_live.inputs(request, settings, {})
 
     def test_two_cell_receipt_preserves_baseline_effect_and_guard_surface(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -88,6 +88,18 @@ def inputs(request, settings, helpers):
     anchor = provider['anchor']
     Ed25519PublicKey.from_public_bytes(base64.b64decode(anchor['public_key'], validate=True)).verify(
         base64.b64decode(provider['signed_result']['signature'], validate=True), canonical(record))
+    binding = provider['binding']
+    requested_profile = request.get('profile', 'beta-e2e')
+    if (record.get('job_id') != job
+            or record.get('profile') != requested_profile
+            or record.get('candidate_source_sha') != request['source_sha']
+            or binding.get('job_id') != job
+            or binding.get('profile') != requested_profile
+            or binding.get('candidate_source_sha') != request['source_sha']
+            or record.get('binding_sha256') != digest(canonical(binding)+b'\n')
+            or record.get('quota_before_any_control', {}).get('binding_sha256') !=
+               record.get('binding_sha256')):
+        raise ValueError('provider startup differs from requested candidate and binding')
     if (anchor['config_sha256'] != record['config_sha256']
             or record['loaded'] != model.get('loaded')
             or model.get('model_identity') != provider['binding'].get('model_identity')

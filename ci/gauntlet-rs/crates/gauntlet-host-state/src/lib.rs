@@ -22,6 +22,10 @@ mod live_provider_start;
 pub use live_provider_start::{
     fixed_live_provider_start_plan, LiveProviderStartError, LiveProviderStartPlan,
 };
+mod live_provider_manifest;
+pub use live_provider_manifest::{
+    verify_live_provider_manifest_claim, LiveProviderManifestExpectation,
+};
 mod controller_key_pins;
 pub use controller_key_pins::{
     HostControllerKeyPinJournal, HostControllerKeyPins, HostKeyPinError, HostKeyPinRecord,

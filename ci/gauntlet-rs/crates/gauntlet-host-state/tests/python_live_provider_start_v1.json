@@ -114,6 +114,6 @@
   "schema": "hol-gauntlet-python-live-provider-start-fixtures.v1",
   "source_sha256": {
     "live_local": "71c243e73702aef416db1a55108635a755f0a4ba4158c89723ca41d76e56af60",
-    "live_provider": "fbd31e26092c1010cacc6d83d00ae04a1b088b7a87191119cdae6c26bb5fe129"
+    "live_provider": "650b1964a1aba988ccd239f13a933ea0697d9b169656f72a86999d5b015a25db"
   }
 }
