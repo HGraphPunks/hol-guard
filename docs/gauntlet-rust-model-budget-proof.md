@@ -1,0 +1,9 @@
+# Signed provider-budget parity proof
+
+Code pin `27bbdfdf` adds `gauntlet_evidence::verify_signed_model_budget`. It verifies an 8-MiB-bounded canonical Ed25519 envelope against a caller-supplied public key, compares the fixed Python observer source hashes with outside pins, then recomputes requests, responses, knownness, tokens, threshold overrun and cleanup from the ordered provider rows. It never accepts the SDK's `modelTokens` or `episode_end` as provider authority.
+
+The fixture generator calls pinned Python `business_model_budget.verify_model_budget` with deterministic test signatures. The source SHA-256 is `1b72f0af2653b6c2e9da345a9009d056402f3a278dc9e07536a936c916f7fd4a`; its endpoint helper is `82cf4f951340e0c9cc65315b31f042aef235d378a661d4b5246f36db29d3f302`. The Rust test checks both hashes against `parity-manifest.v1.json` and compares all 33 Python outcomes. The cases cover complete, zero-request, startup-incomplete, overrun, pending, partial and legacy observations; discovery and sequential requests; known and unknown cost; signature, source, route, sequence, aggregate, threshold, sampling and cleanup mutations. A separate Rust test refuses a wrong outside key, wrong outside source hash and excess bytes.
+
+The full macOS `gauntlet-evidence` crate, local warnings-denied Clippy and native Linux ARM64 Rust 1.88 parity test passed. Python fixture-generator Ruff checks and workspace formatting passed. The isolated ARM64 CI workflow now runs the new test.
+
+This reader supports the fixed unprofiled v1 record. It deliberately refuses the optional MCP protocol and agent-surface profile extensions until their independent declarations are ported. It does not retain a live provider transcript, prove the public key's deployment provenance, establish a candidate's model use, settle the host quota journal, or qualify a Guard result. The provider and model-backed workflow exits remain open.
