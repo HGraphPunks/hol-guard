@@ -25,9 +25,9 @@ SHA-matched run.
 
 This is a feasibility test, not a live Gauntlet route. The connector in this
 test is an unprivileged Python process outside a private PID namespace; the
-production tap still forwards from its PID-1 child. A new opt-in Root relay
-must use the pinned PID-1 helper to create the Native connection, close the
-helper's SDK/Native descriptors before forwarding, authenticate both live
-peers before each Root write, version its journal and reader, and rerun all
-six candidate roles. Even that transport would not independently attribute
-Guard or product-side physical effects. No eligibility or gate changed.
+live staging tap still forwards from its PID-1 child. The subsequent
+[Root PID-namespace relay probe](gauntlet-rust-root-pidns-relay-probe-proof.md)
+uses a pinned PID-1 connector and checks both peers before each Root write.
+Its journal/reader version and six-role candidate suite remain open. Even
+that transport would not independently attribute Guard or product-side
+physical effects. No eligibility or gate changed.

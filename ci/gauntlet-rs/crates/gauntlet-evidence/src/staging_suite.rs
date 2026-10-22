@@ -53,11 +53,16 @@ pub struct StagingSuiteShadow {
     pub live_sdk_tap_roles_matched: usize,
     pub live_sdk_tap_frames_matched: usize,
     pub source_bound_docs_roles_matched: usize,
+    pub root_forwarded_sdk_tap_roles_matched: usize,
 }
 
 impl StagingSuiteShadow {
     pub fn to_json(&self) -> Value {
-        let schema = if self.source_bound_docs_roles_matched == 6 {
+        let schema = if self.source_bound_docs_roles_matched == 6
+            && self.root_forwarded_sdk_tap_roles_matched == 6
+        {
+            "hol-gauntlet-staging-sdk-docs-oracle-root-relay-suite-shadow.v1"
+        } else if self.source_bound_docs_roles_matched == 6 {
             "hol-gauntlet-staging-sdk-docs-oracle-suite-shadow.v1"
         } else if self.live_sdk_tap_roles_matched == 6 {
             "hol-gauntlet-staging-sdk-tap-suite-shadow.v1"
@@ -107,6 +112,9 @@ impl StagingSuiteShadow {
         }
         if self.source_bound_docs_roles_matched == 6 {
             output["source_bound_docs_roles_matched"] = json!(6);
+        }
+        if self.root_forwarded_sdk_tap_roles_matched == 6 {
+            output["root_forwarded_sdk_tap_roles_matched"] = json!(6);
         }
         output
     }
@@ -280,6 +288,7 @@ fn terminal_and_cleanup(
     require_native_mcp: bool,
     tap_journal_sha256: Option<&str>,
     expected_docs_record: Option<&Value>,
+    root_forwarded: bool,
 ) -> Result<(bool, bool, bool, bool, bool, usize)> {
     let run = string(row, "run_id")?;
     let report_name = format!("{run}.report.json");
@@ -379,6 +388,7 @@ fn terminal_and_cleanup(
                     started_marker_sha256: string(row, "started_marker_sha256")?,
                     controller_public_key_hex: string(row, "controller_public_key_hex")?,
                     expected_docs_record,
+                    root_forwarded,
                 },
             )
             .map_err(|error| EvidenceError::Context("SDK tap", Box::new(error)))?;
@@ -445,6 +455,7 @@ fn observe_staging_suite(
     tap_journal_sha256: Option<&[String; 6]>,
     outside_controller_source_sha: Option<&str>,
     outside_controller_tree_sha256: Option<&str>,
+    root_forwarded: bool,
 ) -> Result<StagingSuiteShadow> {
     if geteuid().as_raw() != 0
         || !lower_hex(build_job_id, 16)
@@ -506,6 +517,9 @@ fn observe_staging_suite(
     }) {
         return Err(INVALID);
     }
+    if root_forwarded && tap_journal_sha256.is_none() {
+        return Err(INVALID);
+    }
     let journal = open_absolute_directory(Path::new(STAGING))?;
     private_directory(&journal, 0)?;
     let mut physical_files = 0;
@@ -552,6 +566,7 @@ fn observe_staging_suite(
                         }
                     },
                 ),
+                root_forwarded,
             )
             .map_err(|error| EvidenceError::Context(role, Box::new(error)))?;
         live_kernel_roles_sampled += usize::from(kernel);
@@ -594,6 +609,11 @@ fn observe_staging_suite(
         live_sdk_tap_roles_matched,
         live_sdk_tap_frames_matched,
         source_bound_docs_roles_matched,
+        root_forwarded_sdk_tap_roles_matched: if root_forwarded {
+            live_sdk_tap_roles_matched
+        } else {
+            0
+        },
     })
 }
 
@@ -608,6 +628,7 @@ pub fn observe_staging_suite_root_owned_ineligible(
         None,
         None,
         None,
+        false,
     )
 }
 
@@ -625,6 +646,7 @@ pub fn observe_staging_suite_native_mcp_root_owned_ineligible(
         None,
         None,
         None,
+        false,
     )
 }
 
@@ -642,6 +664,7 @@ pub fn observe_staging_suite_sdk_tap_root_owned_ineligible(
         Some(tap_journal_sha256),
         None,
         None,
+        false,
     )
 }
 
@@ -662,6 +685,27 @@ pub fn observe_staging_suite_sdk_docs_oracle_root_owned_ineligible(
         Some(tap_journal_sha256),
         Some(outside_controller_source_sha),
         Some(outside_controller_tree_sha256),
+        false,
+    )
+}
+
+/// Separate opt-in reader for the Root-forwarded PID-namespace wire. The
+/// outside CLI mode pins the expected journal ownership before opening bytes.
+pub fn observe_staging_suite_sdk_docs_oracle_root_relay_ineligible(
+    build_job_id: &str,
+    outside_manifest_sha256: &str,
+    outside_controller_source_sha: &str,
+    outside_controller_tree_sha256: &str,
+    tap_journal_sha256: &[String; 6],
+) -> Result<StagingSuiteShadow> {
+    observe_staging_suite(
+        build_job_id,
+        outside_manifest_sha256,
+        true,
+        Some(tap_journal_sha256),
+        Some(outside_controller_source_sha),
+        Some(outside_controller_tree_sha256),
+        true,
     )
 }
 
@@ -802,6 +846,7 @@ mod tests {
             live_sdk_tap_roles_matched: 0,
             live_sdk_tap_frames_matched: 0,
             source_bound_docs_roles_matched: 0,
+            root_forwarded_sdk_tap_roles_matched: 0,
         };
         assert_eq!(
             proof.to_json()["schema"],
@@ -871,5 +916,13 @@ mod tests {
             "hol-gauntlet-staging-sdk-docs-oracle-suite-shadow.v1"
         );
         assert_eq!(docs_oracle.to_json()["source_bound_docs_roles_matched"], 6);
+        let root_relay = StagingSuiteShadow {
+            root_forwarded_sdk_tap_roles_matched: 6,
+            ..docs_oracle
+        };
+        assert_eq!(
+            root_relay.to_json()["schema"],
+            "hol-gauntlet-staging-sdk-docs-oracle-root-relay-suite-shadow.v1"
+        );
     }
 }

@@ -118,6 +118,26 @@ impl HostKeyPinRecord {
         let journal: Value =
             serde_json::from_slice(journal_raw).map_err(|_| HostKeyPinError::InvalidTapJournal)?;
         let receipt = &report["sdk_tap_v2"]["journal"];
+        let root_forwarded =
+            report["sdk_tap_v2"]["schema"] == "hol-gauntlet-staging-sdk-tap-summary.v3";
+        if root_forwarded {
+            if report["sdk_tap_v2"]["native_peer_independently_observed_by_root"] != true
+                || report["sdk_tap_v2"]["root_forwarded"] != true
+                || receipt["schema"] != "hol-gauntlet-sdk-tap-journal-receipt.v2"
+                || receipt["root_forwarded"] != true
+                || journal["schema"] != "hol-gauntlet-sdk-tap-journal.v2"
+                || journal["root_forwarded"] != true
+                || journal["wire_owner"] != "root-forwarded"
+            {
+                return Err(HostKeyPinError::InvalidTapJournal);
+            }
+        } else if report["sdk_tap_v2"].get("root_forwarded").is_some()
+            || receipt.get("root_forwarded").is_some()
+            || journal.get("root_forwarded").is_some()
+            || journal.get("wire_owner").is_some()
+        {
+            return Err(HostKeyPinError::InvalidTapJournal);
+        }
         let sessions = journal["sessions"]
             .as_array()
             .ok_or(HostKeyPinError::InvalidTapJournal)?;
@@ -146,6 +166,11 @@ impl HostKeyPinRecord {
                 sum.checked_add(size)
             });
             if session["sequence"].as_u64() != Some(index as u64 + 1)
+                || if root_forwarded {
+                    session["wire_owner"] != "root-forwarded"
+                } else {
+                    session.get("wire_owner").is_some()
+                }
                 || wire_events.is_empty()
                 || wire["schema"] != "hol-gauntlet-sdk-wire-tap.v1"
                 || wire["peer_identity_verified"] != false
@@ -195,9 +220,10 @@ impl HostKeyPinRecord {
                 ),
                 (Some("hol-gauntlet-staging-sdk-tap-summary.v1"), Some(false))
                     | (Some("hol-gauntlet-staging-sdk-tap-summary.v2"), Some(true))
+                    | (Some("hol-gauntlet-staging-sdk-tap-summary.v3"), Some(true))
             )
             || report["sdk_tap_v2"]["execution_eligible"] != false
-            || receipt["schema"] != "hol-gauntlet-sdk-tap-journal-receipt.v1"
+            || (!root_forwarded && receipt["schema"] != "hol-gauntlet-sdk-tap-journal-receipt.v1")
             || receipt["run_id"] != self.pins.job_id
             || receipt["sha256"] != journal_sha256
             || receipt["bytes"].as_u64() != Some(journal_raw.len() as u64)
@@ -206,7 +232,7 @@ impl HostKeyPinRecord {
             || receipt["child_report_authenticated"] != false
             || receipt["host_pin_retained"] != false
             || receipt["execution_eligible"] != false
-            || journal["schema"] != "hol-gauntlet-sdk-tap-journal.v1"
+            || (!root_forwarded && journal["schema"] != "hol-gauntlet-sdk-tap-journal.v1")
             || journal["run_id"] != self.pins.job_id
             || journal["source_sha"] != self.pins.source_sha
             || journal["started_marker_sha256"] != self.pins.started_marker_sha256
@@ -619,6 +645,48 @@ mod tests {
         assert!(key
             .observe_sdk_tap_journal(&canonical(terminal_value), &v2, &journal)
             .is_ok());
+    }
+
+    #[test]
+    fn host_distinguishes_root_forwarded_wire_from_child_report() {
+        let (_temp, _host, key, terminal, report, journal) = sample();
+        let mut journal_value: Value = serde_json::from_slice(&journal).unwrap();
+        journal_value["schema"] = json!("hol-gauntlet-sdk-tap-journal.v2");
+        journal_value["root_forwarded"] = json!(true);
+        journal_value["wire_owner"] = json!("root-forwarded");
+        for session in journal_value["sessions"].as_array_mut().unwrap() {
+            session["wire_owner"] = json!("root-forwarded");
+        }
+        let root_journal = canonical(journal_value.clone());
+        let mut report_value: Value = serde_json::from_slice(&report).unwrap();
+        report_value["sdk_tap_v2"]["schema"] = json!("hol-gauntlet-staging-sdk-tap-summary.v3");
+        report_value["sdk_tap_v2"]["native_peer_independently_observed_by_root"] = json!(true);
+        report_value["sdk_tap_v2"]["root_forwarded"] = json!(true);
+        report_value["sdk_tap_v2"]["journal"]["schema"] =
+            json!("hol-gauntlet-sdk-tap-journal-receipt.v2");
+        report_value["sdk_tap_v2"]["journal"]["root_forwarded"] = json!(true);
+        report_value["sdk_tap_v2"]["journal"]["sha256"] = json!(digest(&root_journal));
+        report_value["sdk_tap_v2"]["journal"]["bytes"] = json!(root_journal.len());
+        let root_report = canonical(report_value.clone());
+        let mut terminal_value: Value = serde_json::from_slice(&terminal).unwrap();
+        terminal_value["report_sha256"] = json!(digest(&root_report));
+        let root_terminal = canonical(terminal_value.clone());
+        assert!(key
+            .observe_sdk_tap_journal(&root_terminal, &root_report, &root_journal)
+            .is_ok());
+        journal_value["sessions"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("wire_owner");
+        assert!(key
+            .observe_sdk_tap_journal(&root_terminal, &root_report, &canonical(journal_value))
+            .is_err());
+        report_value["sdk_tap_v2"]["journal"]["root_forwarded"] = json!(false);
+        let false_report = canonical(report_value);
+        terminal_value["report_sha256"] = json!(digest(&false_report));
+        assert!(key
+            .observe_sdk_tap_journal(&canonical(terminal_value), &false_report, &root_journal)
+            .is_err());
     }
 
     #[test]

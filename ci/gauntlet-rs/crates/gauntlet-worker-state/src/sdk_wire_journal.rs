@@ -20,8 +20,15 @@ const MAX_SESSIONS: usize = 16;
 const MAX_EVENTS: usize = 1_000;
 const MAX_OBSERVED_BYTES: usize = 12 * 1024 * 1024;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SdkTapWireOwner {
+    ChildReport,
+    RootForwarded,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SdkTapRetainedSession {
+    pub wire_owner: SdkTapWireOwner,
     pub family: String,
     pub sdk_peer: SdkWirePeerObservation,
     pub native_peer: SdkWirePeerObservation,
@@ -31,6 +38,7 @@ pub struct SdkTapRetainedSession {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SdkTapJournalReceipt {
+    pub wire_owner: SdkTapWireOwner,
     pub run_id: String,
     pub sha256: String,
     pub bytes: usize,
@@ -40,7 +48,7 @@ pub struct SdkTapJournalReceipt {
 
 impl SdkTapJournalReceipt {
     pub fn to_json(&self) -> Value {
-        json!({
+        let mut value = json!({
             "schema":"hol-gauntlet-sdk-tap-journal-receipt.v1",
             "run_id":self.run_id,
             "sha256":self.sha256,
@@ -50,7 +58,12 @@ impl SdkTapJournalReceipt {
             "child_report_authenticated":false,
             "host_pin_retained":false,
             "execution_eligible":false,
-        })
+        });
+        if self.wire_owner == SdkTapWireOwner::RootForwarded {
+            value["schema"] = json!("hol-gauntlet-sdk-tap-journal-receipt.v2");
+            value["root_forwarded"] = json!(true);
+        }
+        value
     }
 }
 
@@ -158,7 +171,7 @@ fn validate_session(session: &SdkTapRetainedSession) -> Result<(usize, usize), S
 fn journal_bytes(
     started: &StartedMarker,
     sessions: &[SdkTapRetainedSession],
-) -> Result<(Vec<u8>, usize), String> {
+) -> Result<(Vec<u8>, usize, SdkTapWireOwner), String> {
     if sessions.is_empty() || sessions.len() > MAX_SESSIONS {
         return Err("SDK tap session count outside fixed bound".to_owned());
     }
@@ -167,7 +180,11 @@ fn journal_bytes(
     let mut docs = false;
     let mut mail = false;
     let mut records = Vec::new();
+    let owner = sessions[0].wire_owner;
     for (index, session) in sessions.iter().enumerate() {
+        if session.wire_owner != owner {
+            return Err("mixed SDK tap wire owners are invalid".to_owned());
+        }
         let (count, size) = validate_session(session)?;
         events = events
             .checked_add(count)
@@ -180,19 +197,23 @@ fn journal_bytes(
         }
         docs |= session.family == "docs";
         mail |= session.family == "mail";
-        records.push(json!({
+        let mut record = json!({
             "sequence":index + 1,
             "family":session.family,
             "sdk_peer":session.sdk_peer.to_json(),
             "native_peer":session.native_peer.to_json(),
             "sdk_ancestry":session.sdk_ancestry.to_json(),
             "wire":session.wire.to_json(),
-        }));
+        });
+        if owner == SdkTapWireOwner::RootForwarded {
+            record["wire_owner"] = json!("root-forwarded");
+        }
+        records.push(record);
     }
     if !docs || !mail {
         return Err("both fixed SDK tap families required".to_owned());
     }
-    let value = json!({
+    let mut value = json!({
         "schema":"hol-gauntlet-sdk-tap-journal.v1",
         "run_id":started.job_id,
         "source_sha":started.source_sha,
@@ -206,11 +227,16 @@ fn journal_bytes(
         "host_pin_retained":false,
         "execution_eligible":false,
     });
+    if owner == SdkTapWireOwner::RootForwarded {
+        value["schema"] = json!("hol-gauntlet-sdk-tap-journal.v2");
+        value["wire_owner"] = json!("root-forwarded");
+        value["root_forwarded"] = json!(true);
+    }
     let raw = canonicalize(value.to_string().as_bytes()).map_err(|error| error.to_string())?;
     if raw.len() > MAX_JOURNAL_BYTES {
         return Err("SDK tap journal exceeds fixed byte bound".to_owned());
     }
-    Ok((raw, events))
+    Ok((raw, events, owner))
 }
 
 fn exact_file(stat: &rustix::fs::Stat, size: usize) -> bool {
@@ -229,7 +255,7 @@ pub fn retain_sdk_tap_journal_ineligible(
     sessions: &[SdkTapRetainedSession],
 ) -> Result<SdkTapJournalReceipt, String> {
     require_started(journal, lease, started)?;
-    let (raw, events) = journal_bytes(started, sessions)?;
+    let (raw, events, wire_owner) = journal_bytes(started, sessions)?;
     let name = journal_name(&started.job_id)?;
     let descriptor = openat(
         &journal.root,
@@ -257,6 +283,7 @@ pub fn retain_sdk_tap_journal_ineligible(
     }
     require_started(journal, lease, started)?;
     Ok(SdkTapJournalReceipt {
+        wire_owner,
         run_id: started.job_id.clone(),
         sha256: format!("{:x}", Sha256::digest(&raw)),
         bytes: raw.len(),
@@ -313,7 +340,21 @@ pub fn read_sdk_tap_journal_ineligible(
         return Err("SDK tap journal differs from outside pin".to_owned());
     }
     let value: Value = serde_json::from_slice(&raw).map_err(|error| error.to_string())?;
-    if value["schema"] != "hol-gauntlet-sdk-tap-journal.v1"
+    let root_forwarded = value["schema"] == "hol-gauntlet-sdk-tap-journal.v2";
+    if (value["schema"] != "hol-gauntlet-sdk-tap-journal.v1" && !root_forwarded)
+        || (root_forwarded
+            && (value["wire_owner"] != "root-forwarded" || value["root_forwarded"] != true))
+        || (!root_forwarded
+            && (value.get("wire_owner").is_some() || value.get("root_forwarded").is_some()))
+        || value["sessions"].as_array().is_none_or(|sessions| {
+            sessions.iter().any(|session| {
+                if root_forwarded {
+                    session["wire_owner"] != "root-forwarded"
+                } else {
+                    session.get("wire_owner").is_some()
+                }
+            })
+        })
         || value["run_id"] != started.job_id
         || value["source_sha"] != started.source_sha
         || value["started_marker_sha256"] != started.sha256
@@ -338,6 +379,7 @@ mod tests {
 
     fn session(family: &str) -> SdkTapRetainedSession {
         SdkTapRetainedSession {
+            wire_owner: SdkTapWireOwner::ChildReport,
             family: family.to_owned(),
             sdk_peer: SdkWirePeerObservation {
                 pid: 100,
@@ -421,5 +463,44 @@ mod tests {
         assert!(
             read_sdk_tap_journal_ineligible(&journal, &lease, &started, &receipt.sha256).is_err()
         );
+    }
+
+    #[test]
+    #[ignore = "requires Linux Root for a versioned one-use private SDK tap journal"]
+    fn root_forwarded_journal_is_distinct_from_child_report() {
+        let temp = tempfile::tempdir_in("/root").unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let journal = RunReservationJournal::open_root_owned(temp.path()).unwrap();
+        let lease = journal.acquire_active_lease().unwrap();
+        let request = WorkerRequest::parse(br#"{"action":"run","deployment_digest":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","job_id":"a1b2c3d4e5f60719","schema":"hol-gauntlet-worker-request.v1","source_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}"#).unwrap();
+        let started = journal
+            .reserve_keyed_under_lease(
+                &lease,
+                &request,
+                &"a".repeat(40),
+                &"b".repeat(64),
+                &"c".repeat(64),
+                &"d".repeat(64),
+            )
+            .unwrap();
+        let mut sessions = [session("docs"), session("mail")];
+        sessions[0].wire_owner = SdkTapWireOwner::RootForwarded;
+        assert!(retain_sdk_tap_journal_ineligible(&journal, &lease, &started, &sessions).is_err());
+        sessions[1].wire_owner = SdkTapWireOwner::RootForwarded;
+        let receipt =
+            retain_sdk_tap_journal_ineligible(&journal, &lease, &started, &sessions).unwrap();
+        assert_eq!(
+            receipt.to_json()["schema"],
+            "hol-gauntlet-sdk-tap-journal-receipt.v2"
+        );
+        assert_eq!(receipt.to_json()["root_forwarded"], true);
+        let raw =
+            read_sdk_tap_journal_ineligible(&journal, &lease, &started, &receipt.sha256).unwrap();
+        let value: Value = serde_json::from_slice(&raw).unwrap();
+        assert_eq!(value["schema"], "hol-gauntlet-sdk-tap-journal.v2");
+        assert_eq!(value["root_forwarded"], true);
+        assert_eq!(value["sessions"][0]["wire_owner"], "root-forwarded");
+        assert_eq!(value["sessions"][1]["wire_owner"], "root-forwarded");
+        assert!(retain_sdk_tap_journal_ineligible(&journal, &lease, &started, &sessions).is_err());
     }
 }

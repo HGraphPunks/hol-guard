@@ -17,6 +17,7 @@ pub(crate) struct SdkTapOutsidePins<'a> {
     pub started_marker_sha256: &'a str,
     pub controller_public_key_hex: &'a str,
     pub expected_docs_record: Option<&'a Value>,
+    pub root_forwarded: bool,
 }
 
 /// Derive the clean and injected docs records from the separately pinned
@@ -290,17 +291,33 @@ pub(crate) fn matching_sdk_tap_native_frames(
     let journal: Value = serde_json::from_slice(journal_raw).map_err(|_| INVALID)?;
     let run_id = report["run_id"].as_str().ok_or(INVALID)?;
     let receipt = &report["sdk_tap_v2"]["journal"];
-    if record["sdk_tap_v2_requested"] != true
-        || !matches!(
+    let mode_matches = if pins.root_forwarded {
+        report["sdk_tap_v2"]["schema"] == "hol-gauntlet-staging-sdk-tap-summary.v3"
+            && report["sdk_tap_v2"]["native_peer_independently_observed_by_root"] == true
+            && report["sdk_tap_v2"]["root_forwarded"] == true
+            && receipt["schema"] == "hol-gauntlet-sdk-tap-journal-receipt.v2"
+            && receipt["root_forwarded"] == true
+            && journal["schema"] == "hol-gauntlet-sdk-tap-journal.v2"
+            && journal["root_forwarded"] == true
+            && journal["wire_owner"] == "root-forwarded"
+    } else {
+        matches!(
             (
                 report["sdk_tap_v2"]["schema"].as_str(),
                 report["sdk_tap_v2"]["native_peer_independently_observed_by_root"].as_bool()
             ),
             (Some("hol-gauntlet-staging-sdk-tap-summary.v1"), Some(false))
                 | (Some("hol-gauntlet-staging-sdk-tap-summary.v2"), Some(true))
-        )
+        ) && report["sdk_tap_v2"].get("root_forwarded").is_none()
+            && receipt["schema"] == "hol-gauntlet-sdk-tap-journal-receipt.v1"
+            && receipt.get("root_forwarded").is_none()
+            && journal["schema"] == "hol-gauntlet-sdk-tap-journal.v1"
+            && journal.get("root_forwarded").is_none()
+            && journal.get("wire_owner").is_none()
+    };
+    if record["sdk_tap_v2_requested"] != true
+        || !mode_matches
         || report["sdk_tap_v2"]["execution_eligible"] != false
-        || receipt["schema"] != "hol-gauntlet-sdk-tap-journal-receipt.v1"
         || receipt["run_id"] != run_id
         || receipt["sha256"] != pins.journal_sha256
         || receipt["bytes"] != journal_raw.len()
@@ -309,7 +326,6 @@ pub(crate) fn matching_sdk_tap_native_frames(
         || receipt["child_report_authenticated"] != false
         || receipt["host_pin_retained"] != false
         || receipt["execution_eligible"] != false
-        || journal["schema"] != "hol-gauntlet-sdk-tap-journal.v1"
         || journal["run_id"] != run_id
         || journal["source_sha"] != pins.source_sha
         || journal["started_marker_sha256"] != pins.started_marker_sha256
@@ -343,6 +359,13 @@ pub(crate) fn matching_sdk_tap_native_frames(
     let controller_cgroup = format!("/system.slice/hol-gauntlet-rust-job-{run_id}");
     let mut relays = BTreeSet::new();
     for session in journal["sessions"].as_array().ok_or(INVALID)? {
+        if pins.root_forwarded {
+            if session["wire_owner"] != "root-forwarded" {
+                return Err(INVALID);
+            }
+        } else if session.get("wire_owner").is_some() {
+            return Err(INVALID);
+        }
         let peer = &session["sdk_peer"];
         let native = &session["native_peer"];
         let ancestry = &session["sdk_ancestry"];

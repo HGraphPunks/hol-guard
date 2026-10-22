@@ -284,16 +284,18 @@ struct RelayControl<'a> {
     until: Instant,
 }
 
-fn pump<F>(
+fn pump<F, C>(
     mut source: UnixStream,
     mut destination: UnixStream,
     direction: &'static str,
     ledger: &Mutex<Ledger>,
     frame_sink: &Mutex<F>,
+    pre_forward: &Mutex<C>,
     control: &RelayControl<'_>,
 ) -> Result<(), String>
 where
     F: FnMut(&'static str, &[u8]) -> Result<(), String> + Send,
+    C: FnMut(&'static str, &[u8]) -> Result<(), String> + Send,
 {
     source
         .set_read_timeout(Some(READ_TIMEOUT))
@@ -341,6 +343,14 @@ where
                 let mut ledger = ledger
                     .lock()
                     .map_err(|_| "MCP tap ledger lock poisoned".to_owned())?;
+                let mut check = pre_forward
+                    .lock()
+                    .map_err(|_| "MCP tap pre-forward lock poisoned".to_owned())?;
+                if let Err(error) = (*check)(direction, &frame) {
+                    ledger.poisoned = true;
+                    return Err(format!("MCP tap pre-forward check failed: {error}"));
+                }
+                drop(check);
                 ledger.forward(direction, &frame, &mut destination)?;
                 let mut sink = frame_sink
                     .lock()
@@ -389,9 +399,40 @@ pub fn relay_bounded_sdk_mcp_pair_with_frame_sink_ineligible<F>(
 where
     F: FnMut(&'static str, &[u8]) -> Result<(), String> + Send,
 {
+    let no_check = Mutex::new(|_direction: &'static str, _frame: &[u8]| Ok(()));
+    relay_bounded_sdk_mcp_pair_with_checks_ineligible(
+        client,
+        frontdoor,
+        family,
+        cancelled,
+        MAX_LIFETIME,
+        &no_check,
+        frame_sink,
+    )
+}
+
+/// Root-owned forwarding can authenticate both held peers immediately
+/// before each write. A failed precheck prevents that frame from reaching
+/// the destination and poisons the whole exchange.
+pub(crate) fn relay_bounded_sdk_mcp_pair_with_checks_ineligible<F, C>(
+    client: UnixStream,
+    frontdoor: UnixStream,
+    family: &str,
+    cancelled: &AtomicBool,
+    lifetime: Duration,
+    pre_forward: &Mutex<C>,
+    frame_sink: &Mutex<F>,
+) -> Result<SdkWireObservation, String>
+where
+    F: FnMut(&'static str, &[u8]) -> Result<(), String> + Send,
+    C: FnMut(&'static str, &[u8]) -> Result<(), String> + Send,
+{
+    if lifetime == Duration::ZERO {
+        return Err("MCP tap lifetime already expired".to_owned());
+    }
     let ledger = Mutex::new(Ledger::new(family)?);
     let stop = AtomicBool::new(false);
-    let until = Instant::now() + MAX_LIFETIME;
+    let until = Instant::now() + lifetime.min(MAX_LIFETIME);
     let control = RelayControl {
         stop: &stop,
         cancelled,
@@ -407,6 +448,7 @@ where
                 "client-to-service",
                 &ledger,
                 frame_sink,
+                pre_forward,
                 &control,
             );
             if outcome.is_err() {
@@ -421,6 +463,7 @@ where
                 "service-to-client",
                 &ledger,
                 frame_sink,
+                pre_forward,
                 &control,
             );
             if outcome.is_err() {
@@ -499,6 +542,53 @@ mod tests {
             );
             assert_eq!(proof.to_json()["execution_eligible"], false);
         });
+    }
+
+    #[test]
+    fn failed_root_pre_forward_check_never_delivers_request() {
+        let (mut sdk, tap_client) = UnixStream::pair().unwrap();
+        let (mut native, tap_frontdoor) = UnixStream::pair().unwrap();
+        let request = b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\"}\n";
+        let check = Mutex::new(|_direction: &'static str, _frame: &[u8]| {
+            Err("peer ancestry changed".to_owned())
+        });
+        let sink = Mutex::new(|_direction: &'static str, _frame: &[u8]| Ok(()));
+        let relay = std::thread::spawn(move || {
+            relay_bounded_sdk_mcp_pair_with_checks_ineligible(
+                tap_client,
+                tap_frontdoor,
+                "docs",
+                &AtomicBool::new(false),
+                Duration::from_secs(5),
+                &check,
+                &sink,
+            )
+        });
+        sdk.write_all(request).unwrap();
+        sdk.shutdown(Shutdown::Write).unwrap();
+        assert!(relay.join().unwrap().is_err());
+        let mut byte = [0_u8; 1];
+        assert_eq!(native.read(&mut byte).unwrap(), 0);
+    }
+
+    #[test]
+    fn idle_root_relay_stops_at_caller_lifetime() {
+        let (_sdk, tap_client) = UnixStream::pair().unwrap();
+        let (_native, tap_frontdoor) = UnixStream::pair().unwrap();
+        let check = Mutex::new(|_direction: &'static str, _frame: &[u8]| Ok(()));
+        let sink = Mutex::new(|_direction: &'static str, _frame: &[u8]| Ok(()));
+        let began = Instant::now();
+        let result = relay_bounded_sdk_mcp_pair_with_checks_ineligible(
+            tap_client,
+            tap_frontdoor,
+            "docs",
+            &AtomicBool::new(false),
+            Duration::from_millis(100),
+            &check,
+            &sink,
+        );
+        assert!(result.is_err());
+        assert!(began.elapsed() < Duration::from_secs(2));
     }
 
     #[test]

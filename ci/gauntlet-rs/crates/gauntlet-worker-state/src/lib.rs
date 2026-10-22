@@ -330,6 +330,7 @@ pub use candidate_staging_plan::{
 pub use candidate_staging_run::{
     run_fixed_candidate_staging_control_ineligible,
     run_fixed_candidate_staging_control_sdk_tap_pidns_ineligible,
+    run_fixed_candidate_staging_control_sdk_tap_root_relay_ineligible,
     run_fixed_candidate_staging_control_sdk_tap_v2_ineligible, CandidateStagingRunPins,
     CandidateStagingRunProof,
 };
@@ -379,12 +380,13 @@ pub use product_cell_units::{
 pub use running::RunningMarker;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use sdk_wire_child::{
-    run_sdk_tap_child_once_ineligible, run_sdk_tap_child_once_pidns_ineligible, SdkTapChildPins,
+    connect_native_once_pidns_ineligible, run_sdk_tap_child_once_ineligible,
+    run_sdk_tap_child_once_pidns_ineligible, SdkTapChildPins,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use sdk_wire_journal::{
     read_sdk_tap_journal_ineligible, retain_sdk_tap_journal_ineligible, SdkTapJournalReceipt,
-    SdkTapRetainedSession,
+    SdkTapRetainedSession, SdkTapWireOwner,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use sdk_wire_listener::{bind_sdk_tap_listeners_ineligible, SdkTapListeners};
@@ -399,6 +401,7 @@ pub use sdk_wire_peer::{
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use sdk_wire_pidns::{
     probe_owned_tap_pid_namespace_ineligible, run_pinned_sdk_tap_child_in_pidns_ineligible,
+    run_pinned_sdk_tap_root_relay_in_pidns_ineligible,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use sdk_wire_pipe::{read_sdk_tap_frame_pipe_ineligible, SdkTapFramePipeWriter};

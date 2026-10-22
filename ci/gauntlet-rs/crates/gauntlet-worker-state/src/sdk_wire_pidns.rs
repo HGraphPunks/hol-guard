@@ -10,7 +10,7 @@ use crate::sdk_wire_pipe::read_sdk_tap_frame_pipe_checked_ineligible;
 use crate::sdk_wire_spawn::{
     await_native_handoff, process_start, verify_tap_mounts, DeadlineReader, HeldSdkTapExecutable,
 };
-use crate::sdk_wire_tap::SdkWireObservation;
+use crate::sdk_wire_tap::{relay_bounded_sdk_mcp_pair_with_checks_ineligible, SdkWireObservation};
 use crate::{BoottimeDeadline, OwnedSdkTapCgroup};
 use rustix::event::{poll, PollFd, PollFlags, Timespec};
 use rustix::process::geteuid;
@@ -21,6 +21,7 @@ use std::io::{Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use std::os::unix::net::UnixStream;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -484,6 +485,69 @@ pub fn run_pinned_sdk_tap_child_in_pidns_ineligible(
     deadline: &BoottimeDeadline,
     cancellation: &AtomicBool,
 ) -> Result<(SdkWireObservation, SdkWirePeerPin, SdkWirePeerObservation), String> {
+    run_pinned_sdk_tap_pidns_mode_ineligible(
+        executable,
+        sdk_connection,
+        native_directory,
+        family,
+        sdk_relay,
+        sdk_ancestor,
+        native_frontdoor,
+        group,
+        deadline,
+        cancellation,
+        "pidns",
+    )
+}
+
+/// Opt-in Root-owned data plane. The PID-1 child connects the Native socket
+/// as UID/GID 10001, passes its descriptor and closes its copies. Root then
+/// authenticates both live peers and forwards every MCP byte itself.
+#[allow(clippy::too_many_arguments)]
+pub fn run_pinned_sdk_tap_root_relay_in_pidns_ineligible(
+    executable: &HeldSdkTapExecutable,
+    sdk_connection: UnixStream,
+    native_directory: OwnedFd,
+    family: &str,
+    sdk_relay: &SdkWirePeerPin,
+    sdk_ancestor: &SdkWirePeerPin,
+    native_frontdoor: &SdkWirePeerPin,
+    group: &OwnedSdkTapCgroup,
+    deadline: &BoottimeDeadline,
+    cancellation: &AtomicBool,
+) -> Result<(SdkWireObservation, SdkWirePeerPin, SdkWirePeerObservation), String> {
+    run_pinned_sdk_tap_pidns_mode_ineligible(
+        executable,
+        sdk_connection,
+        native_directory,
+        family,
+        sdk_relay,
+        sdk_ancestor,
+        native_frontdoor,
+        group,
+        deadline,
+        cancellation,
+        "pidns-connect",
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_pinned_sdk_tap_pidns_mode_ineligible(
+    executable: &HeldSdkTapExecutable,
+    sdk_connection: UnixStream,
+    native_directory: OwnedFd,
+    family: &str,
+    sdk_relay: &SdkWirePeerPin,
+    sdk_ancestor: &SdkWirePeerPin,
+    native_frontdoor: &SdkWirePeerPin,
+    group: &OwnedSdkTapCgroup,
+    deadline: &BoottimeDeadline,
+    cancellation: &AtomicBool,
+    mode: &'static str,
+) -> Result<(SdkWireObservation, SdkWirePeerPin, SdkWirePeerObservation), String> {
+    if !matches!(mode, "pidns" | "pidns-connect") {
+        return Err("fixed PID-namespace SDK tap mode required".to_owned());
+    }
     if geteuid().as_raw() != 0
         || !matches!(family, "docs" | "mail")
         || cancellation.load(Ordering::Acquire)
@@ -495,8 +559,10 @@ pub fn run_pinned_sdk_tap_child_in_pidns_ineligible(
     let sdk_peer = authenticate_sdk_relay_peer_ineligible(&sdk_connection, sdk_relay)?;
     let sdk_ancestry =
         bind_sdk_relay_to_ancestor_ineligible(&sdk_connection, &sdk_peer, sdk_ancestor)?;
-    let (report_parent, report_child) = UnixStream::pair().map_err(|error| error.to_string())?;
-    let (handoff_parent, handoff_child) = UnixStream::pair().map_err(|error| error.to_string())?;
+    let (mut report_parent, report_child) =
+        UnixStream::pair().map_err(|error| error.to_string())?;
+    let (mut handoff_parent, handoff_child) =
+        UnixStream::pair().map_err(|error| error.to_string())?;
     let (mut ready_parent, ready_child) = UnixStream::pair().map_err(|error| error.to_string())?;
     let (mut release_parent, release_child) =
         UnixStream::pair().map_err(|error| error.to_string())?;
@@ -514,7 +580,7 @@ pub fn run_pinned_sdk_tap_child_in_pidns_ineligible(
     ];
     let arguments = [
         "gauntlet-sdk-tap-child".to_owned(),
-        "pidns".to_owned(),
+        mode.to_owned(),
         family.to_owned(),
         passed[0].to_string(),
         passed[1].to_string(),
@@ -644,28 +710,88 @@ pub fn run_pinned_sdk_tap_child_in_pidns_ineligible(
         let native_socket = await_native_handoff(&handoff_parent, deadline, cancellation)?;
         let native_peer =
             authenticate_native_frontdoor_peer_ineligible(&native_socket, native_frontdoor)?;
-        let report = read_sdk_tap_frame_pipe_checked_ineligible(
-            DeadlineReader {
-                stream: &report_parent,
-                deadline,
-                cancellation,
-            },
-            family,
-            |_, _| {
-                sdk_peer.recheck(&sdk_connection)?;
-                if bind_sdk_relay_to_ancestor_ineligible(&sdk_connection, &sdk_peer, sdk_ancestor)?
+        let native_observation = native_peer.observation().clone();
+        let report = if mode == "pidns-connect" {
+            let mut discarded = [0_u8; 1];
+            let report_until = Instant::now() + Duration::from_secs(5);
+            loop {
+                if cancellation.load(Ordering::Acquire)
+                    || deadline.remaining().map_err(|error| error.to_string())? == Duration::ZERO
+                    || Instant::now() >= report_until
+                {
+                    return Err("PID-1 Native connector report pipe did not close".to_owned());
+                }
+                match report_parent.read(&mut discarded) {
+                    Ok(0) => break,
+                    Ok(_) => {
+                        return Err("PID-1 Native connector retained report data plane".to_owned())
+                    }
+                    Err(error)
+                        if matches!(
+                            error.kind(),
+                            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                        ) => {}
+                    Err(error) => return Err(error.to_string()),
+                }
+            }
+            let sdk_held = sdk_connection
+                .try_clone()
+                .map_err(|error| error.to_string())?;
+            let native_held = native_socket
+                .try_clone()
+                .map_err(|error| error.to_string())?;
+            let before = Mutex::new(|_direction: &'static str, _frame: &[u8]| {
+                sdk_peer.recheck(&sdk_held)?;
+                if bind_sdk_relay_to_ancestor_ineligible(&sdk_held, &sdk_peer, sdk_ancestor)?
                     != sdk_ancestry
                 {
-                    return Err("SDK relay ancestry changed during tap exchange".to_owned());
+                    return Err("SDK relay ancestry changed before Root forward".to_owned());
                 }
-                native_peer.recheck(&native_socket)?;
+                native_peer.recheck(&native_held)?;
                 Ok(())
-            },
-        )?;
+            });
+            let sink = Mutex::new(|_direction: &'static str, _frame: &[u8]| Ok(()));
+            let wire = relay_bounded_sdk_mcp_pair_with_checks_ineligible(
+                sdk_connection,
+                native_socket,
+                family,
+                cancellation,
+                deadline.remaining().map_err(|error| error.to_string())?,
+                &before,
+                &sink,
+            )?;
+            handoff_parent
+                .write_all(&[1])
+                .map_err(|error| error.to_string())?;
+            wire
+        } else {
+            let wire = read_sdk_tap_frame_pipe_checked_ineligible(
+                DeadlineReader {
+                    stream: &report_parent,
+                    deadline,
+                    cancellation,
+                },
+                family,
+                |_, _| {
+                    sdk_peer.recheck(&sdk_connection)?;
+                    if bind_sdk_relay_to_ancestor_ineligible(
+                        &sdk_connection,
+                        &sdk_peer,
+                        sdk_ancestor,
+                    )? != sdk_ancestry
+                    {
+                        return Err("SDK relay ancestry changed during tap exchange".to_owned());
+                    }
+                    native_peer.recheck(&native_socket)?;
+                    Ok(())
+                },
+            )?;
+            native_peer.recheck(&native_socket)?;
+            wire
+        };
         if cancellation.load(Ordering::Acquire) {
             return Err("PID-namespace SDK tap child cancelled".to_owned());
         }
-        native_peer.recheck(&native_socket)?;
         executable.recheck()?;
         wait_pidfd_exit(&pidfd, deadline, cancellation)?;
         Ok((
@@ -675,7 +801,7 @@ pub fn run_pinned_sdk_tap_child_in_pidns_ineligible(
                 start_ticks: start,
                 cgroup: group.path().to_owned(),
             },
-            native_peer.observation().clone(),
+            native_observation,
         ))
     })();
     if observed.is_err() {

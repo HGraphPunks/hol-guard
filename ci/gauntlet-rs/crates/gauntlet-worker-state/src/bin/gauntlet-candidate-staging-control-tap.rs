@@ -4,6 +4,7 @@
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 use gauntlet_worker_state::{
     read_run_request_pipe, run_fixed_candidate_staging_control_sdk_tap_pidns_ineligible,
+    run_fixed_candidate_staging_control_sdk_tap_root_relay_ineligible,
     run_fixed_candidate_staging_control_sdk_tap_v2_ineligible, verify_running_binary,
     BoottimeDeadline, CandidateSdkTapPins, CandidateStagingRunPins, StagingRole,
 };
@@ -22,8 +23,9 @@ extern "C" fn request_cancel(_signal: libc::c_int) {
 fn run() -> Result<(), String> {
     let args: Vec<String> = std::env::args().collect();
     let pidns = args.len() == 18 && args[17] == "--pidns";
-    if args.len() != 17 && !pidns {
-        return Err("usage: gauntlet-candidate-staging-control-tap BUILD_JOB RUN_ID SOURCE_SHA VERSION CONFIG_SHA PRIVATE_MANIFEST_SHA PREFIX_TREE_SHA CONTROLLER_PATH CONTROLLER_TREE_SHA PYTHON_PATH INTERPRETER_SHA WORKER_GENERATION_SHA BINARY_SHA ROLE TAP_CHILD_PATH TAP_CHILD_SHA [--pidns]".to_owned());
+    let root_relay = args.len() == 18 && args[17] == "--root-relay";
+    if args.len() != 17 && !pidns && !root_relay {
+        return Err("usage: gauntlet-candidate-staging-control-tap BUILD_JOB RUN_ID SOURCE_SHA VERSION CONFIG_SHA PRIVATE_MANIFEST_SHA PREFIX_TREE_SHA CONTROLLER_PATH CONTROLLER_TREE_SHA PYTHON_PATH INTERPRETER_SHA WORKER_GENERATION_SHA BINARY_SHA ROLE TAP_CHILD_PATH TAP_CHILD_SHA [--pidns|--root-relay]".to_owned());
     }
     if args[12] != args[13] {
         return Err("outside worker generation must equal installed binary digest".to_owned());
@@ -72,7 +74,11 @@ fn run() -> Result<(), String> {
         executable_path: &args[15],
         executable_sha256: &args[16],
     };
-    let result = if pidns {
+    let result = if root_relay {
+        run_fixed_candidate_staging_control_sdk_tap_root_relay_ineligible(
+            &pins, &tap_pins, &request, &deadline, &CANCELLED, &stdout, &stdin,
+        )
+    } else if pidns {
         run_fixed_candidate_staging_control_sdk_tap_pidns_ineligible(
             &pins, &tap_pins, &request, &deadline, &CANCELLED, &stdout, &stdin,
         )

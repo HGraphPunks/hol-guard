@@ -147,6 +147,7 @@ pub fn run_fixed_candidate_staging_control_ineligible(
         pins,
         None,
         false,
+        false,
         request,
         deadline,
         cancellation,
@@ -170,6 +171,7 @@ pub fn run_fixed_candidate_staging_control_sdk_tap_v2_ineligible(
     run_fixed_candidate_staging_control_impl(
         pins,
         Some(tap_pins),
+        false,
         false,
         request,
         deadline,
@@ -196,6 +198,33 @@ pub fn run_fixed_candidate_staging_control_sdk_tap_pidns_ineligible(
         pins,
         Some(tap_pins),
         true,
+        false,
+        request,
+        deadline,
+        cancellation,
+        prepared_writer,
+        acknowledgement_reader,
+    )
+}
+
+/// Explicit Root-forwarded PID-namespace SDK tap diagnostic. The Python
+/// controller still runs with the passive `--sdk-tap-v2` mount; Rust records
+/// a distinct v2 journal and v3 staging summary for the Root-owned wire.
+#[allow(clippy::too_many_arguments)]
+pub fn run_fixed_candidate_staging_control_sdk_tap_root_relay_ineligible(
+    pins: &CandidateStagingRunPins<'_>,
+    tap_pins: &CandidateSdkTapPins<'_>,
+    request: &WorkerRequest,
+    deadline: &BoottimeDeadline,
+    cancellation: &AtomicBool,
+    prepared_writer: &impl AsRawFd,
+    acknowledgement_reader: &impl AsRawFd,
+) -> Result<CandidateStagingRunProof, String> {
+    run_fixed_candidate_staging_control_impl(
+        pins,
+        Some(tap_pins),
+        true,
+        true,
         request,
         deadline,
         cancellation,
@@ -209,13 +238,14 @@ fn run_fixed_candidate_staging_control_impl(
     pins: &CandidateStagingRunPins<'_>,
     tap_pins: Option<&CandidateSdkTapPins<'_>>,
     pidns: bool,
+    root_relay: bool,
     request: &WorkerRequest,
     deadline: &BoottimeDeadline,
     cancellation: &AtomicBool,
     prepared_writer: &impl AsRawFd,
     acknowledgement_reader: &impl AsRawFd,
 ) -> Result<CandidateStagingRunProof, String> {
-    if pidns && tap_pins.is_none() {
+    if (pidns && tap_pins.is_none()) || (root_relay && !pidns) {
         return Err("PID-namespace SDK tap requires exact child pins".to_owned());
     }
     if !cfg!(all(target_os = "linux", target_arch = "aarch64")) || geteuid().as_raw() != 0 {
@@ -276,7 +306,15 @@ fn run_fixed_candidate_staging_control_impl(
     recheck_prelaunch(pins, &interpreter, &journal, &lease)?;
     let mut group = OwnedJobCgroup::create(pins.run_id).map_err(|error| error.to_string())?;
     let mut tap = match tap_pins {
-        Some(tap_pins) => match if pidns {
+        Some(tap_pins) => match if root_relay {
+            StagingTapV2::prepare_root_relay_pidns(
+                tap_pins,
+                readiness.verified_bun_sha256(),
+                pins.run_id,
+                &journal,
+                &lease,
+            )
+        } else if pidns {
             StagingTapV2::prepare_pidns(
                 tap_pins,
                 readiness.verified_bun_sha256(),

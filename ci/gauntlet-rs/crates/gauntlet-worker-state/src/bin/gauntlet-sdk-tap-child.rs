@@ -1,10 +1,10 @@
-//! Opt-in, single-session SDK MCP data-plane child. Only the future Root
-//! worker may supply its held FDs and outside-pinned process identities.
+//! Opt-in, single-session SDK MCP child. The pinned Root worker supplies its
+//! held FDs; `pidns-connect` hands Native connection ownership back to Root.
 
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 use gauntlet_worker_state::{
-    run_sdk_tap_child_once_ineligible, run_sdk_tap_child_once_pidns_ineligible, SdkTapChildPins,
-    SdkWirePeerPin,
+    connect_native_once_pidns_ineligible, run_sdk_tap_child_once_ineligible,
+    run_sdk_tap_child_once_pidns_ineligible, SdkTapChildPins, SdkWirePeerPin,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 use std::os::fd::{FromRawFd, OwnedFd, RawFd};
@@ -39,7 +39,10 @@ fn pin(pid: &str, start: &str, cgroup: &str) -> Result<SdkWirePeerPin, String> {
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 fn run() -> Result<(), String> {
     let arguments = std::env::args().collect::<Vec<_>>();
-    if arguments.get(1).is_some_and(|mode| mode == "pidns") {
+    if arguments
+        .get(1)
+        .is_some_and(|mode| matches!(mode.as_str(), "pidns" | "pidns-connect"))
+    {
         if arguments.len() != 7 || !matches!(arguments[2].as_str(), "docs" | "mail") {
             return Err("fixed PID-namespace tap child arguments required".to_owned());
         }
@@ -66,7 +69,23 @@ fn run() -> Result<(), String> {
                 UnixStream::from_raw_fd(handoff_fd),
             )
         };
-        run_sdk_tap_child_once_pidns_ineligible(client, directory, report, handoff, &arguments[2])?;
+        if arguments[1] == "pidns-connect" {
+            connect_native_once_pidns_ineligible(
+                client,
+                directory,
+                report,
+                handoff,
+                &arguments[2],
+            )?;
+        } else {
+            run_sdk_tap_child_once_pidns_ineligible(
+                client,
+                directory,
+                report,
+                handoff,
+                &arguments[2],
+            )?;
+        }
         return Ok(());
     }
     if arguments.len() != 15 || !matches!(arguments[1].as_str(), "docs" | "mail") {

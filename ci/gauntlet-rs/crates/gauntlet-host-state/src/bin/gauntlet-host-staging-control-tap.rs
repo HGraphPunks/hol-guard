@@ -24,8 +24,9 @@ fn run() -> Result<(), String> {
     }
     let args: Vec<String> = std::env::args().collect();
     let pidns = args.len() == 17 && args[16] == "--pidns";
-    if args.len() != 16 && !pidns {
-        return Err("usage: gauntlet-host-staging-control-tap PRIVATE_HOST_PIN_DIR BUILD_JOB RUN_ID SOURCE_SHA VERSION CONFIG_SHA PRIVATE_MANIFEST_SHA PREFIX_TREE_SHA CONTROLLER_GENERATION CONTROLLER_TREE_SHA PYTHON_DATE INTERPRETER_SHA GUEST_BINARY_SHA ROLE TAP_CHILD_SHA [--pidns]".to_owned());
+    let root_relay = args.len() == 17 && args[16] == "--root-relay";
+    if args.len() != 16 && !pidns && !root_relay {
+        return Err("usage: gauntlet-host-staging-control-tap PRIVATE_HOST_PIN_DIR BUILD_JOB RUN_ID SOURCE_SHA VERSION CONFIG_SHA PRIVATE_MANIFEST_SHA PREFIX_TREE_SHA CONTROLLER_GENERATION CONTROLLER_TREE_SHA PYTHON_DATE INTERPRETER_SHA GUEST_BINARY_SHA ROLE TAP_CHILD_SHA [--pidns|--root-relay]".to_owned());
     }
     let pin_dir = &args[1];
     let build_job = &args[2];
@@ -118,6 +119,8 @@ fn run() -> Result<(), String> {
     ]);
     if pidns {
         guest_command.arg("--pidns");
+    } else if root_relay {
+        guest_command.arg("--root-relay");
     }
     let child = guest_command
         .stdin(Stdio::piped())
@@ -161,7 +164,8 @@ fn run() -> Result<(), String> {
             "run_id":run_id,
             "source_sha":source,
             "tap_child_sha256":tap_child,
-            "tap_child_pid_namespace_requested":pidns,
+            "tap_child_pid_namespace_requested":pidns || root_relay,
+            "tap_root_relay_requested":root_relay,
             "host_record_sha256":accepted.record().raw_sha256,
             "controller_public_key_hex":accepted.record().pins.controller_public_key_hex,
             "host_key_pinned_before_spawn":true,

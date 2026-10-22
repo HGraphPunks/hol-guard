@@ -169,6 +169,7 @@ pub use staging_suite::{
     observe_staging_suite_native_mcp_root_owned_ineligible,
     observe_staging_suite_root_owned_ineligible,
     observe_staging_suite_sdk_docs_oracle_root_owned_ineligible,
+    observe_staging_suite_sdk_docs_oracle_root_relay_ineligible,
     observe_staging_suite_sdk_tap_root_owned_ineligible, StagingSuiteShadow,
 };
 pub use tree_inventory::{inventory_tree, TreeInventory, TreeKind};

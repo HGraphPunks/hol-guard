@@ -1,9 +1,11 @@
-//! Ineligible single-session SDK tap data plane. The Root owner must pin and
-//! launch this executable, pass only held descriptors, track its pidfd/cgroup,
-//! independently read its raw-frame pipe, and reap it under the job deadline.
+//! Ineligible single-session SDK tap child. The Root owner pins and launches
+//! this executable, passes only held descriptors, tracks its pidfd/cgroup,
+//! and reaps it under the job deadline. The opt-in connector mode passes a
+//! Native socket to Root without forwarding SDK or Native bytes itself.
 
 use crate::sdk_wire_fd_handoff::send_native_socket;
 use crate::sdk_wire_journal::SdkTapRetainedSession;
+use crate::sdk_wire_journal::SdkTapWireOwner;
 use crate::sdk_wire_peer::{
     authenticate_native_frontdoor_peer_ineligible, authenticate_sdk_relay_peer_ineligible,
     bind_sdk_relay_to_ancestor_ineligible, SdkWirePeerPin,
@@ -14,6 +16,7 @@ use crate::sdk_wire_tap::{
 };
 use rustix::fs::{fstat, FileType};
 use rustix::process::{getegid, geteuid};
+use std::io::Read;
 use std::net::Shutdown;
 use std::os::fd::{AsRawFd, OwnedFd};
 use std::os::unix::net::UnixStream;
@@ -126,6 +129,7 @@ pub fn run_sdk_tap_child_once_ineligible(
         .shutdown(Shutdown::Write)
         .map_err(|error| error.to_string())?;
     Ok(SdkTapRetainedSession {
+        wire_owner: SdkTapWireOwner::ChildReport,
         family: pins.family.to_owned(),
         sdk_peer: sdk_peer.observation().clone(),
         native_peer: native_peer.observation().clone(),
@@ -186,14 +190,61 @@ pub fn run_sdk_tap_child_once_pidns_ineligible(
     Ok(wire)
 }
 
+/// Connect to one fixed Native frontdoor as UID/GID 10001, hand its socket
+/// to Root, then keep only the handoff control FD until Root finishes the
+/// exchange. The inherited SDK and report FDs are closed before connect;
+/// this PID-1 helper never reads or forwards candidate MCP bytes.
+pub fn connect_native_once_pidns_ineligible(
+    sdk_connection: UnixStream,
+    native_directory: OwnedFd,
+    report: UnixStream,
+    mut native_handoff: UnixStream,
+    family: &str,
+) -> Result<(), String> {
+    require_unprivileged_child()?;
+    if unsafe { libc::getpid() } != 1 || !matches!(family, "docs" | "mail") {
+        return Err("fixed PID-1 Native connector profile required".to_owned());
+    }
+    require_private_frontdoor_directory(&native_directory)?;
+    drop(sdk_connection);
+    drop(report);
+    let backend_path = format!(
+        "/proc/self/fd/{}/{}.sock",
+        native_directory.as_raw_fd(),
+        family
+    );
+    let native_connection = UnixStream::connect(&backend_path)
+        .map_err(|error| format!("fixed Native MCP frontdoor unavailable: {error}"))?;
+    native_handoff
+        .set_write_timeout(Some(Duration::from_secs(5)))
+        .map_err(|error| error.to_string())?;
+    send_native_socket(&native_handoff, &native_connection)?;
+    drop(native_connection);
+    native_handoff
+        .set_read_timeout(Some(Duration::from_secs(300)))
+        .map_err(|error| error.to_string())?;
+    let mut done = [0_u8; 1];
+    native_handoff
+        .read_exact(&mut done)
+        .map_err(|error| format!("Root Native relay completion unavailable: {error}"))?;
+    if done != [1] {
+        return Err("Root Native relay completion marker invalid".to_owned());
+    }
+    require_private_frontdoor_directory(&native_directory)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::linux_process::parse_proc_stat;
-    use crate::run_pinned_sdk_tap_child_in_pidns_ineligible;
     use crate::sdk_wire_spawn::{
         open_pinned_sdk_tap_executable_ineligible, run_pinned_sdk_tap_child_in_group_ineligible,
         run_pinned_sdk_tap_child_ineligible,
+    };
+    use crate::{
+        run_pinned_sdk_tap_child_in_pidns_ineligible,
+        run_pinned_sdk_tap_root_relay_in_pidns_ineligible,
     };
     use crate::{BoottimeDeadline, OwnedSdkTapCgroup};
     use rustix::fs::{chownat, fchown, AtFlags};
@@ -244,7 +295,8 @@ mod tests {
         assert!(require_unprivileged_child().is_err());
     }
 
-    fn run_root_child_exchange(use_pidns: bool) {
+    fn run_root_child_exchange(use_pidns: bool, root_relay: bool) {
+        assert!(!root_relay || use_pidns);
         assert_eq!(geteuid().as_raw(), 0);
         let binary = std::env::var("GAUNTLET_SDK_TAP_TEST_BINARY").unwrap();
         let binary_sha256 = std::env::var("GAUNTLET_SDK_TAP_TEST_SHA256").unwrap();
@@ -366,14 +418,29 @@ time.sleep(2)
             &AtomicBool::new(false),
         )
         .is_err());
-        let run_id = if use_pidns {
+        let run_id = if root_relay {
+            "edcba98765432103"
+        } else if use_pidns {
             "edcba98765432102"
         } else {
             "edcba98765432101"
         };
         let mut tap_group = OwnedSdkTapCgroup::create(run_id).unwrap();
         assert!(OwnedSdkTapCgroup::create(run_id).is_err());
-        let parent_observation = if use_pidns {
+        let parent_observation = if root_relay {
+            run_pinned_sdk_tap_root_relay_in_pidns_ineligible(
+                &executable,
+                sdk_connection,
+                native_directory.into(),
+                "docs",
+                &sdk_pin,
+                &ancestor_pin,
+                &native_pin,
+                &tap_group,
+                &deadline,
+                &AtomicBool::new(false),
+            )
+        } else if use_pidns {
             run_pinned_sdk_tap_child_in_pidns_ineligible(
                 &executable,
                 sdk_connection,
@@ -443,12 +510,18 @@ time.sleep(2)
     #[test]
     #[ignore = "requires Linux Root and a separately installed Root-owned ARM64 SDK tap child binary"]
     fn root_launches_uid_10001_child_and_reparses_actual_forwarded_frames() {
-        run_root_child_exchange(false);
+        run_root_child_exchange(false, false);
     }
 
     #[test]
     #[ignore = "requires Linux Root and a separately installed Root-owned ARM64 SDK tap child binary"]
     fn root_launches_pid_one_child_and_reparses_actual_forwarded_frames() {
-        run_root_child_exchange(true);
+        run_root_child_exchange(true, false);
+    }
+
+    #[test]
+    #[ignore = "requires Linux Root and a separately pinned ARM64 PID-1 connector ELF"]
+    fn root_forwards_actual_frames_after_pid_one_native_connector_handoff() {
+        run_root_child_exchange(true, true);
     }
 }

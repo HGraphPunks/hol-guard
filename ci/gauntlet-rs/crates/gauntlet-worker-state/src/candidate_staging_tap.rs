@@ -6,9 +6,11 @@ use crate::{
     bind_sdk_relay_to_ancestor_ineligible, bind_sdk_tap_listeners_ineligible,
     open_fixed_native_frontdoor_ineligible, open_pinned_sdk_tap_executable_ineligible,
     retain_sdk_tap_journal_ineligible, run_pinned_sdk_tap_child_in_group_ineligible,
-    run_pinned_sdk_tap_child_in_pidns_ineligible, ActiveLease, BoottimeDeadline,
+    run_pinned_sdk_tap_child_in_pidns_ineligible,
+    run_pinned_sdk_tap_root_relay_in_pidns_ineligible, ActiveLease, BoottimeDeadline,
     HeldSdkTapExecutable, OwnedSdkTapCgroup, RunReservationJournal, SdkTapJournalReceipt,
-    SdkTapListeners, SdkTapRetainedSession, SdkWirePeerPin, StagingRole, StartedMarker,
+    SdkTapListeners, SdkTapRetainedSession, SdkTapWireOwner, SdkWirePeerPin, StagingRole,
+    StartedMarker,
 };
 use serde_json::{json, Value};
 use std::path::Path;
@@ -25,7 +27,14 @@ pub(crate) struct StagingTapV2 {
     listeners: Option<SdkTapListeners>,
     group: OwnedSdkTapCgroup,
     bun_sha256: String,
-    pidns: bool,
+    mode: TapMode,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TapMode {
+    LegacyChild,
+    PidnsChild,
+    PidnsRoot,
 }
 
 pub(crate) struct TapSessions {
@@ -41,7 +50,14 @@ impl StagingTapV2 {
         journal: &RunReservationJournal,
         lease: &ActiveLease,
     ) -> Result<Self, String> {
-        Self::prepare_mode(pins, bun_sha256, run_id, journal, lease, false)
+        Self::prepare_mode(
+            pins,
+            bun_sha256,
+            run_id,
+            journal,
+            lease,
+            TapMode::LegacyChild,
+        )
     }
 
     pub(crate) fn prepare_pidns(
@@ -51,7 +67,24 @@ impl StagingTapV2 {
         journal: &RunReservationJournal,
         lease: &ActiveLease,
     ) -> Result<Self, String> {
-        Self::prepare_mode(pins, bun_sha256, run_id, journal, lease, true)
+        Self::prepare_mode(
+            pins,
+            bun_sha256,
+            run_id,
+            journal,
+            lease,
+            TapMode::PidnsChild,
+        )
+    }
+
+    pub(crate) fn prepare_root_relay_pidns(
+        pins: &CandidateSdkTapPins<'_>,
+        bun_sha256: &str,
+        run_id: &str,
+        journal: &RunReservationJournal,
+        lease: &ActiveLease,
+    ) -> Result<Self, String> {
+        Self::prepare_mode(pins, bun_sha256, run_id, journal, lease, TapMode::PidnsRoot)
     }
 
     fn prepare_mode(
@@ -60,7 +93,7 @@ impl StagingTapV2 {
         run_id: &str,
         journal: &RunReservationJournal,
         lease: &ActiveLease,
-        pidns: bool,
+        mode: TapMode,
     ) -> Result<Self, String> {
         let executable = open_pinned_sdk_tap_executable_ineligible(
             Path::new(pins.executable_path),
@@ -81,7 +114,7 @@ impl StagingTapV2 {
             listeners: Some(listeners),
             group,
             bun_sha256: bun_sha256.to_owned(),
-            pidns,
+            mode,
         })
     }
 
@@ -126,8 +159,8 @@ impl StagingTapV2 {
                         sdk_ancestor,
                     )?;
                     let native_directory = native.duplicate_directory()?;
-                    let (wire, child, native_peer) = if self.pidns {
-                        run_pinned_sdk_tap_child_in_pidns_ineligible(
+                    let (wire, child, native_peer) = match self.mode {
+                        TapMode::PidnsRoot => run_pinned_sdk_tap_root_relay_in_pidns_ineligible(
                             &self.executable,
                             sdk_connection,
                             native_directory,
@@ -138,9 +171,8 @@ impl StagingTapV2 {
                             &self.group,
                             deadline,
                             cancellation,
-                        )?
-                    } else {
-                        run_pinned_sdk_tap_child_in_group_ineligible(
+                        )?,
+                        TapMode::PidnsChild => run_pinned_sdk_tap_child_in_pidns_ineligible(
                             &self.executable,
                             sdk_connection,
                             native_directory,
@@ -151,9 +183,26 @@ impl StagingTapV2 {
                             &self.group,
                             deadline,
                             cancellation,
-                        )?
+                        )?,
+                        TapMode::LegacyChild => run_pinned_sdk_tap_child_in_group_ineligible(
+                            &self.executable,
+                            sdk_connection,
+                            native_directory,
+                            family,
+                            &sdk_relay,
+                            sdk_ancestor,
+                            controller,
+                            &self.group,
+                            deadline,
+                            cancellation,
+                        )?,
                     };
                     let session = SdkTapRetainedSession {
+                        wire_owner: if self.mode == TapMode::PidnsRoot {
+                            SdkTapWireOwner::RootForwarded
+                        } else {
+                            SdkTapWireOwner::ChildReport
+                        },
                         family: family.to_owned(),
                         sdk_peer: sdk_held.observation().clone(),
                         native_peer,
@@ -214,7 +263,14 @@ impl StagingTapV2 {
 
 impl TapSessions {
     pub(crate) fn summary(&self, receipt: &SdkTapJournalReceipt) -> Value {
-        json!({
+        if self
+            .sessions
+            .iter()
+            .any(|session| session.wire_owner != receipt.wire_owner)
+        {
+            return json!({"schema":"hol-gauntlet-staging-sdk-tap-summary-invalid.v1","execution_eligible":false});
+        }
+        let mut value = json!({
             "schema":"hol-gauntlet-staging-sdk-tap-summary.v2",
             "journal":receipt.to_json(),
             "child_processes":self.children.iter().map(|child| json!({
@@ -224,7 +280,12 @@ impl TapSessions {
             })).collect::<Vec<_>>(),
             "native_peer_independently_observed_by_root":true,
             "execution_eligible":false,
-        })
+        });
+        if receipt.wire_owner == SdkTapWireOwner::RootForwarded {
+            value["schema"] = json!("hol-gauntlet-staging-sdk-tap-summary.v3");
+            value["root_forwarded"] = json!(true);
+        }
+        value
     }
 }
 
@@ -255,7 +316,7 @@ mod tests {
         }
     }
 
-    fn run_two_family_root_exchange(pidns: bool) {
+    fn run_two_family_root_exchange(mode: TapMode) {
         let binary = std::env::var("GAUNTLET_SDK_TAP_TEST_BINARY").unwrap();
         let binary_sha = std::env::var("GAUNTLET_SDK_TAP_TEST_SHA256").unwrap();
         let run_id = format!(
@@ -346,10 +407,20 @@ mod tests {
             executable_path: &binary,
             executable_sha256: &binary_sha,
         };
-        let mut tap = if pidns {
-            StagingTapV2::prepare_pidns(&tap_pins, &"a".repeat(64), &run_id, &journal, &lease)
-        } else {
-            StagingTapV2::prepare(&tap_pins, &"a".repeat(64), &run_id, &journal, &lease)
+        let mut tap = match mode {
+            TapMode::LegacyChild => {
+                StagingTapV2::prepare(&tap_pins, &"a".repeat(64), &run_id, &journal, &lease)
+            }
+            TapMode::PidnsChild => {
+                StagingTapV2::prepare_pidns(&tap_pins, &"a".repeat(64), &run_id, &journal, &lease)
+            }
+            TapMode::PidnsRoot => StagingTapV2::prepare_root_relay_pidns(
+                &tap_pins,
+                &"a".repeat(64),
+                &run_id,
+                &journal,
+                &lease,
+            ),
         }
         .unwrap();
         let tap_directory = openat(
@@ -446,7 +517,14 @@ for pid in children:
         assert_eq!(receipt.events, 4);
         assert!(!retained.is_empty());
         let summary = result.summary(&receipt);
-        assert_eq!(summary["schema"], "hol-gauntlet-staging-sdk-tap-summary.v2");
+        assert_eq!(
+            summary["schema"],
+            if mode == TapMode::PidnsRoot {
+                "hol-gauntlet-staging-sdk-tap-summary.v3"
+            } else {
+                "hol-gauntlet-staging-sdk-tap-summary.v2"
+            }
+        );
         assert_eq!(summary["native_peer_independently_observed_by_root"], true);
         assert!(tap
             .retain_sessions(&journal, &lease, &started, &result)
@@ -476,12 +554,18 @@ for pid in children:
     #[test]
     #[ignore = "requires Linux Root, UID 10001 and separately pinned ARM64 tap-child ELF"]
     fn worker_owns_both_real_sdk_sessions_and_tombstones_after_drain() {
-        run_two_family_root_exchange(false);
+        run_two_family_root_exchange(TapMode::LegacyChild);
     }
 
     #[test]
     #[ignore = "requires Linux Root, UID 10001 and separately pinned ARM64 tap-child ELF"]
     fn worker_owns_both_pid_one_sdk_sessions_and_tombstones_after_drain() {
-        run_two_family_root_exchange(true);
+        run_two_family_root_exchange(TapMode::PidnsChild);
+    }
+
+    #[test]
+    #[ignore = "requires Linux Root, UID 10001 and a separately pinned ARM64 PID-1 connector ELF"]
+    fn worker_owns_both_root_forwarded_pid_one_sessions_and_tombstones_after_drain() {
+        run_two_family_root_exchange(TapMode::PidnsRoot);
     }
 }
