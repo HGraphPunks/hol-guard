@@ -8,11 +8,12 @@ use crate::controller_exec::{
 use crate::controller_key::{require_pinned_controller_key_under_lease, ControllerKeyError};
 use crate::deadline::{BoottimeDeadline, DeadlineError};
 use crate::linux_process::{observe_process, parse_proc_stat, ProcessObservationError};
-use crate::prelaunch::PreparedLaunch;
+use crate::prelaunch::{prepare_fixed_prelaunch, PrelaunchPins, PreparedLaunch};
 use crate::process_reap::reap_probe_child_bounded;
 use crate::{
     stop_rust_job_slice, ActiveLease, ProcessIdentity, ReservationError, RunReservationJournal,
 };
+use gauntlet_contracts::canonicalize;
 use gauntlet_contracts::WorkerRequest;
 use gauntlet_evidence::{
     observe_deterministic_report_root_owned_ineligible,
@@ -20,6 +21,7 @@ use gauntlet_evidence::{
     DeterministicReportObservation, EvidenceError, SixControlOpeningsShadow,
     SixDeterministicControlRecords,
 };
+use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::fs;
 use std::os::fd::AsRawFd;
@@ -347,6 +349,105 @@ pub(crate) fn run_prepared_controller_pipe_ineligible(
             exchange_prelaunch_pipe(frame, prepared_writer, ack_reader, deadline, cancellation)
         },
     )
+}
+
+/// Execute one fixed deterministic controller under the Rust worker lease and
+/// persist a keyed, explicitly invalid-evidence terminal. The host must pin
+/// the prepared key before acknowledging the child. This is a diagnostic run:
+/// producer status and signed openings are not an independent control verdict.
+#[allow(clippy::too_many_arguments)]
+pub fn run_fixed_deterministic_controller_pipe_ineligible(
+    pins: &PrelaunchPins,
+    request: &WorkerRequest,
+    worker_generation: &str,
+    active_seconds: u64,
+    cancellation: &AtomicBool,
+    prepared_writer: &impl AsRawFd,
+    ack_reader: &impl AsRawFd,
+) -> Result<Value, String> {
+    const STATE_ROOT: &str = "/var/lib/hol-gauntlet-rust/worker-state";
+    let journal = RunReservationJournal::open_root_owned(Path::new(STATE_ROOT))
+        .map_err(|error| error.to_string())?;
+    let lease = journal
+        .acquire_active_lease()
+        .map_err(|error| error.to_string())?;
+    let prepared = prepare_fixed_prelaunch(request, pins).map_err(|error| error.to_string())?;
+    let observation = run_prepared_controller_pipe_ineligible(
+        &prepared,
+        &journal,
+        &lease,
+        request,
+        worker_generation,
+        active_seconds,
+        cancellation,
+        prepared_writer,
+        ack_reader,
+    )
+    .map_err(|error| error.to_string())?;
+    let report = observation
+        .report
+        .as_ref()
+        .ok_or("controller did not produce a verified deterministic report")?;
+    let exit_code = observation
+        .exit_code
+        .ok_or("controller exit is unknown; one-use job remains unresolved")?;
+    if observation.timed_out
+        || (report.producer_status == "passed"
+            && (observation.controls.is_none() || observation.control_openings.is_none()))
+    {
+        return Err("controller outcome is incomplete; one-use job remains unresolved".to_owned());
+    }
+    let summary = json!({
+        "schema":"hol-gauntlet-rust-deterministic-run-diagnostic.v1",
+        "job_id":request.job_id(),
+        "source_sha":request.source_sha(),
+        "deployment_digest":pins.deployment_digest,
+        "worker_generation":worker_generation,
+        "started_marker_sha256":observation.started_marker_sha256,
+        "controller_public_key_hex":observation.controller_public_key_hex,
+        "controller_key_pin_sha256":observation.controller_key_pin_sha256,
+        "process":{"pid":observation.process.pid,"start_ticks":observation.process.start_ticks},
+        "exit_code":exit_code,
+        "deterministic_report_sha256":report.raw_sha256,
+        "producer_status_claim":report.producer_status,
+        "producer_cell_count":report.cell_count,
+        "six_control_openings":observation.control_openings.as_ref().map(SixControlOpeningsShadow::to_json),
+        "independent_control_verdict":false,
+        "execution_eligible":false,
+    });
+    let raw = canonicalize(summary.to_string().as_bytes())
+        .map_err(|error| format!("diagnostic report encoding: {error}"))?;
+    let terminal = journal
+        .finish_under_lease(
+            &lease,
+            request,
+            request.source_sha(),
+            &pins.deployment_digest,
+            worker_generation,
+            &observation.started_marker_sha256,
+            &raw,
+            observation.process,
+            exit_code,
+            crate::TerminalOutcome::InvalidEvidence,
+            Some(&observation.controller_key_pin_sha256),
+        )
+        .map_err(|error| format!("diagnostic terminal unresolved: {error}"))?;
+    Ok(json!({
+        "schema":"hol-gauntlet-rust-deterministic-run-result.v1",
+        "job_id":request.job_id(),
+        "source_sha":request.source_sha(),
+        "started_marker_sha256":observation.started_marker_sha256,
+        "controller_key_pin_sha256":observation.controller_key_pin_sha256,
+        "controller_public_key_hex":observation.controller_public_key_hex,
+        "deterministic_report_sha256":report.raw_sha256,
+        "diagnostic_report_sha256":terminal.report_sha256,
+        "terminal_sha256":terminal.sha256,
+        "exit_code":exit_code,
+        "producer_status_claim":report.producer_status,
+        "signed_openings_observed":observation.control_openings.is_some(),
+        "independent_control_verdict":false,
+        "execution_eligible":false,
+    }))
 }
 
 #[cfg(test)]

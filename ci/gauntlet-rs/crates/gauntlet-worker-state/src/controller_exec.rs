@@ -293,6 +293,9 @@ pub(crate) fn spawn_prepared_controller(
     prepared
         .recheck_controller_and_interpreter()
         .map_err(ControllerExecError::Prelaunch)?;
+    // A stale output is an admission refusal, not a reason to consume a
+    // one-use key pin. Recheck again after the host acknowledgement below.
+    require_fresh_output(request.job_id())?;
     let deployment_digest = request
         .deployment_digest()
         .ok_or(ControllerExecError::InvalidPlan)?;

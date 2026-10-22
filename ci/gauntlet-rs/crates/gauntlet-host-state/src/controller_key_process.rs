@@ -6,8 +6,10 @@ use super::{
     HostPrelaunchIdentity,
 };
 use gauntlet_contracts::{canonicalize, WorkerAction, WorkerRequest};
+use std::io::Read;
 use std::os::fd::AsRawFd;
 use std::process::{Child, ExitStatus};
+use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -71,6 +73,57 @@ impl HostPreparedProcess {
                 }
             }
         }
+    }
+
+    /// Drain the guest's one final JSON line while waiting for its transport
+    /// to exit. A large or absent result leaves the already-pinned job
+    /// unresolved; the caller must still read back the VM terminal separately.
+    pub fn wait_bounded_result(
+        &mut self,
+        timeout: Duration,
+        limit: usize,
+    ) -> Result<Vec<u8>, HostKeyPinError> {
+        if limit == 0 || limit > 8192 {
+            return Err(HostKeyPinError::FrameTooLarge);
+        }
+        let stdout = self
+            .child
+            .0
+            .as_mut()
+            .and_then(|child| child.stdout.take())
+            .ok_or(HostKeyPinError::TransportFailed)?;
+        let (sender, receiver) = mpsc::channel();
+        thread::spawn(move || {
+            let mut stdout = stdout;
+            let mut kept = Vec::new();
+            let mut buffer = [0_u8; 4096];
+            let mut overflow = false;
+            loop {
+                match stdout.read(&mut buffer) {
+                    Ok(0) => break,
+                    Ok(count) if kept.len().saturating_add(count) > limit => overflow = true,
+                    Ok(count) if !overflow => kept.extend_from_slice(&buffer[..count]),
+                    Ok(_) => (),
+                    Err(_) => {
+                        let _ = sender.send(Err(HostKeyPinError::TransportFailed));
+                        return;
+                    }
+                }
+            }
+            let _ = sender.send(if overflow {
+                Err(HostKeyPinError::FrameTooLarge)
+            } else {
+                Ok(kept)
+            });
+        });
+        let status = self.wait_bounded(timeout)?;
+        let output = receiver
+            .recv_timeout(Duration::from_secs(5))
+            .map_err(|_| HostKeyPinError::TransportFailed)??;
+        if !status.success() || output.is_empty() {
+            return Err(HostKeyPinError::TransportFailed);
+        }
+        Ok(output)
     }
 }
 

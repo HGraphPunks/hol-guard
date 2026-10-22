@@ -190,3 +190,43 @@ fn fixed_run_request_precedes_prepared_and_wrong_job_refuses() {
         Err(HostKeyPinError::Missing)
     );
 }
+
+#[test]
+fn final_guest_result_is_bounded_after_durable_host_ack() {
+    let (_temporary, journal) = journal();
+    let prepared = prepared();
+    let expected = planned(&prepared);
+    let raw = String::from_utf8(prepared.to_bytes().unwrap()).unwrap();
+    let script = "IFS= read -r request; test -n \"$request\" || exit 2; printf '%s\\n' \"$1\"; IFS= read -r ack; test -n \"$ack\" || exit 2; printf '%s\\n' '{\"ok\":true}'";
+    let mut accepted = journal
+        .send_run_request_and_accept_prepared_child(
+            child(script, &raw),
+            &request(&prepared, &prepared.job_id),
+            &expected,
+            Duration::from_secs(2),
+        )
+        .unwrap();
+    assert_eq!(
+        accepted.wait_bounded_result(Duration::from_secs(2), 64),
+        Ok(b"{\"ok\":true}\n".to_vec())
+    );
+    assert_eq!(journal.read(&prepared.job_id).unwrap(), *accepted.record());
+}
+
+#[test]
+fn oversized_guest_result_cannot_replace_the_host_pin() {
+    let (_temporary, journal) = journal();
+    let prepared = prepared();
+    let expected = planned(&prepared);
+    let raw = String::from_utf8(prepared.to_bytes().unwrap()).unwrap();
+    let script =
+        "printf '%s\\n' \"$1\"; IFS= read -r ack; test -n \"$ack\" || exit 2; printf '%0200d\\n' 0";
+    let mut accepted = journal
+        .accept_prepared_child(child(script, &raw), &expected, Duration::from_secs(2))
+        .unwrap();
+    assert_eq!(
+        accepted.wait_bounded_result(Duration::from_secs(2), 64),
+        Err(HostKeyPinError::FrameTooLarge)
+    );
+    assert_eq!(journal.read(&prepared.job_id).unwrap(), *accepted.record());
+}

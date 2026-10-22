@@ -166,6 +166,8 @@ pub use controller_key::{
     observe_controller_key_pin_root_owned, ControllerKeyError, ControllerKeyObservation,
     ControllerKeyOutsidePins,
 };
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use controller_run::run_fixed_deterministic_controller_pipe_ineligible;
 #[cfg(target_os = "linux")]
 mod deployment;
 #[cfg(target_os = "linux")]
