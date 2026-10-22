@@ -88,7 +88,7 @@ fn isolate_tap_mounts() -> io::Result<()> {
 }
 
 #[cfg(target_os = "linux")]
-fn verify_tap_mounts(pid: u32) -> Result<(), String> {
+pub(crate) fn verify_tap_mounts(pid: u32) -> Result<(), String> {
     let parent = std::fs::read_link("/proc/self/ns/mnt").map_err(|error| error.to_string())?;
     let child =
         std::fs::read_link(format!("/proc/{pid}/ns/mnt")).map_err(|error| error.to_string())?;
@@ -147,7 +147,7 @@ fn verify_tap_mounts(pid: u32) -> Result<(), String> {
 }
 
 #[cfg(not(target_os = "linux"))]
-fn verify_tap_mounts(_pid: u32) -> Result<(), String> {
+pub(crate) fn verify_tap_mounts(_pid: u32) -> Result<(), String> {
     Err("SDK tap mount isolation requires Linux".to_owned())
 }
 
@@ -287,7 +287,7 @@ impl Read for DeadlineReader<'_> {
     }
 }
 
-fn process_start(pid: u32, expected_cgroup: &str) -> Result<u64, String> {
+pub(crate) fn process_start(pid: u32, expected_cgroup: &str) -> Result<u64, String> {
     if !valid_cgroup(expected_cgroup) {
         return Err("outside SDK tap child cgroup pin required".to_owned());
     }

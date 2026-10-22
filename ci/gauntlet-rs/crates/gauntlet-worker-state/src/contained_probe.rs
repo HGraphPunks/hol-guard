@@ -15,7 +15,7 @@ use serde_json::{json, Value};
 use std::fmt;
 use std::fs::File;
 use std::io::{self, Read};
-use std::os::fd::{AsRawFd, OwnedFd};
+use std::os::fd::{AsRawFd, OwnedFd, RawFd};
 use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
 use std::thread;
@@ -159,6 +159,14 @@ impl OwnedSdkTapCgroup {
 
     pub fn attach_child(&self, command: &mut Command) -> Result<(), CgroupProbeError> {
         self.inner.attach_child(command)
+    }
+
+    /// Return the held cgroup directory only after matching its visible
+    /// Root-owned identity. `clone3(CLONE_INTO_CGROUP)` consumes this FD
+    /// synchronously, so a PID-namespace child starts inside the tap limit.
+    pub(crate) fn clone_into_fd(&self) -> Result<RawFd, CgroupProbeError> {
+        self.inner.check_identity()?;
+        Ok(self.inner.directory.as_raw_fd())
     }
 
     pub fn kill(&self) -> Result<(), CgroupProbeError> {
