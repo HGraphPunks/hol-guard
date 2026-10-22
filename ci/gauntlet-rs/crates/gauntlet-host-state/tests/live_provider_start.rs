@@ -96,7 +96,7 @@ fn producer_output_cannot_change_identity_or_quota() {
     ] {
         let mut value = case["result"].clone();
         value[field] = replacement;
-        let stdout = format!("{}\n", value);
+        let stdout = format!("{value}\n");
         assert!(
             plan.parse_startup_stdout(stdout.as_bytes(), 13_746_906)
                 .is_err(),

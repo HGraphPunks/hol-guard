@@ -336,6 +336,148 @@ class DashboardPortTests(unittest.TestCase):
             self.assertEqual(json.loads((state/'private/dashboard-mode.json').read_text())['port'], 8791)
 
 
+class RustDashboardHandoffTests(unittest.TestCase):
+    def state(self, directory, mode='native'):
+        state = Path(directory)
+        (state/'private').mkdir()
+        (state/'public').mkdir()
+        value = {'mode': mode, 'port': 8791}
+        if mode == 'rust':
+            value['docker_context'] = 'colima'
+        atomic_json(state/'private/dashboard-mode.json', value)
+        atomic_json(state/'private/dashboard.pid.json', {
+            'pid': 1234, 'module': 'ci.gauntlet.control_plane.server', 'state': str(state)})
+        return state
+
+    def test_compose_targets_saved_context_and_loopback_port(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = self.state(directory)
+            with patch.object(cli.subprocess, 'run') as run:
+                cli.rust_dashboard_compose(state, 8791, 'up', '--no-build', '-d', '--wait',
+                                           context='colima')
+            command = run.call_args.args[0]
+            project = 'hol-gauntlet-rust-' + hashlib.sha256(str(state).encode()).hexdigest()[:12]
+            self.assertEqual(command[:6], ['docker', '--context', 'colima', 'compose',
+                                            '-p', project])
+            self.assertEqual(command[-4:], ['up', '--no-build', '-d', '--wait'])
+            self.assertEqual(run.call_args.kwargs['env']['GAUNTLET_RUST_PORT'], '8791')
+            self.assertEqual(run.call_args.kwargs['env']['GAUNTLET_RUST_IMAGE'], project + ':local')
+            self.assertEqual(run.call_args.kwargs['env']['GAUNTLET_PUBLIC_STATE'],
+                             str(state/'public'))
+            with patch.object(cli.subprocess, 'run') as second:
+                cli.rust_dashboard_compose(state/'other', 8794, 'up', '--no-build', '-d', '--wait',
+                                           context='colima')
+            self.assertNotEqual(second.call_args.args[0][5], project)
+
+    def test_one_command_switch_builds_before_stopping_only_owned_http_process(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = self.state(directory)
+            events = []
+            with patch.object(cli, 'dashboard_identity', return_value='a'*32), \
+                 patch.object(cli, 'check_dashboard_port'), \
+                 patch.object(cli, 'docker_available', return_value=(True, '')), \
+                 patch.object(cli, 'process_alive', side_effect=[True, False]), \
+                 patch.object(cli, 'rust_dashboard_compose',
+                              side_effect=lambda *args, **kwargs: events.append(args[2:])), \
+                 patch.object(cli.os, 'kill', side_effect=lambda *args: events.append(('kill', *args))), \
+                 patch.object(cli, 'wait_dashboard_identity', return_value='http://127.0.0.1:8791'), \
+                 patch.object(cli, 'start_process') as restart:
+                cli.switch_dashboard_to_rust(state, docker_context='colima')
+            self.assertEqual(events[0], ('build',))
+            self.assertEqual(events[1][0:2], ('kill', 1234))
+            self.assertEqual(events[2], ('up', '--no-build', '-d', '--wait'))
+            restart.assert_not_called()
+            self.assertEqual(json.loads((state/'private/dashboard-mode.json').read_text()),
+                             {'mode': 'rust', 'port': 8791, 'docker_context': 'colima'})
+
+    def test_failed_rust_health_restores_python_without_changing_mode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = self.state(directory)
+            with patch.object(cli, 'dashboard_identity', return_value='a'*32), \
+                 patch.object(cli, 'check_dashboard_port'), \
+                 patch.object(cli, 'docker_available', return_value=(True, '')), \
+                 patch.object(cli, 'process_alive', side_effect=[True, False, True]), \
+                 patch.object(cli, 'rust_dashboard_compose') as compose, \
+                 patch.object(cli.os, 'kill') as kill, \
+                 patch.object(cli, 'wait_dashboard_identity',
+                              side_effect=[RuntimeError('wrong service'), 'http://127.0.0.1:8791']), \
+                 patch.object(cli, 'start_process') as restart:
+                with self.assertRaisesRegex(RuntimeError, 'wrong service'):
+                    cli.switch_dashboard_to_rust(state, docker_context='colima')
+            self.assertEqual([call.args[2:] for call in compose.call_args_list],
+                             [('build',), ('up', '--no-build', '-d', '--wait'), ('down',)])
+            kill.assert_called_once()
+            restart.assert_called_once()
+            self.assertEqual(json.loads((state/'private/dashboard-mode.json').read_text())['mode'],
+                             'native')
+
+    def test_failed_image_build_leaves_python_dashboard_running(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = self.state(directory)
+            with patch.object(cli, 'dashboard_identity', return_value='a'*32), \
+                 patch.object(cli, 'check_dashboard_port'), \
+                 patch.object(cli, 'docker_available', return_value=(True, '')), \
+                 patch.object(cli, 'rust_dashboard_compose', side_effect=RuntimeError('build failed')), \
+                 patch.object(cli, 'process_alive') as inspect, \
+                 patch.object(cli.os, 'kill') as kill:
+                with self.assertRaisesRegex(RuntimeError, 'build failed'):
+                    cli.switch_dashboard_to_rust(state, docker_context='colima')
+            inspect.assert_not_called()
+            kill.assert_not_called()
+            self.assertEqual(json.loads((state/'private/dashboard-mode.json').read_text())['mode'],
+                             'native')
+
+    def test_failed_python_restore_restarts_rust_and_keeps_mode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = self.state(directory, mode='rust')
+            with patch.object(cli, 'dashboard_identity', return_value='a'*32), \
+                 patch.object(cli, 'check_dashboard_port'), \
+                 patch.object(cli, 'rust_dashboard_compose') as compose, \
+                 patch.object(cli, 'start_process', side_effect=RuntimeError('python failed')), \
+                 patch.object(cli, 'process_alive', return_value=False), \
+                 patch.object(cli, 'wait_dashboard_identity', return_value='http://127.0.0.1:8791'):
+                with self.assertRaisesRegex(RuntimeError, 'python failed'):
+                    cli.restore_python_dashboard(state)
+            self.assertEqual([call.args[2:] for call in compose.call_args_list],
+                             [('down',), ('up', '--no-build', '-d', '--wait')])
+            self.assertEqual(json.loads((state/'private/dashboard-mode.json').read_text())['mode'],
+                             'rust')
+
+    def test_restore_and_normal_up_keep_observer_separate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = self.state(directory, mode='rust')
+            config = state/'config.json'
+            config.write_text(json.dumps(DEFAULTS))
+            with patch.object(cli, 'dashboard_identity', return_value='a'*32), \
+                 patch.object(cli, 'check_dashboard_port'), \
+                 patch.object(cli, 'rust_dashboard_compose') as compose, \
+                 patch.object(cli, 'wait_dashboard_identity', return_value='http://127.0.0.1:8791'), \
+                 patch.object(cli, 'process_alive', return_value=True), \
+                 patch.object(cli, 'start_process') as start:
+                cli.restore_python_dashboard(state)
+            compose.assert_called_once_with(state, 8791, 'down', context='colima')
+            self.assertEqual(start.call_args.args[1], 'dashboard')
+            self.assertEqual(json.loads((state/'private/dashboard-mode.json').read_text())['mode'],
+                             'native')
+            atomic_json(state/'private/dashboard-mode.json',
+                        {'mode': 'rust', 'port': 8791, 'docker_context': 'colima'})
+            args = Mock(native=False, port=None, no_open=True)
+            with patch('ci.gauntlet.control_plane.bootstrap.install', return_value={'status':'installed'}), \
+                 patch.object(cli, 'dashboard_identity', return_value='a'*32), \
+                 patch.object(cli, 'check_dashboard_port'), \
+                 patch.object(cli, 'docker_available', return_value=(True, '')), \
+                 patch.object(cli, 'rust_dashboard_compose') as compose, \
+                 patch.object(cli, 'dashboard_ready', return_value=True), \
+                 patch('ci.gauntlet.control_plane.lifecycle.wait_observer'), \
+                 patch.object(cli, 'start_process') as start:
+                cli.up(args, state, config)
+            self.assertEqual([call.args[2:] for call in compose.call_args_list],
+                             [('build',), ('up', '--no-build', '-d', '--wait')])
+            self.assertEqual(start.call_args.args[1], 'agent')
+            self.assertEqual(json.loads((state/'private/dashboard-mode.json').read_text())['mode'],
+                             'rust')
+
+
 class HealthTests(unittest.TestCase):
     def test_wrong_vm_allocation_cannot_look_ready_despite_free_space(self):
         state={'host':{'disk_free':69*GIB,'checked_at':time.time()},

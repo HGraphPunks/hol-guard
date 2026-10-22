@@ -4,7 +4,7 @@ services:
     build:
       context: ../..
       dockerfile: ci/gauntlet-rs/Dashboard.Dockerfile
-    image: hol-gauntlet-rust-dashboard:local
+    image: ${GAUNTLET_RUST_IMAGE:-hol-gauntlet-rust-dashboard:local}
     restart: unless-stopped
     ports:
       - "127.0.0.1:${GAUNTLET_RUST_PORT:-8793}:8787"

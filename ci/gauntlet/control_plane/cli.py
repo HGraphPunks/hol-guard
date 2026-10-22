@@ -121,12 +121,141 @@ def start_process(state, name, module, argv, *, source_sha256=None):
     return process.pid
 
 
-def docker_available():
+def docker_available(context=None):
     if not shutil.which('docker'):
         return False, 'Docker CLI is not installed'
-    result = subprocess.run(['docker', 'info', '--format', '{{.ServerVersion}}'],
+    command = ['docker', *(['--context', context] if context else []),
+               'info', '--format', '{{.ServerVersion}}']
+    result = subprocess.run(command,
                             capture_output=True, text=True, timeout=15)
     return result.returncode == 0, result.stderr.strip()
+
+
+def rust_dashboard_compose(state, port, *action, context):
+    if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}', context or '') is None:
+        raise ValueError('fixed Docker context name required for Rust dashboard')
+    project = 'hol-gauntlet-rust-' + hashlib.sha256(str(state).encode()).hexdigest()[:12]
+    environment = dict(os.environ, GAUNTLET_PUBLIC_STATE=str(state/'public'),
+                       GAUNTLET_RUST_PORT=str(port), GAUNTLET_RUST_IMAGE=project + ':local')
+    command = ['docker', '--context', context, 'compose', '-p', project, '-f',
+               str(ROOT/'ci/gauntlet-rs/dashboard.compose.yml'), *action]
+    timeout = 1200 if action == ('build',) else 120
+    subprocess.run(command, env=environment, check=True, timeout=timeout)
+
+
+def wait_dashboard_identity(port, instance_id):
+    url = f'http://127.0.0.1:{port}'
+    for _ in range(40):
+        try:
+            if dashboard_ready(url, instance_id):
+                return url
+        except (OSError, ValueError, TypeError, KeyError):
+            pass
+        time.sleep(0.25)
+    raise RuntimeError('Dashboard did not report the existing Gauntlet instance identity')
+
+
+def stop_owned_python_dashboard(state):
+    pidfile = state/'private/dashboard.pid.json'
+    previous = json.loads(pidfile.read_text()) if pidfile.exists() else None
+    module = 'ci.gauntlet.control_plane.server'
+    if not process_alive(previous, module, state):
+        return False
+    os.kill(previous['pid'], signal.SIGTERM)
+    deadline = time.monotonic() + 10
+    while process_alive(previous, module, state):
+        if time.monotonic() >= deadline:
+            raise RuntimeError('Owned Python dashboard did not stop for Rust handoff')
+        time.sleep(0.1)
+    return True
+
+
+def switch_dashboard_to_rust(state, port=None, docker_context=None):
+    mode_file = state/'private/dashboard-mode.json'
+    existing = json.loads(mode_file.read_text()) if mode_file.exists() else None
+    if existing and existing['mode'] not in {'native', 'rust'}:
+        raise RuntimeError('Restore or stop the existing Docker dashboard before Rust handoff')
+    if port is None:
+        port = existing['port'] if existing else DEFAULT_PORT
+    if docker_context is None:
+        docker_context = (existing.get('docker_context') if existing and existing['mode'] == 'rust'
+                          else subprocess.run(['docker', 'context', 'show'], check=True,
+                                              capture_output=True, text=True, timeout=10).stdout.strip())
+    if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}', docker_context or '') is None:
+        raise ValueError('fixed Docker context name required for Rust dashboard')
+    if existing and existing['mode'] == 'rust' and existing.get('docker_context') != docker_context:
+        raise ValueError('existing Rust dashboard belongs to another Docker context')
+    instance_id = dashboard_identity(state)
+    check_dashboard_port(port, instance_id)
+    available, diagnostic = docker_available(docker_context)
+    if not available:
+        raise RuntimeError('Rust dashboard requires Docker: ' + diagnostic)
+    rust_dashboard_compose(state, port, 'build', context=docker_context)
+    stopped_python = False
+    try:
+        if existing is not None and existing['mode'] == 'native':
+            stopped_python = stop_owned_python_dashboard(state)
+        rust_dashboard_compose(state, port, 'up', '--no-build', '-d', '--wait',
+                               context=docker_context)
+        url = wait_dashboard_identity(port, instance_id)
+        atomic_json(mode_file, {'mode': 'rust', 'port': port,
+                                'docker_context': docker_context})
+    except Exception as handoff_error:
+        cleanup_error = None
+        if not existing or existing['mode'] != 'rust':
+            try:
+                rust_dashboard_compose(state, port, 'down', context=docker_context)
+            except Exception as error:
+                cleanup_error = error
+        if existing and existing['mode'] == 'native' and not stopped_python:
+            pidfile = state/'private/dashboard.pid.json'
+            previous = json.loads(pidfile.read_text()) if pidfile.exists() else None
+            stopped_python = bool(previous and not process_alive(
+                previous, 'ci.gauntlet.control_plane.server', state))
+        if stopped_python:
+            try:
+                start_process(state, 'dashboard', 'ci.gauntlet.control_plane.server',
+                              ['--state', str(state/'public'), '--port', str(port)],
+                              source_sha256=hashlib.sha256((PACKAGE/'server.py').read_bytes()).hexdigest())
+                wait_dashboard_identity(port, instance_id)
+                record = json.loads((state/'private/dashboard.pid.json').read_text())
+                if not process_alive(record, 'ci.gauntlet.control_plane.server', state):
+                    raise RuntimeError('Python dashboard process exited during rollback')
+            except Exception as rollback_error:
+                raise RuntimeError('Rust handoff failed and Python dashboard rollback failed') from rollback_error
+        if cleanup_error is not None:
+            raise RuntimeError('Rust handoff failed and partial container cleanup failed') from cleanup_error
+        raise handoff_error
+    print(url)
+    return url
+
+
+def restore_python_dashboard(state):
+    mode_file = state/'private/dashboard-mode.json'
+    existing = json.loads(mode_file.read_text()) if mode_file.exists() else None
+    if not existing or existing['mode'] != 'rust':
+        raise RuntimeError('No Rust dashboard mode is recorded')
+    port = existing['port']
+    instance_id = dashboard_identity(state)
+    check_dashboard_port(port, instance_id)
+    try:
+        rust_dashboard_compose(state, port, 'down', context=existing['docker_context'])
+        start_process(state, 'dashboard', 'ci.gauntlet.control_plane.server',
+                      ['--state', str(state/'public'), '--port', str(port)],
+                      source_sha256=hashlib.sha256((PACKAGE/'server.py').read_bytes()).hexdigest())
+        url = wait_dashboard_identity(port, instance_id)
+        record = json.loads((state/'private/dashboard.pid.json').read_text())
+        if not process_alive(record, 'ci.gauntlet.control_plane.server', state):
+            raise RuntimeError('Python dashboard process exited during restore')
+        atomic_json(mode_file, {'mode': 'native', 'port': port})
+    except Exception:
+        stop_owned_python_dashboard(state)
+        rust_dashboard_compose(state, port, 'up', '--no-build', '-d', '--wait',
+                               context=existing['docker_context'])
+        wait_dashboard_identity(port, instance_id)
+        raise
+    print(url)
+    return url
 
 
 def up(args, state, config_path):
@@ -147,14 +276,25 @@ def up(args, state, config_path):
     except Exception as error:
         atomic_json(state/'private/bootstrap.json', {'status': 'blocked', 'error': str(error)[:1500]})
         print('VM bootstrap blocked: ' + str(error), file=sys.stderr)
-    available, diagnostic = docker_available() if not args.native else (False, 'Native mode explicitly selected')
+    available, diagnostic = (docker_available(existing.get('docker_context')
+                                              if existing and existing['mode'] == 'rust' else None)
+                             if not args.native else (False, 'Native mode explicitly selected'))
     if existing:
+        if existing['mode'] not in {'native', 'docker', 'rust'}:
+            raise RuntimeError('Unknown dashboard mode requires operator reconciliation')
+        if existing['mode'] == 'rust' and args.native:
+            raise RuntimeError('Use dashboard-rust-restore to return to the Python dashboard')
         native = existing['mode'] == 'native'
         if not native and not available:
             raise RuntimeError('Existing deployment uses Docker; restore its daemon or run down before changing mode')
     else:
         native = not available
-    if native:
+    rust = existing is not None and existing['mode'] == 'rust'
+    if rust:
+        rust_dashboard_compose(state, port, 'build', context=existing['docker_context'])
+        rust_dashboard_compose(state, port, 'up', '--no-build', '-d', '--wait',
+                               context=existing['docker_context'])
+    elif native:
         if not available:
             print('Dashboard uses native Python. ' + (diagnostic or 'Docker unavailable'), file=sys.stderr)
         if existing and existing['port'] != port:
@@ -172,7 +312,10 @@ def up(args, state, config_path):
         environment = dict(os.environ, GAUNTLET_PUBLIC_STATE=str(state/'public'), GAUNTLET_PORT=str(port))
         subprocess.run(['docker', 'compose', '-p', 'hol-gauntlet-ops', '-f', str(PACKAGE/'compose.yml'),
                         'up', '--build', '-d', '--wait'], env=environment, check=True)
-    atomic_json(mode_file, {'mode': 'native' if native else 'docker', 'port': port})
+    mode = {'mode': 'rust' if rust else ('native' if native else 'docker'), 'port': port}
+    if rust:
+        mode['docker_context'] = existing['docker_context']
+    atomic_json(mode_file, mode)
     url = f'http://127.0.0.1:{port}'
     for _ in range(20):
         try:
@@ -205,6 +348,8 @@ def down(state):
             environment = dict(os.environ, GAUNTLET_PUBLIC_STATE=str(state/'public'), GAUNTLET_PORT=str(mode['port']))
             subprocess.run(['docker', 'compose', '-p', 'hol-gauntlet-ops', '-f', str(PACKAGE/'compose.yml'), 'down'],
                            env=environment, check=True)
+        elif mode['mode'] == 'rust':
+            rust_dashboard_compose(state, mode['port'], 'down', context=mode['docker_context'])
         path.unlink()
     print('Local services stopped. VM, retained jobs/evidence and repository rules are unchanged.')
 
@@ -256,6 +401,14 @@ def main():
     start.add_argument('--native', action='store_true', help='run dashboard directly in Python')
     start.add_argument('--port', type=int, help='dashboard port (default: 8791; retains a custom deployment port)')
     start.add_argument('--no-open', action='store_true')
+    rust_dashboard = commands.add_parser('dashboard-rust-up',
+        help='switch only the dashboard HTTP service to the isolated Rust container')
+    rust_dashboard.add_argument('--port', type=int,
+        help='dashboard port (default: retained deployment port or 8791)')
+    rust_dashboard.add_argument('--docker-context',
+        help='explicit Docker context; saved for later up, restore and down commands')
+    commands.add_parser('dashboard-rust-restore',
+        help='restore only the Python dashboard HTTP service')
     fix = commands.add_parser('repair', help='restart the observer, start the existing VM and retain a controller upgrade; no gate activation')
     fix.add_argument('--native', action='store_true')
     fix.add_argument('--port', type=int)
@@ -304,6 +457,10 @@ def main():
         state, config_path, config = prepare(args)
         if args.command == 'up':
             up(args, state, config_path)
+        elif args.command == 'dashboard-rust-up':
+            switch_dashboard_to_rust(state, args.port, args.docker_context)
+        elif args.command == 'dashboard-rust-restore':
+            restore_python_dashboard(state)
         elif args.command == 'repair':
             from .lifecycle import repair
             repair(args, state, config_path, config)
