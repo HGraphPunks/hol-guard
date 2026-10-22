@@ -7,6 +7,7 @@ use crate::sdk_wire_peer::SdkWirePeerPin;
 use crate::staging_machine_observer::{
     observe_sdk_executable, ContainerProcessIdentity, MachineSliceSampler, SdkExecutableIdentity,
 };
+use crate::staging_product_observer::{ProductObservation, StagingProductSampler};
 use crate::{launch_plan::rust_job_slice_name, OwnedJobCgroup};
 use rustix::fs::{fstat, open, openat, statat, AtFlags, FileType, Mode, OFlags, Stat};
 use rustix::io::Errno;
@@ -36,6 +37,7 @@ pub(crate) struct LiveStagingKernelObservation {
     pub(crate) max_product_tasks: u64,
     pub(crate) container_processes: Vec<ContainerProcessIdentity>,
     pub(crate) sdk_executables: Vec<SdkExecutableIdentity>,
+    pub(crate) product: Option<ProductObservation>,
 }
 
 impl LiveStagingKernelObservation {
@@ -88,6 +90,7 @@ pub(crate) struct StagingKernelSampler {
     root_stat: Stat,
     slice_name: String,
     machine: MachineSliceSampler,
+    product: StagingProductSampler,
     observed_container_processes: BTreeSet<ContainerProcessIdentity>,
     observed_sdk_executables: BTreeSet<SdkExecutableIdentity>,
     observation: LiveStagingKernelObservation,
@@ -204,7 +207,7 @@ impl StagingKernelSampler {
         }))
     }
 
-    pub(crate) fn new(run_id: &str) -> Result<Self, String> {
+    pub(crate) fn new(run_id: &str, role: crate::StagingRole) -> Result<Self, String> {
         let slice_name = rust_job_slice_name(run_id).map_err(|error| error.to_string())?;
         let root = open(
             CGROUP_ROOT,
@@ -222,6 +225,7 @@ impl StagingKernelSampler {
             root_stat,
             slice_name,
             machine,
+            product: StagingProductSampler::new(run_id, role)?,
             observed_container_processes: BTreeSet::new(),
             observed_sdk_executables: BTreeSet::new(),
             observation: LiveStagingKernelObservation {
@@ -232,11 +236,12 @@ impl StagingKernelSampler {
                 max_product_tasks: 0,
                 container_processes: Vec::new(),
                 sdk_executables: Vec::new(),
+                product: None,
             },
         })
     }
 
-    fn sample_product_slice(&self) -> Result<Option<SliceSample>, String> {
+    fn sample_product_slice(&mut self) -> Result<Option<SliceSample>, String> {
         let before = fstat(&self.root).map_err(|error| error.to_string())?;
         if !same_root_directory(&self.root_stat, &before) {
             return Err("cgroup root changed before sample".to_owned());
@@ -266,6 +271,9 @@ impl StagingKernelSampler {
         }
         let tasks = parse_tasks(&read_control(&directory, "pids.current")?)?;
         let populated = parse_populated(&read_control(&directory, "cgroup.events")?)?;
+        if self.observation.sample_count.is_multiple_of(5) {
+            self.product.sample(&directory)?;
+        }
         let final_visible = match statat(
             &self.root,
             self.slice_name.as_str(),
@@ -324,6 +332,7 @@ impl StagingKernelSampler {
     }
 
     pub(crate) fn finish(mut self) -> LiveStagingKernelObservation {
+        self.observation.product = Some(self.product.finish());
         self.observation.container_processes =
             self.observed_container_processes.into_iter().collect();
         self.observation.sdk_executables = self.observed_sdk_executables.into_iter().collect();

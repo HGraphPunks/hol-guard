@@ -31,6 +31,8 @@ pub use sdk_tap::HostSdkTapJournalPin;
 #[path = "controller_key_effect_events.rs"]
 mod effect_events;
 pub use effect_events::HostEffectEventsPin;
+#[path = "controller_key_product_effect.rs"]
+mod product_effect;
 #[path = "controller_key_staging_readback.rs"]
 mod staging_readback;
 pub use staging_readback::HostStagingRestartReadbackObservation;

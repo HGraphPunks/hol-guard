@@ -61,7 +61,10 @@ fn valid_name(name: &[u8]) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
 }
 
-fn scan_at(parent: &OwnedFd, expected_uid: u32) -> Result<Vec<String>, ProductCellScanError> {
+pub(crate) fn scan_at(
+    parent: &OwnedFd,
+    expected_uid: u32,
+) -> Result<Vec<String>, ProductCellScanError> {
     let original = fstat(parent).map_err(|_| ProductCellScanError::Unavailable)?;
     if !trusted_directory(&original, expected_uid) {
         return Err(ProductCellScanError::UnsafeParent);

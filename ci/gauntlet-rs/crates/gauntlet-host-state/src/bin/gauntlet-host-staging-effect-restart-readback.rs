@@ -9,8 +9,9 @@ fn run() -> Result<Vec<u8>, String> {
         return Err("macOS Lima host artifact required".to_owned());
     }
     let args: Vec<String> = std::env::args().collect();
-    if args.len() != 7 {
-        return Err("usage: gauntlet-host-staging-effect-restart-readback PRIVATE_HOST_PIN_DIR RUN_ID SOURCE_SHA CONFIG_SHA WORKER_GENERATION_SHA READBACK_BINARY_SHA".to_owned());
+    let product = args.len() == 9 && args[7] == "--kernel-effect-reader";
+    if args.len() != 7 && !product {
+        return Err("usage: gauntlet-host-staging-effect-restart-readback PRIVATE_HOST_PIN_DIR RUN_ID SOURCE_SHA CONFIG_SHA WORKER_GENERATION_SHA READBACK_BINARY_SHA [--kernel-effect-reader READER_SHA]".to_owned());
     }
     let journal = HostControllerKeyPinJournal::open(Path::new(&args[1]))
         .map_err(|error| format!("private host pins unavailable: {error}"))?;
@@ -45,6 +46,20 @@ fn run() -> Result<Vec<u8>, String> {
     let effect_restart = journal
         .verify_effect_events_from_lima_ineligible(&args[2])
         .map_err(|error| format!("keyed effect restart readback uncertain: {error}"))?;
+    let mut product_effects = Vec::new();
+    if product {
+        for surface in ["provider-remote", "provider-home"] {
+            product_effects.push(
+                key.observe_fixed_vm_kernel_provider_effect(
+                    &args[8],
+                    &effect,
+                    &tap_restart.role,
+                    surface,
+                )
+                .map_err(|e| format!("kernel-bound {surface} readback uncertain: {e}"))?,
+            );
+        }
+    }
     if effect_restart != effect
         || tap_restart.terminal_sha256 != effect.terminal_sha256
         || tap_restart.report_sha256 != effect.report_sha256
@@ -60,7 +75,7 @@ fn run() -> Result<Vec<u8>, String> {
     {
         return Err("joint host tap/effect pins changed during restart readback".to_owned());
     }
-    let value = json!({
+    let mut value = json!({
         "schema":"hol-gauntlet-host-staging-effect-restart-readback.v1",
         "run_id":args[2],
         "role":tap_restart.role,
@@ -77,6 +92,10 @@ fn run() -> Result<Vec<u8>, String> {
         "guard_causality_verified":false,
         "execution_eligible":false,
     });
+    if product {
+        value["schema"] = json!("hol-gauntlet-host-staging-kernel-effect-restart-readback.v1");
+        value["kernel_bound_provider_effects"] = json!(product_effects);
+    }
     gauntlet_contracts::canonicalize(value.to_string().as_bytes())
         .map_err(|error| error.to_string())
 }

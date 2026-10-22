@@ -158,6 +158,9 @@ impl CandidateStagingRunProof {
         if let Some(events) = &self.effect_events {
             value["effect_events"] = events.clone();
         }
+        if let Some(product) = &self.live_kernel_activity.product {
+            value["live_product_activity"] = product.to_json();
+        }
         value
     }
 }
@@ -592,7 +595,7 @@ fn run_with_group(
                 group.path(),
             )
             .map_err(|error| error.to_string())?;
-        let mut sampler = StagingKernelSampler::new(pins.run_id)?;
+        let mut sampler = StagingKernelSampler::new(pins.run_id, pins.role)?;
         sampler.sample(group)?;
         let (outcome, tap_sessions) = if let Some(tap) = tap.as_ref() {
             let (outcome, sessions) = wait_with_sdk_tap_v2(
@@ -708,6 +711,9 @@ fn run_with_group(
     }
     if let Some(events) = &effect_events {
         report["effect_events"] = events.clone();
+    }
+    if let Some(product) = &live_kernel_activity.product {
+        report["live_product_activity"] = product.to_json();
     }
     let raw = canonicalize(report.to_string().as_bytes()).map_err(|error| error.to_string())?;
     let terminal = journal

@@ -142,7 +142,7 @@ fn scope_id(name: &[u8]) -> Option<&[u8]> {
     .then_some(id)
 }
 
-fn parse_pids(raw: &[u8]) -> Result<Vec<u32>, String> {
+pub(crate) fn parse_pids(raw: &[u8]) -> Result<Vec<u32>, String> {
     if raw.len() as u64 > MAX_CONTROL_BYTES || !raw.is_empty() && !raw.ends_with(b"\n") {
         return Err("invalid container cgroup.procs framing".to_owned());
     }

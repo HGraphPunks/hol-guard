@@ -229,6 +229,14 @@ pub mod staging_effect_journal;
 mod staging_kernel_observer;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod staging_machine_observer;
+#[cfg(target_os = "linux")]
+pub mod staging_product_effect;
+#[cfg(target_os = "linux")]
+mod staging_product_mounts;
+#[cfg(target_os = "linux")]
+mod staging_product_observer;
+#[cfg(target_os = "linux")]
+mod staging_product_process;
 mod terminal;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use builder_candidate_preflight::{CandidatePreflightError, CandidateRuntimePins};
