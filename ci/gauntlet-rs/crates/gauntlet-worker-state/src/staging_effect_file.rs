@@ -73,7 +73,7 @@ impl StagingFixedEffectShadow {
     }
 }
 
-fn same_file(a: &Stat, b: &Stat) -> bool {
+pub(crate) fn same_file(a: &Stat, b: &Stat) -> bool {
     a.st_dev == b.st_dev
         && a.st_ino == b.st_ino
         && a.st_mode == b.st_mode
@@ -87,10 +87,11 @@ fn same_file(a: &Stat, b: &Stat) -> bool {
         && a.st_ctime_nsec == b.st_ctime_nsec
 }
 
-fn open_fixed_provider_file(
+pub(crate) fn open_fixed_effect_file(
     root: &OwnedFd,
     path: &str,
     owner: u32,
+    expected_bytes: &[u8],
 ) -> Result<(File, Stat), String> {
     let flags = OFlags::RDONLY | OFlags::NONBLOCK | OFlags::NOFOLLOW | OFlags::CLOEXEC;
     let resolve = ResolveFlags::BENEATH | ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS;
@@ -101,14 +102,14 @@ fn open_fixed_provider_file(
         || before.st_uid != owner
         || before.st_nlink != 1
         || before.st_mode & 0o7777 != 0o600
-        || before.st_size != PROVIDER_BYTES.len() as i64
+        || before.st_size != expected_bytes.len() as i64
     {
         return Err("fixed provider effect has unsafe metadata".to_owned());
     }
     let mut file = File::from(descriptor);
     let mut raw = Vec::new();
     file.by_ref()
-        .take(PROVIDER_BYTES.len() as u64 + 1)
+        .take(expected_bytes.len() as u64 + 1)
         .read_to_end(&mut raw)
         .map_err(|error| error.to_string())?;
     let after = fstat(&file).map_err(|error| error.to_string())?;
@@ -117,7 +118,7 @@ fn open_fixed_provider_file(
     let reopened = openat2(root, path, flags, Mode::empty(), resolve)
         .map_err(|error| format!("fixed effect file changed: {error}"))?;
     let reopened_stat = fstat(&reopened).map_err(|error| error.to_string())?;
-    if raw != PROVIDER_BYTES
+    if raw != expected_bytes
         || !same_file(&before, &after)
         || !same_file(&before, &visible)
         || !same_file(&before, &reopened_stat)
@@ -127,7 +128,7 @@ fn open_fixed_provider_file(
     Ok((file, before))
 }
 
-fn correlate_rows(
+pub(crate) fn correlate_rows(
     journal_raw: &[u8],
     file: &Stat,
     expected_event_owner: u32,
@@ -228,7 +229,8 @@ pub fn observe_staging_fixed_provider_effect_ineligible(
     if role_stat.st_uid != 0 || role_stat.st_mode & 0o7777 != 0o700 {
         return Err("fixed effect role directory is not Root-private".to_owned());
     }
-    let (file, before) = open_fixed_provider_file(&role_dir, relative, PRODUCT_OWNER)?;
+    let (file, before) =
+        open_fixed_effect_file(&role_dir, relative, PRODUCT_OWNER, PROVIDER_BYTES)?;
     let document: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
     let file_handle = if document["schema"] == "hol-gauntlet-staging-effect-events.v2"
         || document["schema"] == EFFECT_IMAGE_JOURNAL_SCHEMA
@@ -321,7 +323,7 @@ mod tests {
         )
         .unwrap();
         let (held, stat) =
-            open_fixed_provider_file(&root, "provider.txt", stat_uid(&path)).unwrap();
+            open_fixed_effect_file(&root, "provider.txt", stat_uid(&path), PROVIDER_BYTES).unwrap();
         assert_eq!(fstat(&held).unwrap().st_ino, stat.st_ino);
         let row = json!({"events":[{"device":stat.st_dev,"inode":stat.st_ino,"owner":PRODUCT_VIEW_OWNER,
             "reported_pid":42,"pidfd_available":true,
@@ -374,9 +376,11 @@ mod tests {
         )
         .is_err());
         symlink(&path, directory.path().join("linked.txt")).unwrap();
-        assert!(open_fixed_provider_file(&root, "linked.txt", stat.st_uid).is_err());
+        assert!(open_fixed_effect_file(&root, "linked.txt", stat.st_uid, PROVIDER_BYTES).is_err());
         std::fs::write(&path, b"changed").unwrap();
-        assert!(open_fixed_provider_file(&root, "provider.txt", stat.st_uid).is_err());
+        assert!(
+            open_fixed_effect_file(&root, "provider.txt", stat.st_uid, PROVIDER_BYTES).is_err()
+        );
     }
 
     fn stat_uid(path: &Path) -> u32 {

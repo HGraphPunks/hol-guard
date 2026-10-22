@@ -189,6 +189,20 @@ pub fn verify_staging_control_opening_ineligible(
 pub fn observe_staging_control_root_owned_ineligible(
     pins: &StagingEvidencePins<'_>,
 ) -> Result<StagingControlOpening> {
+    Ok(observe_staging_control_context(pins)?.opening)
+}
+
+pub(crate) struct StagingControlContext {
+    pub opening: StagingControlOpening,
+    pub raw: Vec<u8>,
+    pub native_sha256: String,
+}
+
+/// Retain the same authenticated bytes and config-derived Native identity
+/// for callers composing the opening with outside kernel/file observations.
+pub(crate) fn observe_staging_control_context(
+    pins: &StagingEvidencePins<'_>,
+) -> Result<StagingControlContext> {
     if !cfg!(target_os = "linux") || geteuid().as_raw() != 0 {
         return Err(EvidenceError::Invalid(
             "Linux Root staging custody required",
@@ -243,6 +257,13 @@ pub fn observe_staging_control_root_owned_ineligible(
         return Err(INVALID);
     }
     let expected = expected_runtime(config)?;
+    let native_sha256 = config["assets"]["native"]["sha256"]
+        .as_str()
+        .filter(|sha| is_sha256(sha))
+        .ok_or(INVALID)?;
+    if expected["private_cell"]["native_sha256"] != native_sha256 {
+        return Err(INVALID);
+    }
     let opened = verify_staging_control_opening_ineligible(
         &raw,
         pins.role,
@@ -261,5 +282,9 @@ pub fn observe_staging_control_root_owned_ineligible(
         return Err(INVALID);
     }
     verify_runner_assets_inert(&after, Path::new("/opt"))?;
-    Ok(opened)
+    Ok(StagingControlContext {
+        opening: opened,
+        raw,
+        native_sha256: native_sha256.to_owned(),
+    })
 }

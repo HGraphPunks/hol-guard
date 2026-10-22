@@ -23,7 +23,11 @@ fn positive(value: &Value) -> bool {
     value.as_u64().is_some_and(|n| n > 0)
 }
 
-fn matching_sample<'a>(report: &'a Value, run: &str, role: &str) -> Result<&'a Value, String> {
+pub(crate) fn matching_sample<'a>(
+    report: &'a Value,
+    run: &str,
+    role: &str,
+) -> Result<&'a Value, String> {
     let activity = &report["live_product_activity"];
     let sample = &activity["observation"];
     let slice = crate::launch_plan::rust_job_slice_name(run).map_err(|e| e.to_string())?;
@@ -159,7 +163,7 @@ fn matching_sample<'a>(report: &'a Value, run: &str, role: &str) -> Result<&'a V
     Ok(sample)
 }
 
-fn read_report(
+pub(crate) fn read_report(
     journal: &RunReservationJournal,
     started: &StartedMarker,
     outside_sha: &str,

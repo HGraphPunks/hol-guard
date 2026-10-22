@@ -65,6 +65,7 @@ mod runner_runtime;
 mod six_control_openings;
 #[cfg(target_os = "linux")]
 mod staging_agent_process;
+mod staging_contained_relation;
 mod staging_control_record;
 #[cfg(target_os = "linux")]
 mod staging_physical_files;
@@ -166,6 +167,10 @@ pub use six_control_openings::{
 pub use staging_agent_process::{
     observe_staging_agent_process_root_owned_ineligible, StagingAgentProcessPins,
     StagingAgentProcessShadow,
+};
+pub use staging_contained_relation::{
+    observe_staging_contained_relation_root_owned_ineligible,
+    verify_staging_contained_relation_ineligible, ContainedFileIdentity,
 };
 pub use staging_control_record::{
     observe_staging_control_root_owned_ineligible, verify_staging_control_opening_ineligible,
