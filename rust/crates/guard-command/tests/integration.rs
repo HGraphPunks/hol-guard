@@ -37,6 +37,7 @@ pub mod guard_attestation_signature_parity;
 pub mod guard_attestation_verification_parity;
 pub mod guard_command_shadow_parity;
 pub mod guard_evidence_hash_parity;
+pub mod guard_protection_health_parity;
 pub mod guard_trust_claim_parity;
 pub mod inline_expression_boundaries;
 pub mod js_semver_vectors;

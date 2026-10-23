@@ -201,6 +201,9 @@ mod powershell_floors;
 mod powershell_parser;
 mod powershell_reads;
 pub mod protect_request;
+pub mod protection_health;
+#[cfg(test)]
+mod protection_health_tests;
 pub mod pytest_argv;
 mod read_only_fanout;
 pub mod reviewed_invocation_bindings;
