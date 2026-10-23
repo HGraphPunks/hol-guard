@@ -248,6 +248,14 @@ Implement fixed Root RPC actions, exact one-time job/deployment bindings, stable
 
 **Exit:** on a fresh exact-commit candidate in the 16-GiB ARM VM, six staging and six installed roles pass with zero model requests; every negative (identity mismatch, symlink, replay, timeout, cancellation, descendant survivor, cleanup uncertainty) fails closed and retains evidence. v3.48/v3.49 continue to report their missing completion capability rather than passing strict admission.
 
+The [native product-cell apparatus](gauntlet-rust-product-cell-native-proof.md)
+at `cc6948cd` ports the unprivileged actor, measured child gate and pinned
+syscall/network floor. An actual ARM64 executable passed all eight private RPC
+operations through the existing Python client under both network profiles,
+including gating, binary I/O, replay/refusal and cleanup checks. This replaces
+no installed VM artifact yet: a versioned manifest and AppArmor/rootfs/
+supervisor/trusted-reader integration are the next deployment work.
+
 ### Phase 3 — host observer, dashboard and release operations
 
 The [passive host lifecycle](gauntlet-rust-host-lifecycle-proof.md) now has a
