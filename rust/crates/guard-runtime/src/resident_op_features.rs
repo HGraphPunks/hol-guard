@@ -72,6 +72,7 @@ pub(crate) const RESIDENT_OP_FEATURES: &[&str] = &[
     guard_contracts::GIT_EXECUTION_SAFETY_FEATURE,
     guard_contracts::COMPOUND_GIT_INSPECTION_FEATURE,
     guard_contracts::CODEX_TOOL_OUTPUT_FEATURE,
+    guard_contracts::CODEX_POST_TOOL_COMMANDS_FEATURE,
     guard_contracts::POLICY_BUNDLE_AUTHORITY_FEATURE,
     guard_contracts::MCP_RUNTIME_EVIDENCE_FEATURE,
     guard_contracts::RUNTIME_DETECTOR_RUN_FEATURE,

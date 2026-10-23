@@ -52,6 +52,7 @@ mod codex_output_inspection;
 mod codex_output_inspection_flow;
 mod codex_output_pathspecs;
 mod codex_output_post_tool;
+mod codex_output_post_tool_commands;
 mod codex_output_post_tool_copy;
 mod codex_output_post_tool_skips;
 mod codex_output_post_tool_sources;
