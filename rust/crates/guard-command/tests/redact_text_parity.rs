@@ -20,7 +20,7 @@ fn recorded_inputs_redact_to_their_recorded_results() {
     let vectors: Value = serde_json::from_str(VECTORS).expect("vectors parse");
     assert_eq!(vectors["schema"].as_str(), Some("redact-text-parity.v1"));
     let cases = vectors["cases"].as_array().expect("cases array");
-    assert!(cases.len() >= 23);
+    assert!(cases.len() >= 27);
 
     for case in cases {
         let name = case["name"].as_str().unwrap_or_default();

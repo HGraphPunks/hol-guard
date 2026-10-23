@@ -42,7 +42,7 @@ _CLASSIFIERS = {
 
 def test_the_fixture_is_the_shape_both_sides_read() -> None:
     assert _VECTORS["schema"] == "redact-text-parity.v1"
-    assert len(_VECTORS["cases"]) >= 23
+    assert len(_VECTORS["cases"]) >= 27
 
 
 def test_every_rule_has_a_recorded_case() -> None:

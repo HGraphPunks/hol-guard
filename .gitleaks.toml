@@ -74,6 +74,13 @@ regexes = [
 ]
 
 [[rules.allowlists]]
+description = "Synthetic masked-value vector in the command-token redaction tests, not a credential"
+condition = "AND"
+regexTarget = "secret"
+paths = ['''(?:^|/)rust/crates/guard\-command/src/redacted_command_tokens\.rs$''']
+regexes = ['''^abcdefgh12345678$''']
+
+[[rules.allowlists]]
 description = "Synthetic API key in the approval-queue redaction parity vectors, not a credential"
 condition = "AND"
 regexTarget = "secret"
