@@ -293,12 +293,15 @@ pub(super) fn exact_safe_segment_with_context(
             super::listing_reads::safe_listing_segment(&segment.text, &segment.arguments, context)
         }
         "tree" => super::tree_reads::safe_tree_segment(&segment.arguments, context),
-        "test" => safe_reads::safe_file_predicate_arguments(&segment.arguments, context),
+        "test" => {
+            safe_reads::safe_file_predicate_arguments(&segment.arguments, &segment.text, context)
+        }
         "[" => segment
             .arguments
             .split_last()
             .is_some_and(|(last, predicate)| {
-                last == "]" && safe_reads::safe_file_predicate_arguments(predicate, context)
+                last == "]"
+                    && safe_reads::safe_file_predicate_arguments(predicate, &segment.text, context)
             }),
         "find" => {
             super::find_reads::safe_find_listing_arguments(&segment.arguments, context)
