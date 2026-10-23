@@ -37,6 +37,7 @@ pub(crate) const RESIDENT_OP_FEATURES: &[&str] = &[
     guard_contracts::GUARD_STORE_FEATURE,
     guard_contracts::APPROVAL_GATE_FEATURE,
     guard_contracts::PACKAGE_AUTHORITY_FEATURE,
+    guard_contracts::PACKAGE_INTENT_EXTRACT_FEATURE,
     guard_contracts::PACKAGE_EVALUATION_COMPOSE_FEATURE,
     guard_contracts::PACKAGE_APPROVAL_HASH_FEATURE,
     guard_contracts::VERIFIED_NPM_FEATURE,

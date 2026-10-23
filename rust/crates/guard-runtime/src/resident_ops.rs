@@ -381,6 +381,9 @@ pub(crate) fn evaluate_resident_bytes_with_cancellation(
             ResidentOperationV1::PackageIntentParse(request) => {
                 crate::package_authority_op::evaluate_package_intent_parse(&request)
             }
+            ResidentOperationV1::PackageIntentExtract(request) => {
+                crate::package_intent_extract_op::evaluate_package_intent_extract(&request)
+            }
             ResidentOperationV1::PackageRequestArtifact(request) => {
                 crate::package_authority_op::evaluate_package_request_artifact_request(&request)
             }

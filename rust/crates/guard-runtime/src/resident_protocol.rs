@@ -215,6 +215,7 @@ pub(crate) enum ResidentOperationV1 {
     HookEvidenceWriter(crate::hook_evidence_writer_op::HookEvidenceWriterRequestV1),
     ApprovalGate(ApprovalGateRequestV1),
     PackageIntentParse(PackageIntentParseRequestV1),
+    PackageIntentExtract(guard_contracts::PackageIntentExtractRequestV1),
     PackageRequestArtifact(PackageRequestArtifactRequestV1),
     SupplyChainEval(SupplyChainEvalRequestV1),
     ApplyStoredPackagePolicy(ApplyStoredPackagePolicyRequestV1),
