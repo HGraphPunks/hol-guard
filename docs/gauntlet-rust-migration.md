@@ -250,6 +250,13 @@ Implement fixed Root RPC actions, exact one-time job/deployment bindings, stable
 
 ### Phase 3 — host observer, dashboard and release operations
 
+The [passive host lifecycle](gauntlet-rust-host-lifecycle-proof.md) now has a
+separate versioned namespace, durable operator controls, cooperative observer
+lease, exact two-release metadata queue and unknown restart recovery. Its real
+CLI/process tests and retained operator demonstration do not dispatch a VM job.
+It is local preparation while the current incremental PR's GitHub Actions are
+unavailable; Python ownership, history import and production cutover remain open.
+
 Implement local `up/status/doctor/hold/resume/down/reconcile/repair` semantics, exact-tag Git fetch/archive, optional PR-artifact handoff, telemetry and loopback dashboard. First run a **read-only shadow** observer over copied status/receipts; it must not pollute the authoritative queue, start a VM job, publish a status or own the same lock. Then perform an explicit cutover with the Python observer stopped and no active/unknown work. Use a new Rust state namespace or versioned migration with an auditable one-time import; never overwrite Python ledgers. Retain the known dashboard API fields (or ship a versioned adapter so the existing JS works).
 
 **Exit:** fresh deployment works with one command, port 8791 identity check works, stale/absent VM data is visible as unavailable, source/build/stage/control progress is truthful, and the two release tags stay diagnostic under the same admission floor. Reconciliation of an intentionally interrupted worker is read-only and does not replay execution.
