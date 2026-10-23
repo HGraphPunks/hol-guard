@@ -293,6 +293,18 @@ regexes = [
   '''^sk\-live\-0123456789abcdef0123456789abcdef$''',
 ]
 
+[[rules.allowlists]]
+description = "Recorded trust-attestation replay key, a SHA-256 digest of the claim rather than a credential"
+condition = "AND"
+regexTarget = "line"
+paths = [
+  '''(?:^|/)tests/fixtures/guard\-trust\-claim\.v1\.json$''',
+  '''(?:^|/)tests/fixtures/guard\-attestation\-verification\.v1\.json$''',
+]
+regexes = [
+  '''^[\t\r\n ]*"(?:replayKey|replay_key)": "[0-9a-f]{64}",?[\t\r\n ]*$''',
+]
+
 [[rules]]
 id = "github-pat"
 

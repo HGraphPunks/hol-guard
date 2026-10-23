@@ -8,6 +8,21 @@ mod artifact_hash_url;
 #[cfg(test)]
 mod artifact_hash_url_tests;
 pub mod artifact_risk;
+pub mod attestation_envelope;
+#[cfg(test)]
+mod attestation_envelope_tests;
+pub mod attestation_payload;
+#[cfg(test)]
+mod attestation_payload_tests;
+pub mod attestation_signature;
+#[cfg(test)]
+mod attestation_signature_tests;
+pub mod attestation_timestamp;
+#[cfg(test)]
+mod attestation_timestamp_tests;
+pub mod attestation_verification;
+#[cfg(test)]
+mod attestation_verification_tests;
 pub mod bash_approval;
 pub mod benign_request_api;
 pub mod browser_mcp_intent;
@@ -364,6 +379,9 @@ pub mod source_cli;
 pub mod tool_action_identity;
 #[cfg(test)]
 mod tool_action_identity_tests;
+pub mod trust_claim;
+#[cfg(test)]
+mod trust_claim_tests;
 pub mod typescript_launch_evidence;
 #[cfg(test)]
 #[path = "../../../test_support/unique_nanos.rs"]
