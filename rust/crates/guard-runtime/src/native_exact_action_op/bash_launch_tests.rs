@@ -62,11 +62,7 @@ fn hardened_named_helper_source(root: &Path, name: &str, program: &str) -> PathB
     let image = root.join(name);
     std::fs::write(&source, program).unwrap();
     let mut compile = Command::new("/usr/bin/clang");
-    compile
-        .args(["-O0", "-Wl,-no_uuid"])
-        .arg(&source)
-        .arg("-o")
-        .arg(&image);
+    compile.arg("-O0").arg(&source).arg("-o").arg(&image);
     let mut signing = Command::new("/usr/bin/codesign");
     signing
         .args([

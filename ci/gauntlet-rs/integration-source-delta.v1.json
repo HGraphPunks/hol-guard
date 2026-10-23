@@ -4,7 +4,7 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/approval_retry_bash.py",
       "phase": 5,
-      "sha256": "5f773ec5a38e43f4afa877d7ba365a19fb553095c7c7ddc9e15b3f3f4b5c9f06"
+      "sha256": "65d48779d1f1c8cf74734af7c7f3cdfd95db22ef91040a03f6e0a4c90b69d45a"
     },
     {
       "disposition": "port_to_rust",
@@ -428,7 +428,7 @@
       "disposition": "frozen_data_or_schema",
       "path": "ci/gauntlet/scenarios.json",
       "phase": 1,
-      "sha256": "7ed4714793dd61fde757a3a2b3d9d53a95225b4b820149fa426019fc719b2899"
+      "sha256": "ccb320c3e9c932dad29c6262b86ae732d0a9887291bc9ee3194f29a569a14ebb"
     },
     {
       "base_sha256": "8443830bfc26c8e7a853d0d558d297d61cec4658dd26039c485e1e1767541f46",

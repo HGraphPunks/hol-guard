@@ -44,13 +44,14 @@ fn current_source_map_matches_python_bootstrap_tree_plan() {
     // Frozen independently from bootstrap.py's selection and bootstrap_guest.py's
     // 0755/0444 Root install modes, then Python canonical SHA-256 over the same
     // path/mode/uid/file-hash shape used by TreeKind::Controller. Recomputed
-    // from bootstrap.py's actual selection after merging main at 4a654ea8.
+    // from bootstrap.py's actual selection after main f1f90ae6 and the
+    // macOS fixture UUID correction.
     let plan = plan_controller_install(&current_source_map()).unwrap();
     assert_eq!(plan.installed_files.len(), 396);
     assert_eq!(plan.entries, 407);
     assert_eq!(
         plan.tree_digest,
-        "28fd562fa80d0ed626d9732da75590273a0a9b2c8b815df8fcabb228d1de2c8b"
+        "9c936cb68c564ee8f9ad4d92ee3efcc58268262acb957845a16a10a5f22c1164"
     );
     assert!(plan
         .installed_files
