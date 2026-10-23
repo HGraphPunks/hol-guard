@@ -370,6 +370,7 @@ dependencies = [
  "base64",
  "flate2",
  "gauntlet-contracts",
+ "gauntlet-dashboard",
  "gauntlet-evidence",
  "libc",
  "ring",

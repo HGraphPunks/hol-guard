@@ -13,6 +13,9 @@ pub enum HostLifecycleError {
     UnsafeDirectory,
     UnsafeFile,
     InvalidState,
+    InvalidObserverConfig,
+    ObserverStopped,
+    DashboardUnavailable,
     InvalidRelease,
     SourceMoved,
     DuplicateJob,
@@ -34,6 +37,9 @@ impl fmt::Display for HostLifecycleError {
             Self::UnsafeDirectory => "private, owner-only, non-symlink host state parent required",
             Self::UnsafeFile => "Rust host checkpoint or permanent lock is unsafe or missing",
             Self::InvalidState => "invalid or unsupported Rust host checkpoint",
+            Self::InvalidObserverConfig => "observer configuration is absent, changed, unsafe or incompatible with this instance",
+            Self::ObserverStopped => "observer stopped while read-only sampling was in progress",
+            Self::DashboardUnavailable => "loopback dashboard port or public state is unavailable",
             Self::InvalidRelease => "exact v3.48.0/v3.49.0 release and source identities required",
             Self::SourceMoved => "release tag already has a different source pin; queue unchanged",
             Self::DuplicateJob => "job identity already belongs to another release",
@@ -53,14 +59,14 @@ impl fmt::Display for HostLifecycleError {
 impl std::error::Error for HostLifecycleError {}
 
 pub struct HostLifecycleStore {
-    files: LifecycleFiles,
-    instance: String,
+    pub(crate) files: LifecycleFiles,
+    pub(crate) instance: String,
 }
 
 pub struct HostObserverLease<'a> {
-    store: &'a HostLifecycleStore,
+    pub(crate) store: &'a HostLifecycleStore,
     lock: LifecycleLock,
-    session: String,
+    pub(crate) session: String,
 }
 
 impl HostLifecycleStore {
@@ -99,7 +105,7 @@ impl HostLifecycleStore {
         Ok(Self { files, instance })
     }
 
-    fn read(&self) -> Result<(Vec<u8>, Value), HostLifecycleError> {
+    pub(crate) fn read(&self) -> Result<(Vec<u8>, Value), HostLifecycleError> {
         let bytes = self.files.read()?;
         let value = document::parse(&bytes)?;
         if value["instance_id"] != self.instance {
@@ -277,6 +283,16 @@ impl HostLifecycleStore {
 }
 
 impl HostObserverLease<'_> {
+    pub(crate) fn verify_current(&self) -> Result<(), HostLifecycleError> {
+        self.store.files.check_lock(&self.lock)?;
+        let transaction = self.store.files.lock(false, false)?;
+        let (_, value) = self.store.read()?;
+        if value["observer"]["session"] != self.session {
+            return Err(HostLifecycleError::Changed);
+        }
+        self.store.files.check_lock(&transaction)?;
+        Ok(())
+    }
     pub fn heartbeat(&self, now_ms: u64) -> Result<bool, HostLifecycleError> {
         self.store.files.check_lock(&self.lock)?;
         self.store.transact(now_ms, |value| {

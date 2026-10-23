@@ -1,10 +1,15 @@
 //! Explicit passive lifecycle; the existing operator entrypoint is unchanged.
 
-use gauntlet_host_state::{HostLifecycleError, HostLifecycleStore};
+use gauntlet_host_state::{
+    collect_observer_once, compose_observer_snapshot, read_observer_operations,
+    run_passive_observer, HostLifecycleError, HostLifecycleStore,
+};
+#[path = "gauntlet-host/signals.rs"]
+mod signals;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-const USAGE: &str = "usage: gauntlet-host <init|status|hold|resume|agent|down|enqueue-release> --state-parent ABSOLUTE_PRIVATE_DIRECTORY [--repository OWNER/REPO] [--job-id HEX16 --tag v3.48.0|v3.49.0 --source-sha HEX40] [--once]\nState is isolated in rust-host-v1. This passive lifecycle never dispatches VM work or publishes GitHub status.";
+const USAGE: &str = "usage: gauntlet-host <init|configure|up|status|doctor|hold|resume|agent|down|enqueue-release> --state-parent ABSOLUTE_PRIVATE_DIRECTORY\ninit: --repository OWNER/REPO\nconfigure/up: --operations ABSOLUTE_PRIVATE_CONFIG_JSON --vm-probe-sha256 HEX64\nup/agent/doctor/status: --config-sha256 HEX64\nup: [--port 8794] [--once]; agent: [--once]\nenqueue-release: --job-id HEX16 --tag v3.48.0|v3.49.0 --source-sha HEX40\nState is isolated in rust-host-v1. The passive observer never dispatches VM work or publishes GitHub status.";
 
 fn now() -> Result<u64, String> {
     SystemTime::now()
@@ -34,7 +39,15 @@ fn run() -> Result<(), String> {
         }
         if !matches!(
             key.as_str(),
-            "--state-parent" | "--repository" | "--job-id" | "--tag" | "--source-sha"
+            "--state-parent"
+                | "--repository"
+                | "--job-id"
+                | "--tag"
+                | "--source-sha"
+                | "--operations"
+                | "--vm-probe-sha256"
+                | "--config-sha256"
+                | "--port"
         ) {
             return Err(USAGE.to_owned());
         }
@@ -51,8 +64,22 @@ fn run() -> Result<(), String> {
     let id = options.remove("--job-id");
     let tag = options.remove("--tag");
     let sha = options.remove("--source-sha");
-    if (once && command != "agent")
+    let operations_path = options.remove("--operations");
+    let probe_sha = options.remove("--vm-probe-sha256");
+    let config_sha = options.remove("--config-sha256");
+    let port = options
+        .remove("--port")
+        .map(|value| value.parse::<u16>())
+        .transpose()
+        .map_err(|_| USAGE)?;
+    if (once && !matches!(command.as_str(), "agent" | "up"))
         || (repository.is_some() && command != "init")
+        || ((operations_path.is_some() || probe_sha.is_some())
+            && !matches!(command.as_str(), "configure" | "up"))
+        || (operations_path.is_some() != probe_sha.is_some())
+        || (config_sha.is_some()
+            && !matches!(command.as_str(), "agent" | "up" | "doctor" | "status"))
+        || (port.is_some() && command != "up")
         || ([id.is_some(), tag.is_some(), sha.is_some()]
             .into_iter()
             .any(|v| v)
@@ -60,14 +87,97 @@ fn run() -> Result<(), String> {
     {
         return Err(USAGE.to_owned());
     }
+    let operations = operations_path
+        .as_ref()
+        .map(|path| read_observer_operations(std::path::Path::new(path)))
+        .transpose()
+        .map_err(|e| e.to_string())?;
     let store = if command == "init" {
         HostLifecycleStore::initialize(&parent, repository.as_deref().ok_or(USAGE)?, now()?)
+    } else if command == "up" && operations.is_some() {
+        match HostLifecycleStore::open(&parent) {
+            Ok(store) => Ok(store),
+            Err(HostLifecycleError::UnsafeDirectory) => HostLifecycleStore::initialize(
+                &parent,
+                operations
+                    .as_ref()
+                    .and_then(|value| value["repository"].as_str())
+                    .ok_or(USAGE)?,
+                now()?,
+            ),
+            Err(error) => Err(error),
+        }
     } else {
         HostLifecycleStore::open(&parent)
     }
     .map_err(|e| e.to_string())?;
     match command.as_str() {
-        "init" | "status" => {}
+        "init" => {}
+        "status" => {
+            if let Some(digest) = config_sha.as_deref() {
+                println!(
+                    "{}",
+                    store
+                        .published_observer_snapshot(digest, now()?)
+                        .map_err(|e| e.to_string())?
+                );
+                return Ok(());
+            }
+        }
+        "configure" | "up" => {
+            let configured = if let Some(operations) = &operations {
+                Some(
+                    store
+                        .configure_observer(operations, probe_sha.as_deref().ok_or(USAGE)?)
+                        .map_err(|e| e.to_string())?,
+                )
+            } else {
+                None
+            };
+            let digest = config_sha
+                .as_deref()
+                .or_else(|| configured.as_ref().map(|value| value.sha256.as_str()))
+                .ok_or(USAGE)?;
+            let config = store
+                .read_observer_configuration(digest)
+                .map_err(|e| e.to_string())?;
+            if command == "configure" {
+                println!(
+                    "{}",
+                    serde_json::json!({"configuration_sha256":config.sha256,"execution_eligible":false})
+                );
+                return Ok(());
+            }
+            let _signals = signals::Signals::install()?;
+            let snapshot = run_passive_observer(
+                &store,
+                digest,
+                &parent,
+                Some(port.unwrap_or(8794)),
+                once,
+                &signals::STOP,
+            )
+            .map_err(|e| e.to_string())?;
+            println!("{snapshot}");
+            return Ok(());
+        }
+        "doctor" => {
+            let config = store
+                .read_observer_configuration(config_sha.as_deref().ok_or(USAGE)?)
+                .map_err(|e| e.to_string())?;
+            let _signals = signals::Signals::install()?;
+            let observations = collect_observer_once(&config, &parent, &signals::STOP)
+                .map_err(|e| e.to_string())?;
+            let snapshot = compose_observer_snapshot(
+                &config,
+                &store.status(now()?).map_err(|e| e.to_string())?,
+                &observations,
+                now()?,
+            )
+            .map_err(|e| e.to_string())?;
+            println!("{snapshot}");
+            return Ok(());
+        }
         "hold" => store.set_hold(true, now()?).map_err(|e| e.to_string())?,
         "resume" => store.set_hold(false, now()?).map_err(|e| e.to_string())?,
         "down" => store.request_stop(now()?).map_err(|e| e.to_string())?,
@@ -82,6 +192,14 @@ fn run() -> Result<(), String> {
                 .map_err(|e| e.to_string())?;
         }
         "agent" => {
+            if let Some(digest) = config_sha.as_deref() {
+                let _signals = signals::Signals::install()?;
+                let snapshot =
+                    run_passive_observer(&store, digest, &parent, None, once, &signals::STOP)
+                        .map_err(|e| e.to_string())?;
+                println!("{snapshot}");
+                return Ok(());
+            }
             let lease = store.start_observer(now()?).map_err(|e| e.to_string())?;
             loop {
                 match lease.heartbeat(now()?) {

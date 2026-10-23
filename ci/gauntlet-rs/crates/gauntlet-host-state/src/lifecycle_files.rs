@@ -95,7 +95,7 @@ impl LifecycleFiles {
         Ok(files)
     }
 
-    fn stable(&self) -> Result<(), Error> {
+    pub(crate) fn stable(&self) -> Result<(), Error> {
         let parent = self.path.parent().ok_or(Error::UnsafeDirectory)?;
         let visible_parent = state_root(parent, self.owner).map_err(|_| Error::Changed)?;
         if !same_directory(
@@ -122,7 +122,7 @@ impl LifecycleFiles {
             && stat.st_size >= 0
     }
 
-    fn create(&self, name: &str) -> Result<File, Error> {
+    pub(crate) fn create(&self, name: &str) -> Result<File, Error> {
         self.stable()?;
         let fd = openat(
             &self.directory,
@@ -189,10 +189,27 @@ impl LifecycleFiles {
     }
 
     pub(crate) fn read(&self) -> Result<Vec<u8>, Error> {
+        self.read_named(CHECKPOINT, MAX_BYTES)
+    }
+
+    pub(crate) fn directory(&self) -> Result<&OwnedFd, Error> {
+        self.stable()?;
+        Ok(&self.directory)
+    }
+
+    pub(crate) fn owner(&self) -> u32 {
+        self.owner
+    }
+
+    pub(crate) fn public_path(&self) -> PathBuf {
+        self.path.join("public")
+    }
+
+    pub(crate) fn read_named(&self, name: &str, limit: usize) -> Result<Vec<u8>, Error> {
         self.stable()?;
         let fd = openat(
             &self.directory,
-            CHECKPOINT,
+            name,
             OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
             Mode::empty(),
         )
@@ -201,18 +218,18 @@ impl LifecycleFiles {
         if !self.private_file(&before) || before.st_size == 0 {
             return Err(Error::UnsafeFile);
         }
-        if before.st_size as u64 > MAX_BYTES as u64 {
+        if before.st_size as u64 > limit as u64 {
             return Err(Error::TooLarge);
         }
         let mut file = File::from(fd);
         let mut bytes = Vec::new();
         (&mut file)
-            .take(MAX_BYTES as u64 + 1)
+            .take(limit as u64 + 1)
             .read_to_end(&mut bytes)
             .map_err(|_| Error::Io)?;
         let held = fstat(&file).map_err(|_| Error::Changed)?;
-        let visible = statat(&self.directory, CHECKPOINT, AtFlags::SYMLINK_NOFOLLOW)
-            .map_err(|_| Error::Changed)?;
+        let visible =
+            statat(&self.directory, name, AtFlags::SYMLINK_NOFOLLOW).map_err(|_| Error::Changed)?;
         if bytes.len() as i64 != before.st_size
             || !same_file(&before, &held)
             || !same_file(&before, &visible)
