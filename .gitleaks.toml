@@ -310,6 +310,16 @@ regexes = [
 ]
 
 [[rules.allowlists]]
+description = "SHA-256 digests of public contribution files recorded in authoring record.json, not credentials"
+condition = "AND"
+regexTarget = "line"
+paths = ['''(?:^|/)contributions/authoring/[^/]+/record\.json$''']
+regexes = [
+  '''^[\t ]*"(?:contributions|tests)/[A-Za-z0-9._/\-]+": "[0-9a-f]{64}",?[\t\r ]*$''',
+  '''^[\t ]*"revisionDigest": "[0-9a-f]{64}",?[\t\r ]*$''',
+]
+
+[[rules.allowlists]]
 description = "Recorded trust-attestation replay key, a SHA-256 digest of the claim rather than a credential"
 condition = "AND"
 regexTarget = "line"
