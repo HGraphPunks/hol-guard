@@ -4,18 +4,23 @@ Source `0c32a1e7cd4ca9dbe6d16e09c6e6115d7574be48` adds an opt-in
 `gauntlet-host` executable and isolated lifecycle storage. It is prepared on
 `codex/gauntlet-rust-host-lifecycle-prep-20261022`, based on pending
 [PR #3](https://github.com/HGraphPunks/hol-guard/pull/3) head
-`6eff2b1e6d70c1851a9b25bb102f3778b8323a46`. Included upstream is
-`f1f90ae6902a8db9ce885699e4f371871dd3f1f9`.
+`6eff2b1e6d70c1851a9b25bb102f3778b8323a46`. That tested code commit includes
+upstream `f1f90ae6902a8db9ce885699e4f371871dd3f1f9`. The preparation subsequently
+imports PR #3 head `2ab0f15f226cea4c99d833f8e4a9af46f53ed076`, including
+upstream `d1ab7bc629f3c5bbd45459424e5b0a39be880fea`. The lifecycle implementation
+and retained executable bytes are unchanged by this synchronization.
 
 The new code is local preparation while GitHub rejects workflow dispatch with
 HTTP 422, `Actions has been disabled for this repository`. The permissions API
 reports enabled, and reapplying that setting did not restore execution. PR #3
 remains unmerged. After its five current-head jobs pass and it merges, create
 the next child from the fetched integration tip, import current upstream and
-transfer this preparation. Upstream `d1ab7bc629f3c5bbd45459424e5b0a39be880fea`
-was fetched and inspected: its only change corrects receipt timestamps in
-`tests/test_runner_sync_payload.py`. Include it or a later `main` in that child.
-This preparation has no cloud-check result.
+merge this preparation. Upstream `d1ab7bc6` was inspected and imported through
+PR #3: its only change corrects receipt timestamps in
+`tests/test_runner_sync_payload.py`, preventing a global date-dependent judge
+failure. All ten tests in that file passed locally with the matching Native
+binary after import. Recheck latest `main` before the next child opens. This
+preparation has no cloud-check result.
 
 ## Behavior and storage
 
