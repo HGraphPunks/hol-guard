@@ -382,6 +382,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "gauntlet-product-cell"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "gauntlet-agent-bridge",
+ "gauntlet-contracts",
+ "libc",
+ "ring",
+ "rustix",
+ "serde_json",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
 name = "gauntlet-provider-observer"
 version = "0.1.0"
 dependencies = [

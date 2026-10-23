@@ -145,7 +145,7 @@ jobs:
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.88.0 --profile minimal
       - name: Test Mac host custody, observer and dashboard
-        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-host-state -p gauntlet-dashboard --locked
+        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-host-state -p gauntlet-dashboard -p gauntlet-product-cell --locked
       - name: Exercise the authenticated Rust/Python bridge on macOS
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-agent-bridge --locked
 
@@ -187,7 +187,7 @@ jobs:
       - name: Compare Python product-cell frame bytes and realm separation on ARM64
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence --test product_cell_frames_parity --locked
       - name: Test Linux worker, host, evidence, and provider readers
-        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence -p gauntlet-host-state -p gauntlet-provider-observer -p gauntlet-worker-state --lib --locked
+        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence -p gauntlet-host-state -p gauntlet-product-cell -p gauntlet-provider-observer -p gauntlet-worker-state --lib --locked
       - name: Compare fresh controller install plan with pinned Python on ARM64
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence --test controller_install_plan --locked
       - name: Test signed product and contained-effect relations on ARM64
