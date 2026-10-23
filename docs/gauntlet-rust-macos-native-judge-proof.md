@@ -76,6 +76,8 @@ namespace is separate; only the exact integration branch's successful push
 can warm that branch's dependency cache. PR refs remain cache readers.
 
 The chunk cycle now requires five current-head jobs before integration.
+An explicit `workflow_dispatch` also runs all five jobs on its selected ref,
+including the Native jobs whose automatic triggers are integration-specific.
 The child PR records their actual results. Existing required product checks
 and the passive benchmark gate retain their current ownership.
 

@@ -27,6 +27,8 @@ Use this development cycle for each consolidated chunk:
    executables/tests, the merged Native library/CLI compilation and real
    macOS Native Bash ownership/approval/delivery fixtures. Require all five
    current-head jobs, including `macos-native-judge`, before merging.
+   Explicit `workflow_dispatch` also runs all five jobs on the selected ref;
+   verify its head SHA still matches the PR before using that result.
 6. Inspect actual check results for the current PR head, resolve failures,
    and handle review findings. Check for relevant upstream changes again
    before merging. Do not bypass checks with admin overrides or weaken tests
