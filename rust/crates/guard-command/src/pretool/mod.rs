@@ -68,6 +68,7 @@ mod clone_siblings;
 mod compound_reason;
 mod control_flow_flatten;
 mod fanout_reads;
+mod filter_pattern_text;
 mod find_reads;
 mod for_loop_unroll;
 pub(crate) mod git_apply_check;
@@ -87,6 +88,7 @@ mod git_reads;
 mod git_ref_listings;
 mod git_rev_list;
 mod git_search_text;
+pub(crate) mod git_side_record_reads;
 pub(crate) mod git_stash_reads;
 pub(crate) mod git_tag_listing;
 mod repo_create_reason;
@@ -160,6 +162,7 @@ mod shell_script;
 mod stderr_merge;
 mod stdin_filters;
 mod symlink_writes;
+mod tree_reads;
 mod version_probes;
 #[cfg(test)]
 #[path = "workspace_contained_runner_tests.rs"]

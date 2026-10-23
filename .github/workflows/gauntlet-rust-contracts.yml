@@ -7,6 +7,7 @@ on:
       - "ci/gauntlet/**"
       - "ci/gauntlet-rs/**"
       - "rust/crates/guard-runtime/**"
+      - "rust/crates/guard-policy-bundle/**"
       - "rust/Cargo.toml"
       - "rust/Cargo.lock"
       - "docs/gauntlet-rust-*.md"
@@ -17,6 +18,7 @@ on:
       - "ci/gauntlet/**"
       - "ci/gauntlet-rs/**"
       - "rust/crates/guard-runtime/**"
+      - "rust/crates/guard-policy-bundle/**"
       - "rust/Cargo.toml"
       - "rust/Cargo.lock"
       - "docs/gauntlet-rust-*.md"
@@ -105,6 +107,11 @@ jobs:
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence -p gauntlet-host-state -p gauntlet-provider-observer -p gauntlet-worker-state --lib --locked
       - name: Compare fresh controller install plan with pinned Python on ARM64
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence --test controller_install_plan --locked
+      - name: Test signed product and contained-effect relations on ARM64
+        run: >-
+          cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml
+          -p gauntlet-evidence --test staging_product_relation
+          --test staging_contained_relation --locked
       - name: Compare deterministic forbidden-command reducer with Python on ARM64
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence --test forbidden_command_parity --locked
       - name: Compare signed control opening, output custody, and reported role checks on ARM64
