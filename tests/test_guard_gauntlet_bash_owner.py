@@ -267,6 +267,14 @@ def test_staged_realistic_lifecycle_fixture_executes_through_native_owner(native
     protected.parent.mkdir()
     protected.write_text("protected synthetic deletion sentinel\n")
     stage(workspace, ONCE_CASE)
+    # Require the metadata newer dyld needs even when an older CI host tolerates its absence.
+    load_commands = subprocess.run(
+        ["/usr/bin/otool", "-l", str(workspace / "scripts" / "gauntlet-registry")],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert any(line.split() == ["cmd", "LC_UUID"] for line in load_commands.splitlines())
     monkeypatch.chdir(workspace)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("PATH", "/usr/bin:/bin")

@@ -24,7 +24,11 @@ Use this development cycle for each consolidated chunk:
 5. Push the child branch and open a PR in `HGraphPunks/hol-guard` targeting
    the integration branch. Run the Gauntlet Rust workflow on that PR before
    merging. It covers x86 Linux contracts/Clippy, macOS host/bridge, ARM64
-   executables/tests and the merged Native library/CLI compilation.
+   executables/tests, the merged Native library/CLI compilation and real
+   macOS Native Bash ownership/approval/delivery fixtures. Require all five
+   current-head jobs, including `macos-native-judge`, before merging.
+   Explicit `workflow_dispatch` also runs all five jobs on the selected ref;
+   verify its head SHA still matches the PR before using that result.
 6. Inspect actual check results for the current PR head, resolve failures,
    and handle review findings. Check for relevant upstream changes again
    before merging. Do not bypass checks with admin overrides or weaken tests

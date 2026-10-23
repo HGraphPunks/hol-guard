@@ -17,6 +17,7 @@ import pytest
 from codex_plugin_scanner.guard.approval_scope_support import request_scope_contract
 from codex_plugin_scanner.guard.approvals import apply_approval_resolution
 from codex_plugin_scanner.guard.cli.commands_dispatch_local import _run_guard_execute_bound_bash_command
+from codex_plugin_scanner.guard.config import update_guard_settings
 from codex_plugin_scanner.guard.daemon.hook_native_review_approval import queue_native_pre_tool_review
 from codex_plugin_scanner.guard.daemon.hook_worker import HookWorker
 from codex_plugin_scanner.guard.models import PolicyDecision
@@ -84,6 +85,11 @@ def test_real_sink_quiet_replay_and_current_persistence_review(
     monkeypatch.chdir(project)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("PATH", f"{project}:/usr/bin:/bin")
+    # Bind each lane to its intended policy. Ordinary verified HOME writes can
+    # be benign, so the consent lanes need the same explicit Ask setting as SDK tests.
+    update_guard_settings(
+        guard, {"subprocess_action": "allow" if home_in_workspace else "require-reapproval"}
+    )
     store = GuardStore(guard, prime_policy_integrity=False)
     store._policy_integrity_secret_store = _Secrets()
     payload = {

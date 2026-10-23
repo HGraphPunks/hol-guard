@@ -37,7 +37,7 @@ def compile_hardened_helper(directory: Path, marker: str) -> Path:
         "}\n"
     )
     subprocess.run(
-        ["/usr/bin/clang", "-O0", "-Wl,-no_uuid", str(source), "-o", str(image)],
+        ["/usr/bin/clang", "-O0", str(source), "-o", str(image)],
         check=True,
         capture_output=True,
         text=True,
