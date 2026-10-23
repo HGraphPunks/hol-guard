@@ -109,6 +109,7 @@ mod git_routes;
 mod git_session_probe;
 mod git_worktree;
 pub(crate) mod github_conversation;
+mod glob_words;
 mod guard_diagnostics;
 mod list_wrapper;
 mod listing_reads;
@@ -1148,6 +1149,7 @@ fn evaluate_single_command(
         &data_heredocs::without_data_bodies(normalized),
         git_search_text::command_without_patterns(&model),
     ) || secret_aliases::names_secret_alias(&model, context)
+        || glob_words::names_hidden_glob(&model, context)
     {
         return Ok(pretool_decision(
             model,

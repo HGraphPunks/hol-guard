@@ -214,9 +214,16 @@ pub(super) fn exact_safe_segment_with_context(
         // lookup, loading, configuration or credentials for a later item. Each
         // later item still carries its own proof, with the literal projected
         // into it, and a redirect would write a file rather than bind a name.
+        // A glob the binding holds is listed wherever a later bare `$NAME`
+        // expands it, so it takes that listing's proof here.
         return segment.pipeline_index == 0
             && !segment.text.contains(['<', '>'])
-            && crate::command_compatibility::sets_ordinary_variables(segment);
+            && crate::command_compatibility::sets_ordinary_variables(segment)
+            && super::glob_words::bound_globs_listable(
+                segment,
+                super::glob_words::binding_values(&segment.tokens),
+                context,
+            );
     };
     let basename = executable_basename(executable);
     let jq_filter = (basename == "jq")
@@ -274,7 +281,9 @@ pub(super) fn exact_safe_segment_with_context(
                 && matches!(segment.arguments.as_slice(), [target] if safe_directory_target(target))
                 && super::directory_targets::drive_targets_quoted(segment)
         }
-        "pwd" | "true" | "echo" | "printf" | "which" | "whoami" | "uname" => true,
+        "pwd" | "true" | "echo" | "printf" | "which" | "whoami" | "uname" => {
+            super::glob_words::printed_globs_listable(model, segment, context)
+        }
         "unset" | "set" => super::inert_environment::safe_shell_setting(basename, segment),
         "type" | "command" => {
             super::lookup_reads::safe_lookup_arguments(basename, &segment.arguments)
@@ -329,6 +338,7 @@ pub(super) fn exact_safe_segment_with_context(
         "stat" => super::metadata_reads::safe_stat_arguments(&segment.arguments, context),
         "dirname" | "basename" => {
             super::path_word_reads::safe_path_word_arguments(basename, &segment.arguments)
+                && super::glob_words::printed_globs_listable(model, segment, context)
         }
         "readlink" | "realpath" => super::path_word_reads::safe_resolved_path_arguments(
             basename,
@@ -380,8 +390,13 @@ pub(super) fn exact_safe_segment_with_context(
         "curl" => super::curl_reads::safe_curl_segment(model, segment, context),
         "kubectl" => super::kubectl_reads::safe_kubectl_segment(model, segment, context),
         "export" => {
-            super::kubectl_reads::safe_export_segment(model, segment, context)
-                || super::inert_environment::safe_shell_setting(basename, segment)
+            (super::kubectl_reads::safe_export_segment(model, segment, context)
+                || super::inert_environment::safe_shell_setting(basename, segment))
+                && super::glob_words::bound_globs_listable(
+                    segment,
+                    super::glob_words::binding_values(&segment.arguments),
+                    context,
+                )
         }
         "wrangler" => super::wrangler_reads::safe_wrangler_arguments(&segment.arguments),
         "doctl" => super::doctl_reads::safe_doctl_arguments(&segment.arguments),
