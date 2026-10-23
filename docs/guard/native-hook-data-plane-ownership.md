@@ -161,7 +161,15 @@ a fixed floor): `compute_extension_allow_hint`, the resident's
 state the same rule, the resident stays authoritative, and the recorded vectors in
 `rust/crates/guard-runtime/testdata/hook_direct_review/` pin the resident and
 daemon copies together. The settle proofs and the counterfactual that verifies a
-hint before it is stored are Rust-owned.
+hint before it is stored are Rust-owned. A review the direct hook lane queues
+itself stores its hints without a daemon round trip:
+`rust/crates/guard-runtime/src/hook_direct_review_hint.rs` repeats the review
+with extension evidence under the admitted snapshot, inside one command
+authority lease, and asks `extension_allow_hint_op` only when that review
+matches the one that paused. The coverage hint
+(`rust/crates/guard-runtime/src/extension_coverage_hint.rs`, mirroring
+`extension_coverage_hint.py`) rides on every queued review an extension
+observed.
 
 The recommendation shown with a pending review is that stored hint re-checked
 on every read, and the resident owns it too. The

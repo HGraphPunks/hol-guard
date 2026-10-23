@@ -40,6 +40,7 @@ use crate::local_store_read::{
     open_read_only, schema_version, table_exists, STORE_FILE_NAME, SUPPORTED_SCHEMA_VERSION,
 };
 use crate::policy_store::policy_store_direct_lane::DirectLaneBinding;
+use crate::policy_store::PolicySnapshotStore;
 use base64ct::{Base64UrlUnpadded, Encoding};
 use guard_command::hook_responses::{pre_tool, Object};
 use guard_contracts::{
@@ -49,6 +50,7 @@ use guard_contracts::{
 use rusqlite::{Connection, OptionalExtension};
 use serde_json::{json, Map, Value};
 use std::path::Path;
+use std::time::Instant;
 use zeroize::Zeroizing;
 
 const REVIEW_ACTIONS: [&str; 2] = ["review", "require-reapproval"];
@@ -81,6 +83,16 @@ pub(super) struct Context<'a> {
     pub(super) home_dir: &'a str,
     pub(super) guard_home: &'a str,
     pub(super) binding: &'a DirectLaneBinding,
+    /// What a queued review's allow hint is resolved against. Without it a
+    /// review that could carry one stays with the daemon.
+    pub(super) hint: Option<&'a HintScope<'a>>,
+}
+
+/// The admitted store and the hook's deadline, for the allow hint a queued
+/// review is stored with.
+pub(super) struct HintScope<'a> {
+    pub(super) policy_store: &'a PolicySnapshotStore,
+    pub(super) deadline: Instant,
 }
 
 /// The edge result with the daemon's response, for a review the daemon
@@ -534,6 +546,9 @@ mod review_request;
 
 #[path = "hook_direct_review_queue.rs"]
 mod review_queue;
+
+#[path = "hook_direct_review_hint.rs"]
+mod review_hint;
 
 #[cfg(test)]
 #[path = "hook_direct_saved_decision_tests.rs"]

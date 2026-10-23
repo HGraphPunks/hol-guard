@@ -234,7 +234,10 @@ fn pre_tool_command(payload: &Map<String, Value>) -> Result<Option<&str>, ()> {
 
 /// The daemon's launch directory: the payload's non-blank `cwd`, else the
 /// workspace, when absolute and an existing directory once resolved.
-fn launch_cwd(payload: &Map<String, Value>, workspace: &str) -> Result<Option<String>, ()> {
+pub(super) fn launch_cwd(
+    payload: &Map<String, Value>,
+    workspace: &str,
+) -> Result<Option<String>, ()> {
     let raw = match payload.get("cwd").and_then(Value::as_str) {
         Some(raw) if python_strip(raw).map_err(|_| ())?.is_some() => raw,
         _ => workspace,

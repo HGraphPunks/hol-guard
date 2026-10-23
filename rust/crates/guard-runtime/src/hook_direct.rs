@@ -432,6 +432,10 @@ fn answer(
         ) {
             // The daemon returns a saved decision's response as is.
             (Err(HookDirectDefer::NotAllow), Some(payload)) => {
+                let hint = saved_decision::HintScope {
+                    policy_store,
+                    deadline: started + Duration::from_millis(deadline_budget_ms),
+                };
                 let context = saved_decision::Context {
                     harness: &request.harness,
                     payload,
@@ -440,6 +444,7 @@ fn answer(
                     home_dir: &request_home,
                     guard_home: &guard_home,
                     binding: &binding,
+                    hint: Some(&hint),
                 };
                 saved_decision::answer(&edge, &context)?
             }

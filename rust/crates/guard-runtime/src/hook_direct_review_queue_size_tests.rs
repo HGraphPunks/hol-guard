@@ -15,6 +15,7 @@ fn a_large_silent_reply_keeps_its_readable_wait_notification() {
         home_dir: "/home/user",
         guard_home: &guard_home,
         binding: &binding,
+        hint: None,
     };
     let mut result = json!({"reason_code": "native_review", "reason": "", "decision": "review"});
     let (mut low, mut high) = (0, HOOK_RENDER_MAX_BYTES);

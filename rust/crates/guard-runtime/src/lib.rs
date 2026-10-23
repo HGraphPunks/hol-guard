@@ -272,6 +272,7 @@ mod extension_control_op;
 mod extension_control_prepared_op;
 mod extension_control_preview_op;
 mod extension_control_proof;
+mod extension_coverage_hint;
 #[path = "adapters/detection/gemini_detect.rs"]
 mod gemini_detect;
 mod git_execution_safety_binary;

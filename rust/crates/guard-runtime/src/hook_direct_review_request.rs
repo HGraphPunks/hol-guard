@@ -114,6 +114,7 @@ pub(super) struct RequestInput<'a> {
     pub(super) approval_center_url: &'a str,
     pub(super) review_binding: Option<&'a str>,
     pub(super) exact: ExactKeys<'a>,
+    pub(super) hint: Option<&'a super::HintScope<'a>>,
 }
 
 /// The daemon's `action_envelope` adapter query for this review.
@@ -282,9 +283,10 @@ pub(super) fn finish(
     receipt: Option<&Value>,
     envelope: Value,
 ) -> Option<Value> {
+    let candidate = allow_hint_candidate(input.payload, result)?;
     if input.workspace.is_empty()
         || !policy_binding_valid(result, receipt)
-        || allow_hint_candidate(input.payload, result)?
+        || (candidate && input.hint.is_none())
     {
         return None;
     }
@@ -368,7 +370,7 @@ pub(super) fn finish(
         "first_seen_guard_version": null,
         "last_seen_guard_version": null,
         "continuation_snapshot": null,
-        "extension_allow_hint": null,
+        "extension_allow_hint": super::review_hint::coverage_hint(result),
     }))
 }
 
@@ -497,8 +499,8 @@ fn launch_target(
 }
 
 /// Whether `native_review_extension_allow_hint` could store a hint: a
-/// definite extension review of a command-only shell call. The resident does
-/// not run that re-review, so these defer.
+/// definite extension review of a command-only shell call. The resident runs
+/// that re-review itself when the hook handed it the admitted store.
 pub(super) fn allow_hint_candidate(payload: &Map<String, Value>, result: &Object) -> Option<bool> {
     if !matches!(
         result.get("minimum_action").and_then(Value::as_str),

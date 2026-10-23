@@ -112,6 +112,7 @@ pub(super) fn answer(
             Ok(token) => ExactKeys::Token(token),
             Err(reason) => ExactKeys::OnceOnly(reason),
         },
+        hint: context.hint,
     };
     let request = build(&input, result, receipt).ok_or(HookDirectDefer::ReviewQueue)?;
     if !facts.ask || (review_binding.is_none() && token.is_err()) {
@@ -167,6 +168,7 @@ pub(super) fn answer(
     // leaves the queue to the daemon rather than recording the hook twice.
     pause(&request_id, &approval_url).ok_or(HookDirectDefer::ReviewQueue)?;
     let (method, extra) = store_method(context, result, review_binding.as_deref())?;
+    let request = super::review_hint::settle(context, result, request);
     let stored_id = write(context, method, facts.oauth_source, request, extra)?;
     // A pending request for the same action keeps its id, so a pause the
     // resident still cannot render leaves the daemon to queue the same request.
@@ -226,6 +228,7 @@ fn silent(
     // cannot render leaves the queue to the daemon.
     let unlinked =
         silent_block(context.harness, result, &reason).ok_or(HookDirectDefer::ReviewQueue)?;
+    let request = super::review_hint::settle(context, result, request);
     let stored_id = write(
         context,
         SILENT_WRITE_METHOD,
