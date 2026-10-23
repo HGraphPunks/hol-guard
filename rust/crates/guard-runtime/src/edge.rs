@@ -384,7 +384,6 @@ fn evaluate_validated_envelope(
             (value, receipt)
         }
         "PostToolUse" => {
-            let payload_kind = kind.clone();
             let request = NativeHookRequestV1 {
                 protocol_version: NATIVE_PROTOCOL_VERSION,
                 request_id: envelope.request_id.clone(),
@@ -409,9 +408,10 @@ fn evaluate_validated_envelope(
                 crate::policy_enforcement::apply_post_tool_policy_with_delivery(
                     snapshot,
                     &request,
-                    payload_kind,
+                    kind.clone(),
                     native,
                     delivery.as_ref(),
+                    envelope.recording_only,
                 )?
             } else {
                 native
