@@ -131,3 +131,27 @@ its jobs, the existing dashboard and retained provider quota are not adopted
 by these commands. Zero VM benchmark jobs and zero model requests occurred.
 Rust worker qualification, independent scoring, actual inference, reviewed
 production artifacts and controlled cutover remain required.
+
+## Subsequent upstream synchronization
+
+The preparation branch also incorporates upstream `main` through
+`c5202d11d4859c1e3a70f33937317cfe9821b121`. Its 17 intervening commits
+merged without conflicts. The two Gauntlet changes add the sourced-toolchain
+approval case and its realistic init-file fixture. The immutable baseline
+remains unchanged; the explicit map still covers 427 files, 58 changed and
+seven added. Python and Rust independently agree on the resulting controller
+plan: 396 files, 407 entries, digest
+`a81e82a241bb9755fa72ca77f01cebbfb75839faa4d70324a9f27ede32276e48`.
+That controller generation is not installed into the VM by this proof.
+
+The merged Native library/CLI compiled, matching release executables rebuilt,
+and all generated projection/directory checks passed. The targeted approval,
+ownership, CI-policy and real macOS Bash judge run passed 193 tests; four
+TypeScript observer cases initially skipped because Bun was missing, then
+passed after installing SHA-verified official Bun 1.3.14 in the private proof
+tools directory. Five Linux-only timeout tests remain explicit macOS skips.
+The two JUnit reports are `merged-main-native-judge.xml` (SHA-256
+`ab2d53c96701a8db02458ace448739a3e6443f1845477be144925d8535a4c4c4`)
+and `merged-main-native-observer-bun.xml`. The live observer continues using
+its retained `6271f09b` executable; this synchronization does not silently
+replace its bytes or upgrade any retained VM deployment/provider allowance.

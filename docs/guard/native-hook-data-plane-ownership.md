@@ -250,6 +250,82 @@ evidence; it no longer recomputes the view or compares verdicts. A head the
 resident cannot read, or one whose managed policy has moved, refuses the
 migration with no Python fallback.
 
+The contributed MCP grammar now settles in the resident. A configured
+`direct-command` launcher is reduced to its portable executable basename there,
+and a `remote-http` endpoint is normalized, bounded and checked against the
+host, port, path and query rules that decide whether a contribution may launch
+at all (`cli_runtime_support`, `contributed_mcp_url.rs`,
+`contributed_mcp_decision.rs`). Endpoint identity is still the normalized URL
+with its query removed, so a URL whose query the resident rejects has no launch
+identity. Python asks for one answer per configured string and keeps none of
+the character tables, percent-decoding or hostname rules it used to carry; a
+value that is not a string is refused before the call rather than repaired.
+None of this is an approval or an executable authentication; it selects
+which packaged catalog entry a contribution matches.
+
+Which bounded read an admitted argv names is decided in the resident
+(`verified-read-plan-v1`, `guard-command/src/verified_read_plan.rs` behind
+`verified_read_plan_op.rs`). It owns the whole grammar: that the executable is a
+bare name inside the verified-read cohort, which operation each name spells, the
+head and tail line bound and every spelling of it, the quiet-flag and range form
+`sed` is held to, the thousand-line ceiling both carry, and that a target is a
+static relative path with no dynamic shell character in it. The answer is one
+plan — an operation id, an optional target and a selection naming the lines to
+show — so Python reads the argv nowhere. This side opens the target under the
+repository, where the secret-path, symlink and identity checks live, and slices
+the text the plan selected. A refusal names the rule it broke for the
+diagnostics record; the read ends either way. Without a plan there is no read
+and no Python grammar to fall back on: the command returns to ordinary review.
+
+The AIBOM report summaries now come from the resident.
+`aibom_report_summaries_op` counts an inventory report's layers, its trust
+coverage and its drift through `aibom_reporting::summarize_aibom_layers`, the
+grammar Rust already owned: which item kind lands in which layer, when a
+source link counts and when a source of truth counts in its place, which kinds
+are eligible for trust coverage and what makes a score low, and which drift
+states a report totals. Python sent a second copy of all of it. It now sends
+the projection the grammar reads — each item's kind, risk level, drift state
+and the three metadata keys, plus the number of findings and sources and the
+snapshot drift states — and returns the three summaries the reply carries. A
+report whose rows exceed the request budget, or a resident that cannot answer,
+fails the summary closed; there is no Python recount.
+
+Reading a stored or replayed package evaluation back into the view a harness
+shows is decided in the resident (`package-evaluation-view-v1`, in
+`package_evaluation_view_op.rs`, over the grammar in
+`supply_chain_package_eval/result_models.rs` and `package_copy.rs`). It owns
+every default a written row omits, which policy actions are recognised and what
+an unrecognised one costs, how the user copy reads once the local route has no
+cloud inbox to send anyone to, which evidence and archive hashes survive, and
+the ecosystem support a package row carries. Python sends the payload exactly as
+it holds it together with the four identity fields the stored row does not
+carry, and reads the answer; absent identity travels as an explicit null,
+because the reply is bound by the canonical digest of the request and a key one
+side omits would unbind it. Every outcome other than a well-formed,
+request-bound `ok` reply raises, and both callers already fail closed on that,
+so no view is composed in Python beside the one the resident decided.
+
+Shell execution-context modeling is the resident's
+(`guard-command/src/shell_execution_context_support.rs`): which segment runs a
+`cd`, `pushd` or `popd`, what its operand is once assignments, wrappers and
+redirects are set aside, when an operand is too dynamic to model, and which
+`shell_cwd_*` reason code explains a directory it will not follow. Python kept a
+second copy of that grammar after the port and no longer calls it; the copy is
+removed and the retirement ledger names its symbols so they cannot return. What
+stays on this side is the vocabulary the answer is read with and the filesystem
+identity this process captures for it, which needs the descriptors it holds.
+
+The skill-doc path grammar and the `fd` exec-argument reading now answer from
+the resident over `cli_runtime_support`
+(`guard-command/src/false_positive_rules.rs`): whether a `skill://` name or a
+`~`-rooted path lands inside a known skill-doc root without a symlink escaping
+it, and whether an `fd` argument asks for `--exec` either outright or buried
+in a short-flag cluster that no option-value flag swallows first. Python keeps the
+frozensets other modules import for their own vocabulary, but the two decisions
+are gone from this side and the retirement ledger names the locals they used so
+a second reading cannot grow back. The home directory is resolved here and sent
+as text, so the answer never depends on the resident's own environment.
+
 ## Harness route inventory
 
 The v2 contract maps all harnesses in `HARNESS_CONTRACTS`, including harnesses

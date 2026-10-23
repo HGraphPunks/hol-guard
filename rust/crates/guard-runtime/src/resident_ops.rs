@@ -570,6 +570,9 @@ pub(crate) fn evaluate_resident_bytes_with_cancellation(
             ResidentOperationV1::PackageProtectFinalize(request) => {
                 crate::package_protect_finalize_op::evaluate_package_protect_finalize(&request)
             }
+            ResidentOperationV1::PackageEvaluationView(request) => {
+                crate::package_evaluation_view_op::evaluate_package_evaluation_view(&request)
+            }
             ResidentOperationV1::PackagePosture(request) => {
                 crate::package_posture_op::evaluate_package_posture(&request)
             }
@@ -688,6 +691,12 @@ pub(crate) fn evaluate_resident_bytes_with_cancellation(
             }
             ResidentOperationV1::VerifiedReadDecision(request) => {
                 crate::verified_read_decision_op::evaluate_verified_read_decision(&request)
+            }
+            ResidentOperationV1::VerifiedReadPlan(request) => {
+                crate::verified_read_plan_op::evaluate_verified_read_plan(&request)
+            }
+            ResidentOperationV1::AibomReportSummaries(request) => {
+                crate::aibom_report_summaries_op::evaluate_aibom_report_summaries(&request)
             }
             #[cfg(not(unix))]
             ResidentOperationV1::ContainedNodeExecute(_)
