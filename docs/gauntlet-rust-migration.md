@@ -257,6 +257,18 @@ CLI/process tests and retained operator demonstration do not dispatch a VM job.
 It is local preparation while the current incremental PR's GitHub Actions are
 unavailable; Python ownership, history import and production cutover remain open.
 
+The [native observer extension](gauntlet-rust-observer-native-proof.md) at
+`6271f09b` now composes exact-tag discovery, independent host/VM sampling,
+bounded cancellation and public snapshot publication with a loopback dashboard
+in the same Rust process. The live isolated port-8794 instance resolved both
+release commits and sampled the running 16-GiB VM through a separately installed,
+SHA-verified Rust probe. Clean stop/restart retained both queued jobs and held
+admissions while the original port-8791 observer/dashboard stayed online.
+The host/dashboard suite has 141 passing macOS tests; the new ARM64 lifecycle,
+observer and telemetry suite has 28 passing tests plus two cleanup tests.
+It remains passive and does not supply worker execution, model inference,
+historical import, repair, receipt reconciliation or production qualification.
+
 Implement local `up/status/doctor/hold/resume/down/reconcile/repair` semantics, exact-tag Git fetch/archive, optional PR-artifact handoff, telemetry and loopback dashboard. First run a **read-only shadow** observer over copied status/receipts; it must not pollute the authoritative queue, start a VM job, publish a status or own the same lock. Then perform an explicit cutover with the Python observer stopped and no active/unknown work. Use a new Rust state namespace or versioned migration with an auditable one-time import; never overwrite Python ledgers. Retain the known dashboard API fields (or ship a versioned adapter so the existing JS works).
 
 **Exit:** fresh deployment works with one command, port 8791 identity check works, stale/absent VM data is visible as unavailable, source/build/stage/control progress is truthful, and the two release tags stay diagnostic under the same admission floor. Reconciliation of an intentionally interrupted worker is read-only and does not replay execution.
