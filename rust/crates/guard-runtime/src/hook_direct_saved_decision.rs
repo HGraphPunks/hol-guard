@@ -199,14 +199,17 @@ pub(super) fn answer(edge: &[u8], context: &Context<'_>) -> Result<Value, HookDi
             render(context.harness, &allowed, "accepted").ok_or(HookDirectDefer::SavedDecision)?;
         return Ok(parsed);
     }
-    parsed["harness_response"] =
-        match consume::answer(context, &result, &exact, receipt, &artifact_id)? {
-            Some(response) => response,
-            None if connector_setup_candidate(context, &result) => {
-                return Err(HookDirectDefer::ReviewQueue);
-            }
-            None => review_queue::answer(context, &result, receipt, &exact, &token)?,
-        };
+    let (response, notice) = match consume::answer(context, &result, &exact, receipt, &artifact_id)?
+    {
+        Some(response) => (response, None),
+        None => review_queue::answer(context, &result, receipt, &exact, &token)?,
+    };
+    parsed["harness_response"] = response;
+    // The desktop setup notice for a connector-setup review is raised by the
+    // evidence drain once the hook is answered.
+    if let Some(notice) = notice {
+        parsed[crate::hook_direct::CONNECTOR_NOTICE_FIELD] = notice;
+    }
     Ok(parsed)
 }
 
@@ -411,19 +414,6 @@ pub(crate) fn overridable_action_type(action_type: Option<&Value>) -> bool {
         Some(Value::Array(_) | Value::Object(_)) => false,
         _ => true,
     }
-}
-
-/// A review due only to non-recognition of a command that launches a local
-/// CLI (or may): the daemon reads whether this device was ever set up for the
-/// CLI and groups the row under its connector, so the resident leaves it.
-fn connector_setup_candidate(context: &Context<'_>, result: &Object) -> bool {
-    crate::connector_setup::is_non_recognition(result.get("reason_code").and_then(Value::as_str))
-        && super::local_cli::launches_local_cli(
-            context.payload,
-            context.workspace,
-            context.home_dir,
-        )
-        .unwrap_or(true)
 }
 
 /// Python truthiness of an optional JSON value.

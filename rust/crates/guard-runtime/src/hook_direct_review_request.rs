@@ -171,7 +171,7 @@ pub(super) fn envelope_query<'a>(input: &RequestInput<'a>) -> Option<EnvelopeQue
 /// `HOME` it reads the password database, which that environment cannot
 /// answer.
 #[cfg(unix)]
-fn expanded_home(environment: &BTreeMap<String, String>) -> Option<String> {
+pub(super) fn expanded_home(environment: &BTreeMap<String, String>) -> Option<String> {
     let trimmed = environment.get("HOME")?.trim_end_matches('/');
     Some(if trimmed.is_empty() { "/" } else { trimmed }.to_owned())
 }
@@ -180,7 +180,7 @@ fn expanded_home(environment: &BTreeMap<String, String>) -> Option<String> {
 /// `ntpath.join(HOMEDRIVE, HOMEPATH)`. `os.environ` spells Windows names in
 /// upper case, as published.
 #[cfg(windows)]
-fn expanded_home(environment: &BTreeMap<String, String>) -> Option<String> {
+pub(super) fn expanded_home(environment: &BTreeMap<String, String>) -> Option<String> {
     if let Some(profile) = environment.get("USERPROFILE") {
         return Some(profile.clone());
     }
@@ -203,7 +203,7 @@ fn join_home_drive(drive: &str, path: &str) -> Option<String> {
 }
 
 #[cfg(not(any(unix, windows)))]
-fn expanded_home(_environment: &BTreeMap<String, String>) -> Option<String> {
+pub(super) fn expanded_home(_environment: &BTreeMap<String, String>) -> Option<String> {
     None
 }
 

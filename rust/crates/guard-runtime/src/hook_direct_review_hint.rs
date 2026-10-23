@@ -1,8 +1,9 @@
 //! The queue-time hint a reviewed `PreToolUse` is stored with.
 //!
 //! This ports `native_review_hint` (`native_review_allow_hint.py`) for the
-//! reviews the resident queues itself. The connector-setup hint never reaches
-//! here: a review the daemon groups under a connector stays with the daemon.
+//! reviews the resident queues itself. A review grouped under a connector is
+//! stored with the connector-setup hint instead and never reaches here
+//! (`hook_direct_review_connector.rs`).
 //!
 //! Every queued review carries the coverage hint when an extension observed
 //! its command. A definite extension review of a command-only shell call also

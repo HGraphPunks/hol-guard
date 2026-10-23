@@ -171,6 +171,18 @@ matches the one that paused. The coverage hint
 `extension_coverage_hint.py`) rides on every queued review an extension
 observed.
 
+A review due only to non-recognition of a command that launches a local CLI
+this device has not set up is a connector-setup review, and the direct hook lane
+queues it as well (`rust/crates/guard-runtime/src/hook_direct_review_connector.rs`).
+It asks the `local_cli_hook` resident op for the connector, as
+`native_review_setup_connector` does, stores the row under the connector's
+`queue_group_id` with the connector-setup hint in place of the extension hints,
+shows the agent the `connector_setup_reason` text, and records the connector's
+setup context. The resident cannot raise a desktop notice, so it hands the stored
+request id and the CLI name to the evidence drain, which raises the notice from
+the stored row. Any lookup the resident cannot spell exactly as the daemon would,
+and any failed lookup, leaves the review to the daemon.
+
 The recommendation shown with a pending review is that stored hint re-checked
 on every read, and the resident owns it too. The
 `approval_extension_recommendation` resident op

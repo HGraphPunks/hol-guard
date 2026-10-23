@@ -29,7 +29,7 @@ fn a_large_silent_reply_keeps_its_readable_wait_notification() {
             true,
             false,
         );
-        if silent_block("claude-code", result.as_object().unwrap(), &safe).is_some() {
+        if blocked::silent_block("claude-code", result.as_object().unwrap(), &safe).is_some() {
             low = size;
         } else {
             high = size;
@@ -42,10 +42,15 @@ fn a_large_silent_reply_keeps_its_readable_wait_notification() {
         result.as_object().unwrap(),
         "default",
         vectors["scenarios"][1]["request"].clone(),
-        true,
-        false,
+        Flags {
+            ask: false,
+            retry_reuses_approval: true,
+            exact_action_allowable: false,
+        },
+        None,
     )
-    .unwrap();
+    .unwrap()
+    .0;
     assert!(response
         .to_string()
         .contains("hol-guard approvals wait r-new --json"));
