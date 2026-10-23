@@ -168,4 +168,5 @@ pub(crate) const RESIDENT_OP_FEATURES: &[&str] = &[
     guard_contracts::COMMAND_PACK_RECORD_FEATURE,
     guard_contracts::INVENTORY_URL_REDACTION_FEATURE,
     guard_contracts::AIBOM_REPORT_SUMMARIES_FEATURE,
+    guard_contracts::RETRY_LINEAGE_CAPTURE_FEATURE,
 ];
