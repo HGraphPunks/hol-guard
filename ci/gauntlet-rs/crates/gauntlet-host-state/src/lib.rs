@@ -1,5 +1,6 @@
 //! Passive host readers and queue decisions matching the pinned Python release
-//! observer. This crate neither owns the Python lease nor writes live jobs.
+//! observer. Rust lifecycle state uses a separate versioned namespace; this
+//! crate never owns the Python lease or mutates its jobs.
 
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -7,6 +8,10 @@ use std::fmt;
 
 mod operations;
 pub use operations::{load_operations_bytes, OperationsError};
+mod lifecycle;
+mod lifecycle_document;
+mod lifecycle_files;
+pub use lifecycle::{HostLifecycleError, HostLifecycleStore, HostObserverLease};
 mod fixed_process;
 mod git_controller_source;
 pub use git_controller_source::{
