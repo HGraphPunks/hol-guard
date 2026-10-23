@@ -1,10 +1,12 @@
-//! `git shortlog` and `git check-ignore`, the two listings that only print.
+//! `git shortlog`, `git check-ignore` and `git sparse-checkout list`, the
+//! listings that only print.
 //!
-//! `shortlog` counts the commits history already holds and `check-ignore`
-//! answers which ignore rule a path matches. Neither writes a ref, an object
-//! or a file. Both still run under the repository's configuration, so the
-//! configuration probe clears them before the read is proven, and options
-//! outside these lists keep their review.
+//! `shortlog` counts the commits history already holds, `check-ignore`
+//! answers which ignore rule a path matches, and `sparse-checkout list`
+//! prints the patterns the working tree is already narrowed to. None writes a
+//! ref, an object or a file. All still run under the repository's
+//! configuration, so the configuration probe clears them before the read is
+//! proven, and options outside these lists keep their review.
 
 /// `shortlog` flags that take no value. `-w` carries an optional inline
 /// width instead, which [`shortlog_read_form`] checks.
@@ -85,8 +87,21 @@ pub(crate) fn read_form(subcommand: &str, rest: &[String]) -> bool {
     match subcommand {
         "shortlog" => shortlog_read_form(rest),
         "check-ignore" => check_ignore_read_form(rest),
+        "sparse-checkout" => sparse_checkout_read_form(rest),
         _ => false,
     }
+}
+
+/// Whether a `sparse-checkout` spelling is the one that only prints.
+///
+/// `list` writes nothing: it prints the patterns `.git/info/sparse-checkout`
+/// already holds. Every other spelling — `init`, `set`, `add`, `reapply`,
+/// `disable`, and `check-rules`, which reads the patterns off its own input —
+/// narrows or widens the working tree, so each keeps its review. `list` takes
+/// no options of its own, so a word beside it is a spelling this grammar has
+/// not read.
+fn sparse_checkout_read_form(rest: &[String]) -> bool {
+    rest.len() == 1 && rest[0] == "list"
 }
 
 /// Whether a one-dash spelling is a bundle of single-letter flags. Git's

@@ -19901,6 +19901,23 @@
       "expect": "allow"
     },
     {
+      "id": "git-sparse-checkout-list",
+      "fix_area": "git",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "git sparse-checkout list"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
       "id": "git-clean-dry-run",
       "fix_area": "git",
       "harnesses": [

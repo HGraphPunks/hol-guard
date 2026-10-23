@@ -101,6 +101,7 @@ pub(super) fn execution_free_paging(
             | "rev-list"
             | "shortlog"
             | "check-ignore"
+            | "sparse-checkout"
             | "apply"
             | "bisect"
             | "notes"
@@ -126,7 +127,7 @@ pub(super) fn execution_free_paging(
     {
         return None;
     }
-    if matches!(operation, "shortlog" | "check-ignore")
+    if matches!(operation, "shortlog" | "check-ignore" | "sparse-checkout")
         && !super::git_listing_reads::read_form(operation, &remaining[1..])
     {
         return None;
@@ -398,7 +399,7 @@ fn probe(
         // `clean` prints its preview, and `apply` its check report, without
         // a pager.
         "status" | "hash-object" | "merge-base" | "ls-tree" | "cat-file" | "show-ref"
-        | "for-each-ref" | "rev-list" | "describe" | "clean" | "apply" => false,
+        | "for-each-ref" | "rev-list" | "describe" | "clean" | "apply" | "sparse-checkout" => false,
         "config" => super::git_config_reads::pages_by_default(&remaining[1..]),
         _ => true,
     };
