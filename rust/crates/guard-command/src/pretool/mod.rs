@@ -26,6 +26,10 @@ pub struct PathContext<'a> {
     /// `--pre`, `--hidden` or extra search paths to an `rg` command that
     /// omits `--no-config`. Literal contexts leave this false.
     pub ripgrep_config_absent: bool,
+    /// No step of this command creates a filesystem entry, so a path with
+    /// nothing at it now still has nothing at it when a read runs and cannot
+    /// be a link a peer step planted. Literal contexts leave this false.
+    pub creates_nothing: bool,
     /// What a `psql` read inherits from the session: startup files only a
     /// read without `-X` runs, and the server libpq picks. Literal contexts
     /// leave both false.

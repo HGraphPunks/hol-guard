@@ -43,6 +43,7 @@ pub(crate) fn benign_command_segments(
         shell_home_matches: context.shell_home_matches,
         ripgrep_config_absent: context.ripgrep_config_absent,
         psql_environment: context.psql_environment,
+        creates_nothing: super::search::command_creates_nothing(model),
         cwd: cwd.as_deref().or(context.cwd),
     };
     let segment_benign: Vec<bool> = model

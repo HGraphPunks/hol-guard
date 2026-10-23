@@ -126,6 +126,17 @@ pub(super) fn command_read_target(
             // guessed inside the workspace.
             || (!allow_directory
                 && super::search::sibling_repository_named_file(value, context, true))
+            // A read of an absolute path with nothing at it prints the same
+            // error the workspace-relative spelling already prints, as long
+            // as no step of the command can put a file or a link there
+            // first.
+            || (!allow_directory
+                && context.creates_nothing
+                && super::read_paths::bounded_missing_absolute_read_target(
+                    value,
+                    context.home_dir,
+                    context.cwd,
+                ))
     } else {
         safe_read_target(value)
     }

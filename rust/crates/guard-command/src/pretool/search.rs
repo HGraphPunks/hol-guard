@@ -29,6 +29,21 @@ pub(super) use tree::{
 };
 pub(super) use walk_memo::with_walk_memo;
 
+/// Whether no step of `model` creates a filesystem entry.
+///
+/// A read of a path with nothing at it is proven only while it stays
+/// missing: a peer step that writes a file, makes a directory or links one
+/// (`ln -s <dir> <repo>/cfg && cat <repo>/cfg/id_rsa`) would put something
+/// there before the read opens it. `grep` asks the same question of its own
+/// peers; a whole-command answer serves the readers that prove one operand
+/// at a time.
+pub(super) fn command_creates_nothing(model: &crate::CanonicalCommandV1) -> bool {
+    model
+        .segments
+        .iter()
+        .all(|segment| grep::creates_nothing(segment, false))
+}
+
 /// A names-only walk (`find`) rooted at a project-metadata directory such as
 /// `.github` inside a repository work tree, the session's own or a sibling
 /// checkout. The root must be one a hidden-directory listing may name, every

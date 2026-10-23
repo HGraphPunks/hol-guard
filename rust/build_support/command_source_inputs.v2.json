@@ -453,6 +453,7 @@
       "src/pretool/read_path_allowances.rs",
       "src/pretool/read_path_git.rs",
       "src/pretool/read_path_harness_notes.rs",
+      "src/pretool/read_path_missing.rs",
       "src/pretool/read_paths.rs",
       "src/pretool/recoverable_removal.rs",
       "src/pretool/recursive_copy.rs",
