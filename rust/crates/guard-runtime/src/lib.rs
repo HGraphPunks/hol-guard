@@ -144,6 +144,8 @@ mod codex_hook_bridge_transport;
 mod codex_hook_identity;
 mod codex_hook_response;
 mod codex_hooks;
+#[cfg(test)]
+mod codex_hooks_parity_tests;
 mod codex_identity;
 #[cfg(all(test, unix))]
 mod codex_post_tool_output_vectors_tests;
