@@ -101,6 +101,9 @@ mod command_operand_matchers;
 pub mod command_option_parsing;
 mod command_parse_surface;
 mod command_segment_parsing;
+pub mod command_shadow;
+#[cfg(test)]
+mod command_shadow_tests;
 pub mod command_shell_read_factors;
 mod command_specialized_matchers;
 mod command_structure;
