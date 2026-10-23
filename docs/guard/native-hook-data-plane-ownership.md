@@ -469,6 +469,27 @@ token itself and nothing it contains can pass as a substituted scalar.
 `codex_hook_identity.py` now only names what is being identified;
 `native_codex_hook_identity.py` ships it across and fails closed.
 
+What a local CLI's `--help` means is read in the resident
+(`local-cli-help-parse-v1`, in `local_cli_help.rs`). Python ran the prose
+grammar: which line opens a command section and which closes it, when an
+indented line is a command row rather than a wrapped description, which tokens
+are commands and which are option spellings, and how a row's description is
+recovered from the columns after it. That grammar decides which commands an
+operator is offered a grant over, so a second copy of it would be a second
+answer to the same question. Python now only probes - it runs the CLI, collects
+the help text each subcommand prints, and sends the text; the resident returns
+the commands it names and their descriptions.
+
+Two consequences are worth naming. Discovery fails closed: a resident that
+cannot answer leaves the CLI with no commands found, and the grant falls back
+to its "other" bucket rather than to a Python parse. And the port keeps a
+Python quirk rather than quietly fixing it - a two-word section header such as
+`Other things:` reads as a command row (`Other`, described as `things:`) and
+leaves the section open, while a one-word `Options:` closes it. Changing that
+would move which commands an existing grant covers, so
+`a_two_word_header_reads_as_a_row_and_keeps_the_section_open` pins the
+behaviour until it is changed deliberately.
+
 ## Harness route inventory
 
 The v2 contract maps all harnesses in `HARNESS_CONTRACTS`, including harnesses

@@ -451,6 +451,7 @@
     "src/codex_plugin_scanner/guard/native_context_budget.py",
     "src/codex_plugin_scanner/guard/native_local_cli_identity.py",
     "src/codex_plugin_scanner/guard/native_local_cli_grant.py",
+    "src/codex_plugin_scanner/guard/native_local_cli_help_parse.py",
     "src/codex_plugin_scanner/guard/local_cli_hook.py",
     "src/codex_plugin_scanner/guard/connector_setup_context.py",
     "src/codex_plugin_scanner/guard/risk.py",

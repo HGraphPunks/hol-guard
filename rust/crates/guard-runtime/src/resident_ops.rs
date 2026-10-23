@@ -449,6 +449,9 @@ pub(crate) fn evaluate_resident_bytes_with_cancellation(
             ResidentOperationV1::LocalCliGrantDecide(request) => {
                 crate::local_cli_grant_op::evaluate_local_cli_grant_request(&request)
             }
+            ResidentOperationV1::LocalCliHelpParse(request) => {
+                crate::local_cli_help::evaluate_local_cli_help_parse_request(&request)
+            }
             ResidentOperationV1::LocalCliHook(request) => {
                 crate::local_cli_hook_op::evaluate_local_cli_hook_request(&request)
             }
