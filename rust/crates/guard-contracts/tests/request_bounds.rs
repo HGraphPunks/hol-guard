@@ -131,7 +131,8 @@ fn every_declared_bound_fits_one_resident_frame() {
 #[test]
 fn every_declared_bound_is_named_above() {
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let pinned = include_str!("request_bounds.rs");
+    // A Windows checkout may give this file CRLF line endings.
+    let pinned = include_str!("request_bounds.rs").replace("\r\n", "\n");
     let mut found = 0usize;
     for entry in fs::read_dir(&source).expect("contract sources") {
         let path = entry.expect("source entry").path();
