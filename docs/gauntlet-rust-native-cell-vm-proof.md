@@ -75,3 +75,21 @@ the actor/gate execute in Rust. Full deterministic-control causality,
 source-matched current-build conformance, model inference, reviewed production
 pin provenance and complete Root Rust ownership remain open. No provider quota
 was reset or consumed, and the PR gate remains passive.
+
+## Broader staging integration follow-up
+
+The first broader success and input-binding attempts, IDs `1f72068a31b90e6e`
+and `8c2a43bc17499667`, retained controller exit 2 with complete outside
+cleanup. They produced no SDK tap journal. Their startup logs exposed a
+remaining Python staging-adapter check that accepted only `cell-artifacts`.
+These failed attempts remain retained and cannot become passes.
+
+The adapter now authenticates the manifest and initializer against the
+outside pins, binds its v1/v2 runtime to exactly one of the two fixed artifact
+directories, then performs the existing complete inert asset verification.
+Regression cases cover both versions, foreign jobs, traversal, substituted
+runtime paths, changed bytes, cross-version paths and wrong pins. This changes
+the controller plan digest to
+`b3d45bdeb0afe653ec8e6874ed1e36680c2f87bee62e5c7734fee8fbe8b45603`;
+it leaves the v2 artifact source map and retained successful VM proofs intact.
+Fresh broader controls require a separate installation of this new generation.

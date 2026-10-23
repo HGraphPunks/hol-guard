@@ -45,13 +45,13 @@ fn current_source_map_matches_python_bootstrap_tree_plan() {
     // 0755/0444 Root install modes, then Python canonical SHA-256 over the same
     // path/mode/uid/file-hash shape used by TreeKind::Controller. Recomputed
     // from bootstrap.py's actual selection after main c5202d11 and the
-    // explicit v2 native-cell adapter changes. Historical pins stay retained.
+    // explicit v2 native-cell/staging adapter changes. Historical pins stay retained.
     let plan = plan_controller_install(&current_source_map()).unwrap();
     assert_eq!(plan.installed_files.len(), 396);
     assert_eq!(plan.entries, 407);
     assert_eq!(
         plan.tree_digest,
-        "33ef5c12f907c80e8d05aa5af10c76510fae5097b23fc2f0a4dcab85c6a21537"
+        "b3d45bdeb0afe653ec8e6874ed1e36680c2f87bee62e5c7734fee8fbe8b45603"
     );
     assert!(plan
         .installed_files
