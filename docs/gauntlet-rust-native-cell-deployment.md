@@ -47,7 +47,9 @@ correctly refused by the unchanged canonical cgroup reader.
 Warnings-denied all-target/all-feature Clippy passed on macOS and ARM64;
 Rustfmt, Ruff and whitespace checks passed.
 
-The real VM launch, native Guard controls and source-matched conformance remain
-to be exercised for this artifact version. The Root adapter is still Python;
-the unprivileged actor and exec gate are Rust. These changes do not complete
-the isolation migration or enable the PR gate.
+The follow-on [real VM proof](gauntlet-rust-native-cell-vm-proof.md) exercises
+this artifact version with the installed Guard daemon, actual gated effects,
+binary streams, timeout and cancellation. Native control causality and fresh
+conformance remain open. The Root adapter is still Python; the unprivileged
+actor and exec gate are Rust. These changes do not complete the isolation
+migration or enable the PR gate.
