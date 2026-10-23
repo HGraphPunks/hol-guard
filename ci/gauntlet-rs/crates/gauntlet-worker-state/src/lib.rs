@@ -147,6 +147,8 @@ mod controller_run;
 #[cfg(target_os = "linux")]
 mod deadline;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod private_cell_artifact_mode;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod private_cell_shadow_artifacts;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use contained_probe::{
@@ -296,6 +298,7 @@ pub use candidate_capture::{
 };
 pub use candidate_config_projection::{
     project_candidate_config_ineligible, project_shadow_candidate_config_ineligible,
+    project_shadow_candidate_config_with_native_cell_ineligible,
     project_shadow_candidate_config_with_private_cell_ineligible, CandidateConfigProjection,
     CandidateConfigProjectionError, CandidateConfigProjectionPins,
 };
@@ -308,6 +311,7 @@ pub use candidate_config_projection_live::{
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_config_shadow_write::{
     write_shadow_candidate_config_ineligible,
+    write_shadow_candidate_config_with_native_cell_ineligible,
     write_shadow_candidate_config_with_private_cell_ineligible, CandidateConfigShadowWriteError,
     CandidateConfigShadowWriteProof,
 };
@@ -399,6 +403,7 @@ pub use prelaunch::{
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use private_cell_shadow_artifacts::{
+    prepare_native_private_cell_shadow_artifacts_ineligible,
     prepare_private_cell_shadow_artifacts_ineligible, PrivateCellShadowError,
     PrivateCellShadowPins, PrivateCellShadowProof,
 };

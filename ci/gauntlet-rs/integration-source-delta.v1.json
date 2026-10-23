@@ -130,11 +130,46 @@
       "sha256": "6b4d1809059ed5a8ddb323c441d2dd83f73af790b74b2f7d849ce7031a8bbc8f"
     },
     {
+      "base_sha256": "cc1513d6b9318ee5884de399568f49de709e863350584a61a0d6439753d0dc9b",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/benchmark/private_cell_campaign_inputs.py",
+      "phase": 4,
+      "sha256": "73f53cbbfde8f2fb3ff912128eba4f8db78799545badc2b8c45faaf2fcca3c80"
+    },
+    {
+      "base_sha256": "2de9c8c27d2b8f883291900ed3fe29f0f9aa7a318b03a195c4f20ba4f5a22cbb",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/benchmark/private_cell_custody.py",
+      "phase": 4,
+      "sha256": "5be923a6164459e79664419767e07591581355c8060bf941545b48a7adf859bd"
+    },
+    {
+      "base_sha256": "a517c8741c76e138ff2d6c5ddf1a79b86988211e8157ff08d3965fb7268f98c3",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/benchmark/private_cell_factory.py",
+      "phase": 4,
+      "sha256": "83a18c88165678f39321e5f9cb1c11bb47f2cd41a81717b36e4ee231a5d21712"
+    },
+    {
+      "base_sha256": "5767f9811494de0ea636fbf0f7a7d80942878eb81676a8fd48b5d5ed4b5e4579",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/benchmark/product_cell_layout.py",
+      "phase": 4,
+      "sha256": "afa0fbbb549ab278026073d75d747d488c19d082dc988d525675daa64c637339"
+    },
+    {
       "base_sha256": "af2fa2036419ca3d927d9f3059e9f3e3f2bd3d8cb7be200c4a021c31137cd8c5",
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/benchmark/product_cell_supervisor.py",
       "phase": 4,
-      "sha256": "ff988e353a60ef82f9722af7e832c5417fdccff5a8933cbdd435011285a7f143"
+      "sha256": "e3b83a61521b7202b040f108a80f1bafe9a33ef9aa739108967812fd50e812c7"
+    },
+    {
+      "base_sha256": "dc5b8c56330b672b4f05d25d6e978267385d6efc8cb142369c5e15df232312eb",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/benchmark/product_vm_rootfs.py",
+      "phase": 4,
+      "sha256": "323bf3fdd46a1ed1dcdc0cb7b8ec6fc692fc2f641ce6f7f885401152721c0a57"
     },
     {
       "base_sha256": "766f65bb15960fdbc815917a80bdd8d8774d84cb1e088f7d5020da62c896a5d8",

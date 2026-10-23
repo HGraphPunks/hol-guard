@@ -45,6 +45,7 @@ mod private_actor;
 mod private_cell_files;
 mod private_cell_manifest;
 mod private_cell_mounts;
+mod private_cell_native_manifest;
 mod private_hook_samples;
 mod private_network;
 mod private_runtime_prompt;
@@ -139,6 +140,10 @@ pub use private_cell_manifest::{
     fixed_private_cell_sources, verify_private_cell_manifest, PrivateCellManifest,
 };
 pub use private_cell_mounts::verify_private_cell_mount_relation;
+pub use private_cell_native_manifest::{
+    fixed_native_private_cell_sources, native_cell_runtime_from_observations,
+    verify_native_private_cell_manifest, NATIVE_CELL_ACTOR,
+};
 pub use private_hook_samples::verify_private_hook_samples;
 pub use private_network::verify_private_network_topology;
 pub use private_runtime_prompt::verify_private_runtime_prompt_relation;

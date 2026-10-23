@@ -7,10 +7,11 @@ RPC operations. Its `exec-gate` command holds a child before product execution,
 emits the existing measurement marker and requires one release byte before
 replacing itself with the requested unprivileged program.
 
-This preparation does not yet replace the Python actor in the VM artifact
-manifest/rootfs/supervisor path. That integration needs an explicit artifact
-version, executable pin, AppArmor permission, measured argv and trusted-reader
-updates. The authoritative observer, provider quota and PR gate remain passive.
+At this commit, the actor was not yet wired into the VM artifact/rootfs path.
+The subsequent [versioned native deployment](gauntlet-rust-native-cell-deployment.md)
+adds explicit artifact and executable pins, measured arguments and adapter
+readers while retaining the existing AppArmor profile. Its actual VM launch
+and Guard conformance remain separate work. The PR gate remains passive.
 
 ## Implemented behavior
 
