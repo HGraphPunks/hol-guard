@@ -8,6 +8,7 @@ import shlex
 from dataclasses import dataclass
 from pathlib import Path
 
+from .approval_retry_action import FILE_TOOLS
 from .approval_retry_bash import (
     BASH_LIFECYCLE_CASES,
     BASH_LIFECYCLE_ORACLE,
@@ -185,10 +186,19 @@ def load_catalog_data(data: object) -> tuple[Scenario, ...]:
             scenario.expectation != "allow" or scenario.commands or "core" in scenario.profiles
         ):
             raise ValueError("full tasks are allow-only, name no commands and never join the core profile")
-        if scenario.oracle == "approved-retry" and (
-            scenario.expectation != "allow" or scenario.required_tools != ("bash",) or "core" in scenario.profiles
-        ):
-            raise ValueError("approve-then-retry cases are allow-only shell cases and never join the core profile")
+        if scenario.oracle == "approved-retry":
+            # The lane's repeated action is either a shell command or a file-tool call.
+            # A file-tool case names no command at all, so it pins the file instead:
+            # that path is what ties its grant to the attempt the agent came back to.
+            shell = scenario.required_tools == ("bash",)
+            files = bool(scenario.required_tools) and set(scenario.required_tools) <= FILE_TOOLS
+            if scenario.expectation != "allow" or "core" in scenario.profiles or not (shell or files):
+                raise ValueError(
+                    "approve-then-retry cases are allow-only, drive bash or the file tools alone, "
+                    "and never join the core profile"
+                )
+            if files and (scenario.commands or not scenario.path):
+                raise ValueError("an approve-then-retry file-tool case names no command and pins one file")
         if scenario.oracle == BASH_LIFECYCLE_ORACLE:
             blocked = scenario.id in {MUTATION_CASE, DENIAL_CASE}
             if (

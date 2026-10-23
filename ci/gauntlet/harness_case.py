@@ -205,9 +205,13 @@ def run_harness_case(
                 guard_home.mkdir(mode=0o700)
                 (guard_home / "config.toml").write_text('protection_posture = "watch"\nmode = "observe"\n')
             if scenario.oracle in {"approved-retry", BASH_LIFECYCLE_ORACLE}:
-                # Reviewing ordinary commands is this lane's point: the approve-then-retry
+                # Reviewing ordinary actions is this lane's point: the approve-then-retry
                 # path has no other way in, because a hard block never queues an approval.
-                case["review_policy"] = write_review_config(guard_home)
+                # A case whose repeated action is a file-tool call needs the default floor;
+                # the subprocess floor the shell cases raise never reaches a file tool.
+                case["review_policy"] = write_review_config(
+                    guard_home, file_tool="bash" not in scenario.required_tools
+                )
             if CONNECTOR_PROFILE in scenario.profiles:
                 connector = stage_connector_case(scenario.oracle, fixture.root, fixture.home, guard_home, harness)
                 connector_state = state_digest(connector.state_dir)
