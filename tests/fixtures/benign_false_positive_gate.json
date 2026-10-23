@@ -24086,6 +24086,125 @@
       },
       "cwd": "worktree",
       "expect": "not_allow"
+    },
+    {
+      "id": "git-worktree-reset-soft",
+      "fix_area": "git",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "git reset --soft HEAD~1"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
+      "id": "git-worktree-reset-mixed-default",
+      "fix_area": "git",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "git reset HEAD~1"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
+      "id": "git-worktree-reset-pathspec",
+      "fix_area": "git",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "git reset -- src/index.ts"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
+      "id": "git-worktree-restore-staged",
+      "fix_area": "git",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "git restore --staged src/index.ts"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
+      "id": "neg-git-worktree-reset-hard",
+      "fix_area": "negative",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "git reset --hard HEAD"
+      },
+      "cwd": "worktree",
+      "expect": "not_allow"
+    },
+    {
+      "id": "neg-git-worktree-restore-worktree",
+      "fix_area": "negative",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "git restore src/index.ts"
+      },
+      "cwd": "worktree",
+      "expect": "not_allow"
+    },
+    {
+      "id": "neg-git-worktree-restore-staged-and-worktree",
+      "fix_area": "negative",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "git restore --staged --worktree src/index.ts"
+      },
+      "cwd": "worktree",
+      "expect": "not_allow"
     }
   ],
   "mcp_cases": [
