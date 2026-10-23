@@ -81,6 +81,22 @@ including the Native jobs whose automatic triggers are integration-specific.
 The child PR records their actual results. Existing required product checks
 and the passive benchmark gate retain their current ownership.
 
+## Latest upstream and unavailable Actions
+
+PR #3 subsequently imports upstream `d1ab7bc629f3c5bbd45459424e5b0a39be880fea`
+as merge `e5f4b1205ff7958c9eb14322d3953285dd4ef2ab`. The only incoming change
+seeds `test_runner_sync_payload.py` receipts relative to the real clock; its
+old fixed date expired on October 23 and could fail every open PR. All ten
+tests in that file passed locally with the matching Native binary after this
+merge. Gauntlet and Native implementation bytes, the 427-file source map and
+controller digest above are unchanged.
+
+GitHub's dispatch API returns HTTP 422, `Actions has been disabled for this
+repository`, although the repository permissions API reports enabled.
+Reapplying that existing setting did not restore execution. There is no
+current-head cloud result, and this child remains unmerged until all five
+required jobs actually complete on its final pushed SHA.
+
 These are source-built, synthetic local and CI fixtures. They made zero model
 requests and do not establish exact-wheel real-agent qualification, fresh ARM
 VM conformance, independently authenticated model usage or migration cutover.
