@@ -31,6 +31,7 @@ pub mod compatibility_safe_scope;
 pub mod data_flow_rules_parity;
 pub mod effect_decision_parity;
 pub mod fd_execution_boundaries;
+pub mod guard_evidence_hash_parity;
 pub mod inline_expression_boundaries;
 pub mod js_semver_vectors;
 pub mod manifest_change_vectors;
