@@ -338,6 +338,78 @@
       "classifiers": [
         "connection-env"
       ]
+    },
+    {
+      "name": "a quoted value keeps an operator inside it",
+      "input": [
+        "API_TOKEN=\"",
+        "abcdefgh",
+        " && ",
+        "12345678",
+        "\" && run"
+      ],
+      "text": "API_TOKEN=***** && run",
+      "count": 1,
+      "classifiers": [
+        "secret-env"
+      ]
+    },
+    {
+      "name": "a single-quoted value keeps an operator inside it",
+      "input": [
+        "API_SECRET='",
+        "abcdefgh",
+        " ; ",
+        "12345678",
+        "' ; run"
+      ],
+      "text": "API_SECRET=***** ; run",
+      "count": 1,
+      "classifiers": [
+        "secret-env"
+      ]
+    },
+    {
+      "name": "an assignment ends at a pipe",
+      "input": [
+        "API_CREDENTIAL=",
+        "abcdefgh",
+        "12345678",
+        " | tee out"
+      ],
+      "text": "API_CREDENTIAL=***** | tee out",
+      "count": 1,
+      "classifiers": [
+        "secret-env"
+      ]
+    },
+    {
+      "name": "an assignment ends at a background operator",
+      "input": [
+        "API_PASSWORD=",
+        "abcdefgh",
+        "12345678",
+        " & disown"
+      ],
+      "text": "API_PASSWORD=***** & disown",
+      "count": 1,
+      "classifiers": [
+        "secret-env"
+      ]
+    },
+    {
+      "name": "an escaped operator inside a value still ends it",
+      "input": [
+        "API_KEY=",
+        "abcd",
+        "\\&&",
+        "efgh"
+      ],
+      "text": "API_KEY=*****&&efgh",
+      "count": 1,
+      "classifiers": [
+        "secret-env"
+      ]
     }
   ]
 }
