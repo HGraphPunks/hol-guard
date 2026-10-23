@@ -10378,6 +10378,57 @@
       "expect": "allow"
     },
     {
+      "id": "shell-ansi-c-tick-escape",
+      "fix_area": "shell",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "printf $'\\u2713 done\\n'"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
+      "id": "shell-ansi-c-wide-code-point-escape",
+      "fix_area": "shell",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "printf $'\\U0001F680 deploy\\n'"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
+      "id": "shell-ansi-c-control-escape",
+      "fix_area": "shell",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "echo $'\\cG'"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
       "id": "shell-redirect-version-to-file",
       "fix_area": "shell",
       "harnesses": [
