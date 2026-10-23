@@ -73,29 +73,13 @@ pub(crate) fn verify_declared_artifacts(
     config: &Value,
     manifest: &str,
 ) -> gauntlet_evidence::Result<ArtifactRuntime> {
-    const INVALID: gauntlet_evidence::EvidenceError = gauntlet_evidence::EvidenceError::Invalid(
-        "fixed private-cell artifact declaration required",
-    );
-    let declared = config["assets"]["private_cell"]["path"]
-        .as_str()
-        .ok_or(INVALID)?;
-    let base = format!("hol-gauntlet/rust-shadow-candidates/{job_id}");
-    let runtime = [ArtifactRuntime::PythonV1, ArtifactRuntime::RustV1]
-        .into_iter()
-        .find(|runtime| declared == format!("{base}/{}", runtime.target()))
-        .ok_or(INVALID)?;
-    if config["assets"]["private_cell"]["sha256"] != manifest {
-        return Err(INVALID);
-    }
-    let initializer = config["runtime"]["private_cell"]["initializer_sha256"]
-        .as_str()
-        .ok_or(INVALID)?;
-    runtime.verify(
-        &std::path::Path::new("/opt").join(base),
-        manifest,
-        initializer,
-    )?;
-    Ok(runtime)
+    let inventory =
+        gauntlet_evidence::verify_shadow_private_cell_artifacts(job_id, config, manifest)?;
+    Ok(if inventory.files.contains_key(NATIVE_CELL_ACTOR) {
+        ArtifactRuntime::RustV1
+    } else {
+        ArtifactRuntime::PythonV1
+    })
 }
 #[cfg(test)]
 mod tests {
