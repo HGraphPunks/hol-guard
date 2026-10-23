@@ -749,7 +749,7 @@ pub(crate) fn evaluate_resident_bytes_with_cancellation(
 fn operation_guard_home(operation: &ResidentOperationV1) -> Option<&str> {
     match operation {
         ResidentOperationV1::CloudCatalog(request) => {
-            if request["action"] == "begin" {
+            if request["action"] == "begin" || request["action"] == "reuse" {
                 request["observation"]["guard_home"].as_str()
             } else {
                 request["guard_home"].as_str()
