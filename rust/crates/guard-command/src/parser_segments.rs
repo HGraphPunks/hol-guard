@@ -59,8 +59,18 @@ fn split_execution_segments_inner(
                     quote = Quote::None;
                 } else if current == '\\' {
                     escaped = true;
+                } else if current == '$' && chars.get(index + 1) == Some(&'(') {
+                    // Arithmetic runs no command, inside a double quote as
+                    // much as outside it: the text spells a number, so the
+                    // word carries on past where it closes.
+                    match arithmetic_close(&chars, index) {
+                        Some(close) => {
+                            index = close + 1;
+                            continue;
+                        }
+                        None => return Err("command_substitution_not_yet_supported"),
+                    }
                 } else if current == '`'
-                    || (current == '$' && chars.get(index + 1) == Some(&'('))
                     || (current == '$'
                         && chars.get(index + 1) == Some(&'{')
                         && chars
@@ -90,7 +100,14 @@ fn split_execution_segments_inner(
             '\\' => escaped = true,
             '`' => return Err("command_substitution_not_yet_supported"),
             '$' if chars.get(index + 1) == Some(&'(') => {
-                return Err("command_substitution_not_yet_supported");
+                // `$(( … ))` evaluates arithmetic; nothing in it runs.
+                match arithmetic_close(&chars, index) {
+                    Some(close) => {
+                        index = close + 1;
+                        continue;
+                    }
+                    None => return Err("command_substitution_not_yet_supported"),
+                }
             }
             '$' if chars.get(index + 1) == Some(&'{') => {
                 return Err("parameter_expansion_not_yet_supported");
@@ -413,9 +430,71 @@ pub(super) fn push_segment(
     Ok(())
 }
 
+/// The value an arithmetic expansion stands for once the parser has read it.
+/// Arithmetic only ever spells a number, so the word it sits in carries one.
+/// It is the count every program accepts: `-j0` and `-n 0` are errors to the
+/// programs that take them, and a stand-in must not read as one.
+pub(crate) const ARITHMETIC_VALUE: &str = "1";
+
+/// The second `)` of the `))` that closes the arithmetic expansion opening at
+/// `start`, the `$` of a `$((`, or `None` when the shell would read the text as
+/// a substitution around a subshell instead.
+///
+/// `$((` opens arithmetic when the body closes on two parentheses of its own:
+/// `$(( (a + b) * c ))` is a number in every shell, and `$((a))` is one even
+/// when `a` is a word arithmetic cannot read, because the shell fails the
+/// expansion rather than running anything. When the first close lands anywhere
+/// else the shell has closed a subshell instead, so `$((cat id) | sh)` runs
+/// `cat` and `sh` in bash and zsh and is a syntax error in dash; either way it
+/// is not arithmetic. A nested substitution or a backtick inside the body runs
+/// a command of its own, so it is not read here.
+///
+/// The body is not scanned as ordinary shell text. The shell expands it as if
+/// it were double-quoted, so a `'` inside it quotes nothing: bash 5.2 runs the
+/// substitution in `echo $(( '$(echo SQ >&2)' 1 ))`. Tracking quotes here
+/// would hide that `$(` from the check below and hide a `)` from the depth
+/// count, so a quote, a backslash or a backtick anywhere in the body ends the
+/// read instead. Arithmetic needs none of them, and refusing them leaves the
+/// expansion unmodelled, which is where it was before it was read at all.
+pub(crate) fn arithmetic_close(chars: &[char], start: usize) -> Option<usize> {
+    if chars.get(start + 1) != Some(&'(') || chars.get(start + 2) != Some(&'(') {
+        return None;
+    }
+    let mut depth = 1usize;
+    for (index, &character) in chars.iter().enumerate().skip(start + 3) {
+        match character {
+            '\\' | '\'' | '"' | '`' => return None,
+            // `$(cmd)`, and the ksh `${ cmd; }` and `${| cmd; }` forms, each
+            // run a command inside what would otherwise read as a number.
+            // `${name}` is an ordinary parameter and stays.
+            '$' if chars.get(index + 1) == Some(&'(') => return None,
+            '$' if chars.get(index + 1) == Some(&'{')
+                && chars
+                    .get(index + 2)
+                    .is_some_and(|next| next.is_whitespace() || *next == '|') =>
+            {
+                return None;
+            }
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return (chars.get(index + 1) == Some(&')')).then_some(index + 1);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 #[path = "parser_segments_ansi_c_tests.rs"]
 mod ansi_c_tests;
+
+#[cfg(test)]
+#[path = "parser_segments_arithmetic_tests.rs"]
+mod arithmetic_tests;
 
 #[cfg(test)]
 #[path = "parser_segments_pipe_tests.rs"]
