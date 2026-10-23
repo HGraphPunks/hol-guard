@@ -51,6 +51,10 @@ runs:
   - name: Lint production sources
     run: |
       uv run --no-sync python -m ruff check \
+        scripts/ci/protected_runtime_archives.py \
+        scripts/ci/prune_superseded_caches.py \
+        tests/test_ci_protected_runtime_archives.py \
+        tests/test_ci_prune_superseded_caches.py \
         tests/test_fleet_posture_builder.py \
         tests/test_runner_sync_payload.py \
         tests/test_guard_approval_extension_recommendation.py \
@@ -68,7 +72,9 @@ runs:
         tests/test_ci_windows_sccache_readiness.py \
         tests/test_ci_required_aggregate.py \
         tests/test_ci_rust_preflight.py \
-        tests/test_ci_rust_test_warm.py \
+        tests/test_ci_rust_test_archives.py \
+        tests/test_ci_rust_archive_inputs.py \
+        scripts/ci/rust_test_archive_inputs.py \
         tests/test_ci_runtime_test_archive.py \
         tests/test_ci_pytest_shard.py \
         tests/test_ci_pytest_shard_plan.py \
@@ -133,6 +139,10 @@ runs:
   - name: Check formatting for production sources
     run: |
       uv run --no-sync python -m ruff format --check \
+        scripts/ci/protected_runtime_archives.py \
+        scripts/ci/prune_superseded_caches.py \
+        tests/test_ci_protected_runtime_archives.py \
+        tests/test_ci_prune_superseded_caches.py \
         tests/test_fleet_posture_builder.py \
         tests/test_runner_sync_payload.py \
         tests/test_guard_approval_extension_recommendation.py \
@@ -150,7 +160,9 @@ runs:
         tests/test_ci_windows_sccache_readiness.py \
         tests/test_ci_required_aggregate.py \
         tests/test_ci_rust_preflight.py \
-        tests/test_ci_rust_test_warm.py \
+        tests/test_ci_rust_test_archives.py \
+        tests/test_ci_rust_archive_inputs.py \
+        scripts/ci/rust_test_archive_inputs.py \
         tests/test_ci_runtime_test_archive.py \
         tests/test_ci_pytest_shard.py \
         tests/test_ci_pytest_shard_plan.py \
