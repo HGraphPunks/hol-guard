@@ -23,6 +23,9 @@ mod attestation_timestamp_tests;
 pub mod attestation_verification;
 #[cfg(test)]
 mod attestation_verification_tests;
+pub mod attestation_verify;
+#[cfg(test)]
+mod attestation_verify_tests;
 pub mod bash_approval;
 pub mod benign_request_api;
 pub mod browser_mcp_intent;

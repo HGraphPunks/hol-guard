@@ -56,6 +56,15 @@ regexes = [
 ]
 
 [[rules.allowlists]]
+description = "Recorded replay key of the synthetic end-to-end trust attestation, a SHA-256 digest rather than a credential"
+condition = "AND"
+regexTarget = "line"
+paths = ['''(?:^|/)tests/fixtures/guard\-trust\-attestation\-verify\.v1\.json$''']
+regexes = [
+  '''^[\t\r\n ]*"replay_key": "4dc4ac25a65316869993be1c719cb6e479bfb71c6e79e7eae822f786cc1082d0",?[\t\r\n ]*$''',
+]
+
+[[rules.allowlists]]
 description = "Synthetic capture keys recorded in the binding-capture parity vectors, not credentials"
 condition = "AND"
 regexTarget = "line"
