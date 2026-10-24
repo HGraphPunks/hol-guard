@@ -152,6 +152,8 @@ pub mod github_workflow_operations;
 mod harness_config_names;
 pub mod harness_identity;
 mod home_path_text;
+#[cfg(test)]
+mod home_path_text_parity_tests;
 pub mod homebrew_intent;
 mod inline_shell_quoting;
 pub mod jsonc;
