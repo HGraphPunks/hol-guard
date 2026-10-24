@@ -764,6 +764,10 @@
     margin-inline: calc(var(--spacing) * -1);
   }
 
+  .-mx-2 {
+    margin-inline: calc(var(--spacing) * -2);
+  }
+
   .-mx-5 {
     margin-inline: calc(var(--spacing) * -5);
   }
@@ -7916,10 +7920,6 @@
       display: none;
     }
 
-    .lg\:inline {
-      display: inline;
-    }
-
     .lg\:table-cell {
       display: table-cell;
     }
@@ -7990,10 +7990,6 @@
 
     .lg\:grid-cols-\[minmax\(0\,1\.3fr\)_minmax\(0\,0\.9fr\)\] {
       grid-template-columns: minmax(0, 1.3fr) minmax(0, .9fr);
-    }
-
-    .lg\:grid-cols-\[minmax\(0\,1\.4fr\)_minmax\(0\,0\.8fr\)\] {
-      grid-template-columns: minmax(0, 1.4fr) minmax(0, .8fr);
     }
 
     .lg\:grid-cols-\[minmax\(0\,1\.4fr\)_minmax\(0\,0\.8fr\)_minmax\(0\,0\.8fr\)\] {
