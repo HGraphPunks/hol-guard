@@ -487,3 +487,131 @@ fn a_version_selector_reaches_the_run_only_as_a_version_name() {
         assert!(!env.contains_key(key), "{key}");
     }
 }
+
+/// A command can start `.venv/bin/pytest` by naming its path, and nothing puts
+/// that venv on the session's PATH when it does. Discovery that reads only the
+/// PATH never sees it, so the install its launchers link out to is never an
+/// executable root and the sandbox cannot start the program the command names.
+#[test]
+fn a_workspace_venv_is_found_by_being_one_not_by_a_search_path_entry() {
+    let fixture = fixture();
+    let workspace = fixture.0.join("workspace");
+    fs::create_dir(&workspace).unwrap();
+    // A directory of the project's own that is not a venv is not one.
+    fs::create_dir(workspace.join("src")).unwrap();
+    let venv = workspace.join(".venv");
+    fs::create_dir_all(venv.join("bin")).unwrap();
+    let configuration = venv.join("pyvenv.cfg");
+    fs::write(&configuration, "home = /usr/bin\n").unwrap();
+    let bin = venv.join("bin").canonicalize().unwrap();
+    assert_eq!(
+        workspace_resident_bins(&workspace, Some(".venv/bin/pytest -q")),
+        vec![bin.clone()]
+    );
+    // A reachability check asks for every venv the workspace holds.
+    assert_eq!(workspace_resident_bins(&workspace, None), vec![bin.clone()]);
+    // The path it is named by is the one the command writes, wherever the
+    // command starts it from.
+    assert_eq!(
+        workspace_resident_bins(
+            &workspace,
+            Some(&format!("{} -q", bin.join("pytest").display()))
+        ),
+        vec![bin.clone()]
+    );
+    // A command that starts no program in the venv is planned without it, so
+    // the interpreter prefix it links out to stays out of that plan.
+    assert!(workspace_resident_bins(&workspace, Some("make test")).is_empty());
+    // Naming the path as an argument starts nothing out of the venv, so it
+    // grants nothing either.
+    for text in [
+        "echo .venv/bin/pytest",
+        "echo ./.venv/bin/pytest",
+        "echo ../.venv/bin/pytest",
+        // A backslash before a line ending continues the line, so the path
+        // is still an argument of the command before it, and a carriage
+        // return on its own stays inside the word.
+        "echo \\\n.venv/bin/pytest",
+        "echo x\r.venv/bin/pytest",
+        // Detached, the prefix is a program of its own and the venv's path is
+        // only its argument.
+        "./ .venv/bin/pytest",
+        "../ .venv/bin/pytest",
+        "rg -n .venv/bin/pytest src",
+        "ls .venv/bin",
+        "cat .venv/bin/../pyvenv.cfg",
+    ] {
+        assert!(
+            workspace_resident_bins(&workspace, Some(text)).is_empty(),
+            "{text}"
+        );
+    }
+    // The assignments and verbs a command stamps on the program it starts
+    // leave the program where it is.
+    for text in [
+        "PYTHONHASHSEED=0 .venv/bin/pytest -q",
+        "npm run build; .venv/bin/pytest -q",
+        "{ npm run build; .venv/bin/pytest -q; }",
+        "make build && exec .venv/bin/pytest -q",
+        // The prefix a relative path is written from names where the program
+        // is read from, so the same program is read through any of them. The
+        // `../` spellings are this workspace's own venv reached from a
+        // directory of it, which is what the prefix is read for; where such a
+        // path lands is not settled here, since that needs it resolved against
+        // the command's working directory.
+        "./.venv/bin/pytest -q",
+        "npm run build; ./.venv/bin/pytest -q",
+        "cd src && ../.venv/bin/pytest -q",
+        "cd a/b && ../../.venv/bin/pytest -q",
+        // A line ending separates two commands as a semicolon does.
+        "make build\n.venv/bin/pytest -q",
+        // An escaped backslash is a backslash, and the line ending after it
+        // still separates the two commands.
+        "printf x\\\\\n.venv/bin/pytest -q",
+        "make build\r\n  PYTHONHASHSEED=0 ./.venv/bin/pytest -q",
+    ] {
+        assert_eq!(
+            workspace_resident_bins(&workspace, Some(text)),
+            vec![bin.clone()],
+            "{text}"
+        );
+    }
+    // Without the file that makes it a venv, nothing below the workspace is
+    // read for an install.
+    fs::rename(&configuration, venv.join("pyvenv.cfg.moved")).unwrap();
+    assert!(workspace_resident_bins(&workspace, None).is_empty());
+}
+
+/// A workspace often holds its venv behind a symbolic link, `.venv -> envs/py311`
+/// being the ordinary spelling when a project keeps several interpreters. The
+/// command still names the link, so the link is the path the text has to be read
+/// against; the canonical directory is what admission and deduplication read.
+#[test]
+fn a_venv_the_workspace_links_to_is_named_by_the_link_the_command_writes() {
+    let fixture = fixture();
+    let workspace = fixture.0.join("workspace");
+    let real = workspace.join("envs").join("py311");
+    fs::create_dir_all(real.join("bin")).unwrap();
+    fs::write(real.join("pyvenv.cfg"), "home = /usr/bin\n").unwrap();
+    symlink(&real, workspace.join(".venv")).unwrap();
+    let bin = real.join("bin").canonicalize().unwrap();
+    // The link is what the command writes, and the canonical directory is what
+    // comes back, so admission reads the venv itself.
+    assert_eq!(
+        workspace_resident_bins(&workspace, Some(".venv/bin/pytest -q")),
+        vec![bin.clone()]
+    );
+    // The directory behind the link names it too.
+    assert_eq!(
+        workspace_resident_bins(&workspace, Some("envs/py311/bin/pytest -q")),
+        vec![bin]
+    );
+    // Naming neither still leaves the interpreter prefix out of the plan,
+    // and naming the link as an argument grants nothing through it either.
+    for text in ["make test", "echo .venv/bin/pytest"] {
+        assert!(
+            workspace_resident_bins(&workspace, Some(text)).is_empty(),
+            "{text}"
+        );
+    }
+}

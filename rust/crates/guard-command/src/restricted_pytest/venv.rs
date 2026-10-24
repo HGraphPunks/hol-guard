@@ -326,6 +326,162 @@ pub(super) fn workspace_base_roots(bin: &Path, workspace: &Path) -> Vec<PathBuf>
     roots
 }
 
+/// The `bin` directories of the venvs a workspace holds at its top level that
+/// `text` starts a program from. `None` asks for every one of them, which is
+/// what a reachability check needs.
+///
+/// A command can start `.venv/bin/pytest` by naming its path, and nothing
+/// puts the venv on the session's PATH when it does. Discovery that reads
+/// only the PATH misses that venv, so the install its launchers link out to
+/// is never an executable root, the sandbox cannot start the program the
+/// command names, and ordinary project work is reviewed instead of contained.
+/// Only a directory holding a `pyvenv.cfg` is considered; what it names still
+/// has to pass `workspace_base_roots`.
+///
+/// A run that names no venv is planned without one. The install a venv links
+/// out to is a whole interpreter prefix, and a command that never starts the
+/// venv has no reason to read or run it.
+pub(super) fn workspace_resident_bins(workspace: &Path, text: Option<&str>) -> Vec<PathBuf> {
+    let Ok(entries) = fs::read_dir(workspace) else {
+        return Vec::new();
+    };
+    let mut bins: Vec<PathBuf> = Vec::new();
+    for entry in entries.flatten().take(256) {
+        let root = entry.path();
+        if !root.join("pyvenv.cfg").is_file() {
+            continue;
+        }
+        // A command names the venv at the path the workspace holds it at,
+        // which is not the canonical one when the entry is a symbolic link
+        // to another directory. Both spellings are matched; the canonical
+        // path is what admission and the deduplication below read.
+        let named = root.join("bin");
+        let Ok(bin) = named.canonicalize() else {
+            continue;
+        };
+        // The limit counts the venvs the command starts a program from, so a
+        // named one is found wherever the directory order puts it.
+        if text.is_some_and(|text| {
+            !starts_program_from(text, workspace, &named)
+                && !starts_program_from(text, workspace, &bin)
+        }) {
+            continue;
+        }
+        if !bins.contains(&bin) {
+            bins.push(bin);
+        }
+        if bins.len() == 4 {
+            break;
+        }
+    }
+    bins
+}
+
+/// Whether `text` starts a program from `bin`, named by its own path or by
+/// the one the workspace holds it at.
+///
+/// The path has to stand where a program is read from. `.venv/bin/pytest -q`
+/// starts the venv's interpreter; `echo .venv/bin/pytest` writes the path and
+/// starts nothing out of the venv, so the prefix that venv links out to has no
+/// reason to be an executable root of that run.
+fn starts_program_from(text: &str, workspace: &Path, bin: &Path) -> bool {
+    let relative = bin.strip_prefix(workspace).unwrap_or(bin);
+    [bin, relative]
+        .iter()
+        .filter_map(|path| path.to_str())
+        .any(|path| {
+            text.match_indices(path).any(|(at, _)| {
+                names_program(&text[at + path.len()..]) && starts_a_command(&text[..at])
+            })
+        })
+}
+
+/// Whether a program of the `bin` directory follows it. A deeper path that
+/// only begins with the venv's is a different directory, not its program.
+fn names_program(rest: &str) -> bool {
+    rest.strip_prefix('/').is_some_and(|rest| {
+        let name = rest.split_whitespace().next().unwrap_or_default();
+        !name.is_empty() && !name.contains('/')
+    })
+}
+
+/// Whether what runs next after `before` is a program: `before` is the start
+/// of the command or of one of its lists, plus the assignments and the verbs
+/// a command stamps on the program it starts.
+fn starts_a_command(before: &str) -> bool {
+    /// Verbs that take a program as their own first word.
+    const PREFIX_VERBS: &[&str] = &[
+        "command", "do", "else", "env", "exec", "nohup", "then", "time",
+    ];
+    // A relative prefix written against the path is part of how the program is
+    // spelled, so it comes off before the words are read. Detached, it is a
+    // program of its own: in `./ .venv/bin/pytest` what runs is `./`, and the
+    // venv's program is only its argument.
+    let cut = before.len() - before.trim_end_matches(['.', '/']).len();
+    let before = if leads_a_path(&before[before.len() - cut..]) {
+        &before[..before.len() - cut]
+    } else {
+        before
+    };
+    // A line ending separates two commands as a semicolon does, so only the
+    // blanks are taken off the end; trimming every kind of whitespace would
+    // take the separator away with them.
+    let mut head = before.trim_end_matches([' ', '\t']);
+    loop {
+        head = head.trim_end_matches(['\'', '"']);
+        if head.is_empty() || head.ends_with([';', '&', '|', '(', '{']) || ends_a_line(head) {
+            return true;
+        }
+        let word = head.rsplit(char::is_whitespace).next().unwrap_or_default();
+        if word.is_empty() || !(stamps_a_variable(word) || PREFIX_VERBS.contains(&word)) {
+            return false;
+        }
+        head = head[..head.len() - word.len()].trim_end_matches([' ', '\t']);
+    }
+}
+
+/// Whether `head` ends at a line ending that separates two commands. A line
+/// ending a backslash escapes is a continuation instead: the shell joins the
+/// two lines, so what follows stays part of the command before it. A carriage
+/// return on its own ends no line, and the shell keeps it inside the word.
+fn ends_a_line(head: &str) -> bool {
+    let Some(body) = head.strip_suffix('\n') else {
+        return false;
+    };
+    let body = body.strip_suffix('\r').unwrap_or(body);
+    (body.len() - body.trim_end_matches('\\').len()) % 2 == 0
+}
+
+/// Whether `word` is the prefix a relative path is written from: `./`, `../`,
+/// `../../`. It names where the program is read from rather than something
+/// standing in front of it, so what runs next is still read from the text
+/// before it. Every segment has to be one of those, and the prefix has to end
+/// at a separator, so a directory whose own name begins with dots is not read
+/// as one.
+///
+/// It says nothing about where the path lands. `../` written from a directory
+/// of the workspace reaches the workspace's own venv, which is the spelling
+/// this reads; written from the workspace root it reaches a venv outside it,
+/// and that one is granted the same interpreter prefix the plain spelling
+/// grants it, so the weaker justification adds no reach. Separating the two
+/// needs the path resolved against the command's working directory, which
+/// this layer is not given.
+fn leads_a_path(word: &str) -> bool {
+    word.ends_with('/')
+        && word
+            .split_terminator('/')
+            .all(|segment| segment == "." || segment == "..")
+}
+
+/// Whether `word` is a `NAME=value` assignment the command stamps on the
+/// program it starts.
+fn stamps_a_variable(word: &str) -> bool {
+    word.split_once('=').is_some_and(|(name, _)| {
+        name.starts_with(|first: char| first.is_ascii_alphabetic() || first == '_')
+            && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+    })
+}
+
 #[cfg(test)]
 #[path = "venv_tests.rs"]
 mod tests;
