@@ -147,7 +147,7 @@ fn read_only_plumbing(arguments: &[String]) -> bool {
         "cat-file" => crate::pretool::git_object_reads::read_form(command, rest),
         // These listings only print, and their grammars already exclude the
         // forms that run a configured program; the read proof still decides.
-        "shortlog" | "check-ignore" | "sparse-checkout" => {
+        "shortlog" | "check-ignore" | "count-objects" | "check-attr" | "sparse-checkout" => {
             crate::pretool::git_listing_reads::read_form(command, rest)
         }
         "rev-list" => !rest.iter().any(|argument| {
@@ -193,7 +193,7 @@ pub(super) fn inspection_arguments<'a>(
             "status" | "diff" | "log" | "show" | "blame" | "describe" | "reflog" | "branch"
             | "hash-object" | "rev-parse" | "merge-base" | "ls-files" | "remote" | "worktree"
             | "config" | "grep" | "ls-tree" | "cat-file" | "show-ref" | "for-each-ref" | "rev-list"
-            | "shortlog" | "check-ignore",
+            | "shortlog" | "check-ignore" | "count-objects" | "check-attr",
         ) => true,
         // A tag listing, a clean preview and a patch check only print, but the
         // same three subcommands also write a tag, remove a file and patch the
