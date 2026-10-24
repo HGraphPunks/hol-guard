@@ -1030,6 +1030,11 @@
     height: calc(var(--spacing) * 1.5);
   }
 
+  .size-2 {
+    width: calc(var(--spacing) * 2);
+    height: calc(var(--spacing) * 2);
+  }
+
   .size-2\.5 {
     width: calc(var(--spacing) * 2.5);
     height: calc(var(--spacing) * 2.5);
@@ -1486,10 +1491,6 @@
 
   .w-28 {
     width: calc(var(--spacing) * 28);
-  }
-
-  .w-32 {
-    width: calc(var(--spacing) * 32);
   }
 
   .w-36 {
@@ -5161,6 +5162,10 @@
     color: var(--brand-attention);
   }
 
+  .text-brand-attention-text {
+    color: var(--brand-attention-text);
+  }
+
   .text-brand-blue, .text-brand-blue\/70 {
     color: var(--brand-blue);
   }
@@ -6559,16 +6564,6 @@
       background-color: var(--color-slate-50);
     }
 
-    .hover\:bg-slate-50\/40:hover {
-      background-color: #f8fafc66;
-    }
-
-    @supports (color: color-mix(in lab, red, red)) {
-      .hover\:bg-slate-50\/40:hover {
-        background-color: color-mix(in oklab, var(--color-slate-50) 40%, transparent);
-      }
-    }
-
     .hover\:bg-slate-50\/60:hover {
       background-color: #f8fafc99;
     }
@@ -7278,6 +7273,10 @@
       margin-top: calc(var(--spacing) * 2);
     }
 
+    .sm\:-ml-4 {
+      margin-left: calc(var(--spacing) * -4);
+    }
+
     .sm\:ml-auto {
       margin-left: auto;
     }
@@ -7322,12 +7321,16 @@
       min-height: 0;
     }
 
+    .sm\:min-h-8 {
+      min-height: calc(var(--spacing) * 8);
+    }
+
     .sm\:min-h-9 {
       min-height: calc(var(--spacing) * 9);
     }
 
-    .sm\:w-44 {
-      width: calc(var(--spacing) * 44);
+    .sm\:w-48 {
+      width: calc(var(--spacing) * 48);
     }
 
     .sm\:w-auto {
@@ -7370,12 +7373,8 @@
       min-width: 200px;
     }
 
-    .sm\:flex-1 {
-      flex: 1;
-    }
-
-    .sm\:flex-none {
-      flex: none;
+    .sm\:shrink-0 {
+      flex-shrink: 0;
     }
 
     .sm\:scroll-mt-4 {
@@ -7477,6 +7476,14 @@
       border-inline-end-width: calc(1px * calc(1 - var(--tw-divide-x-reverse)));
     }
 
+    :where(.sm\:divide-y-0 > :not(:last-child)) {
+      --tw-divide-y-reverse: 0;
+      border-bottom-style: var(--tw-border-style);
+      border-top-style: var(--tw-border-style);
+      border-top-width: calc(0px * var(--tw-divide-y-reverse));
+      border-bottom-width: calc(0px * calc(1 - var(--tw-divide-y-reverse)));
+    }
+
     :where(.sm\:divide-brand-dark\/12 > :not(:last-child)) {
       border-color: var(--brand-dark);
     }
@@ -7543,6 +7550,10 @@
 
     .sm\:px-7 {
       padding-inline: calc(var(--spacing) * 7);
+    }
+
+    .sm\:py-0 {
+      padding-block: 0;
     }
 
     .sm\:py-2 {
@@ -7727,6 +7738,10 @@
       display: table-cell;
     }
 
+    .md\:min-h-0 {
+      min-height: 0;
+    }
+
     .md\:max-w-sm {
       max-width: var(--container-sm);
     }
@@ -7773,6 +7788,14 @@
       grid-template-columns: minmax(0, 1fr) 200px;
     }
 
+    .md\:grid-cols-\[minmax\(0\,9rem\)_minmax\(0\,1fr\)_auto\] {
+      grid-template-columns: minmax(0, 9rem) minmax(0, 1fr) auto;
+    }
+
+    .md\:grid-cols-\[minmax\(0\,13rem\)_minmax\(0\,1fr\)\] {
+      grid-template-columns: minmax(0, 13rem) minmax(0, 1fr);
+    }
+
     .md\:items-center {
       align-items: center;
     }
@@ -7785,12 +7808,20 @@
       justify-content: center;
     }
 
+    .md\:justify-end {
+      justify-content: flex-end;
+    }
+
     .md\:gap-1 {
       gap: var(--spacing);
     }
 
     .md\:gap-x-2 {
       column-gap: calc(var(--spacing) * 2);
+    }
+
+    .md\:pl-0 {
+      padding-left: 0;
     }
   }
 
@@ -8295,8 +8326,14 @@
     height: calc(var(--spacing) * 11);
   }
 
-  .\[\&_button\]\:min-h-11 button {
-    min-height: calc(var(--spacing) * 11);
+  @media (min-width: 48rem) {
+    .md\:\[\&_button\]\:h-9 button {
+      height: calc(var(--spacing) * 9);
+    }
+
+    .md\:\[\&_button\]\:min-h-9 button {
+      min-height: calc(var(--spacing) * 9);
+    }
   }
 
   .\[\&\:\:-webkit-details-marker\]\:hidden::-webkit-details-marker {
@@ -8331,6 +8368,7 @@
   --brand-purple: #b56cff;
   --brand-attention: #7c8cfd;
   --brand-attention-bg: #eef0ff;
+  --brand-attention-text: #4f5bd5;
   --border: 230 20% 91%;
   --input: 230 20% 91%;
   --ring: 263 85% 64%;
