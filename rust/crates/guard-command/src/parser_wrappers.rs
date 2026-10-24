@@ -492,15 +492,20 @@ mod tests {
     }
 
     #[test]
-    fn posix_embedded_braces_are_arguments_but_brace_groups_are_unsupported() {
+    fn posix_embedded_braces_are_arguments_and_only_a_whole_brace_group_is_read() {
         let model = parse("aws s3api put-object-tagging --tagging TagSet=[{Key=env,Value=prod}]");
         assert_eq!(model.confidence, "exact");
         assert_eq!(
             model.segments[0].arguments.last().unwrap(),
             "TagSet=[{Key=env,Value=prod}]"
         );
+        // A command that is nothing but one brace group is the list inside it,
+        // so the list is what the command owns and what decides it.
+        let model = parse("{ rm -rf /tmp/x; }");
+        assert_eq!(model.confidence, "exact");
+        assert_eq!(model.segments.len(), 1);
+        assert_eq!(model.segments[0].executable.as_deref(), Some("rm"));
         for source in [
-            "{ rm -rf /tmp/x; }",
             "true;{ rm -rf /tmp/x;}",
             "true&&{ rm -rf /tmp/x;}",
             "printf x|{ rm -rf /tmp/x;}",

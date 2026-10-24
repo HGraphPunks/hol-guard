@@ -8,6 +8,15 @@ mod tokens;
 
 pub(crate) use tokens::{shell_tokens, shell_tokens_preserving_redirects};
 
+#[path = "parser_segment_shapes.rs"]
+mod shapes;
+
+use shapes::sole_command_group;
+pub(super) use shapes::{is_stderr_to_null_redirect, is_stderr_to_stdout_redirect};
+// Only the redirect tests in `command_compatibility` read the sink directly.
+#[cfg(test)]
+pub(super) use shapes::stderr_null_sink_is_inert;
+
 pub(super) fn split_execution_segments(
     command: &str,
     preserve_unquoted_backslash: bool,
@@ -31,6 +40,21 @@ fn split_execution_segments_inner(
     allow_background: bool,
 ) -> Result<Vec<RawSegment>, &'static str> {
     let chars: Vec<char> = command.chars().collect();
+    // A whole command the shell runs as one group: `(cd src && npm test)` and
+    // `{ cd src && npm test; }`. The group itself names no program, so the
+    // list inside it owns everything the command can run, and reading it as
+    // that list is what proves it. The offsets stay the caller's, so a segment
+    // still points at the text it came from.
+    if let Some(inside) = sole_command_group(&chars) {
+        let inner: String = chars[inside.clone()].iter().collect();
+        let mut segments =
+            split_execution_segments_inner(&inner, preserve_unquoted_backslash, allow_background)?;
+        for segment in &mut segments {
+            segment.start += inside.start;
+            segment.end += inside.start;
+        }
+        return Ok(segments);
+    }
     let mut quote = Quote::None;
     let mut escaped = false;
     let mut segments = Vec::new();
@@ -314,64 +338,6 @@ pub(super) fn trimmed_bounds(chars: &[char], start: usize, end: usize) -> Option
         right -= 1;
     }
     (left < right).then_some((left, right))
-}
-
-pub(super) fn is_stderr_to_stdout_redirect(
-    chars: &[char],
-    index: usize,
-    preserve_backslash: bool,
-) -> bool {
-    let start = match chars.get(index) {
-        Some('&') => index.checked_sub(2),
-        Some('>') => index.checked_sub(1),
-        _ => None,
-    };
-    let Some(start) = start else {
-        return false;
-    };
-    let Some(redirect) = chars.get(start..start.saturating_add(4)) else {
-        return false;
-    };
-    redirect == ['2', '>', '&', '1']
-        && starts_at_shell_token_boundary(chars, start, preserve_backslash)
-        && chars.get(start + 4).is_none_or(|value| {
-            is_shell_token_whitespace(*value) || matches!(*value, '|' | '&' | ';')
-        })
-}
-
-pub(super) fn is_stderr_to_null_redirect(
-    chars: &[char],
-    start: usize,
-    preserve_backslash: bool,
-) -> bool {
-    // Only a fixed stderr sink known to be inert is dropped; arbitrary paths
-    // and descriptors must still pass through the unsupported-redirection
-    // guard.
-    stderr_null_sink_is_inert()
-        && chars.get(start..start.saturating_add(11))
-            == Some(&['2', '>', '/', 'd', 'e', 'v', '/', 'n', 'u', 'l', 'l'])
-        && starts_at_shell_token_boundary(chars, start, preserve_backslash)
-        && chars.get(start + 11).is_none_or(|value| {
-            is_shell_token_whitespace(*value) || matches!(*value, '|' | '&' | ';')
-        })
-}
-
-/// `/dev/null` is the null device on Unix. On Windows, Git Bash (the shell
-/// harnesses run POSIX commands in) maps it to the null device too, while
-/// PowerShell and cmd open `\dev\null` on the shell's current drive. That
-/// open fails without writing anything while the drive has no `\dev`. The
-/// shell may have changed drive since Guard started, or earlier in the same
-/// command, so the sink is inert only while no drive letter has a `\dev`.
-pub(super) fn stderr_null_sink_is_inert() -> bool {
-    cfg!(unix)
-        || (cfg!(windows)
-            && (b'A'..=b'Z').all(|drive| {
-                std::fs::symlink_metadata(format!("{}:\\dev", drive as char)).is_err_and(|error| {
-                    // Not found, no such drive, or no media in the drive.
-                    error.kind() == std::io::ErrorKind::NotFound
-                        || matches!(error.raw_os_error(), Some(15 | 21))
-                })
-            }))
 }
 
 pub(super) fn starts_at_shell_token_boundary(
