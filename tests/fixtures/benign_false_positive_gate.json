@@ -15982,6 +15982,57 @@
       "expect": "allow"
     },
     {
+      "id": "gh-repo-delete-help",
+      "fix_area": "gh",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "gh repo delete hashgraph-online/hol-guard --help"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
+      "id": "gh-release-delete-help",
+      "fix_area": "gh",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "gh release delete v1.0.0 --help"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
+      "id": "gh-secret-set-help",
+      "fix_area": "gh",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "gh secret set EXAMPLE_TOKEN --help"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
       "id": "session-pg-isready-socket-dir",
       "fix_area": "shell",
       "harnesses": [
