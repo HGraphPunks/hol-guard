@@ -137,7 +137,7 @@ pub(super) fn unwrap_wrappers(
 /// `env_prefix` reads the controls that only decide which names the program
 /// starts with; each name it collects joins `environment_names` as a written
 /// one does, so `-u PATH` keeps the review a written `PATH=` keeps.
-fn transparent_prefix(tokens: &[String], index: usize) -> Option<(usize, Vec<String>)> {
+pub(crate) fn transparent_prefix(tokens: &[String], index: usize) -> Option<(usize, Vec<String>)> {
     let mut next = index + 1;
     let mut names = Vec::new();
     let mut is_env = false;
