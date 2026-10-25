@@ -14,6 +14,7 @@ import {
   type WorkspaceWorktree,
 } from "./workspace-findings-api";
 import { createLatestRefresh } from "./workspace-findings-refresh";
+import { FixCell, FixHistory, FixLoadError, FixReview, useWorktreeFixes, type WorktreeFixes } from "./workspace-fix-panel";
 
 const REFRESH_MS = 15_000;
 
@@ -273,17 +274,25 @@ export function WorktreeRow(props: {
           ))}
         </ul>
       )}
-      {assessment && (
-        <FindingsSections
-          findings={assessment.findings}
-          secretsChecked={!assessment.notRun.includes("secrets")}
-        />
-      )}
+      {assessment && <AssessmentFindings worktree={worktree} assessment={assessment} />}
     </li>
   );
 }
 
-function FindingsSections(props: { findings: WorkspaceFinding[]; secretsChecked: boolean }) {
+function AssessmentFindings(props: { worktree: WorkspaceWorktree; assessment: WorkspaceAssessment }) {
+  const { findings, runId, notRun } = props.assessment;
+  const fixes = useWorktreeFixes(props.worktree, runId);
+  return (
+    <div className="space-y-4">
+      <FixLoadError fixes={fixes} />
+      <FindingsSections findings={findings} secretsChecked={!notRun.includes("secrets")} fixes={fixes} />
+      <FixReview fixes={fixes} findings={findings} />
+      <FixHistory fixes={fixes} findings={findings} />
+    </div>
+  );
+}
+
+function FindingsSections(props: { findings: WorkspaceFinding[]; secretsChecked: boolean; fixes: WorktreeFixes }) {
   const dependencies = props.findings.filter((finding) => finding.kind === "supply_chain");
   const secrets = props.findings.filter((finding) => finding.kind === "secret");
   if (dependencies.length === 0 && secrets.length === 0) {
@@ -297,7 +306,7 @@ function FindingsSections(props: { findings: WorkspaceFinding[]; secretsChecked:
   }
   return (
     <div className="space-y-4">
-      {dependencies.length > 0 && <FindingsTable findings={dependencies} />}
+      {dependencies.length > 0 && <FindingsTable findings={dependencies} fixes={props.fixes} />}
       {secrets.length > 0 && <SecretFindingsTable findings={secrets} />}
     </div>
   );
@@ -343,7 +352,7 @@ function SecretFindingsTable({ findings }: { findings: WorkspaceFinding[] }) {
   );
 }
 
-function FindingsTable({ findings }: { findings: WorkspaceFinding[] }) {
+function FindingsTable({ findings, fixes }: { findings: WorkspaceFinding[]; fixes: WorktreeFixes }) {
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200">
       <table className="w-full text-left text-sm">
@@ -356,6 +365,7 @@ function FindingsTable({ findings }: { findings: WorkspaceFinding[] }) {
             <th scope="col" className="px-3 py-2">Decision</th>
             <th scope="col" className="px-3 py-2">Severity</th>
             <th scope="col" className="px-3 py-2">Advisories</th>
+            <th scope="col" className="px-3 py-2">Fix</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -378,6 +388,7 @@ function FindingsTable({ findings }: { findings: WorkspaceFinding[] }) {
                   <span className="text-slate-500">None listed</span>
                 )}
               </Cell>
+              <Cell label="Fix" wide><FixCell finding={finding} fixes={fixes} /></Cell>
             </tr>
           ))}
         </tbody>

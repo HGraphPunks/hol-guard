@@ -154,6 +154,7 @@ for (const copy of [
   "Not verified",
   "Assess now",
   "Pause",
+  "Prepare fix",
 ]) {
   assert.ok(markup.includes(copy), `row shows ${copy}`);
 }
