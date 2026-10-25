@@ -1,5 +1,5 @@
-import { r as reactExports, bt as fetchExtensionCatalog, bu as ExtensionControlApiError, bv as normalizeExtensionCatalogSummary, bw as normalizeExtensionPermission, bx as ExtensionControlProtocolError, by as normalizeExtensionCatalogItem, bz as guardApiCacheScope, bA as fetchExtensionCatalogV2Api, bB as localPermissionDraftState, bC as setLocalPermissionDraftState, bD as extensionPolicyAuthorityUnchanged, bE as newExtensionPolicyDraftIdentity, bF as extensionPolicyDraftIsDirty, bG as setLocalPermissionDraftStates, bH as buildExtensionPolicyDraftMutation, bI as fetchEffectiveExtensionControls, bJ as previewExtensionMutation, bK as isCurrentExtensionPolicyDraft, bL as applyExtensionMutation, bM as fetchExtensionControlHistory, j as jsxRuntimeExports, bN as managedPermissionState, Z as HiMiniSparkles, s as HiMiniCheckCircle, g as HiMiniNoSymbol, v as HiMiniLockClosed, a4 as HiMiniExclamationTriangle, bO as controlProvenance, bP as treatmentLabel, aR as isApprovalProofSubmitDisabled, _ as HiMiniXMark, aQ as ApprovalProofFieldInputs, bQ as useResolvedApprovalGate, bR as groupPermissionsByFamily, d as HiMiniArrowPath, R as HiMiniShieldCheck, bS as HiMiniInformationCircle, aS as buildApprovalProofCredentials, bT as LocalCliApiError, bU as approvalProofRecentlySatisfied, p as HiMiniMagnifyingGlass, bV as bulkCommandState, H as HiMiniChevronRight, bW as fetchLocalCliApi, bX as ExtensionBrandMark, c as HiMiniChevronDown, bY as fetchMcpProviderActions, bZ as previewLocalCliMutation, b_ as applyLocalCliMutation, b$ as LOCAL_CLI_CAPABILITIES, c0 as readJson, c1 as enrollablePackageScriptCommands, c2 as seenSuggestionMeta, c3 as HiMiniPlus, c4 as looksLikeProjectRelocatePaste, c5 as packageScriptFilterNeedle, e as HiMiniCheck, c6 as suggestedPackageScriptExtensions, c7 as filterExtensionSuggestions, c8 as suggestedHarnessExtensions, c9 as suggestedSeenExtensions, ca as keepsPackageScriptCatalog, cb as recognizeLocalCli, cc as preferredPackageScriptExtension, cd as looksLikePackageScriptPaste, ce as enrollmentCommandStates, cf as isBulkApproveGateReady, cg as HiMiniArrowLeft, ch as fetchLocalCliList, ci as normalizeLocalCliList, cj as unreviewedToolChangeCount, ck as refreshMcpInventory, cl as startGuardCloudConnect, cm as extensionEffectiveState, cn as permissionEffectiveState, co as HiMiniArrowTopRightOnSquare, a0 as HiMiniCloud, cp as fetchExtensionControlApi, cq as permissionForRule, cr as refreshEffectiveExtensionControls, aD as HiMiniClipboardDocumentCheck, aE as HiMiniClipboard, aG as ApprovalProofModal, cs as fetchExtensionDiscoveryApi, t as HiMiniArrowRight, ct as HiMiniClock, B as createCommandActivityClient, C as fetchCommandActivityApi, cu as startCancelableDiscoveryJob, cv as waitForMcpDiscoveryJob, cw as isLocalCliId, bc as guardAwareHref, cx as localCliHref, cy as filterCodexHostApps, cz as connectorWorkspaceItems, cA as customExtensionNeedsReview, aM as HiMiniAdjustmentsHorizontal, cB as extensionDisplayName, cC as catalogRowSecondLine, cD as extensionStateLabel, cE as HiMiniGlobeAlt, cF as HiMiniFunnel, cG as discoveryFailureMessage, ba as WorkspacePageHeader, cH as refreshCodexHostInventory, cI as CODEX_HOST_FALLBACK, cJ as CONFIGURED_CONNECTIONS_FALLBACK, cK as loadCurrentDashboardBuild, cL as canonicalExtensionId, cM as extensionDetailHref, cN as DEFAULT_EXTENSION_DETAIL_URL_STATE, cO as acknowledgeDegradedExtensionControlAuthority, cP as recoverExtensionControlAuthority, cQ as readExtensionDetailUrlState, cR as parseProtectionRoute, cS as addCustomExtensionHref } from "../guard-dashboard.js";
-import { u as useConfirmDialog } from "./confirm-dialog-DClNtuX1.js";
+import { r as reactExports, bt as fetchExtensionCatalog, bu as ExtensionControlApiError, bv as normalizeExtensionCatalogSummary, bw as normalizeExtensionPermission, bx as ExtensionControlProtocolError, by as normalizeExtensionCatalogItem, bz as guardApiCacheScope, bA as fetchExtensionCatalogV2Api, bB as localPermissionDraftState, bC as setLocalPermissionDraftState, bD as extensionPolicyAuthorityUnchanged, bE as newExtensionPolicyDraftIdentity, bF as extensionPolicyDraftIsDirty, bG as setLocalPermissionDraftStates, bH as buildExtensionPolicyDraftMutation, bI as fetchEffectiveExtensionControls, bJ as previewExtensionMutation, bK as isCurrentExtensionPolicyDraft, bL as applyExtensionMutation, bM as fetchExtensionControlHistory, j as jsxRuntimeExports, bN as managedPermissionState, Z as HiMiniSparkles, s as HiMiniCheckCircle, g as HiMiniNoSymbol, v as HiMiniLockClosed, a4 as HiMiniExclamationTriangle, bO as controlProvenance, bP as treatmentLabel, aR as isApprovalProofSubmitDisabled, _ as HiMiniXMark, aQ as ApprovalProofFieldInputs, bQ as useResolvedApprovalGate, bR as groupPermissionsByFamily, d as HiMiniArrowPath, R as HiMiniShieldCheck, bS as HiMiniInformationCircle, aS as buildApprovalProofCredentials, bT as LocalCliApiError, bU as approvalProofRecentlySatisfied, p as HiMiniMagnifyingGlass, bV as bulkCommandState, H as HiMiniChevronRight, bW as fetchLocalCliApi, bX as ExtensionBrandMark, c as HiMiniChevronDown, bY as fetchMcpProviderActions, bZ as previewLocalCliMutation, b_ as applyLocalCliMutation, b$ as LOCAL_CLI_CAPABILITIES, c0 as readJson, c1 as enrollablePackageScriptCommands, c2 as seenSuggestionMeta, c3 as HiMiniPlus, c4 as looksLikeProjectRelocatePaste, c5 as packageScriptFilterNeedle, e as HiMiniCheck, c6 as suggestedPackageScriptExtensions, c7 as filterExtensionSuggestions, c8 as suggestedHarnessExtensions, c9 as suggestedSeenExtensions, ca as keepsPackageScriptCatalog, cb as recognizeLocalCli, cc as preferredPackageScriptExtension, cd as looksLikePackageScriptPaste, ce as enrollmentCommandStates, cf as isBulkApproveGateReady, cg as HiMiniArrowLeft, ch as fetchLocalCliList, ci as normalizeLocalCliList, cj as unreviewedToolChangeCount, ck as refreshMcpInventory, cl as startGuardCloudConnect, cm as extensionEffectiveState, cn as permissionEffectiveState, co as HiMiniArrowTopRightOnSquare, a0 as HiMiniCloud, cp as fetchExtensionControlApi, cq as permissionForRule, cr as refreshEffectiveExtensionControls, aD as HiMiniClipboardDocumentCheck, aE as HiMiniClipboard, aG as ApprovalProofModal, cs as fetchExtensionDiscoveryApi, t as HiMiniArrowRight, ct as HiMiniClock, B as createCommandActivityClient, C as fetchCommandActivityApi, cu as startCancelableDiscoveryJob, cv as waitForMcpDiscoveryJob, cw as isLocalCliId, bc as guardAwareHref, cx as localCliHref, bi as isGuardDemoMode, cy as fetchPluginUpdatesApi, cz as filterCodexHostApps, cA as connectorWorkspaceItems, cB as customExtensionNeedsReview, aM as HiMiniAdjustmentsHorizontal, cC as extensionDisplayName, cD as catalogRowSecondLine, cE as extensionStateLabel, cF as HiMiniGlobeAlt, cG as HiMiniFunnel, cH as discoveryFailureMessage, ba as WorkspacePageHeader, cI as refreshCodexHostInventory, cJ as CODEX_HOST_FALLBACK, cK as CONFIGURED_CONNECTIONS_FALLBACK, cL as loadCurrentDashboardBuild, cM as canonicalExtensionId, cN as extensionDetailHref, cO as DEFAULT_EXTENSION_DETAIL_URL_STATE, cP as acknowledgeDegradedExtensionControlAuthority, cQ as recoverExtensionControlAuthority, cR as readExtensionDetailUrlState, cS as parseProtectionRoute, cT as addCustomExtensionHref } from "../guard-dashboard.js";
+import { u as useConfirmDialog } from "./confirm-dialog-C2SCoXLE.js";
 const PROFILE_SETUP_COMMANDS = { wrangler: "npx wrangler" };
 const PROFILE_COMMAND_PARAM = "command";
 function profileSetupCommand(item) {
@@ -127,7 +127,7 @@ const CATALOG_PREPARATION_FAILED = "catalog_read_preparation_failed";
 class CatalogV2UnsupportedError extends ExtensionControlApiError {
 }
 const readCache = /* @__PURE__ */ new Map();
-function isRecord(value) {
+function isRecord$1(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function protocolError(message, code) {
@@ -140,23 +140,23 @@ async function readOnce(path, ifNoneMatch, signal) {
   if (response.status === 304) return { status: 304, etag };
   const declared = Number(response.headers.get("Content-Length") ?? "0");
   if (declared > MAX_CATALOG_V2_PAGE_BYTES) throw protocolError("Guard returned an oversized catalog page");
-  const text = await response.text();
-  const size = new TextEncoder().encode(text).byteLength;
+  const text2 = await response.text();
+  const size = new TextEncoder().encode(text2).byteLength;
   if (size > MAX_CATALOG_V2_PAGE_BYTES) throw protocolError("Guard returned an oversized catalog page");
   let payload;
   try {
-    payload = JSON.parse(text);
+    payload = JSON.parse(text2);
   } catch {
     payload = void 0;
   }
   if (!response.ok) {
-    const code = isRecord(payload) && typeof payload.error === "string" ? payload.error : void 0;
+    const code = isRecord$1(payload) && typeof payload.error === "string" ? payload.error : void 0;
     if (UNSUPPORTED.has(`${response.status}:${code ?? ""}`)) {
       throw new CatalogV2UnsupportedError("Guard does not serve the v2 catalog", response.status, code);
     }
     throw new ExtensionControlApiError(code ?? `Request failed (${response.status})`, response.status, code);
   }
-  if (!isRecord(payload)) throw protocolError(`Guard returned invalid JSON (${response.status})`);
+  if (!isRecord$1(payload)) throw protocolError(`Guard returned invalid JSON (${response.status})`);
   return { status: 200, etag, payload, size };
 }
 function waitBeforeRetry(delayMs, signal) {
@@ -212,7 +212,7 @@ async function readSized(route, query, signal) {
 }
 function pageFields(page) {
   const { snapshot_id, native_catalog_digest, total_count, items, next_cursor } = page;
-  if (typeof snapshot_id !== "string" || typeof native_catalog_digest !== "string" || !Number.isSafeInteger(total_count) || !Array.isArray(items) || !items.every(isRecord) || !(next_cursor === null || next_cursor === void 0 || typeof next_cursor === "string")) {
+  if (typeof snapshot_id !== "string" || typeof native_catalog_digest !== "string" || !Number.isSafeInteger(total_count) || !Array.isArray(items) || !items.every(isRecord$1) || !(next_cursor === null || next_cursor === void 0 || typeof next_cursor === "string")) {
     throw protocolError("Guard returned an invalid catalog page");
   }
   return { snapshot_id, digest: native_catalog_digest, total: total_count, items, next: next_cursor ?? null };
@@ -274,7 +274,7 @@ function requireSnapshot(observed, expected) {
 async function v2Detail(extensionId, snapshotId) {
   const detail = (await readSized(extensionRoute(extensionId), "")).payload;
   const { extension, collections } = detail;
-  if (typeof detail.snapshot_id !== "string" || !isRecord(extension) || !isRecord(collections) || !isRecord(extension.catalog_defaults)) {
+  if (typeof detail.snapshot_id !== "string" || !isRecord$1(extension) || !isRecord$1(collections) || !isRecord$1(extension.catalog_defaults)) {
     throw protocolError("Guard returned an invalid catalog detail");
   }
   requireSnapshot(detail.snapshot_id, snapshotId);
@@ -339,7 +339,7 @@ function catalogReadModelFromCatalog(catalog, degraded) {
     const terms = searchTerms(query);
     if (!terms.length) return [];
     return catalog.extensions.flatMap((extension) => extension.permissions.filter((permission) => {
-      const text = [
+      const text2 = [
         permission.label,
         permission.example_command ?? "",
         permission.permission_id,
@@ -349,7 +349,7 @@ function catalogReadModelFromCatalog(catalog, degraded) {
         extension.extension_id,
         ...extension.executables
       ].join(" ").toLowerCase();
-      return terms.every((term) => text.includes(term));
+      return terms.every((term) => text2.includes(term));
     }).map((permission) => ({ extension, permission })));
   };
   return {
@@ -3955,13 +3955,13 @@ function McpRegistrySearch({ items, approvalGate, onOpenChange, onConfigured }) 
   const setupStatus = reactExports.useMemo(() => {
     if (!configured) return null;
     const change = configured.removed ? "removed from" : "added to";
-    let text = `${configured.name} was ${change} Codex. Restart Codex to load this configuration change.`;
+    let text2 = `${configured.name} was ${change} Codex. Restart Codex to load this configuration change.`;
     if (!configured.removed) {
-      text += " Complete any provider-owned sign-in there.";
-      if (configured.kind === "package") text += " Codex may download and run the pinned package on first use.";
-      text += " Review each tool in Extensions after Codex loads it.";
+      text2 += " Complete any provider-owned sign-in there.";
+      if (configured.kind === "package") text2 += " Codex may download and run the pinned package on first use.";
+      text2 += " Review each tool in Extensions after Codex loads it.";
     }
-    return `${text} No tool permission was granted.`;
+    return `${text2} No tool permission was granted.`;
   }, [configured]);
   const setupReviewText = reactExports.useMemo(() => {
     if (!candidate || candidate.rollback_handle) return null;
@@ -7634,6 +7634,209 @@ function SkillPreflightPreview({ plan }) {
     /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-2", children: "This is a preview of current evidence. Preparing grants nothing; every runtime call still checks its permissions." })
   ] });
 }
+const FALLBACK_FAILURE = "Guard could not check for plugin updates. Try again in a minute.";
+const MAX_UPDATES = 200;
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function text(value) {
+  return typeof value === "string" && value.length > 0 && value.length <= 512 ? value : null;
+}
+function safeReleasesUrl(value) {
+  const raw = text(value);
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    return url.protocol === "https:" && url.hostname === "hol.org" && !url.username && !url.password ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+function parsePluginUpdate(value) {
+  if (!isRecord(value)) return null;
+  const slug = text(value.slug);
+  const runtime = text(value.runtime);
+  const installedVersion = text(value.installedVersion);
+  const latestVersion = text(value.latestVersion);
+  if (!slug || !runtime || !installedVersion || !latestVersion) return null;
+  const reason = value.reason === "security_fix" || value.reason === "installed_high_severity" ? value.reason : null;
+  return {
+    slug,
+    runtime,
+    installedVersion,
+    latestVersion,
+    urgent: value.urgent === true || reason !== null,
+    reason,
+    releasesUrl: safeReleasesUrl(value.releasesUrl)
+  };
+}
+async function failureMessage(response) {
+  try {
+    const payload = await response.json();
+    if (isRecord(payload) && typeof payload.message === "string" && payload.message.length <= 300) {
+      return payload.message;
+    }
+  } catch {
+  }
+  return FALLBACK_FAILURE;
+}
+async function checkPluginUpdates(signal) {
+  if (isGuardDemoMode()) return { status: "ok", updates: [], dismissed: 0 };
+  let response;
+  try {
+    response = await fetchPluginUpdatesApi("/v1/plugins/updates", { cache: "no-store", signal });
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    return { status: "failed", message: FALLBACK_FAILURE };
+  }
+  if (!response.ok) return { status: "failed", message: await failureMessage(response) };
+  const payload = await response.json().catch(() => null);
+  if (!isRecord(payload) || !Array.isArray(payload.updates)) {
+    return { status: "failed", message: FALLBACK_FAILURE };
+  }
+  const updates = payload.updates.slice(0, MAX_UPDATES).map(parsePluginUpdate).filter((update) => update !== null).sort((left, right) => Number(right.urgent) - Number(left.urgent) || left.slug.localeCompare(right.slug));
+  const dismissed = typeof payload.dismissed === "number" && Number.isInteger(payload.dismissed) && payload.dismissed >= 0 ? payload.dismissed : 0;
+  return { status: "ok", updates, dismissed };
+}
+async function dismissPluginUpdate(update) {
+  if (isGuardDemoMode()) return;
+  const response = await fetchPluginUpdatesApi("/v1/plugins/updates/dismiss", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ slug: update.slug, version: update.latestVersion })
+  });
+  if (!response.ok) throw new Error(await failureMessage(response));
+}
+const RUNTIME_LABELS = {
+  "claude-code": "Claude Code",
+  codex: "Codex",
+  cursor: "Cursor",
+  gemini: "Gemini CLI",
+  "gemini-cli": "Gemini CLI",
+  opencode: "OpenCode",
+  vscode: "VS Code"
+};
+function runtimeLabel(runtime) {
+  return RUNTIME_LABELS[runtime] ?? runtime;
+}
+function urgentReasonCopy(update) {
+  if (update.reason === "security_fix") return "Urgent: a newer release fixes a high or critical finding.";
+  if (update.reason === "installed_high_severity") return "Urgent: the installed release had a high or critical finding.";
+  return update.urgent ? "Urgent update." : null;
+}
+function updateKey(update) {
+  return `${update.slug}\0${update.runtime}`;
+}
+function dismissalKey(update) {
+  return `${update.slug}\0${update.latestVersion}`;
+}
+function withoutDismissed(result, dismissed) {
+  if (result.status !== "ok" || dismissed.size === 0) return result;
+  const updates = result.updates.filter((update) => !dismissed.has(dismissalKey(update)));
+  return { status: "ok", updates, dismissed: result.dismissed + result.updates.length - updates.length };
+}
+function PluginUpdatesSection() {
+  const [result, setResult] = reactExports.useState(null);
+  const [checking, setChecking] = reactExports.useState(false);
+  const [dismissing, setDismissing] = reactExports.useState(null);
+  const [dismissError, setDismissError] = reactExports.useState(null);
+  const controller = reactExports.useRef(null);
+  const dismissedDuringCheck = reactExports.useRef(/* @__PURE__ */ new Set());
+  reactExports.useEffect(() => () => controller.current?.abort(), []);
+  const check = async () => {
+    controller.current?.abort();
+    const next = new AbortController();
+    controller.current = next;
+    dismissedDuringCheck.current = /* @__PURE__ */ new Set();
+    setChecking(true);
+    setDismissError(null);
+    try {
+      const answer = await checkPluginUpdates(next.signal);
+      if (!next.signal.aborted) setResult(withoutDismissed(answer, dismissedDuringCheck.current));
+    } catch {
+    } finally {
+      if (controller.current === next) {
+        controller.current = null;
+        setChecking(false);
+      }
+    }
+  };
+  const dismiss = async (update) => {
+    const key = updateKey(update);
+    setDismissing(key);
+    setDismissError(null);
+    try {
+      await dismissPluginUpdate(update);
+      dismissedDuringCheck.current.add(dismissalKey(update));
+      setResult((current) => current ? withoutDismissed(current, /* @__PURE__ */ new Set([dismissalKey(update)])) : current);
+    } catch (caught) {
+      setDismissError(caught instanceof Error ? caught.message : "Guard could not dismiss this update.");
+    } finally {
+      setDismissing(null);
+    }
+  };
+  const updates = result?.status === "ok" ? result.updates : [];
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "mt-8 border-b border-slate-200 pb-5", "aria-labelledby": "plugin-updates-heading", "data-testid": "plugin-updates", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { id: "plugin-updates-heading", className: "text-base font-semibold text-brand-dark", children: "Plugin updates" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-1 max-w-2xl text-sm leading-6 text-brand-dark/75", children: "Compare the plugins installed here with the releases their authors scanned and checked on HOL. Guard downloads the public release index and compares versions on this device; nothing about your plugins is sent." }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "button",
+      {
+        type: "button",
+        onClick: () => void check(),
+        disabled: checking,
+        "aria-busy": checking,
+        className: "mt-3 min-h-11 rounded-xl border border-slate-300 px-4 text-sm font-semibold text-brand-dark disabled:opacity-50",
+        children: checking ? "Checking plugin updates…" : result ? "Check again" : "Check for plugin updates"
+      }
+    ),
+    result?.status === "failed" ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { role: "alert", className: "mt-3 text-sm leading-6 text-red-700", children: result.message }) : null,
+    dismissError ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { role: "alert", className: "mt-3 text-sm leading-6 text-red-700", children: dismissError }) : null,
+    result?.status === "ok" ? /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { role: "status", className: "mt-3 text-sm leading-6 text-brand-dark/75", children: [
+      updates.length === 0 ? "No newer checked releases for the plugins installed here." : `${updates.length} ${updates.length === 1 ? "update" : "updates"} available.`,
+      result.dismissed > 0 ? ` ${result.dismissed} dismissed until a newer release is checked.` : ""
+    ] }) : null,
+    updates.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: "mt-3 divide-y divide-slate-200", children: updates.map((update) => {
+      const urgent = urgentReasonCopy(update);
+      const key = updateKey(update);
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("li", { className: "flex flex-wrap items-start justify-between gap-3 py-4", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "min-w-0", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "break-all text-sm font-semibold text-brand-dark", children: update.slug }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "mt-1 text-sm leading-6 text-brand-dark/75", children: [
+            runtimeLabel(update.runtime),
+            " · ",
+            update.installedVersion,
+            " → ",
+            update.latestVersion
+          ] }),
+          urgent ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-1 text-sm font-semibold leading-6 text-red-700", "data-testid": "plugin-update-urgent", children: urgent }) : null
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap gap-2", children: [
+          update.releasesUrl ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "a",
+            {
+              href: update.releasesUrl,
+              target: "_blank",
+              rel: "noopener noreferrer",
+              className: "inline-flex min-h-11 items-center rounded-xl border border-brand-blue/30 px-4 text-sm font-semibold text-brand-blue no-underline",
+              children: "View release"
+            }
+          ) : null,
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "button",
+            {
+              type: "button",
+              onClick: () => void dismiss(update),
+              disabled: dismissing !== null,
+              className: "min-h-11 rounded-xl border border-slate-300 px-4 text-sm font-semibold text-brand-dark disabled:opacity-50",
+              children: dismissing === key ? "Dismissing…" : `Dismiss ${update.latestVersion}`
+            }
+          )
+        ] })
+      ] }, key);
+    }) }) : null
+  ] });
+}
 const PAGE_SIZE = 25;
 function HostAppTools({ app }) {
   const [shown, setShown] = reactExports.useState(PAGE_SIZE);
@@ -8046,16 +8249,16 @@ function searchableExtensionText(extension) {
   ].join(" ").toLowerCase();
 }
 function protectionCategoryIdForExtension(extension) {
-  const text = searchableExtensionText(extension);
-  if (/\bgit\b|github|source.?control|repository|branch|commit/.test(text)) return "source-control";
-  if (/package|dependency|npm|pnpm|yarn|pip|poetry|cargo|composer|gem|supply.?chain/.test(text)) return "packages";
-  if (/secret|credential|\.env|filesystem|sensitive.?file|keychain/.test(text)) return "files-secrets";
-  if (/aws|azure|gcp|cloud|terraform|kubectl|kubernetes|infrastructure|platform/.test(text)) return "cloud-infrastructure";
-  if (/network|egress|download|curl|wget|ssh|remote|http|ftp/.test(text)) return "network-downloads";
-  if (/database|sql|postgres|mysql|sqlite|redis|mongo|storage|backup|data/.test(text)) return "data-databases";
-  if (/deploy|release|ci.?cd|pipeline|workflow|build|artifact/.test(text)) return "deployments-ci";
-  if (/slack|discord|message|collaboration|search|email/.test(text)) return "messaging-collaboration";
-  if (/agent|\bmcp\b|assistant|model|prompt|ai.?tool/.test(text)) return "ai-workflows";
+  const text2 = searchableExtensionText(extension);
+  if (/\bgit\b|github|source.?control|repository|branch|commit/.test(text2)) return "source-control";
+  if (/package|dependency|npm|pnpm|yarn|pip|poetry|cargo|composer|gem|supply.?chain/.test(text2)) return "packages";
+  if (/secret|credential|\.env|filesystem|sensitive.?file|keychain/.test(text2)) return "files-secrets";
+  if (/aws|azure|gcp|cloud|terraform|kubectl|kubernetes|infrastructure|platform/.test(text2)) return "cloud-infrastructure";
+  if (/network|egress|download|curl|wget|ssh|remote|http|ftp/.test(text2)) return "network-downloads";
+  if (/database|sql|postgres|mysql|sqlite|redis|mongo|storage|backup|data/.test(text2)) return "data-databases";
+  if (/deploy|release|ci.?cd|pipeline|workflow|build|artifact/.test(text2)) return "deployments-ci";
+  if (/slack|discord|message|collaboration|search|email/.test(text2)) return "messaging-collaboration";
+  if (/agent|\bmcp\b|assistant|model|prompt|ai.?tool/.test(text2)) return "ai-workflows";
   return "system-shell";
 }
 const EMPTY_CATALOG_FILTERS = {
@@ -8420,40 +8623,40 @@ function patternSearchBands(extension, permission) {
 const WORD_CHAR = /[\p{L}\p{N}]/u;
 const LOWER = new RegExp("\\p{Ll}", "u");
 const UPPER = new RegExp("\\p{Lu}", "u");
-function startsWord(text, index) {
+function startsWord(text2, index) {
   if (index === 0) return true;
-  const previous = text[index - 1];
-  return !WORD_CHAR.test(previous) || LOWER.test(previous) && UPPER.test(text[index]);
+  const previous = text2[index - 1];
+  return !WORD_CHAR.test(previous) || LOWER.test(previous) && UPPER.test(text2[index]);
 }
-function endsWord(text, end) {
-  return end >= text.length || !WORD_CHAR.test(text[end]);
+function endsWord(text2, end) {
+  return end >= text2.length || !WORD_CHAR.test(text2[end]);
 }
-function wordMatch(text, term) {
-  const { folded, origin } = foldCase(text);
+function wordMatch(text2, term) {
+  const { folded, origin } = foldCase(text2);
   const anchored = WORD_CHAR.test(term[0] ?? "");
   const closes = WORD_CHAR.test(term[term.length - 1] ?? "");
   let found = null;
   for (let index = folded.indexOf(term); index !== -1; index = folded.indexOf(term, index + 1)) {
-    if (anchored && (splitsCharacter(origin, index) || !startsWord(text, origin?.[index] ?? index))) continue;
+    if (anchored && (splitsCharacter(origin, index) || !startsWord(text2, origin?.[index] ?? index))) continue;
     const end = index + term.length;
-    if (!closes || !splitsCharacter(origin, end) && endsWord(text, origin?.[end] ?? end)) return "exact";
+    if (!closes || !splitsCharacter(origin, end) && endsWord(text2, origin?.[end] ?? end)) return "exact";
     found = "prefix";
   }
   return found;
 }
-function foldCase(text) {
-  const lower = text.toLowerCase();
-  if (lower.length === text.length) return { folded: lower, origin: null };
+function foldCase(text2) {
+  const lower = text2.toLowerCase();
+  if (lower.length === text2.length) return { folded: lower, origin: null };
   let folded = "";
   const origin = [];
-  for (let index = 0; index < text.length; ) {
-    const character = String.fromCodePoint(text.codePointAt(index));
+  for (let index = 0; index < text2.length; ) {
+    const character = String.fromCodePoint(text2.codePointAt(index));
     const lowered = character.toLowerCase();
     folded += lowered;
     for (let unit = 0; unit < lowered.length; unit += 1) origin.push(index);
     index += character.length;
   }
-  origin.push(text.length);
+  origin.push(text2.length);
   return { folded, origin };
 }
 function splitsCharacter(origin, index) {
@@ -8611,8 +8814,8 @@ function PatternSearchConsole(props) {
     const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     if (!terms.length) return [];
     return props.catalog.filter((extension) => {
-      const text = [extension.name, extension.extension_id, ...extension.executables, ...extension.aliases].join(" ");
-      return terms.every((term) => wordMatch(text, term) !== null);
+      const text2 = [extension.name, extension.extension_id, ...extension.executables, ...extension.aliases].join(" ");
+      return terms.every((term) => wordMatch(text2, term) !== null);
     });
   }, [props.catalog, query]);
   const grouped = reactExports.useMemo(() => {
@@ -9333,7 +9536,8 @@ function ExtensionsOverview(props) {
           }) }) : /* @__PURE__ */ jsxRuntimeExports.jsx(CatalogFilterEmpty, { onClear: handleClearFilters })
         ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(CodexHostConnectors, { inventory: props.hostInventory }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(LocalSkillsWorkspace, {})
+        /* @__PURE__ */ jsxRuntimeExports.jsx(LocalSkillsWorkspace, {}),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(PluginUpdatesSection, {})
       ] })
     ] })
   ] });
