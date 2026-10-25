@@ -12,7 +12,9 @@ use guard_contracts::{GuardExecutionEnvironmentV1, PreToolActionTypeV1, PreToolR
 use std::path::Path;
 
 #[cfg(unix)]
-use crate::restricted_pytest::{linux_workspace_sandbox_available, workspace_admissible};
+use crate::restricted_pytest::linux_workspace_sandbox_available;
+#[cfg(unix)]
+use crate::workspace_roots::workspace_admissible;
 
 /// The workspace sandbox runs on macOS and Linux; Windows never admits a workspace.
 #[cfg(not(unix))]
@@ -374,7 +376,7 @@ fn extensions_contain(
         && extensions.permission_observations.iter().all(|observation| {
             (package || super::restricted_test_commands::bun_inline_eval(model))
                 && observation.mcp_tool.is_none()
-                && package::PACKAGE_EXTENSIONS.contains(&observation.extension_id.as_str())
+                && crate::package_extension_ids::PACKAGE_EXTENSIONS.contains(&observation.extension_id.as_str())
                 && observation.uncertainty_reasons.is_empty()
         })
         && extensions.observations.iter().all(|observation| {

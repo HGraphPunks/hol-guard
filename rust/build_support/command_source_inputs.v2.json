@@ -138,6 +138,7 @@
       "src/extension_control.rs",
       "src/extension_control/prepared.rs",
       "src/false_positive_rules.rs",
+      "src/forwarded_settings.rs",
       "src/github_additional_commands.rs",
       "src/github_capability_contract.rs",
       "src/github_capability_interaction.rs",
@@ -231,6 +232,7 @@
       "src/ordered_json.rs",
       "src/package_approval.rs",
       "src/package_execution_context.rs",
+      "src/package_extension_ids.rs",
       "src/package_intent_common.rs",
       "src/package_intent_parser.rs",
       "src/package_intent_parser/execution_context.rs",
@@ -288,6 +290,7 @@
       "src/pretool/clone_siblings.rs",
       "src/pretool/command_sequences.rs",
       "src/pretool/compound_reason.rs",
+      "src/pretool/contained_exact_shape.rs",
       "src/pretool/contained_output_filters.rs",
       "src/pretool/contained_publish.rs",
       "src/pretool/contained_wrapper.rs",
@@ -753,7 +756,8 @@
       "src/supply_chain_support.rs",
       "src/target_identities.rs",
       "src/typescript_launch_evidence.rs",
-      "src/workspace_inventory.rs"
+      "src/workspace_inventory.rs",
+      "src/workspace_roots.rs"
     ]
   }
 }
