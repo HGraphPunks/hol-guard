@@ -1,4 +1,4 @@
-import { cY as fetchGuardApi, r as reactExports, j as jsxRuntimeExports, A as ActionButton, N as EmptyState, eh as HiMiniFolderOpen, T as Tag, f as formatRelativeTime, d as HiMiniArrowPath, a4 as HiMiniExclamationTriangle } from "../guard-dashboard.js";
+import { cY as fetchGuardApi, r as reactExports, j as jsxRuntimeExports, A as ActionButton, N as EmptyState, ei as HiMiniFolderOpen, T as Tag, f as formatRelativeTime, d as HiMiniArrowPath, a4 as HiMiniExclamationTriangle } from "../guard-dashboard.js";
 const ASSESSMENTS_PATH = "/v1/supply-chain/workspace-assessments";
 const FINDINGS_PATH = "/v1/supply-chain/workspace-findings";
 const RUN_STATES = /* @__PURE__ */ new Set(["queued", "running", "completed", "partial", "superseded", "failed", "canceled"]);
@@ -167,7 +167,9 @@ const ERROR_MESSAGES = {
   workspace_root_not_absolute: "Guard needs the full path to the folder.",
   workspace_root_missing: "That folder no longer exists. Choose it again.",
   workspace_root_not_directory: "That path is a file. Choose its folder instead.",
-  invalid_worktree: "This workspace is no longer tracked. Refresh the list."
+  invalid_worktree: "This workspace is no longer tracked. Refresh the list.",
+  workspace_snapshot_failed: "Guard could not read that folder. Check that it is a readable repository, then retry.",
+  workspace_snapshot_native_unavailable: "The Guard runtime that reads workspace files is unavailable. Restart Guard, then retry."
 };
 function workspaceErrorMessage(code) {
   return (code && ERROR_MESSAGES[code]) ?? "Guard could not update workspace assessments. Check that Guard is running, then retry.";
