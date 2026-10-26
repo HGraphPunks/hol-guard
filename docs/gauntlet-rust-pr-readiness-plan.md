@@ -53,9 +53,9 @@ intact until its reviewed bytes have a separate retained checkpoint.
 | --- | --- | --- | --- |
 | R0 Integration and tools | Recover pinned Rust 1.88 and Python test tooling; retain WIP; merge current upstream; fix integration conflicts; run the five migration jobs and relevant product CI on the actual child head | Phase 0 integration and final-head CI | In progress |
 | R1 Complete behavioral inventory | Map all three CLIs, command/profile/exit contracts, schema versions, assets, journals and state transitions to owners and tests; reconcile Python/Rust refusal classes, races and old evidence readers | Phases 0 and 1 | Partial |
-| R2 Native product apparatus | Complete the Root Rust rootfs/namespace/mount constructor and supervisor around the existing unprivileged Rust actor/gate; preserve idmaps, proc masks, AppArmor, seccomp, networking and resource limits; prove actual success, timeout, cancellation and descendant cleanup | Phase 2 worker and isolation | Rust constructor, collector and supervisor VM success/timeout/cancel pass; worker composition and Python image lease remain open |
+| R2 Native product apparatus | Complete the Root Rust rootfs/namespace/mount constructor and supervisor around the existing unprivileged Rust actor/gate; preserve idmaps, proc masks, AppArmor, seccomp, networking and resource limits; prove actual success, timeout, cancellation and descendant cleanup | Phase 2 worker and isolation | Rust constructor/collector/supervisor and image/staging VM cases pass; worker composition remains open |
 | R3 Deterministic authority | Capture authenticated Native requests/decisions and physical effects independently; bind exact request, product identity, file generation and cleanup; recompute each role's verdict; run six fresh staging plus six installed roles and construct fresh conformance | Phase 1 outcome verification and Phase 2 conformance | Diagnostics remain ineligible |
-| R4 Build and deployment | Rust-owned source/archive custody, bounded unprivileged build, inert wheel/prefix staging, source-matched immutable deployments and feature-audit invocation; preserve failed/uncertain receipts | Phase 2 provenance, staging and failure matrix | Subproofs exist; complete path open |
+| R4 Build and deployment | Rust-owned source/archive custody, bounded unprivileged build, inert wheel/prefix staging, source-matched immutable deployments and feature-audit invocation; preserve failed/uncertain receipts | Phase 2 provenance, staging and failure matrix | Native image lease/cell staging proven; complete current-source build/deployment path open |
 | R5 Operational lifecycle | Connect the passive Rust observer to the qualified worker, exact-tag queue and bounded progress transport; implement reconciliation/repair, history import, stale data and unknown-job blocking; prove interruption, restart and single ownership | Phase 3 | Passive native observer exists on preparation |
 | R6 Workflow execution | Rust campaign freeze, exclusive journals, serial shards/attempts, authenticated OMP bridge, service/oracle ownership and complete reserve/settle/halt accounting; then fresh two-cell and twelve-cell real-inference profiles and contracted wider schedules | Phase 4 | Pure readers/reducers and bridge components exist |
 | R7 Legacy and compatibility | Preserve the pinned legacy catalog and actual harness behavior, installed/repeat/aged-home acceptance, old/new bundle verification and trusted-base publication separation; test stale heads and forged producer claims | Phase 5 and remaining Phase 1 readers | Open |
@@ -160,6 +160,13 @@ approval ceremony for routine work already authorized by this request.
   cleanup intervention. Sixteen native/12 macOS tests, the default-feature
   workspace and warnings-denied Clippy passed. Retained evidence includes the
   first two failed attempts; see [supervisor proof](gauntlet-rust-supervisor-vm-proof-20261026.md).
+- 2026-10-26: native preparation source `69039ec6` passed six VM cases:
+  success/timeout/cancel, wrong pin, replay and refusal to borrow an existing
+  image. Rust now owns the image lease and cell staging. Twenty ARM64 tests
+  and the 398-test all-feature macOS workspace pass. See the
+  [preparation proof](gauntlet-rust-preparation-vm-proof-20261026.md). The
+  existing VM is below the fixed 12-GiB candidate-build starting floor;
+  retained history remains untouched.
 - Next: integrate the Rust supervisor and image lifecycle with the worker,
   then complete source-matched deterministic
   authority. No new

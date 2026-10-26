@@ -39,8 +39,9 @@ timeout, cancellation and replay cases delegate all image/cell operations to
 Rust. Wrong-pin and borrowed-image cases exercise refusal; only the latter's
 deliberately outside-owned negative fixture is unmounted by that adapter.
 
-The implementation passes parser tests and ARM64 build/Clippy checks. Fresh
-native tests and these live cases remain required before a proof exit is
-recorded. This is not reviewed production provenance, source-matched Guard
+The implementation passed all six fresh VM cases, 20 native ARM64 tests and
+the complete all-feature macOS workspace; see the
+[source-pinned VM proof](gauntlet-rust-preparation-vm-proof-20261026.md).
+This is not reviewed production provenance, source-matched Guard
 conformance or qualification. It requests no inference and cannot issue an
 eligible verdict.
