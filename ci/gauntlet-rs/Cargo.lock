@@ -331,6 +331,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "gauntlet-cell-rootfs"
+version = "0.1.0"
+dependencies = [
+ "gauntlet-contracts",
+ "gauntlet-evidence",
+ "gauntlet-product-cell",
+ "libc",
+ "rustix",
+ "serde_json",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
 name = "gauntlet-contracts"
 version = "0.1.0"
 dependencies = [

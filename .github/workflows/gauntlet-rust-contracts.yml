@@ -63,6 +63,8 @@ jobs:
         run: rustup toolchain install 1.88.0 --profile minimal
       - name: Compile the merged Native library and CLI
         run: cargo +1.88.0 check --manifest-path rust/Cargo.toml -p hol-guard-runtime --lib --bins --locked
+      - name: Preserve completed output review on the unified Native route
+        run: cargo +1.88.0 test --manifest-path rust/Cargo.toml -p guard-hook-core --test contained_post_output --locked
 
   macos-native-judge:
     if: >-
@@ -145,7 +147,7 @@ jobs:
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.88.0 --profile minimal
       - name: Test Mac host custody, observer and dashboard
-        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-host-state -p gauntlet-dashboard -p gauntlet-product-cell --locked
+        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-host-state -p gauntlet-dashboard -p gauntlet-product-cell -p gauntlet-cell-rootfs --locked
       - name: Exercise the authenticated Rust/Python bridge on macOS
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-agent-bridge --locked
 
@@ -165,6 +167,8 @@ jobs:
         run: cargo +1.88.0 fmt --manifest-path ci/gauntlet-rs/Cargo.toml --all --check
       - name: Check optional Rust-owned product-cell placement
         run: python3 -m unittest discover -s ci/gauntlet-rs/proofs -p test_product_cell_job_slice.py
+      - name: Check native constructor proof isolation
+        run: python3 -m unittest discover -s ci/gauntlet-rs/proofs -p test_native_rootfs_launch.py
       - name: Test
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml --all-features --locked
       - name: Clippy
@@ -187,7 +191,7 @@ jobs:
       - name: Compare Python product-cell frame bytes and realm separation on ARM64
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence --test product_cell_frames_parity --locked
       - name: Test Linux worker, host, evidence, and provider readers
-        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence -p gauntlet-host-state -p gauntlet-product-cell -p gauntlet-provider-observer -p gauntlet-worker-state --lib --locked
+        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence -p gauntlet-host-state -p gauntlet-product-cell -p gauntlet-cell-rootfs -p gauntlet-provider-observer -p gauntlet-worker-state --lib --locked
       - name: Compare fresh controller install plan with pinned Python on ARM64
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence --test controller_install_plan --locked
       - name: Test signed product and contained-effect relations on ARM64
