@@ -15,6 +15,17 @@ state. A run reads only the matching immutable
 preparation digest and one fixed apparatus case. Root program, environment,
 model and resource selectors are unavailable.
 
+The explicit `--initialize-native GENERATION_SHA256` command creates only the
+fixed inert native state/build/deployment namespaces and permanent worker
+locks. It requires initial-namespace Root and an exact current-executable pin,
+sets modes independently of umask, and refuses unsafe existing directories,
+symlinks and multiply linked lock files without repairing them in place.
+Both Rust and legacy worker leases cover the remaining namespace/receipt
+commit. A private generation-keyed initialization receipt survives identical
+reopen and always states no job dispatched, no model use and no eligibility.
+It neither adopts unknown jobs nor runs the Python control-plane installer.
+Live initialization proof on the separate fresh build VM is pending.
+
 The preparation is fixed at
 `/var/lib/hol-gauntlet-rust/native-jobs/<job>/preparation.v1.json`. Stage,
 physical workspace, private custody and product slice must belong to that

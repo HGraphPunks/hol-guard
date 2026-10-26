@@ -182,6 +182,10 @@ mod launch_plan;
 mod native_job_spec;
 pub use native_job_spec::NativeJobSpec;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_initialize;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_initialize::initialize_native_worker;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_repair;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_repair_receipt;
