@@ -53,7 +53,7 @@ intact until its reviewed bytes have a separate retained checkpoint.
 | --- | --- | --- | --- |
 | R0 Integration and tools | Recover pinned Rust 1.88 and Python test tooling; retain WIP; merge current upstream; fix integration conflicts; run the five migration jobs and relevant product CI on the actual child head | Phase 0 integration and final-head CI | In progress |
 | R1 Complete behavioral inventory | Map all three CLIs, command/profile/exit contracts, schema versions, assets, journals and state transitions to owners and tests; reconcile Python/Rust refusal classes, races and old evidence readers | Phases 0 and 1 | Partial |
-| R2 Native product apparatus | Complete the Root Rust rootfs/namespace/mount constructor and supervisor around the existing unprivileged Rust actor/gate; preserve idmaps, proc masks, AppArmor, seccomp, networking and resource limits; prove actual success, timeout, cancellation and descendant cleanup | Phase 2 worker and isolation | Rust constructor/actor/gate VM cases pass; Root collector/supervisor is Python |
+| R2 Native product apparatus | Complete the Root Rust rootfs/namespace/mount constructor and supervisor around the existing unprivileged Rust actor/gate; preserve idmaps, proc masks, AppArmor, seccomp, networking and resource limits; prove actual success, timeout, cancellation and descendant cleanup | Phase 2 worker and isolation | Rust constructor, collector and supervisor VM success/timeout/cancel pass; worker composition and Python image lease remain open |
 | R3 Deterministic authority | Capture authenticated Native requests/decisions and physical effects independently; bind exact request, product identity, file generation and cleanup; recompute each role's verdict; run six fresh staging plus six installed roles and construct fresh conformance | Phase 1 outcome verification and Phase 2 conformance | Diagnostics remain ineligible |
 | R4 Build and deployment | Rust-owned source/archive custody, bounded unprivileged build, inert wheel/prefix staging, source-matched immutable deployments and feature-audit invocation; preserve failed/uncertain receipts | Phase 2 provenance, staging and failure matrix | Subproofs exist; complete path open |
 | R5 Operational lifecycle | Connect the passive Rust observer to the qualified worker, exact-tag queue and bounded progress transport; implement reconciliation/repair, history import, stale data and unknown-job blocking; prove interruption, restart and single ownership | Phase 3 | Passive native observer exists on preparation |
@@ -155,7 +155,13 @@ approval ceremony for routine work already authorized by this request.
   private capture journal and a zero-model VM driver. Eleven macOS tests and
   the ARM64 build/Clippy pass; fresh native execution is pending. The image
   staging/lease adapter remains Python and is tracked separately under R4.
-- Next: prove the Rust supervisor live, then complete source-matched deterministic
+- 2026-10-26: Rust supervisor source `a61815a0` passed fresh VM success,
+  timeout and cancellation with the retained Native daemon and no outside
+  cleanup intervention. Sixteen native/12 macOS tests, the default-feature
+  workspace and warnings-denied Clippy passed. Retained evidence includes the
+  first two failed attempts; see [supervisor proof](gauntlet-rust-supervisor-vm-proof-20261026.md).
+- Next: integrate the Rust supervisor and image lifecycle with the worker,
+  then complete source-matched deterministic
   authority. No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.

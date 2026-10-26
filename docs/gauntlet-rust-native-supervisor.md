@@ -3,7 +3,9 @@
 The `NativeCell` API in `gauntlet-cell-rootfs` now owns the Root service launch,
 outside kernel measurements, startup gates, private actor bootstrap, authenticated
 RPCs, process release/retirement, bounded capture, private journal and cleanup.
-This slice is under validation; it has not yet earned a live-proof exit.
+Fresh success, timeout and cancellation pass in the owned ARM64 VM; see the
+[source-pinned proof](gauntlet-rust-supervisor-vm-proof-20261026.md). Full
+worker integration and deterministic conformance remain open.
 
 An outside-SHA-256-pinned `hol-gauntlet-cell-supervisor.v1` declaration contains
 the exact Root rootfs declaration path/hash, constructor path/hash, finite wall
@@ -45,9 +47,9 @@ controller/runtime/image and independently checks terminal state. Any external
 cleanup intervention makes the proof fail. It makes no model requests and
 cannot publish a qualified verdict.
 
-Current local checks: 11 macOS parser/status tests pass; Linux ARM64 source
-builds and warnings-denied Clippy passes. Fresh native unit execution and the
-three VM apparatus cases remain pending. Static cross builds use Rust 1.88 and
+Current checks: 12 macOS and 16 native ARM64 tests pass, the complete macOS
+workspace passes, and Linux ARM64 source builds with warnings-denied Clippy.
+All three fresh VM apparatus cases pass. Static cross builds use Rust 1.88 and
 Zig 0.15.1; C is compiled without Zig's implicit debug UBSan instrumentation to
 match the ordinary unsanitized GNU CI build and avoid an unlinked sanitizer
 runtime in Ring's constant-time C helper. This does not alter Rust checks,
