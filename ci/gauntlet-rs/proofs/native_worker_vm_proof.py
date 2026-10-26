@@ -102,6 +102,10 @@ def run(args, base):
 
     def invoke(action="run", generation=None):
         wire = {**request, "action": action}
+        if action != "run":
+            # v1 query frames carry no deployment field; the outside CLI pin
+            # remains mandatory and binds the read-only retained response.
+            wire.pop("deployment_digest")
         return subprocess.run([str(directory / "gauntlet-vm-worker"), declaration["source_sha"], digest,
             generation or args.worker_sha256], input=(json.dumps(wire, sort_keys=True, separators=(",", ":")) + "\n").encode(),
             capture_output=True, timeout=360)
