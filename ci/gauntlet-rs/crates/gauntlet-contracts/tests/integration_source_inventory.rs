@@ -30,10 +30,11 @@ fn merged_gauntlet_source_matches_the_explicit_pinned_delta() {
         .collect();
     let changed = delta["changed"].as_array().unwrap();
     let added = delta["added"].as_array().unwrap();
-    // Native-cell adapters and lifecycle readiness update reviewed bytes.
+    // Native-cell adapters, lifecycle readiness and upstream legacy coverage
+    // update reviewed bytes; the original 420-file oracle remains immutable.
     // Every tracked byte is still checked against the reviewed source map.
-    assert_eq!(changed.len(), 64);
-    assert_eq!(added.len(), 7);
+    assert_eq!(changed.len(), 67);
+    assert_eq!(added.len(), 11);
     for entry in changed {
         let path = entry["path"].as_str().unwrap();
         assert_eq!(expected.get(path), entry["base_sha256"].as_str().as_ref());

@@ -72,3 +72,31 @@ The owned 16-GiB ARM VM was observed stopped; no old live report is promoted
 by this checkpoint. Upstream synchronization, the Root Rust constructor,
 fresh VM proof and the complete acceptance matrix remain open. The parent
 milestone count remains 24/62.
+
+## Upstream synchronization
+
+Merged upstream `7fb50978` without rewriting published history. Both scoped
+secret-scanner fingerprint lists are retained, and the Native Unix feature
+set includes migration `time` and upstream `hostname` support. Upstream retired
+the Python CLI hook route and its wiring test; the merge preserves that
+retirement. The unified Native/daemon route reviews PostToolUse output without
+reopening command admission. Three new Rust regressions demonstrate ordinary
+completed shell output, rejection of secret-bearing output despite a completion
+hint, and refusal to treat PostToolUse evaluation as PreToolUse admission.
+All three passed against the merged source. The merged Native library and CLI
+also passed locked Rust 1.88 `cargo check` on macOS.
+
+Four new legacy modules are explicitly assigned to the Rust migration:
+approval retry action identity, Windows Codex contained-call binding, actual
+decision-path coverage, and synthetic runtime launch cases. The latter adds
+physical launch checks; model refusal or an unexercised decision remains
+unproven. The frozen 420-file baseline is unchanged. The reviewed current delta
+contains 67 changed files and 11 additions, for 431 files. Independent Python
+and Rust controller planners agree on 400 installed files, 411 entries and
+tree digest `9dcb5e8de575a89e2b2d27f8cc5b009ade6385251a21a050dfc8b357e717a47d`.
+All three source-inventory/install-plan regressions passed. This plan does not
+replace any retained installed controller or live result.
+
+The owned ARM64 VM was started for subsequent zero-model diagnostics. These
+merge checks do not constitute the five required GitHub jobs, Linux constructor
+conformance, independent review, or qualification.

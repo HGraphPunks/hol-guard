@@ -4,6 +4,12 @@
 //! the flat list admits the construct, and the conditional grants no
 //! authority of its own.
 //!
+//! A `case` statement is the same shape: one arm's list runs, so the lists
+//! every arm holds stand for whichever arm the word selects. The word and the
+//! patterns choose between those lists rather than running anything, so they
+//! are not carried into the flat list, and each is taken only when it plainly
+//! starts no command of its own.
+//!
 //! A loop is only the same shape when it is known to stop and its body cannot
 //! build up across iterations, because one flattened pass stands for every
 //! iteration. `while read NAME; do ...; done < FILE` is that shape, for a
@@ -16,6 +22,10 @@
 //! opens with a read of that file and then the body's own commands. Carrying
 //! the redirection onto each item instead would model the same access as a
 //! shape no proof covers, which is a review for work that only reads.
+//!
+//! A conditional binds no name, so an expansion inside one reads the same
+//! value in the flat list that it read in the construct, and it is written
+//! back as it stood. A loop that binds a name carries no expansion at all.
 //!
 //! Each list item still faces the ordinary proofs, and anything this
 //! recognizer does not fully understand returns `None`, which keeps the
@@ -37,19 +47,15 @@ pub(super) fn flatten(command: &str) -> Option<String> {
     {
         return None;
     }
-    // A value the construct itself binds — the name a `while read` loop fills
-    // from its input — is not bound in the flat list, so an expansion there
-    // would stand for different text than the one the construct ran. No
-    // expansion at all is the rule that keeps the two forms the same work.
-    if command.contains(['$', '`']) {
-        return None;
-    }
     let text = command.trim();
     if let Some(rest) = keyword(text, "if") {
         return flatten_conditional(rest);
     }
     if let Some(rest) = keyword(text, "while") {
         return flatten_loop(rest);
+    }
+    if let Some(rest) = keyword(text, "case") {
+        return flatten_case(rest);
     }
     None
 }
@@ -75,6 +81,152 @@ fn flatten_conditional(rest: &str) -> Option<String> {
     }
 }
 
+/// `case WORD in [(]PATTERN[|PATTERN]...) LIST ;; ... esac`.
+///
+/// One arm's list runs, so writing every arm's list out as one plain list
+/// runs at least as much as the construct ever can, which is the same reason
+/// a conditional's branches flatten.
+///
+/// The word and the patterns are not command lists and do not reach the flat
+/// list. Dropping text that could start a program would hide work, so each is
+/// taken only when it plainly starts none: no substitution in the word, and a
+/// pattern written as bare glob text, which also leaves the `)` that closes it
+/// the first one in the arm.
+fn flatten_case(rest: &str) -> Option<String> {
+    let (word, mut rest) = subject(rest)?;
+    if starts_a_command(word) {
+        return None;
+    }
+    let mut parts: Vec<(String, &'static str)> = Vec::new();
+    loop {
+        rest = rest.trim_start_matches([' ', '\t', '\n']);
+        if let Some(after) = closing(rest) {
+            return assemble(&parts, after);
+        }
+        let (pattern, body) = rest.split_once(')')?;
+        if !plain_pattern(pattern) {
+            return None;
+        }
+        let (list, after) = arm_list(body)?;
+        collect(&mut parts, list)?;
+        rest = after;
+    }
+}
+
+/// The word a `case` chooses on, and the text after the `in` that closes it.
+fn subject(rest: &str) -> Option<(&str, &str)> {
+    let (word, after) = rest.split_once([' ', '\t', '\n'])?;
+    let after = keyword(after.trim_start_matches([' ', '\t', '\n']), "in")?;
+    (!word.is_empty()).then_some((word, after))
+}
+
+/// Whether dropping this text would drop a command with it. A parameter the
+/// shell only expands carries none, and is kept out of the flat list the way
+/// a conditional keeps the expansions it held.
+///
+/// A process substitution runs its own command list before the `case` chooses
+/// anything, so `<(` and `>(` carry one as plainly as a backtick does.
+///
+/// Arithmetic carries one too. The shell evaluates a variable's value as an
+/// expression, and an array subscript in that value runs a command
+/// substitution the text in front of us never spells, so
+/// `x='a[$(id)]'; case $[x] in *) ls;; esac` runs `id`. `$((` holds a `$(`
+/// and is already read as carrying a command; the legacy `$[` spelling has to
+/// be named.
+fn starts_a_command(text: &str) -> bool {
+    text.contains('`')
+        || text.contains("$(")
+        || text.contains("$[")
+        || text.contains("<(")
+        || text.contains(">(")
+        || text
+            .match_indices("${")
+            .any(|(index, _)| !reads_a_value(&text[index + 2..]))
+}
+
+/// Whether this `${...}` only reads a value. `${NAME}` and `${#NAME}` do.
+/// Every other form does more than read: `${NAME@P}` expands the value as a
+/// prompt string, which runs a command substitution the value holds, and
+/// `${NAME:=word}` writes the variable that the lookup after it reads. The
+/// text of such a value is not in front of us, so the expansion is read as
+/// carrying a command rather than as inert.
+fn reads_a_value(rest: &str) -> bool {
+    let rest = rest.strip_prefix('#').unwrap_or(rest);
+    let Some(end) = rest.find('}') else {
+        return false;
+    };
+    let name = &rest[..end];
+    name.starts_with(|c: char| c.is_alphanumeric() || c == '_')
+        && name.chars().all(|c| c.is_alphanumeric() || c == '_')
+}
+
+/// A pattern the flat list may drop: bare glob text, after the optional `(`
+/// that may open it, holding nothing that runs and no `)` of its own.
+fn plain_pattern(pattern: &str) -> bool {
+    let pattern = pattern.trim();
+    let pattern = pattern.strip_prefix('(').unwrap_or(pattern).trim();
+    !pattern.is_empty()
+        && !pattern.contains(['`', '$', '"', '\'', '(', ')', ';', '&', '<', '>', '\n'])
+}
+
+/// An arm's command list, and the text the next pattern starts in.
+fn arm_list(body: &str) -> Option<(Vec<(String, &'static str)>, &str)> {
+    let (end, after) = arm_end(body)?;
+    let list = body[..end].trim().trim_end_matches([';', ' ', '\t', '\n']);
+    let text = format!("{list}; esac");
+    let (items, _, _) = body_items(&text, "", &["esac"])?;
+    Some((items, &body[after..]))
+}
+
+/// Where an arm's list ends: the `;;` that closes it, and where the arm after
+/// it starts. A `;&` or `;;&` arm runs the arm below it as well, which the
+/// list this builds does not say, so neither is taken. Quotes are followed so
+/// that a `;;` written inside one ends nothing.
+fn arm_end(body: &str) -> Option<(usize, usize)> {
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+    for (index, character) in body.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        match quote {
+            Some('\'') => {
+                if character == '\'' {
+                    quote = None;
+                }
+            }
+            Some(_) => match character {
+                '\\' => escaped = true,
+                '"' => quote = None,
+                _ => {}
+            },
+            None => match character {
+                '\\' => escaped = true,
+                '\'' | '"' => quote = Some(character),
+                ';' => {
+                    let rest = &body[index..];
+                    if rest.starts_with(";;&") || rest.starts_with(";&") {
+                        return None;
+                    }
+                    if rest.starts_with(";;") {
+                        return Some((index, index + 2));
+                    }
+                }
+                _ => {}
+            },
+        }
+    }
+    None
+}
+
+/// Consume the `esac` that closes the construct, for the text that follows
+/// the last arm.
+fn closing(text: &str) -> Option<&str> {
+    let rest = text.strip_prefix("esac")?;
+    (rest.is_empty() || rest.starts_with([' ', '\t', '\n', ';', '<', '>'])).then_some(rest)
+}
+
 /// `while read NAME...; do LIST; done < FILE`, the one loop shape a single
 /// flattened pass describes. The read ends at the file's end, so the loop
 /// stops on its own, and a body that opens no output keeps every iteration
@@ -86,6 +238,13 @@ fn flatten_conditional(rest: &str) -> Option<String> {
 /// itself only binds a name from that file, so the read of the file is the
 /// whole of what the loop's test reaches.
 fn flatten_loop(rest: &str) -> Option<String> {
+    // The loop binds a name of its own, and the flat list does not, so an
+    // expansion inside it would stand for different text than the one the
+    // loop ran. No expansion at all is the rule that keeps the two the same
+    // work. A conditional binds nothing, so it carries its expansions.
+    if rest.contains(['$', '`']) {
+        return None;
+    }
     let (test, _, after_test) = body_items(rest, "", &["do"])?;
     let (body, _, tail) = body_items(after_test, "", &["done"])?;
     if !driven_by_a_read(&test) {
@@ -122,7 +281,15 @@ fn driven_by_a_read(test: &[(String, &'static str)]) -> bool {
         return false;
     }
     let mut words = text.split_whitespace();
-    if words.next() != Some("read") {
+    let mut word = words.next();
+    // `IFS=` empties the field separator for the `read` alone, which keeps
+    // the whole line in the name instead of splitting it. It starts no
+    // program and leaves the flat list the same, so the loop is still the
+    // one a single pass describes. Any other assignment is some other loop.
+    if word == Some("IFS=") {
+        word = words.next();
+    }
+    if word != Some("read") {
         return false;
     }
     let mut names = words.peekable();

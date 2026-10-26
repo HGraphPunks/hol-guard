@@ -176,13 +176,7 @@ pub(super) fn project(
         None => command,
     };
     let command = relative_saved_reads(command, &targets, context.cwd);
-    let model = crate::parse_command(&CommandModelRequestV1 {
-        command: command.clone(),
-        dialect: "posix".to_owned(),
-        transport: "shell_string".to_owned(),
-        extraction_provenance: "pre-tool-generic".to_owned(),
-    })
-    .ok()?;
+    let model = projected_model(&command)?;
     // An earlier segment could cd or create a symlink before the shell opens
     // a target, so a chain may only write absolute temp files beside peers.
     let temporary_chain =
@@ -243,6 +237,39 @@ pub(super) fn project(
     })
 }
 
+/// The command model of the projected text, reading the shell control flow
+/// the parser does not model on its own.
+///
+/// `if cmd >/dev/null; then ...; fi` projects to an `if` the parser calls
+/// compound shell, so the structural checks below would lose the command
+/// they are meant to read and the projection would fail closed on a command
+/// the flattened list allows. The envelope runs the same rewrite when it
+/// evaluates the projected text, so flattening here only decides what those
+/// checks see; the text this projection returns is still the one the shell
+/// runs.
+fn projected_model(command: &str) -> Option<crate::CanonicalCommandV1> {
+    let parse = |text: &str| {
+        crate::parse_command(&CommandModelRequestV1 {
+            command: text.to_owned(),
+            dialect: "posix".to_owned(),
+            transport: "shell_string".to_owned(),
+            extraction_provenance: "pre-tool-generic".to_owned(),
+        })
+        .ok()
+    };
+    let mut text = command.to_owned();
+    let mut model = parse(&text)?;
+    let mut rounds = 0usize;
+    while (model.confidence != "exact" || model.uncertainty_reason.is_some())
+        && rounds < super::super::MAX_REWRITE_ROUNDS
+    {
+        text = super::super::rewritten_command_list(&text)?;
+        model = parse(&text)?;
+        rounds += 1;
+    }
+    Some(model)
+}
+
 /// `$(` or a backquote: a command substitution runs before the redirect
 /// that follows it opens its file.
 fn substitution(chars: &[char], index: usize) -> bool {
@@ -287,6 +314,16 @@ pub(super) fn package_profile(reason: &str) -> bool {
             | "native_node_test_readonly_containment_required"
             | "native_node_build_output_containment_required"
     )
+}
+
+/// The read-only profiles a plain output redirect disqualifies and the
+/// workspace sandbox may take in their place. The package and Node tool
+/// profiles run a project's own tool; the pytest profile runs the suite the
+/// same workspace holds, and a chain as short as `pytest -q && echo done`
+/// already reaches the sandbox, because two segments earn no profile of their
+/// own. The single command belongs there for the same reason.
+pub(super) fn redirected_profile(reason: &str) -> bool {
+    package_profile(reason) || reason == "native_pytest_readonly_containment_required"
 }
 
 pub(super) fn join(

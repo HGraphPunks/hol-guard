@@ -138,6 +138,10 @@ approval ceremony for routine work already authorized by this request.
   workspace passed 380 tests; the focused Python suite passed 87. Exact
   identities and limitations are in the
   [restart proof](gauntlet-rust-pr-readiness-proof-20261026.md).
-- Next: synchronize upstream and implement the Root Rust apparatus. No new
+- 2026-10-26: merged upstream `7fb50978`, preserved its retired Python hook
+  route, and verified the resulting Native library/CLI plus three PostToolUse
+  regressions. Independently reconciled the expanded 431-file Gauntlet source
+  map and 400-file controller plan. Started the owned VM for Linux diagnostics.
+- Next: implement the Root Rust apparatus and run exact-head fork checks. No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.

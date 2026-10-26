@@ -18,6 +18,10 @@ DELTA = WORKSPACE / "integration-source-delta.v1.json"
 NEW_FILES = {
     "ci/gauntlet/case_retry.py": ("port_to_rust", 5),
     "ci/gauntlet/benchmark/stage_control_adapter.py": ("port_to_rust", 2),
+    "ci/gauntlet/approval_retry_action.py": ("port_to_rust", 5),
+    "ci/gauntlet/codex_contained.py": ("port_to_rust", 5),
+    "ci/gauntlet/decision_coverage.py": ("port_to_rust", 5),
+    "ci/gauntlet/runtime_cases.py": ("port_to_rust", 5),
 }
 
 
