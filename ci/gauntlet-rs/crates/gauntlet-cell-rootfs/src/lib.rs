@@ -6,10 +6,34 @@ mod fs_input;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod inputs;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod kernel_mounts;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod kernel_process;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod kernel_status;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod mounts;
 mod spec;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod supervisor;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod supervisor_capture;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod supervisor_cleanup;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod supervisor_io;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod supervisor_journal;
+mod supervisor_spec;
 
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use kernel_process::{CellProcessExpectation, HeldCellProcess};
 pub use spec::{NetworkProfile, RootfsSpec, StateProfile};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use supervisor::NativeCell;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use supervisor_capture::{CapturedProcess, ProcessChunk};
+pub use supervisor_spec::{CpuProfile, SupervisorSpec};
 pub type Result<T> = std::result::Result<T, String>;
 
 /// This entry point can only mutate a fresh private Root PID1 namespace.
@@ -40,4 +64,14 @@ pub(crate) fn hex(raw: &str, length: usize) -> bool {
         && raw
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub(crate) fn nonce() -> Result<String> {
+    use ring::rand::{SecureRandom, SystemRandom};
+    let mut raw = [0u8; 16];
+    SystemRandom::new()
+        .fill(&mut raw)
+        .map_err(|_| "Root cell randomness unavailable")?;
+    Ok(raw.iter().map(|byte| format!("{byte:02x}")).collect())
 }

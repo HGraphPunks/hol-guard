@@ -151,7 +151,11 @@ approval ceremony for routine work already authorized by this request.
 - 2026-10-26: repaired the reproduced observer startup/status contention race
   with bounded retries that never retry uncertain writes. The final merged
   macOS workspace passed 390 tests with no failures/ignores; Clippy passed.
-- Next: port the Rust supervisor and complete source-matched deterministic
+- 2026-10-26: implemented the Rust cell supervisor, outside kernel collector,
+  private capture journal and a zero-model VM driver. Eleven macOS tests and
+  the ARM64 build/Clippy pass; fresh native execution is pending. The image
+  staging/lease adapter remains Python and is tracked separately under R4.
+- Next: prove the Rust supervisor live, then complete source-matched deterministic
   authority. No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.
