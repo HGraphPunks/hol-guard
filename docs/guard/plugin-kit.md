@@ -10,6 +10,8 @@ The Kit runs inside the HOL Guard native runtime. It reads only the folder you n
 | :--- | :--- | :--- |
 | `hol-guard plugin check [path] [--strict]` | Detects the plugin, lists its skills, MCP servers, commands and agents, and reports problems. `--strict` fails on warnings too. | 0 passed, 1 failed, 2 could not run |
 | `hol-guard plugin package [path] [--out DIR] [--runtimes a,b] [--force] [--strict]` | Runs `check`, then writes one folder per runtime. Writes nothing when the check fails. Refuses a non-empty output folder unless `--force`, which first removes the files the previous package recorded in its `hol.provenance.json` and leaves every other file alone. The output folder may not be the repository root or overlap a folder the Kit reads, and a path through a symlink is refused. A runtime named in `--runtimes` that cannot load the plugin is an error; runtimes listed in `hol.json` are packaged where supported. | 0 packaged, 1 check failed, 2 could not run |
+| `hol-guard plugin check [path] --spec agent-plugins-1.0` | Checks the folder against the Agent Plugins 1.0.0 spec instead of runtime loaders. Each finding names the spec section and whether a client would reject the whole plugin or only one component. | 0 conforms, 1 does not, 2 could not run |
+| `hol-guard plugin convert [path] --to RUNTIME [--out DIR] [--force]` | Writes one runtime's package, such as `agent-plugins`, `codex` or `gemini-cli`. An `agent-plugins` package is checked against the spec after it is written. | 0 converted, 1 check failed, 2 could not run |
 | `hol-guard plugin links [path]` | Prints the install command for each runtime the repository already supports, and what is left to list it everywhere. | 0, or 2 could not run |
 | `hol-guard plugin init [path] [--name NAME]` | In a plugin repository, writes `hol.json`. In a new folder (empty, or holding only a README, a LICENSE or dotfiles) with `--name`, scaffolds a minimal Claude Code plugin with one skill. Never overwrites a file. | 0, or 2 could not run |
 
@@ -25,6 +27,7 @@ Every command accepts `--json` for the full machine-readable result.
 | Codex marketplace | `.agents/plugins/marketplace.json` |
 | Gemini CLI extension | `gemini-extension.json`, with its context file (`GEMINI.md` by default) |
 | MCP Registry server | `server.json` (npm, PyPI and OCI packages, or a remote) |
+| Agent Plugins 1.0 plugin | `plugin.json` with the Agent Plugins `$schema`, with `mcp.json` and `skills/` |
 | Agent skills | any `SKILL.md` with `name` and `description` frontmatter |
 
 When several manifests describe the same plugin, the shallowest one wins and the others fill in missing fields. The repository comes from the manifest, then `package.json`, then the `origin` remote in `.git/config`.
@@ -50,8 +53,9 @@ exclude_paths = ["distributions/*"]
 | `opencode` | `opencode.json` | MCP servers |
 | `mcp-registry` | `server.json` | the repository's own `server.json`, or one generated for a single remote MCP server on GitHub |
 | `agent-skills` | `skills/<name>/` | skills |
+| `agent-plugins` | `plugin.json`, `mcp.json`, `skills/<name>/` | skills, MCP servers and the plugin files they run |
 
-`check` lists, for each runtime, whether it is supported and which components it drops. MCP environment variables are written as references in each runtime's own syntax (`${NAME}`, `$NAME`, `${env:NAME}` or `{env:NAME}`). The Kit never copies a variable's value: a literal in an MCP config or in a `server.json` `environmentVariables` entry is dropped, and `check` warns about it (`mcp_env_literal_secret` for a name that looks secret, `mcp_env_literal_not_carried` otherwise). A variable renamed in the config (`"GITHUB_TOKEN": "${GH_PAT}"`) keeps the rename. HTTP headers that reference a variable (`Authorization: Bearer ${API_TOKEN}`) are rewritten in each runtime's syntax; a header with a literal value is dropped and `check` reports `mcp_header_literal`. SSE servers stay SSE in every runtime that supports them. Gemini CLI reaches an MCP server only with the variables its manifest declares, so the generated `gemini-extension.json` lists each one in `settings`.
+`check` lists, for each runtime, whether it is supported and which components it drops. MCP environment variables are written as references in each runtime's own syntax (`${NAME}`, `$NAME`, `${env:NAME}` or `{env:NAME}`). The Kit never copies a variable's value: a literal in an MCP config or in a `server.json` `environmentVariables` entry is dropped, and `check` warns about it (`mcp_env_literal_secret` for a name that looks secret, `mcp_env_literal_not_carried` otherwise). A variable renamed in the config (`"GITHUB_TOKEN": "${GH_PAT}"`) keeps the rename. HTTP headers that reference a variable (`Authorization: Bearer ${API_TOKEN}`) are rewritten in each runtime's syntax; a header with a literal value is dropped and `check` reports `mcp_header_literal`. SSE servers stay SSE in every runtime that supports them. An MCP server that runs a file from the plugin keeps working where the runtime can name the plugin root (`${CLAUDE_PLUGIN_ROOT}`, `${extensionPath}` or `${PLUGIN_ROOT}`); Cursor, VS Code and opencode cannot, so `check` reports `mcp_servers_not_portable` for them and leaves the server out. A server with a working directory or `${PLUGIN_DATA}` travels only to `agent-plugins`. Gemini CLI reaches an MCP server only with the variables its manifest declares, so the generated `gemini-extension.json` lists each one in `settings`.
 
 `package` also writes `hol.provenance.json`: the generator version, the plugin name and version, a SHA-256 digest of the source files it read, and the digest of every file it wrote. It has no timestamps, so the same Kit version packaging the same source for the same runtimes writes the same files; a different Kit version or runtime selection may not.
 
@@ -68,6 +72,10 @@ exclude_paths = ["distributions/*"]
 ```
 
 `out` is relative to the repository and cannot leave it. The Kit skips `dist/` and any folder holding `hol.provenance.json`, so a package is never read back as source.
+
+## Agent Plugins 1.0
+
+`hol-guard plugin convert --to agent-plugins` writes `plugin.json` and `mcp.json` in the Agent Plugins 1.0.0 layout. Each server gets its `type`, and runtime root placeholders such as `${CLAUDE_PLUGIN_ROOT}` become `${PLUGIN_ROOT}`. Environment variables, headers and servers that the spec cannot express portably are left out, and the output says which. `hol-guard plugin check --spec agent-plugins-1.0` then confirms the result, or checks a package you wrote by hand.
 
 ## List the plugin
 
