@@ -53,7 +53,7 @@ intact until its reviewed bytes have a separate retained checkpoint.
 | --- | --- | --- | --- |
 | R0 Integration and tools | Recover pinned Rust 1.88 and Python test tooling; retain WIP; merge current upstream; fix integration conflicts; run the five migration jobs and relevant product CI on the actual child head | Phase 0 integration and final-head CI | In progress |
 | R1 Complete behavioral inventory | Map all three CLIs, command/profile/exit contracts, schema versions, assets, journals and state transitions to owners and tests; reconcile Python/Rust refusal classes, races and old evidence readers | Phases 0 and 1 | Partial |
-| R2 Native product apparatus | Complete the Root Rust rootfs/namespace/mount constructor and supervisor around the existing unprivileged Rust actor/gate; preserve idmaps, proc masks, AppArmor, seccomp, networking and resource limits; prove actual success, timeout, cancellation and descendant cleanup | Phase 2 worker and isolation | Rust constructor/collector/supervisor and image/staging VM cases pass; worker composition remains open |
+| R2 Native product apparatus | Complete the Root Rust rootfs/namespace/mount constructor and supervisor around the existing unprivileged Rust actor/gate; preserve idmaps, proc masks, AppArmor, seccomp, networking and resource limits; prove actual success, timeout, cancellation and descendant cleanup | Phase 2 worker and isolation | Complete zero-model Rust apparatus worker and recovery cases pass; qualified benchmark admission remains open |
 | R3 Deterministic authority | Capture authenticated Native requests/decisions and physical effects independently; bind exact request, product identity, file generation and cleanup; recompute each role's verdict; run six fresh staging plus six installed roles and construct fresh conformance | Phase 1 outcome verification and Phase 2 conformance | Diagnostics remain ineligible |
 | R4 Build and deployment | Rust-owned source/archive custody, bounded unprivileged build, inert wheel/prefix staging, source-matched immutable deployments and feature-audit invocation; preserve failed/uncertain receipts | Phase 2 provenance, staging and failure matrix | Native image lease/cell staging proven; complete current-source build/deployment path open |
 | R5 Operational lifecycle | Connect the passive Rust observer to the qualified worker, exact-tag queue and bounded progress transport; implement reconciliation/repair, history import, stale data and unknown-job blocking; prove interruption, restart and single ownership | Phase 3 | Passive native observer exists on preparation |
@@ -174,7 +174,7 @@ approval ceremony for routine work already authorized by this request.
 - 2026-10-26: implemented an explicit native apparatus worker, descriptor-bound
   contained Rust controller, durable job markers/terminal and unknown-job
   admission blocking. Focused macOS tests and ARM64 build/Clippy pass; its
-  [live job proof](gauntlet-rust-native-worker.md) remains pending. It always
+  [live job proof](gauntlet-rust-native-worker-vm-proof-20261026.md) now passes. It always
   treats apparatus completion as invalid evidence for Guard qualification.
 - 2026-10-26: the first composed worker run (`0bab80ca`,
   `e2c701baf1470043`) refused completion after the worker's private umask
@@ -182,10 +182,17 @@ approval ceremony for routine work already authorized by this request.
   the durable image lease and unknown job correctly remained. Added explicit
   staging-mode commits, conservative collected-unit cleanup and a separate
   versioned Rust quiescent repair receipt. Recovery never supplies an exit
-  status or execution credit. Focused Mac tests and ARM64 Clippy pass; live
-  recovery and a fresh worker retry are pending.
-- Next: verify recovery of the retained failed job and prove the Rust worker's complete job path,
-  then complete source-matched deterministic
-  authority. No new
+  status or execution credit. Live quiescent recovery and six fresh worker
+  cases pass at source `2a4c3fa0`, with failed attempts preserved. The Mac
+  workspace passes 404 tests; native Root suites pass 23 rootfs/119 worker
+  tests with 24 existing fixture-specific ignores reported separately.
+  The host CLI heartbeat contention race is fixed without replaying uncertain
+  commits. See the [worker proof](gauntlet-rust-native-worker-vm-proof-20261026.md).
+- 2026-10-26: created separate owned build VM
+  `hol-gauntlet-rust-build-20261026-001` from the pinned Ubuntu image using
+  `ci/gauntlet-rs/profiles/native-vm-v1.yaml`. Its actual 2 vCPU/16 GiB/48 GiB
+  profile has 46,939,676,672 free disk bytes before provisioning, above the
+  unchanged 12-GiB start floor. No retained VM/history was resized or removed.
+- Next: complete source-matched deterministic authority. No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.

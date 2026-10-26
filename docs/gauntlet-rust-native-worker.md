@@ -4,7 +4,8 @@ The new `gauntlet-vm-worker` is an explicit native successor alongside the
 historical Python worker and read-only Rust shadow. Its first version runs
 only `native-apparatus-v1`, which exercises the real Rust cell boundary.
 Completed runs record `invalid-evidence`. It cannot qualify Guard, request inference,
-publish a gate or activate host cutover. Live worker proof is pending.
+publish a gate or activate host cutover. Six fresh VM cases and quiescent
+failed-job recovery pass; see the [worker VM proof](gauntlet-rust-native-worker-vm-proof-20261026.md).
 
 The public CLI accepts outside source, deployment and actual executable SHA-256
 pins, plus one bounded v1 worker request on stdin. Queries project retained
@@ -60,12 +61,13 @@ receipt records `aborted`, unknown exit status, zero model use and ineligibility
 Original markers, streams and failure journals remain intact; the job ID stays
 consumed. New native admission rechecks that receipt and physical quiescence.
 The old v1 read-only projection continues to show unknown because it cannot
-express this separate repair version. Live recovery/retry proof is pending.
+express this separate repair version. Live recovery, immutable receipt reopen
+and fresh worker jobs pass; original failed attempts remain preserved.
 
 The private report retains controller output hashes and apparatus measurements,
 with zero model requests and explicit unavailable qualification. A producer's
 `passed` field never changes the parent's `invalid-evidence` outcome. Host
 prelaunch key delivery, independently scored Guard controls, authenticated
-benchmark reports, operator repair and source-matched conformance still need
+benchmark reports, general operator repair and source-matched conformance still need
 their separate implementation/proof exits before this worker can be admitted
 by the passive observer.
