@@ -88,10 +88,13 @@ fn online(store: &HostLifecycleStore, child: &mut OwnedChild) {
         if status(store)["observer"]["status"] == "online" {
             return;
         }
-        assert!(
-            child.0.as_mut().unwrap().try_wait().unwrap().is_none(),
-            "observer exited before readiness"
-        );
+        if child.0.as_mut().unwrap().try_wait().unwrap().is_some() {
+            let output = child.wait();
+            panic!(
+                "observer exited before readiness: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
         assert!(
             Instant::now() < deadline,
             "observer did not acquire its lease"
@@ -258,4 +261,53 @@ fn transaction_contention_refuses_the_second_process_without_a_partial_update() 
     assert!(run(parent.path(), "resume").status.success());
     assert_eq!(status(&store)["admissions_held"], false);
     assert_eq!(status(&store)["generation"], 1);
+}
+
+#[test]
+fn observer_start_survives_a_brief_status_reader_without_weakening_lease_ownership() {
+    let parent = parent();
+    let store =
+        HostLifecycleStore::initialize(parent.path(), "hashgraph-online/hol-guard", 1000).unwrap();
+    let reader = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(parent.path().join("rust-host-v1/transaction.lock"))
+        .unwrap();
+    // A status reader can coexist with open(), then prevent the observer's
+    // first exclusive state transaction. It must not terminate a new owner.
+    flock(&reader, FlockOperation::NonBlockingLockShared).unwrap();
+    let mut child = OwnedChild::start(parent.path());
+    sleep(Duration::from_secs(2));
+    if child.0.as_mut().unwrap().try_wait().unwrap().is_some() {
+        let output = child.wait();
+        panic!(
+            "status reader terminated observer startup: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    drop(reader);
+    online(&store, &mut child);
+    child.0.as_mut().unwrap().kill().unwrap();
+    assert!(!child.wait().status.success());
+    assert_eq!(status(&store)["observer"]["lease_held"], false);
+}
+
+#[test]
+fn observer_start_has_a_finite_wait_and_preserves_the_checkpoint_when_blocked() {
+    let parent = parent();
+    let _store =
+        HostLifecycleStore::initialize(parent.path(), "hashgraph-online/hol-guard", 1000).unwrap();
+    let checkpoint = parent.path().join("rust-host-v1/state.json");
+    let before = fs::read(&checkpoint).unwrap();
+    let reader = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(parent.path().join("rust-host-v1/transaction.lock"))
+        .unwrap();
+    flock(&reader, FlockOperation::NonBlockingLockShared).unwrap();
+    let mut child = OwnedChild::start(parent.path());
+    let output = child.wait();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("already owned"));
+    assert_eq!(fs::read(checkpoint).unwrap(), before);
 }

@@ -59,7 +59,7 @@ pub fn run_passive_observer(
             .set_nonblocking(true)
             .map_err(|_| Error::DashboardUnavailable)?;
     }
-    let lease = store.start_observer(now_ms()?)?;
+    let lease = crate::start_observer_bounded(store)?;
     let public = ObserverPublic::open(&lease)?;
     let root = PublicRoot::open(&public.path(&lease)?).map_err(|_| Error::DashboardUnavailable)?;
     if let Some(listener) = &listener {

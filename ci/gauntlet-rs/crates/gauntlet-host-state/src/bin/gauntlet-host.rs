@@ -1,8 +1,9 @@
 //! Explicit passive lifecycle; the existing operator entrypoint is unchanged.
 
 use gauntlet_host_state::{
-    collect_observer_once, compose_observer_snapshot, read_observer_operations,
-    run_passive_observer, HostLifecycleError, HostLifecycleStore,
+    collect_observer_once, compose_observer_snapshot, open_observer_store,
+    read_observer_operations, run_passive_observer, start_observer_bounded, HostLifecycleError,
+    HostLifecycleStore,
 };
 #[path = "gauntlet-host/signals.rs"]
 mod signals;
@@ -95,7 +96,7 @@ fn run() -> Result<(), String> {
     let store = if command == "init" {
         HostLifecycleStore::initialize(&parent, repository.as_deref().ok_or(USAGE)?, now()?)
     } else if command == "up" && operations.is_some() {
-        match HostLifecycleStore::open(&parent) {
+        match open_observer_store(&parent) {
             Ok(store) => Ok(store),
             Err(HostLifecycleError::UnsafeDirectory) => HostLifecycleStore::initialize(
                 &parent,
@@ -107,6 +108,8 @@ fn run() -> Result<(), String> {
             ),
             Err(error) => Err(error),
         }
+    } else if matches!(command.as_str(), "agent" | "up") {
+        open_observer_store(&parent)
     } else {
         HostLifecycleStore::open(&parent)
     }
@@ -200,7 +203,7 @@ fn run() -> Result<(), String> {
                 println!("{snapshot}");
                 return Ok(());
             }
-            let lease = store.start_observer(now()?).map_err(|e| e.to_string())?;
+            let lease = start_observer_bounded(&store).map_err(|e| e.to_string())?;
             loop {
                 match lease.heartbeat(now()?) {
                     Ok(stop) if stop || once => break,
