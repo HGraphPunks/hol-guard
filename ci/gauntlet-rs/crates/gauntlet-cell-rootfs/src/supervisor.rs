@@ -34,6 +34,8 @@ pub struct NativeCell {
     pub(crate) loaded: bool,
     pub(crate) service_started: bool,
     pub(crate) closed: bool,
+    pub(crate) image: Option<crate::image_lease::ImageLease>,
+    declaration_sha256: String,
     actor_sha256: String,
 }
 
@@ -73,11 +75,26 @@ impl NativeCell {
     pub fn cleanup_complete(&self) -> bool {
         self.closed
     }
+    pub fn supervisor_declaration_sha256(&self) -> &str {
+        &self.declaration_sha256
+    }
+    pub fn image_lease_owned(&self) -> bool {
+        self.image.is_some()
+    }
 
     pub fn start(
         declaration: &Path,
         expected_sha256: &str,
         cancelled: Arc<AtomicBool>,
+    ) -> Result<Self> {
+        Self::start_with_image(declaration, expected_sha256, cancelled, None)
+    }
+
+    pub(crate) fn start_with_image(
+        declaration: &Path,
+        expected_sha256: &str,
+        cancelled: Arc<AtomicBool>,
+        image: Option<crate::image_lease::ImageLease>,
     ) -> Result<Self> {
         crate::kernel_process::root_proc()?;
         let raw = crate::fs_input::pinned(declaration, 8192, expected_sha256)?;
@@ -142,6 +159,8 @@ impl NativeCell {
             loaded: false,
             service_started: false,
             closed: false,
+            image,
+            declaration_sha256: expected_sha256.into(),
             actor_sha256,
         };
         if let Err(error) = cell.launch() {
@@ -279,6 +298,9 @@ impl NativeCell {
             16 * 1024 * 1024,
             &self.spec.constructor_sha256,
         )?;
+        if let Some(image) = &mut self.image {
+            image.before_cell_launch()?;
+        }
         let mut child = Command::new("/usr/bin/systemd-run")
             .args(argv)
             .env_clear()

@@ -10,11 +10,19 @@ fn run() -> Result<(), String> {
     };
     use std::time::{Duration, Instant};
     let args = std::env::args().collect::<Vec<_>>();
-    if args.len() != 4 || !matches!(args[3].as_str(), "success" | "timeout" | "cancel") {
-        return Err("usage: gauntlet-native-cell-proof ROOT_SUPERVISOR_JSON OUTSIDE_SHA256 success|timeout|cancel".into());
+    if !(args.len() == 4 || (args.len() == 5 && args[4] == "--prepared"))
+        || !matches!(args[3].as_str(), "success" | "timeout" | "cancel")
+    {
+        return Err("usage: gauntlet-native-cell-proof ROOT_DECLARATION_JSON OUTSIDE_SHA256 success|timeout|cancel [--prepared]".into());
     }
     let cancelled = Arc::new(AtomicBool::new(false));
-    let mut cell = NativeCell::start(Path::new(&args[1]), &args[2], cancelled.clone())?;
+    let mut cell = if args.len() == 5 {
+        gauntlet_cell_rootfs::prepare_and_start(Path::new(&args[1]), &args[2], cancelled.clone())?
+    } else {
+        NativeCell::start(Path::new(&args[1]), &args[2], cancelled.clone())?
+    };
+    let supervisor_digest = cell.supervisor_declaration_sha256().to_owned();
+    let rust_image_owned = cell.image_lease_owned();
     let workspace = cell.workspace_source().to_owned();
     let effect = workspace.join("rust-supervisor-effect");
     let actor = cell
@@ -174,7 +182,8 @@ fn run() -> Result<(), String> {
     println!(
         "{}",
         json!({"schema":"hol-gauntlet-rust-supervisor-vm-proof.v1","case":args[3],
-        "supervisor_declaration_sha256":args[2],"status":if result.is_ok() && cleanup.is_ok(){"passed"}else{"failed"},
+        "supervisor_declaration_sha256":supervisor_digest,"preparation_declaration_sha256":if rust_image_owned {Some(&args[2])}else{None},
+        "rust_image_lease_owned":rust_image_owned,"status":if result.is_ok() && cleanup.is_ok(){"passed"}else{"failed"},
         "error":result.as_ref().err(),"cleanup_error":cleanup.as_ref().err(),"cell_cleanup_complete":cell.cleanup_complete(),
         "rust_supervisor_owned":true,"native_daemon_started":native_started,"actor":actor,
         "model_requests":0,"execution_eligible":false,"guard_causality_verified":false})

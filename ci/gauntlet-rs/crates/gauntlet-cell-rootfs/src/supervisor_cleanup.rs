@@ -145,6 +145,14 @@ impl NativeCell {
         if !failures.is_empty() {
             return Err("native product cleanup incomplete; retain unknown state".into());
         }
+        if let Some(image) = &mut self.image {
+            image.after_cell_absent();
+            image.close()?;
+            self.journal.append(
+                "rust-image-cleanup",
+                json!({"image_mount_absent":true,"active_lease_removed":true}),
+            )?;
+        }
         self.closed = true;
         Ok(())
     }

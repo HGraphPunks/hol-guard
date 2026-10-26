@@ -19,8 +19,16 @@ pub(crate) struct Journal {
 
 impl Journal {
     pub(crate) fn create(stage: &std::path::Path) -> Result<Self> {
+        Self::create_file(stage, "native-supervisor-events.v1.jsonl")
+    }
+
+    pub(crate) fn create_image(stage: &std::path::Path) -> Result<Self> {
+        Self::create_file(stage, "native-image-events.v1.jsonl")
+    }
+
+    fn create_file(stage: &std::path::Path, name: &str) -> Result<Self> {
         crate::fs_input::directory(stage)?;
-        let path = stage.join("native-supervisor-events.v1.jsonl");
+        let path = stage.join(name);
         let file = OpenOptions::new()
             .write(true)
             .create_new(true)

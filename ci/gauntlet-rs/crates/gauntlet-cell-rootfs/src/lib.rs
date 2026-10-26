@@ -4,6 +4,13 @@ mod construct;
 pub mod declarations;
 mod fs_input;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod image_lease;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod image_lock;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod image_process;
+mod image_protocol;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod inputs;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod kernel_descriptors;
@@ -15,6 +22,9 @@ mod kernel_process;
 mod kernel_status;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod mounts;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod preparation;
+mod preparation_spec;
 mod spec;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod supervisor;
@@ -30,6 +40,9 @@ mod supervisor_spec;
 
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use kernel_process::{CellProcessExpectation, HeldCellProcess};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use preparation::prepare_and_start;
+pub use preparation_spec::CellPreparation;
 pub use spec::{NetworkProfile, RootfsSpec, StateProfile};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use supervisor::NativeCell;
