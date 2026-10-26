@@ -1,8 +1,11 @@
 """The diagnostic substitution preserves every original namespace switch."""
 import copy
+from pathlib import Path
+import subprocess
+import sys
 import unittest
 
-from native_rootfs_vm_proof import NAMESPACES, constructor_tail
+from native_rootfs_vm_proof import NAMESPACES, constructor_tail, native_constructor
 
 
 class NativeRootfsLaunch(unittest.TestCase):
@@ -31,6 +34,16 @@ class NativeRootfsLaunch(unittest.TestCase):
         changed = self.fixture()
         changed[changed.index("-I")] = "-E"
         self.assertIsNone(constructor_tail(changed))
+
+    def test_libraries_retain_the_generic_process_class_and_ordinary_launches(self):
+        original = subprocess.Popen
+        with native_constructor(None, Path("/unused"), "a" * 64, []):
+            self.assertTrue(issubclass(subprocess.Popen, original))
+            self.assertIsNotNone(subprocess.Popen[bytes])
+            result = subprocess.run([sys.executable, "-I", "-c", "print('ordinary child')"],
+                                    capture_output=True, check=True)
+            self.assertEqual(result.stdout, b"ordinary child\n")
+        self.assertIs(subprocess.Popen, original)
         changed = self.fixture()
         changed[changed.index("-c") + 1] = "print('different Root program')"
         self.assertIsNone(constructor_tail(changed))

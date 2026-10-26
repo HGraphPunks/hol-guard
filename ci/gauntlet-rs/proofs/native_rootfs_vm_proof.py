@@ -63,10 +63,10 @@ def constructor_tail(argv):
 def native_constructor(base, binary, expected, records):
     original = subprocess.Popen
 
-    def launch(argv, *arguments, **options):
+    def replace_argv(argv):
         found = constructor_tail(argv)
         if found is None:
-            return original(argv, *arguments, **options)
+            return argv
         if records:
             raise ValueError("exactly one native constructor per fresh VM proof required")
         index, tail = found
@@ -92,9 +92,14 @@ def native_constructor(base, binary, expected, records):
         records.append({"constructor_sha256": expected, "declaration_sha256": digest,
                         "declaration": declaration, "namespaces": NAMESPACES[1:]})
         replacement = [*argv[:index], *NAMESPACES, str(binary), str(stage / "native-rootfs.v1.json"), digest]
-        return original(replacement, *arguments, **options)
+        return replacement
 
-    subprocess.Popen = launch
+    class NativePopen(original):
+        # Preserve Popen's class/generic interface for imported libraries.
+        def __init__(self, args, *arguments, **options):
+            super().__init__(replace_argv(args), *arguments, **options)
+
+    subprocess.Popen = NativePopen
     try:
         yield
     finally:

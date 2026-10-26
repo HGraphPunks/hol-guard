@@ -56,9 +56,10 @@ Candidate code cannot select a Root executable, environment, mount helper or
 device. Any failure requires PID1 exit; the supervisor must retain uncertainty
 until it independently proves complete cgroup/namespace cleanup.
 
-Seven macOS parser/custody tests and the two proof-launch isolation tests pass.
+Seven macOS parser/custody tests, eight native ARM64 tests and the three
+proof-launch isolation/interface tests pass.
 The complete Linux ARM64 implementation builds, and ARM64 warnings-denied
-Clippy passes. Linux execution and live VM success/deadline/cancellation evidence
+Clippy passes. Live VM success/deadline/cancellation evidence
 are still required before checking this constructor's live-proof exit. Existing
 historical artifacts and the parent milestone count remain unchanged.
 
