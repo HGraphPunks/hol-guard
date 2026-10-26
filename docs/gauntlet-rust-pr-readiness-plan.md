@@ -193,6 +193,11 @@ approval ceremony for routine work already authorized by this request.
   `ci/gauntlet-rs/profiles/native-vm-v1.yaml`. Its actual 2 vCPU/16 GiB/48 GiB
   profile has 46,939,676,672 free disk bytes before provisioning, above the
   unchanged 12-GiB start floor. No retained VM/history was resized or removed.
+- 2026-10-26: merged upstream `5861e94c` at `53af9d96` without conflicts;
+  no Gauntlet source changed. The full 404-test migration workspace and 418
+  matching Native/product/migration regressions pass with zero failures/skips.
+  See [current synchronization](gauntlet-rust-upstream-sync-5861e94c.md) and
+  [provisioned build VM](gauntlet-rust-native-build-vm-20261026.md).
 - Next: complete source-matched deterministic authority. No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.
