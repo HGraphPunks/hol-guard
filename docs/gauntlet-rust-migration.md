@@ -1,5 +1,9 @@
 # Gauntlet → Rust: technical analysis and implementation handoff
 
+Execution resumed on 2026-10-26 under the active
+[PR-readiness plan](gauntlet-rust-pr-readiness-plan.md). That plan preserves
+this design's scope and the existing evidence-based acceptance checklist.
+
 **Prepared for:** GPT-6 Sol Max or another implementation owner
 **Analysis date:** 2026-10-19
 **Gauntlet source baseline:** [PR #5263](https://github.com/hashgraph-online/hol-guard/pull/5263) at `b4efd8171b06d0e13cbe12a077c376ecdc891fd1`

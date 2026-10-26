@@ -1,5 +1,10 @@
 # Gauntlet Rust migration execution checklist
 
+The active execution contract is the
+[2026-10-26 PR-readiness plan](gauntlet-rust-pr-readiness-plan.md).
+Historical proof and parent-exit counts remain unchanged until new validation
+actually closes an exit.
+
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
 ```

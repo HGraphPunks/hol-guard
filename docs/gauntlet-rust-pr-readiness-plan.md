@@ -1,0 +1,137 @@
+# Gauntlet Rust migration: execution and PR readiness
+
+Updated: 2026-10-26. Execution model: GPT-6.1 Sol, Max reasoning.
+Status: active implementation; the Rust replacement is not qualified.
+
+## Goal and completion contract
+
+Finish the Gauntlet migration on a tested branch in `HGraphPunks/hol-guard`,
+ready for a pull request into `hashgraph-online/hol-guard` `main`. This is the
+active goal for Codex task `01a17937-c26d-7ec1-8c97-8e68530edd08`.
+Writing this plan is the first deliverable, not goal completion.
+
+Rust must own trusted orchestration, evidence verification, durable execution
+state, the Linux worker and product-cell apparatus, host lifecycle, scheduling,
+and the intended qualification/publication interfaces. The pinned OMP/Bun
+adapter, host MLX inference process, product pytest executor, and explicitly
+versioned historical readers remain external dependencies as specified in
+[the migration design](gauntlet-rust-migration.md). External adapters may not
+silently retain orchestration or verdict authority attributed to Rust.
+
+The finish line is executable behavior with exact-source proof across the
+local deterministic, workflow-benchmark and legacy lanes. No self-reported
+pass, old Python run, synthetic fixture or successful build substitutes for
+fresh required execution evidence. The existing
+[62-parent checklist](gauntlet-rust-execution-checklist.md) remains the
+acceptance ledger: 24 complete and 38 open at this plan's creation. Its
+historical proofs remain immutable; only independently verified exits change
+the count.
+
+## Starting state and integration policy
+
+| Input | Starting identity and disposition |
+| --- | --- |
+| Published migration | Draft upstream PR #5402; fork integration `f143f9ac8aa2cebba9c7d676fd9ff425bbf22e3e` |
+| Pending macOS chunk | Fork PR #3 at `2ab0f15f226cea4c99d833f8e4a9af46f53ed076`; five required current-head checks absent |
+| Newer preparation | Fork preparation `b0b0cdd8aa606dabc1ea00be87a808a0f4f4812c`; passive observer and native product actor/gate |
+| Uncommitted preparation | Detached-child readiness repair, associated inventory updates/tests, and an unfinished `gauntlet-cell-rootfs` crate; preserve the original worktree |
+| New execution branch | `codex/gauntlet-rust-pr-ready-20261026`, initially created from integration and merged with the committed preparation |
+| Upstream observed at planning | `ed95bf53c998bb98715a2588e100bc9d3cd47320`; fetch and recheck before integration and final validation |
+| Historical trusted baseline | Python PR #5263 at `b4efd8171b06d0e13cbe12a077c376ecdc891fd1`; do not regenerate its fixtures or receipts |
+
+Use coherent child PRs following [the development workflow](../ci/gauntlet-rs/AGENTS.md).
+Pending work can be carried into a fresh child and validated together; this
+does not satisfy or bypass a missing check on another head. Preserve published
+history, merge reviewed upstream changes, and refresh only the explicit source
+delta after inspecting changed Gauntlet behavior. Keep a clean, recoverable
+commit after each verified implementation slice. Leave existing dirty work
+intact until its reviewed bytes have a separate retained checkpoint.
+
+## Work packages and required proof
+
+| Package | Implementation and acceptance | Checklist coverage | Starting state |
+| --- | --- | --- | --- |
+| R0 Integration and tools | Recover pinned Rust 1.88 and Python test tooling; retain WIP; merge current upstream; fix integration conflicts; run the five migration jobs and relevant product CI on the actual child head | Phase 0 integration and final-head CI | In progress |
+| R1 Complete behavioral inventory | Map all three CLIs, command/profile/exit contracts, schema versions, assets, journals and state transitions to owners and tests; reconcile Python/Rust refusal classes, races and old evidence readers | Phases 0 and 1 | Partial |
+| R2 Native product apparatus | Complete the Root Rust rootfs/namespace/mount constructor and supervisor around the existing unprivileged Rust actor/gate; preserve idmaps, proc masks, AppArmor, seccomp, networking and resource limits; prove actual success, timeout, cancellation and descendant cleanup | Phase 2 worker and isolation | Actor/gate live proof exists; Root orchestration is Python |
+| R3 Deterministic authority | Capture authenticated Native requests/decisions and physical effects independently; bind exact request, product identity, file generation and cleanup; recompute each role's verdict; run six fresh staging plus six installed roles and construct fresh conformance | Phase 1 outcome verification and Phase 2 conformance | Diagnostics remain ineligible |
+| R4 Build and deployment | Rust-owned source/archive custody, bounded unprivileged build, inert wheel/prefix staging, source-matched immutable deployments and feature-audit invocation; preserve failed/uncertain receipts | Phase 2 provenance, staging and failure matrix | Subproofs exist; complete path open |
+| R5 Operational lifecycle | Connect the passive Rust observer to the qualified worker, exact-tag queue and bounded progress transport; implement reconciliation/repair, history import, stale data and unknown-job blocking; prove interruption, restart and single ownership | Phase 3 | Passive native observer exists on preparation |
+| R6 Workflow execution | Rust campaign freeze, exclusive journals, serial shards/attempts, authenticated OMP bridge, service/oracle ownership and complete reserve/settle/halt accounting; then fresh two-cell and twelve-cell real-inference profiles and contracted wider schedules | Phase 4 | Pure readers/reducers and bridge components exist |
+| R7 Legacy and compatibility | Preserve the pinned legacy catalog and actual harness behavior, installed/repeat/aged-home acceptance, old/new bundle verification and trusted-base publication separation; test stale heads and forged producer claims | Phase 5 and remaining Phase 1 readers | Open |
+| R8 Rollout and recovery | Build reviewed immutable host/worker generations, compare retained evidence with Python, demonstrate idle-only cutover and rollback without lost receipts, replay or duplicated provider use; publish the compatibility table | Phase 6 | Open |
+| R9 Final fork handoff | Recheck upstream, obtain complete exact-head checks, document setup/operation/limits and evidence locations, and push the clean final branch with a reviewer-ready diff and PR description | Final migration readiness | Open |
+
+Keep implementation modules within the repository's source-size guideline.
+Use existing secure filesystem, bounded process, framing and custody helpers
+where their contracts fit. Preserve the documented JSON data exemption.
+
+## Execution order
+
+1. R0: create the isolated branch, retain the interrupted work, restore test
+   tooling and capture a baseline. Commit this plan and the goal contract.
+2. Complete the detached-readiness repair, then R2's Root constructor as a
+   separately testable boundary. Unit tests must cover actual failure cases;
+   the VM proof must observe kernel state and cleanup rather than repeat
+   constructor assertions.
+3. Compose R2/R4/R3 into one fresh source-bound deterministic candidate before
+   enabling worker admission. Keep `invalid-evidence` and eligibility false
+   until the independently checked acceptance conditions are met.
+4. Complete R1 compatibility alongside these slices. Use the Python behavior
+   as a differential oracle and record incompatible semantics explicitly.
+5. Connect R5 only after the worker authority is qualified. Use isolated Rust
+   state first and demonstrate interrupted-job reconciliation before cutover.
+6. Complete R6 and R7, then R8 and final R9 validation. Actual inference begins
+   only after deterministic admission and settled quota preflight pass.
+
+The dependency order does not suspend independent implementation when CI,
+review or inference authorization is unavailable. Track the specific external
+dependency and continue work that does not depend on it.
+
+## Validation and evidence rules
+
+- Run locked Rust tests, format and warnings-denied Clippy on the affected
+  workspace, then required macOS/Linux ARM64 and merged Native checks. Run
+  relevant product regressions after a boundary or upstream change. A prior
+  head's green run is historical evidence.
+- Every live proof records controller, worker, candidate, configuration,
+  installed prefix, assets and outside evidence pins. Use a fresh job ID and
+  namespace after execution-affecting changes. Retain all failed attempts.
+- Independently establish request/decision/effect relations. A signed
+  controller statement authenticates its producer; it does not by itself
+  prove Guard caused a physical effect or prevented an attack.
+- Test refusal and recovery for identity substitutions, links, concurrent
+  mutation, replay, stale process IDs, uncertain cleanup, interrupted writes,
+  timeout and cancellation. Missing measurements remain unavailable.
+- Preserve all required cells and distinguish baseline attack measurements,
+  model refusal, service/VM enforcement, Guard intervention and task utility.
+  Compile-time schedule inventory is not execution of the schedule.
+- Charge all provider attempts to the retained authorization. This goal sets
+  no new inference allowance. Inspect the existing exact-source allowance
+  before a run; never reset a journal or infer an extension from elapsed time.
+- Required independent review and trusted artifact provenance must actually
+  exist before a production/cutover exit is checked. Author-generated tests
+  and this goal do not supply that review.
+
+## Authorized boundaries
+
+The user authorizes implementation, local validation, owned disposable VM
+work, commits, fork branches, incremental fork PRs and their required checks,
+and preparing the final fork branch for an upstream PR. Preserve existing
+approvals, isolation, evidence, failed attempts, journals and original work.
+
+This goal does not authorize an upstream merge, production gate activation,
+publishing a release, accessing secret files, broadening isolation, or
+resetting/exceeding model quota. Prepare reviewable changes and evidence
+before requesting any genuinely necessary external action. Do not add an
+approval ceremony for routine work already authorized by this request.
+
+## Current execution record
+
+- 2026-10-26: registered this goal on the current GPT-6.1 Sol / Max task.
+  Located the installed Rust 1.88 toolchain outside the shell's PATH.
+  Created the isolated branch from integration and merged the committed
+  preparation. The original preparation worktree and its WIP remain intact.
+- Next: restore test dependencies, retain the readiness repair, synchronize
+  upstream and implement the Root Rust apparatus. No new conformance, model
+  result, eligible verdict, cutover or completed parent exit is claimed.
