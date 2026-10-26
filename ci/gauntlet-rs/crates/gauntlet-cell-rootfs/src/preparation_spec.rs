@@ -19,6 +19,18 @@ pub struct CellPreparation {
 }
 
 impl CellPreparation {
+    pub fn job_slice(&self) -> Option<&str> {
+        self.launch["job_slice"].as_str()
+    }
+    pub fn host_helper_sha256(&self, name: &str) -> Option<&str> {
+        self.launch["host_helpers"][name].as_str()
+    }
+    pub fn wall_seconds(&self) -> u64 {
+        self.launch["wall_seconds"]
+            .as_u64()
+            .expect("parsed fixed launch template")
+    }
+
     pub fn parse(raw: &[u8], expected: &str) -> Result<Self> {
         if !hex(expected, 64) || hash(raw) != expected {
             return Err("cell preparation differs from outside pin".into());

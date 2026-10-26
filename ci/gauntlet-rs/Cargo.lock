@@ -427,6 +427,7 @@ dependencies = [
 name = "gauntlet-worker-state"
 version = "0.1.0"
 dependencies = [
+ "gauntlet-cell-rootfs",
  "gauntlet-contracts",
  "gauntlet-evidence",
  "gauntlet-host-state",

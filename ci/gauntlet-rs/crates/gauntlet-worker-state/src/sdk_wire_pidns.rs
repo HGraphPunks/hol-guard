@@ -288,7 +288,7 @@ fn verify_pid_namespace(pid: u32) -> Result<(), String> {
     let filesystem = unsafe { filesystem.assume_init() };
     let mount = unsafe { mount.assume_init() };
     let flags = libc::ST_NOSUID | libc::ST_NODEV | libc::ST_NOEXEC;
-    if filesystem.f_type != PROC_MAGIC || mount.f_flag & flags != flags {
+    if i128::from(filesystem.f_type) != i128::from(PROC_MAGIC) || mount.f_flag & flags != flags {
         return Err("private proc mount differs from fixed profile".to_owned());
     }
     Ok(())

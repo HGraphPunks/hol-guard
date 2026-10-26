@@ -167,7 +167,16 @@ approval ceremony for routine work already authorized by this request.
   [preparation proof](gauntlet-rust-preparation-vm-proof-20261026.md). The
   existing VM is below the fixed 12-GiB candidate-build starting floor;
   retained history remains untouched.
-- Next: integrate the Rust supervisor and image lifecycle with the worker,
+- 2026-10-26: merged upstream `b5a27d0a` at `5613889b` without conflicts.
+  Source/install inventories still match; the rebuilt matching Native runtime
+  passed 206 macOS ownership, approval, delivery and new upstream regressions
+  with zero skips. See [upstream synchronization](gauntlet-rust-upstream-sync-b5a27d0a.md).
+- 2026-10-26: implemented an explicit native apparatus worker, descriptor-bound
+  contained Rust controller, durable job markers/terminal and unknown-job
+  admission blocking. Focused macOS tests and ARM64 build/Clippy pass; its
+  [live job proof](gauntlet-rust-native-worker.md) remains pending. It always
+  treats apparatus completion as invalid evidence for Guard qualification.
+- Next: prove the Rust worker's complete job path,
   then complete source-matched deterministic
   authority. No new
   conformance, model result, eligible verdict, cutover or completed parent

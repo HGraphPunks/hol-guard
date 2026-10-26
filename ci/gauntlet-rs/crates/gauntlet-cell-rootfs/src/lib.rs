@@ -23,6 +23,11 @@ mod kernel_status;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod mounts;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_apparatus;
+mod native_case;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_worker_support;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod preparation;
 mod preparation_spec;
 mod spec;
@@ -40,6 +45,13 @@ mod supervisor_spec;
 
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use kernel_process::{CellProcessExpectation, HeldCellProcess};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_apparatus::run_native_apparatus;
+pub use native_case::{NativeApparatusReport, NativeCase};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_worker_support::{
+    begin_owned_job_slice, require_image_lease_absent, require_outside_root, verify_systemctl,
+};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use preparation::prepare_and_start;
 pub use preparation_spec::CellPreparation;

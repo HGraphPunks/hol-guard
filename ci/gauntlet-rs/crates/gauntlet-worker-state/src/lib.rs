@@ -179,6 +179,14 @@ mod interpreter_exec;
 #[cfg(any(target_os = "linux", test))]
 mod job_slice_guard;
 mod launch_plan;
+mod native_job_spec;
+pub use native_job_spec::NativeJobSpec;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_controller_exec;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_job_io;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_worker;
 #[cfg(target_os = "linux")]
 pub use interpreter_exec::{
     probe_verified_interpreter_exec, InterpreterExecError, InterpreterExecProof,
@@ -186,6 +194,10 @@ pub use interpreter_exec::{
 #[cfg(target_os = "linux")]
 pub use job_slice_guard::{
     require_rust_job_slice_absent, stop_rust_job_slice, JobSliceStopObservation,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_worker::{
+    dispatch_native_worker, execute_native_controller, install_native_worker_signals,
 };
 mod lease;
 #[cfg(target_os = "linux")]
