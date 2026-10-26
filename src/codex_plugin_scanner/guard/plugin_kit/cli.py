@@ -1,4 +1,4 @@
-"""CLI for the HOL Guard Plugin Kit: ``hol-guard plugin init|check|package|links``.
+"""CLI for the HOL Guard Plugin Kit: ``hol-guard plugin init|check|package|links|install|uninstall``.
 
 Detection, checks, packaging and file writes run in the native runtime's
 ``plugin-kit`` command. This module parses arguments, sends one request and
@@ -62,6 +62,30 @@ _ERRORS = {
         "The runtime rejected the request. Reinstall hol-guard so the CLI and the runtime match."
     ),
     "plugin_kit_encode_failed": "The runtime could not encode its answer.",
+    "plugin_kit_install_spec_invalid": (
+        "HOL's install details for this listing failed Guard's checks, so nothing will run. "
+        "Follow the listing's install steps instead."
+    ),
+    "plugin_kit_install_spec_unsupported": "This listing needs a newer hol-guard. Run: pip install -U hol-guard",
+    "plugin_kit_install_runtime_unknown": "Unknown runtime. Choose from: claude-code, codex, agent-skills",
+    "plugin_kit_install_runtime_not_offered": "This listing cannot be installed for a runtime you named.",
+    "plugin_kit_install_spec_mismatch": (
+        "HOL answered with the install details of a different listing, so nothing will run."
+    ),
+    "plugin_kit_install_version_unavailable": (
+        "HOL does not list that version, and runtime marketplaces install the listed release. "
+        "Drop the @version to install what HOL lists."
+    ),
+    "plugin_kit_install_not_recorded": (
+        "Guard has no record of installing this listing for the runtimes named, so it will not remove it. "
+        "Use the runtime's own CLI instead."
+    ),
+    "plugin_kit_ledger_invalid": (
+        "Guard's install record (plugin-kit/installs.json in the Guard home) could not be read, so nothing will run."
+    ),
+    "plugin_kit_ledger_unwritable": "Guard could not update its install record in the Guard home.",
+    "plugin_kit_guard_home_invalid": "The Guard home must be an absolute path.",
+    "plugin_kit_links_slug_invalid": "Use a HOL listing slug such as owner/plugin.",
 }
 
 
@@ -109,20 +133,25 @@ def _native_request(request: Mapping[str, object]) -> dict[str, Any]:
     return response
 
 
+def kit_request(request: Mapping[str, object]) -> dict[str, Any]:
+    """Return the native result, raising PluginKitNativeError with the message to show."""
+
+    response = _native_request(request)
+    if not response["ok"]:
+        code = str(response.get("error") or "")
+        raise PluginKitNativeError(_ERRORS.get(code, code or _NATIVE_FAILED))
+    result = response.get("result")
+    return result if isinstance(result, dict) else {}
+
+
 def _call(request: Mapping[str, object]) -> dict[str, Any] | None:
     """Return the native result, or print the error and return None."""
 
     try:
-        response = _native_request(request)
+        return kit_request(request)
     except PluginKitNativeError as error:
         print(f"Error: {error}", file=sys.stderr)
         return None
-    if not response["ok"]:
-        code = str(response.get("error") or "")
-        print(f"Error: {_ERRORS.get(code, code or _NATIVE_FAILED)}", file=sys.stderr)
-        return None
-    result = response.get("result")
-    return result if isinstance(result, dict) else {}
 
 
 def _runtime_list(value: str) -> list[str]:
@@ -167,7 +196,36 @@ def build_parser(*, program_name: str = "hol-guard plugin") -> argparse.Argument
         help="Rebuild into a non-empty output folder, replacing the files the last package wrote.",
     )
     package.add_argument("--strict", action="store_true", help="Refuse to package when there are warnings.")
-    add("links", "Print install commands for each runtime and where to list the plugin.")
+    links = add("links", "Print install commands for each runtime and where to list the plugin.")
+    links.add_argument(
+        "--block",
+        action="store_true",
+        help="Print only the README install block: hol-guard plugin install plus each runtime's commands.",
+    )
+    links.add_argument("--slug", help="HOL listing the block names (default: the GitHub repository).")
+    for name, help_text in (
+        ("install", "Install a HOL listing with each runtime's own CLI. Prints the plan unless --apply."),
+        ("uninstall", "Remove a listing that plugin install added. Prints the plan unless --apply."),
+    ):
+        command = commands.add_parser(name, help=help_text, description=help_text)
+        command.add_argument(
+            "target",
+            help="HOL listing, such as owner/plugin"
+            + (" (optionally @version)." if name == "install" else ", as plugin install recorded it."),
+        )
+        mode = command.add_mutually_exclusive_group()
+        mode.add_argument("--apply", action="store_true", help="Run the commands, confirming each runtime.")
+        mode.add_argument("--dry-run", action="store_true", help="Only print the plan (the default).")
+        command.add_argument("--yes", action="store_true", help="With --apply, skip the confirmations (for CI).")
+        command.add_argument(
+            "--runtime",
+            dest="runtimes",
+            type=_runtime_list,
+            help="Comma-separated runtimes: claude-code, codex, agent-skills (default: every one offered).",
+        )
+        if name == "install":
+            command.add_argument("--spec-file", help="Read the install spec from a file instead of HOL (offline, CI).")
+        command.add_argument("--json", action="store_true", help="Print the plan as JSON.")
     return parser
 
 
@@ -175,6 +233,10 @@ def _request(args: argparse.Namespace) -> dict[str, object]:
     request: dict[str, object] = {"command": args.command, "root": str(Path(args.path).resolve())}
     if args.command == "init" and args.name:
         request["name"] = args.name
+    if args.command == "links" and args.block:
+        request["block"] = True
+        if args.slug:
+            request["slug"] = args.slug
     if args.command in {"check", "package"}:
         request["strict"] = bool(args.strict)
     if args.command == "package":
@@ -248,6 +310,19 @@ def _write_links(result: Mapping[str, Any]) -> None:
             print(f"  - {step.get('message')}")
 
 
+def _write_block(result: Mapping[str, Any]) -> int:
+    block = result.get("block")
+    if not isinstance(block, str):
+        print(
+            "No install block: HOL Guard installs from a Claude Code or Codex marketplace entry in a GitHub "
+            "repository. Run `hol-guard plugin links` for the next steps.",
+            file=sys.stderr,
+        )
+        return 1
+    print(block)
+    return 0
+
+
 _GUARD_OFFER_MARKER = ("plugin-kit", "guard-offer-shown")
 
 
@@ -272,8 +347,59 @@ def _offer_guard_once() -> None:
     print("  hol-guard install claude-code   (or codex, cursor, gemini, opencode)")
 
 
+def _install(args: argparse.Namespace) -> int:
+    from ..config import resolve_guard_home
+    from . import install
+
+    installing = args.command == "install"
+    guard_home = resolve_guard_home()
+    try:
+        slug, version = install.parse_target(args.target)
+        if not installing and version:
+            raise install.PluginInstallError("Name the listing without a version, such as owner/plugin.")
+        spec: dict[str, Any] | None = None
+        if installing:
+            spec = install.read_spec_file(args.spec_file) if args.spec_file else install.fetch_spec(slug)
+    except install.PluginInstallError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 2
+    available = install.available_programs()
+    runtimes = args.runtimes or []
+    # Uninstall plans from Guard's own record, so it only removes what
+    # install added and still works once a listing leaves HOL.
+    request: dict[str, object] = (
+        {"command": "install", "spec": spec, "slug": slug, "version": version}
+        if installing
+        else {"command": "uninstall", "guard_home": str(guard_home), "slug": slug}
+    )
+    plan = _call({**request, "available": available, "runtimes": runtimes})
+    if plan is None:
+        return 2
+    if args.json:
+        print(json.dumps(plan, indent=2, sort_keys=True))
+    else:
+        install.write_plan(plan, apply=args.apply)
+    if not args.apply:
+        return 0
+    # Refuse before anything runs when the install record cannot be read,
+    # rather than installing and then failing to record it.
+    if _call({"command": "installs", "guard_home": str(guard_home)}) is None:
+        return 2
+
+    def record(runtime: str) -> None:
+        install.record(guard_home, slug, runtime, installed=installing, spec=spec)
+
+    try:
+        return install.apply_plan(plan, assume_yes=args.yes, record=record)
+    except install.PluginInstallError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 2
+
+
 def main(argv: Sequence[str] | None = None, *, program_name: str = "hol-guard plugin") -> int:
     args = build_parser(program_name=program_name).parse_args(argv)
+    if args.command in {"install", "uninstall"}:
+        return _install(args)
     result = _call(_request(args))
     if result is None:
         return 2
@@ -281,6 +407,8 @@ def main(argv: Sequence[str] | None = None, *, program_name: str = "hol-guard pl
         print(json.dumps(result, indent=2, sort_keys=True))
     elif args.command == "check":
         _write_check(result)
+    elif args.command == "links" and args.block:
+        return _write_block(result)
     elif args.command == "links":
         _write_links(result)
     elif args.command == "init":
