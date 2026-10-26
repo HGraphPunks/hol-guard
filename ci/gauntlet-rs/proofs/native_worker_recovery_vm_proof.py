@@ -8,7 +8,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
+import stat
 import subprocess
 import traceback
 import types
@@ -29,7 +31,24 @@ def run(args, base):
              (".started.json", ".running.json", ".native.stdout", ".native.stderr")]
     paths += [job / "cell" / name for name in ("native-image-events.v1.jsonl",
               "native-supervisor-events.v1.jsonl", "native-rootfs.v1.json", "native-supervisor.v1.json")]
-    before = {str(path): sha(read(path, 16 * 1024**2)) for path in paths}
+    def retained(path):
+        # A controller that failed before reporting legitimately has no stdout.
+        # Preserve descriptor custody and metadata checks for empty streams too.
+        base.trusted_parents(path)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+        with os.fdopen(fd, "rb") as stream:
+            first = os.fstat(stream.fileno())
+            if (not stat.S_ISREG(first.st_mode) or first.st_uid != 0 or first.st_gid != 0
+                    or first.st_nlink != 1 or first.st_mode & 0o022 or first.st_size > 16 * 1024**2):
+                raise ValueError("bounded retained Root stream required")
+            raw = stream.read(16 * 1024**2 + 1)
+            after = os.fstat(stream.fileno())
+            fields = ("st_dev", "st_ino", "st_uid", "st_gid", "st_mode", "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns")
+            if len(raw) != first.st_size or any(getattr(first, k) != getattr(other, k) for k in fields for other in (after, path.lstat())):
+                raise ValueError("retained Root stream changed")
+            return raw
+
+    before = {str(path): sha(retained(path)) for path in paths}
     if before[str(paths[0])] != args.started_sha256:
         raise ValueError("original started marker differs from outside pin")
     preparation = json.loads(read(job / "preparation.v1.json", 49152))
@@ -74,7 +93,7 @@ def run(args, base):
         retain("reopened-process.json", reopened)
         if reopened.returncode or json.loads(reopened.stdout) != receipt or read(state / (args.job_id + ".native-repair.json"), 8192) != receipt_raw:
             raise ValueError("recovery restart changed the immutable receipt")
-        after = {str(path): sha(read(path, 16 * 1024**2)) for path in paths}
+        after = {str(path): sha(retained(path)) for path in paths}
         if before != after:
             raise ValueError("recovery rewrote failed-job evidence")
         if any((state / (args.job_id + suffix)).exists() for suffix in (".terminal.json", ".report.json")):
