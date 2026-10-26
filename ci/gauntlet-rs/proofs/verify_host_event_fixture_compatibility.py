@@ -1,6 +1,6 @@
 """Replay frozen host-event vectors against reviewed, unchanged Python reducers.
 
-Main at 76efccff changed other parts of evidence.py. The historical vectors
+Main at 7fb50978 changed other parts of evidence.py. The historical vectors
 and generators remain immutable. This proof accepts only that exact reviewed
 source pair, checks normalized function ASTs against 7eba6064, and executes
 only the generators' isolated stdlib-only functions, never controller imports.
@@ -22,7 +22,9 @@ ROOT = Path(__file__).resolve().parents[3]
 PROOFS = ROOT / "ci/gauntlet-rs/proofs"
 FIXTURES = ROOT / "ci/gauntlet-rs/crates/gauntlet-evidence/tests"
 HISTORICAL = "b76344cf9700c73abebd5d65a81d34aa28c960b591fc2bc485423afa038efe2f"
-CURRENT = "720bf562b809033f3c46f0e37966d1f6fe123283290a26c3dd5955664d19524d"
+# Prior reviewed generation: 720bf562b809033f3c46f0e37966d1f6fe123283290a26c3dd5955664d19524d.
+# Upstream added decision coverage to assess_case; neither reducer below changed.
+CURRENT = "b5a2ba7d80f6bb16eb60d125299b0f7874e1befded2680b0394cb065e4ba2a51"
 FUNCTIONS = {
     "reconcile": "a70ae54c39ced369635adfab98f73cf8f719b359bdee92704fdf6459db584605",
     "read_events": "408a5d0412c2b2e91031b017e84bbbcb377495226bdeffe04757cec950e62c40",
