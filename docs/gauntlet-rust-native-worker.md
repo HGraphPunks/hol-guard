@@ -24,7 +24,9 @@ Both Rust and legacy worker leases cover the remaining namespace/receipt
 commit. A private generation-keyed initialization receipt survives identical
 reopen and always states no job dispatched, no model use and no eligibility.
 It neither adopts unknown jobs nor runs the Python control-plane installer.
-Live initialization proof on the separate fresh build VM is pending.
+The [fresh VM initialization proof](gauntlet-rust-native-initialization-vm-proof-20261026.md)
+passes with both competing leases, immutable restart and actual Root custody
+tests; no Python worker is installed and no job is dispatched.
 
 The preparation is fixed at
 `/var/lib/hol-gauntlet-rust/native-jobs/<job>/preparation.v1.json`. Stage,

@@ -28,6 +28,7 @@ installed from its configured distribution repositories are:
 | libseccomp2 | `2.5.5-1ubuntu3.1` |
 | ca-certificates | `20260816ubuntu0.24.04.1` |
 | mount, libmount1, util-linux | `2.39.3-9ubuntu6.6` |
+| slirp4netns (added before candidate build) | `1.2.1-1build2` |
 
 The latter update matches the existing `ubuntu2404-controller-v1` idmap
 profile. Both helper digests were checked directly; no constructor pin or
@@ -44,6 +45,10 @@ Two Root-private package logs remain in the VM's `/var/log`:
 `23a3b9534b361f6750a827f6e665a3f682869cb0fa4fce49527b3a98cf1f5ab1`,
 and `hol-gauntlet-native-idmap-provision-20261026-001.log`, SHA-256
 `5ea0bc21ba178555fb08d2fef351ae09c2e2f1dc06b9b523bdcfa90c7c7906be`.
+
+The [Rust initializer](gauntlet-rust-native-initialization-vm-proof-20261026.md)
+subsequently created native storage and both permanent worker locks without
+installing a Python control-plane worker or dispatching a job.
 
 This establishes build headroom and system prerequisites. A reviewed Rust
 controller/worker generation, source archive, builder/executor images, fresh

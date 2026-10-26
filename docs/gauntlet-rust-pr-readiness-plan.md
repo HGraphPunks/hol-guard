@@ -198,6 +198,12 @@ approval ceremony for routine work already authorized by this request.
   matching Native/product/migration regressions pass with zero failures/skips.
   See [current synchronization](gauntlet-rust-upstream-sync-5861e94c.md) and
   [provisioned build VM](gauntlet-rust-native-build-vm-20261026.md).
+- 2026-10-26: Rust-only fixed-layout initialization at `bff9ed0d` passes on
+  the separate fresh VM, including wrong-pin refusal before mutation, both
+  competing worker leases, exact modes under 0077 and immutable receipt reopen.
+  The actual Root suite passes 120 tests with 24 existing fixture-specific
+  ignores separate. No Python control-plane worker is installed or job
+  dispatched. See [initialization proof](gauntlet-rust-native-initialization-vm-proof-20261026.md).
 - Next: complete source-matched deterministic authority. No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.
