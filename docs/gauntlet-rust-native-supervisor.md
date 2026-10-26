@@ -52,3 +52,14 @@ Zig 0.15.1; C is compiled without Zig's implicit debug UBSan instrumentation to
 match the ordinary unsanitized GNU CI build and avoid an unlinked sanitizer
 runtime in Ring's constant-time C helper. This does not alter Rust checks,
 test expectations or runtime isolation.
+
+The first live attempt (`native-supervisor-proof-20261026-001`, source
+`6a7e60da06c93475ad8e8427fd809e9cc27f6e73`) passed all 15 ARM64 unit tests
+and reached authenticated daemon process release after the outside kernel and
+mount checks. It then failed on the reader's incomplete exact response schema:
+the actor also returns `output_bytes`. The failed evidence remains intact.
+Rust closed the cell; the independent adapter confirmed image cleanup and no
+outside cleanup intervention. The corrected reader includes the mandatory
+cumulative byte count, checks it against actual decoded bytes for each owned
+handle, and shares that parser with bounded capture. Malformed replies are
+retained before closing the cell. Fresh live evidence is still required.

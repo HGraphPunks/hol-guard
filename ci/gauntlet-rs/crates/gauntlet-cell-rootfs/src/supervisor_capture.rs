@@ -19,12 +19,31 @@ pub struct ProcessChunk {
     pub stderr: Vec<u8>,
     pub stdout_eof: bool,
     pub stderr_eof: bool,
+    pub output_bytes: u64,
+}
+
+impl ProcessChunk {
+    fn validate_after(&self, previous: u64) -> Result<()> {
+        if previous.checked_add((self.stdout.len() + self.stderr.len()) as u64)
+            != Some(self.output_bytes)
+        {
+            return Err("product stream cumulative byte count differs".into());
+        }
+        Ok(())
+    }
 }
 
 fn parse_chunk(reply: &Value) -> Result<ProcessChunk> {
     if !exact(
         reply,
-        &["stdout", "stderr", "returncode", "stdout_eof", "stderr_eof"],
+        &[
+            "stdout",
+            "stderr",
+            "returncode",
+            "stdout_eof",
+            "stderr_eof",
+            "output_bytes",
+        ],
     ) {
         return Err("exact product stream result required".into());
     }
@@ -61,6 +80,10 @@ fn parse_chunk(reply: &Value) -> Result<ProcessChunk> {
         stderr_eof: reply["stderr_eof"]
             .as_bool()
             .ok_or("stderr EOF must be boolean")?,
+        output_bytes: reply["output_bytes"]
+            .as_u64()
+            .filter(|n| *n <= 8 * 1024 * 1024)
+            .ok_or("bounded product output byte count required")?,
     })
 }
 
@@ -119,6 +142,7 @@ impl NativeCell {
                 json!({"handle":handle,"identity":process.observation()}),
             )?;
             self.children.insert(handle.clone(), process);
+            self.output_counts.insert(handle.clone(), 0);
             Ok(handle)
         })();
         result.map_err(|e| self.operation_failed(e))
@@ -152,6 +176,7 @@ impl NativeCell {
                 return Err("product retirement acknowledgement differs".into());
             }
             self.children.remove(handle);
+            self.output_counts.remove(handle);
             self.journal.append(
                 "retired-product-process",
                 json!({"handle":handle,"pid":pid}),
@@ -190,7 +215,29 @@ impl NativeCell {
                 &json!({"handle":handle,"wait_ms":wait_ms}),
                 deadline,
             )?;
-            let chunk = parse_chunk(&reply)?;
+            let chunk = match parse_chunk(&reply) {
+                Ok(chunk) => chunk,
+                Err(error) => {
+                    self.journal.append(
+                        "invalid-read-response",
+                        json!({"handle":handle,"reply":reply}),
+                    )?;
+                    return Err(error);
+                }
+            };
+            let previous = *self
+                .output_counts
+                .get(handle)
+                .ok_or("owned product output count required")?;
+            if let Err(error) = chunk.validate_after(previous) {
+                self.journal.append(
+                    "invalid-read-response",
+                    json!({"handle":handle,"previous":previous,"reply":reply}),
+                )?;
+                return Err(error);
+            }
+            self.output_counts
+                .insert(handle.to_owned(), chunk.output_bytes);
             if !chunk.stdout.is_empty() || !chunk.stderr.is_empty() || chunk.returncode.is_some() {
                 self.journal
                     .append("product-stream", json!({"handle":handle,"chunk":reply}))?;
@@ -250,45 +297,15 @@ impl NativeCell {
                     }
                     ended = true;
                 }
-                let reply = self.call(
-                    "read",
-                    &json!({"handle":handle,"wait_ms":if offset<raw.len(){0}else{100}}),
-                    deadline,
-                )?;
-                if !exact(
-                    &reply,
-                    &["stdout", "stderr", "returncode", "stdout_eof", "stderr_eof"],
-                ) {
-                    return Err("exact product stream result required".into());
-                }
-                for (name, buffer) in [("stdout", &mut stdout), ("stderr", &mut stderr)] {
-                    let encoded = reply[name]
-                        .as_str()
-                        .filter(|s| s.len() <= 131072)
-                        .ok_or("bounded product stream encoding required")?;
-                    let decoded = STANDARD
-                        .decode(encoded)
-                        .map_err(|_| "invalid product stream base64")?;
-                    if decoded.len() > 65536 {
-                        return Err("product stream chunk exceeds bound".into());
-                    }
-                    buffer.extend_from_slice(&decoded);
-                }
+                let chunk =
+                    self.read_process(&handle, if offset < raw.len() { 0 } else { 100 }, deadline)?;
+                stdout.extend_from_slice(&chunk.stdout);
+                stderr.extend_from_slice(&chunk.stderr);
                 if stdout.len().saturating_add(stderr.len()) > 8 * 1024 * 1024 {
                     return Err("product capture output byte bound".into());
                 }
-                let out_eof = reply["stdout_eof"]
-                    .as_bool()
-                    .ok_or("stdout EOF must be boolean")?;
-                let err_eof = reply["stderr_eof"]
-                    .as_bool()
-                    .ok_or("stderr EOF must be boolean")?;
-                if !reply["returncode"].is_null() {
-                    let code = reply["returncode"]
-                        .as_i64()
-                        .filter(|n| (-255..=255).contains(n))
-                        .ok_or("bounded product exit code required")?;
-                    if out_eof && err_eof {
+                if let Some(code) = chunk.returncode {
+                    if chunk.stdout_eof && chunk.stderr_eof {
                         if offset != raw.len() {
                             return Err(
                                 "product exited before all bound input was delivered".into()
@@ -334,13 +351,20 @@ mod tests {
     #[test]
     fn binary_streams_and_exact_typed_terminal_fields_are_preserved() {
         let raw = [0, 255, 10];
-        let mut value = json!({"stdout":STANDARD.encode(raw),"stderr":"","returncode":null,"stdout_eof":false,"stderr_eof":false});
-        assert_eq!(parse_chunk(&value).unwrap().stdout, raw);
+        // Field names and counter match the actor's actual `read` response.
+        let mut value = json!({"stdout":STANDARD.encode(raw),"stderr":"","returncode":null,"stdout_eof":false,"stderr_eof":false,"output_bytes":3});
+        let chunk = parse_chunk(&value).unwrap();
+        assert_eq!(chunk.stdout, raw);
+        assert!(chunk.validate_after(0).is_ok());
+        assert!(chunk.validate_after(1).is_err());
         for (field, bad) in [
             ("stdout", json!("%%%")),
             ("stdout_eof", json!(1)),
             ("returncode", json!(true)),
             ("returncode", json!(256)),
+            ("output_bytes", json!(true)),
+            ("output_bytes", json!(-1)),
+            ("output_bytes", json!(8388609)),
             ("extra", json!(false)),
         ] {
             let mut changed = value.clone();
