@@ -186,6 +186,12 @@ mod native_initialize;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_initialize::initialize_native_worker;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_source_capture;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_source_stream;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_source_capture::capture_native_build_source;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_repair;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_repair_receipt;

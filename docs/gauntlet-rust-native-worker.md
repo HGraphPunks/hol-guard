@@ -27,6 +27,21 @@ It neither adopts unknown jobs nor runs the Python control-plane installer.
 The [fresh VM initialization proof](gauntlet-rust-native-initialization-vm-proof-20261026.md)
 passes with both competing leases, immutable restart and actual Root custody
 tests; no Python worker is installed and no job is dispatched.
+That historical v1 layout used 0755 for the build parent. The downstream
+candidate reader requires 0700, so the current initializer emits explicit
+`hol-gauntlet-native-initialization.v2` / `native-worker-layout-v2` and requires
+the private build parent. It refuses a loose existing directory; migration
+must preserve any original directory and never silently chmod job history.
+
+`--capture-build-source JOB SOURCE_SHA ARCHIVE_SHA256 BYTES GENERATION` streams
+only stdin into an exclusive fixed build slot under both worker leases, with
+a 180-second boottime deadline, signal cancellation and 256-MiB ceiling. It
+requires exact outside length/hash before committing `source.tar.gz` as 0444,
+then reopens it through the actual candidate-build custody reader and writes
+a private ineligible source receipt. Mismatch/interruption retains a consumed
+partial slot; replay cannot overwrite it. No archive is unpacked or executed,
+and the historical guest-home transfer path remains a separate adapter.
+Live v2 initialization/source-capture composition proof is pending.
 
 The preparation is fixed at
 `/var/lib/hol-gauntlet-rust/native-jobs/<job>/preparation.v1.json`. Stage,

@@ -117,9 +117,9 @@ pub fn initialize_native_worker(generation: &str) -> Result<Vec<u8>, String> {
         true,
     )?;
     directory(Path::new("/var/lib"), "hol-gauntlet", 0o755, false)?;
-    directory(Path::new("/var/lib/hol-gauntlet"), "builds", 0o755, false)?;
-    let body = serde_json::json!({"schema":"hol-gauntlet-native-initialization.v1","worker_generation":generation,
-        "layout":"native-worker-layout-v1","job_dispatched":false,"execution_eligible":false,"model_requests":0});
+    directory(Path::new("/var/lib/hol-gauntlet"), "builds", 0o700, true)?;
+    let body = serde_json::json!({"schema":"hol-gauntlet-native-initialization.v2","worker_generation":generation,
+        "layout":"native-worker-layout-v2","job_dispatched":false,"execution_eligible":false,"model_requests":0});
     let raw =
         gauntlet_contracts::canonicalize(body.to_string().as_bytes()).map_err(|e| e.to_string())?;
     let root = open_root_owned_public_directory(&Path::new(BASE).join("native-initialization"))

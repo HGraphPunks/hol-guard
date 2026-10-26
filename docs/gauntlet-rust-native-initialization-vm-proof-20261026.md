@@ -1,5 +1,11 @@
 # Rust-only native initialization VM proof
 
+This is the retained v1 initialization proof. Subsequent build integration
+found that its 0755 build parent does not satisfy the candidate reader's 0700
+contract. The current initializer explicitly versions that correction as v2;
+this historical receipt does not establish current build readiness. Its
+records remain retained; an upgrade must preserve the original empty directory.
+
 Source `bff9ed0d1209eac5cae5ede1c5eaccf44e7d9edc` adds the explicit
 `gauntlet-vm-worker --initialize-native GENERATION_SHA256` command. It creates
 only fixed empty native state/build/deployment namespaces and permanent locks,

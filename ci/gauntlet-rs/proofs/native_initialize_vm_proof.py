@@ -73,13 +73,13 @@ def main():
                 or any(p.exists() for p in roots)):
             raise ValueError("wrong generation mutated initialization domains")
         positive = invoke(args.worker_sha256, "initialize.json")
-        expected = {"schema": "hol-gauntlet-native-initialization.v1", "worker_generation": args.worker_sha256,
-                    "layout": "native-worker-layout-v1", "job_dispatched": False, "execution_eligible": False, "model_requests": 0}
+        expected = {"schema": "hol-gauntlet-native-initialization.v2", "worker_generation": args.worker_sha256,
+                    "layout": "native-worker-layout-v2", "job_dispatched": False, "execution_eligible": False, "model_requests": 0}
         if positive.returncode or json.loads(positive.stdout) != expected:
             raise ValueError("native initialization failed or claimed execution")
         root = roots[1]
         directories = {str(roots[0]): 0o755, str(root): 0o700, str(roots[2]): 0o755,
-            str(roots[2] / "builds"): 0o755, str(roots[0] / "native-deployments"): 0o700,
+            str(roots[2] / "builds"): 0o700, str(roots[0] / "native-deployments"): 0o700,
             **{str(root / name): 0o700 for name in ("worker-state", "native-jobs", "cell-image-leases", "native-initialization")}}
         for name, mode in directories.items():
             info = Path(name).lstat()

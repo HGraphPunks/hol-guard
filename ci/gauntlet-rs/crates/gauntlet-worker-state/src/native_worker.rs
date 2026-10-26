@@ -19,6 +19,10 @@ use std::time::Duration;
 const STATE: &str = "/var/lib/hol-gauntlet-rust/worker-state";
 static CANCELLED: AtomicBool = AtomicBool::new(false);
 
+pub(crate) fn cancellation_requested() -> bool {
+    CANCELLED.load(Ordering::Acquire)
+}
+
 extern "C" fn cancel(_: libc::c_int) {
     CANCELLED.store(true, Ordering::Release);
 }

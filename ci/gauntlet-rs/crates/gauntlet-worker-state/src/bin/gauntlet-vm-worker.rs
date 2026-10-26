@@ -4,6 +4,16 @@ fn run() -> Result<(), String> {
     use std::io::{Read, Write};
     gauntlet_worker_state::install_native_worker_signals()?;
     let args = std::env::args().collect::<Vec<_>>();
+    if args.len() == 7 && args[1] == "--capture-build-source" {
+        let bytes = args[5]
+            .parse::<u64>()
+            .map_err(|_| "exact source byte count required")?;
+        let raw = gauntlet_worker_state::capture_native_build_source(
+            &args[2], &args[3], &args[4], bytes, &args[6],
+        )?;
+        println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
+        return Ok(());
+    }
     if args.len() == 3 && args[1] == "--initialize-native" {
         let raw = gauntlet_worker_state::initialize_native_worker(&args[2])?;
         println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
