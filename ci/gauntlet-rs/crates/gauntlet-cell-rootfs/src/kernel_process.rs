@@ -5,7 +5,7 @@ use rustix::event::{poll, PollFd, PollFlags, Timespec};
 use rustix::fs::{fstat, fstatfs, open, openat, Mode, OFlags, PROC_SUPER_MAGIC};
 use rustix::process::{pidfd_open, Pid, PidfdFlags};
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::io::Read;
 use std::os::fd::OwnedFd;
@@ -223,42 +223,6 @@ fn executable(proc: &OwnedFd, expected: &str) -> Result<()> {
     Ok(())
 }
 
-fn descriptors(proc: &OwnedFd) -> Result<BTreeMap<String, String>> {
-    let fd = openat(
-        proc,
-        "fd",
-        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
-        Mode::empty(),
-    )
-    .map_err(|e| e.to_string())?;
-    let mut result = BTreeMap::new();
-    for entry in rustix::fs::Dir::read_from(&fd).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let name = entry
-            .file_name()
-            .to_str()
-            .map_err(|_| "kernel descriptor name UTF-8")?;
-        if matches!(name, "." | "..") {
-            continue;
-        }
-        if !matches!(name, "0" | "1" | "2") || result.len() >= 3 {
-            return Err("product inherited extra authority descriptors".into());
-        }
-        let link = rustix::fs::readlinkat(&fd, name, Vec::new()).map_err(|e| e.to_string())?;
-        let link = link
-            .to_str()
-            .map_err(|_| "kernel descriptor target UTF-8")?;
-        if !link.starts_with("pipe:[") || !link.ends_with(']') {
-            return Err("dedicated product management stdio pipes required".into());
-        }
-        result.insert(name.into(), link.into());
-    }
-    if result.len() != 3 {
-        return Err("three product management descriptors required".into());
-    }
-    Ok(result)
-}
-
 impl HeldCellProcess {
     pub fn observe(pid: u32, expected: CellProcessExpectation) -> Result<Self> {
         let proc_root = root_proc()?;
@@ -294,6 +258,10 @@ impl HeldCellProcess {
     }
 
     fn sample(&self) -> Result<Value> {
+        self.sample_with_pipes(&BTreeSet::new())
+    }
+
+    fn sample_with_pipes(&self, permitted: &BTreeSet<String>) -> Result<Value> {
         if !self.is_alive()?
             || crate::kernel_status::start_ticks(&read_at(&self.proc, "stat", 4096)?, self.pid)?
                 != self.start_ticks
@@ -328,7 +296,7 @@ impl HeldCellProcess {
         }
         executable(&self.proc, &e.executable_sha256)?;
         let namespaces = namespace_values(&self.proc)?;
-        let fds = descriptors(&self.proc)?;
+        let fds = crate::kernel_descriptors::read(&self.proc, permitted)?;
         let mounts = read_at(&self.proc, "mountinfo", 1024 * 1024)?;
         let network = gauntlet_product_cell::validate_private_topology(
             std::str::from_utf8(&read_at(&self.proc, "net/dev", 65536)?)
@@ -387,6 +355,25 @@ impl HeldCellProcess {
             return Err("measured product identity changed before release".into());
         }
         Ok(())
+    }
+    pub(crate) fn recheck_actor(&self, child_pipes: &BTreeSet<String>) -> Result<Value> {
+        if self.expectation.local_pid != 1 || !self.expectation.filtered {
+            return Err("only the measured filtered actor may hold child pipes".into());
+        }
+        let first = self.sample_with_pipes(child_pipes)?;
+        let second = self.sample_with_pipes(child_pipes)?;
+        if !same_identity(&first, &second) {
+            return Err("actor identity changed across idle samples".into());
+        }
+        let mut identity = second.clone();
+        identity["fds"]
+            .as_object_mut()
+            .ok_or("actor descriptors unavailable")?
+            .retain(|name, _| matches!(name.as_str(), "0" | "1" | "2"));
+        if !same_identity(&identity, &self.observation) {
+            return Err("measured actor identity changed before spawn".into());
+        }
+        Ok(second)
     }
     pub fn verify_task_mounts(
         &self,

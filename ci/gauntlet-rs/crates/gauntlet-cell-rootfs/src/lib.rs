@@ -5,6 +5,8 @@ pub mod declarations;
 mod fs_input;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod inputs;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod kernel_descriptors;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod kernel_mounts;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

@@ -63,3 +63,14 @@ outside cleanup intervention. The corrected reader includes the mandatory
 cumulative byte count, checks it against actual decoded bytes for each owned
 handle, and shares that parser with bounded capture. Malformed replies are
 retained before closing the cell. Fresh live evidence is still required.
+
+Attempt `002` (source `3ce5ff4c10659e6a9a133c56db2f2fd091005347`)
+passed the same 15 native tests and stream parsing, then refused the idle
+actor's descriptors while a daemon child was registered. The actor correctly
+holds its children's pipe counterparts; the initial collector allowed only
+its three management descriptors. Cleanup again completed without outside
+intervention. The correction keeps the strict initial/gated-process floor and
+allows the idle actor only additional pipes whose kernel inode identities were
+measured on registered children. Unknown pipes, files, sockets and missing
+stdio remain failures. The actor's original stdio and all other identity
+fields must still match two stable outside samples before every spawn.

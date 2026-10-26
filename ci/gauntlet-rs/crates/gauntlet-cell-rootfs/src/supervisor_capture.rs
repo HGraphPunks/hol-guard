@@ -110,10 +110,25 @@ impl NativeCell {
             if self.children.len() >= 64 {
                 return Err("Root active product process bound".into());
             }
-            self.actor
+            let child_pipes = self
+                .children
+                .values()
+                .flat_map(|child| {
+                    child.observation()["fds"]
+                        .as_object()
+                        .into_iter()
+                        .flat_map(|fds| {
+                            fds.values()
+                                .filter_map(|value| value.as_str().map(str::to_owned))
+                        })
+                })
+                .collect();
+            let actor = self
+                .actor
                 .as_ref()
                 .ok_or("outside actor identity unavailable")?
-                .recheck()?;
+                .recheck_actor(&child_pipes)?;
+            self.journal.append("actor-rechecked", actor)?;
             let value = self.call("spawn", &json!({"argv":argv}), deadline)?;
             if !exact(&value, &["handle", "local_pid", "gate_ready"]) || value["gate_ready"] != true
             {
