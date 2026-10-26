@@ -120,7 +120,14 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/benchmark/deterministic_control.py",
       "phase": 4,
-      "sha256": "9763c804ac4014846f00f7bdb8ca6b91cac81060a3d07e77008cb38406831033"
+      "sha256": "d8ad2199efc230b2c35e0a065d12945bd4b642fe7698deaebc5c66bc41eae237"
+    },
+    {
+      "base_sha256": "de11b614956fbb99bd6acfe9bd4a427e68ebcd09fcb4c9aa259d3bb81a1414e2",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/benchmark/deterministic_probes.py",
+      "phase": 4,
+      "sha256": "f2fdd9144826e77543799c2e4e96fbe7f45fc0a5e1b1e108edfb0875dd552f08"
     },
     {
       "base_sha256": "50e64dcc1b8365cc33cc4ab0b0e0de97c9155f7ba50be14311ab174555a722ae",

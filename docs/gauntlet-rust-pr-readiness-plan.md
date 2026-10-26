@@ -132,6 +132,12 @@ approval ceremony for routine work already authorized by this request.
   Located the installed Rust 1.88 toolchain outside the shell's PATH.
   Created the isolated branch from integration and merged the committed
   preparation. The original preparation worktree and its WIP remain intact.
-- Next: restore test dependencies, retain the readiness repair, synchronize
-  upstream and implement the Root Rust apparatus. No new conformance, model
-  result, eligible verdict, cutover or completed parent exit is claimed.
+- 2026-10-26: restored locked dependencies, built a matching Native compiler,
+  retained the detached-readiness repair, and repaired historical custody
+  oracle compatibility without changing old vectors. The complete macOS Rust
+  workspace passed 380 tests; the focused Python suite passed 87. Exact
+  identities and limitations are in the
+  [restart proof](gauntlet-rust-pr-readiness-proof-20261026.md).
+- Next: synchronize upstream and implement the Root Rust apparatus. No new
+  conformance, model result, eligible verdict, cutover or completed parent
+  exit is claimed.
