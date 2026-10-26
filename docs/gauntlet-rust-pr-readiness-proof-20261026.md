@@ -100,3 +100,49 @@ replace any retained installed controller or live result.
 The owned ARM64 VM was started for subsequent zero-model diagnostics. These
 merge checks do not constitute the five required GitHub jobs, Linux constructor
 conformance, independent review, or qualification.
+
+## Merged-tree verification and startup race
+
+The complete merged workspace initially found two additional stale whole-file
+pins in the historical host-call/transcript compatibility helper. Upstream
+added decision-path assessment elsewhere in `evidence.py`; the normalized
+`reconcile` and `read_events` AST digests remain unchanged. The explicit current
+source pin is now `b5a2ba7d80f6bb16eb60d125299b0f7874e1befded2680b0394cb065e4ba2a51`.
+The unchanged original generators replay all 31 host-call and 15 transcript
+cases against this source, without modifying historical fixtures.
+
+A subsequent full run exposed a separate startup contention failure. A status
+reader's shared transaction lock could terminate a newly launched observer
+before readiness. A held-reader process regression reproduced the actual
+`Rust host lifecycle lock is already owned` failure. Observer open/start now
+retry only pre-mutation Busy results for a bounded five seconds per operation.
+Each start reacquires the exclusive observer lease and samples a fresh clock.
+Identity, clock, invalid-state and uncertain-commit failures are final. Operator
+mutations keep immediate contention refusal. Process tests cover temporary
+reader contention, finite refusal with unchanged checkpoint, single ownership
+and crash recovery; a regression ensures uncertain commits are never retried.
+
+The final complete macOS workspace run passed **390 tests, zero failures and
+zero ignores**, across 206 test targets. Full workspace warnings-denied Clippy
+passed; the changed host crate's Clippy passed again after the startup repair.
+The matching merged Native release runtime/compiler passed full projection
+preparation and **140 macOS ownership/approval/delivery and migration tests**,
+with zero skips. The three Native PostToolUse Rust regressions also passed.
+
+| Retained artifact | SHA-256 |
+| --- | --- |
+| `rust-workspace-after-startup-repair.log` | `d7be6c989525554ceeed915549ada72ee463f930a664942a5c58b65e61599125` |
+| `native-and-migration-after-main.xml` | `190447e6ba99ecd82f6803fdd40ad5e7dccc888ccb403d52f89028b9dbff6e75` |
+| Matching merged `hol-guard-runtime` | `669b04f5f1223ae561c93e2d93d65653b859328a963ff9793b5a491b6554ad75` |
+| Matching merged `guard-command-source` | `fe1417ebadfc0339007cf481ba63db156fb078a29de1f4babe0b1c91d1251fc4` |
+
+Both failed full-workspace logs remain retained. Generated projection docs
+were preserved in scoped named Git stashes, excluding unrelated generated
+churn from this branch. The [constructor VM proof](gauntlet-rust-rootfs-vm-proof-20261026.md)
+records its separate source pins and three fresh zero-model apparatus cases.
+
+Fork PR #4 tracks this consolidated child. GitHub's dispatch endpoint returns
+HTTP 422, `Actions has been disabled for this repository`, while Actions
+permissions report enabled and the workflow reports active. No PR-triggered
+run exists for the published head. The five required jobs remain unsatisfied;
+local results do not authorize merging around that requirement.

@@ -59,9 +59,10 @@ until it independently proves complete cgroup/namespace cleanup.
 Seven macOS parser/custody tests, eight native ARM64 tests and the three
 proof-launch isolation/interface tests pass.
 The complete Linux ARM64 implementation builds, and ARM64 warnings-denied
-Clippy passes. Live VM success/deadline/cancellation evidence
-are still required before checking this constructor's live-proof exit. Existing
-historical artifacts and the parent milestone count remain unchanged.
+Clippy passes. Fresh VM success/deadline/cancellation cases also pass with the
+retained collector/candidate; see the [live proof](gauntlet-rust-rootfs-vm-proof-20261026.md).
+Full Rust supervisor ownership and current-main conformance remain open.
+Existing historical artifacts and the parent milestone count remain unchanged.
 
 `proofs/native_rootfs_vm_proof.py` can exercise this constructor through the
 retained zero-model VM apparatus. It substitutes only the exact constructor
