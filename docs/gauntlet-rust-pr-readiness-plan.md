@@ -176,7 +176,15 @@ approval ceremony for routine work already authorized by this request.
   admission blocking. Focused macOS tests and ARM64 build/Clippy pass; its
   [live job proof](gauntlet-rust-native-worker.md) remains pending. It always
   treats apparatus completion as invalid evidence for Guard qualification.
-- Next: prove the Rust worker's complete job path,
+- 2026-10-26: the first composed worker run (`0bab80ca`,
+  `e2c701baf1470043`) refused completion after the worker's private umask
+  removed public actor execute access. All processes/profile disappeared;
+  the durable image lease and unknown job correctly remained. Added explicit
+  staging-mode commits, conservative collected-unit cleanup and a separate
+  versioned Rust quiescent repair receipt. Recovery never supplies an exit
+  status or execution credit. Focused Mac tests and ARM64 Clippy pass; live
+  recovery and a fresh worker retry are pending.
+- Next: verify recovery of the retained failed job and prove the Rust worker's complete job path,
   then complete source-matched deterministic
   authority. No new
   conformance, model result, eligible verdict, cutover or completed parent

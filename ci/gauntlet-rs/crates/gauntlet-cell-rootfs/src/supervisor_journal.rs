@@ -26,6 +26,13 @@ impl Journal {
         Self::create_file(stage, "native-image-events.v1.jsonl")
     }
 
+    pub(crate) fn create_recovery(stage: &std::path::Path) -> Result<Self> {
+        Self::create_file(
+            stage,
+            &format!("native-recovery-{}.v1.jsonl", crate::nonce()?),
+        )
+    }
+
     fn create_file(stage: &std::path::Path, name: &str) -> Result<Self> {
         crate::fs_input::directory(stage)?;
         let path = stage.join(name);

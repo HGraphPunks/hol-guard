@@ -33,6 +33,7 @@ pub struct NativeCell {
     pub(crate) errors: Option<OwnedFd>,
     pub(crate) loaded: bool,
     pub(crate) service_started: bool,
+    pub(crate) service_observed: bool,
     pub(crate) closed: bool,
     pub(crate) image: Option<crate::image_lease::ImageLease>,
     declaration_sha256: String,
@@ -158,6 +159,7 @@ impl NativeCell {
             errors: None,
             loaded: false,
             service_started: false,
+            service_observed: false,
             closed: false,
             image,
             declaration_sha256: expected_sha256.into(),
@@ -348,6 +350,7 @@ impl NativeCell {
                 "actor".into(),
             ],
         )?)?;
+        self.service_observed = true;
         let mounts =
             initial.verify_task_mounts(&self.inputs.tasks, &self.inputs.runtime.mountpoint)?;
         self.journal.append("idmapped-task-mounts", mounts)?;

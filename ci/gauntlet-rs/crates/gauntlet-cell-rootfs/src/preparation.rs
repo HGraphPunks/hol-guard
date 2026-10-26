@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
-use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
 use std::path::Path;
 use std::sync::{atomic::AtomicBool, Arc};
 
@@ -19,6 +19,7 @@ fn write_new(path: &Path, raw: &[u8], mode: u32) -> Result<String> {
         .open(path)
         .map_err(|e| e.to_string())?;
     file.write_all(raw)
+        .and_then(|_| file.set_permissions(std::fs::Permissions::from_mode(mode)))
         .and_then(|_| file.sync_all())
         .map_err(|_| "cell staging write uncertain")?;
     File::open(path.parent().unwrap())
@@ -40,6 +41,12 @@ fn make_directory(path: &Path, mode: u32) -> Result<()> {
         .mode(mode)
         .create(path)
         .map_err(|e| e.to_string())?;
+    let descriptor = fs_input::directory(path)?;
+    rustix::fs::fchmod(&descriptor, rustix::fs::Mode::from_bits_truncate(mode))
+        .map_err(|e| e.to_string())?;
+    File::from(descriptor)
+        .sync_all()
+        .map_err(|_| "staged directory mode commit uncertain")?;
     File::open(path.parent().unwrap())
         .and_then(|f| f.sync_all())
         .map_err(|_| "cell directory creation commit uncertain".to_owned())
@@ -192,4 +199,54 @@ pub fn prepare_and_start(
     cell.journal.append("rust-preparation-bound",json!({"preparation_sha256":expected_sha256,"rust_image_lease_owned":true,
         "image_id":spec.image_id,"runtime_tree_digest":spec.runtime_tree_digest,"artifact_manifest_sha256":spec.artifact_manifest_sha256}))?;
     Ok(cell)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::process::CommandExt;
+
+    #[test]
+    fn private_worker_umask_preserves_explicit_public_and_private_modes() {
+        const CHILD: &str = "HOL_GAUNTLET_UMASK_REGRESSION_CHILD";
+        if let Some(root) = std::env::var_os(CHILD) {
+            let root = std::path::PathBuf::from(root);
+            let public = root.join("public");
+            make_directory(&public, 0o755).unwrap();
+            for (name, mode) in [("actor", 0o555), ("manifest", 0o444), ("private", 0o600)] {
+                let file = public.join(name);
+                write_new(&file, b"retained", mode).unwrap();
+                assert_eq!(file.metadata().unwrap().permissions().mode() & 0o7777, mode);
+                assert!(write_new(&file, b"replacement", mode).is_err());
+                assert_eq!(std::fs::read(file).unwrap(), b"retained");
+            }
+            assert_eq!(
+                public.metadata().unwrap().permissions().mode() & 0o7777,
+                0o755
+            );
+            return;
+        }
+        if rustix::process::geteuid().as_raw() != 0 {
+            assert!(
+                make_directory(Path::new("/var/lib/hol-gauntlet-rust/non-root-test"), 0o755)
+                    .is_err()
+            );
+            return;
+        }
+        // A separate process prevents changing the parallel test runner's umask.
+        let root = tempfile::Builder::new()
+            .prefix("umask-regression-")
+            .tempdir_in("/var/lib/hol-gauntlet-rust")
+            .unwrap();
+        let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+        command.args(["--exact", "preparation::tests::private_worker_umask_preserves_explicit_public_and_private_modes", "--nocapture"])
+            .env(CHILD, root.path());
+        unsafe {
+            command.pre_exec(|| {
+                libc::umask(0o077);
+                Ok(())
+            });
+        }
+        assert!(command.status().unwrap().success());
+    }
 }

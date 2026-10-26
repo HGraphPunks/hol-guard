@@ -30,6 +30,10 @@ mod native_worker_support;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod preparation;
 mod preparation_spec;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod recovery;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod recovery_protocol;
 mod spec;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod supervisor;
@@ -55,6 +59,8 @@ pub use native_worker_support::{
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use preparation::prepare_and_start;
 pub use preparation_spec::CellPreparation;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use recovery::{recover_quiescent_preparation, verify_quiescent_preparation};
 pub use spec::{NetworkProfile, RootfsSpec, StateProfile};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use supervisor::NativeCell;

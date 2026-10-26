@@ -2,7 +2,7 @@
 use crate::{fs_input, Result};
 use rustix::fs::{fstat, openat, statat, AtFlags, FlockOperation, Mode, OFlags};
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::os::fd::{AsFd, OwnedFd};
 use std::path::Path;
 
@@ -17,6 +17,59 @@ pub(crate) struct ImageLock {
 }
 
 impl ImageLock {
+    pub(crate) fn reopen_for_recovery(image: &str, stage: &Path) -> Result<(Self, String)> {
+        let id = crate::image_protocol::image_id(image)?;
+        let directory =
+            fs_input::directory(Path::new("/var/lib/hol-gauntlet-rust/cell-image-leases"))?;
+        let lock_name = format!("{id}.lock");
+        let lock = openat(
+            &directory,
+            lock_name.as_str(),
+            OFlags::RDWR | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| e.to_string())?;
+        Self::private(&fstat(&lock).map_err(|e| e.to_string())?)?;
+        rustix::fs::flock(&lock, FlockOperation::NonBlockingLockExclusive)
+            .map_err(|_| "image lease still held; recovery refused")?;
+        let active_name = format!("{id}.active.json");
+        let mut active = File::from(
+            openat(
+                &directory,
+                active_name.as_str(),
+                OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
+                Mode::empty(),
+            )
+            .map_err(|e| e.to_string())?,
+        );
+        let active_stat = fstat(&active).map_err(|e| e.to_string())?;
+        Self::private(&active_stat)?;
+        if !(1..=4096).contains(&active_stat.st_size) {
+            return Err("active image pointer bound".into());
+        }
+        let mut raw = Vec::new();
+        Read::by_ref(&mut active)
+            .take(4097)
+            .read_to_end(&mut raw)
+            .map_err(|e| e.to_string())?;
+        if raw.len() as u64 != active_stat.st_size as u64 {
+            return Err("active image pointer changed".into());
+        }
+        crate::recovery_protocol::active(&raw, image, stage)?;
+        let lock_stat = fstat(&lock).map_err(|e| e.to_string())?;
+        let held = Self {
+            directory,
+            lock,
+            lock_name,
+            active,
+            active_name,
+            lock_stat,
+            active_stat,
+        };
+        held.verify()?;
+        Ok((held, crate::hash(&raw)))
+    }
+
     pub(crate) fn reserve(image: &str, stage: &Path) -> Result<Self> {
         let id = crate::image_protocol::image_id(image)?;
         let root = Path::new("/var/lib/hol-gauntlet-rust/cell-image-leases");

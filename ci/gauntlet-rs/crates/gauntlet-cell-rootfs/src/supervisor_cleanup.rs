@@ -19,19 +19,44 @@ impl NativeCell {
             return Ok(());
         }
         let mut failures = Vec::new();
+        let mut stop_error = None;
+        let mut client_reaped = false;
         if self.service_started {
-            if let Err(e) = self.run_helper(
+            client_reaped = self
+                .process
+                .as_mut()
+                .map(|child| child.try_wait())
+                .transpose()
+                .map_err(|e| e.to_string())?
+                .flatten()
+                .is_some();
+            let already_collected = self.service_observed && client_reaped && absent(&self.cgroup)?;
+            if already_collected {
+                let pin = self
+                    .spec
+                    .host_helpers
+                    .get("/usr/bin/systemctl")
+                    .ok_or("systemctl pin missing")?;
+                crate::fs_input::pinned(Path::new("/usr/bin/systemctl"), 16 * 1024 * 1024, pin)?;
+                self.journal.append(
+                    "unit-already-collected",
+                    json!({"cgroup_absent":true,"systemd_client_reaped":true}),
+                )?;
+            } else if let Err(e) = self.run_helper(
                 "/usr/bin/systemctl",
                 &["stop".into(), format!("{}.service", self.profile)],
                 Duration::from_secs(5),
             ) {
-                failures.push(e);
+                stop_error = Some(e);
             }
             if let Some(child) = &mut self.process {
                 let deadline = Instant::now() + Duration::from_secs(3);
                 loop {
                     match child.try_wait() {
-                        Ok(Some(_)) => break,
+                        Ok(Some(_)) => {
+                            client_reaped = true;
+                            break;
+                        }
                         Ok(None) => {}
                         Err(e) => {
                             failures.push(e.to_string());
@@ -77,6 +102,29 @@ impl NativeCell {
         let cgroup_absent = absent(&self.cgroup)?;
         if !cgroup_absent {
             failures.push("owned product cgroup survived stop".into());
+        }
+        if let Some(error) = stop_error {
+            // --collect can remove a finished unit between a sample and Stop.
+            // Only an actually measured unit, dead client, absent cgroup and
+            // unchanged helper bytes can reconcile that diagnostic.
+            let pin = self
+                .spec
+                .host_helpers
+                .get("/usr/bin/systemctl")
+                .ok_or("systemctl pin missing")?;
+            if self.service_observed
+                && client_reaped
+                && cgroup_absent
+                && crate::fs_input::pinned(Path::new("/usr/bin/systemctl"), 16 * 1024 * 1024, pin)
+                    .is_ok()
+            {
+                self.journal.append(
+                    "stop-reconciled-after-collection",
+                    json!({"diagnostic":error,"cgroup_absent":true,"systemd_client_reaped":true}),
+                )?;
+            } else {
+                failures.push(error);
+            }
         }
         if self.loaded {
             match self.run_helper(

@@ -4,6 +4,13 @@ fn run() -> Result<(), String> {
     use std::io::{Read, Write};
     gauntlet_worker_state::install_native_worker_signals()?;
     let args = std::env::args().collect::<Vec<_>>();
+    if args.len() == 8 && args[1] == "--repair-native" {
+        let raw = gauntlet_worker_state::repair_native_worker(
+            &args[2], &args[3], &args[4], &args[5], &args[6], &args[7],
+        )?;
+        println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
+        return Ok(());
+    }
     if args.len() == 6 && args[1] == "--native-controller" {
         let result = gauntlet_worker_state::execute_native_controller(&args)?;
         println!("{}", result.report);
