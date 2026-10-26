@@ -28,7 +28,7 @@ pub use git_controller_source::{
     verify_git_controller_source, GitControllerSourceError, GitControllerSourceProof,
 };
 pub use observer_runtime::run_passive_observer;
-pub use observer_start::{open_observer_store, start_observer_bounded};
+pub use observer_start::{open_observer_store, start_observer_bounded, wait_for_lifecycle};
 mod host_telemetry;
 pub use host_telemetry::{sample_host, HostTelemetryError};
 mod live_provider_preflight;

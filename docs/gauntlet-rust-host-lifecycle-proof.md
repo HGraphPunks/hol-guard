@@ -115,3 +115,20 @@ worker-backed observer, runtime resource/progress integration, public snapshot
 publication, signed receipt reconciliation, audit/rollback handling, one-command
 host deployment and idle-only observer cutover remain open. The parent host
 migration exit remains unchecked; overall exits remain 24/62 (39%).
+
+The 2026-10-26 full workspace run exposed an operator/heartbeat transaction
+race: `resume` could encounter the observer's brief transaction lock and fail.
+The CLI now uses a five-second wait for store opening, eligible operator
+transactions and separate readback. Only `Busy` before mutation is retried;
+commit uncertainty, changed identity and invalid state remain final. Store API
+methods still refuse contention immediately. A real-process regression holds
+a shared lock across `resume`, verifies unchanged state while blocked, then
+releases it and verifies exactly one committed generation. Persistent lock
+contention still refuses without a partial update. All seven lifecycle process
+tests and the 404-test all-feature workspace pass, with no ignored tests; the
+earlier failing full-suite log remains retained as
+`rust-workspace-native-recovery-002.log`. The successful full log is
+`rust-workspace-native-recovery-003.log`, SHA-256
+`b635c5b2a4e7c2fa027319bc8154eb3c479e205bed1b03653932d9394c30a2e8`,
+under the 2026-10-26 readiness evidence directory. This fixes local lifecycle
+contention; the worker-backed observer and cutover exits above remain open.

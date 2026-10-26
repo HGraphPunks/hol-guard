@@ -2,8 +2,8 @@
 
 use gauntlet_host_state::{
     collect_observer_once, compose_observer_snapshot, open_observer_store,
-    read_observer_operations, run_passive_observer, start_observer_bounded, HostLifecycleError,
-    HostLifecycleStore,
+    read_observer_operations, run_passive_observer, start_observer_bounded, wait_for_lifecycle,
+    HostLifecycleError, HostLifecycleStore,
 };
 #[path = "gauntlet-host/signals.rs"]
 mod signals;
@@ -19,6 +19,13 @@ fn now() -> Result<u64, String> {
         .and_then(|value| u64::try_from(value.as_millis()).ok())
         .filter(|value| *value > 0)
         .ok_or_else(|| "host clock unavailable".to_owned())
+}
+
+fn state_operation<T>(
+    mut operation: impl FnMut(u64) -> Result<T, HostLifecycleError>,
+) -> Result<T, String> {
+    wait_for_lifecycle(|| operation(now().map_err(|_| HostLifecycleError::Clock)?))
+        .map_err(|e| e.to_string())
 }
 
 fn run() -> Result<(), String> {
@@ -108,10 +115,8 @@ fn run() -> Result<(), String> {
             ),
             Err(error) => Err(error),
         }
-    } else if matches!(command.as_str(), "agent" | "up") {
-        open_observer_store(&parent)
     } else {
-        HostLifecycleStore::open(&parent)
+        open_observer_store(&parent)
     }
     .map_err(|e| e.to_string())?;
     match command.as_str() {
@@ -181,18 +186,14 @@ fn run() -> Result<(), String> {
             println!("{snapshot}");
             return Ok(());
         }
-        "hold" => store.set_hold(true, now()?).map_err(|e| e.to_string())?,
-        "resume" => store.set_hold(false, now()?).map_err(|e| e.to_string())?,
-        "down" => store.request_stop(now()?).map_err(|e| e.to_string())?,
+        "hold" => state_operation(|at| store.set_hold(true, at))?,
+        "resume" => state_operation(|at| store.set_hold(false, at))?,
+        "down" => state_operation(|at| store.request_stop(at))?,
         "enqueue-release" => {
-            store
-                .enqueue_release(
-                    id.as_deref().ok_or(USAGE)?,
-                    tag.as_deref().ok_or(USAGE)?,
-                    sha.as_deref().ok_or(USAGE)?,
-                    now()?,
-                )
-                .map_err(|e| e.to_string())?;
+            let id = id.as_deref().ok_or(USAGE)?;
+            let tag = tag.as_deref().ok_or(USAGE)?;
+            let sha = sha.as_deref().ok_or(USAGE)?;
+            state_operation(|at| store.enqueue_release(id, tag, sha, at))?;
         }
         "agent" => {
             if let Some(digest) = config_sha.as_deref() {
@@ -216,7 +217,8 @@ fn run() -> Result<(), String> {
         }
         _ => return Err(USAGE.to_owned()),
     }
-    println!("{}", store.status(now()?).map_err(|e| e.to_string())?);
+    // Readback contention after a committed command must not replay mutation.
+    println!("{}", state_operation(|at| store.status(at))?);
     Ok(())
 }
 

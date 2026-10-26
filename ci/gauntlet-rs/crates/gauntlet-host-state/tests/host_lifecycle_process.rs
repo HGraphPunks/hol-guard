@@ -264,6 +264,43 @@ fn transaction_contention_refuses_the_second_process_without_a_partial_update() 
 }
 
 #[test]
+fn operator_waits_for_a_brief_heartbeat_transaction_and_commits_once() {
+    let parent = parent();
+    let store =
+        HostLifecycleStore::initialize(parent.path(), "hashgraph-online/hol-guard", 1000).unwrap();
+    let path = parent.path().join("rust-host-v1/state.json");
+    let before = fs::read(&path).unwrap();
+    let lock = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(parent.path().join("rust-host-v1/transaction.lock"))
+        .unwrap();
+    // Open can share this read lock; the mutation must wait for exclusivity.
+    flock(&lock, FlockOperation::NonBlockingLockShared).unwrap();
+    let mut child = OwnedChild(Some(
+        command(parent.path(), "resume")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    ));
+    sleep(Duration::from_millis(200));
+    assert!(child.0.as_mut().unwrap().try_wait().unwrap().is_none());
+    assert_eq!(fs::read(&path).unwrap(), before);
+    drop(lock);
+    let output = child.wait();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let readback: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(readback["admissions_held"], false);
+    assert_eq!(readback["generation"], 1);
+    assert_eq!(status(&store)["generation"], 1);
+}
+
+#[test]
 fn observer_start_survives_a_brief_status_reader_without_weakening_lease_ownership() {
     let parent = parent();
     let store =
