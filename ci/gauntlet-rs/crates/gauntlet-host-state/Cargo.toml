@@ -10,6 +10,7 @@ base64 = "=0.22.1"
 flate2 = "=1.1.10"
 gauntlet-contracts = { path = "../gauntlet-contracts" }
 gauntlet-evidence = { path = "../gauntlet-evidence" }
+gauntlet-dashboard = { path = "../gauntlet-dashboard" }
 libc = "=0.2.191"
 ring = "=0.17.14"
 rustix = { version = "=1.1.5", features = ["fs", "process"] }

@@ -92,6 +92,43 @@ pub fn project_shadow_candidate_config_with_private_cell_ineligible(
     job_id: &str,
     manifest_sha256: &str,
 ) -> Result<CandidateConfigProjection, CandidateConfigProjectionError> {
+    project_shadow_with_cell(
+        template_raw,
+        template_digest,
+        pins,
+        job_id,
+        manifest_sha256,
+        "cell-artifacts",
+    )
+}
+
+/// Explicit native artifacts use a distinct fixed directory; a v1 template
+/// cannot silently change actor implementation by replacing a public file.
+pub fn project_shadow_candidate_config_with_native_cell_ineligible(
+    template_raw: &[u8],
+    template_digest: &str,
+    pins: &CandidateConfigProjectionPins<'_>,
+    job_id: &str,
+    manifest_sha256: &str,
+) -> Result<CandidateConfigProjection, CandidateConfigProjectionError> {
+    project_shadow_with_cell(
+        template_raw,
+        template_digest,
+        pins,
+        job_id,
+        manifest_sha256,
+        "cell-artifacts-rust-v2",
+    )
+}
+
+fn project_shadow_with_cell(
+    template_raw: &[u8],
+    template_digest: &str,
+    pins: &CandidateConfigProjectionPins<'_>,
+    job_id: &str,
+    manifest_sha256: &str,
+    directory: &str,
+) -> Result<CandidateConfigProjection, CandidateConfigProjectionError> {
     if !lower_hex(job_id, 16) || !lower_hex(manifest_sha256, 64) {
         return Err(CandidateConfigProjectionError::InvalidPins);
     }
@@ -104,7 +141,7 @@ pub fn project_shadow_candidate_config_with_private_cell_ineligible(
     let base_projection = project_at_fixed_base(template_raw, template_digest, pins, &base, &id)?;
     let mut config: serde_json::Value = serde_json::from_slice(&base_projection.canonical_bytes)
         .map_err(|_| CandidateConfigProjectionError::InvalidProjection)?;
-    config["assets"]["private_cell"]["path"] = json!(format!("{base}/cell-artifacts"));
+    config["assets"]["private_cell"]["path"] = json!(format!("{base}/{directory}"));
     config["assets"]["private_cell"]["sha256"] = json!(manifest_sha256);
     let serialized = serde_json::to_vec(&config)
         .map_err(|_| CandidateConfigProjectionError::InvalidProjection)?;
@@ -345,5 +382,48 @@ mod tests {
         );
         assert_eq!(config["assets"]["private_cell"]["sha256"], digest);
         assert_eq!(projection.file_bytes.last(), Some(&b'\n'));
+    }
+
+    #[test]
+    fn native_projection_changes_only_the_explicit_artifact_directory() {
+        let template = fixture(7);
+        let template_pin = "580c94be23f58345bf7c59eb11239ae9bd21347b70fadb6c19f243b7f7a3f1e8";
+        let manifest = "e".repeat(64);
+        let old = project_shadow_candidate_config_with_private_cell_ineligible(
+            &template,
+            template_pin,
+            &pins(),
+            "1234567890abcdef",
+            &manifest,
+        )
+        .unwrap();
+        let native = project_shadow_candidate_config_with_native_cell_ineligible(
+            &template,
+            template_pin,
+            &pins(),
+            "1234567890abcdef",
+            &manifest,
+        )
+        .unwrap();
+        let mut value: serde_json::Value = serde_json::from_slice(&native.canonical_bytes).unwrap();
+        assert_eq!(
+            value["assets"]["private_cell"]["path"],
+            "hol-gauntlet/rust-shadow-candidates/1234567890abcdef/cell-artifacts-rust-v2"
+        );
+        assert_ne!(old.digest, native.digest);
+        value["assets"]["private_cell"]["path"] =
+            json!("hol-gauntlet/rust-shadow-candidates/1234567890abcdef/cell-artifacts");
+        assert_eq!(
+            value,
+            serde_json::from_slice::<serde_json::Value>(&old.canonical_bytes).unwrap()
+        );
+        assert!(project_shadow_candidate_config_with_native_cell_ineligible(
+            &template,
+            template_pin,
+            &pins(),
+            "../outside",
+            &manifest
+        )
+        .is_err());
     }
 }

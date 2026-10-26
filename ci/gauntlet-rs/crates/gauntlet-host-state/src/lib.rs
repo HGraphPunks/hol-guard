@@ -1,5 +1,6 @@
 //! Passive host readers and queue decisions matching the pinned Python release
-//! observer. This crate neither owns the Python lease nor writes live jobs.
+//! observer. Rust lifecycle state uses a separate versioned namespace; this
+//! crate never owns the Python lease or mutates its jobs.
 
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -7,11 +8,25 @@ use std::fmt;
 
 mod operations;
 pub use operations::{load_operations_bytes, OperationsError};
+mod lifecycle;
+mod lifecycle_document;
+mod lifecycle_files;
+pub use lifecycle::{HostLifecycleError, HostLifecycleStore, HostObserverLease};
 mod fixed_process;
 mod git_controller_source;
+mod observer_config;
+mod observer_process;
+pub use observer_config::{read_observer_operations, ObserverConfiguration};
+mod observer_snapshot;
+pub use observer_snapshot::compose_observer_snapshot;
+mod observer_collect;
+mod observer_public;
+pub use observer_collect::collect_observer_once;
+mod observer_runtime;
 pub use git_controller_source::{
     verify_git_controller_source, GitControllerSourceError, GitControllerSourceProof,
 };
+pub use observer_runtime::run_passive_observer;
 mod host_telemetry;
 pub use host_telemetry::{sample_host, HostTelemetryError};
 mod live_provider_preflight;
@@ -57,6 +72,8 @@ pub use source_archive_commit::{
 mod stream_process;
 mod telemetry;
 pub use telemetry::{resource_admission_reasons, TelemetryError, VmProbePlan};
+mod vm_native_telemetry;
+pub use vm_native_telemetry::VmNativeProbePlan;
 mod vm_progress;
 pub use vm_progress::{VmProgressError, VmProgressPlan};
 mod vm_candidate_result;

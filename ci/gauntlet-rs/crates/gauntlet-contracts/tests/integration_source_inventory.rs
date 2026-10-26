@@ -30,9 +30,9 @@ fn merged_gauntlet_source_matches_the_explicit_pinned_delta() {
         .collect();
     let changed = delta["changed"].as_array().unwrap();
     let added = delta["added"].as_array().unwrap();
-    // Main through 4a654ea8 updates the catalog, metadata probes and CI docs.
+    // Main through c5202d11 and the versioned native-cell adapter update reviewed bytes.
     // Every tracked byte is still checked against the reviewed source map.
-    assert_eq!(changed.len(), 58);
+    assert_eq!(changed.len(), 63);
     assert_eq!(added.len(), 7);
     for entry in changed {
         let path = entry["path"].as_str().unwrap();

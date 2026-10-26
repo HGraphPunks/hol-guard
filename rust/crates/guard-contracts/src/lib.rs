@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+mod aibom_report_summaries;
+pub use aibom_report_summaries::*;
 mod approval_contracts;
 pub use approval_contracts::*;
 mod approval_extension_recommendation;
@@ -229,6 +231,8 @@ mod package_audit_projection;
 pub use package_audit_projection::*;
 mod package_protect_finalize;
 pub use package_protect_finalize::*;
+mod package_evaluation_view;
+pub use package_evaluation_view::*;
 mod supply_chain_egress;
 pub use supply_chain_egress::*;
 
@@ -254,10 +258,14 @@ mod tool_action_identity;
 pub use tool_action_identity::*;
 mod verified_read_decision;
 pub use verified_read_decision::*;
+mod verified_read_plan;
+pub use verified_read_plan::*;
 mod inventory_source_evidence;
 pub use inventory_source_evidence::*;
 mod command_pack_record;
 pub use command_pack_record::*;
+mod inventory_url_redaction;
+pub use inventory_url_redaction::*;
 
 pub const NATIVE_PROTOCOL_VERSION: u16 = 1;
 pub const GUARD_HOOK_ENVELOPE_V2_SCHEMA: &str = "guard-hook-envelope.v2";

@@ -42,9 +42,11 @@ mod package_version;
 mod payload;
 mod pilot_terminal;
 mod private_actor;
+mod private_cell_deployment;
 mod private_cell_files;
 mod private_cell_manifest;
 mod private_cell_mounts;
+mod private_cell_native_manifest;
 mod private_hook_samples;
 mod private_network;
 mod private_runtime_prompt;
@@ -134,11 +136,16 @@ pub use omp_transcript::{parse_omp_transcript, read_omp_transcript, TRANSCRIPT_L
 pub use package_version::{valid_package_version, verify_installed_version_metadata};
 pub use pilot_terminal::reduce_pilot_terminal;
 pub use private_actor::verify_private_actor;
+pub use private_cell_deployment::verify_shadow_private_cell_artifacts;
 pub use private_cell_files::{verify_private_cell_artifacts, PrivateCellInventory};
 pub use private_cell_manifest::{
     fixed_private_cell_sources, verify_private_cell_manifest, PrivateCellManifest,
 };
 pub use private_cell_mounts::verify_private_cell_mount_relation;
+pub use private_cell_native_manifest::{
+    fixed_native_private_cell_sources, native_cell_runtime_from_observations,
+    verify_native_private_cell_manifest, NATIVE_CELL_ACTOR,
+};
 pub use private_hook_samples::verify_private_hook_samples;
 pub use private_network::verify_private_network_topology;
 pub use private_runtime_prompt::verify_private_runtime_prompt_relation;

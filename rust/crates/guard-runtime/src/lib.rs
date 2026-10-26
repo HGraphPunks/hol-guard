@@ -14,6 +14,7 @@ mod aibom_marketplace;
 mod aibom_mcp_metadata;
 mod aibom_op;
 mod aibom_paths;
+mod aibom_report_summaries_op;
 mod aibom_skill_rules;
 mod aibom_skills;
 mod aibom_symlink;
@@ -503,6 +504,7 @@ mod hook_policy_config;
 mod hook_process_spawn;
 mod hook_render_op;
 mod inventory_source_evidence_op;
+mod inventory_url_redaction_op;
 #[path = "adapters/detection/kimi_detect.rs"]
 mod kimi_detect;
 mod local_cli_grant_op;
@@ -621,6 +623,7 @@ mod package_authority_config;
 mod package_authority_op;
 mod package_context_build_op;
 mod package_evaluation_compose_op;
+mod package_evaluation_view_op;
 mod package_policy_resolve_op;
 mod package_posture_op;
 mod package_protect_finalize_op;
@@ -740,6 +743,7 @@ mod totp;
 mod unique_nanos;
 mod verified_npm_op;
 mod verified_read_decision_op;
+mod verified_read_plan_op;
 #[cfg(windows)]
 mod windows_node_build;
 #[cfg(windows)]
