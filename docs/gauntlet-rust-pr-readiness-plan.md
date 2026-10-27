@@ -541,7 +541,19 @@ approval ceremony for routine work already authorized by this request.
   as isolation. Identical-byte inode replacement and forged/unavailable probe
   cases have meaningful regressions. ARM Clippy, static tests and both main
   binaries compile; live native execution is pending.
-- Next: verify boundary, implement injection and detached-lifecycle roles and finish deterministic role scoring, then
+- 2026-10-27: boundary source `0ae73f0f` passes fresh actual SDK job
+  `e2c701baf1474401`. Independent readback verifies eight physical probe
+  results, both positive visibility captures, all three unchanged canaries,
+  exact fixture source, signed SQLite state, 51 outside samples and 185
+  preserved worker files. Replay refuses in 519.181 ms under the legacy lease.
+  Native ARM passes 177 worker/35 rootfs tests plus subprocess; Mac passes
+  108 tests, with Mac/ARM Clippy clean. The diagnostic remains ineligible.
+- 2026-10-27: implemented the injection role's actual upstream/Native/SDK
+  disposition join with the exact compiled catalog payload, clean/withheld
+  response separation, unchanged physical provider state and real forbidden
+  command probe. ARM Clippy, static tests and binaries compile; live injection
+  proof remains pending.
+- Next: verify injection, implement detached-lifecycle roles and finish deterministic role scoring, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;

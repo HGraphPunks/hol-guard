@@ -386,9 +386,13 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
       marker, 67 outside samples, preserved 179 worker files and bounded replay.
       ARM suites, Clippy/builds and proof readers pass. This remains an
       ineligible diagnostic using the historical product build.
-      The boundary role now compiles with held canaries, actual SDK-driven
-      path/network probes and cleanup-gated physical readback; native proof
-      remains pending. Three roles still refuse as incomplete, and no
+      At `0ae73f0f`, fresh boundary job `e2c701baf1474401` passes actual SDK
+      delivery, both positive canary visibility probes, six path/two network
+      refusals and physical canary preservation. Independent readback verifies
+      150 export members, 51 outside samples and 185 preserved worker files.
+      Native ARM suites and 108 Mac tests pass, with Clippy/builds clean.
+      Injection disposition now compiles with actual Native/SDK response joins;
+      its native proof is pending. Two roles still refuse as incomplete, and no
       qualified role is claimed.
       See [deterministic controls](gauntlet-rust-native-deterministic-controls.md).
   - [x] Run fresh current-source Native success, timeout and cancellation

@@ -45,6 +45,7 @@ fn run_profile(
             NativeControlRole::Success
                 | NativeControlRole::InputBinding
                 | NativeControlRole::Boundary
+                | NativeControlRole::Injection
         )
     }) {
         return Err("Native deterministic role implementation remains incomplete".into());
@@ -68,7 +69,11 @@ fn run_profile(
     let public = NativeSdkPublic::prepare_mcp(&job.job_root())?;
     let mut sockets = NativeSdkSockets::new(&job.job_id)?;
     let budget = Arc::new(Mutex::new(NativeOperationBudget::new(4)?));
-    let mut mcp = NativeSdkMcpPlane::prepare(job, budget.clone())?;
+    let mut mcp = if role == Some(NativeControlRole::Injection) {
+        NativeSdkMcpPlane::prepare_injection(job, budget.clone())?
+    } else {
+        NativeSdkMcpPlane::prepare(job, budget.clone())?
+    };
     let cell = gauntlet_cell_rootfs::prepare_and_start(
         &job.preparation_path(),
         &job.preparation_sha256,
@@ -155,6 +160,11 @@ fn run_profile(
             if !passed {
                 return Err("actual Native request-binding control failed".into());
             }
+        }
+        if matches!(
+            role,
+            Some(NativeControlRole::InputBinding | NativeControlRole::Injection)
+        ) {
             let forbidden = plane.probe_forbidden_command()?;
             let passed = forbidden["status"] == "passed";
             measurements.insert("forbidden_command_control".into(), forbidden);
@@ -216,12 +226,30 @@ fn run_profile(
         .observation();
     let mcp_observation = mcp.observation()?;
     let sdk_result = measurements.get("sdk").cloned().unwrap_or(Value::Null);
-    let joined = crate::native_sdk_mcp_result::verify(
-        &sdk_result,
-        &router,
-        &mcp_observation,
-        &budget_observation,
-    );
+    let joined = if role == Some(NativeControlRole::Injection) {
+        crate::native_sdk_mcp_result::verify_injection(
+            &sdk_result,
+            &router,
+            &mcp_observation,
+            &budget_observation,
+        )
+        .and_then(|mut result| {
+            let forbidden = measurements
+                .get("forbidden_command_control")
+                .filter(|v| v["status"] == "passed")
+                .ok_or("injection role lacks the actual forbidden-command refusal")?;
+            result["forbidden_command"] = forbidden.clone();
+            measurements.insert("injection_control".into(), result);
+            Ok(())
+        })
+    } else {
+        crate::native_sdk_mcp_result::verify(
+            &sdk_result,
+            &router,
+            &mcp_observation,
+            &budget_observation,
+        )
+    };
     let errors = [
         sdk_cleanup.as_ref().err(),
         mcp_cleanup.as_ref().err(),

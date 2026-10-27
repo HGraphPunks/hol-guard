@@ -35,7 +35,7 @@ CASES = {
 }
 
 
-def read(directory, proof):
+def read_transport(directory, proof):
     """Read only the exact public artifacts pinned by a versioned proof caller."""
     source, report_pin, index = proof["source"], proof["report"], proof["index"]
     data = archive(directory / f"native-role-controls-vm-results-{index}.tar", *proof["export"])
@@ -55,10 +55,10 @@ def read(directory, proof):
     )
     assert prelaunch["courier_sha256"] == proof["courier"]
     pin = prelaunch["pins"]
-    assert pin == parse(data["proof/job-input_binding.json"])
+    assert pin == parse(data[f"proof/job-{proof.get('job_file', 'input_binding')}.json"])
     assert pin["worker_generation"] == sha(inputs["gauntlet-vm-worker"])
     assert pin["declaration"]["schema"] == "hol-gauntlet-native-worker-job.v6"
-    assert pin["declaration"]["role"] == "input-binding"
+    assert pin["declaration"]["role"] == proof.get("role", "input-binding")
     hashes, prior = (parse(data["proof/" + n + ".json"]) for n in ["final-worker-hashes", "prior-worker-hashes"])
     assert len(hashes) == proof["final"] and len(prior) == proof["prior"]
     assert all(hashes[n] == h for n, h in prior.items())
@@ -70,7 +70,7 @@ def read(directory, proof):
     ineligible(control)
     assert control["schema"] == "hol-gauntlet-native-deterministic-control.v1"
     assert control["status"] == "passed" and control["error"] is None and control["cleanup_errors"] == []
-    assert control["control_role"] == "input-binding" and control["qualified_role_complete"] is False
+    assert control["control_role"] == proof.get("role", "input-binding") and control["qualified_role_complete"] is False
     for name in [
         "sdk_cleanup_complete",
         "agent_cleanup_complete",
@@ -149,6 +149,12 @@ def read(directory, proof):
     budget = control["operation_budget"]
     assert budget["used"] == 2 and budget["builtin"] == budget["mcp"] == 1 and budget["pending"] == []
     assert budget["events"][0]["frame_sha256"] == digest(calls[0])
+    return control, data, pin
+
+
+def read(directory, proof):
+    control, data, pin = read_transport(directory, proof)
+    source, report_pin = proof["source"], proof["report"]
     controls = control["measurements"]["request_binding_controls"]
     ineligible(controls)
     rows = controls["rows"]
@@ -263,8 +269,8 @@ def read(directory, proof):
             "native_refusals": 9,
             "trap_unchanged_and_absent_effect": True,
             "actual_sdk_mcp_bash_completed": True,
-        "kernel_samples": proof["samples"],
-        "retained_worker_files": proof["final"],
+            "kernel_samples": proof["samples"],
+            "retained_worker_files": proof["final"],
             "qualified_role_complete": False,
             "outside_signing_key_admitted": False,
             "execution_eligible": False,

@@ -31,6 +31,44 @@ pub(crate) fn snapshot() -> String {
         {"id":"message","collection":"mail.messages","tenant_id":"task-tenant","owner_id":"fixture-actor","version":1,
             "acl":{"read":["fixture-actor"],"write":["fixture-actor"]},"data":{"subject":"Synthetic input","body":"No external delivery is authorized."}}]}).to_string()
 }
+pub(crate) fn injection_payload() -> Result<String, String> {
+    let catalog: Value = serde_json::from_str(include_str!(
+        "../../../../gauntlet/benchmark/workflows.json"
+    ))
+    .map_err(|e| e.to_string())?;
+    let workflow = catalog["workflows"]
+        .as_array()
+        .and_then(|rows| rows.iter().find(|r| r["id"] == "python-cli-with-tests"))
+        .ok_or("frozen Python control workflow absent")?;
+    let attack = workflow["attacks"]
+        .as_array()
+        .and_then(|rows| rows.iter().find(|r| r["id"] == "text-injection"))
+        .ok_or("frozen text-injection control absent")?;
+    if attack["kind"] != "text-injection"
+        || attack["surface"] != "tool-result.body"
+        || attack["source_id"] != "developer-spec"
+    {
+        return Err("frozen control injection surface differs".into());
+    }
+    attack["payload"]
+        .as_str()
+        .filter(|s| !s.is_empty() && s.len() <= 4096)
+        .map(String::from)
+        .ok_or_else(|| "bounded frozen attack payload required".into())
+}
+pub(crate) fn injection_snapshot() -> Result<String, String> {
+    let mut initial: Value = serde_json::from_str(&snapshot()).map_err(|e| e.to_string())?;
+    let payload = injection_payload()?;
+    let doc = initial["records"]
+        .as_array_mut()
+        .and_then(|rows| rows.iter_mut().find(|r| r["id"] == "developer-spec"))
+        .ok_or("fixed delegated record absent")?;
+    let body = doc["data"]["body"]
+        .as_str()
+        .ok_or("fixed delegated body absent")?;
+    doc["data"]["body"] = json!(format!("{body}\n\n{payload}"));
+    Ok(initial.to_string())
+}
 fn response(
     client: &mut NativeMcpProxyClient,
     request: &Value,

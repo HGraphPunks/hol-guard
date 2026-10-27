@@ -9,6 +9,24 @@ pub(crate) fn verify(
     mcp: &Value,
     budget: &Value,
 ) -> Result<(), String> {
+    verify_profile(sdk, router, mcp, budget, None).map(|_| ())
+}
+pub(crate) fn verify_injection(
+    sdk: &Value,
+    router: &NativeSdkRouter,
+    mcp: &Value,
+    budget: &Value,
+) -> Result<Value, String> {
+    let payload = crate::native_mcp_control::injection_payload()?;
+    verify_profile(sdk, router, mcp, budget, Some(&payload))
+}
+fn verify_profile(
+    sdk: &Value,
+    router: &NativeSdkRouter,
+    mcp: &Value,
+    budget: &Value,
+    injection: Option<&str>,
+) -> Result<Value, String> {
     router.verify_completed()?;
     let captured = router
         .events
@@ -58,10 +76,6 @@ pub(crate) fn verify(
         return Err("unique forwarded Native read response required".into());
     }
     let read = &responses[0]["frame"];
-    let text = read["result"]["content"][0]["text"]
-        .as_str()
-        .ok_or("Native read content absent")?;
-    let record: Value = serde_json::from_str(text).map_err(|_| "Native read content JSON")?;
     let initial = mcp["initial"]["records"]
         .as_array()
         .ok_or("initial Root world missing")?;
@@ -69,8 +83,7 @@ pub(crate) fn verify(
         .iter()
         .find(|r| r["id"] == "developer-spec")
         .ok_or("physical delegated record missing")?;
-    if &record != expected
-        || mcp["initial"]["records"] != mcp["final"]["records"]
+    if mcp["initial"]["records"] != mcp["final"]["records"]
         || mcp["receipts"].as_array().is_none_or(|r| r.len() != 1)
     {
         return Err("SDK MCP response does not match unchanged physical provider state".into());
@@ -85,5 +98,56 @@ pub(crate) fn verify(
     if ingress["backend_reached"] != true || ingress["response_completed"] != true {
         return Err("one-use SDK operation did not complete through the provider".into());
     }
-    crate::native_sdk_result::verify_mcp(sdk, &captured["output"], read)
+    let parse_record = |frame: &Value| -> Result<Value, String> {
+        serde_json::from_str(
+            frame["result"]["content"][0]["text"]
+                .as_str()
+                .ok_or("Native read content absent")?,
+        )
+        .map_err(|_| "Native read content JSON".into())
+    };
+    if let Some(payload) = injection {
+        let upstream = upstreams
+            .iter()
+            .find(|s| s["family"] == "docs")
+            .ok_or("Root docs upstream missing")?;
+        let delivered = upstream["frames"]
+            .as_array()
+            .ok_or("Root docs frames missing")?
+            .iter()
+            .filter(|r| r["direction"] == "response" && &r["frame"]["id"] == id)
+            .collect::<Vec<_>>();
+        if delivered.len() != 1
+            || delivered[0]["written"] != true
+            || &parse_record(&delivered[0]["frame"])? != expected
+            || !delivered[0]["frame"].to_string().contains(payload)
+        {
+            return Err("actual injected provider exposure to Native is unproven".into());
+        }
+        crate::native_sdk_result::verify_mcp_injection(sdk, &captured["output"], read)?;
+        let response = &sdk["result"]["results"][0];
+        let withheld = response["isError"]
+            .as_bool()
+            .ok_or("typed SDK injection disposition required")?;
+        if response.to_string().contains(payload) == withheld
+            || read.to_string().contains(payload) == withheld
+            || (!withheld && &parse_record(read)? != expected)
+        {
+            return Err(
+                "Native/SDK injection disposition differs from actual visible payload".into(),
+            );
+        }
+        Ok(
+            serde_json::json!({"schema":"hol-gauntlet-native-injection-control.v1","attack_payload":payload,
+            "upstream_delivered_events":[{"kind":"delivered","message":delivered[0]["frame"],"wire_sha256":delivered[0]["sha256"]}],
+            "sdk_response":response,"native_response":read,"mcp_result_disposition":if withheld{"withheld"}else{"forwarded"},
+            "execution_eligible":false,"guard_causality_verified":false,"model_requests":0}),
+        )
+    } else {
+        if &parse_record(read)? != expected {
+            return Err("Native read differs from physical provider record".into());
+        }
+        crate::native_sdk_result::verify_mcp(sdk, &captured["output"], read)?;
+        Ok(Value::Null)
+    }
 }

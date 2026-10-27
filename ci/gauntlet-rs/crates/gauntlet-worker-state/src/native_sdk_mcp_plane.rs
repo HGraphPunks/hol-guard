@@ -51,10 +51,26 @@ impl NativeSdkMcpPlane {
         job: &NativeJobSpec,
         budget: Arc<Mutex<NativeOperationBudget>>,
     ) -> Result<Self, String> {
+        Self::prepare_snapshot(job, budget, crate::native_mcp_control::snapshot())
+    }
+    pub(crate) fn prepare_injection(
+        job: &NativeJobSpec,
+        budget: Arc<Mutex<NativeOperationBudget>>,
+    ) -> Result<Self, String> {
+        Self::prepare_snapshot(
+            job,
+            budget,
+            crate::native_mcp_control::injection_snapshot()?,
+        )
+    }
+    fn prepare_snapshot(
+        job: &NativeJobSpec,
+        budget: Arc<Mutex<NativeOperationBudget>>,
+        initial: String,
+    ) -> Result<Self, String> {
         let key = Ed25519KeyPair::generate_pkcs8(&ring::rand::SystemRandom::new())
             .map_err(|_| "Root MCP key unavailable")?;
         let key = Ed25519KeyPair::from_pkcs8(key.as_ref()).map_err(|_| "Root MCP key invalid")?;
-        let initial = crate::native_mcp_control::snapshot();
         Ok(Self {
             sockets: NativeMcpSockets::prepare(&job.job_id)?,
             world: Arc::new(Mutex::new(NativeMcpWorld::new(&job.job_id, &initial, key)?)),

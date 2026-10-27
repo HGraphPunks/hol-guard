@@ -9,7 +9,8 @@ This implementation is partial. `success` runs the existing actual SDK
 control. `input-binding` additionally invokes the installed Native sink with
 all nine historical malformed requests and the real forbidden-command control.
 `boundary` adds the actual SDK-driven canary and network fixture described
-below. `injection`, `timeout` and `cancel` currently refuse as incomplete
+below. `injection` adds the compiled disposition check described below.
+`timeout` and `cancel` currently refuse as incomplete
 before product startup. Declared
 roles are not a claim that the six-role qualification suite is available.
 Every terminal remains `invalid-evidence`, with eligibility and Guard
@@ -108,7 +109,7 @@ The report is `bb6863ad827ef1fc68c4f3b0456c99553185af5d4a045c6fbad5fe87d10bc1dd`
 `ci/gauntlet-rs/proofs/verify_native_forbidden_control_20261027.py` checks both
 the rejected and corrected original exports. No old artifact is rewritten.
 
-The next `boundary` implementation appends the versioned unprivileged fixture
+The `boundary` implementation appends the versioned unprivileged fixture
 `native_boundary_control_v1.py.txt` to the SDK's existing test file. Root
 exclusively creates and holds synthetic controller, SDK-agent and product-Guard
 canaries. Positive unprivileged reads prove the SDK and product canaries exist
@@ -117,10 +118,39 @@ read/write boundaries and IPv4/IPv6 isolation. Self-reported kernel fields
 remain unauthenticated. After all cells drain, Rust checks the original held
 canaries and physical report; unavailable cleanup or network timeouts cannot
 count as successful isolation. A real replacement regression rejects a new
-canary inode containing identical bytes. ARM Clippy and both static test/main
-binary builds pass; fresh native boundary execution is pending.
+canary inode containing identical bytes.
 
-Remaining work includes live boundary verification, kernel/mount authority, injected response disposition, observed
+At `0ae73f0faae5ff544d20ad6a6751d08c6eeb26f2`, fresh boundary job
+`e2c701baf1474401` passes actual SDK/MCP/Bash delivery, both positive
+visibility probes, six path refusals and two network refusals. Independent
+host readback verifies the exact compiled fixture bytes, captured positives,
+all three held/physical canaries, physical report, signed SQLite read,
+51 outside samples and cleanup. The final map preserves 185 worker files;
+replay refuses in 519.181 ms under the held legacy lease. Native ARM passes
+177 worker tests and 35 rootfs tests plus subprocess, including actual
+identical-byte canary replacement. All 108 affected Mac tests pass; Mac/ARM
+Clippy and binaries pass.
+
+The boundary input is five members / 65,361,920 bytes, SHA-256
+`633471624c9b784d7d4c3bb40adc210d2eb5a63d7b980df20c755e16e1eca885`.
+The export is 150 members / 1,085,440 bytes, SHA-256
+`19998ee6d77e7b3ed61107238245775222b38dae3d5df7204b0012b55070c287`.
+Its report is `aaa41c8bf71f20629dcae595ec5f2b15cb3ad9d27ae9dce3447236bb785f5836`.
+Run `ci/gauntlet-rs/proofs/verify_native_boundary_control_20261027.py`.
+This diagnostic establishes no admitted kernel/mount authority or complete
+role qualification.
+
+The next injection implementation reads the exact public Python workflow's
+text-injection payload from the compiled catalog and places it in the delegated
+SQLite document. Rust requires the actual upstream frame to contain it, then
+joins Native's response to the actual SDK tool result. A forwarded result must
+preserve the physical record; a withheld result must carry Native's exact
+error content/flag and exclude the payload. The original benign profile still
+requires a clean read. The role also runs the actual forbidden-command
+counterfactual. ARM Clippy, static tests and binaries compile; fresh injection
+execution remains pending.
+
+Remaining work includes live injection verification, kernel/mount authority, observed
 detached-child timeout/cancellation, provider mapping, complete role scoring,
 outside signing-key admission and fresh current-source staging/installed
 conformance. The successful [combined SDK transport](gauntlet-rust-native-sdk-mcp-transport.md)
