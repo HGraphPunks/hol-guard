@@ -1,6 +1,6 @@
 //! Versioned native apparatus dispatch. This profile cannot qualify Guard.
 use crate::{hex, launch_plan::rust_job_slice_name};
-use gauntlet_cell_rootfs::{CellPreparation, NativeCase};
+use gauntlet_cell_rootfs::{CellPreparation, NativeCase, NativeGuardPins};
 use gauntlet_contracts::{canonicalize, WorkerAction, WorkerRequest};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -13,12 +13,18 @@ pub(crate) const NATIVE_JOBS: &str = "/var/lib/hol-gauntlet-rust/native-jobs";
 pub(crate) const ACTIVE_SECONDS: u64 = 300;
 
 #[derive(Debug, Clone)]
+pub enum NativeJobExecution {
+    Apparatus(NativeCase),
+    HookTransport(NativeGuardPins),
+}
+
+#[derive(Debug, Clone)]
 pub struct NativeJobSpec {
     pub source_sha: String,
     pub job_id: String,
     pub worker_generation: String,
     pub preparation_sha256: String,
-    pub case: NativeCase,
+    pub execution: NativeJobExecution,
 }
 
 impl NativeJobSpec {
@@ -38,6 +44,8 @@ impl NativeJobSpec {
         }
         let canonical = canonicalize(raw).map_err(|_| "ambiguous native run declaration")?;
         let value: Value = serde_json::from_slice(&canonical).map_err(|_| "native run JSON")?;
+        let hook = value["schema"] == "hol-gauntlet-native-worker-job.v2"
+            && value["profile"] == "native-hook-transport-v1";
         let fields = [
             "schema",
             "profile",
@@ -45,13 +53,14 @@ impl NativeJobSpec {
             "job_id",
             "worker_generation",
             "preparation_sha256",
-            "case",
+            if hook { "guard" } else { "case" },
         ];
         if value
             .as_object()
             .is_none_or(|o| o.len() != fields.len() || fields.iter().any(|k| !o.contains_key(*k)))
-            || value["schema"] != "hol-gauntlet-native-worker-job.v1"
-            || value["profile"] != "native-apparatus-v1"
+            || (!hook
+                && (value["schema"] != "hol-gauntlet-native-worker-job.v1"
+                    || value["profile"] != "native-apparatus-v1"))
             || value["source_sha"] != request.source_sha()
             || value["job_id"] != request.job_id()
             || value["worker_generation"] != worker_generation
@@ -64,17 +73,41 @@ impl NativeJobSpec {
             .filter(|s| hex(s, 64))
             .ok_or("outside native preparation pin required")?
             .to_owned();
-        let case = value["case"]
-            .as_str()
-            .ok_or("typed native case required")?
-            .parse()?;
+        let execution = if hook {
+            let pins = NativeGuardPins::parse(&value["guard"])?;
+            if pins.source_sha != request.source_sha() {
+                return Err("Native hook product source differs from job source".into());
+            }
+            NativeJobExecution::HookTransport(pins)
+        } else {
+            NativeJobExecution::Apparatus(
+                value["case"]
+                    .as_str()
+                    .ok_or("typed native case required")?
+                    .parse()?,
+            )
+        };
         Ok(Self {
             source_sha: request.source_sha().into(),
             job_id: request.job_id().into(),
             worker_generation: worker_generation.into(),
             preparation_sha256,
-            case,
+            execution,
         })
+    }
+
+    pub fn profile(&self) -> &'static str {
+        match self.execution {
+            NativeJobExecution::Apparatus(_) => "native-apparatus-v1",
+            NativeJobExecution::HookTransport(_) => "native-hook-transport-v1",
+        }
+    }
+
+    pub fn case(&self) -> &'static str {
+        match self.execution {
+            NativeJobExecution::Apparatus(case) => case.as_str(),
+            NativeJobExecution::HookTransport(_) => "native-hook-transport",
+        }
     }
 
     pub fn job_root(&self) -> PathBuf {
@@ -130,6 +163,50 @@ mod tests {
         )
         .unwrap();
         (value, request, generation)
+    }
+
+    #[test]
+    fn hook_transport_is_a_distinct_closed_version_and_cannot_borrow_product_identity() {
+        let (mut value, _, generation) = fixture();
+        value["schema"] = json!("hol-gauntlet-native-worker-job.v2");
+        value["profile"] = json!("native-hook-transport-v1");
+        value.as_object_mut().unwrap().remove("case");
+        value["guard"] = json!({"schema":"hol-gauntlet-native-hook-product-pins.v1","source_sha":"a".repeat(40),
+            "package_version":"3.57.0","native_sha256":"b".repeat(64),"bwrap_sha256":"c".repeat(64)});
+        let parse = |v: &Value| {
+            let raw = v.to_string();
+            let digest = format!("{:x}", Sha256::digest(raw.as_bytes()));
+            let request = WorkerRequest::parse(
+                json!({"schema":"hol-gauntlet-worker-request.v1","action":"run",
+                "source_sha":"a".repeat(40),"job_id":"0123456789abcdef","deployment_digest":digest})
+                .to_string()
+                .as_bytes(),
+            )
+            .unwrap();
+            NativeJobSpec::parse(raw.as_bytes(), &digest, &request, &generation)
+        };
+        let spec = parse(&value).unwrap();
+        assert_eq!(spec.profile(), "native-hook-transport-v1");
+        assert_eq!(spec.case(), "native-hook-transport");
+        assert!(matches!(
+            spec.execution,
+            NativeJobExecution::HookTransport(_)
+        ));
+        for (pointer, bad) in [
+            ("/guard/source_sha", json!("d".repeat(40))),
+            ("/guard/bwrap_sha256", json!(true)),
+            ("/profile", json!("native-apparatus-v1")),
+            ("/schema", json!("hol-gauntlet-native-worker-job.v1")),
+        ] {
+            let mut changed = value.clone();
+            *changed.pointer_mut(pointer).unwrap() = bad;
+            assert!(parse(&changed).is_err(), "{pointer}");
+        }
+        for key in ["case", "command", "execution_eligible"] {
+            let mut changed = value.clone();
+            changed[key] = json!("untrusted");
+            assert!(parse(&changed).is_err(), "{key}");
+        }
     }
     #[test]
     fn request_source_job_deployment_and_worker_are_all_external_bindings() {

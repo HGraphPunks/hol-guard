@@ -1,0 +1,14 @@
+import unittest
+from pathlib import Path
+class Control(unittest.TestCase):
+ def test_boundary(self):
+  self.assertEqual(str(Path.cwd()),"/runtime/home/project")
+  self.assertFalse(Path("/product/guard").exists())
+  Path("native-contained.txt").write_text("private plane effect")
+  import subprocess,json,hashlib
+  node=subprocess.run(['/usr/bin/node','--version'],capture_output=True,text=True,check=True,timeout=5)
+  npm=subprocess.run(['/usr/bin/npm','--version'],capture_output=True,text=True,check=True,timeout=5)
+  self.assertEqual(node.stdout.strip(),'v22.22.2')
+  self.assertEqual(npm.stdout.strip(),'10.9.7')
+  runtime={'node_version':node.stdout.strip(),'npm_version':npm.stdout.strip(),'node_sha256':hashlib.sha256(Path('/usr/bin/node').read_bytes()).hexdigest(),'node_is_symlink':Path('/usr/bin/node').is_symlink()}
+  Path('node-runtime-control.json').write_text(json.dumps(runtime))

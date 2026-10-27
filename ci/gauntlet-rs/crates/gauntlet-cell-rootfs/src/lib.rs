@@ -26,6 +26,19 @@ mod mounts;
 mod native_apparatus;
 mod native_case;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_guard;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_guard_control;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_guard_fixture;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_guard_probe;
+mod native_guard_spec;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_hook_calls;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_request;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_worker_support;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod preparation;
@@ -52,6 +65,11 @@ pub use kernel_process::{CellProcessExpectation, HeldCellProcess};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_apparatus::run_native_apparatus;
 pub use native_case::{NativeApparatusReport, NativeCase};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_guard::NativeHookPlane;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_guard_control::run_native_hook_transport;
+pub use native_guard_spec::NativeGuardPins;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_worker_support::{
     begin_owned_job_slice, require_image_lease_absent, require_outside_root, verify_systemctl,

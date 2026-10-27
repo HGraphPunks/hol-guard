@@ -339,7 +339,15 @@ approval ceremony for routine work already authorized by this request.
   subprocess check. The two initial evidence fixture-path failures and two
   proof-caller errors remain recorded; test-only `7f62bc36` embeds the same
   frozen data. See [current worker proof](gauntlet-rust-native-current-worker-vm-proof-20261026.md).
-- Next: independent Native controls and fresh conformance.
+- 2026-10-26: add the separate closed v2 Native hook transport profile. Rust
+  owns normal prompt/Pre/sink/Post invocation, one-use input/output binding,
+  descriptor-held request creation/readback/cleanup and physical-effect capture.
+  The actual Python response oracle supplies 64 cases (20 accepts/44 refusals).
+  The 435-test/217-target Mac workspace and warnings-denied Mac/ARM64 Clippy
+  pass, alongside Ruff and ARM compilation. The first v2 live worker
+  remains next; the fixed diagnostic explicitly has no SDK or Guard score.
+  See [transport contract](gauntlet-rust-native-hook-transport.md).
+- Next: live Native hook transport, independent SDK-backed controls and fresh conformance.
   No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.

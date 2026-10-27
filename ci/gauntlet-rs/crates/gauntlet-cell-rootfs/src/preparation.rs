@@ -59,6 +59,14 @@ fn state(stage: &Path) -> Result<()> {
     for name in ["home", "guard"] {
         make_directory(&root.join(name), 0o700)?;
     }
+    let context = root.join("home/omp.json");
+    write_new(&context, b"{}\n", 0o600)?;
+    rustix::fs::chown(
+        &context,
+        Some(rustix::process::Uid::from_raw(10004)),
+        Some(rustix::process::Gid::from_raw(10004)),
+    )
+    .map_err(|e| e.to_string())?;
     let path = root.join("guard/config.toml");
     write_new(&path,b"mode=\"enforce\"\nsync=false\ntelemetry=false\ndesktop_notifications=false\napproval_wait_timeout_seconds=1\n",0o600)?;
     rustix::fs::chown(
@@ -111,6 +119,9 @@ pub fn prepare_and_start(
         if let Some(basename) = name.strip_prefix("public/") {
             if basename.contains('/') {
                 return Err("fixed flat native public artifacts required".into());
+            }
+            if basename == "gauntlet-product-cell" {
+                gauntlet_evidence::verify_native_actor_elf(&raw).map_err(|e| e.to_string())?;
             }
             public.insert(basename.to_owned(), raw);
         }

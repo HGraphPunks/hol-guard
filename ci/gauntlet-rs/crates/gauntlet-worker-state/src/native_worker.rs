@@ -3,7 +3,7 @@
 use crate::builder_image_context::{python_worker_lock, verify_python_lock};
 use crate::native_controller_exec::NativeChild;
 use crate::native_job_io::{load, own_identity, require_no_unknown_jobs};
-use crate::native_job_spec::ACTIVE_SECONDS;
+use crate::native_job_spec::{NativeJobExecution, ACTIVE_SECONDS};
 use crate::{BoottimeDeadline, OwnedJobCgroup, RunReservationJournal, TerminalOutcome};
 use gauntlet_contracts::{canonicalize, WorkerAction, WorkerRequest};
 use serde_json::{json, Value};
@@ -92,13 +92,21 @@ pub fn execute_native_controller(
             std::thread::sleep(Duration::from_millis(10));
         }
     });
-    let result = gauntlet_cell_rootfs::run_native_apparatus(
-        &spec.preparation_path(),
-        &spec.preparation_sha256,
-        spec.case,
-        true,
-        cancellation,
-    );
+    let result = match &spec.execution {
+        NativeJobExecution::Apparatus(case) => gauntlet_cell_rootfs::run_native_apparatus(
+            &spec.preparation_path(),
+            &spec.preparation_sha256,
+            *case,
+            true,
+            cancellation,
+        ),
+        NativeJobExecution::HookTransport(pins) => gauntlet_cell_rootfs::run_native_hook_transport(
+            &spec.preparation_path(),
+            &spec.preparation_sha256,
+            pins,
+            cancellation,
+        ),
+    };
     finished.store(true, Ordering::Release);
     watcher
         .join()
@@ -253,14 +261,24 @@ pub fn dispatch_native_worker(
         Ok((code, reason)) => (code, reason, None),
         Err(error) => (-1, None, Some(error)),
     };
-    let report = json!({"schema":"hol-gauntlet-native-worker-report.v1","profile":"native-apparatus-v1",
+    let report_schema = if matches!(spec.execution, NativeJobExecution::Apparatus(_)) {
+        "hol-gauntlet-native-worker-report.v1"
+    } else {
+        "hol-gauntlet-native-worker-report.v2"
+    };
+    let unavailable_reason = if matches!(spec.execution, NativeJobExecution::Apparatus(_)) {
+        "native apparatus profile has no independently scored Guard controls or host signing-key pin"
+    } else {
+        "native hook transport has no authenticated SDK calls, independently scored Guard controls or host signing-key pin"
+    };
+    let report = json!({"schema":report_schema,"profile":spec.profile(),
         "source_sha":source,"job_id":spec.job_id,"deployment_digest":deployment,"worker_generation":generation,
-        "started_marker_sha256":started.sha256,"preparation_sha256":spec.preparation_sha256,"case":spec.case.as_str(),
+        "started_marker_sha256":started.sha256,"preparation_sha256":spec.preparation_sha256,"case":spec.case(),
         "controller":process_json(process),"controller_report":parsed,"controller_stdout_sha256":format!("{:x}",Sha256::digest(&stdout)),
         "controller_stderr_sha256":format!("{:x}",Sha256::digest(&stderr)),"exit_code":exit_code,"interruption":interruption,
         "execution_error":execution_error,"controller_cgroup_drained":true,"product_slice_absent":true,"image_lease_absent":true,
         "model_requests":0,"execution_eligible":false,"guard_causality_verified":false,"status":"invalid-evidence",
-        "qualification_unavailable_reason":"native apparatus profile has no independently scored Guard controls or host signing-key pin"});
+        "qualification_unavailable_reason":unavailable_reason});
     let raw = canonicalize(report.to_string().as_bytes()).map_err(|e| e.to_string())?;
     journal
         .finish_under_lease(

@@ -208,6 +208,8 @@ jobs:
           cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml
           -p gauntlet-evidence --test staging_product_relation
           --test staging_contained_relation --locked
+      - name: Compare normal OMP NativeHook wire responses on ARM64
+        run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence --test native_hook_response --locked
       - name: Compare deterministic forbidden-command reducer with Python on ARM64
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-evidence --test forbidden_command_parity --locked
       - name: Compare signed control opening, output custody, and reported role checks on ARM64

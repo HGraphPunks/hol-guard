@@ -266,6 +266,13 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
       - [ ] Reconcile Guard decisions and cleanup from independently pinned inputs and post-run observations, then score all six controls and construct a fresh source-bound conformance package.
   - [ ] Write an immutable Rust-only deployment manifest and final config under the build-job-keyed shadow namespace after fresh conformance, then extend the fixed worker request/prelaunch reader to admit that exact namespace against outside host pins. The existing v1 reader hardcodes Python's `/opt/hol-gauntlet/candidates/<source>/config.json`, and that source directory already belongs to a retained Python candidate; a Rust run must not overwrite or silently reuse it.
 - [ ] Port product-cell isolation and six staging plus six installed deterministic controls; authenticate native Pre/Post and physical effects independently.
+  - A distinct closed v2 worker profile now implements normal Native prompt,
+    Pre/sink/Post transport and one-use original-input/captured-output binding
+    in Rust. The descriptor-held handoff refuses mutation, aliases and renamed
+    survivors. Sixty-four source-pinned Python response cases match. Local
+    tests and ARM compilation pass; the fixed controller-generated diagnostic
+    still needs its first live v2 run and supplies no SDK/Guard verdict. See
+    [transport contract](gauntlet-rust-native-hook-transport.md).
   - [x] Run fresh current-source Native success, timeout and cancellation
     through the complete Rust worker on the published 3.57.0 runtime. GNU actor
     ABI preflight refuses the earlier static actor before artifact creation;
