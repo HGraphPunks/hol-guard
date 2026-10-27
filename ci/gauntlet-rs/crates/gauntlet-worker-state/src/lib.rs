@@ -76,6 +76,18 @@ pub struct RunReservationJournal {
 
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod builder_candidate_preflight;
+mod dependency_archive_read;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod dependency_prefix;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod dependency_prefix_meta;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use dependency_prefix::{stage_native_dependency_prefix, DependencyPrefixPins};
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod dependency_prefix_write;
+pub use dependency_archive_read::{
+    inspect_dependency_archive, DependencyArchivePins, DependencyArchiveProof,
+};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod dependency_io;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

@@ -58,7 +58,8 @@ workspace passes 413 tests across 213 targets with no failures or ignores;
 the actual Root ARM64 library passes 126 tests with 24 preexisting fixture
 ignores. The first ARM run exposed a stale current-context test expectation;
 its failed log is retained alongside the corrected, independently recomputed
-oracle. The exporter itself still has not run in a live container.
+oracle. That input-capture proof did not execute the exporter; the later
+dependency run proof below supplies its first live executions.
 
 `gauntlet-host-run-dependencies` now has a distinct one-use prelaunch intent
 journal binding the exact VM/transport, source/capsule/capture receipt, exporter,
@@ -123,6 +124,27 @@ The earlier sandboxed run is retained as `008.log`, SHA-256
 `4863f5598c2cc66d75df2a10798cbf29c0280b5daed8298852328d66c1fb2ccc`:
 both bridge interop fixtures refused local Unix socket creation. The complete
 run used the approved local socket capability without changing those tests.
+
+The new Rust ZIP reader validates the complete outside archive hash, closed
+manifest, exact ordinary UTF-8 paths/modes, CRCs, object/path/decoded byte limits
+and independently recomputed framed file digest. The prefix writer creates a
+one-use private partial tree, writes and reads back every ordinary file, and
+adds only fixed system-Python links and inert venv configuration. A real-export
+test preserves binary/`.pth` bytes without executing them and refuses wrong
+hash/replay before changing the existing tree. CRC corruption and oversized
+declared entries refuse without a large allocation.
+
+The native `--stage-native-dependency-prefix` operation binds a successful
+retained dependency terminal to outside intent/result/archive/interpreter and
+actual stager pins under both permanent leases. Repaired failed output cannot
+supply a prefix. It independently verifies both partial and published Root tree
+inventories, preserves partials on failure, publishes without replacement and
+commits a separate source/byte/interpreter-bound receipt. Root imports no
+package or candidate code. Mac refusal/data tests and ARM64 warnings-denied
+Clippy pass. The full Mac workspace passes 419 tests across 215 targets with
+zero failures or ignores; log `rust-workspace-native-dependency-prefix-014.log`
+has SHA-256 `9000f9e65aec9ebc2726dd46308f9e23650c1dc31447dbad2698fbc78676860e`.
+The first live prefix operation remains pending.
 
 The remaining composition and verification are explicit:
 
