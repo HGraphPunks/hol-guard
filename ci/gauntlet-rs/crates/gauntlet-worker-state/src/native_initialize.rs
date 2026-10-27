@@ -107,9 +107,15 @@ pub fn initialize_native_worker(generation: &str) -> Result<Vec<u8>, String> {
     let legacy = crate::builder_image_context::python_worker_lock().map_err(|e| e.to_string())?;
     // Once both owners are excluded, create only the fixed empty namespaces.
     // Existing directories are validated, never chmodded, replaced or adopted.
-    for name in ["native-jobs", "cell-image-leases", "native-initialization"] {
+    for name in [
+        "native-jobs",
+        "cell-image-leases",
+        "native-initialization",
+        "dependency-state",
+    ] {
         directory(Path::new(BASE), name, 0o700, true)?;
     }
+    lock_file(&Path::new(BASE).join("dependency-state"), "active.lock")?;
     directory(
         Path::new("/opt/hol-gauntlet"),
         "native-deployments",
@@ -118,8 +124,8 @@ pub fn initialize_native_worker(generation: &str) -> Result<Vec<u8>, String> {
     )?;
     directory(Path::new("/var/lib"), "hol-gauntlet", 0o755, false)?;
     directory(Path::new("/var/lib/hol-gauntlet"), "builds", 0o700, true)?;
-    let body = serde_json::json!({"schema":"hol-gauntlet-native-initialization.v2","worker_generation":generation,
-        "layout":"native-worker-layout-v2","job_dispatched":false,"execution_eligible":false,"model_requests":0});
+    let body = serde_json::json!({"schema":"hol-gauntlet-native-initialization.v3","worker_generation":generation,
+        "layout":"native-worker-layout-v3","job_dispatched":false,"execution_eligible":false,"model_requests":0});
     let raw =
         gauntlet_contracts::canonicalize(body.to_string().as_bytes()).map_err(|e| e.to_string())?;
     let root = open_root_owned_public_directory(&Path::new(BASE).join("native-initialization"))

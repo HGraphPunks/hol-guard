@@ -128,6 +128,7 @@ pub fn dispatch_native_worker(
     let lease = journal.acquire_active_lease().map_err(|e| e.to_string())?;
     let python = python_worker_lock().map_err(|e| e.to_string())?;
     require_no_unknown_jobs(&journal)?;
+    crate::dependency_state::require_idle()?;
     if CANCELLED.load(Ordering::Acquire) {
         return Err("native worker cancelled before admission".into());
     }

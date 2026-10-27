@@ -1,13 +1,12 @@
 //! Deadline/cancellation-bounded byte copying. No candidate data is executed.
 use crate::BoottimeDeadline;
 use sha2::{Digest, Sha256};
-use std::fs::File;
 use std::io::Write;
 use std::os::fd::RawFd;
 
 pub(crate) fn copy_source(
     input: RawFd,
-    output: &mut File,
+    output: &mut impl Write,
     expected_bytes: u64,
     deadline: &BoottimeDeadline,
     cancelled: impl Fn() -> bool,

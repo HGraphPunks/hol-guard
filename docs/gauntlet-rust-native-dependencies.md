@@ -59,13 +59,41 @@ ignores. The first ARM run exposed a stale current-context test expectation;
 its failed log is retained alongside the corrected, independently recomputed
 oracle. The exporter itself still has not run in a live container.
 
-The remaining composition is explicit:
+`gauntlet-host-run-dependencies` now has a distinct one-use prelaunch intent
+journal binding the exact VM/transport, source/capsule/capture receipt, exporter,
+controller, image, policy, runtime and runner, plus a fresh host nonce. The
+shared closed contract rejects arbitrary command/path/resource fields. Private
+descriptor custody, durable readback, restart, replay, linked-record and replaced
+directory tests pass. Existing candidate pin schemas remain separate.
 
-- The Rust host must record the exact target, image and runner/adapter pins
-  before launching the dependency job.
-- A Root Rust owner must stage those inputs once under both permanent leases,
-  verify the builder image, helpers and enforced job policy, and supervise the
-  bounded unprivileged container with durable unknown-job blocking and cleanup.
+The native worker's `--prepare-native-dependencies` composition validates that
+intent and its actual executable, takes both permanent worker leases and a
+separate durable dependency reservation, and repeats image/input/policy/runtime
+preflight. It creates one exact-ID container with a pinned intent label and
+fixed UID, capabilities, AppArmor, seccomp, memory, CPU, PID and slirp controls.
+The attached client has bounded logs, deadline, cancellation and disk checks.
+Cleanup rechecks container identity before stopping it, then verifies the
+container, systemd cgroup, client cgroup and policy are absent. Successful
+exports are copied once into Root-owned 0444 data with independent readback.
+The terminal stays `invalid-evidence`. Unresolved dependency state blocks later
+dependency, native worker and candidate runs; it is never automatically retried.
+The v3 inert initializer adds only the separate private dependency journal.
+ARM64 compilation and warnings-denied Mac/ARM64 Clippy pass. **This full
+composition has not yet run on the VM.**
+
+The complete Mac workspace passes 416 tests across 215 targets with zero
+failures/ignores. Log `rust-workspace-native-dependency-run-009.log` has SHA-256
+`2745c680bde743e5741016ad9c56a504acc6263e935fc7606a807442f4546a63`.
+The earlier sandboxed run is retained as `008.log`, SHA-256
+`4863f5598c2cc66d75df2a10798cbf29c0280b5daed8298852328d66c1fb2ccc`:
+both bridge interop fixtures refused local Unix socket creation. The complete
+run used the approved local socket capability without changing those tests.
+
+The remaining composition and verification are explicit:
+
+- Verify the new prelaunch host intent, actual unprivileged exporter and Root
+  supervision together on the owned VM, including independent kernel/cleanup
+  observations, replay and interrupted-job reconciliation.
 - After verified cleanup, Root must independently capture/inspect the ZIP,
   construct an inert dependency prefix and validate the candidate's complete
   declared requirements against it before any control can use that prefix.

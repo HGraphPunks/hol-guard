@@ -4,6 +4,27 @@ fn run() -> Result<(), String> {
     use std::io::{Read, Write};
     gauntlet_worker_state::install_native_worker_signals()?;
     let args = std::env::args().collect::<Vec<_>>();
+    if args.len() == 5 && args[1] == "--prepare-native-dependencies" {
+        use std::os::fd::AsRawFd;
+        gauntlet_cell_rootfs::require_outside_root()?;
+        gauntlet_worker_state::verify_running_binary(&args[4]).map_err(|e| e.to_string())?;
+        let count = args[3]
+            .parse::<u64>()
+            .map_err(|_| "exact dependency intent byte count required")?;
+        if count == 0 || count > gauntlet_contracts::DEPENDENCY_INTENT_LIMIT as u64 {
+            return Err("bounded dependency intent required".into());
+        }
+        let mut raw = Vec::new();
+        gauntlet_worker_state::receive_native_dependency_intent(
+            std::io::stdin().as_raw_fd(),
+            &mut raw,
+            count,
+            &args[2],
+        )?;
+        let raw = gauntlet_worker_state::run_native_dependencies(&raw, &args[2], &args[4])?;
+        println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
+        return Ok(());
+    }
     if args.len() == 11 && args[1] == "--capture-dependency-inputs" {
         let pins = gauntlet_worker_state::NativeDependencyInputPins {
             job: &args[2],

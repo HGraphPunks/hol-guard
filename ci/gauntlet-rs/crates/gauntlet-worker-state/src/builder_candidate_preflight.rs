@@ -92,7 +92,7 @@ fn same_file(a: &Stat, b: &Stat) -> bool {
         && a.st_ctime_nsec == b.st_ctime_nsec
 }
 
-fn verify_file(
+pub(crate) fn verify_file(
     path: &str,
     expected: &str,
     execute: bool,
@@ -145,7 +145,7 @@ fn verify_file(
     Ok(())
 }
 
-fn podman_info() -> Result<Value, CandidatePreflightError> {
+pub(crate) fn podman_info() -> Result<Value, CandidatePreflightError> {
     let mut command = Command::new(PODMAN);
     command.args(["info", "--format", "json"]);
     command

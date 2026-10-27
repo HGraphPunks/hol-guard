@@ -259,6 +259,15 @@ approval ceremony for routine work already authorized by this request.
   126 tests, with 24 preexisting fixture ignores; its first stale builder-context
   expectation and failed log remain retained. See [dependency input proof](gauntlet-rust-native-dependency-input-vm-proof-20261026.md).
   This operation executes no dependency code or installer.
+- 2026-10-26: implemented the distinct dependency prelaunch host journal and
+  native Root composition: closed pins/nonce/target, both permanent leases,
+  durable unknown-job blocking, fixed unprivileged container creation, exact
+  CID/intent checks before teardown, bounded attached client, independent
+  Root output capture and invalid-evidence terminal. Three new contract/journal
+  tests pass; the full Mac workspace passes 416 tests across 215 targets with
+  zero failures/ignores. Warnings-denied Mac/ARM64 Clippy and ARM64 compilation
+  pass. The unchanged pinned VM image, cgroup manager and job policy are
+  prepared; the actual composed VM run remains next. No parent exit closes.
 - Next: prepare compatible dependencies, then deterministic authority. No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.

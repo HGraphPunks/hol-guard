@@ -9,7 +9,9 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
 
+mod dependency_run;
 mod effect_file_handle;
+pub use dependency_run::{DependencyRunIntent, DependencyRunPins, DEPENDENCY_INTENT_LIMIT};
 mod effect_writer_image;
 mod identity;
 mod policy;

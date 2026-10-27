@@ -67,7 +67,7 @@ pub(crate) fn verify_extracted_inputs(
     Ok(())
 }
 
-fn source_receipt(
+pub(crate) fn source_receipt(
     slot: &OwnedFd,
     pins: &NativeDependencyInputPins<'_>,
     source_bytes: u64,

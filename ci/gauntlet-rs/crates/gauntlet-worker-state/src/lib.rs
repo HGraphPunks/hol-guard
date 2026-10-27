@@ -76,10 +76,20 @@ pub struct RunReservationJournal {
 
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod builder_candidate_preflight;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod dependency_io;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod dependency_podman;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod dependency_run;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod dependency_state;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_dependency_archive;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_dependency_capture;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use dependency_run::{receive_native_dependency_intent, run_native_dependencies};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_dependency_export;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
