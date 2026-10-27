@@ -358,7 +358,15 @@ approval ceremony for routine work already authorized by this request.
   lacks Native's required fields. Retain the failure and supply the fixed
   actor environment with a canonical sender commitment. Sink execution still
   requires its own normal Native reauthorization. No SDK identity is claimed.
-- Next: corrected live Native hook transport, independent SDK-backed controls and fresh conformance.
+- 2026-10-27: fresh job `e2c701baf1472301` at `6b901e2a` passes actual Native
+  prompt/Pre/sink/Post, exact captured-output binding, physical effect,
+  replay/refusal and cleanup. The inert reader verifies all 210 diagnostic
+  export members and 33 input members, host prelaunch bindings and 48 retained
+  earlier worker files. Root passes 136 worker tests with 24 existing ignores;
+  unchanged evidence/wire/rootfs binaries retain their earlier actual ARM
+  passes. SDK, independent Guard causality and conformance remain open. See
+  [Native hook VM proof](gauntlet-rust-native-hook-vm-proof-20261027.md).
+- Next: independent SDK-backed controls, Native MCP ownership and fresh conformance.
   No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.

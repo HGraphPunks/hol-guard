@@ -106,7 +106,9 @@ The diagnostic had supplied an empty execution context. Native's typed
 four-variable context, with its canonical sender commitment and normal optional
 fields. It remains controller-generated context with no SDK authentication.
 The sink independently captures and reauthorizes its own environment through
-the existing normal product CLI. A fresh one-use job must verify this correction.
+the existing normal product CLI. Fresh job `e2c701baf1472301` now passes that
+correction and the full prompt/Pre/sink/Post/replay/cleanup diagnostic. See the
+[retained VM proof and inert reader](gauntlet-rust-native-hook-vm-proof-20261027.md).
 
 The first three attempts are retained in
 `native-hook-transport-vm-results-021.tar` (103 members, 1,095,680 bytes,

@@ -275,7 +275,11 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
     and cleanup remain retained. The v1 regression passed and wrong Native pins
     refused. A fresh corrected-home job passed readiness and prompt, then
     Native refused the diagnostic's incomplete execution context before any
-    sink launch. The fixed actor-environment stamp needs another fresh job.
+    sink launch. A third fresh job with the fixed actor-environment stamp
+    passes actual Native Pre/sink/Post, the physical test effect, all replays
+    and cleanup. The inert reader checks all 210 diagnostic export members,
+    33 input members and preservation of 48 earlier worker files; see the
+    [current Native hook VM proof](gauntlet-rust-native-hook-vm-proof-20261027.md).
     These diagnostics supply no SDK/Guard verdict. See
     [transport contract](gauntlet-rust-native-hook-transport.md).
   - [x] Run fresh current-source Native success, timeout and cancellation
