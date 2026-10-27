@@ -237,6 +237,18 @@ mod job_slice_guard;
 mod launch_plan;
 mod native_job_spec;
 pub use native_job_spec::{NativeJobExecution, NativeJobSpec};
+mod native_sdk_protocol;
+pub use native_sdk_protocol::{NativeSdkHook, NativeSdkLedger, NativeSdkRequest};
+mod native_sdk_asset_spec;
+pub use native_sdk_asset_spec::NativeSdkAssetPins;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_asset_publish;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_sdk_asset_publish::publish_native_sdk_assets;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_sdk_peer;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_sdk_peer::{NativeSdkBoundary, NativeSdkPeer, NativeSdkRequestPeer};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_initialize;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

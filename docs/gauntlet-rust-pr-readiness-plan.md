@@ -1,6 +1,6 @@
 # Gauntlet Rust migration: execution and PR readiness
 
-Updated: 2026-10-26. Execution model: GPT-6.1 Sol, Max reasoning.
+Updated: 2026-10-27. Execution model: GPT-6.1 Sol, Max reasoning.
 Status: active implementation; the Rust replacement is not qualified.
 
 ## Goal and completion contract
@@ -367,6 +367,9 @@ approval ceremony for routine work already authorized by this request.
   passes. SDK, independent Guard causality and conformance remain open. See
   [Native hook VM proof](gauntlet-rust-native-hook-vm-proof-20261027.md).
 - Next: independent SDK-backed controls, Native MCP ownership and fresh conformance.
+  The next Rust slice adds closed SDK request/route state, held kernel peer
+  identity and source-pinned inert SDK/Bun publication; see the
+  [SDK transport components](gauntlet-rust-native-sdk-transport.md).
   No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.
