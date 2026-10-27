@@ -407,8 +407,17 @@ approval ceremony for routine work already authorized by this request.
   check and executable-generation sampling are next. Upstream `759130ab`
   is fetched for the next consolidation; the current VM artifacts remain
   pinned to their recorded source.
-- Next: prove the corrected SDK benign control with actual outside Bun
-  readback, then finish Rust Native MCP/service ownership, independent scoring
-  and fresh conformance. The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
+- 2026-10-27: source `d4d81a4b` passes the fresh SDK/Bash benign diagnostic,
+  including actual outside post-exec Bun identity, exact Native-reviewed
+  captured output, Node/npm fixture, same-UID and route-replay refusals,
+  unchanged host-device identity and independent cleanup. The 119-member
+  host reader preserves all 129 worker files and earlier failures/repairs.
+  Wrong-publication refusal, terminal reconcile and one-use replay pass.
+  Root passes 157 worker tests (24 existing ignores), 31 rootfs tests and
+  one subprocess check; ARM Clippy/builds pass. No MCP, scoring or admission
+  is inferred; the diagnostic uses zero model requests.
+- Next: consolidate fetched upstream `759130ab`, then finish Rust Native
+  MCP/service ownership, independent scoring and fresh conformance.
+  The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;
   qualification, inference, operational cutover and final handoff stay open.

@@ -302,14 +302,19 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
     exact `crun//&SDK` label; the corrected source keeps that complete stack
     fixed and passes 450 Mac tests plus Mac/ARM Clippy. Live SDK acceptance
     remains open. See [SDK transport evidence](gauntlet-rust-native-sdk-transport.md).
-  - [ ] Complete the Rust-owned actual SDK/Bun benign control on the current
-    installed runtime, then add MCP and independently scored controls. Job
-    `e2c701baf1473201` at `426c7d93` completes the actual SDK session,
-    pre-import binding, same-UID refusal, genuine Native-reviewed Bash route
-    and exact captured-result delivery. The benign fixture still fails with
-    npm SIGABRT; the 98-member export and inert reader preserve that failed
-    outcome and 100 worker files. The v2 fixture retains stderr without
-    removing assertions; the source passes 453 Mac tests and Mac/ARM Clippy.
+  - [x] Complete the Rust-owned actual SDK/Bun benign diagnostic on the
+    published 3.57.0 runtime. Job `e2c701baf1473501` at `d4d81a4b` passes
+    pre-import binding, same-UID refusal, genuine Native Pre/sink/Post,
+    Node/npm fixture, exact captured-result delivery, replay refusals and
+    independent cleanup. The 119-member host reader requires the actual
+    outside post-exec Bun sample and unchanged host-device identity; all
+    129 worker files and prior failed attempts/repairs remain preserved.
+    Root passes 157 worker tests with 24 existing fixture ignores, 31 rootfs
+    tests and its subprocess check; ARM Clippy/builds pass. Unchanged Mac
+    code retains 454 passing tests. This remains unadmitted and unscored;
+    see [SDK transport evidence](gauntlet-rust-native-sdk-transport.md).
+  - [ ] Add Rust-owned Native MCP/service execution, independent Guard
+    request/decision/effect scoring, source-matched controls and conformance.
   - [x] Run fresh current-source Native success, timeout and cancellation
     through the complete Rust worker on the published 3.57.0 runtime. GNU actor
     ABI preflight refuses the earlier static actor before artifact creation;

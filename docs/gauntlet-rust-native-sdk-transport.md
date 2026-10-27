@@ -5,10 +5,10 @@ The current Native hook diagnostic passes on the owned ARM VM; see the
 The Rust worker now owns SDK request state, dependency publication, gate and
 hook listeners, fixed Podman launch and cleanup, and the Native Bash route.
 The owned VM completes an actual SDK session, benign Node/npm fixture,
-exact Native-captured Bash delivery, replay refusals and cleanup. The latest
-complete diagnostic still fails an overstrict host-device timestamp check;
-its outside sampler also misses Bun's post-exec image. Corrected source and
-sampling await a fresh run. MCP, conformance and Guard scoring remain open.
+exact Native-captured Bash delivery, replay refusals and cleanup. Fresh job
+`e2c701baf1473501` passes with independently observed post-exec Bun identity
+and unchanged host-device custody. All earlier failures remain retained.
+MCP, conformance and Guard scoring remain open.
 The parent checklist remains 24/62 complete.
 
 `NativeSdkRequest` accepts the explicitly bounded Bash-only SDK hook profile
@@ -427,3 +427,33 @@ default; the retained generation-034 reader explicitly reports its absence.
 The Linux-only device identity correction and its two native tests compile
 with warnings-denied ARM Clippy. The unchanged Mac code retains its 454-test
 pass; fresh native tests and the generation-035 SDK run remain next.
+
+The fresh generation-035 diagnostic now passes at source `d4d81a4b`.
+Job `e2c701baf1473501` has controller exit 0, real SDK 18.4.12, successful
+Node/npm fixture, exact Native-captured Bash output delivery, original command
+context, same-UID refusal, all route replays refused and complete independent
+cleanup. The v2 outside sampler retains 25 kernel observations, including
+the actual post-exec Bun image under its exact PID/start, executable, argv,
+AppArmor stack, cgroup, UID/GID, capability, seccomp and resource pins. The
+held host null device keeps its exact identity, Root ownership and permissions;
+timestamps remain observations. Wrong SDK publication job `e2c701baf1473503`
+refuses before product/SDK creation. Reconcile and replay checks preserve all
+129 worker files, including the 117 files present before this generation.
+
+The immutable export has 119 members and 593,920 bytes, SHA-256
+`fa75f7621aa51e8127ec05515f0b8ada1d50c8d85e313f20592aad935371650d`.
+Host prelaunch pin
+`e348f79572e9d30467fb0701189fe79ea9409684422b177191dad8f16447b091`
+binds the full courier and read-only observer source. The committed inert
+`verify_native_sdk_benign_20261027.py` checks every exported/input member,
+all prior failure/recovery relations, actual outside Bun identity, complete
+SDK/Native exchange, physical effect, Node ELF/version bytes and cleanup.
+Root passes 157 worker tests with 24 existing fixture ignores, 31 rootfs
+tests and its subprocess check. ARM warnings-denied Clippy and compilation
+pass; unchanged Mac code retains the 454-test workspace pass.
+
+The worker terminal deliberately remains `invalid-evidence`: this diagnostic
+has no host-key admission, independent Guard causality, MCP or inference.
+All execution/qualification flags remain false and model requests remain zero.
+The next implementation owns Native MCP services and independent control
+scoring in Rust after the fetched upstream consolidation.
