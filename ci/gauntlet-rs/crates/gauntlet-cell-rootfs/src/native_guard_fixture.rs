@@ -16,7 +16,7 @@ const DIRECTORY: OFlags = OFlags::RDONLY
     .union(OFlags::NOFOLLOW)
     .union(OFlags::CLOEXEC);
 
-fn workspace(spec: &CellPreparation) -> Result<OwnedFd> {
+pub(crate) fn workspace(spec: &CellPreparation) -> Result<OwnedFd> {
     let declaration = &spec.task_mounts["workspace"];
     let source = std::path::Path::new(
         declaration["source"]
@@ -128,6 +128,18 @@ fn project_marker(spec: &CellPreparation, mut fixture: Value) -> Result<Value> {
     fixture["project_marker"] = json!({"file":"pytest.ini","sha256":hash(marker),
         "bytes":marker.len(),"uid":held.st_uid,"gid":held.st_gid,"mode":0o600,
         "device":held.st_dev,"inode":held.st_ino});
+    Ok(fixture)
+}
+
+pub fn seed_lifecycle(spec: &CellPreparation, role: crate::NativeControlRole) -> Result<Value> {
+    let lifecycle = crate::native_lifecycle_spec::NativeLifecycleSpec::new(&spec.stage, role)?;
+    let fixture=seed_fixed(spec,&lifecycle.fixture(),"hol-gauntlet-native-contained-fixture.v5",
+        "native_lifecycle_parent_v1.py.txt + native_lifecycle_child_v1.py.txt; unprivileged detached fixture")?;
+    let mut fixture = project_marker(spec, fixture)?;
+    fixture["schema"] = json!("hol-gauntlet-native-contained-fixture.v5");
+    fixture["lifecycle_role"] = json!(role.as_str());
+    fixture["detached_token"] = json!(lifecycle.token);
+    fixture["detached_code_sha256"] = json!(hash(lifecycle.code.as_bytes()));
     Ok(fixture)
 }
 

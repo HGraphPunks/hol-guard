@@ -39,17 +39,6 @@ fn run_profile(
     cancel: Arc<AtomicBool>,
     role: Option<NativeControlRole>,
 ) -> Result<NativeApparatusReport, String> {
-    if role.is_some_and(|r| {
-        !matches!(
-            r,
-            NativeControlRole::Success
-                | NativeControlRole::InputBinding
-                | NativeControlRole::Boundary
-                | NativeControlRole::Injection
-        )
-    }) {
-        return Err("Native deterministic role implementation remains incomplete".into());
-    }
     gauntlet_cell_rootfs::require_outside_root()?;
     let host_null = crate::native_sdk_host_device::NativeSdkHostNull::open()?;
     let root =
@@ -59,7 +48,12 @@ fn run_profile(
         .ok_or("composed SDK preparation missing")?;
     let preparation = job.preparation(&raw)?;
     let assets = VerifiedNativeSdkAssets::load(sdk_pins)?;
-    let fixture = if role == Some(NativeControlRole::Boundary) {
+    let fixture = if role.is_some_and(NativeControlRole::lifecycle) {
+        gauntlet_cell_rootfs::seed_native_lifecycle_fixture(
+            &preparation,
+            role.ok_or("lifecycle role missing")?,
+        )?
+    } else if role == Some(NativeControlRole::Boundary) {
         gauntlet_cell_rootfs::seed_native_boundary_fixture(&preparation)?
     } else if role.is_some() {
         gauntlet_cell_rootfs::seed_native_control_fixture(&preparation)?
@@ -95,7 +89,7 @@ fn run_profile(
         pins.clone(),
         &format!("gauntlet-native-sdk-mcp-{}", job.job_id),
     )?;
-    let mut router = NativeSdkRouter::with_budget(budget.clone())?;
+    let mut router = NativeSdkRouter::with_role(budget.clone(), role)?;
     let mut agent = None;
     let mut sdk = None;
     let mut requests = Vec::new();
@@ -141,7 +135,7 @@ fn run_profile(
         )?;
         measurements.insert("pre_import_binding".into(), binding);
         mcp.connect_sdk(&peer, &cancel)?;
-        let result = crate::native_sdk_control::serve(
+        let served = crate::native_sdk_control::serve(
             &sockets,
             &peer,
             process,
@@ -149,7 +143,20 @@ fn run_profile(
             &mut plane,
             &cancel,
             &mut requests,
-        )?;
+        );
+        if role == Some(NativeControlRole::Cancel) && router.verify_cancelled().is_ok() {
+            if served.is_ok() {
+                return Err("cancelled SDK unexpectedly produced a completed result".into());
+            }
+            measurements.insert("controlled_sdk_abort".into(),json!({"dispatch_error":served.as_ref().err(),
+                "actual_sdk_result_available":false,"post_tool_use_available":false,"execution_eligible":false}));
+            measurements.insert(
+                "replay_refusals".into(),
+                router.refuse_cancel_replays(&mut plane)?,
+            );
+            return Ok(());
+        }
+        let result = served?;
         measurements.insert("sdk".into(), result);
         router.verify_completed()?;
         measurements.insert("replay_refusals".into(), router.refuse_replays(&mut plane)?);
@@ -175,6 +182,13 @@ fn run_profile(
         Ok(())
     })();
     let sdk_cleanup = sdk.as_mut().map_or(Ok(()), RootChild::stop);
+    let controlled_cancel =
+        role == Some(NativeControlRole::Cancel) && router.verify_cancelled().is_ok();
+    let early_agent_cleanup = if controlled_cancel {
+        agent.as_mut().map_or(Ok(()), NativeSdkAgent::close)
+    } else {
+        Ok(())
+    };
     let mcp_cleanup = mcp.close(attempted.is_err());
     let agent_cleanup = agent.as_mut().map_or(Ok(()), NativeSdkAgent::close);
     let socket_cleanup = sockets.close();
@@ -211,7 +225,30 @@ fn run_profile(
     let prefix_unchanged = tree
         .as_ref()
         .is_ok_and(|t| t.digest == preparation.runtime_tree_digest);
-    let effect = if cell_cleanup.is_ok() && agent_cleanup.is_ok() && mcp_cleanup.is_ok() {
+    let effect = if role.is_some_and(NativeControlRole::lifecycle) {
+        if [
+            sdk_cleanup.is_ok(),
+            mcp_cleanup.is_ok(),
+            agent_cleanup.is_ok(),
+            cell_cleanup.is_ok(),
+            early_agent_cleanup.is_ok(),
+        ]
+        .contains(&false)
+        {
+            Err("closed lifecycle readback requires actual SDK/MCP/product cleanup".into())
+        } else {
+            router
+                .lifecycle()
+                .ok_or("actual detached lifecycle observation missing".into())
+                .and_then(|v| {
+                    gauntlet_cell_rootfs::verify_native_closed_lifecycle(
+                        &preparation,
+                        role.ok_or("lifecycle role missing")?,
+                        v,
+                    )
+                })
+        }
+    } else if cell_cleanup.is_ok() && agent_cleanup.is_ok() && mcp_cleanup.is_ok() {
         gauntlet_cell_rootfs::read_native_hook_fixture_effect(&preparation)
     } else {
         Err("effect readback requires drained product, SDK and MCP".into())
@@ -226,7 +263,21 @@ fn run_profile(
         .observation();
     let mcp_observation = mcp.observation()?;
     let sdk_result = measurements.get("sdk").cloned().unwrap_or(Value::Null);
-    let joined = if role == Some(NativeControlRole::Injection) {
+    let joined = if role == Some(NativeControlRole::Cancel) {
+        crate::native_sdk_mcp_result::verify_cancelled(
+            &router,
+            &mcp_observation,
+            &budget_observation,
+            &requests,
+        )
+    } else if role == Some(NativeControlRole::Timeout) {
+        crate::native_sdk_mcp_result::verify_timeout(
+            &sdk_result,
+            &router,
+            &mcp_observation,
+            &budget_observation,
+        )
+    } else if role == Some(NativeControlRole::Injection) {
         crate::native_sdk_mcp_result::verify_injection(
             &sdk_result,
             &router,
@@ -252,6 +303,7 @@ fn run_profile(
     };
     let errors = [
         sdk_cleanup.as_ref().err(),
+        early_agent_cleanup.as_ref().err(),
         mcp_cleanup.as_ref().err(),
         agent_cleanup.as_ref().err(),
         socket_cleanup.as_ref().err(),

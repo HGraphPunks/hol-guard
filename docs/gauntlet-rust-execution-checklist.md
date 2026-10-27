@@ -397,7 +397,10 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
       are not claimed. Readback checks 151 export members, 56 samples and
       191 preserved worker files. ARM passes 178 worker/35 rootfs tests plus
       subprocess; 109 Mac tests, Clippy and builds pass.
-      Two roles still refuse as incomplete, and no
+      Timeout/cancel now compile with exclusive readiness, held detached
+      kernel/ELF/ancestry custody, exact timeout/cancellation outcomes and
+      cleanup-gated physical readback. All 111 affected Mac tests and Clippy
+      pass; fresh native lifecycle verification remains pending. No
       qualified role is claimed.
       See [deterministic controls](gauntlet-rust-native-deterministic-controls.md).
   - [x] Run fresh current-source Native success, timeout and cancellation

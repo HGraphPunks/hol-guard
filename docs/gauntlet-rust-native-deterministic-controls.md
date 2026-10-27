@@ -10,8 +10,8 @@ control. `input-binding` additionally invokes the installed Native sink with
 all nine historical malformed requests and the real forbidden-command control.
 `boundary` adds the actual SDK-driven canary and network fixture described
 below. `injection` adds the actual disposition check described below.
-`timeout` and `cancel` currently refuse as incomplete
-before product startup. Declared
+`timeout` and `cancel` now have compiled execution implementations; fresh
+native verification remains pending. Declared
 roles are not a claim that the six-role qualification suite is available.
 Every terminal remains `invalid-evidence`, with eligibility and Guard
 causality false. `qualified_role_complete` is explicitly false.
@@ -170,8 +170,22 @@ Run `ci/gauntlet-rs/proofs/verify_native_injection_control_20261027.py`.
 All qualification, Guard causality and outside-key admission flags remain
 false; the model/provider request count remains zero.
 
-Remaining work includes kernel/mount authority, observed
-detached-child timeout/cancellation, provider mapping, complete role scoring,
+The lifecycle implementation uses versioned unprivileged parent/child test
+fixtures with exclusive atomic readiness publication. Root binds the original
+ready-file generation, then requires an actual detached child with matching
+argv, image interpreter inode/bytes, PID/start time, private namespaces,
+enforcing label, owned cgroup and ancestry to the actual Native CLI. A ready
+claim by itself supplies no evidence. The timeout path requires a real 124
+capture and a dead held child before controller cleanup. Cancellation closes
+the owned product cell only after kernel readiness, then aborts the SDK owner;
+missing execution/result/Post fields remain explicitly unavailable. Authenticated
+SDK requests are retained before dispatch so the aborted sink is not lost.
+Both roles require cleanup-gated physical ready-file/late-effect readback.
+ARM Clippy, static tests and main binaries compile; all 111 affected Mac tests
+and Mac Clippy pass. Fresh lifecycle VM execution is pending.
+
+Remaining work includes live detached-lifecycle verification, kernel/mount authority,
+provider mapping, complete role scoring,
 outside signing-key admission and fresh current-source staging/installed
 conformance. The successful [combined SDK transport](gauntlet-rust-native-sdk-mcp-transport.md)
 is retained independently; the parent checklist stays 24/62 complete.

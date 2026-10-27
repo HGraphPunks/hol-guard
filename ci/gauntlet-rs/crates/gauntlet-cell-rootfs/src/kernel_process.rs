@@ -95,7 +95,7 @@ fn same_identity(first: &Value, second: &Value) -> bool {
     first == second
 }
 
-fn read_at(directory: &OwnedFd, name: &str, maximum: usize) -> Result<Vec<u8>> {
+pub(crate) fn read_at(directory: &OwnedFd, name: &str, maximum: usize) -> Result<Vec<u8>> {
     let fd = openat(
         directory,
         name,
@@ -114,7 +114,7 @@ fn read_at(directory: &OwnedFd, name: &str, maximum: usize) -> Result<Vec<u8>> {
     Ok(raw)
 }
 
-fn alive(pidfd: &OwnedFd) -> Result<bool> {
+pub(crate) fn alive(pidfd: &OwnedFd) -> Result<bool> {
     let mut fds = [PollFd::new(pidfd, PollFlags::IN)];
     Ok(poll(
         &mut fds,
@@ -165,7 +165,7 @@ pub(crate) fn root_proc() -> Result<OwnedFd> {
     Ok(proc)
 }
 
-fn namespace_values(proc: &OwnedFd) -> Result<BTreeMap<String, String>> {
+pub(crate) fn namespace_values(proc: &OwnedFd) -> Result<BTreeMap<String, String>> {
     let mut result = BTreeMap::new();
     for name in ["pid", "mnt", "net", "ipc", "uts", "cgroup", "user"] {
         let relative = format!("ns/{name}");

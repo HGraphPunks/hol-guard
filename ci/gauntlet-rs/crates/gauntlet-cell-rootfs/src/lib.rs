@@ -51,6 +51,12 @@ mod native_guard_probe;
 mod native_guard_spec;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_hook_calls;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_lifecycle_control;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_lifecycle_kernel;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_lifecycle_spec;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_request;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
@@ -84,16 +90,18 @@ pub use native_boundary_control::NativeBoundaryControl;
 pub use native_case::{NativeApparatusReport, NativeCase};
 pub use native_control_role::NativeControlRole;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-pub use native_guard::NativeHookPlane;
+pub use native_guard::{NativeHookPlane, NativeLifecycleExecution};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_guard_control::run_native_hook_transport;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_guard_fixture::{
     effect as read_native_hook_fixture_effect, seed as seed_native_hook_fixture,
     seed_boundary as seed_native_boundary_fixture, seed_control as seed_native_control_fixture,
-    seed_sdk as seed_native_sdk_fixture,
+    seed_lifecycle as seed_native_lifecycle_fixture, seed_sdk as seed_native_sdk_fixture,
 };
 pub use native_guard_spec::NativeGuardPins;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_lifecycle_control::verify_closed as verify_native_closed_lifecycle;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_worker_support::{
     begin_owned_job_slice, require_image_lease_absent, require_outside_root,

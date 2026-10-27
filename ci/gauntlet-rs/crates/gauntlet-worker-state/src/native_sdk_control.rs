@@ -137,15 +137,25 @@ pub(crate) fn serve(
             let identity =
                 peer.authenticate(&stream, matches!(request, NativeSdkRequest::Execute { .. }))?;
             let observation = identity.observation();
-            let response = router.handle(&request, plane)?;
+            let index = requests.len();
+            requests.push(json!({"sequence":accepted,"request_sha256":format!("{:x}",Sha256::digest(&raw)),
+                "request":serde_json::from_slice::<Value>(&raw).map_err(|_|"SDK retained request JSON")?,
+                "peer":observation,"peer_rechecked_before_response":false,"product_claims_authenticated":false}));
+            let response = match router.handle(&request, plane) {
+                Ok(response) => response,
+                Err(error) => {
+                    requests[index]["dispatch_error"] = json!(error);
+                    return Err(error);
+                }
+            };
             identity.recheck(&stream)?;
             let response = gauntlet_contracts::canonicalize(response.to_string().as_bytes())
                 .map_err(|e| e.to_string())?;
             write_native_sdk_line(&mut stream, &response, deadline, cancel)?;
-            requests.push(json!({"sequence":accepted,"request_sha256":format!("{:x}",Sha256::digest(&raw)),
-                "request":serde_json::from_slice::<Value>(&raw).map_err(|_|"SDK retained request JSON")?,
-                "response_sha256":format!("{:x}",Sha256::digest(&response)),"response":serde_json::from_slice::<Value>(&response).map_err(|_|"SDK retained response JSON")?,
-                "peer":observation,"peer_rechecked_before_response":true,"product_claims_authenticated":false}));
+            requests[index]["response_sha256"] = json!(format!("{:x}", Sha256::digest(&response)));
+            requests[index]["response"] = serde_json::from_slice::<Value>(&response)
+                .map_err(|_| "SDK retained response JSON")?;
+            requests[index]["peer_rechecked_before_response"] = json!(true);
         }
         if let Some(output) = sdk.poll()? {
             let result = serde_json::from_slice::<Value>(&output.stdout).ok();

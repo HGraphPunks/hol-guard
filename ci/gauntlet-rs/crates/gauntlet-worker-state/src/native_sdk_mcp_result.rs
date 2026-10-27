@@ -9,7 +9,7 @@ pub(crate) fn verify(
     mcp: &Value,
     budget: &Value,
 ) -> Result<(), String> {
-    verify_profile(sdk, router, mcp, budget, None).map(|_| ())
+    verify_profile(sdk, router, mcp, budget, None, false).map(|_| ())
 }
 pub(crate) fn verify_injection(
     sdk: &Value,
@@ -18,7 +18,102 @@ pub(crate) fn verify_injection(
     budget: &Value,
 ) -> Result<Value, String> {
     let payload = crate::native_mcp_control::injection_payload()?;
-    verify_profile(sdk, router, mcp, budget, Some(&payload))
+    verify_profile(sdk, router, mcp, budget, Some(&payload), false)
+}
+pub(crate) fn verify_timeout(
+    sdk: &Value,
+    router: &NativeSdkRouter,
+    mcp: &Value,
+    budget: &Value,
+) -> Result<(), String> {
+    let lifecycle = router
+        .lifecycle()
+        .ok_or("actual timeout observation absent")?;
+    if lifecycle["status"] != "passed"
+        || lifecycle["role"] != "timeout"
+        || lifecycle["capture_exit_code"] != 124
+    {
+        return Err("actual timeout control did not complete".into());
+    }
+    verify_profile(sdk, router, mcp, budget, None, true).map(|_| ())
+}
+pub(crate) fn verify_cancelled(
+    router: &NativeSdkRouter,
+    mcp: &Value,
+    budget: &Value,
+    requests: &[Value],
+) -> Result<(), String> {
+    router.verify_cancelled()?;
+    if requests.len() != 2
+        || requests[0]["peer_rechecked_before_response"] != true
+        || requests[1]["request"]["operation"] != "execute-contained"
+        || requests[1]["request"]["token"] != requests[0]["response"]["execution_token"]
+        || requests[1].get("response").is_some()
+        || !requests[1]["dispatch_error"].is_string()
+        || budget["used"] != 2
+        || budget["builtin"] != 1
+        || budget["mcp"] != 1
+        || budget["pending"].as_array().is_none_or(|r| !r.is_empty())
+    {
+        return Err(
+            "controlled cancellation lost actual SDK Pre/sink or operation accounting".into(),
+        );
+    }
+    let front = mcp["frontends"]
+        .as_array()
+        .filter(|r| r.len() == 2)
+        .ok_or("cancelled SDK MCP frontends missing")?;
+    let up = mcp["upstreams"]
+        .as_array()
+        .filter(|r| r.len() == 2)
+        .ok_or("cancelled Native MCP upstreams missing")?;
+    if front.iter().any(|r| r["status"] != "passed")
+        || up.iter().any(|r| r["status"] != "closed")
+        || mcp["initial"]["records"] != mcp["final"]["records"]
+        || mcp["receipts"].as_array().is_none_or(|r| r.len() != 1)
+    {
+        return Err("cancelled SDK did not drain its completed delegated read".into());
+    }
+    let docs = front
+        .iter()
+        .find(|r| r["family"] == "docs")
+        .ok_or("cancelled docs route absent")?;
+    let frames = docs["frames"]
+        .as_array()
+        .ok_or("cancelled docs frames absent")?;
+    let calls = frames
+        .iter()
+        .filter(|r| r["direction"] == "sdk-request" && r["frame"]["method"] == "tools/call")
+        .collect::<Vec<_>>();
+    if calls.len() != 1
+        || calls[0]["forwarded"] != true
+        || calls[0]["frame"]["params"]
+            != serde_json::json!({"name":"docs.read","arguments":{"record_id":"developer-spec"}})
+    {
+        return Err("cancelled SDK delegated request differs".into());
+    }
+    let replies = frames
+        .iter()
+        .filter(|r| {
+            r["direction"] == "native-response" && r["frame"]["id"] == calls[0]["frame"]["id"]
+        })
+        .collect::<Vec<_>>();
+    if replies.len() != 1 || replies[0]["forwarded"] != true {
+        return Err("cancelled SDK delegated response was not delivered".into());
+    }
+    let record: Value = serde_json::from_str(
+        replies[0]["frame"]["result"]["content"][0]["text"]
+            .as_str()
+            .ok_or("cancelled read content absent")?,
+    )
+    .map_err(|_| "cancelled read content JSON")?;
+    if !mcp["initial"]["records"].as_array().is_some_and(|r| {
+        r.iter()
+            .any(|v| v == &record && v["id"] == "developer-spec")
+    }) {
+        return Err("cancelled SDK read differs from physical provider record".into());
+    }
+    Ok(())
 }
 fn verify_profile(
     sdk: &Value,
@@ -26,6 +121,7 @@ fn verify_profile(
     mcp: &Value,
     budget: &Value,
     injection: Option<&str>,
+    timeout: bool,
 ) -> Result<Value, String> {
     router.verify_completed()?;
     let captured = router
@@ -147,7 +243,11 @@ fn verify_profile(
         if &parse_record(read)? != expected {
             return Err("Native read differs from physical provider record".into());
         }
-        crate::native_sdk_result::verify_mcp(sdk, &captured["output"], read)?;
+        if timeout {
+            crate::native_sdk_result::verify_mcp_timeout(sdk, &captured["output"], read)?;
+        } else {
+            crate::native_sdk_result::verify_mcp(sdk, &captured["output"], read)?;
+        }
         Ok(Value::Null)
     }
 }

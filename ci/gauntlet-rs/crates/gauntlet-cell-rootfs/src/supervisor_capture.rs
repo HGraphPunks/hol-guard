@@ -268,6 +268,16 @@ impl NativeCell {
         raw: &[u8],
         timeout: Duration,
     ) -> Result<CapturedProcess> {
+        self.capture_observed(argv, raw, timeout, |_, _| Ok(()))
+    }
+
+    pub(crate) fn capture_observed(
+        &mut self,
+        argv: &[String],
+        raw: &[u8],
+        timeout: Duration,
+        mut observe: impl FnMut(&NativeCell, &str) -> Result<()>,
+    ) -> Result<CapturedProcess> {
         if raw.len() > 8 * 1024 * 1024
             || timeout.is_zero()
             || timeout > Duration::from_secs(self.spec.wall_seconds.min(930))
@@ -292,6 +302,7 @@ impl NativeCell {
                 if Instant::now() >= deadline {
                     return Err("product capture deadline exceeded".into());
                 }
+                observe(self, &handle)?;
                 if offset < raw.len() {
                     let count = (raw.len() - offset).min(65536);
                     let reply=self.call("write",&json!({"handle":handle,"data":STANDARD.encode(&raw[offset..offset+count])}),deadline)?;

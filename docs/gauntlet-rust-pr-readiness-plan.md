@@ -562,7 +562,13 @@ approval ceremony for routine work already authorized by this request.
   178 worker/35 rootfs tests plus subprocess; Mac passes 109 tests, with Clippy
   and binaries clean. No model resistance, MCP withholding or qualification
   is inferred from this diagnostic.
-- Next: implement detached-lifecycle roles and finish deterministic role scoring, then
+- 2026-10-27: implemented timeout/cancel diagnostics with exclusive readiness,
+  Root-held detached PID/ELF/argv/cgroup/session/Native-CLI ancestry checks,
+  actual Native timeout output or scoped cancellation, retained pending SDK
+  requests and cleanup-gated physical readback. Missing cancellation output/
+  Post remains unavailable. ARM Clippy/static tests and binaries compile;
+  111 affected Mac tests and Clippy pass. Live native verification is pending.
+- Next: verify detached-lifecycle roles and finish deterministic role scoring, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;

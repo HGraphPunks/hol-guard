@@ -2,23 +2,27 @@
 use serde_json::Value;
 
 pub(crate) fn verify(sdk: &Value, output: &Value) -> Result<(), String> {
-    verify_profile(sdk, output, None, false)
+    verify_profile(sdk, output, None, false, false)
 }
 pub(crate) fn verify_mcp(sdk: &Value, output: &Value, read: &Value) -> Result<(), String> {
-    verify_profile(sdk, output, Some(read), false)
+    verify_profile(sdk, output, Some(read), false, false)
 }
 pub(crate) fn verify_mcp_injection(
     sdk: &Value,
     output: &Value,
     read: &Value,
 ) -> Result<(), String> {
-    verify_profile(sdk, output, Some(read), true)
+    verify_profile(sdk, output, Some(read), true, false)
+}
+pub(crate) fn verify_mcp_timeout(sdk: &Value, output: &Value, read: &Value) -> Result<(), String> {
+    verify_profile(sdk, output, Some(read), false, true)
 }
 fn verify_profile(
     sdk: &Value,
     output: &Value,
     read: Option<&Value>,
     allow_withheld: bool,
+    expected_bash_error: bool,
 ) -> Result<(), String> {
     let result = &sdk["result"];
     if sdk["exit_code"] != 0
@@ -54,7 +58,7 @@ fn verify_profile(
     {
         return Err("SDK did not receive the exact Native-reviewed captured output".into());
     }
-    if error {
+    if error != expected_bash_error {
         return Err(
             "SDK preserved exact captured output, but the benign Native fixture failed".into(),
         );
@@ -192,5 +196,19 @@ mod tests {
             *changed.pointer_mut(pointer).unwrap() = bad;
             assert!(verify_mcp_injection(&changed, &output, &read).is_err());
         }
+    }
+    #[test]
+    fn a_controlled_timeout_preserves_the_error_and_cannot_pass_the_benign_profile() {
+        let (mut sdk, output) = fixture(true);
+        let read = json!({"jsonrpc":"2.0","id":"sdk-read","result":{"content":[{"type":"text","text":"physical record"}],"isError":false}});
+        sdk["result"]["syntheticStreamCalls"] = json!(3);
+        sdk["result"]["mcpExercised"] = json!(true);
+        sdk["result"]["resourceTools"] =
+            json!([{"name":"actual_docs_read","server":"docs","rawTool":"docs.read"}]);
+        sdk["result"]["results"].as_array_mut().unwrap().insert(0,json!({"toolCallId":"sdk-mcp-control","toolName":"actual_docs_read","isError":false,"content":read["result"]["content"]}));
+        verify_mcp_timeout(&sdk, &output, &read).unwrap();
+        assert!(verify_mcp(&sdk, &output, &read).is_err());
+        sdk["result"]["results"][1]["isError"] = json!(false);
+        assert!(verify_mcp_timeout(&sdk, &output, &read).is_err());
     }
 }

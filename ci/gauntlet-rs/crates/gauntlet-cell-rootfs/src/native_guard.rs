@@ -17,6 +17,10 @@ pub struct NativeHookPlane {
     pub(crate) hooks: Vec<Value>,
     pub(crate) executions: Vec<Value>,
 }
+pub struct NativeLifecycleExecution {
+    pub execution: Option<Value>,
+    pub lifecycle: Value,
+}
 
 impl NativeCell {
     pub(crate) fn product_python_command(&self, args: &[&str]) -> Vec<String> {
@@ -234,10 +238,42 @@ impl NativeHookPlane {
     }
 
     pub fn execute_contained(&mut self, id: &str, timeout: u64) -> Result<Value> {
+        self.execute_profile(id, timeout, None)?
+            .0
+            .ok_or("normal Native sink lacks actual capture".into())
+    }
+    pub fn execute_lifecycle(
+        &mut self,
+        id: &str,
+        role: crate::NativeControlRole,
+    ) -> Result<NativeLifecycleExecution> {
+        if !role.lifecycle() {
+            return Err("closed lifecycle role required".into());
+        }
+        let timeout = if role == crate::NativeControlRole::Timeout {
+            5
+        } else {
+            30
+        };
+        let (execution, lifecycle) = self.execute_profile(id, timeout, Some(role))?;
+        Ok(NativeLifecycleExecution {
+            execution,
+            lifecycle: lifecycle.ok_or("lifecycle observation missing")?,
+        })
+    }
+    fn execute_profile(
+        &mut self,
+        id: &str,
+        timeout: u64,
+        role: Option<crate::NativeControlRole>,
+    ) -> Result<(Option<Value>, Option<Value>)> {
         if !(1..=90).contains(&timeout) {
             return Err("bounded native transport sink deadline required".into());
         }
         let payload = self.calls.begin_sink(id)?;
+        let mut lifecycle = role
+            .map(|r| crate::native_lifecycle_control::NativeLifecycleControl::new(&self.cell, r))
+            .transpose()?;
         let raw=gauntlet_contracts::canonicalize(json!({"schema":"guard-contained-test-request.v1","workspace":self.cell.workspace_path(),"payload":payload}).to_string().as_bytes()).map_err(|e|e.to_string())?;
         let mut request = NativeRequest::for_cell(&self.cell, &raw)?;
         let observation = request.observation();
@@ -262,19 +298,38 @@ impl NativeHookPlane {
             &seconds,
         ]);
         request.verify_before_execution()?;
-        let captured = self
-            .cell
-            .capture(&argv, b"", Duration::from_secs(timeout + 30));
+        let captured = if let Some(control) = lifecycle.as_mut() {
+            self.cell.capture_observed(
+                &argv,
+                b"",
+                Duration::from_secs(timeout + 30),
+                |cell, handle| control.observe(cell, handle),
+            )
+        } else {
+            self.cell
+                .capture(&argv, b"", Duration::from_secs(timeout + 30))
+        };
+        let lifecycle = lifecycle.map(|v| v.finish(&self.cell, &captured));
+        if let Some(control) = &lifecycle {
+            self.observations
+                .push(json!({"kind":"native-detached-lifecycle-control","observation":control}));
+        }
         let cleanup = request.cleanup();
         self.observations.push(json!({"kind":"native-contained-request-handoff","request":observation,"cleanup_complete":cleanup.is_ok(),"cleanup_error":cleanup.as_ref().err(),"capture_error":captured.as_ref().err()}));
         cleanup?;
+        if role == Some(crate::NativeControlRole::Cancel)
+            && lifecycle.as_ref().is_some_and(|v| v["status"] == "passed")
+            && captured.is_err()
+        {
+            return Ok((None, lifecycle));
+        }
         let completed = captured?;
         let result = json!({"schema_version":"1.0","exit_code":completed.returncode,"stdout":String::from_utf8_lossy(&completed.stdout),"stderr":String::from_utf8_lossy(&completed.stderr),
             "stdout_sha256":hash(&completed.stdout),"stderr_sha256":hash(&completed.stderr),"payload_digest":hash(&gauntlet_contracts::canonicalize(payload.to_string().as_bytes()).map_err(|e|e.to_string())?),
             "request_sha256":pin,"native_command":argv,"product_claims_authenticated":false,"containment_conformance_established":false});
         self.executions.push(result.clone());
         self.calls.record_sink(id, &result)?;
-        Ok(result)
+        Ok((Some(result), lifecycle))
     }
 
     pub fn review_after(&mut self, id: &str) -> Result<(Value, Value)> {

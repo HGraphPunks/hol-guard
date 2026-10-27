@@ -2,7 +2,7 @@
 //! offer containment; opaque tickets convey transport state, never approval.
 use crate::native_operation_budget::NativeOperationBudget;
 use crate::{NativeSdkHook, NativeSdkLedger, NativeSdkRequest};
-use gauntlet_cell_rootfs::NativeHookPlane;
+use gauntlet_cell_rootfs::{NativeControlRole, NativeHookPlane};
 use ring::rand::{SecureRandom, SystemRandom};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
@@ -15,6 +15,8 @@ pub(crate) struct NativeSdkRouter {
     tokens: Vec<String>,
     pub(crate) events: Vec<Value>,
     budget: Option<Arc<Mutex<NativeOperationBudget>>>,
+    role: Option<NativeControlRole>,
+    lifecycle: Option<Value>,
 }
 impl NativeSdkRouter {
     pub(crate) fn new() -> Result<Self, String> {
@@ -25,12 +27,42 @@ impl NativeSdkRouter {
             tokens: Vec::new(),
             events: Vec::new(),
             budget: None,
+            role: None,
+            lifecycle: None,
         })
     }
     pub(crate) fn with_budget(budget: Arc<Mutex<NativeOperationBudget>>) -> Result<Self, String> {
         let mut router = Self::new()?;
         router.budget = Some(budget);
         Ok(router)
+    }
+    pub(crate) fn with_role(
+        budget: Arc<Mutex<NativeOperationBudget>>,
+        role: Option<NativeControlRole>,
+    ) -> Result<Self, String> {
+        let mut router = Self::with_budget(budget)?;
+        router.role = role.filter(|r| r.lifecycle());
+        Ok(router)
+    }
+    pub(crate) fn lifecycle(&self) -> Option<&Value> {
+        self.lifecycle.as_ref()
+    }
+    pub(crate) fn verify_cancelled(&self) -> Result<(), String> {
+        let ledger = self.ledger.observation();
+        if self.role != Some(NativeControlRole::Cancel)
+            || self
+                .lifecycle
+                .as_ref()
+                .is_none_or(|v| v["status"] != "passed" || v["role"] != "cancel")
+            || ["pre_count", "route_count", "sink_count"]
+                .iter()
+                .any(|k| ledger[*k] != 1)
+            || ledger["completed_sink_count"] != 0
+            || ledger["post_count"] != 0
+        {
+            return Err("actual SDK cancellation lifecycle not established".into());
+        }
+        Ok(())
     }
     pub(crate) fn handle(
         &mut self,
@@ -45,7 +77,28 @@ impl NativeSdkRouter {
                 let id = self.ledger.begin_sink(token)?;
                 self.events
                     .push(json!({"kind":"sdk-contained-start","call_id":id,"token_consumed":true}));
-                let result = plane.execute_contained(&id, 30)?;
+                let result = if let Some(role) = self.role {
+                    let observed = plane.execute_lifecycle(&id, role)?;
+                    self.lifecycle = Some(observed.lifecycle);
+                    if self
+                        .lifecycle
+                        .as_ref()
+                        .is_none_or(|v| v["status"] != "passed")
+                    {
+                        return Err("actual detached lifecycle control failed".into());
+                    }
+                    if observed.execution.is_none() {
+                        self.verify_cancelled()?;
+                        return Err(
+                            "controlled SDK sink cancellation after detached readiness".into()
+                        );
+                    }
+                    observed
+                        .execution
+                        .ok_or("actual lifecycle capture missing")?
+                } else {
+                    plane.execute_contained(&id, 30)?
+                };
                 let output = gauntlet_evidence::captured_contained_output(&result)
                     .map_err(|e| e.to_string())?;
                 self.ledger.finish_sink(&id)?;
@@ -141,6 +194,16 @@ impl NativeSdkRouter {
     }
     pub(crate) fn refuse_replays(&mut self, plane: &mut NativeHookPlane) -> Result<Value, String> {
         self.verify_completed()?;
+        self.refuse_replays_inner(plane)
+    }
+    pub(crate) fn refuse_cancel_replays(
+        &mut self,
+        plane: &mut NativeHookPlane,
+    ) -> Result<Value, String> {
+        self.verify_cancelled()?;
+        self.refuse_replays_inner(plane)
+    }
+    fn refuse_replays_inner(&mut self, plane: &mut NativeHookPlane) -> Result<Value, String> {
         let original = self
             .originals
             .first()
@@ -171,7 +234,7 @@ impl NativeSdkRouter {
         )
     }
     pub(crate) fn observation(&self) -> Value {
-        json!({"schema":"hol-gauntlet-native-sdk-router.v1","ledger":self.ledger.observation(),"events":self.events,
+        json!({"schema":"hol-gauntlet-native-sdk-router.v1","ledger":self.ledger.observation(),"events":self.events,"lifecycle":self.lifecycle,
             "guard_approval_authority":false,"guard_causality_verified":false,"execution_eligible":false})
     }
 }
