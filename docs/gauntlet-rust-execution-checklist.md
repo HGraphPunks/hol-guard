@@ -273,8 +273,10 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
     tests and ARM compilation pass. The first live v2 run reached Native but
     failed its readiness barrier with `invalid_workspace`; its failed record
     and cleanup remain retained. The v1 regression passed and wrong Native pins
-    refused. The corrected explicit task-home context needs a fresh job and
-    supplies no SDK/Guard verdict. See
+    refused. A fresh corrected-home job passed readiness and prompt, then
+    Native refused the diagnostic's incomplete execution context before any
+    sink launch. The fixed actor-environment stamp needs another fresh job.
+    These diagnostics supply no SDK/Guard verdict. See
     [transport contract](gauntlet-rust-native-hook-transport.md).
   - [x] Run fresh current-source Native success, timeout and cancellation
     through the complete Rust worker on the published 3.57.0 runtime. GNU actor

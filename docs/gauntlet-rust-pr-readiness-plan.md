@@ -353,6 +353,11 @@ approval ceremony for routine work already authorized by this request.
   supplies the fixed task home to its normal CLI calls. Mac rootfs/worker tests,
   warnings-denied Mac/ARM Clippy and ARM compilation pass. The corrected
   context still needs a fresh job. No approval or isolation policy changes.
+- 2026-10-27: the fresh corrected-home job passes Native readiness and prompt;
+  its Pre request refuses because the diagnostic's empty execution context
+  lacks Native's required fields. Retain the failure and supply the fixed
+  actor environment with a canonical sender commitment. Sink execution still
+  requires its own normal Native reauthorization. No SDK identity is claimed.
 - Next: corrected live Native hook transport, independent SDK-backed controls and fresh conformance.
   No new
   conformance, model result, eligible verdict, cutover or completed parent

@@ -93,4 +93,26 @@ contained CLI. Guard state stays at `/product/guard`, and the public OMP config
 stays at `/product/home/omp.json`. No path policy, approval or isolation rule
 changes. Readiness captures are projected into the report before validation;
 their complete original bytes already remain in the supervisor journal and
-hash-bound capture files. A new one-use job will verify the corrected context.
+hash-bound capture files.
+
+Fresh job `e2c701baf1472201` from `119f51b46e340069ee532417178d18bb01bcf361`
+passed that exact five-field readiness barrier and its public prompt hook.
+PreToolUse then returned `native_pre_tool_unavailable`; the Rust route ledger
+refused to launch the sink. Report SHA-256 is
+`c5ee8ebfebda35c529351a2b750253aaf7481f0897be1988369cde44288db147`.
+The diagnostic had supplied an empty execution context. Native's typed
+`GuardExecutionEnvironmentV1` requires `path`, `environment_names` and
+`environment_digest`. The diagnostic now supplies the actor/exec-gate's fixed
+four-variable context, with its canonical sender commitment and normal optional
+fields. It remains controller-generated context with no SDK authentication.
+The sink independently captures and reauthorizes its own environment through
+the existing normal product CLI. A fresh one-use job must verify this correction.
+
+The first three attempts are retained in
+`native-hook-transport-vm-results-021.tar` (103 members, 1,095,680 bytes,
+SHA-256 `cd3ee0eaf1c21a79396e21773b3c568abea7b6cb04668545e45aa431759bf098`).
+Replay/reconciliation preserved all 18 original worker files and 24 earlier
+worker files; the full 4,411-entry published prefix remained unchanged. The
+host proof courier initially asked the v1 apparatus report for a v2-only
+`prefix_unchanged` field; this caller error is recorded and the v1 job was
+not retried. All exports exclude product state and private keys.

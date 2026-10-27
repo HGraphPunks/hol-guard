@@ -40,8 +40,18 @@ pub fn run_native_hook_transport(
         if response["decision"] != "allow" {
             return Err("actual Native prompt did not allow transport setup".into());
         }
-        // This diagnostic's fixed product-cell environment is not an SDK claim.
-        let environment = json!({});
+        // Match the fixed actor/exec-gate environment. Native's typed request
+        // requires PATH, names and the sender commitment even in a diagnostic.
+        // This is controller-generated context, not an authenticated SDK claim.
+        let active = json!({"HOME":"/product/home","LANG":"C.UTF-8",
+            "MALLOC_ARENA_MAX":"2","PATH":"/usr/local/bin:/usr/bin:/bin"});
+        let environment = json!({"path":active["PATH"],"home":active["HOME"],
+            "environment_names":["HOME","LANG","MALLOC_ARENA_MAX","PATH"],
+            "environment_digest":crate::hash(&gauntlet_contracts::canonicalize(
+                active.to_string().as_bytes()).map_err(|e|e.to_string())?),
+            "git_pager_disabled":false,"pager_disabled":false,
+            "xdg_config_home":null,"git_config_no_system":false,"library_search_paths":{}});
+        results.insert("execution_environment".into(), environment.clone());
         let response = plane.review_before(
             "native-hook-transport",
             "python3 -m unittest discover -s tests -v",
