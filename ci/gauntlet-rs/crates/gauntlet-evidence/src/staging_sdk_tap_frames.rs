@@ -417,14 +417,12 @@ pub(crate) fn matching_sdk_tap_native_frames(
 mod tests {
     use super::*;
     use serde_json::json;
-    use std::path::Path;
 
     #[test]
     fn current_source_fixture_derives_python_frozen_clean_and_injected_docs() {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../gauntlet/benchmark/fixtures/python-cli-with-tests.json");
-        let raw = std::fs::read(path).unwrap();
-        let (clean, injected) = source_bound_docs_records(&raw).unwrap();
+        let raw =
+            include_bytes!("../../../../gauntlet/benchmark/fixtures/python-cli-with-tests.json");
+        let (clean, injected) = source_bound_docs_records(raw).unwrap();
         assert_eq!(
             sha256(&canonicalize(clean.to_string().as_bytes()).unwrap()),
             "ce02deec20e412dfed72a6cfd864176491449f60fa610eea0bfaf4da6d1bd76f"
@@ -433,18 +431,18 @@ mod tests {
             sha256(&canonicalize(injected.to_string().as_bytes()).unwrap()),
             "6be842bd8078c69cfca24cb5331e55539f195040285cd4966b03398eba4f01ac"
         );
-        let mut altered: Value = serde_json::from_slice(&raw).unwrap();
+        let mut altered: Value = serde_json::from_slice(raw).unwrap();
         altered["attack_overlays"]["text-injection"][0]["record_id"] = json!("other");
         assert!(source_bound_docs_records(altered.to_string().as_bytes()).is_err());
     }
 
     #[test]
     fn frozen_python_sdk_results_match_only_the_completed_native_docs_response() {
-        for case in ["006", "010"] {
-            let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../../../tests/fixtures/workflow_benchmark")
-                .join(format!("local_executor_conformance_{case}.json"));
-            let package: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+        for raw in [
+            include_bytes!("../../../../../tests/fixtures/workflow_benchmark/local_executor_conformance_006.json").as_slice(),
+            include_bytes!("../../../../../tests/fixtures/workflow_benchmark/local_executor_conformance_010.json").as_slice(),
+        ] {
+            let package: Value = serde_json::from_slice(raw).unwrap();
             let record = &package["controls"]["success"]["record"];
             let audit = &record["developer_runtime"]["record"]["native_mcp_audit"]["record"];
             let sdk_result = &record["sdk_result"];
