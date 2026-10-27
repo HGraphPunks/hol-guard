@@ -34,6 +34,7 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
+use guard_contracts::write_canonical_json;
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256, Sha512};
 
@@ -5404,16 +5405,24 @@ pub fn package_request_runtime_workspace_scope(
         "scope": "package-request-workspace-exact",
         "version": PACKAGE_EXECUTION_CONTEXT_VERSION,
     });
-    let canonical = serde_json::to_string(&material).unwrap_or_default();
-    let digest = stable_digest_hex(canonical.as_bytes());
+    let digest = package_scope_digest(&material)?;
     Some(format!(
         "package-request-workspace-exact:v{PACKAGE_EXECUTION_CONTEXT_VERSION}:{digest}"
     ))
 }
 
+/// The key a saved package approval is already stored under: `json.dumps(
+/// material, sort_keys=True, separators=(",", ":"))` hashed with plain
+/// SHA-256. The crate's keyed `stable_digest_hex` would be a different string,
+/// and a different string is an approval the user has to grant a second time.
+fn package_scope_digest(material: &Value) -> Option<String> {
+    let mut encoded = Vec::new();
+    write_canonical_json(material, &mut encoded).ok()?;
+    Some(sha256_content_digest(&encoded))
+}
+
 /// `approval_scope_support.package_request_portable_workspace_scope`.
-#[allow(dead_code)]
-fn package_request_portable_workspace_scope(
+pub fn package_request_portable_workspace_scope(
     artifact_id: Option<&str>,
     artifact_hash: Option<&str>,
     artifact_type: Option<&str>,
@@ -5437,8 +5446,7 @@ fn package_request_portable_workspace_scope(
         "scope": "package-request-workspace",
         "version": PACKAGE_EXECUTION_CONTEXT_VERSION,
     });
-    let canonical = serde_json::to_string(&material).unwrap_or_default();
-    let digest = stable_digest_hex(canonical.as_bytes());
+    let digest = package_scope_digest(&material)?;
     Some(format!(
         "package-request-workspace:v{PACKAGE_EXECUTION_CONTEXT_VERSION}:{digest}"
     ))
