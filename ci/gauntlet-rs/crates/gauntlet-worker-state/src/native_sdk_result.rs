@@ -2,13 +2,19 @@
 use serde_json::Value;
 
 pub(crate) fn verify(sdk: &Value, output: &Value) -> Result<(), String> {
+    verify_profile(sdk, output, None)
+}
+pub(crate) fn verify_mcp(sdk: &Value, output: &Value, read: &Value) -> Result<(), String> {
+    verify_profile(sdk, output, Some(read))
+}
+fn verify_profile(sdk: &Value, output: &Value, read: Option<&Value>) -> Result<(), String> {
     let result = &sdk["result"];
     if sdk["exit_code"] != 0
         || result["schema"] != "private-cell-sdk-conformance-result.v1"
         || result["version"] != "18.4.12"
         || result["uid"] != 10001
-        || result["syntheticStreamCalls"] != 2
-        || result["mcpExercised"] != false
+        || result["syntheticStreamCalls"] != if read.is_some() { 3 } else { 2 }
+        || result["mcpExercised"] != read.is_some()
         || result["modelExercised"] != false
         || result["providerRequests"] != 0
         || result["qualificationEligible"] != false
@@ -19,16 +25,20 @@ pub(crate) fn verify(sdk: &Value, output: &Value) -> Result<(), String> {
     }
     let rows = result["results"]
         .as_array()
-        .filter(|a| a.len() == 1)
-        .ok_or("one actual SDK Bash result required")?;
+        .filter(|a| a.len() == if read.is_some() { 2 } else { 1 })
+        .ok_or("exact actual SDK control result count required")?;
+    if let Some(read) = read {
+        verify_read(result, &rows[0], read)?;
+    }
+    let row = rows.last().ok_or("actual SDK Bash result absent")?;
     let error = output["is_error"]
         .as_bool()
         .ok_or("Root capture error flag missing")?;
     if output["schema"] != "controller-contained-output.v1"
-        || rows[0]["toolCallId"] != "sdk-contained-control"
-        || rows[0]["toolName"] != "bash"
-        || rows[0]["isError"] != error
-        || rows[0]["content"] != output["tool_response"]
+        || row["toolCallId"] != "sdk-contained-control"
+        || row["toolName"] != "bash"
+        || row["isError"] != error
+        || row["content"] != output["tool_response"]
     {
         return Err("SDK did not receive the exact Native-reviewed captured output".into());
     }
@@ -36,6 +46,27 @@ pub(crate) fn verify(sdk: &Value, output: &Value) -> Result<(), String> {
         return Err(
             "SDK preserved exact captured output, but the benign Native fixture failed".into(),
         );
+    }
+    Ok(())
+}
+fn verify_read(result: &Value, row: &Value, read: &Value) -> Result<(), String> {
+    let tools = result["resourceTools"]
+        .as_array()
+        .ok_or("actual SDK MCP inventory absent")?;
+    let matches = tools
+        .iter()
+        .filter(|t| t["server"] == "docs" && t["rawTool"] == "docs.read")
+        .collect::<Vec<_>>();
+    if matches.len() != 1
+        || row["toolName"] != matches[0]["name"]
+        || row["toolCallId"] != "sdk-mcp-control"
+        || row["isError"] != false
+        || row["content"] != read["result"]["content"]
+        || !read["result"]["content"].is_array()
+        || read["result"]["isError"] == true
+        || read.get("error").is_some()
+    {
+        return Err("SDK did not receive the exact delegated Native MCP read result".into());
     }
     Ok(())
 }
@@ -89,6 +120,33 @@ mod tests {
             let (mut sdk, output) = fixture(false);
             sdk["result"][field] = json!(true);
             assert!(verify(&sdk, &output).is_err());
+        }
+    }
+    #[test]
+    fn composed_result_requires_exact_native_read_and_actual_tool_mapping() {
+        let (mut sdk, output) = fixture(false);
+        let read = json!({"jsonrpc":"2.0","id":"sdk-read","result":{"content":[{"type":"text","text":"physical record"}],"isError":false}});
+        let result = &mut sdk["result"];
+        result["syntheticStreamCalls"] = json!(3);
+        result["mcpExercised"] = json!(true);
+        result["resourceTools"] =
+            json!([{"name":"actual_docs_read","server":"docs","rawTool":"docs.read"}]);
+        result["results"].as_array_mut().unwrap().insert(
+            0,
+            json!({"toolCallId":"sdk-mcp-control","toolName":"actual_docs_read",
+            "isError":false,"content":read["result"]["content"]}),
+        );
+        verify_mcp(&sdk, &output, &read).unwrap();
+        assert!(verify(&sdk, &output).is_err());
+        for (pointer, bad) in [
+            ("/result/results/0/content/0/text", json!("substitution")),
+            ("/result/resourceTools/0/server", json!("mail")),
+            ("/result/results/0/isError", json!(true)),
+            ("/result/mcpExercised", json!(false)),
+        ] {
+            let mut changed = sdk.clone();
+            *changed.pointer_mut(pointer).unwrap() = bad;
+            assert!(verify_mcp(&changed, &output, &read).is_err(), "{pointer}");
         }
     }
 }

@@ -25,7 +25,7 @@ fn paused(cancel: &AtomicBool, deadline: Instant) -> Result<(), String> {
     std::thread::sleep(Duration::from_millis(10));
     Ok(())
 }
-fn same_uid_negative(
+pub(crate) fn same_uid_negative(
     agent: &mut NativeSdkAgent,
     sockets: &NativeSdkSockets,
     peer: &NativeSdkPeer,
@@ -110,7 +110,7 @@ fn bind(
         "bound_before_sdk_import":true,"guard_causality_verified":false,"execution_eligible":false});
     Ok((peer, joined))
 }
-fn serve(
+pub(crate) fn serve(
     sockets: &NativeSdkSockets,
     peer: &NativeSdkPeer,
     sdk: &mut RootChild,

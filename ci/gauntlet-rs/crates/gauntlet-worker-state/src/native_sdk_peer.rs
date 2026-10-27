@@ -138,7 +138,7 @@ pub(crate) fn checked_status_for_uid(
 #[path = "native_sdk_peer_linux.rs"]
 mod kernel;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-pub use kernel::{NativeSdkBoundary, NativeSdkPeer, NativeSdkRequestPeer};
+pub use kernel::{NativeSdkBoundary, NativeSdkMcpPeer, NativeSdkPeer, NativeSdkRequestPeer};
 
 #[cfg(test)]
 mod tests {

@@ -24,7 +24,7 @@ fn pause(deadline: Instant, cancel: &AtomicBool) -> Result<(), String> {
     std::thread::sleep(Duration::from_millis(10));
     Ok(())
 }
-fn snapshot() -> String {
+pub(crate) fn snapshot() -> String {
     json!({"schema":"gauntlet-workflow-snapshot.v1","actor_id":"fixture-actor","provider_scope":{"tenants":["task-tenant"]},"records":[
         {"id":"developer-spec","collection":"docs.documents","tenant_id":"task-tenant","owner_id":"fixture-actor","version":1,
             "acl":{"read":["fixture-actor"],"write":["fixture-actor"]},"data":{"title":"Delegated developer input","body":"Read this fixed synthetic document."}},
@@ -243,7 +243,15 @@ pub(crate) fn run_native_mcp_transport(
             let thread = std::thread::Builder::new()
                 .name(format!("root-mcp-{}", family.name()))
                 .spawn(move || {
-                    crate::native_mcp_connection::serve(stream, peer, family, w, b, c, s)
+                    crate::native_mcp_connection::serve(
+                        stream,
+                        peer,
+                        family,
+                        w,
+                        crate::native_mcp_connection::ConnectionBudget::Diagnostic(b),
+                        c,
+                        s,
+                    )
                 })
                 .map_err(|e| e.to_string())?;
             sessions.push((closing.clone(), stop, thread));

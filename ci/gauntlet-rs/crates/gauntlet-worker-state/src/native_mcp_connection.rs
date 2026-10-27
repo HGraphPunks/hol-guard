@@ -1,4 +1,5 @@
 //! Root-owned provider serving over an independently measured product peer.
+use crate::native_operation_budget::NativeOperationBudget;
 use crate::{NativeMcpProcess, NativeMcpWorld};
 use gauntlet_mcp_service::{Family, McpStream, Session};
 use serde_json::{json, Value};
@@ -12,12 +13,32 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub(crate) enum ConnectionBudget {
+    Diagnostic(Arc<AtomicUsize>),
+    Sdk(Arc<Mutex<NativeOperationBudget>>),
+}
+impl ConnectionBudget {
+    fn admit(&self, family: Family, raw: &[u8]) -> Result<(), String> {
+        match self {
+            Self::Diagnostic(counter) => {
+                if counter.fetch_add(1, Ordering::AcqRel) >= 4 {
+                    return Err("Root upstream operation budget exhausted before dispatch".into());
+                }
+                Ok(())
+            }
+            Self::Sdk(ledger) => ledger
+                .lock()
+                .map_err(|_| "shared SDK operation budget poisoned")?
+                .admit_upstream(family, raw),
+        }
+    }
+}
 pub(crate) fn serve(
     socket: UnixStream,
     peer: NativeMcpProcess,
     family: Family,
     world: Arc<Mutex<NativeMcpWorld>>,
-    budget: Arc<AtomicUsize>,
+    budget: ConnectionBudget,
     closing: Arc<AtomicBool>,
     cancel: Arc<AtomicBool>,
 ) -> Result<Value, String> {
@@ -39,18 +60,15 @@ pub(crate) fn serve(
             let canonical = gauntlet_contracts::canonicalize(&raw).map_err(|e| e.to_string())?;
             let frame: Value =
                 serde_json::from_slice(&canonical).map_err(|_| "upstream MCP JSON")?;
+            frames.push(json!({"sequence":frames.len()+1,"direction":"request","wire_utf8":std::str::from_utf8(&raw).map_err(|_|"MCP wire UTF-8")?,
+            "sha256":format!("{:x}",Sha256::digest(&raw)),"frame":frame}));
             if matches!(
                 frame["method"].as_str(),
                 Some("tools/call" | "resources/read" | "prompts/get")
             ) {
-                let used = budget.fetch_add(1, Ordering::AcqRel) + 1;
-                if used > 4 {
-                    return Err("Root upstream operation budget exhausted before dispatch".into());
-                }
+                budget.admit(family, &raw)?;
                 operations += 1;
             }
-            frames.push(json!({"sequence":frames.len()+1,"direction":"request","wire_utf8":std::str::from_utf8(&raw).map_err(|_|"MCP wire UTF-8")?,
-            "sha256":format!("{:x}",Sha256::digest(&raw)),"frame":frame}));
             let response = {
                 let mut world = world.lock().map_err(|_| "MCP world mutex poisoned")?;
                 session
@@ -81,7 +99,7 @@ pub(crate) fn serve(
         "status":if error.is_some() && !expected_close {"failed"} else {"closed"},
         "peer":peer.observation(),"frames":frames,"operations":operations,
         "shutdown_observation":error,"owner_requested_close":expected_close,
-        "shared_upstream_operation_limit":4,"sdk_builtin_budget_composed":false,
+        "shared_upstream_operation_limit":4,"sdk_builtin_budget_composed":matches!(budget,ConnectionBudget::Sdk(_)),
         "execution_eligible":false,"guard_causality_verified":false,"model_requests":0}),
     )
 }

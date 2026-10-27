@@ -270,6 +270,18 @@ mod native_mcp_control;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_mcp_quiescence;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_route;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_mcp_binding;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_mcp_control;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_mcp_frontend;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_mcp_plane;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_mcp_result;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_startup_repair;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_startup_repair::repair_native_pre_controller;
@@ -277,6 +289,8 @@ mod native_sdk_protocol;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_sdk_result;
 pub use native_sdk_protocol::{NativeSdkHook, NativeSdkLedger, NativeSdkRequest};
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_operation_budget;
 mod native_sdk_socket_io;
 pub use native_sdk_socket_io::{read_native_sdk_line, write_native_sdk_line};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
@@ -318,7 +332,9 @@ pub use native_sdk_asset_publish::publish_native_sdk_assets;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_sdk_peer;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-pub use native_sdk_peer::{NativeSdkBoundary, NativeSdkPeer, NativeSdkRequestPeer};
+pub use native_sdk_peer::{
+    NativeSdkBoundary, NativeSdkMcpPeer, NativeSdkPeer, NativeSdkRequestPeer,
+};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_initialize;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

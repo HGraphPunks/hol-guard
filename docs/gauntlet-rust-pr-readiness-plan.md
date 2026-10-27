@@ -468,7 +468,15 @@ approval ceremony for routine work already authorized by this request.
   reservation. The required-workspace-owner refusal remains retained.
   Actual SDK composition and independent scoring remain open. See
   [Native MCP transport](gauntlet-rust-native-mcp-transport.md).
-- Next: finish Native MCP/service ownership, independent scoring and
+- 2026-10-27: the closed v5 SDK/MCP/Bash profile now connects the actual locked
+  SDK to normal Native proxies and Root Rust services, with per-frame Bun
+  descendant authentication, both pre-import same-UID negative controls and
+  one shared four-operation ingress ledger. Exact SDK-visible MCP/Bash result
+  joins are implemented. Mac worker tests (80), Mac/ARM warnings-denied Clippy
+  and static ARM builds pass; actual ARM tests and the composed VM execution
+  remain pending. This is an implementation checkpoint, not a control pass;
+  see [combined transport](gauntlet-rust-native-sdk-mcp-transport.md).
+- Next: verify the combined SDK/MCP/Bash execution, finish independent scoring and
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;

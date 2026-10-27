@@ -20,6 +20,9 @@ const RELAY: &str = include_str!("../../../../gauntlet/benchmark/contained_exec_
 pub(crate) const APPARMOR: &str =
     include_str!("../../../../gauntlet/benchmark/developer_browser.apparmor");
 const PEER_PROBE: &str = include_str!("../../../adapters/native_sdk_same_uid_peer_v1.py.txt");
+const SERVICE_RELAY: &str = include_str!("../../../../gauntlet/benchmark/service_relay.py");
+const MCP_PEER_PROBE: &str =
+    include_str!("../../../adapters/native_sdk_mcp_same_uid_peer_v1.py.txt");
 struct PublicFile {
     name: &'static str,
     file: File,
@@ -81,6 +84,12 @@ pub(crate) fn write_file(
 }
 impl NativeSdkPublic {
     pub(crate) fn prepare(job: &Path) -> Result<Self, String> {
+        Self::prepare_profile(job, false)
+    }
+    pub(crate) fn prepare_mcp(job: &Path) -> Result<Self, String> {
+        Self::prepare_profile(job, true)
+    }
+    fn prepare_profile(job: &Path, mcp: bool) -> Result<Self, String> {
         let root = crate::open_root_owned_public_directory(job).map_err(|e| e.to_string())?;
         let stat = fstat(&root).map_err(|e| e.to_string())?;
         if stat.st_uid != 0 || stat.st_gid != 0 || stat.st_mode & 0o7777 != 0o700 {
@@ -89,19 +98,32 @@ impl NativeSdkPublic {
         directory(&root, "sdk-home", 0o700, true)?;
         directory(&root, "sdk-agent", 0o700, true)?;
         let directory = directory(&root, "sdk-public", 0o755, false)?;
-        let config = json!({"schema":"private-cell-sdk-conformance.v1","workspace":"/runtime/home/project",
+        let mut config = json!({"schema":"private-cell-sdk-conformance.v1","workspace":"/runtime/home/project",
             "sdkRoot":"/sdk/node_modules/@oh-my-pi/pi-coding-agent","command":"python3 -m unittest discover -s tests -v",
             "prompt":PROMPT});
+        if mcp {
+            config["schema"] = json!("private-cell-sdk-conformance.v2");
+            let endpoints=["docs","mail"].into_iter().map(|family|(family.to_owned(),json!({
+                "command":"/usr/bin/python3","args":["/runtime/public/service_relay.py","--socket",format!("/runtime/resources/{family}.sock")],
+                "env":{},"type":"stdio","envPolicy":"literal","cwd":"/runtime/home/project","timeout":30000,
+                "requestIdFormat":"string","instructions":false}))).collect::<serde_json::Map<_,_>>();
+            config["resourceEndpoints"] = Value::Object(endpoints);
+        }
         let config = canonicalize(config.to_string().as_bytes()).map_err(|e| e.to_string())?;
         let mut files = Vec::new();
-        for (name, bytes) in [
+        let mut sources = vec![
             ("private_cell_sdk_conformance.ts", ENTRY.as_bytes()),
             ("developer_omp_episode.ts", INVENTORY.as_bytes()),
             ("builtin_guard_bridge.ts", HOOK.as_bytes()),
             ("contained_exec_relay.py", RELAY.as_bytes()),
             ("same_uid_peer_probe.py", PEER_PROBE.as_bytes()),
             ("episode.json", config.as_slice()),
-        ] {
+        ];
+        if mcp {
+            sources.push(("service_relay.py", SERVICE_RELAY.as_bytes()));
+            sources.push(("same_uid_mcp_peer_probe.py", MCP_PEER_PROBE.as_bytes()));
+        }
+        for (name, bytes) in sources {
             let file = write_file(&directory, name, bytes, 0o444)?;
             files.push(PublicFile {
                 name,

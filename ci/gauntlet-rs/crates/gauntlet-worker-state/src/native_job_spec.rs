@@ -21,6 +21,10 @@ pub enum NativeJobExecution {
         guard: NativeGuardPins,
         sdk: NativeSdkPins,
     },
+    SdkMcpTransport {
+        guard: NativeGuardPins,
+        sdk: NativeSdkPins,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -55,6 +59,8 @@ impl NativeJobSpec {
             && value["profile"] == "native-sdk-transport-v1";
         let mcp = value["schema"] == "hol-gauntlet-native-worker-job.v4"
             && value["profile"] == "native-mcp-transport-v1";
+        let sdk_mcp = value["schema"] == "hol-gauntlet-native-worker-job.v5"
+            && value["profile"] == "native-sdk-mcp-transport-v1";
         let mut fields = vec![
             "schema",
             "profile",
@@ -62,15 +68,19 @@ impl NativeJobSpec {
             "job_id",
             "worker_generation",
             "preparation_sha256",
-            if hook || sdk || mcp { "guard" } else { "case" },
+            if hook || sdk || mcp || sdk_mcp {
+                "guard"
+            } else {
+                "case"
+            },
         ];
-        if sdk {
+        if sdk || sdk_mcp {
             fields.push("sdk");
         }
         if value
             .as_object()
             .is_none_or(|o| o.len() != fields.len() || fields.iter().any(|k| !o.contains_key(*k)))
-            || (!(hook || sdk || mcp)
+            || (!(hook || sdk || mcp || sdk_mcp)
                 && (value["schema"] != "hol-gauntlet-native-worker-job.v1"
                     || value["profile"] != "native-apparatus-v1"))
             || value["source_sha"] != request.source_sha()
@@ -85,12 +95,17 @@ impl NativeJobSpec {
             .filter(|s| hex(s, 64))
             .ok_or("outside native preparation pin required")?
             .to_owned();
-        let execution = if hook || sdk || mcp {
+        let execution = if hook || sdk || mcp || sdk_mcp {
             let pins = NativeGuardPins::parse(&value["guard"])?;
             if pins.source_sha != request.source_sha() {
                 return Err("Native hook product source differs from job source".into());
             }
-            if sdk {
+            if sdk_mcp {
+                NativeJobExecution::SdkMcpTransport {
+                    guard: pins,
+                    sdk: NativeSdkPins::parse(&value["sdk"])?,
+                }
+            } else if sdk {
                 NativeJobExecution::SdkTransport {
                     guard: pins,
                     sdk: NativeSdkPins::parse(&value["sdk"])?,
@@ -123,6 +138,7 @@ impl NativeJobSpec {
             NativeJobExecution::HookTransport(_) => "native-hook-transport-v1",
             NativeJobExecution::McpTransport(_) => "native-mcp-transport-v1",
             NativeJobExecution::SdkTransport { .. } => "native-sdk-transport-v1",
+            NativeJobExecution::SdkMcpTransport { .. } => "native-sdk-mcp-transport-v1",
         }
     }
 
@@ -132,6 +148,7 @@ impl NativeJobSpec {
             NativeJobExecution::HookTransport(_) => "native-hook-transport",
             NativeJobExecution::McpTransport(_) => "native-mcp-transport",
             NativeJobExecution::SdkTransport { .. } => "native-sdk-transport",
+            NativeJobExecution::SdkMcpTransport { .. } => "native-sdk-mcp-transport",
         }
     }
 
@@ -284,6 +301,30 @@ mod tests {
             spec.execution,
             NativeJobExecution::SdkTransport { .. }
         ));
+        let mut composed = value.clone();
+        composed["schema"] = json!("hol-gauntlet-native-worker-job.v5");
+        composed["profile"] = json!("native-sdk-mcp-transport-v1");
+        let parsed = parse(&composed).unwrap();
+        assert_eq!(parsed.profile(), "native-sdk-mcp-transport-v1");
+        assert!(matches!(
+            parsed.execution,
+            NativeJobExecution::SdkMcpTransport { .. }
+        ));
+        for (pointer, bad) in [
+            ("/schema", json!("hol-gauntlet-native-worker-job.v3")),
+            ("/profile", json!("native-sdk-transport-v1")),
+            ("/sdk/publication_sha256", json!("bad")),
+            ("/guard/source_sha", json!("b".repeat(40))),
+        ] {
+            let mut changed = composed.clone();
+            *changed.pointer_mut(pointer).unwrap() = bad;
+            assert!(parse(&changed).is_err(), "{pointer}");
+        }
+        for key in ["guard", "sdk"] {
+            let mut changed = composed.clone();
+            changed.as_object_mut().unwrap().remove(key);
+            assert!(parse(&changed).is_err());
+        }
         for (pointer, bad) in [
             ("/schema", json!("hol-gauntlet-native-worker-job.v2")),
             ("/profile", json!("native-hook-transport-v1")),

@@ -11,6 +11,43 @@ pub(crate) fn check_inspection(
     mounts: &BTreeMap<String, (String, bool)>,
     running: bool,
 ) -> Result<(String, u32), String> {
+    check_profile(
+        value,
+        name,
+        job,
+        nonce,
+        mounts,
+        running,
+        "native-sdk-transport-v1",
+    )
+}
+pub(crate) fn check_mcp_inspection(
+    value: &Value,
+    name: &str,
+    job: &str,
+    nonce: &str,
+    mounts: &BTreeMap<String, (String, bool)>,
+    running: bool,
+) -> Result<(String, u32), String> {
+    check_profile(
+        value,
+        name,
+        job,
+        nonce,
+        mounts,
+        running,
+        "native-sdk-mcp-transport-v1",
+    )
+}
+fn check_profile(
+    value: &Value,
+    name: &str,
+    job: &str,
+    nonce: &str,
+    mounts: &BTreeMap<String, (String, bool)>,
+    running: bool,
+    profile: &str,
+) -> Result<(String, u32), String> {
     let id = value["Id"]
         .as_str()
         .filter(|s| crate::hex(s, 64))
@@ -29,7 +66,7 @@ pub(crate) fn check_inspection(
         || value["Args"] != serde_json::json!(["240"])
         || value["Config"]["Labels"]["hol.gauntlet.sdk.job"] != job
         || value["Config"]["Labels"]["hol.gauntlet.sdk.nonce"] != nonce
-        || value["Config"]["Labels"]["hol.gauntlet.sdk.profile"] != "native-sdk-transport-v1"
+        || value["Config"]["Labels"]["hol.gauntlet.sdk.profile"] != profile
         || value["State"]["Running"] != running
         || value["AppArmorProfile"] != name
     {
@@ -140,6 +177,14 @@ mod tests {
                 "CapAdd":[],"CapDrop":["CAP_ALL"],"SecurityOpt":["no-new-privileges",format!("apparmor={name}")]},
             "Mounts":[{"Destination":"/runtime/bun","Source":"/opt/bun","Type":"bind","RW":false,"Propagation":"rprivate"}]});
         assert!(check_inspection(&value, name, &job, &nonce, &mounts, true).is_ok());
+        assert!(check_mcp_inspection(&value, name, &job, &nonce, &mounts, true).is_err());
+        let mut composed = value.clone();
+        composed["Config"]["Labels"]["hol.gauntlet.sdk.profile"] =
+            json!("native-sdk-mcp-transport-v1");
+        assert!(check_mcp_inspection(&composed, name, &job, &nonce, &mounts, true).is_ok());
+        assert!(check_inspection(&composed, name, &job, &nonce, &mounts, true).is_err());
+        composed["Mounts"][0]["RW"] = json!(true);
+        assert!(check_mcp_inspection(&composed, name, &job, &nonce, &mounts, true).is_err());
         let mut other_display = value.clone();
         other_display["Name"] = json!(name);
         other_display["Image"] = json!(NATIVE_SDK_AGENT_IMAGE.strip_prefix("sha256:").unwrap());

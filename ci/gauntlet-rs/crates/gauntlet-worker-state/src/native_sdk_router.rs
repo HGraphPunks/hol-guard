@@ -1,10 +1,12 @@
 //! Authenticated SDK-to-Native bindings. Only the normal Native response can
 //! offer containment; opaque tickets convey transport state, never approval.
+use crate::native_operation_budget::NativeOperationBudget;
 use crate::{NativeSdkHook, NativeSdkLedger, NativeSdkRequest};
 use gauntlet_cell_rootfs::NativeHookPlane;
 use ring::rand::{SecureRandom, SystemRandom};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
 
 pub(crate) struct NativeSdkRouter {
     ledger: NativeSdkLedger,
@@ -12,6 +14,7 @@ pub(crate) struct NativeSdkRouter {
     originals: Vec<NativeSdkHook>,
     tokens: Vec<String>,
     pub(crate) events: Vec<Value>,
+    budget: Option<Arc<Mutex<NativeOperationBudget>>>,
 }
 impl NativeSdkRouter {
     pub(crate) fn new() -> Result<Self, String> {
@@ -21,7 +24,13 @@ impl NativeSdkRouter {
             originals: Vec::new(),
             tokens: Vec::new(),
             events: Vec::new(),
+            budget: None,
         })
+    }
+    pub(crate) fn with_budget(budget: Arc<Mutex<NativeOperationBudget>>) -> Result<Self, String> {
+        let mut router = Self::new()?;
+        router.budget = Some(budget);
+        Ok(router)
     }
     pub(crate) fn handle(
         &mut self,
@@ -76,6 +85,12 @@ impl NativeSdkRouter {
                         "actual_output":captured,"product_response":response}));
                 } else {
                     self.ledger.reserve_pre(hook)?;
+                    if let Some(budget) = &self.budget {
+                        budget
+                            .lock()
+                            .map_err(|_| "shared SDK operation budget poisoned")?
+                            .reserve_builtin(&hook.session, &hook.call_id)?;
+                    }
                     self.originals.push(hook.clone());
                     let response =
                         plane.review_before_input(&hook.call_id, &hook.input, &hook.environment)?;

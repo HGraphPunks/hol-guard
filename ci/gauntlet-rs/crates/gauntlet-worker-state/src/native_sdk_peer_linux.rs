@@ -15,6 +15,10 @@ use std::fs::File;
 use std::os::fd::OwnedFd;
 use std::os::unix::net::UnixStream;
 
+#[path = "native_sdk_mcp_peer.rs"]
+mod mcp;
+pub use mcp::NativeSdkMcpPeer;
+
 struct Snapshot {
     pin: SdkWirePeerPin,
     process: OwnedFd,

@@ -1,6 +1,6 @@
 //! Root ownership of one fixed, unprivileged SDK agent container. Create and
 //! start are separate so the CID is retained before any image code executes.
-use crate::native_sdk_agent_spec::check_inspection;
+use crate::native_sdk_agent_spec::{check_inspection, check_mcp_inspection};
 use crate::native_sdk_process::{RootChild, RootCommands};
 use crate::native_sdk_public::{write_file, NativeSdkPublic, APPARMOR};
 use crate::{
@@ -33,6 +33,7 @@ pub(crate) struct NativeSdkAgent {
     inspection: Option<Value>,
     kernel: Option<Value>,
     closed: bool,
+    mcp: bool,
 }
 fn strings(args: &[&str]) -> Vec<String> {
     args.iter().map(|s| (*s).into()).collect()
@@ -105,8 +106,50 @@ impl NativeSdkAgent {
             inspection: None,
             kernel: None,
             closed: false,
+            mcp: false,
         };
         Ok(agent)
+    }
+    pub(crate) fn prepare_mcp(
+        job: &str,
+        spec: &CellPreparation,
+        assets: &VerifiedNativeSdkAssets,
+        sockets: &NativeSdkSockets,
+        public: &NativeSdkPublic,
+        mcp: &mut crate::NativeMcpSockets,
+    ) -> Result<Self, String> {
+        mcp.verify_for_job(job)?;
+        let mut agent = Self::prepare(job, spec, assets, sockets, public)?;
+        agent.mcp = true;
+        agent.mounts.insert(
+            "/runtime/resources".into(),
+            (
+                mcp.resource_directory().to_string_lossy().into_owned(),
+                false,
+            ),
+        );
+        Ok(agent)
+    }
+    fn check(&self, value: &Value, running: bool) -> Result<(String, u32), String> {
+        if self.mcp {
+            check_mcp_inspection(
+                value,
+                &self.name,
+                &self.job,
+                &self.nonce,
+                &self.mounts,
+                running,
+            )
+        } else {
+            check_inspection(
+                value,
+                &self.name,
+                &self.job,
+                &self.nonce,
+                &self.mounts,
+                running,
+            )
+        }
     }
     pub(crate) fn launch(
         &mut self,
@@ -181,7 +224,14 @@ impl NativeSdkAgent {
                 format!("--cgroup-parent=holgauntletrust{job}.slice"),
                 format!("--label=hol.gauntlet.sdk.job={job}"),
                 format!("--label=hol.gauntlet.sdk.nonce={}", agent.nonce),
-                "--label=hol.gauntlet.sdk.profile=native-sdk-transport-v1".into(),
+                format!(
+                    "--label=hol.gauntlet.sdk.profile={}",
+                    if agent.mcp {
+                        "native-sdk-mcp-transport-v1"
+                    } else {
+                        "native-sdk-transport-v1"
+                    }
+                ),
             ]);
             for (target, (source, rw)) in &agent.mounts {
                 args.extend([
@@ -207,27 +257,13 @@ impl NativeSdkAgent {
             }
             agent.cid = Some(cid.into());
             let value = agent.inspect(cancel)?;
-            let (actual, _) = check_inspection(
-                &value,
-                &agent.name,
-                &agent.job,
-                &agent.nonce,
-                &agent.mounts,
-                false,
-            )?;
+            let (actual, _) = agent.check(&value, false)?;
             if actual != cid {
                 return Err("SDK created CID and inspect differ".into());
             }
             agent.command(false, strings(&["start", cid]), 20, cancel)?;
             let value = agent.inspect(cancel)?;
-            let (_, pid) = check_inspection(
-                &value,
-                &agent.name,
-                &agent.job,
-                &agent.nonce,
-                &agent.mounts,
-                true,
-            )?;
+            let (_, pid) = agent.check(&value, true)?;
             let proc = PathBuf::from(format!("/proc/{pid}"));
             let raw = read(&proc.join("stat"), 4096)?;
             let stat = crate::linux_process::parse_proc_stat(&raw, pid)
@@ -308,42 +344,6 @@ impl NativeSdkAgent {
         self.inspection = Some(rows[0].clone());
         Ok(rows[0].clone())
     }
-    pub(crate) fn launch_sdk(&mut self, cancel: &AtomicBool) -> Result<RootChild, String> {
-        let value = self.inspect(cancel)?;
-        check_inspection(
-            &value,
-            &self.name,
-            &self.job,
-            &self.nonce,
-            &self.mounts,
-            true,
-        )?;
-        self.commands.spawn(
-            false,
-            &strings(&[
-                "exec",
-                "--interactive",
-                self.cid.as_ref().ok_or("SDK CID absent")?,
-                "/runtime/bun",
-                "/runtime/public/private_cell_sdk_conformance.ts",
-                "/runtime/public/episode.json",
-            ]),
-        )
-    }
-    pub(crate) fn launch_peer_probe(&mut self) -> Result<RootChild, String> {
-        self.commands.spawn(
-            false,
-            &strings(&[
-                "exec",
-                "--interactive",
-                self.cid.as_ref().ok_or("SDK CID absent")?,
-                "/usr/bin/python3",
-                "-I",
-                "-B",
-                "/runtime/public/same_uid_peer_probe.py",
-            ]),
-        )
-    }
     pub(crate) fn close(&mut self) -> Result<(), String> {
         if self.closed {
             return Ok(());
@@ -368,14 +368,7 @@ impl NativeSdkAgent {
                         let running = value["State"]["Running"]
                             .as_bool()
                             .ok_or("SDK cleanup state missing")?;
-                        let (id, _) = check_inspection(
-                            &value,
-                            &self.name,
-                            &self.job,
-                            &self.nonce,
-                            &self.mounts,
-                            running,
-                        )?;
+                        let (id, _) = self.check(&value, running)?;
                         if self.cid.as_ref().is_some_and(|cid| *cid != id) {
                             return Err("SDK cleanup CID differs".into());
                         }
@@ -451,3 +444,6 @@ impl Drop for NativeSdkAgent {
         let _ = self.close();
     }
 }
+
+#[path = "native_sdk_agent_calls.rs"]
+mod calls;
