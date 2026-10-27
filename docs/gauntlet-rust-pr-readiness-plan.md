@@ -671,6 +671,17 @@ approval ceremony for routine work already authorized by this request.
   the branch before restoring their committed bytes. Required CI remains
   user-owned and pending; parent exits remain 24/62;
   see [upstream synchronization](gauntlet-rust-upstream-sync-ee0b44f4.md).
+- 2026-10-27: Rust source `b059a590` adds bounded public USTAR custody and
+  independently recomputes nine Native request refusals and the synthetic
+  forbidden-command capture/decision/physical relations under the prior host
+  completion pin. The actual retained VM archive and identical restart pass;
+  six hostile cases refuse, and all six old envelope modes remain compatible.
+  The full Mac workspace passes 510 tests and warnings-denied Clippy.
+  Seven semantic and two archive/path regressions pass; transient observer
+  fixture contention uses the existing bounded Busy retry. See
+  [artifact verifier](gauntlet-rust-native-binding-artifact-verifier.md).
+  Independent live process/request custody and the other role grades remain
+  open, as does fresh current-source conformance. Parent exits stay 24/62.
 - Next: finish independent deterministic role scoring and outside key custody, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)

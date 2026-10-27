@@ -230,3 +230,8 @@ model requests remain zero. Parent exits remain 24/62. Complete independent
 Rust role scoring, complete crash/restart authority, current-source publication
 and twelve fresh conformance runs remain open.
 
+The subsequent [Rust binding artifact verifier](gauntlet-rust-native-binding-artifact-verifier.md)
+now independently recomputes the retained input-binding capture/physical subset
+under the prior host pin, including actual restart and hostile-archive refusals.
+It preserves the other roles' envelope behavior and all qualification limits.
+
