@@ -27,4 +27,3 @@ class Control(unittest.TestCase):
             "node_is_symlink": Path("/usr/bin/node").is_symlink(),
         }
         Path("node-runtime-control.json").write_text(json.dumps(runtime))
-
