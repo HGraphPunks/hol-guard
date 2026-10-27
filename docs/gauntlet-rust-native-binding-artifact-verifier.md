@@ -96,8 +96,32 @@ immutable configuration setup. That setup now uses the existing bounded
 observer assertions remain. Both failed attempts remain retained under
 `native-binding-rust-tests-001/002.log`.
 
-Linux ARM execution of this new artifact subset remains pending at this
-checkpoint. Independent Rust process/SDK/MCP and other-role grading, fresh
+Linux ARM validation also passes at source
+`788eeeed49a7ade424705ac965a52a80c49869f9`, whose Rust implementation is
+unchanged from `b059a590`. All-target/all-feature warnings-denied ARM Clippy
+passes; log SHA-256 is
+`b2a3431b99bda0b071b2640d373267647f9447e33f6827dbbbbd1b7110aab2dd`.
+Two pinned static test executables run through held descriptors under Root
+on the owned VM: all seven new evidence tests and both archive/path tests pass,
+with no failures or ignores. Both worker leases remain held, all 284 old
+worker files match their prior hashes, and owned product cgroups remain absent.
+These are the nine new tests, rather than a claim to a full native workspace run.
+
+Input `native-binding-arm-input-001.tar` is 28,006,400 bytes, SHA-256
+`5baa8c5a4c744f070c842eb31be4bd1353d5cf72a96bab02c691b98e7fe5bbe3`.
+The eight-member public result export
+`native-binding-arm-vm-results-001.tar` is 20,480 bytes, SHA-256
+`eeea76abf06c59534e4cd3aac0e493f7c4d2fc99c641bc4e645907363614fccc`.
+Only seven fixed Root-owned unit-proof files are exported, with an index.
+The exporter hashes its held archive descriptor before handing that public
+archive to UID 501. The inert
+`verify_native_binding_arm_20261027.py` reader checks both archives, exact
+ELF/source pins, each result/log and every public-file digest and metadata.
+Its retained stdout hashes to
+`23ab058d6e83c1bdf746164ae706e85fb3a6da8054d6f93e3c6a96c34bd9fb23`.
+No private Guard data, SDK home or model use is involved.
+
+Independent Rust process/SDK/MCP and other-role grading, fresh
 3.58.0 candidate publication and twelve fresh staging/installed controls,
 operational/workflow/legacy completion, required CI and cutover remain open.
 The user will handle disabled GitHub Actions. No parent exit is closed.

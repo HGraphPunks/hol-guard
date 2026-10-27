@@ -680,6 +680,10 @@ approval ceremony for routine work already authorized by this request.
   Seven semantic and two archive/path regressions pass; transient observer
   fixture contention uses the existing bounded Busy retry. See
   [artifact verifier](gauntlet-rust-native-binding-artifact-verifier.md).
+  ARM source `788eeeed` also passes warnings-denied workspace Clippy and
+  all nine new tests natively under Root, with both leases held and all
+  284 prior worker files unchanged. The public eight-member export passes
+  independent exact-ELF/source/log readback.
   Independent live process/request custody and the other role grades remain
   open, as does fresh current-source conformance. Parent exits stay 24/62.
 - Next: finish independent deterministic role scoring and outside key custody, then
