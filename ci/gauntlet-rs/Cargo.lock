@@ -470,6 +470,7 @@ dependencies = [
 name = "gauntlet-worker-state"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "gauntlet-cell-rootfs",
  "gauntlet-contracts",
  "gauntlet-evidence",

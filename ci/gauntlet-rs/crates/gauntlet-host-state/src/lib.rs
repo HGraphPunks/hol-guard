@@ -49,12 +49,14 @@ pub use live_provider_manifest::{
     verify_live_provider_manifest_claim, LiveProviderManifestExpectation,
 };
 mod controller_key_pins;
+mod native_control_readback;
 pub use controller_key_pins::{
     HostControllerKeyPinJournal, HostControllerKeyPins, HostDeterministicReadbackObservation,
     HostEffectEventsPin, HostKeyPinError, HostKeyPinRecord, HostKeyedTerminalObservation,
     HostPrelaunchIdentity, HostPreparedProcess, HostProcessFailure, HostSdkTapJournalPin,
     HostStagingRestartReadbackObservation,
 };
+pub use native_control_readback::{HostNativeControlReadback, NativeControlReadbackError};
 mod candidate_build_pins;
 mod dependency_intent;
 pub use candidate_build_pins::{

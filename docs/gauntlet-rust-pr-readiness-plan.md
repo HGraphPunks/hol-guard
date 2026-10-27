@@ -624,6 +624,16 @@ approval ceremony for routine work already authorized by this request.
   lifecycle paths now pass bounded actual diagnostics on the same Rust
   generation. All qualification, Guard causality and outside-key admission
   flags remain false; zero model calls ran.
+- 2026-10-27: implemented an explicit v7 host-pinned Native profile, sealed
+  Rust-controller key consumption/signing, durable Mac pin/ack transport and
+  restart readback. A separate keyed pre-controller repair retains consumed
+  reservations and requires unchanged empty task custody and absent resources.
+  The affected Mac run passes 405 tests with no failures or ignores; corrected
+  Mac Clippy passes. ARM Clippy and static tests compile, and the Mac host CLI
+  builds. Root test execution and actual host-to-VM validation remain pending. See
+  [host-pinned controls](gauntlet-rust-native-host-keyed-controls.md).
+  The user will handle disabled GitHub Actions separately; continue authorized
+  implementation and local/VM verification without bypassing required checks.
 - Next: finish independent deterministic role scoring and outside key custody, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)

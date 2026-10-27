@@ -37,6 +37,8 @@ pub use worker_request::{WorkerAction, WorkerRequest, WorkerRequestError};
 pub use worker_response::{WorkerResponse, WorkerResponseError, WorkerState};
 
 pub const MAX_RECORD_BYTES: usize = 16 * 1024 * 1024;
+/// Complete public v7 worker records share the bounded data-record limit.
+pub const NATIVE_HOST_PINNED_COMPLETION_LIMIT: usize = MAX_RECORD_BYTES;
 pub const MAX_DEPTH: usize = 32;
 pub const MAX_NODES: usize = 500_000;
 const MAX_INTEGER_DIGITS: usize = 4_300; // CPython 3.12's default decimal-int limit.

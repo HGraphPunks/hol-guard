@@ -30,6 +30,11 @@ pub enum NativeJobExecution {
         sdk: NativeSdkPins,
         role: NativeControlRole,
     },
+    HostPinnedControl {
+        guard: NativeGuardPins,
+        sdk: NativeSdkPins,
+        role: NativeControlRole,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -66,8 +71,11 @@ impl NativeJobSpec {
             && value["profile"] == "native-mcp-transport-v1";
         let sdk_mcp = value["schema"] == "hol-gauntlet-native-worker-job.v5"
             && value["profile"] == "native-sdk-mcp-transport-v1";
-        let control = value["schema"] == "hol-gauntlet-native-worker-job.v6"
-            && value["profile"] == "native-deterministic-control-v1";
+        let host_pinned = value["schema"] == "hol-gauntlet-native-worker-job.v7"
+            && value["profile"] == "native-host-pinned-control-v1";
+        let control = host_pinned
+            || (value["schema"] == "hol-gauntlet-native-worker-job.v6"
+                && value["profile"] == "native-deterministic-control-v1");
         let mut fields = vec![
             "schema",
             "profile",
@@ -111,13 +119,23 @@ impl NativeJobSpec {
                 return Err("Native hook product source differs from job source".into());
             }
             if control {
-                NativeJobExecution::DeterministicControl {
-                    guard: pins,
-                    sdk: NativeSdkPins::parse(&value["sdk"])?,
-                    role: value["role"]
-                        .as_str()
-                        .ok_or("typed Native control role required")?
-                        .parse()?,
+                let sdk = NativeSdkPins::parse(&value["sdk"])?;
+                let role = value["role"]
+                    .as_str()
+                    .ok_or("typed Native control role required")?
+                    .parse()?;
+                if host_pinned {
+                    NativeJobExecution::HostPinnedControl {
+                        guard: pins,
+                        sdk,
+                        role,
+                    }
+                } else {
+                    NativeJobExecution::DeterministicControl {
+                        guard: pins,
+                        sdk,
+                        role,
+                    }
                 }
             } else if sdk_mcp {
                 NativeJobExecution::SdkMcpTransport {
@@ -159,6 +177,7 @@ impl NativeJobSpec {
             NativeJobExecution::SdkTransport { .. } => "native-sdk-transport-v1",
             NativeJobExecution::SdkMcpTransport { .. } => "native-sdk-mcp-transport-v1",
             NativeJobExecution::DeterministicControl { .. } => "native-deterministic-control-v1",
+            NativeJobExecution::HostPinnedControl { .. } => "native-host-pinned-control-v1",
         }
     }
 
@@ -169,8 +188,12 @@ impl NativeJobSpec {
             NativeJobExecution::McpTransport(_) => "native-mcp-transport",
             NativeJobExecution::SdkTransport { .. } => "native-sdk-transport",
             NativeJobExecution::SdkMcpTransport { .. } => "native-sdk-mcp-transport",
-            NativeJobExecution::DeterministicControl { role, .. } => role.as_str(),
+            NativeJobExecution::DeterministicControl { role, .. }
+            | NativeJobExecution::HostPinnedControl { role, .. } => role.as_str(),
         }
+    }
+    pub fn requires_host_pin(&self) -> bool {
+        matches!(self.execution, NativeJobExecution::HostPinnedControl { .. })
     }
 
     pub fn job_root(&self) -> PathBuf {

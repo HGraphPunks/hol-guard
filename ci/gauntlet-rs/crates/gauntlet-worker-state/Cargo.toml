@@ -18,6 +18,7 @@ name = "gauntlet-sdk-tap-child"
 path = "src/bin/gauntlet-sdk-tap-child.rs"
 
 [dependencies]
+base64 = "=0.22.1"
 gauntlet-cell-rootfs = { path = "../gauntlet-cell-rootfs" }
 gauntlet-contracts = { path = "../gauntlet-contracts" }
 gauntlet-evidence = { path = "../gauntlet-evidence" }

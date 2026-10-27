@@ -4,7 +4,7 @@ use rustix::fs::{fstat, openat, Mode, OFlags};
 use std::ffi::CString;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::os::fd::{AsRawFd, OwnedFd};
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::os::unix::process::CommandExt;
 use std::process::{Child, ChildStdin, Command, Stdio};
 
@@ -37,18 +37,43 @@ impl NativeChild {
         deployment: &str,
         group: &OwnedJobCgroup,
         state: &OwnedFd,
+        signing_key: Option<&File>,
     ) -> Result<Self, String> {
+        if spec.requires_host_pin() != signing_key.is_some() {
+            return Err("native controller key handoff and declared profile differ".into());
+        }
         crate::verify_running_binary(&spec.worker_generation).map_err(|e| e.to_string())?;
         // `/proc/self/exe` is a kernel reference to the still-running inode
         // just verified, not argv[0] or a caller-selected executable path.
         let executable = File::open("/proc/self/exe").map_err(|e| e.to_string())?;
+        let executable = if signing_key.is_some()
+            && executable.as_raw_fd() == crate::native_controller_key::NATIVE_CONTROLLER_KEY_FD
+        {
+            let fd = unsafe { libc::fcntl(executable.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 4) };
+            if fd < 0 {
+                return Err(std::io::Error::last_os_error().to_string());
+            }
+            // SAFETY: fcntl returned a fresh owned descriptor for this same inode.
+            unsafe { File::from_raw_fd(fd) }
+        } else {
+            executable
+        };
         let executable_fd = executable.as_raw_fd();
+        let key = signing_key
+            .map(File::try_clone)
+            .transpose()
+            .map_err(|e| e.to_string())?;
+        let key_fd = key.as_ref().map(AsRawFd::as_raw_fd);
         let writer = group.writer().map_err(|e| e.to_string())?;
         let output = log(state, &format!("{}.native.stdout", spec.job_id))?;
         let errors = log(state, &format!("{}.native.stderr", spec.job_id))?;
         let argv = [
             "gauntlet-vm-worker",
-            "--native-controller",
+            if key.is_some() {
+                "--native-keyed-controller"
+            } else {
+                "--native-controller"
+            },
             spec.source_sha.as_str(),
             spec.job_id.as_str(),
             deployment,
@@ -80,6 +105,7 @@ impl NativeChild {
             command.pre_exec(move || {
                 let _keep_program = &executable;
                 let _keep_arguments = &argv;
+                let _keep_key = &key;
                 let mut pid = libc::getpid() as u32;
                 let mut digits = [0u8; 10];
                 let mut start = digits.len();
@@ -102,6 +128,13 @@ impl NativeChild {
                     return Err(std::io::Error::last_os_error());
                 }
                 libc::umask(0o077);
+                if let Some(fd) = key_fd {
+                    let target = crate::native_controller_key::NATIVE_CONTROLLER_KEY_FD;
+                    if libc::dup2(fd, target) != target || libc::fcntl(target, libc::F_SETFD, 0) < 0
+                    {
+                        return Err(std::io::Error::last_os_error());
+                    }
+                }
                 libc::syscall(
                     libc::SYS_execveat,
                     executable_fd,

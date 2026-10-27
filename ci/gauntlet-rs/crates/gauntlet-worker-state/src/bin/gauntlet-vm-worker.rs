@@ -4,6 +4,25 @@ fn run() -> Result<(), String> {
     use std::io::{Read, Write};
     gauntlet_worker_state::install_native_worker_signals()?;
     let args = std::env::args().collect::<Vec<_>>();
+    if args.len() == 11 && args[1] == "--repair-native-keyed-pre-controller-v1" {
+        let prelaunch = gauntlet_contracts::PrelaunchPrepared {
+            source_sha: args[2].clone(),
+            job_id: args[3].clone(),
+            deployment_digest: args[4].clone(),
+            worker_generation: args[5].clone(),
+            started_marker_sha256: args[6].clone(),
+            controller_key_pin_sha256: args[7].clone(),
+            controller_public_key_hex: args[8].clone(),
+        };
+        let pins = gauntlet_worker_state::NativePrelaunchRepairPins {
+            prelaunch: &prelaunch,
+            preparation_sha256: &args[9],
+            repair_generation: &args[10],
+        };
+        let raw = gauntlet_worker_state::repair_native_host_pinned_pre_controller(&pins)?;
+        println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
+        return Ok(());
+    }
     if args.len() == 11 && args[1] == "--repair-sdk-created" {
         let raw = gauntlet_worker_state::repair_native_sdk_created(&args)?;
         println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
@@ -130,13 +149,50 @@ fn run() -> Result<(), String> {
         println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
         return Ok(());
     }
-    if args.len() == 6 && args[1] == "--native-controller" {
+    if args.len() == 6
+        && matches!(
+            args[1].as_str(),
+            "--native-controller" | "--native-keyed-controller"
+        )
+    {
         let result = gauntlet_worker_state::execute_native_controller(&args)?;
         println!("{}", result.report);
         return match result.error {
             Some(error) => Err(error),
             None => Ok(()),
         };
+    }
+    if args.len() == 5 && args[1] == "--native-host-pinned-v1" {
+        let raw = gauntlet_worker_state::dispatch_native_worker_host_pinned_pipe(
+            &args[2],
+            &args[3],
+            &args[4],
+            &std::io::stdin(),
+            &std::io::stdout(),
+        )?;
+        std::io::stdout()
+            .write_all(&raw)
+            .and_then(|_| std::io::stdout().write_all(b"\n"))
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    if args.len() == 5 && args[1] == "--read-native-host-pinned-v1" {
+        let mut request = Vec::new();
+        std::io::stdin()
+            .take(1025)
+            .read_to_end(&mut request)
+            .map_err(|e| e.to_string())?;
+        if request.len() > 1024 {
+            return Err("native report request exceeds 1024 bytes".into());
+        }
+        let raw = gauntlet_worker_state::read_native_host_pinned_result(
+            &args[2], &args[3], &args[4], &request,
+        )?;
+        std::io::stdout()
+            .write_all(&raw)
+            .and_then(|_| std::io::stdout().write_all(b"\n"))
+            .map_err(|e| e.to_string())?;
+        return Ok(());
     }
     if args.len() != 4 {
         return Err("usage: gauntlet-vm-worker OUTSIDE_SOURCE_SHA OUTSIDE_DEPLOYMENT_SHA256 OUTSIDE_WORKER_GENERATION_SHA256".into());

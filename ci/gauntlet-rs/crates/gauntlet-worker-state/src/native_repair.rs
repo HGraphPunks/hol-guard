@@ -63,6 +63,7 @@ pub(crate) fn verified_receipt(
         crate::NativeJobExecution::McpTransport(_)
             | crate::NativeJobExecution::SdkMcpTransport { .. }
             | crate::NativeJobExecution::DeterministicControl { .. }
+            | crate::NativeJobExecution::HostPinnedControl { .. }
     ) {
         return Err(
             "Native MCP recovery requires its own reviewed repair profile; original job retained"
@@ -160,6 +161,7 @@ pub fn repair_native_worker(
         crate::NativeJobExecution::McpTransport(_)
             | crate::NativeJobExecution::SdkMcpTransport { .. }
             | crate::NativeJobExecution::DeterministicControl { .. }
+            | crate::NativeJobExecution::HostPinnedControl { .. }
     ) {
         return Err(
             "Native MCP recovery requires its own reviewed repair profile; original job retained"

@@ -4,16 +4,13 @@ use crate::builder_image_context::{python_worker_lock, verify_python_lock};
 use crate::native_controller_exec::NativeChild;
 use crate::native_job_io::{load, own_identity, require_no_unknown_jobs};
 use crate::native_job_spec::{NativeJobExecution, ACTIVE_SECONDS};
+use crate::native_prelaunch::{reserve_native, NativeHostAck};
 use crate::{BoottimeDeadline, OwnedJobCgroup, RunReservationJournal, TerminalOutcome};
 use gauntlet_contracts::{canonicalize, WorkerAction, WorkerRequest};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::io::Read;
 use std::path::Path;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 const STATE: &str = "/var/lib/hol-gauntlet-rust/worker-state";
@@ -37,100 +34,59 @@ pub fn install_native_worker_signals() -> Result<(), String> {
     Ok(())
 }
 
-pub fn execute_native_controller(
-    args: &[String],
-) -> Result<gauntlet_cell_rootfs::NativeApparatusReport, String> {
-    gauntlet_cell_rootfs::require_outside_root()?;
-    if args.len() != 6 || args[1] != "--native-controller" {
-        return Err("fixed native controller arguments required".into());
-    }
-    crate::verify_running_binary(&args[5]).map_err(|e| e.to_string())?;
-    let mut gate = [0u8; 1];
-    std::io::stdin()
-        .read_exact(&mut gate)
-        .map_err(|_| "native controller gate was not released")?;
-    if gate != [1] {
-        return Err("native controller gate differs".into());
-    }
-    let request = WorkerRequest::parse(
-        json!({"schema":"hol-gauntlet-worker-request.v1","action":"run",
-        "source_sha":args[2],"job_id":args[3],"deployment_digest":args[4]})
-        .to_string()
-        .as_bytes(),
-    )
-    .map_err(|e| e.to_string())?;
-    let (spec, _) = load(&request, &args[5])?;
-    let journal =
-        RunReservationJournal::open_root_owned(Path::new(STATE)).map_err(|e| e.to_string())?;
-    let running = journal
-        .running_marker(
-            &spec.job_id,
-            &spec.source_sha,
-            &args[4],
-            &spec.worker_generation,
-        )
-        .map_err(|e| e.to_string())?
-        .ok_or("native controller lacks durable running identity")?;
-    if running.process.pid != std::process::id() {
-        return Err("native controller running marker belongs to another PID".into());
-    }
-    crate::observe_process(
-        running.process.pid,
-        running.process.start_ticks,
-        &running.cgroup,
-    )
-    .map_err(|_| "native controller kernel identity changed")?;
-    let cancellation = Arc::new(AtomicBool::new(CANCELLED.load(Ordering::Acquire)));
-    let finished = Arc::new(AtomicBool::new(false));
-    let (signal, stop) = (cancellation.clone(), finished.clone());
-    let watcher = std::thread::spawn(move || {
-        while !stop.load(Ordering::Acquire) {
-            if CANCELLED.load(Ordering::Acquire) {
-                signal.store(true, Ordering::Release);
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(10));
-        }
-    });
-    let result = match &spec.execution {
-        NativeJobExecution::Apparatus(case) => gauntlet_cell_rootfs::run_native_apparatus(
-            &spec.preparation_path(),
-            &spec.preparation_sha256,
-            *case,
-            true,
-            cancellation,
-        ),
-        NativeJobExecution::HookTransport(pins) => gauntlet_cell_rootfs::run_native_hook_transport(
-            &spec.preparation_path(),
-            &spec.preparation_sha256,
-            pins,
-            cancellation,
-        ),
-        NativeJobExecution::SdkTransport { guard, sdk } => {
-            crate::native_sdk_control::run_native_sdk_transport(&spec, guard, sdk, cancellation)
-        }
-        NativeJobExecution::McpTransport(pins) => {
-            crate::native_mcp_control::run_native_mcp_transport(&spec, pins, cancellation)
-        }
-        NativeJobExecution::SdkMcpTransport { guard, sdk } => {
-            crate::native_sdk_mcp_control::run(&spec, guard, sdk, cancellation)
-        }
-        NativeJobExecution::DeterministicControl { guard, sdk, role } => {
-            crate::native_sdk_mcp_control::run_role(&spec, guard, sdk, cancellation, *role)
-        }
-    };
-    finished.store(true, Ordering::Release);
-    watcher
-        .join()
-        .map_err(|_| "native controller signal watcher failed")?;
-    result
-}
-
 pub fn dispatch_native_worker(
     source: &str,
     deployment: &str,
     generation: &str,
     raw: &[u8],
+) -> Result<Vec<u8>, String> {
+    dispatch_native_worker_inner(source, deployment, generation, raw, None)
+}
+
+pub fn dispatch_native_worker_host_pinned(
+    source: &str,
+    deployment: &str,
+    generation: &str,
+    raw: &[u8],
+    mut acknowledge: impl FnMut(&[u8], &BoottimeDeadline, &AtomicBool) -> Result<Vec<u8>, String>,
+) -> Result<Vec<u8>, String> {
+    dispatch_native_worker_inner(source, deployment, generation, raw, Some(&mut acknowledge))
+}
+
+pub fn dispatch_native_worker_host_pinned_pipe(
+    source: &str,
+    deployment: &str,
+    generation: &str,
+    input: &impl std::os::fd::AsRawFd,
+    output: &impl std::os::fd::AsRawFd,
+) -> Result<Vec<u8>, String> {
+    gauntlet_cell_rootfs::require_outside_root()?;
+    crate::verify_running_binary(generation).map_err(|e| e.to_string())?;
+    let request = crate::read_run_request_pipe(
+        input,
+        &BoottimeDeadline::start(60).map_err(|e| e.to_string())?,
+        &CANCELLED,
+    )
+    .map_err(|e| e.to_string())?;
+    let raw = canonicalize(request.to_json().to_string().as_bytes()).map_err(|e| e.to_string())?;
+    dispatch_native_worker_host_pinned(
+        source,
+        deployment,
+        generation,
+        &raw,
+        |prepared, deadline, cancellation| {
+            crate::exchange_prelaunch_pipe(prepared, output, input, deadline, cancellation)
+                .map_err(|e| e.to_string())
+        },
+    )
+}
+
+fn dispatch_native_worker_inner(
+    source: &str,
+    deployment: &str,
+    generation: &str,
+    raw: &[u8],
+    acknowledge: Option<&mut NativeHostAck<'_>>,
 ) -> Result<Vec<u8>, String> {
     gauntlet_cell_rootfs::require_outside_root()?;
     crate::verify_running_binary(generation).map_err(|e| e.to_string())?;
@@ -141,6 +97,9 @@ pub fn dispatch_native_worker(
     let journal =
         RunReservationJournal::open_root_owned(Path::new(STATE)).map_err(|e| e.to_string())?;
     if request.action() != WorkerAction::Run {
+        if acknowledge.is_some() {
+            return Err("host-pinned execution pipe requires a run request".into());
+        }
         return journal
             .project_read_only(&request, source, Some(deployment), generation)
             .map_err(|e| e.to_string());
@@ -172,10 +131,16 @@ pub fn dispatch_native_worker(
     )?;
     crate::require_rust_job_slice_absent(&spec.job_id).map_err(|e| e.to_string())?;
     gauntlet_cell_rootfs::verify_preparation_host_helpers(&preparation)?;
-    let started = journal
-        .reserve_under_lease(&lease, &request, source, deployment, generation)
-        .map_err(|e| e.to_string())?;
     let deadline = BoottimeDeadline::start(ACTIVE_SECONDS).map_err(|e| e.to_string())?;
+    let (started, signing) = reserve_native(
+        &journal,
+        &lease,
+        &request,
+        &spec,
+        &deadline,
+        &CANCELLED,
+        acknowledge,
+    )?;
     let mut group = OwnedJobCgroup::create(&spec.job_id).map_err(|e| e.to_string())?;
     let mut native: Option<NativeChild> = None;
     let mut process = None;
@@ -192,6 +157,7 @@ pub fn dispatch_native_worker(
             deployment,
             &group,
             &journal.root,
+            signing.as_ref().map(|s| s.descriptor()),
         )?);
         let child = native.as_mut().ok_or("native child missing")?;
         let identity = own_identity(&child.child, &spec, deployment, group.path())?;
@@ -209,6 +175,9 @@ pub fn dispatch_native_worker(
             )
             .map_err(|e| e.to_string())?;
         own_identity(&child.child, &spec, deployment, group.path())?;
+        if let Some(signing) = &signing {
+            signing.recheck(&journal, &lease, &started)?;
+        }
         child.release()?;
         let mut interruption: Option<String> = None;
         let mut grace = None;
@@ -279,6 +248,7 @@ pub fn dispatch_native_worker(
         NativeJobExecution::SdkTransport { .. }
             | NativeJobExecution::SdkMcpTransport { .. }
             | NativeJobExecution::DeterministicControl { .. }
+            | NativeJobExecution::HostPinnedControl { .. }
     );
     if sdk_quiescent {
         crate::native_sdk_quiescence::require_sdk_quiescence(&spec, &preparation)?;
@@ -288,6 +258,7 @@ pub fn dispatch_native_worker(
         NativeJobExecution::McpTransport(_)
             | NativeJobExecution::SdkMcpTransport { .. }
             | NativeJobExecution::DeterministicControl { .. }
+            | NativeJobExecution::HostPinnedControl { .. }
     );
     if mcp_quiescent {
         crate::native_mcp_quiescence::require_mcp_quiescence(&spec, &preparation)?;
@@ -298,6 +269,20 @@ pub fn dispatch_native_worker(
     let parsed = canonicalize(&stdout)
         .ok()
         .and_then(|raw| serde_json::from_slice::<Value>(&raw).ok());
+    let authenticated = signing.as_ref().map(|s| {
+        s.authenticate(&stdout).and_then(|value| {
+            if value.report()["controller_identity"] != process_json(process) {
+                Err("signed native controller identity differs from held running process".into())
+            } else {
+                Ok(value)
+            }
+        })
+    });
+    let parsed = match &authenticated {
+        Some(Ok(value)) => Some(value.report().clone()),
+        Some(Err(_)) => None,
+        None => parsed,
+    };
     let (exit_code, interruption, execution_error) = match outcome {
         Ok((code, reason)) => (code, reason, None),
         Err(error) => (-1, None, Some(error)),
@@ -309,6 +294,7 @@ pub fn dispatch_native_worker(
         NativeJobExecution::McpTransport(_) => "hol-gauntlet-native-worker-report.v4",
         NativeJobExecution::SdkMcpTransport { .. } => "hol-gauntlet-native-worker-report.v5",
         NativeJobExecution::DeterministicControl { .. } => "hol-gauntlet-native-worker-report.v6",
+        NativeJobExecution::HostPinnedControl { .. } => "hol-gauntlet-native-worker-report.v7",
     };
     let unavailable_reason = match spec.execution {
         NativeJobExecution::Apparatus(_) => "native apparatus profile has no independently scored Guard controls or host signing-key pin",
@@ -317,6 +303,7 @@ pub fn dispatch_native_worker(
         NativeJobExecution::McpTransport(_) => "native MCP diagnostic has no actual SDK composition, combined builtin/MCP budget, independent Guard decision/effect scoring or outside signing-key admission",
         NativeJobExecution::SdkMcpTransport { .. } => "native SDK/MCP/Bash diagnostic has no independent Guard request/decision/effect scoring, six-role conformance or outside signing-key admission",
         NativeJobExecution::DeterministicControl {..}=>"Native deterministic role diagnostic has no qualified current-source suite or outside signing-key admission",
+        NativeJobExecution::HostPinnedControl {..}=>"host-pinned controller signature has no independently scored effects or qualified current-source suite",
     };
     let mut report = json!({"schema":report_schema,"profile":spec.profile(),
         "source_sha":source,"job_id":spec.job_id,"deployment_digest":deployment,"worker_generation":generation,
@@ -334,6 +321,24 @@ pub fn dispatch_native_worker(
         report["mcp_agent_absent"] = json!(true);
         report["mcp_profile_absent"] = json!(true);
     }
+    if let Some(signing) = &signing {
+        signing.recheck(&journal, &lease, &started)?;
+        report["prelaunch_custody"] = signing.observation()?;
+        report["controller_envelope_utf8"] = std::str::from_utf8(&stdout)
+            .ok()
+            .map(|s| json!(s))
+            .unwrap_or(Value::Null);
+        report["controller_signature_verification"] = authenticated
+            .as_ref()
+            .and_then(|v| v.as_ref().ok())
+            .map(|v| v.observation())
+            .unwrap_or(Value::Null);
+        report["controller_signature_error"] = authenticated
+            .as_ref()
+            .and_then(|v| v.as_ref().err())
+            .map(|e| json!(e))
+            .unwrap_or(Value::Null);
+    }
     let raw = canonicalize(report.to_string().as_bytes()).map_err(|e| e.to_string())?;
     journal
         .finish_under_lease(
@@ -347,9 +352,18 @@ pub fn dispatch_native_worker(
             process,
             exit_code,
             TerminalOutcome::InvalidEvidence,
-            None,
+            signing.as_ref().map(|s| s.pin_sha256()),
         )
         .map_err(|e| e.to_string())?;
+    if signing.is_some() {
+        return crate::native_completion::read_completion(
+            &journal,
+            source,
+            &spec.job_id,
+            deployment,
+            generation,
+        );
+    }
     journal
         .project_read_only(&request, source, Some(deployment), generation)
         .map_err(|e| e.to_string())

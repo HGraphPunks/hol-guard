@@ -214,6 +214,99 @@ fn final_guest_result_is_bounded_after_durable_host_ack() {
 }
 
 #[test]
+fn native_completion_can_exceed_the_unchanged_historical_result_limit() {
+    let (_temporary, journal) = journal();
+    let prepared = prepared();
+    let expected = planned(&prepared);
+    let raw = String::from_utf8(prepared.to_bytes().unwrap()).unwrap();
+    let script="printf '%s\\n' \"$1\"; IFS= read -r ack; test -n \"$ack\" || exit 2; printf '%09000d\\n' 0";
+    let mut accepted = journal
+        .accept_prepared_child(child(script, &raw), &expected, Duration::from_secs(2))
+        .unwrap();
+    assert_eq!(
+        accepted.wait_bounded_result(Duration::from_secs(2), 8193),
+        Err(HostKeyPinError::FrameTooLarge)
+    );
+    assert_eq!(
+        accepted
+            .wait_bounded_native_completion(Duration::from_secs(2))
+            .unwrap()
+            .len(),
+        9001
+    );
+    assert_eq!(journal.read(&prepared.job_id).unwrap(), *accepted.record());
+}
+
+#[test]
+fn native_readback_uses_the_existing_pin_without_another_ack() {
+    let (_temporary, journal) = journal();
+    let prepared = prepared();
+    let expected = planned(&prepared);
+    let (record, _) = journal
+        .accept_prepared(&prepared.to_bytes().unwrap(), &expected)
+        .unwrap();
+    let mut readback = journal
+        .bind_native_readback_child(
+            child("printf '%s\\n' '{\"closed\":true}'", "unused"),
+            &expected,
+        )
+        .unwrap();
+    assert_eq!(
+        readback
+            .wait_bounded_native_completion(Duration::from_secs(2))
+            .unwrap(),
+        b"{\"closed\":true}\n"
+    );
+    assert_eq!(journal.read(&prepared.job_id).unwrap(), record);
+    let mut wrong = expected;
+    wrong.worker_generation = "8".repeat(64);
+    assert!(journal
+        .bind_native_readback_child(child("sleep 1", "unused"), &wrong)
+        .is_err());
+}
+
+#[test]
+fn native_readback_request_owns_the_child_and_closes_input_after_one_request() {
+    let (_temporary, journal) = journal();
+    let prepared = prepared();
+    let expected = planned(&prepared);
+    let (record, _) = journal
+        .accept_prepared(&prepared.to_bytes().unwrap(), &expected)
+        .unwrap();
+    let readonly = WorkerRequest::parse(
+        serde_json::json!({
+            "schema":"hol-gauntlet-worker-request.v1","action":"reconcile",
+            "source_sha":prepared.source_sha,"job_id":prepared.job_id
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
+    let mut accepted = journal.send_native_readback_request_and_bind_child(
+        child("IFS= read -r request; test -n \"$request\" || exit 2; if IFS= read -r extra; then exit 3; fi; printf '%s\\n' '{\"closed\":true}'", "unused"),
+        &readonly, &expected, Duration::from_secs(2),
+    ).unwrap();
+    assert_eq!(
+        accepted
+            .wait_bounded_native_completion(Duration::from_secs(2))
+            .unwrap(),
+        b"{\"closed\":true}\n"
+    );
+    assert_eq!(journal.read(&prepared.job_id).unwrap(), record);
+    let refusal = journal
+        .send_native_readback_request_and_bind_child(
+            child("sleep 1", "unused"),
+            &request(&prepared, &prepared.job_id),
+            &expected,
+            Duration::from_secs(2),
+        )
+        .err()
+        .unwrap();
+    assert_eq!(refusal.reason, HostKeyPinError::WrongRequest);
+    assert!(refusal.pin_recorded_or_uncertain);
+}
+
+#[test]
 fn oversized_guest_result_cannot_replace_the_host_pin() {
     let (_temporary, journal) = journal();
     let prepared = prepared();

@@ -264,6 +264,8 @@ pub use native_mcp_agent::NativeMcpAgent;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_mcp_proxy_client::NativeMcpProxyClient;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_keyed_startup_repair;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_mcp_connection;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_mcp_control;
@@ -283,6 +285,10 @@ mod native_sdk_mcp_plane;
 mod native_sdk_mcp_result;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_startup_repair;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_keyed_startup_repair::{
+    repair_native_host_pinned_pre_controller, NativePrelaunchRepairPins,
+};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_startup_repair::repair_native_pre_controller;
 mod native_sdk_protocol;
@@ -354,6 +360,18 @@ pub use native_repair::repair_native_worker;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_controller_exec;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_controller_run;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_controller_run::execute_native_controller;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_completion;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_controller_key;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_prelaunch;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_completion::{read_native_host_pinned_result, NATIVE_HOST_PINNED_COMPLETION_LIMIT};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_job_io;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_worker;
@@ -367,7 +385,8 @@ pub use job_slice_guard::{
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_worker::{
-    dispatch_native_worker, execute_native_controller, install_native_worker_signals,
+    dispatch_native_worker, dispatch_native_worker_host_pinned,
+    dispatch_native_worker_host_pinned_pipe, install_native_worker_signals,
 };
 mod lease;
 #[cfg(target_os = "linux")]

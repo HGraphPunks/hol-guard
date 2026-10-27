@@ -138,6 +138,20 @@ fn sdk_requires_its_own_version_and_both_outside_product_and_dependency_pins() {
             parsed.execution,
             NativeJobExecution::DeterministicControl { .. }
         ));
+        assert!(!parsed.requires_host_pin());
+        let mut pinned = control.clone();
+        pinned["schema"] = json!("hol-gauntlet-native-worker-job.v7");
+        pinned["profile"] = json!("native-host-pinned-control-v1");
+        let keyed = parse(&pinned).unwrap();
+        assert!(keyed.requires_host_pin());
+        assert_eq!(keyed.profile(), "native-host-pinned-control-v1");
+        assert_eq!(keyed.case(), role);
+        assert!(matches!(
+            keyed.execution,
+            NativeJobExecution::HostPinnedControl { .. }
+        ));
+        pinned["schema"] = json!("hol-gauntlet-native-worker-job.v6");
+        assert!(parse(&pinned).is_err());
     }
     for bad in [
         json!("shell"),

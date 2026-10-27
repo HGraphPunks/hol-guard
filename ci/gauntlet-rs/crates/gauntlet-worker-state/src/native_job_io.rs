@@ -64,6 +64,7 @@ pub(crate) fn require_no_unknown_jobs(journal: &RunReservationJournal) -> Result
                 | "native.stderr"
                 | "native-repair.json"
                 | "native-startup-repair.json"
+                | "native-keyed-startup-repair.json"
         ) {
             return Err("unrecognized worker sidecar blocks native dispatch".into());
         }
@@ -109,8 +110,12 @@ pub(crate) fn require_no_unknown_jobs(journal: &RunReservationJournal) -> Result
             journal, source, &job, deployment, generation,
         )?
         .is_some();
+        let keyed_startup = crate::native_keyed_startup_repair::verified_receipt(
+            journal, source, &job, deployment, generation,
+        )?
+        .is_some();
         if !reserved
-            || [terminal, repair, startup]
+            || [terminal, repair, startup, keyed_startup]
                 .into_iter()
                 .filter(|value| *value)
                 .count()
@@ -148,7 +153,11 @@ pub(crate) fn own_identity(
     let executable = read("exe", 128 * 1024 * 1024)?;
     let argv = [
         "gauntlet-vm-worker",
-        "--native-controller",
+        if spec.requires_host_pin() {
+            "--native-keyed-controller"
+        } else {
+            "--native-controller"
+        },
         &spec.source_sha,
         &spec.job_id,
         deployment,

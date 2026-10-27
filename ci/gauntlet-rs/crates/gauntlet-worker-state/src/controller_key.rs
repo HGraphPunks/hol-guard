@@ -87,6 +87,14 @@ impl SealedControllerKey {
         }
         // SAFETY: raw was returned by memfd_create and is transferred once.
         let mut descriptor = unsafe { File::from_raw_fd(raw as libc::c_int) };
+        rustix::fs::fchown(
+            &descriptor,
+            Some(rustix::process::Uid::ROOT),
+            Some(rustix::process::Gid::ROOT),
+        )
+        .map_err(|_| ControllerKeyError::Seal)?;
+        rustix::fs::fchmod(&descriptor, rustix::fs::Mode::RUSR | rustix::fs::Mode::WUSR)
+            .map_err(|_| ControllerKeyError::Seal)?;
         let written = descriptor.write_all(&seed);
         seed.fill(0);
         written.map_err(|_| ControllerKeyError::Seal)?;
@@ -108,7 +116,9 @@ impl SealedControllerKey {
             || !metadata.is_file()
             || metadata.len() != 32
             || metadata.uid() != 0
+            || metadata.gid() != 0
             || metadata.nlink() != 0
+            || metadata.mode() & 0o7777 != 0o600
         {
             return Err(ControllerKeyError::Seal);
         }
