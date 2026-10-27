@@ -109,6 +109,9 @@ pub fn execute_native_controller(
         NativeJobExecution::SdkTransport { guard, sdk } => {
             crate::native_sdk_control::run_native_sdk_transport(&spec, guard, sdk, cancellation)
         }
+        NativeJobExecution::McpTransport(pins) => {
+            crate::native_mcp_control::run_native_mcp_transport(&spec, pins, cancellation)
+        }
     };
     finished.store(true, Ordering::Release);
     watcher
@@ -258,6 +261,10 @@ pub fn dispatch_native_worker(
     if sdk_quiescent {
         crate::native_sdk_quiescence::require_sdk_quiescence(&spec, &preparation)?;
     }
+    let mcp_quiescent = matches!(spec.execution, NativeJobExecution::McpTransport(_));
+    if mcp_quiescent {
+        crate::native_mcp_quiescence::require_mcp_quiescence(&spec, &preparation)?;
+    }
     let process =
         process.ok_or("native launch did not establish a running process; retain unknown job")?;
     let (stdout, stderr) = native.as_mut().ok_or("native child logs missing")?.logs()?;
@@ -272,11 +279,13 @@ pub fn dispatch_native_worker(
         NativeJobExecution::Apparatus(_) => "hol-gauntlet-native-worker-report.v1",
         NativeJobExecution::HookTransport(_) => "hol-gauntlet-native-worker-report.v2",
         NativeJobExecution::SdkTransport { .. } => "hol-gauntlet-native-worker-report.v3",
+        NativeJobExecution::McpTransport(_) => "hol-gauntlet-native-worker-report.v4",
     };
     let unavailable_reason = match spec.execution {
         NativeJobExecution::Apparatus(_) => "native apparatus profile has no independently scored Guard controls or host signing-key pin",
         NativeJobExecution::HookTransport(_) => "native hook transport has no authenticated SDK calls, independently scored Guard controls or host signing-key pin",
         NativeJobExecution::SdkTransport { .. } => "native SDK Bash transport has no MCP, independently scored Guard controls, six-role conformance or host signing-key pin",
+        NativeJobExecution::McpTransport(_) => "native MCP diagnostic has no actual SDK composition, combined builtin/MCP budget, independent Guard decision/effect scoring or outside signing-key admission",
     };
     let mut report = json!({"schema":report_schema,"profile":spec.profile(),
         "source_sha":source,"job_id":spec.job_id,"deployment_digest":deployment,"worker_generation":generation,
@@ -289,6 +298,10 @@ pub fn dispatch_native_worker(
     if sdk_quiescent {
         report["sdk_agent_absent"] = json!(true);
         report["sdk_profile_absent"] = json!(true);
+    }
+    if mcp_quiescent {
+        report["mcp_agent_absent"] = json!(true);
+        report["mcp_profile_absent"] = json!(true);
     }
     let raw = canonicalize(report.to_string().as_bytes()).map_err(|e| e.to_string())?;
     journal

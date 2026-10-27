@@ -339,6 +339,12 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
       Seven new tests pass natively as Root on ARM; the worker suite passes
       164 tests with 24 existing ignores. Actual peer, proxy and SDK MCP
       execution remain open; see [Root boundary proof](gauntlet-rust-mcp-root-boundary-proof-20261027.md).
+    - [ ] Execute the new closed v4 Rust-owned Native MCP profile and verify
+      original wire bytes, actual proxy/relay processes, SQLite receipts and
+      outside cleanup. The wired implementation passes 170 ARM worker tests
+      with 24 existing ignores, shared macOS worker tests and both Clippy
+      targets. Live execution and SDK composition remain pending; see
+      [Native MCP transport](gauntlet-rust-native-mcp-transport.md).
   - [x] Run fresh current-source Native success, timeout and cancellation
     through the complete Rust worker on the published 3.57.0 runtime. GNU actor
     ABI preflight refuses the earlier static actor before artifact creation;

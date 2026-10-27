@@ -245,6 +245,30 @@ pub use native_mcp_store::NativeMcpWorld;
 mod native_mcp_sockets;
 #[cfg(target_os = "linux")]
 pub use native_mcp_sockets::NativeMcpSockets;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_peer;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_mcp_peer::{NativeMcpBoundary, NativeMcpProcess, NativeMcpRequestPeer};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_agent;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_agent_spec;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_command;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_proxy_client;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_public;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_mcp_agent::NativeMcpAgent;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_mcp_proxy_client::NativeMcpProxyClient;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_connection;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_control;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_quiescence;
 mod native_sdk_protocol;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_sdk_result;

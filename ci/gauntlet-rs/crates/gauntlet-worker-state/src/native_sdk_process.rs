@@ -77,6 +77,39 @@ impl RootCommands {
     pub(crate) fn new(job: &Path, podman: &str, parser: &str) -> Result<Self, String> {
         Self::in_directory(job, "sdk-processes", podman, parser)
     }
+    pub(crate) fn new_mcp(job: &Path, podman: &str, parser: &str) -> Result<Self, String> {
+        Self::in_directory(job, "mcp-processes", podman, parser)
+    }
+    pub(crate) fn mcp_logs(&mut self) -> Result<[File; 3], String> {
+        verify_helper("/usr/bin/podman", &self.podman)?;
+        if self.counter >= 128 {
+            return Err("MCP Root helper operation budget".into());
+        }
+        self.counter += 1;
+        let mut files = Vec::new();
+        for suffix in ["mcp-input", "mcp-output", "stderr"] {
+            let fd = openat(
+                &self.directory,
+                format!("{:03}.{suffix}", self.counter),
+                OFlags::RDWR | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+                Mode::from_bits_truncate(0o600),
+            )
+            .map_err(|e| e.to_string())?;
+            let info = fstat(&fd).map_err(|e| e.to_string())?;
+            if info.st_uid != 0
+                || info.st_gid != 0
+                || info.st_nlink != 1
+                || info.st_mode & 0o7777 != 0o600
+            {
+                return Err("private MCP helper log required".into());
+            }
+            files.push(File::from(fd));
+        }
+        fsync(&self.directory).map_err(|e| e.to_string())?;
+        files
+            .try_into()
+            .map_err(|_| "three MCP logs required".into())
+    }
     fn in_directory(job: &Path, name: &str, podman: &str, parser: &str) -> Result<Self, String> {
         verify_helper("/usr/bin/podman", podman)?;
         verify_helper("/usr/sbin/apparmor_parser", parser)?;

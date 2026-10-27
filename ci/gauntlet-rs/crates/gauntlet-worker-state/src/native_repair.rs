@@ -58,6 +58,12 @@ pub(crate) fn verified_receipt(
         .map_err(|e| e.to_string())?
         .ok_or("repair running marker missing")?;
     let (spec, preparation) = load(&request(source, job, deployment)?, generation)?;
+    if matches!(spec.execution, crate::NativeJobExecution::McpTransport(_)) {
+        return Err(
+            "Native MCP recovery requires its own reviewed repair profile; original job retained"
+                .into(),
+        );
+    }
     let receipt = NativeRepairReceipt::parse(&raw)?;
     let sdk = matches!(
         spec.execution,
@@ -144,6 +150,12 @@ pub fn repair_native_worker(
         .ok_or("native job lacks a retained running identity")?;
     controller_absent(&running)?;
     let (spec, preparation) = load(&run, generation)?;
+    if matches!(spec.execution, crate::NativeJobExecution::McpTransport(_)) {
+        return Err(
+            "Native MCP recovery requires its own reviewed repair profile; original job retained"
+                .into(),
+        );
+    }
     let sdk = matches!(
         spec.execution,
         crate::NativeJobExecution::SdkTransport { .. }

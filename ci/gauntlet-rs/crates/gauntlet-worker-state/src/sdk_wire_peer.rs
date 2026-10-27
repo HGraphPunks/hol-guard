@@ -107,7 +107,7 @@ impl HeldSdkWirePeer {
     }
 }
 
-fn peer_credentials(socket: &UnixStream) -> Result<(u32, u32, u32), String> {
+pub(crate) fn peer_credentials(socket: &UnixStream) -> Result<(u32, u32, u32), String> {
     let mut credentials = libc::ucred {
         pid: 0,
         uid: 0,
@@ -144,7 +144,7 @@ fn pidfd_exited(pidfd: &OwnedFd) -> Result<bool, String> {
     Ok(poll(&mut descriptors, Some(&immediate)).map_err(|error| error.to_string())? != 0)
 }
 
-fn authenticate_fixed_peer(
+pub(crate) fn authenticate_fixed_peer(
     socket: &UnixStream,
     pin: &SdkWirePeerPin,
     uid: u32,
@@ -218,7 +218,7 @@ pub fn authenticate_native_frontdoor_peer_ineligible(
     authenticate_fixed_peer(socket, pin, 0, 0)
 }
 
-fn parent_link(pid: u32, cgroup: &str) -> Result<(u64, u32), String> {
+pub(crate) fn parent_link(pid: u32, cgroup: &str) -> Result<(u64, u32), String> {
     let proc = open(
         "/proc",
         OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
@@ -250,7 +250,7 @@ fn parent_link(pid: u32, cgroup: &str) -> Result<(u64, u32), String> {
     Ok((parsed.start_ticks, parsed.parent_pid))
 }
 
-fn ancestor_chain(
+pub(crate) fn ancestor_chain(
     relay: &SdkWirePeerPin,
     ancestor: &SdkWirePeerPin,
 ) -> Result<Vec<(u32, u64, u32)>, String> {

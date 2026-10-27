@@ -16,6 +16,7 @@ pub(crate) const ACTIVE_SECONDS: u64 = 300;
 pub enum NativeJobExecution {
     Apparatus(NativeCase),
     HookTransport(NativeGuardPins),
+    McpTransport(NativeGuardPins),
     SdkTransport {
         guard: NativeGuardPins,
         sdk: NativeSdkPins,
@@ -52,6 +53,8 @@ impl NativeJobSpec {
             && value["profile"] == "native-hook-transport-v1";
         let sdk = value["schema"] == "hol-gauntlet-native-worker-job.v3"
             && value["profile"] == "native-sdk-transport-v1";
+        let mcp = value["schema"] == "hol-gauntlet-native-worker-job.v4"
+            && value["profile"] == "native-mcp-transport-v1";
         let mut fields = vec![
             "schema",
             "profile",
@@ -59,7 +62,7 @@ impl NativeJobSpec {
             "job_id",
             "worker_generation",
             "preparation_sha256",
-            if hook || sdk { "guard" } else { "case" },
+            if hook || sdk || mcp { "guard" } else { "case" },
         ];
         if sdk {
             fields.push("sdk");
@@ -67,7 +70,7 @@ impl NativeJobSpec {
         if value
             .as_object()
             .is_none_or(|o| o.len() != fields.len() || fields.iter().any(|k| !o.contains_key(*k)))
-            || (!(hook || sdk)
+            || (!(hook || sdk || mcp)
                 && (value["schema"] != "hol-gauntlet-native-worker-job.v1"
                     || value["profile"] != "native-apparatus-v1"))
             || value["source_sha"] != request.source_sha()
@@ -82,7 +85,7 @@ impl NativeJobSpec {
             .filter(|s| hex(s, 64))
             .ok_or("outside native preparation pin required")?
             .to_owned();
-        let execution = if hook || sdk {
+        let execution = if hook || sdk || mcp {
             let pins = NativeGuardPins::parse(&value["guard"])?;
             if pins.source_sha != request.source_sha() {
                 return Err("Native hook product source differs from job source".into());
@@ -92,6 +95,8 @@ impl NativeJobSpec {
                     guard: pins,
                     sdk: NativeSdkPins::parse(&value["sdk"])?,
                 }
+            } else if mcp {
+                NativeJobExecution::McpTransport(pins)
             } else {
                 NativeJobExecution::HookTransport(pins)
             }
@@ -116,6 +121,7 @@ impl NativeJobSpec {
         match self.execution {
             NativeJobExecution::Apparatus(_) => "native-apparatus-v1",
             NativeJobExecution::HookTransport(_) => "native-hook-transport-v1",
+            NativeJobExecution::McpTransport(_) => "native-mcp-transport-v1",
             NativeJobExecution::SdkTransport { .. } => "native-sdk-transport-v1",
         }
     }
@@ -124,6 +130,7 @@ impl NativeJobSpec {
         match self.execution {
             NativeJobExecution::Apparatus(case) => case.as_str(),
             NativeJobExecution::HookTransport(_) => "native-hook-transport",
+            NativeJobExecution::McpTransport(_) => "native-mcp-transport",
             NativeJobExecution::SdkTransport { .. } => "native-sdk-transport",
         }
     }
@@ -210,6 +217,25 @@ mod tests {
             spec.execution,
             NativeJobExecution::HookTransport(_)
         ));
+        let mut mcp = value.clone();
+        mcp["schema"] = json!("hol-gauntlet-native-worker-job.v4");
+        mcp["profile"] = json!("native-mcp-transport-v1");
+        let parsed = parse(&mcp).unwrap();
+        assert_eq!(parsed.profile(), "native-mcp-transport-v1");
+        assert!(matches!(
+            parsed.execution,
+            NativeJobExecution::McpTransport(_)
+        ));
+        for (field, bad) in [
+            ("schema", json!("hol-gauntlet-native-worker-job.v3")),
+            ("profile", json!("native-hook-transport-v1")),
+            ("sdk", json!({})),
+            ("command", json!("sh")),
+        ] {
+            let mut changed = mcp.clone();
+            changed[field] = bad;
+            assert!(parse(&changed).is_err());
+        }
         for (pointer, bad) in [
             ("/guard/source_sha", json!("d".repeat(40))),
             ("/guard/bwrap_sha256", json!(true)),

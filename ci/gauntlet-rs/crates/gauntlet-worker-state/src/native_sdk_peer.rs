@@ -57,6 +57,17 @@ pub(super) fn sdk_cgroup(container: &str, label: &str, actual: &str) -> Result<(
 }
 
 pub(super) fn checked_status(raw: &[u8], pid: u32) -> Result<BTreeMap<String, String>, String> {
+    checked_status_for_uid(raw, pid, 10001)
+}
+
+pub(crate) fn checked_status_for_uid(
+    raw: &[u8],
+    pid: u32,
+    uid: u32,
+) -> Result<BTreeMap<String, String>, String> {
+    if !matches!(uid, 10001 | 10005) {
+        return Err("fixed SDK or MCP identity profile required".into());
+    }
     let text = std::str::from_utf8(raw).map_err(|_| "SDK process status UTF-8")?;
     let mut result = BTreeMap::new();
     for line in text.lines() {
@@ -98,9 +109,11 @@ pub(super) fn checked_status(raw: &[u8], pid: u32) -> Result<BTreeMap<String, St
         .map(str::parse::<u32>)
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| "SDK namespace PID invalid")?;
-    if text("Uid") != Some("10001 10001 10001 10001")
-        || text("Gid") != Some("10001 10001 10001 10001")
-        || !matches!(text("Groups"), Some("" | "10001"))
+    let expected_ids = format!("{uid} {uid} {uid} {uid}");
+    let expected_group = uid.to_string();
+    if text("Uid") != Some(expected_ids.as_str())
+        || text("Gid") != Some(expected_ids.as_str())
+        || !text("Groups").is_some_and(|group| group.is_empty() || group == expected_group)
         || text("NoNewPrivs") != Some("1")
         || text("Seccomp") != Some("2")
         || text("Seccomp_filters")

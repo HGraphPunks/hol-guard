@@ -329,6 +329,15 @@ impl NativeMcpSockets {
         }
         result
     }
+    pub fn verify_for_job(&mut self, job_id: &str) -> Result<(), String> {
+        if !crate::hex(job_id, 16)
+            || self.path != PathBuf::from(crate::native_job_spec::NATIVE_JOBS).join(job_id)
+        {
+            self.poisoned = true;
+            return Err("MCP listener belongs to a different native job".into());
+        }
+        self.verify()
+    }
     fn accept(&mut self, directory: usize, name: &str) -> Result<Option<UnixStream>, String> {
         self.verify()?;
         let leaf = self.directories[directory]

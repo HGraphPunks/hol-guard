@@ -454,6 +454,11 @@ approval ceremony for routine work already authorized by this request.
   passes 164 tests with 24 existing ignores. The independent reader checks
   both original VM result exports. This does not authenticate a connection or
   establish process/stream drain; see [Root boundary proof](gauntlet-rust-mcp-root-boundary-proof-20261027.md).
+- 2026-10-27: the closed v4 Native MCP profile now wires Rust-owned container,
+  peer binding, normal product CLI duplex transport and Root SQLite sessions.
+  ARM component tests pass 170 cases with 24 existing ignores; shared macOS
+  worker tests and both warnings-denied Clippy targets pass. The first live
+  v4 execution remains pending at this checkpoint. See [Native MCP transport](gauntlet-rust-native-mcp-transport.md).
 - Next: finish Native MCP/service ownership, independent scoring and
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
