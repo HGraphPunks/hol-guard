@@ -54,7 +54,7 @@ from codex_plugin_scanner.guard.models import (
     PolicyDecision,
 )
 from codex_plugin_scanner.guard.native_runner_authority import NativeRunnerAuthorityError
-from codex_plugin_scanner.guard.policy import build_decision_v2, decide_action
+from codex_plugin_scanner.guard.policy import build_decision_v2
 from codex_plugin_scanner.guard.policy_bundle_delivery import policy_bundle_acknowledgement_payload
 from codex_plugin_scanner.guard.policy_bundle_parser import policy_bundle_rejection_message
 from codex_plugin_scanner.guard.proxy import RemoteGuardProxy
@@ -75,6 +75,7 @@ from codex_plugin_scanner.guard.store import (
     GuardStore,
 )
 from codex_plugin_scanner.guard.synced_policy import synced_policy_payload
+from tests.claude_notice_support import claude_guard_approval_question_text, record_claude_permission_notice
 from tests.codex_read_only_inspection import (
     codex_command_is_read_only_source_inspection,
 )
@@ -9316,7 +9317,7 @@ def test_guard_hook_claude_tampered_pending_state_cannot_bootstrap_signed_allow(
         source_scope="project",
         config_path="/workspace/.env",
     )
-    guard_commands_module._record_claude_permission_notice(
+    record_claude_permission_notice(
         store=store,
         payload={"session_id": session_id, "tool_name": "Read"},
         reason="HOL Guard intercepted Claude's attempt to read .env.",
@@ -9387,7 +9388,7 @@ def test_guard_hook_claude_signed_unseen_pending_cannot_bootstrap_allow(tmp_path
         config_path="/workspace/.env",
     )
     artifact_hash_value = "hash-signed-unseen"
-    guard_commands_module._record_claude_permission_notice(
+    record_claude_permission_notice(
         store=store,
         payload={"session_id": session_id, "tool_name": "Read"},
         reason="HOL Guard intercepted Claude's attempt to read .env.",
@@ -9512,7 +9513,7 @@ def test_guard_hook_claude_ask_user_question_unsigned_bound_pending_cannot_persi
     artifact_id = "claude-code:runtime:file-read:.env"
     now = "2026-04-24T00:00:00+00:00"
     approval_code = "abc123abc123"
-    approval_question = guard_commands_module._claude_guard_approval_question_text(approval_code)
+    approval_question = claude_guard_approval_question_text(approval_code)
     pending_key = _claude_pending_permission_state_key(session_id, artifact_id)
     store.set_sync_payload(
         pending_key,
@@ -13221,18 +13222,6 @@ def test_guard_invalid_changed_hash_action_falls_back_to_reapproval(tmp_path):
     assert evaluation["artifacts"][0]["policy_action"] == "require-reapproval"
 
 
-def test_guard_invalid_default_action_falls_back_to_reapproval(tmp_path):
-    config = GuardConfig(
-        guard_home=tmp_path / "guard-home",
-        workspace=None,
-        default_action="blok",  # type: ignore[arg-type]
-    )
-
-    action = decide_action(configured_action=None, default_action=None, config=config, changed=False)
-
-    assert action == "require-reapproval"
-
-
 def test_guard_run_never_launches_for_unknown_stored_policy_action(tmp_path, monkeypatch):
     home_dir = tmp_path / "home"
     workspace_dir = tmp_path / "workspace"
@@ -13292,22 +13281,9 @@ def test_guard_run_never_launches_for_unknown_stored_policy_action(tmp_path, mon
     assert launch_calls == []
 
 
-def test_decide_action_with_v2_preserves_legacy_action_and_adds_decision(tmp_path):
-    config = GuardConfig(
-        guard_home=tmp_path / "guard-home",
-        workspace=None,
-        default_action="block",
-    )
+def test_build_decision_v2_preserves_legacy_action_and_adds_decision():
+    decision = build_decision_v2("block", reason="invalid-default-fallback")
 
-    action = decide_action(
-        configured_action=None,
-        default_action=None,
-        config=config,
-        changed=False,
-    )
-    decision = build_decision_v2(action, reason="invalid-default-fallback")
-
-    assert action == "block"
     assert decision.action == "block"
     assert decision.reason == "invalid-default-fallback"
     assert decision.harness_message == "HOL Guard blocked this action."

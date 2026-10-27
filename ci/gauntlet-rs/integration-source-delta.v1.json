@@ -325,7 +325,7 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/extension_adapters.py",
       "phase": 5,
-      "sha256": "5a258ca4ab2336afa898872ad0fe927c57c4faf7d9fd7f87dd0571c7a6c71bde"
+      "sha256": "19a21d93e205408bb44c0c57644231de21465ac29c165421d76eea473d9db7d5"
     },
     {
       "base_sha256": "312f6dee134162633231c3d26d6d9ce11b0acb6017f9bc3f8ebdca3a0a3c8954",

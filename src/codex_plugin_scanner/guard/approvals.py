@@ -73,6 +73,7 @@ from .native_approval_resolution import (
 from .native_approval_scope import UNAVAILABLE as APPROVAL_SCOPE_UNAVAILABLE
 from .native_approval_scope import ApprovalScopeUnavailableError
 from .native_package_workspace_scope import NativePackageWorkspaceScopeError
+from .native_protection_health import NativeProtectionHealthError
 from .package_execution_context import package_execution_context_from_scanner_evidence
 from .protection_capabilities import protection_capability_payloads
 from .risk import artifact_risk_profile
@@ -494,6 +495,8 @@ def apply_approval_resolution(
             target=local_tool_grant_target,
             duration=local_tool_grant_duration,
             now=resolved_at,
+            harness=str(request["harness"]),
+            reason=reason,
         )
     contract, exact_token = (
         request_scope_observation(request, guard_home=store.guard_home)
@@ -670,11 +673,7 @@ def apply_approval_resolution(
             if isinstance(error, str) and error:
                 raise ValueError(error)
     if local_tool_selection is not None:
-        local_tool_decision = local_tool_grant_decision(
-            harness=str(request["harness"]),
-            selection=local_tool_selection,
-            reason=reason,
-        )
+        local_tool_decision = local_tool_grant_decision(local_tool_selection)
         store.ensure_policy_integrity_ready_for_write(
             harness=local_tool_decision.harness,
             approval_gate_grant=resolved_gate_grant,
@@ -801,8 +800,8 @@ def _local_tool_grant_result(selection: LocalToolGrantSelection) -> dict[str, ob
         "target": selection.target,
         "duration": selection.duration,
         "expires_at": selection.expires_at,
-        "tool_name": selection.eligibility.tool_name,
-        "capability": selection.eligibility.capability,
+        "tool_name": selection.tool_name,
+        "capability": selection.capability,
     }
 
 
@@ -1309,18 +1308,29 @@ def _build_runtime_snapshot(
             health_runtime_state["approval_center_url"] = approval_center_url
     if health_runtime_state is not None and containment_health is not None:
         health_runtime_state["containment_health"] = containment_health
-    protection_health = build_runtime_protection_health(
-        store=store,
-        runtime_state=health_runtime_state,
-        managed_installs=health_managed_installs,
-        hook_verification=hook_verification,
-        trust_status=trust_status,
-        now=datetime.fromisoformat(snapshot_now.replace("Z", "+00:00")),
-    )
+    try:
+        protection_health: dict[str, object] | None = build_runtime_protection_health(
+            store=store,
+            guard_home=store.guard_home,
+            runtime_state=health_runtime_state,
+            managed_installs=health_managed_installs,
+            hook_verification=hook_verification,
+            trust_status=trust_status,
+            now=datetime.fromisoformat(snapshot_now.replace("Z", "+00:00")),
+        )
+    except NativeProtectionHealthError as error:
+        # Only the native runtime says whether this machine is protected. With
+        # it unreachable there is no report to show and no state to claim, so
+        # the snapshot carries neither and the headline falls to degraded. The
+        # reason code is the only thing that tells a missing runtime apart from
+        # one that answered something unusable, and snapshots are polled, so it
+        # goes to the log at debug.
+        _LOGGER.debug("protection health report unavailable: %s", error)
+        protection_health = None
     headline_state = _resolve_runtime_headline_state(
         pending_count=pending_count,
         runtime_state=health_runtime_state,
-        protection_state=str(protection_health["state"]),
+        protection_state=str(protection_health["state"]) if protection_health is not None else "",
     )
     return {
         "generated_at": snapshot_now,

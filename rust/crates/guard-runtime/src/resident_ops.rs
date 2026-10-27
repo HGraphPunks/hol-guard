@@ -310,6 +310,9 @@ pub(crate) fn evaluate_resident_bytes_with_cancellation(
             ResidentOperationV1::ComposioRole(request) => {
                 crate::composio_role_op::evaluate_composio_role_request(&request)
             }
+            ResidentOperationV1::ProjectIdentity(request) => {
+                crate::project_identity_op::evaluate_project_identity_request(&request)
+            }
             ResidentOperationV1::SkillWorkflowPreflight(request) => {
                 crate::skill_workflow_preflight_op::evaluate_skill_workflow_preflight_request(
                     &request,
@@ -346,6 +349,11 @@ pub(crate) fn evaluate_resident_bytes_with_cancellation(
             }
             ResidentOperationV1::ApprovalQueueIdentity(request) => {
                 crate::approval_queue_identity_op::evaluate_approval_queue_identity_request(
+                    &request,
+                )
+            }
+            ResidentOperationV1::ExtensionControlTerminal(request) => {
+                crate::extension_control_terminal_op::evaluate_extension_control_terminal_request(
                     &request,
                 )
             }
@@ -500,6 +508,9 @@ pub(crate) fn evaluate_resident_bytes_with_cancellation(
             }
             ResidentOperationV1::LocalToolEligibility(request) => {
                 crate::local_tool_eligibility_op::evaluate_local_tool_eligibility_request(&request)
+            }
+            ResidentOperationV1::LocalToolGrant(request) => {
+                crate::local_tool_grant_op::evaluate_local_tool_grant_request(&request)
             }
             ResidentOperationV1::ShellHelpers(request) => {
                 crate::shell_helpers_op::evaluate(&request)
@@ -767,11 +778,14 @@ pub(crate) fn evaluate_resident_bytes_with_cancellation(
             ResidentOperationV1::InventoryUrlRedaction(request) => {
                 crate::inventory_url_redaction_op::evaluate_inventory_url_redaction(&request)
             }
-            ResidentOperationV1::VerifiedReadPlan(request) => {
-                crate::verified_read_plan_op::evaluate_verified_read_plan(&request)
+            ResidentOperationV1::VerifiedReadExecute(request) => {
+                crate::verified_read_execute_op::evaluate_verified_read_execute(&request)
             }
             ResidentOperationV1::AibomReportSummaries(request) => {
                 crate::aibom_report_summaries_op::evaluate_aibom_report_summaries(&request)
+            }
+            ResidentOperationV1::ProtectionHealthReport(request) => {
+                crate::protection_health_report_op::evaluate_protection_health_report(&request)
             }
             // Diagnostic correlation only: the lineage never authorizes an action.
             ResidentOperationV1::RetryLineageCapture(request) => {
@@ -894,6 +908,17 @@ fn operation_guard_home(operation: &ResidentOperationV1) -> Option<&str> {
         ResidentOperationV1::CodexBindingCapture(request) => Some(&request.guard_home),
         ResidentOperationV1::ProtectRequest(request) => Some(&request.guard_home),
         ResidentOperationV1::CodexRequestResume(request) => Some(&request.guard_home),
+        // Only the review responses read a file (the daemon token that signs
+        // their review link), so only they name the home they read.
+        ResidentOperationV1::HookDecide(request) => match &request.query {
+            guard_contracts::HookDecisionQueryV1::SilentReviewBlock { inputs } => {
+                Some(&inputs.guard_home)
+            }
+            guard_contracts::HookDecisionQueryV1::PausedReview { inputs } => {
+                Some(&inputs.guard_home)
+            }
+            _ => None,
+        },
         ResidentOperationV1::PolicyIntegrityRows(request) => request
             .generation
             .as_ref()
