@@ -1,5 +1,5 @@
 //! Real host process, loopback socket, state ownership and probe cancellation.
-use gauntlet_host_state::HostLifecycleStore;
+use gauntlet_host_state::{wait_for_lifecycle, HostLifecycleStore};
 use serde_json::{json, Value};
 use std::fs;
 use std::io::{Read, Write};
@@ -57,13 +57,17 @@ printf '{"schema":"hol-gauntlet-vm-telemetry.v1","platform":"Linux","status":"ru
         );
         let store =
             HostLifecycleStore::initialize(&parent, "hashgraph-online/hol-guard", now()).unwrap();
-        let config = store
-            .configure_observer(
+        // Parallel process tests can briefly inherit a just-released flock
+        // before exec closes its descriptor. This fixed immutable configuration
+        // is idempotent; preserve every real failure and bound Busy alone.
+        let config = wait_for_lifecycle(|| {
+            store.configure_observer(
                 &json!({"git":git,"limactl":lima,"telemetry_seconds":5}),
                 &"c".repeat(64),
             )
-            .unwrap()
-            .sha256;
+        })
+        .unwrap()
+        .sha256;
         Self {
             temp,
             parent,

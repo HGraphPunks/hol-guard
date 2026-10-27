@@ -50,6 +50,7 @@ pub use live_provider_manifest::{
 };
 mod controller_key_pins;
 mod native_control_readback;
+mod native_diagnostic_archive;
 pub use controller_key_pins::{
     HostControllerKeyPinJournal, HostControllerKeyPins, HostDeterministicReadbackObservation,
     HostEffectEventsPin, HostKeyPinError, HostKeyPinRecord, HostKeyedTerminalObservation,
