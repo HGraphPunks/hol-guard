@@ -124,8 +124,20 @@ impl NativeSdkAgent {
                 10,
                 cancel,
             )?;
-            if !crate::builder_policy::profile_is_loaded(&agent.name).map_err(|e| e.to_string())? {
-                return Err("SDK enforcing profile not observed".into());
+            let expected_label = crate::native_sdk_peer::sdk_label(&agent.name)?;
+            let loaded = String::from_utf8(read(
+                Path::new("/sys/kernel/security/apparmor/profiles"),
+                1024 * 1024,
+            )?)
+            .map_err(|_| "SDK profile inventory UTF-8")?;
+            if !loaded.lines().any(|line| line == expected_label) {
+                let actual = loaded
+                    .lines()
+                    .filter(|line| line.starts_with(&format!("{} ", agent.name)))
+                    .collect::<Vec<_>>();
+                return Err(format!(
+                    "SDK declared template mode not observed: {actual:?}"
+                ));
             }
             let absent = agent.commands.run(
                 false,
@@ -243,7 +255,7 @@ impl NativeSdkAgent {
                     start_ticks: stat.start_ticks,
                     cgroup: cgroup.into(),
                 },
-                &format!("{} (enforce)", agent.name),
+                &expected_label,
                 actor,
             )?;
             agent.inspection = Some(value);

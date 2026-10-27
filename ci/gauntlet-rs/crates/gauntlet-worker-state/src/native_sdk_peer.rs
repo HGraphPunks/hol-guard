@@ -1,6 +1,21 @@
 //! Exact saved-ID/capability checks shared by the Native SDK kernel observer.
 use std::collections::BTreeMap;
 
+/// The inherited developer SDK template is explicitly a named unconfined
+/// profile. It must not be confused with the product cell's enforcing label.
+pub(crate) fn sdk_label(name: &str) -> Result<String, String> {
+    let tail = name
+        .strip_prefix("hol-gauntlet-sdk-")
+        .ok_or("fixed SDK profile name required")?;
+    let (job, nonce) = tail
+        .split_once('-')
+        .ok_or("SDK profile job/nonce required")?;
+    if !crate::hex(job, 16) || !crate::hex(nonce, 32) {
+        return Err("fresh job-bound SDK profile required".into());
+    }
+    Ok(format!("{name} (unconfined)"))
+}
+
 pub(super) fn checked_status(raw: &[u8], pid: u32) -> Result<BTreeMap<String, String>, String> {
     let text = std::str::from_utf8(raw).map_err(|_| "SDK process status UTF-8")?;
     let mut result = BTreeMap::new();
@@ -75,6 +90,19 @@ pub use kernel::{NativeSdkBoundary, NativeSdkPeer, NativeSdkRequestPeer};
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn sdk_label_requires_the_exact_named_mode_and_fresh_job_identity() {
+        let name = format!("hol-gauntlet-sdk-{}-{}", "a".repeat(16), "b".repeat(32));
+        assert_eq!(sdk_label(&name).unwrap(), format!("{name} (unconfined)"));
+        for name in [
+            "unconfined",
+            "hol-product-cell-example",
+            "hol-gauntlet-sdk-../root",
+            "hol-gauntlet-sdk-aaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-extra",
+        ] {
+            assert!(sdk_label(name).is_err());
+        }
+    }
     #[test]
     fn every_saved_id_and_capability_set_is_checked() {
         let raw="Uid: 10001 10001 10001 10001\nGid: 10001 10001 10001 10001\nGroups: 10001\nNoNewPrivs: 1\nSeccomp: 2\nSeccomp_filters: 1\nNSpid: 42 7\nCapAmb: 0000000000000000\nCapBnd: 0000000000000000\nCapEff: 0000000000000000\nCapInh: 0000000000000000\nCapPrm: 0000000000000000\n";

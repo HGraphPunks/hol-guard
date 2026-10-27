@@ -19,7 +19,7 @@ for authorization. Historical SDK adapters are unchanged.
 
 The Linux ARM peer observer holds pidfds, namespace descriptors and the actual
 Bun executable inode. It checks every saved UID/GID, group and capability set,
-NNP, seccomp, enforcing label, exact cgroup, namespace init, fixed SDK argv and
+NNP, seccomp, exact fresh named SDK template label, exact cgroup, namespace init, fixed SDK argv and
 the externally pinned Bun bytes. The SDK must occupy the measured agent's
 namespaces, separate from Root and the product cell. Hook peers must be that
 exact Bun PID. Execution peers also require the existing twice-observed
@@ -144,3 +144,32 @@ has SHA-256 `e73e61367a9515f03a118c6ff5df0e80ae77c8ad88028591805cf1fa9c5f5019`.
 Mac/ARM64 Clippy and ARM compilation pass. The preceding constructor borrow
 error remains in `rust-native-sdk-transport-arm-clippy-027.log`; no VM
 execution used that failed compile. The live closed-history repair is next.
+
+The closed-history repair now passes on the owned VM at `3415db61`.
+Receipt `618f53fbe80328d268bcd37f5e8a153f11b25286301ad6b7e00950160643e30e`
+reopens byte-for-byte; all four original failed-job files remain unchanged.
+Wrong generation/started pins and both competing leases refuse. The native
+suites pass 148 worker tests with 24 existing fixture ignores, plus 30 rootfs
+tests and its subprocess check. A wrong SDK publication digest refuses before
+any product or SDK launch, with a consumed invalid-evidence terminal.
+
+Fresh SDK job `e2c701baf1472701` stops before agent creation with
+`SDK enforcing profile not observed` and fully cleans up. The inherited
+`developer_browser.apparmor` template explicitly declares
+`flags=(unconfined)`. The SDK label check now requires that exact named mode
+and job/nonce identity, rather than claiming the SDK has an enforcing profile.
+The template bytes, DAC, capability drop, NNP, seccomp, namespace and resource
+limits are unchanged. The product cell's separate enforcing profile remains
+required. AppArmor documents the distinct modes in its
+[4.0 profile reference](https://www.apparmor.net/man/4.0/apparmor.d/).
+This SDK diagnostic remains ineligible.
+
+The second immutable export has 83 members and 348,160 bytes, SHA-256
+`4000f12ed0e911013559eb2fc07e8865f22071e65874d8e8ec1e1bb665b92a0b`.
+It retains both SDK attempts, the repair and earlier repair refusal,
+pin/lease/replay/readback results, and preservation of all 71 worker files.
+The mode-corrected source passes 448 Mac tests across 218 targets with zero
+failures or ignores; log `rust-workspace-native-sdk-transport-028.log`
+has SHA-256 `f386816d554f24c10283e927037c4e2b963dfb7ca67120db9e500b91f0ba55a7`.
+Mac/ARM64 Clippy and ARM compilation pass. A fresh corrected SDK run remains
+next; no SDK, MCP, Guard-causality or model result is claimed yet.
