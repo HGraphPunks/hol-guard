@@ -48,7 +48,7 @@ fn workspace(spec: &CellPreparation) -> Result<OwnedFd> {
     Ok(fd)
 }
 
-pub(crate) fn seed(spec: &CellPreparation) -> Result<Value> {
+pub fn seed(spec: &CellPreparation) -> Result<Value> {
     crate::require_outside_root()?;
     let root = workspace(spec)?;
     for item in Dir::read_from(&root).map_err(|e| e.to_string())? {
@@ -112,7 +112,7 @@ pub(crate) fn seed(spec: &CellPreparation) -> Result<Value> {
     )
 }
 
-pub(crate) fn effect(spec: &CellPreparation) -> Result<Value> {
+pub fn effect(spec: &CellPreparation) -> Result<Value> {
     let workspace = workspace(spec)?;
     let fd = openat(
         &workspace,

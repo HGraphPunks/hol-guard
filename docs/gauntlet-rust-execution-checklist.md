@@ -282,6 +282,15 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
     [current Native hook VM proof](gauntlet-rust-native-hook-vm-proof-20261027.md).
     These diagnostics supply no SDK/Guard verdict. See
     [transport contract](gauntlet-rust-native-hook-transport.md).
+  - [x] Publish the retained public SDK/Bun pair through Root Rust under both
+    worker leases without package execution. Source `8c868cbf`, job
+    `e2c701baf1472400`: exact pin/lease/replay refusals pass, complete
+    source/published inventories match the explicit Root custody normalization,
+    and all 54 prior worker files remain unchanged. The inert host reader
+    verifies 42,324 source members, 20 result members, three binary-input
+    members, the dual receipt and 141 passing Root tests with 24 existing
+    fixture ignores. See [SDK publication proof](gauntlet-rust-native-sdk-publication-vm-proof-20261027.md).
+    SDK/Bun execution, MCP and independently scored controls remain open.
   - [x] Run fresh current-source Native success, timeout and cancellation
     through the complete Rust worker on the published 3.57.0 runtime. GNU actor
     ABI preflight refuses the earlier static actor before artifact creation;

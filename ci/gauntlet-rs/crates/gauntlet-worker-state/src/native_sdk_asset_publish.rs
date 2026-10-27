@@ -49,7 +49,7 @@ fn names(fd: &OwnedFd) -> Result<Vec<String>, String> {
     names.sort();
     Ok(names)
 }
-fn verify_bun(path: &Path, pins: &NativeSdkAssetPins) -> Result<(), String> {
+pub(crate) fn verify_bun(path: &Path, pins: &NativeSdkAssetPins) -> Result<(), String> {
     use sha2::{Digest, Sha256};
     use std::io::Read;
     let fd = open(
@@ -108,7 +108,7 @@ fn verify_bun(path: &Path, pins: &NativeSdkAssetPins) -> Result<(), String> {
     }
     Ok(())
 }
-fn sdk_version(root: &Path) -> Result<(), String> {
+pub(crate) fn sdk_version(root: &Path) -> Result<(), String> {
     use std::io::Read;
     let fd = open(
         root.join("node_modules/@oh-my-pi/pi-coding-agent/package.json"),

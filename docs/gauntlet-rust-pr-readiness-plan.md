@@ -366,6 +366,13 @@ approval ceremony for routine work already authorized by this request.
   unchanged evidence/wire/rootfs binaries retain their earlier actual ARM
   passes. SDK, independent Guard causality and conformance remain open. See
   [Native hook VM proof](gauntlet-rust-native-hook-vm-proof-20261027.md).
+- 2026-10-27: Root Rust source `8c868cbf` publishes the inert SDK/Bun pair
+  under both worker leases. Actual pin/lease/replay refusals pass, complete
+  source/published inventories match the explicit Root ownership normalization,
+  and all 54 prior worker files remain unchanged. The inert host reader verifies
+  42,324 source, 20 result and three binary-input members. Root passes 141
+  tests with 24 existing fixture ignores. SDK/Bun remain unexecuted. See
+  [SDK publication proof](gauntlet-rust-native-sdk-publication-vm-proof-20261027.md).
 - Next: independent SDK-backed controls, Native MCP ownership and fresh conformance.
   The next Rust slice adds closed SDK request/route state, held kernel peer
   identity and source-pinned inert SDK/Bun publication; see the

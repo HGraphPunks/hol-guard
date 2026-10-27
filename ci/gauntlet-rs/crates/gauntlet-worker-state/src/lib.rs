@@ -239,8 +239,34 @@ mod native_job_spec;
 pub use native_job_spec::{NativeJobExecution, NativeJobSpec};
 mod native_sdk_protocol;
 pub use native_sdk_protocol::{NativeSdkHook, NativeSdkLedger, NativeSdkRequest};
+mod native_sdk_socket_io;
+pub use native_sdk_socket_io::{read_native_sdk_line, write_native_sdk_line};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_sockets;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_sdk_sockets::NativeSdkSockets;
 mod native_sdk_asset_spec;
 pub use native_sdk_asset_spec::NativeSdkAssetPins;
+mod native_sdk_pins;
+pub use native_sdk_pins::{NativeSdkPins, NATIVE_SDK_AGENT_IMAGE};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_agent;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_sdk_agent_spec;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_assets;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_control;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_process;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_public;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_quiescence;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_router;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_sdk_assets::VerifiedNativeSdkAssets;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_sdk_asset_publish;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

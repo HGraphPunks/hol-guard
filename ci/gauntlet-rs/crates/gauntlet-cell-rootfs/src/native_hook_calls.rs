@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn one_use_native_input_survives_detachment_and_sink_failures_cannot_replay() {
         let mut ledger = NativeHookCalls::default();
-        let mut payload = json!({"hook_event_name":"PreToolUse","tool_call_id":"call","tool_name":"bash","tool_input":{"command":"python3 -m unittest discover -s tests -v"}});
+        let mut payload = json!({"hook_event_name":"PreToolUse","tool_call_id":"call","tool_name":"bash","tool_input":{"command":"python3 -m unittest discover -s tests -v","timeout":30,"label":"complete original SDK options"}});
         let original = payload.clone();
         ledger.reserve(&payload).unwrap();
         payload["tool_input"]["command"] = json!("changed");

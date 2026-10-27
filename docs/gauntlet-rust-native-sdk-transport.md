@@ -76,5 +76,28 @@ compilation pass. The earlier sandboxed workspace attempt failed at local
 Unix socket binding before either unchanged interop peer started; its log
 `rust-workspace-native-sdk-components-024.log` remains retained as
 `4868f9a736930f4de4df5c077f7004812f3cc834bcf87ee439023f78bc7cc474`.
-The peer observer still requires actual live SDK verification. The publisher's
-first owned-VM execution remains next. No model or provider request occurred.
+The publisher now passes its first owned-VM execution and replay/lease/pin
+refusals; see the [SDK publication proof](gauntlet-rust-native-sdk-publication-vm-proof-20261027.md).
+The peer observer still requires actual live SDK verification. No model or
+provider request occurred.
+
+The next closed worker declaration is v3, `native-sdk-transport-v1`. Rust owns
+the Root gate and hook sockets, fixed agent create/start/remove lifecycle,
+retained bounded helper processes, readonly public helpers, actual Bun binding,
+same-UID peer negative, complete original Bash input, one-use contained route,
+captured-output delivery and replay refusal. It uses the unchanged SDK v1
+synthetic-stream adapter, with Bash only and no MCP or provider connection.
+Its first live execution remains pending. The profile always returns
+`invalid-evidence`; independent Guard scoring, host signing-key admission,
+MCP and fresh six-role staging/installed conformance remain open.
+
+The SDK launcher compiles for Linux ARM64. The complete Mac workspace passes
+446 tests across 218 targets, with zero failures or ignores; log
+`rust-workspace-native-sdk-transport-025b.log` has SHA-256
+`81f23baf078d46aa30f557c00ed6e0892ab04c296763bc8996127bf75e3d53fd`.
+Warnings-denied Mac and ARM64 Clippy pass. After the controller exits, the
+outer Rust worker independently requires no container metadata for that
+job's SDK label and no scoped SDK AppArmor profile before writing a terminal.
+An uncertain cleanup stays an unknown job rather than gaining a terminal
+from the controller's claim alone. Historical v1/v2 report shapes remain
+unchanged.

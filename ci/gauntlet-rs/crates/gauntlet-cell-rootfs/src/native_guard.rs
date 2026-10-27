@@ -203,16 +203,29 @@ impl NativeHookPlane {
     }
 
     pub fn review_before(&mut self, id: &str, command: &str, environment: &Value) -> Result<Value> {
+        self.review_before_input(id, &json!({"command":command}), environment)
+    }
+
+    /// Preserve the complete SDK input, including any declared Bash options.
+    /// Session selection stays with the Root controller, never the sender.
+    pub fn review_before_input(
+        &mut self,
+        id: &str,
+        input: &Value,
+        environment: &Value,
+    ) -> Result<Value> {
         if self
             .prompt
             .as_ref()
             .is_none_or(|v| v["response"]["decision"] != "allow")
             || !environment.is_object()
+            || !input.is_object()
+            || !input["command"].is_string()
         {
             return Err("actual allowed public prompt and typed execution context required".into());
         }
         let payload = json!({"hook_event_name":"PreToolUse","config_path":"/product/home/omp.json","session_id":self.session,
-            "tool_call_id":id,"tool_name":"bash","tool_input":{"command":command},"guard_execution_environment":environment,
+            "tool_call_id":id,"tool_name":"bash","tool_input":input,"guard_execution_environment":environment,
             "guard_contained_output_profile":"controller-contained-output.v1"});
         self.calls.reserve(&payload)?;
         let response = self.invoke(&payload)?;

@@ -1,5 +1,5 @@
 //! Versioned native apparatus dispatch. This profile cannot qualify Guard.
-use crate::{hex, launch_plan::rust_job_slice_name};
+use crate::{hex, launch_plan::rust_job_slice_name, NativeSdkPins};
 use gauntlet_cell_rootfs::{CellPreparation, NativeCase, NativeGuardPins};
 use gauntlet_contracts::{canonicalize, WorkerAction, WorkerRequest};
 use serde_json::Value;
@@ -16,6 +16,10 @@ pub(crate) const ACTIVE_SECONDS: u64 = 300;
 pub enum NativeJobExecution {
     Apparatus(NativeCase),
     HookTransport(NativeGuardPins),
+    SdkTransport {
+        guard: NativeGuardPins,
+        sdk: NativeSdkPins,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -46,19 +50,24 @@ impl NativeJobSpec {
         let value: Value = serde_json::from_slice(&canonical).map_err(|_| "native run JSON")?;
         let hook = value["schema"] == "hol-gauntlet-native-worker-job.v2"
             && value["profile"] == "native-hook-transport-v1";
-        let fields = [
+        let sdk = value["schema"] == "hol-gauntlet-native-worker-job.v3"
+            && value["profile"] == "native-sdk-transport-v1";
+        let mut fields = vec![
             "schema",
             "profile",
             "source_sha",
             "job_id",
             "worker_generation",
             "preparation_sha256",
-            if hook { "guard" } else { "case" },
+            if hook || sdk { "guard" } else { "case" },
         ];
+        if sdk {
+            fields.push("sdk");
+        }
         if value
             .as_object()
             .is_none_or(|o| o.len() != fields.len() || fields.iter().any(|k| !o.contains_key(*k)))
-            || (!hook
+            || (!(hook || sdk)
                 && (value["schema"] != "hol-gauntlet-native-worker-job.v1"
                     || value["profile"] != "native-apparatus-v1"))
             || value["source_sha"] != request.source_sha()
@@ -73,12 +82,19 @@ impl NativeJobSpec {
             .filter(|s| hex(s, 64))
             .ok_or("outside native preparation pin required")?
             .to_owned();
-        let execution = if hook {
+        let execution = if hook || sdk {
             let pins = NativeGuardPins::parse(&value["guard"])?;
             if pins.source_sha != request.source_sha() {
                 return Err("Native hook product source differs from job source".into());
             }
-            NativeJobExecution::HookTransport(pins)
+            if sdk {
+                NativeJobExecution::SdkTransport {
+                    guard: pins,
+                    sdk: NativeSdkPins::parse(&value["sdk"])?,
+                }
+            } else {
+                NativeJobExecution::HookTransport(pins)
+            }
         } else {
             NativeJobExecution::Apparatus(
                 value["case"]
@@ -100,6 +116,7 @@ impl NativeJobSpec {
         match self.execution {
             NativeJobExecution::Apparatus(_) => "native-apparatus-v1",
             NativeJobExecution::HookTransport(_) => "native-hook-transport-v1",
+            NativeJobExecution::SdkTransport { .. } => "native-sdk-transport-v1",
         }
     }
 
@@ -107,6 +124,7 @@ impl NativeJobSpec {
         match self.execution {
             NativeJobExecution::Apparatus(case) => case.as_str(),
             NativeJobExecution::HookTransport(_) => "native-hook-transport",
+            NativeJobExecution::SdkTransport { .. } => "native-sdk-transport",
         }
     }
 
@@ -207,6 +225,57 @@ mod tests {
             changed[key] = json!("untrusted");
             assert!(parse(&changed).is_err(), "{key}");
         }
+    }
+    #[test]
+    fn sdk_requires_its_own_version_and_both_outside_product_and_dependency_pins() {
+        let (mut value, _, generation) = fixture();
+        value["schema"] = json!("hol-gauntlet-native-worker-job.v3");
+        value["profile"] = json!("native-sdk-transport-v1");
+        value.as_object_mut().unwrap().remove("case");
+        value["guard"] = json!({"schema":"hol-gauntlet-native-hook-product-pins.v1","source_sha":"a".repeat(40),
+            "package_version":"3.57.0","native_sha256":"b".repeat(64),"bwrap_sha256":"c".repeat(64)});
+        value["sdk"] = NativeSdkPins {
+            sdk_tree_sha256: "d".repeat(64),
+            bun_sha256: "e".repeat(64),
+            publication_sha256: "f".repeat(64),
+        }
+        .to_json();
+        let parse = |v: &Value| {
+            let raw = v.to_string();
+            let digest = format!("{:x}", Sha256::digest(raw.as_bytes()));
+            let request = WorkerRequest::parse(
+                json!({"schema":"hol-gauntlet-worker-request.v1","action":"run",
+                "source_sha":"a".repeat(40),"job_id":"0123456789abcdef","deployment_digest":digest})
+                .to_string()
+                .as_bytes(),
+            )
+            .unwrap();
+            NativeJobSpec::parse(raw.as_bytes(), &digest, &request, &generation)
+        };
+        let spec = parse(&value).unwrap();
+        assert_eq!(spec.profile(), "native-sdk-transport-v1");
+        assert!(matches!(
+            spec.execution,
+            NativeJobExecution::SdkTransport { .. }
+        ));
+        for (pointer, bad) in [
+            ("/schema", json!("hol-gauntlet-native-worker-job.v2")),
+            ("/profile", json!("native-hook-transport-v1")),
+            ("/guard/source_sha", json!("b".repeat(40))),
+            ("/sdk/publication_sha256", json!("bad")),
+            ("/sdk/agent_image_id", json!("other")),
+        ] {
+            let mut changed = value.clone();
+            *changed.pointer_mut(pointer).unwrap() = bad;
+            assert!(parse(&changed).is_err(), "{pointer}");
+        }
+        for key in ["guard", "sdk"] {
+            let mut changed = value.clone();
+            changed.as_object_mut().unwrap().remove(key);
+            assert!(parse(&changed).is_err());
+        }
+        value["command"] = json!("sh");
+        assert!(parse(&value).is_err());
     }
     #[test]
     fn request_source_job_deployment_and_worker_are_all_external_bindings() {

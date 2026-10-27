@@ -106,6 +106,9 @@ pub fn execute_native_controller(
             pins,
             cancellation,
         ),
+        NativeJobExecution::SdkTransport { guard, sdk } => {
+            crate::native_sdk_control::run_native_sdk_transport(&spec, guard, sdk, cancellation)
+        }
     };
     finished.store(true, Ordering::Release);
     watcher
@@ -251,6 +254,10 @@ pub fn dispatch_native_worker(
     }
     crate::verify_running_binary(generation).map_err(|e| e.to_string())?;
     verify_python_lock(&python).map_err(|e| e.to_string())?;
+    let sdk_quiescent = matches!(spec.execution, NativeJobExecution::SdkTransport { .. });
+    if sdk_quiescent {
+        crate::native_sdk_quiescence::require_sdk_quiescence(&spec, &preparation)?;
+    }
     let process =
         process.ok_or("native launch did not establish a running process; retain unknown job")?;
     let (stdout, stderr) = native.as_mut().ok_or("native child logs missing")?.logs()?;
@@ -261,17 +268,17 @@ pub fn dispatch_native_worker(
         Ok((code, reason)) => (code, reason, None),
         Err(error) => (-1, None, Some(error)),
     };
-    let report_schema = if matches!(spec.execution, NativeJobExecution::Apparatus(_)) {
-        "hol-gauntlet-native-worker-report.v1"
-    } else {
-        "hol-gauntlet-native-worker-report.v2"
+    let report_schema = match spec.execution {
+        NativeJobExecution::Apparatus(_) => "hol-gauntlet-native-worker-report.v1",
+        NativeJobExecution::HookTransport(_) => "hol-gauntlet-native-worker-report.v2",
+        NativeJobExecution::SdkTransport { .. } => "hol-gauntlet-native-worker-report.v3",
     };
-    let unavailable_reason = if matches!(spec.execution, NativeJobExecution::Apparatus(_)) {
-        "native apparatus profile has no independently scored Guard controls or host signing-key pin"
-    } else {
-        "native hook transport has no authenticated SDK calls, independently scored Guard controls or host signing-key pin"
+    let unavailable_reason = match spec.execution {
+        NativeJobExecution::Apparatus(_) => "native apparatus profile has no independently scored Guard controls or host signing-key pin",
+        NativeJobExecution::HookTransport(_) => "native hook transport has no authenticated SDK calls, independently scored Guard controls or host signing-key pin",
+        NativeJobExecution::SdkTransport { .. } => "native SDK Bash transport has no MCP, independently scored Guard controls, six-role conformance or host signing-key pin",
     };
-    let report = json!({"schema":report_schema,"profile":spec.profile(),
+    let mut report = json!({"schema":report_schema,"profile":spec.profile(),
         "source_sha":source,"job_id":spec.job_id,"deployment_digest":deployment,"worker_generation":generation,
         "started_marker_sha256":started.sha256,"preparation_sha256":spec.preparation_sha256,"case":spec.case(),
         "controller":process_json(process),"controller_report":parsed,"controller_stdout_sha256":format!("{:x}",Sha256::digest(&stdout)),
@@ -279,6 +286,10 @@ pub fn dispatch_native_worker(
         "execution_error":execution_error,"controller_cgroup_drained":true,"product_slice_absent":true,"image_lease_absent":true,
         "model_requests":0,"execution_eligible":false,"guard_causality_verified":false,"status":"invalid-evidence",
         "qualification_unavailable_reason":unavailable_reason});
+    if sdk_quiescent {
+        report["sdk_agent_absent"] = json!(true);
+        report["sdk_profile_absent"] = json!(true);
+    }
     let raw = canonicalize(report.to_string().as_bytes()).map_err(|e| e.to_string())?;
     journal
         .finish_under_lease(
