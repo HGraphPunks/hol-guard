@@ -150,7 +150,7 @@ def world(data, role, value, calls):
     assert value["sockets"]["accepted_streams_drained"] is value["sockets"]["peer_authenticated"] is False
 
 
-def bash(data, control, result):
+def bash(data, control, result, *, extra_pre_payload=None):
     requests, plane = control["requests"], control["plane"]
     assert [r["sequence"] for r in requests] == [1, 2, 3]
     assert all(r["peer_rechecked_before_response"] and not r["product_claims_authenticated"] for r in requests)
@@ -160,7 +160,13 @@ def bash(data, control, result):
     assert requests[1]["request"]["operation"] == "execute-contained"
     assert requests[2]["request"]["hook_event_name"] == "PostToolUse"
     assert requests[1]["request"]["token"] == requests[0]["response"]["execution_token"]
-    assert [h["hook_event_name"] for h in plane["hooks"]] == ["UserPromptSubmit", "PreToolUse", "PostToolUse"]
+    events = ["UserPromptSubmit", "PreToolUse", "PostToolUse"]
+    if extra_pre_payload is not None:
+        events.append("PreToolUse")
+        extra = plane["hooks"][3]
+        assert extra["payload"] == extra_pre_payload and extra["payload_digest"] == digest(extra_pre_payload)
+        assert extra["normalization_error"] is None and extra["product_claims_authenticated"] is False
+    assert [h["hook_event_name"] for h in plane["hooks"]] == events
     assert plane["hooks"][0]["response"]["decision"] == plane["hooks"][2]["response"]["decision"] == "allow"
     assert plane["hooks"][1]["response"]["reason_code"] == "native_workspace_containment_required"
     assert plane["hooks"][1]["payload"]["tool_input"] == requests[0]["request"]["tool_input"]

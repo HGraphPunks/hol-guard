@@ -80,11 +80,33 @@ The corrected v6 fixture adds an exclusively created, descriptor-verified
 `pytest.ini` project marker before product startup. Earlier v5 fixtures keep
 their original bytes. The recorder now requires the actual installed Native
 authorization-refusal prefix; the unrelated workspace error cannot pass.
-The strengthened refusal regression, ARM Clippy, static test builds and both
-main binaries pass. Fresh corrected VM execution is pending.
+At `a62a328d7f939d048c8fa519583722bd8f399a7c`, fresh job
+`e2c701baf1474301` passes the corrected control: the positive process removes
+the original held target, reseeding creates distinct inodes, Native Pre denies
+and the sink returns the real `contained_run_authorization_failed` with exit
+126. The unchanged physical marker remains `preserve`. All nine binding
+refusals and actual SDK/MCP/Bash results also pass. Host readback independently
+joins the original requests, Native decision bytes, journal-pinned captures,
+positive retirement, final fixture metadata/bytes and SQLite state. It still
+rejects the original planner error. The 67 outside observations and cleanup
+remain diagnostic evidence, without admitted leaf authority or signing keys.
 
-Remaining work includes live forbidden-command verification,
-boundary canaries/kernel probes, injected response disposition, observed
+All 173 previous worker files remain unchanged; the final map has 179.
+Replay refuses in 508.687 ms with the legacy lease held, valid reconciliation
+returns the original terminal and a wrong request pin refuses. Native ARM
+tests pass 177 worker and 33 rootfs cases plus subprocess; warnings-denied
+ARM Clippy and both main binary builds pass. The new reader and historical
+request-binding reader pass, with Ruff clean.
+
+The corrected input has five members / 65,187,840 bytes, SHA-256
+`5ea2c7b2ec2f1fedb61127a4a4d1662a89fc76fa4de6e1acac3b44b674f3a873`.
+The corrected public export has 171 members / 1,280,000 bytes, SHA-256
+`479cad5b3d991da4c0a365e18f05d38747eb2d5f56b4dd0cf71a7d37daa68a3b`.
+The report is `bb6863ad827ef1fc68c4f3b0456c99553185af5d4a045c6fbad5fe87d10bc1dd`.
+`ci/gauntlet-rs/proofs/verify_native_forbidden_control_20261027.py` checks both
+the rejected and corrected original exports. No old artifact is rewritten.
+
+Remaining work includes boundary canaries/kernel probes, injected response disposition, observed
 detached-child timeout/cancellation, provider mapping, complete role scoring,
 outside signing-key admission and fresh current-source staging/installed
 conformance. The successful [combined SDK transport](gauntlet-rust-native-sdk-mcp-transport.md)

@@ -35,32 +35,35 @@ CASES = {
 }
 
 
-def verify(directory):
-    data = archive(directory / "native-role-controls-vm-results-001.tar", EXPORT, 1208320, 159)
+def read(directory, proof):
+    """Read only the exact public artifacts pinned by a versioned proof caller."""
+    source, report_pin, index = proof["source"], proof["report"], proof["index"]
+    data = archive(directory / f"native-role-controls-vm-results-{index}.tar", *proof["export"])
     inputs = archive(
-        directory / "native-role-controls-input-001.tar",
-        "7730fd2ac9a145ef6db43facb07f17608d005551675a275136001ef8f60d7e64",
-        65095680,
-        5,
+        directory / f"native-role-controls-input-{index}.tar",
+        *proof["input"],
     )
     transfer = parse(inputs.pop("transfer.json"))
-    assert transfer == parse(data["input/transfer.json"]) and transfer["source_commit"] == SOURCE
+    assert transfer == parse(data["input/transfer.json"]) and transfer["source_commit"] == source
     for name, raw in inputs.items():
         assert transfer["files"][name] == {"bytes": len(raw), "sha256": sha(raw)}
         assert raw[:4] == b"\x7fELF" and raw[18:20] == b"\xb7\0"
-    prelaunch = parse((directory / "native-role-controls-prelaunch-001.json").read_bytes())
-    assert prelaunch["source_commit"] == SOURCE
-    assert sha((directory / "native-role-controls-proof-courier-001.py").read_bytes()) == prelaunch["courier_sha256"]
-    assert prelaunch["courier_sha256"] == "d065c83c07fd0d271576fa062e499d5a87f53a7b77f49e81bc6cf1b62b3e2bc2"
+    prelaunch = parse((directory / f"native-role-controls-prelaunch-{index}.json").read_bytes())
+    assert prelaunch["source_commit"] == source
+    assert (
+        sha((directory / f"native-role-controls-proof-courier-{index}.py").read_bytes()) == prelaunch["courier_sha256"]
+    )
+    assert prelaunch["courier_sha256"] == proof["courier"]
     pin = prelaunch["pins"]
     assert pin == parse(data["proof/job-input_binding.json"])
     assert pin["worker_generation"] == sha(inputs["gauntlet-vm-worker"])
     assert pin["declaration"]["schema"] == "hol-gauntlet-native-worker-job.v6"
     assert pin["declaration"]["role"] == "input-binding"
     hashes, prior = (parse(data["proof/" + n + ".json"]) for n in ["final-worker-hashes", "prior-worker-hashes"])
-    assert len(hashes) == 167 and len(prior) == 161 and all(hashes[n] == h for n, h in prior.items())
+    assert len(hashes) == proof["final"] and len(prior) == proof["prior"]
+    assert all(hashes[n] == h for n, h in prior.items())
     assert prior["e2c701baf1474001.report.json"] == "33a82fca7a330ecc7b7b3d142c894d500c72bcc48200930c1ca0f38697bab642"
-    report = sdk.worker(data, "combined", pin, hashes, 0, REPORT)
+    report = sdk.worker(data, "combined", pin, hashes, 0, report_pin)
     assert report["schema"] == "hol-gauntlet-native-worker-report.v6"
     assert report["mcp_agent_absent"] and report["mcp_profile_absent"]
     control = report["controller_report"]
@@ -80,7 +83,7 @@ def verify(directory):
     ]:
         assert control[name] is True
     samples = parse(data["proof/outside-kernel.json"])
-    assert samples["errors"] == [] and len(samples["observations"]) == 57
+    assert samples["errors"] == [] and len(samples["observations"]) == proof["samples"]
     assert samples["observer_sha256"] == prelaunch["observer_sha256"]
     samples = samples["observations"]
     before, after = parse(data["proof/outside-device-before.json"]), parse(data["proof/outside-device-after.json"])
@@ -98,7 +101,9 @@ def verify(directory):
     assert result["mcpExercised"] is True and result["modelExercised"] is result["qualificationEligible"] is False
     assert result["providerRequests"] == 0 and len(result["results"]) == 2
     assert all(result["modelContextProjection"][n] for n in ["originalCommandVisible", "executionTransportRetained"])
-    common.bash(data, control, result)
+    forbidden = control["measurements"].get("forbidden_command_control")
+    assert (forbidden is not None) == proof["forbidden"]
+    common.bash(data, control, result, extra_pre_payload=forbidden["native_pre_payload"] if forbidden else None)
     mcp = control["mcp"]
     assert mcp["outside_signing_key_admitted"] is False and mcp["cleanup_errors"] == []
     upstreams = {s["family"]: s for s in mcp["upstreams"]}
@@ -246,25 +251,46 @@ def verify(directory):
     assert parse(data["proof/worker-tests.json"])["results"] == [["ok", "177", "0", "24"]]
     assert parse(data["proof/rootfs-tests.json"])["results"] == [["ok", "1", "0", "0"], ["ok", "33", "0", "0"]]
     replay = parse(data["proof/fast-replay-summary.json"])
-    assert replay["worker_files_unchanged"] == 167 and replay["legacy_lock_held_for_all_probes"]
+    assert replay["worker_files_unchanged"] == proof["final"] and replay["legacy_lock_held_for_all_probes"]
     assert replay["replay_refused_before_host_preflight"] and replay["wrong_request_pin_refused"]
-    return {
-        "schema": "hol-gauntlet-native-request-binding-host-readback.v1",
-        "rust_source_commit": SOURCE,
-        "product_source_sha": pin["source_sha"],
-        "job_id": pin["job_id"],
-        "report_sha256": REPORT,
-        "native_refusals": 9,
-        "trap_unchanged_and_absent_effect": True,
-        "actual_sdk_mcp_bash_completed": True,
-        "kernel_samples": 57,
-        "retained_worker_files": 167,
-        "qualified_role_complete": False,
-        "outside_signing_key_admitted": False,
-        "execution_eligible": False,
-        "guard_causality_verified": False,
-        "model_requests": 0,
+    return (
+        {
+            "schema": "hol-gauntlet-native-request-binding-host-readback.v1",
+            "rust_source_commit": source,
+            "product_source_sha": pin["source_sha"],
+            "job_id": pin["job_id"],
+            "report_sha256": report_pin,
+            "native_refusals": 9,
+            "trap_unchanged_and_absent_effect": True,
+            "actual_sdk_mcp_bash_completed": True,
+        "kernel_samples": proof["samples"],
+        "retained_worker_files": proof["final"],
+            "qualified_role_complete": False,
+            "outside_signing_key_admitted": False,
+            "execution_eligible": False,
+            "guard_causality_verified": False,
+            "model_requests": 0,
+        },
+        control,
+        data,
+        pin,
+    )
+
+
+def verify(directory):
+    expected = {
+        "source": SOURCE,
+        "report": REPORT,
+        "index": "001",
+        "export": (EXPORT, 1208320, 159),
+        "input": ("7730fd2ac9a145ef6db43facb07f17608d005551675a275136001ef8f60d7e64", 65095680, 5),
+        "courier": "d065c83c07fd0d271576fa062e499d5a87f53a7b77f49e81bc6cf1b62b3e2bc2",
+        "prior": 161,
+        "final": 167,
+        "samples": 57,
+        "forbidden": False,
     }
+    return read(directory, expected)[0]
 
 
 if __name__ == "__main__":

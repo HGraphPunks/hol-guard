@@ -525,7 +525,16 @@ approval ceremony for routine work already authorized by this request.
   67 outside samples and 173 unchanged worker files are preserved. Corrected
   v6 setup creates a checked project marker and requires the real Native
   authorization-refusal prefix; ARM Clippy, tests and main binaries compile.
-- Next: verify the corrected forbidden-command counterfactual and finish deterministic role scoring, then
+- 2026-10-27: corrected source `a62a328d` passes fresh job
+  `e2c701baf1474301`: actual reachable synthetic deletion/reseeding, Native
+  deny, real contained authorization refusal and physical marker preservation,
+  plus all nine binding controls and actual SDK/MCP/Bash results. Independent
+  host readback joins both original exports and continues to reject the
+  earlier planner error. It checks 67 outside samples, captures, physical
+  trap/marker/SQLite state and 179 intact worker files. Replay refuses in
+  508.687 ms while the legacy lease is held. Native ARM suites and Clippy/
+  builds pass; every qualification flag remains false.
+- Next: implement boundary, injection and detached-lifecycle roles and finish deterministic role scoring, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;
