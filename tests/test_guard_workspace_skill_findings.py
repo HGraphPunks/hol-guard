@@ -124,6 +124,7 @@ def test_older_runtime_keeps_the_secret_scan_and_reports_skills_not_run(tmp_path
         "detector_not_run:hook_config_v1",
         "detector_not_run:plugin_manifest_v1",
         "detector_not_run:ci_workflow_v1",
+        "detector_not_run:editor_task_v1",
     ]
     assert outcome.coverage["detectors"]["secrets"] == "complete"
     assert outcome.coverage["detectors"]["skill_content_v1"] == "not_run"
@@ -209,8 +210,8 @@ def test_merged_findings_order_skills_by_severity_with_the_rest() -> None:
         skills_result(native_finding(finding_id="f" * 32, severity="low", rule_id="skill.hide-actions"))
     )
     critical = skill_findings.project_skill_findings(skills_result(native_finding()))
-    packages, _ = runner.project_supply_chain_findings("w" * 64, AUDIT)
-    merged, truncated = runner.merge_findings(packages, low, critical)
+    supply, _ = runner.project_supply_chain_findings("w" * 64, AUDIT)
+    merged, truncated = runner.merge_findings(supply.findings, low, critical)
     assert not truncated
     assert [item["severity"] for item in merged] == ["critical", "critical", "low"]
     assert merged[-1]["rule_ids"] == ["skill.hide-actions"]

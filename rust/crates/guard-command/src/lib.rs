@@ -58,6 +58,7 @@ pub mod command_expression_match;
 mod compound_artifact;
 mod credential_store_names;
 pub mod cursor_shell_command;
+pub mod editor_task_risk;
 pub mod policy_document;
 pub use codex_output_entry::{review_codex_tool_output, ToolOutputOutcome};
 pub use codex_output_env::{Ctx, GitCheck, GitProbe, GitRun, InspectionHost};
@@ -189,6 +190,7 @@ pub mod native_command_extension_evidence;
 #[cfg(test)]
 mod native_command_extension_evidence_tests;
 pub mod native_command_program;
+pub mod network_protection_bundle;
 pub mod network_url;
 pub mod npm_source_spec;
 pub mod ordered_json;

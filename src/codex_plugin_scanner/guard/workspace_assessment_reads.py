@@ -87,20 +87,6 @@ def latest_runs(store: Any) -> list[dict[str, object]]:
     return runs
 
 
-def get_run(store: Any, run_id: str) -> dict[str, object] | None:
-    with store._connect() as connection:
-        row = connection.execute(
-            """
-            select run_id, codebase_key, worktree_key, snapshot_digest, kind, trigger_kind, state,
-                   dirty_generation, coverage_json, findings_json, error_code,
-                   created_at_ms, started_at_ms, finished_at_ms
-            from workspace_assessment_runs where run_id = ?
-            """,
-            (run_id,),
-        ).fetchone()
-    return _run_payload(row) if row is not None else None
-
-
 def latest_assessed_runs(store: Any, keys: Sequence[WorktreeKeys] | None = None) -> list[dict[str, object]]:
     """The newest completed or partial run of every admitted worktree, or of just ``keys``.
 
@@ -126,7 +112,7 @@ def latest_assessed_runs(store: Any, keys: Sequence[WorktreeKeys] | None = None)
                 select latest.run_id from workspace_assessment_runs latest
                 where latest.codebase_key = r.codebase_key and latest.worktree_key = r.worktree_key
                   and latest.state in ('completed', 'partial')
-                order by latest.finished_at_ms desc, latest.run_id desc
+                order by latest.finished_at_ms desc, latest.rowid desc
                 limit 1
               )
               {scope}
@@ -137,7 +123,10 @@ def latest_assessed_runs(store: Any, keys: Sequence[WorktreeKeys] | None = None)
 
 
 def latest_assessed_run(store: Any, keys: WorktreeKeys) -> dict[str, object] | None:
-    """The newest completed or partial run of one worktree."""
+    """The newest completed or partial run of one worktree.
+
+    Runs finished in the same millisecond keep the order they were queued in.
+    """
 
     with store._connect() as connection:
         row = connection.execute(
@@ -147,7 +136,7 @@ def latest_assessed_run(store: Any, keys: WorktreeKeys) -> dict[str, object] | N
                    created_at_ms, started_at_ms, finished_at_ms
             from workspace_assessment_runs
             where codebase_key = ? and worktree_key = ? and state in ('completed', 'partial')
-            order by finished_at_ms desc, run_id desc
+            order by finished_at_ms desc, rowid desc
             limit 1
             """,
             _key_tuple(keys),
@@ -179,4 +168,4 @@ def _key_tuple(keys: WorktreeKeys | None) -> tuple[str, str]:
     return (keys.codebase_key, keys.worktree_key)
 
 
-__all__ = ["get_run", "latest_assessed_run", "latest_assessed_runs", "latest_runs", "list_worktrees", "recent_runs"]
+__all__ = ["latest_assessed_run", "latest_assessed_runs", "latest_runs", "list_worktrees", "recent_runs"]

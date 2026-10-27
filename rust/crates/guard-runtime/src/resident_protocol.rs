@@ -31,8 +31,9 @@ use guard_contracts::{
     PolicyIntegrityRowsRequestV1, PromptAnalyzeRequestV1, ProtectRequestRequestV1,
     RequestContextRequestV1, RunnerAuthorityRequestV1, RuntimeCapabilitiesV1,
     RuntimeDetectorRunRequestV1, ShimAdminRequestV2, SkillDirectoryIdentityRequestV1,
-    SupplyChainEvalRequestV1, WorkspaceInventoryRequestV1, MAX_NATIVE_RESPONSE_BYTES,
-    NATIVE_APPROVAL_ERROR_CODES, NATIVE_PROTOCOL_VERSION, NATIVE_RESIDENT_LIFECYCLE_ERROR_CODES,
+    SupplyChainBundleVerifyRequestV1, SupplyChainEvalRequestV1, TrustAttestationVerifyRequestV1,
+    WorkspaceInventoryRequestV1, MAX_NATIVE_RESPONSE_BYTES, NATIVE_APPROVAL_ERROR_CODES,
+    NATIVE_PROTOCOL_VERSION, NATIVE_RESIDENT_LIFECYCLE_ERROR_CODES,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -115,6 +116,7 @@ pub(crate) fn capabilities() -> RuntimeCapabilitiesV1 {
         crate::runtime_identity::FEATURE.into(),
         crate::runtime_identity::BUNDLE_FEATURE.into(),
         crate::runtime_identity_probe::FEATURE.into(),
+        crate::runtime_identity_instances::FEATURE.into(),
         crate::runtime_identity_launch::FEATURE.into(),
         guard_plugin_kit::FEATURE.into(),
         guard_plugin_telemetry::FEATURE.into(),
@@ -124,6 +126,7 @@ pub(crate) fn capabilities() -> RuntimeCapabilitiesV1 {
         crate::workspace_snapshot::HOOKS_FEATURE.into(),
         crate::workspace_snapshot::PLUGINS_FEATURE.into(),
         crate::workspace_snapshot::WORKFLOWS_FEATURE.into(),
+        crate::workspace_snapshot::EDITOR_TASKS_FEATURE.into(),
         crate::workspace_fix::FEATURE.into(),
         crate::workspace_mcp_config::FEATURE.into(),
         guard_plugin_telemetry::UPDATES_FEATURE.into(),
@@ -237,6 +240,7 @@ pub(crate) enum ResidentOperationV1 {
     ApprovalScopeSelect(guard_contracts::ApprovalScopeSelectRequestV1),
     ApprovalResolutionEligibility(guard_contracts::ApprovalResolutionEligibilityRequestV1),
     CommandCapability(guard_contracts::CommandCapabilityRequestV1),
+    CommandEnvelope(guard_contracts::CommandEnvelopeRequestV1),
     ContainedWrapperPlan(guard_contracts::ContainedWrapperPlanRequestV1),
     ApprovalPersistSelect(guard_contracts::ApprovalPersistSelectRequestV1),
     HookRender(guard_contracts::HookRenderRequestV1),
@@ -280,6 +284,7 @@ pub(crate) enum ResidentOperationV1 {
     PackagePolicyResolve(PackagePolicyResolveRequestV1),
     PackageProtectFinalize(PackageProtectFinalizeRequestV1),
     PackageEvaluationView(Box<PackageEvaluationViewRequestV1>),
+    PackageWorkspaceScope(guard_contracts::PackageWorkspaceScopeRequestV1),
     PackagePosture(PackagePostureRequestV1),
     PackageAuditProjection(PackageAuditProjectionRequestV1),
     WorkspaceInventory(WorkspaceInventoryRequestV1),
@@ -301,6 +306,8 @@ pub(crate) enum ResidentOperationV1 {
     HookLocalCliRule(HookLocalCliRuleRequestV1),
     ConnectorSetupContext(ConnectorSetupContextRequestV1),
     ArtifactRisk(ArtifactRiskRequestV1),
+    SupplyChainBundleVerify(SupplyChainBundleVerifyRequestV1),
+    TrustAttestationVerify(TrustAttestationVerifyRequestV1),
     LocalToolEligibility(LocalToolEligibilityRequestV1),
     ShellHelpers(crate::shell_helpers_op::ShellHelpersRequest),
     ApprovalProofDecide(ApprovalProofRequestV1),
@@ -338,6 +345,7 @@ pub(crate) enum ResidentOperationV1 {
     NativeExactAction(NativeExactActionRequestV1),
     SkillDirectoryIdentity(SkillDirectoryIdentityRequestV1),
     SkillWorkflowPreflight(guard_contracts::SkillWorkflowPreflightRequestV1),
+    NetworkProtectionVerify(guard_contracts::NetworkProtectionVerifyRequestV1),
     #[cfg(unix)]
     CodexBindingCapture(crate::binding_capture_op::CodexBindingCaptureRequestV1),
     #[allow(dead_code)]
@@ -357,6 +365,7 @@ pub(crate) enum ResidentOperationV1 {
     VerifiedReadPlan(guard_contracts::VerifiedReadPlanRequestV1),
     AibomReportSummaries(guard_contracts::AibomReportSummariesRequestV1),
     RetryLineageCapture(guard_contracts::RetryLineageCaptureRequestV1),
+    AdapterStateIntegrity(guard_contracts::AdapterStateIntegrityRequestV1),
     Health(Value),
     Shutdown(Value),
 }
