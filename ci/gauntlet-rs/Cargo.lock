@@ -428,6 +428,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "gauntlet-mcp-service"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "gauntlet-contracts",
+ "gauntlet-world",
+ "jsonschema",
+ "ring",
+ "rusqlite",
+ "rustix",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "gauntlet-product-cell"
 version = "0.1.0"
 dependencies = [

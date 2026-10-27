@@ -325,6 +325,12 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
       on ARM; the host reader verifies every input/result member and the
       eight Linux-Bun bridge vectors. Root MCP integration remains open;
       see [world proof](gauntlet-rust-world-proof-20261027.md).
+    - [x] Add bounded Rust base MCP dispatch with the exact 41-tool catalog
+      from MCP 1.30.0, schema validation, original arguments, canonical World
+      results and persistent NDJSON. Nine dispatch and five real Unix-socket
+      tests pass; full Mac workspace 474 tests, Mac/ARM Clippy and static ARM
+      builds pass. Root peer/proxy/SDK integration and native execution remain
+      separate pending work; see [MCP proof](gauntlet-rust-mcp-service-proof-20261027.md).
   - [x] Run fresh current-source Native success, timeout and cancellation
     through the complete Rust worker on the published 3.57.0 runtime. GNU actor
     ABI preflight refuses the earlier static actor before artifact creation;

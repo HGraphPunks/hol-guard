@@ -438,7 +438,13 @@ approval ceremony for routine work already authorized by this request.
   eight bridge vectors skipped on Mac pass separately with the exact Linux
   Bun pin as UID10001; no Native/model execution is claimed by those unit
   vectors. Root MCP dispatch/lifecycle and independent scoring remain open.
-- Next: finish Native MCP/service ownership, independent scoring and
+- 2026-10-27: `gauntlet-mcp-service` adds versioned base MCP dispatch with
+  all 41 schemas frozen from the actual pinned MCP 1.30.0 runtime, canonical
+  World results and persistent bounded Unix framing. Nine dispatch and five
+  real socket tests pass. The full Mac workspace passes 474 tests; Mac/ARM
+  Clippy and static ARM builds pass. Root listener/peer/proxy/SDK integration
+  remains pending. See [MCP component proof](gauntlet-rust-mcp-service-proof-20261027.md).
+- Next: execute MCP component tests on ARM, then finish Native MCP/service ownership, independent scoring and
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;

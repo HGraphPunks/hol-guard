@@ -230,7 +230,11 @@ impl World {
         {
             return Err(Error::invalid("invalid or oversized arguments"));
         }
-        if !(request_id.is_string() || request_id.is_i64() || request_id.is_u64()) {
+        if !(request_id.is_string()
+            || request_id
+                .as_number()
+                .is_some_and(|n| !n.to_string().contains(['.', 'e', 'E'])))
+        {
             return Err(Error::invalid("invalid request id"));
         }
         let tx = self
