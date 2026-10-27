@@ -259,6 +259,13 @@
       "sha256": "5ccc33ace975a72228fbb1a4e859efe47b43642f08814cd0c5b3dbf068446f94"
     },
     {
+      "base_sha256": "c4f9ca693da451b5c9006c1be60a570d0a3ea32fae7fcd86712459c3bc4aeab0",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/control_plane/builder_entry.py",
+      "phase": 3,
+      "sha256": "f4608f1f6419d803d052c06231defd3898cd556520d71d8e1ef4fd087a7e84db"
+    },
+    {
       "base_sha256": "d02f06a85f52e00e6984e472bd034479123ad1ab0f4841fac298f081c1ea0edb",
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/control_plane/cli.py",

@@ -44,10 +44,6 @@ def main():
             precheck = 'test_a_workspace_receipt_runs_shapes_the_wrapper_cannot_peel'
         else:
             raise ValueError('candidate has no supported contained workspace contract suite')
-        subprocess.run(['uv','run','--no-sync','python','-B','-m','pytest',
-                        '--noconftest','-q','-o','addopts=',
-                        contained_tests,'-k',precheck],
-                       check=True,env=dict(os.environ,PYTHONPATH='/work/source/src'))
     root = Path('gauntlet-artifact')
     if os.environ.get('HOL_GUARD_RETEST') == '1':
         if not local_version:
@@ -83,15 +79,22 @@ def main():
         cap=json.loads(subprocess.check_output([str(runtime),'capabilities','--json'],text=True))
         if cap['build_sha']!=sha or cap['runtime_version']!=local_version:
             raise ValueError('installed test runtime provenance mismatch')
+        test_environment=dict(os.environ,HOL_GUARD_TEST_USE_INSTALLED='1',
+                              HOL_GUARD_NATIVE='force',
+                              HOL_GUARD_NATIVE_BINARY=str(runtime))
+        # These fixtures now provision a Native policy verifier key. Build,
+        # install and verify the matching runtime before any of them executes.
+        subprocess.run(['uv','run','--no-sync','python','-B','-m','pytest',
+                        '--noconftest','-q','-o','addopts=',
+                        contained_tests,'-k',precheck],
+                       check=True,env=dict(test_environment,PYTHONPATH='/work/source/src'))
         contract_tests = [contained_tests, 'tests/test_guard_contained_test_hook.py']
         if contained_tests != 'tests/test_guard_restricted_workspace.py':
             contract_tests.append('tests/test_guard_restricted_workspace.py')
         contract_tests.append('tests/test_guard_restricted_workspace_publish.py')
         subprocess.run(['uv','run','--no-sync','python','-B','-m','pytest',
                         '-q','-o','addopts=',*contract_tests],check=True,
-                       env=dict(os.environ,HOL_GUARD_TEST_USE_INSTALLED='1',
-                                HOL_GUARD_NATIVE='force',
-                                HOL_GUARD_NATIVE_BINARY=str(runtime)))
+                       env=test_environment)
 
 
 if __name__ == '__main__':
