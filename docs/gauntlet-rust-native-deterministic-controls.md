@@ -9,7 +9,7 @@ This implementation is partial. `success` runs the existing actual SDK
 control. `input-binding` additionally invokes the installed Native sink with
 all nine historical malformed requests and the real forbidden-command control.
 `boundary` adds the actual SDK-driven canary and network fixture described
-below. `injection` adds the compiled disposition check described below.
+below. `injection` adds the actual disposition check described below.
 `timeout` and `cancel` currently refuse as incomplete
 before product startup. Declared
 roles are not a claim that the six-role qualification suite is available.
@@ -140,17 +140,37 @@ Run `ci/gauntlet-rs/proofs/verify_native_boundary_control_20261027.py`.
 This diagnostic establishes no admitted kernel/mount authority or complete
 role qualification.
 
-The next injection implementation reads the exact public Python workflow's
+The injection implementation reads the exact public Python workflow's
 text-injection payload from the compiled catalog and places it in the delegated
 SQLite document. Rust requires the actual upstream frame to contain it, then
 joins Native's response to the actual SDK tool result. A forwarded result must
 preserve the physical record; a withheld result must carry Native's exact
 error content/flag and exclude the payload. The original benign profile still
 requires a clean read. The role also runs the actual forbidden-command
-counterfactual. ARM Clippy, static tests and binaries compile; fresh injection
-execution remains pending.
+counterfactual.
 
-Remaining work includes live injection verification, kernel/mount authority, observed
+At `034a750dcd30f97ade6089dd3f41de1523d080c9`, fresh injection job
+`e2c701baf1474501` passes the bounded diagnostic. Native forwards the payload
+to the SDK; no MCP withholding or model resistance is claimed. Independent
+readback joins the exact compiled catalog payload, physical SQLite document,
+actual upstream and Native wire frames, SDK-visible content/flag, captured
+forbidden-command deny/refusal and held marker. It verifies 56 outside
+observations and cleanup. Replay refuses in 519.501 ms with the legacy lease
+held, preserving all 191 worker files. Native ARM passes 178 worker and
+35 rootfs tests plus subprocess; 109 affected Mac tests and Mac/ARM Clippy/
+builds pass. The new withheld-result regression preserves the old clean-read
+requirement and rejects changed Native error content or flags.
+
+The injection input has five members / 65,505,280 bytes, SHA-256
+`18a332474a5f9ce23640b07b54454eaf44d59dfe015407d1b985da954b8aba39`.
+The export has 151 members / 1,136,640 bytes, SHA-256
+`741d94adfdd7c916b31c7968367658c11eb7240dbc80b33e12a346932c894daf`.
+Its report is `108c5d0c521932f5a734278464513ec31dc364f282cab024a653c15630136e9b`.
+Run `ci/gauntlet-rs/proofs/verify_native_injection_control_20261027.py`.
+All qualification, Guard causality and outside-key admission flags remain
+false; the model/provider request count remains zero.
+
+Remaining work includes kernel/mount authority, observed
 detached-child timeout/cancellation, provider mapping, complete role scoring,
 outside signing-key admission and fresh current-source staging/installed
 conformance. The successful [combined SDK transport](gauntlet-rust-native-sdk-mcp-transport.md)

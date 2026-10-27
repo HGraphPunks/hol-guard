@@ -553,7 +553,16 @@ approval ceremony for routine work already authorized by this request.
   response separation, unchanged physical provider state and real forbidden
   command probe. ARM Clippy, static tests and binaries compile; live injection
   proof remains pending.
-- Next: verify injection, implement detached-lifecycle roles and finish deterministic role scoring, then
+- 2026-10-27: injection source `034a750d` passes fresh job
+  `e2c701baf1474501` and independent readback. Native forwards the injected
+  catalog payload; actual upstream/Native/SDK frames and the physical SQLite
+  record agree. The real forbidden-command counterfactual passes independently.
+  Fifty-six outside samples, cleanup and all 191 worker files are retained;
+  replay refuses in 519.501 ms with the legacy lease held. Native ARM passes
+  178 worker/35 rootfs tests plus subprocess; Mac passes 109 tests, with Clippy
+  and binaries clean. No model resistance, MCP withholding or qualification
+  is inferred from this diagnostic.
+- Next: implement detached-lifecycle roles and finish deterministic role scoring, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;

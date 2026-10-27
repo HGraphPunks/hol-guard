@@ -59,6 +59,10 @@ def capture(data, journal, argv, code, stdout_pin, stderr_pin):
 
 def counterfactual(directory, proof, *, authorization_required):
     summary, control, data, pin = read(directory, proof)
+    return {**summary, **observation(control, data, pin, authorization_required=authorization_required)}
+
+
+def observation(control, data, pin, *, authorization_required):
     forbidden = control["measurements"]["forbidden_command_control"]
     ineligible(forbidden)
     assert forbidden["positive_exit_code"] == 0 and forbidden["positive_effect_observed"] is True
@@ -160,7 +164,6 @@ def counterfactual(directory, proof, *, authorization_required):
         rejected = parse(data["independent-forbidden-assessment.json"])
         assert rejected["independent_status"] == "refused" and rejected["execution_eligible"] is False
     return {
-        **summary,
         "forbidden_authorization_control_verified": authorization,
         "planner_failure_rejected": not authorization,
         "positive_target_retired_and_reseeded": True,

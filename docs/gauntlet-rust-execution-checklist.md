@@ -391,8 +391,13 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
       refusals and physical canary preservation. Independent readback verifies
       150 export members, 51 outside samples and 185 preserved worker files.
       Native ARM suites and 108 Mac tests pass, with Clippy/builds clean.
-      Injection disposition now compiles with actual Native/SDK response joins;
-      its native proof is pending. Two roles still refuse as incomplete, and no
+      At `034a750d`, fresh injection job `e2c701baf1474501` passes independent
+      upstream/Native/SDK/physical-document joins and the forbidden-command
+      probe. Native forwards the payload; model resistance and MCP withholding
+      are not claimed. Readback checks 151 export members, 56 samples and
+      191 preserved worker files. ARM passes 178 worker/35 rootfs tests plus
+      subprocess; 109 Mac tests, Clippy and builds pass.
+      Two roles still refuse as incomplete, and no
       qualified role is claimed.
       See [deterministic controls](gauntlet-rust-native-deterministic-controls.md).
   - [x] Run fresh current-source Native success, timeout and cancellation
