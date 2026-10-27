@@ -173,3 +173,38 @@ failures or ignores; log `rust-workspace-native-sdk-transport-028.log`
 has SHA-256 `f386816d554f24c10283e927037c4e2b963dfb7ca67120db9e500b91f0ba55a7`.
 Mac/ARM64 Clippy and ARM compilation pass. A fresh corrected SDK run remains
 next; no SDK, MCP, Guard-causality or model result is claimed yet.
+
+Job `e2c701baf1472801` reaches Podman create, then refuses the capability
+inspection before starting the container. Podman 4.9 expands the requested
+`--cap-drop=ALL` into its eleven default capability names; its effective and
+bounding sets are empty (serialized as null). The reader now accepts that
+exact expanded representation with empty reported sets and no added caps;
+the actual post-start kernel checks still require all five sets to be zero.
+See Podman's [inspection fields](https://docs.podman.io/en/v4.9.3/markdown/podman-container-inspect.1.html).
+
+The failed constructor had dropped its partial owner before returning its
+cleanup error, so the controller's agent-cleanup boolean was not reliable.
+The outer worker correctly refused a terminal because metadata remained.
+Preparation and launch are now separate: the controller holds the owner
+through every startup attempt and cleanup, retaining its CID and inspection.
+
+The explicit `--repair-sdk-created` route is restricted to an outside-pinned
+unknown job's original started marker, exact CID and creation/inspection
+captures. It verifies the full fixed image/mount/label/resource/capability
+configuration, never-started state, exact nonce/template bytes, absent
+controller/product resources and already-absent SDK profile. Under both
+leases it records a one-use intent, removes only that CID without force or
+signals, checks independent absence and writes a strict ineligible receipt.
+It does not write a terminal or infer an exit. The existing closed-history
+repair remains a separate step to mark the original job consumed/aborted.
+
+The immutable pre-repair archive has 63 members and 337,920 bytes, SHA-256
+`ee7646a50e47859d550f1ee831d34c12155fd7b3c381c82c7fd8ac07ad6aa002`.
+Host readback verifies all 63 members, five binary-input members, 75 preserved
+worker files, and the exact CID/creation/inspection/start pins. The created
+container has never run; SDK/model/Guard credit remains false. The complete
+Mac workspace passes 448 tests across 218 targets with zero failures or
+ignores; log `rust-workspace-native-sdk-transport-029b.log` has SHA-256
+`6049040e4beff250c1eef64010d3048d30c907a8e9329096cd78b366496beef4`.
+Mac/ARM64 Clippy and ARM builds pass. Live metadata repair and a fresh SDK
+attempt remain next.

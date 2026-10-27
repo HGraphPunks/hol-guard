@@ -295,9 +295,9 @@ impl Drop for RootChild {
     }
 }
 
-/// Read-only post/repair checks keep bounded output in anonymous non-executable
-/// memory files. Reopening a repair receipt must not create another disk slot.
-pub(crate) fn read_only_podman(pin: &str, args: &[String]) -> Result<Output, String> {
+/// Pinned helper calls with bounded output in anonymous non-executable memory
+/// files. Post/repair readback can repeat without creating another disk slot.
+pub(crate) fn run_pinned_podman(pin: &str, args: &[String]) -> Result<Output, String> {
     verify_helper("/usr/bin/podman", pin)?;
     let anonymous = || -> Result<File, String> {
         // SAFETY: the static name is NUL-terminated; a successful syscall

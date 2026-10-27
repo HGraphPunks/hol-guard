@@ -50,15 +50,13 @@ fn read(path: &Path, limit: u64) -> Result<Vec<u8>, String> {
     Ok(raw)
 }
 impl NativeSdkAgent {
-    pub(crate) fn start(
+    pub(crate) fn prepare(
         job: &str,
         spec: &CellPreparation,
         assets: &VerifiedNativeSdkAssets,
         sockets: &NativeSdkSockets,
         public: &NativeSdkPublic,
-        actor: &Value,
-        cancel: &AtomicBool,
-    ) -> Result<(Self, NativeSdkBoundary), String> {
+    ) -> Result<Self, String> {
         if !crate::hex(job, 16) {
             return Err("fixed SDK job required".into());
         }
@@ -91,7 +89,7 @@ impl NativeSdkAgent {
         }
         let policy = APPARMOR.replace("HOL_WORKER_PROFILE", &name);
         let profile = root.join("sdk-agent.apparmor");
-        let mut agent = Self {
+        let agent = Self {
             job: job.into(),
             nonce,
             name,
@@ -108,6 +106,18 @@ impl NativeSdkAgent {
             kernel: None,
             closed: false,
         };
+        Ok(agent)
+    }
+    pub(crate) fn launch(
+        &mut self,
+        assets: &VerifiedNativeSdkAssets,
+        public: &NativeSdkPublic,
+        actor: &Value,
+        cancel: &AtomicBool,
+    ) -> Result<NativeSdkBoundary, String> {
+        let agent = self;
+        let job = agent.job.clone();
+        let policy = APPARMOR.replace("HOL_WORKER_PROFILE", &agent.name);
         let launched = (|| {
             public.verify()?;
             assets.recheck_custody()?;
@@ -262,13 +272,7 @@ impl NativeSdkAgent {
             agent.kernel = Some(json!({"init":boundary.observation(),"limits":limits}));
             Ok(boundary)
         })();
-        match launched {
-            Ok(boundary) => Ok((agent, boundary)),
-            Err(error) => match agent.close() {
-                Ok(()) => Err(error),
-                Err(cleanup) => Err(format!("{error}; {cleanup}")),
-            },
-        }
+        launched
     }
     fn command(
         &mut self,
@@ -296,6 +300,7 @@ impl NativeSdkAgent {
             .as_array()
             .filter(|a| a.len() == 1)
             .ok_or("SDK inspect must have one result")?;
+        self.inspection = Some(rows[0].clone());
         Ok(rows[0].clone())
     }
     pub(crate) fn launch_sdk(&mut self, cancel: &AtomicBool) -> Result<RootChild, String> {

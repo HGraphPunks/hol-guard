@@ -239,17 +239,10 @@ pub(crate) fn run_native_sdk_transport(
         if prompt["decision"] != "allow" {
             return Err("actual Native prompt did not allow SDK setup".into());
         }
-        let (owner, boundary) = NativeSdkAgent::start(
-            &job.job_id,
-            &preparation,
-            &assets,
-            &sockets,
-            &public,
-            &actor,
-            &cancelled,
-        )?;
+        let owner = NativeSdkAgent::prepare(&job.job_id, &preparation, &assets, &sockets, &public)?;
         agent = Some(owner);
         let owner = agent.as_mut().unwrap();
+        let boundary = owner.launch(&assets, &public, &actor, &cancelled)?;
         sdk = Some(owner.launch_sdk(&cancelled)?);
         let process = sdk.as_mut().unwrap();
         let (peer, binding) = bind(

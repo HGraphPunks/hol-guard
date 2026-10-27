@@ -25,7 +25,7 @@ fn absent(path: &Path) -> Result<(), String> {
     }
 }
 
-fn controller_absent(running: &RunningMarker) -> Result<(), String> {
+pub(crate) fn controller_absent(running: &RunningMarker) -> Result<(), String> {
     let expected = format!("/system.slice/hol-gauntlet-rust-job-{}", running.job_id);
     if running.cgroup != expected {
         return Err("native controller cgroup binding changed".into());

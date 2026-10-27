@@ -4,6 +4,11 @@ fn run() -> Result<(), String> {
     use std::io::{Read, Write};
     gauntlet_worker_state::install_native_worker_signals()?;
     let args = std::env::args().collect::<Vec<_>>();
+    if args.len() == 11 && args[1] == "--repair-sdk-created" {
+        let raw = gauntlet_worker_state::repair_native_sdk_created(&args)?;
+        println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
+        return Ok(());
+    }
     if args.len() == 10 && args[1] == "--publish-native-runtime" {
         let pins = gauntlet_worker_state::NativeRuntimePins {
             job_id: &args[2],

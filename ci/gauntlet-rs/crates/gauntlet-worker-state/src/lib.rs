@@ -258,11 +258,15 @@ mod native_sdk_assets;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_sdk_control;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_created_repair;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_sdk_process;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_sdk_public;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_sdk_quiescence;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_sdk_created_repair::repair_native_sdk_created;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_sdk_router;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

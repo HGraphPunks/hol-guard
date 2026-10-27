@@ -44,14 +44,39 @@ pub(crate) fn check_inspection(
         || h["NanoCpus"] != 2000000000_u64
         || h["CpusetCpus"] != "0-1"
         || h["CgroupParent"] != format!("holgauntletrust{job}.slice")
-        || h["CapAdd"].as_array().is_some_and(|a| !a.is_empty())
+        || h["CapAdd"].as_array().is_none_or(|a| !a.is_empty())
     {
         return Err("SDK agent isolation or resource settings differ".into());
     }
     let drops = h["CapDrop"]
         .as_array()
         .ok_or("SDK capability drop missing")?;
-    if drops.len() != 1 || !matches!(drops[0].as_str(), Some("ALL" | "CAP_ALL")) {
+    let expanded = [
+        "CAP_CHOWN",
+        "CAP_DAC_OVERRIDE",
+        "CAP_FOWNER",
+        "CAP_FSETID",
+        "CAP_KILL",
+        "CAP_NET_BIND_SERVICE",
+        "CAP_SETFCAP",
+        "CAP_SETGID",
+        "CAP_SETPCAP",
+        "CAP_SETUID",
+        "CAP_SYS_CHROOT",
+    ];
+    let values = drops
+        .iter()
+        .filter_map(Value::as_str)
+        .collect::<std::collections::BTreeSet<_>>();
+    let all = drops.len() == 1 && matches!(drops[0].as_str(), Some("ALL" | "CAP_ALL"));
+    let expanded_all = drops.len() == expanded.len() && values == expanded.into_iter().collect();
+    if !(all || expanded_all)
+        || ["BoundingCaps", "EffectiveCaps"].iter().any(|key| {
+            value
+                .get(*key)
+                .is_none_or(|v| !v.is_null() && v.as_array().is_none_or(|a| !a.is_empty()))
+        })
+    {
         return Err("SDK must drop every capability".into());
     }
     let opts = h["SecurityOpt"]
@@ -110,7 +135,7 @@ mod tests {
             "Path":"/usr/bin/sleep","Args":["240"],"AppArmorProfile":name,"State":{"Running":true,"Pid":41},
             "Config":{"User":"10001:10001","WorkingDir":"/runtime/home/project","Labels":{"hol.gauntlet.sdk.job":job,
                 "hol.gauntlet.sdk.nonce":nonce,"hol.gauntlet.sdk.profile":"native-sdk-transport-v1"}},
-            "HostConfig":{"Privileged":false,"ReadonlyRootfs":true,"NetworkMode":"none","Memory":2147483648_u64,
+            "BoundingCaps":null,"EffectiveCaps":[],"HostConfig":{"Privileged":false,"ReadonlyRootfs":true,"NetworkMode":"none","Memory":2147483648_u64,
                 "PidsLimit":256,"NanoCpus":2000000000_u64,"CpusetCpus":"0-1","CgroupParent":format!("holgauntletrust{job}.slice"),
                 "CapAdd":[],"CapDrop":["CAP_ALL"],"SecurityOpt":["no-new-privileges",format!("apparmor={name}")]},
             "Mounts":[{"Destination":"/runtime/bun","Source":"/opt/bun","Type":"bind","RW":false,"Propagation":"rprivate"}]});
@@ -119,6 +144,31 @@ mod tests {
         other_display["Name"] = json!(name);
         other_display["Image"] = json!(NATIVE_SDK_AGENT_IMAGE.strip_prefix("sha256:").unwrap());
         assert!(check_inspection(&other_display, name, &job, &nonce, &mounts, true).is_ok());
+        other_display["HostConfig"]["CapDrop"] = json!([
+            "CAP_CHOWN",
+            "CAP_DAC_OVERRIDE",
+            "CAP_FOWNER",
+            "CAP_FSETID",
+            "CAP_KILL",
+            "CAP_NET_BIND_SERVICE",
+            "CAP_SETFCAP",
+            "CAP_SETGID",
+            "CAP_SETPCAP",
+            "CAP_SETUID",
+            "CAP_SYS_CHROOT"
+        ]);
+        assert!(check_inspection(&other_display, name, &job, &nonce, &mounts, true).is_ok());
+        other_display["HostConfig"]["CapDrop"]
+            .as_array_mut()
+            .unwrap()
+            .pop();
+        assert!(check_inspection(&other_display, name, &job, &nonce, &mounts, true).is_err());
+        let mut changed = value.clone();
+        changed["BoundingCaps"] = json!(["CAP_SYS_ADMIN"]);
+        assert!(check_inspection(&changed, name, &job, &nonce, &mounts, true).is_err());
+        changed = value.clone();
+        changed.as_object_mut().unwrap().remove("EffectiveCaps");
+        assert!(check_inspection(&changed, name, &job, &nonce, &mounts, true).is_err());
         for (pointer, bad) in [
             ("/Config/User", json!("0:0")),
             ("/Image", json!("other")),

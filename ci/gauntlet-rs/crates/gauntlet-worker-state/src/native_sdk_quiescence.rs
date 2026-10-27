@@ -1,6 +1,6 @@
 //! Outside-worker postcondition. A controller's own cleanup claim cannot
 //! close a job while SDK container metadata or its scoped LSM profile survives.
-use crate::native_sdk_process::read_only_podman;
+use crate::native_sdk_process::run_pinned_podman;
 use crate::NativeJobSpec;
 use gauntlet_cell_rootfs::CellPreparation;
 use std::io::Read;
@@ -8,7 +8,7 @@ pub(crate) fn require_sdk_quiescence(
     job: &NativeJobSpec,
     spec: &CellPreparation,
 ) -> Result<(), String> {
-    let output = read_only_podman(
+    let output = run_pinned_podman(
         &spec.podman_sha256,
         &[
             "ps".into(),
