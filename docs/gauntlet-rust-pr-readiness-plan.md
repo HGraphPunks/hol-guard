@@ -432,7 +432,13 @@ approval ceremony for routine work already authorized by this request.
   large integer versions. All 460 Mac tests and Mac/ARM Clippy pass; static
   ARM tests compile. Root file/socket/process ownership and MCP dispatch are
   separate pending components. See [world proof](gauntlet-rust-world-proof-20261027.md).
-- Next: execute the Rust world tests on ARM, finish Native MCP/service ownership, independent scoring and
+- 2026-10-27: native ARM execution at `6f308fae` passes all six world tests,
+  including every frozen Python result/snapshot/receipt relation. The host
+  reader verifies all nine result members and both pinned ELF inputs. The
+  eight bridge vectors skipped on Mac pass separately with the exact Linux
+  Bun pin as UID10001; no Native/model execution is claimed by those unit
+  vectors. Root MCP dispatch/lifecycle and independent scoring remain open.
+- Next: finish Native MCP/service ownership, independent scoring and
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;

@@ -42,8 +42,10 @@ validation inputs; no product bound or approval assertion was weakened.
 | Command source compiler | `15c13e6639c84fd81661bf0b6752b234d316eac0941e2376608b77869b64a11c` |
 
 The focused 14-file Native/Gauntlet suite passes 369 tests. Its one skip
-requires the exact Linux Bun ELF for eight TypeScript bridge vectors; those
-vectors still need their separate native-platform execution. Mac Bun observer
+requires the exact Linux Bun ELF for eight TypeScript bridge vectors. Those
+vectors now pass separately on the ARM VM with the exact Bun pin as UID10001;
+see the [native unit proof](gauntlet-rust-world-proof-20261027.md).
+Mac Bun observer
 cases and real Native Bash ownership, policy readiness, exact-action approval,
 installed prompt replay and MCP/container contracts pass. Log
 `native-and-gauntlet-after-759130ab-c.log` has SHA-256

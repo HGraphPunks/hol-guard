@@ -321,8 +321,10 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
       Rust matches 153 source-pinned actual Python operations and every
       intermediate snapshot/receipt digest; five additional durability and
       refusal tests pass. The full Mac workspace passes 460 tests; Mac/ARM
-      Clippy and static ARM test builds pass. Native ARM execution and Root
-      MCP integration remain open; see [world proof](gauntlet-rust-world-proof-20261027.md).
+      Clippy pass. Source `6f308fae` also passes all six tests natively as Root
+      on ARM; the host reader verifies every input/result member and the
+      eight Linux-Bun bridge vectors. Root MCP integration remains open;
+      see [world proof](gauntlet-rust-world-proof-20261027.md).
   - [x] Run fresh current-source Native success, timeout and cancellation
     through the complete Rust worker on the published 3.57.0 runtime. GNU actor
     ABI preflight refuses the earlier static actor before artifact creation;

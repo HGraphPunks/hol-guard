@@ -46,8 +46,27 @@ The complete Mac workspace passes 460 tests across 222 targets with zero
 failures or ignores. Log `rust-workspace-world-002.log` has SHA-256
 `7a065eb763eb7b5a0c002d95837a3a75ba48cc44ca0b40ad1e0617ebb959f6eb`.
 Warnings-denied Mac and ARM64 Clippy pass. Three static ARM64 test executables
-compile; native execution is next. The earlier 459-test passing checkpoint
-and initial compiler/Clippy diagnostics remain retained.
+compile. The earlier 459-test passing checkpoint is retained; initial
+compiler/Clippy corrections remain in the task record.
+
+Native execution now passes on `hol-gauntlet-rust-build-20261026-001` at
+source `6f308fae66d47f4a92f2b354adf802a2c2472283`. The Root-owned static
+ARM64 executables pass the 153-operation Python parity test and all five
+durability/refusal tests, with no failures or ignores. Input archive
+`rust-world-native-tests-input-001.tar` has SHA-256
+`c02a485d6820c58ed7192b0234a128663dee6b821e0014dd7f10377050105c19`.
+The nine-member results export has SHA-256
+`13400d05773a96eaf09ed3561c98f13ca6e26c16275b771072400a3909851988`.
+The inert `verify_rust_world_native_20261027.py` checks input ELF bytes,
+source/generation pins, every result member, output hashes and exact counts.
+
+The same reader verifies all eight contained-output bridge vectors using
+the exact Linux Bun pin. They run as UID/GID10001 against the unchanged
+bridge helper and an explicitly mocked controller, with zero network/model
+requests and no Native execution. Receipt SHA-256 is
+`73a85593dea796613b87799b7188325f70642d17aace3c749379956e11d88ed1`.
+This closes the architecture-specific unit-test skip in the consolidation
+report; it supplies no benchmark or Guard-causality verdict.
 
 This is the state engine component, not an integrated MCP service or complete
 legacy migration. Root socket/process custody, real MCP dispatch/catalogs,
