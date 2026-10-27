@@ -61,8 +61,17 @@ courier then timed out at 30 seconds during prior-job preflight; its unknown
 return code is retained, both leases were subsequently reacquired, and all
 155 worker files still match their hashes. The next source rejects consumed
 identities under the active lease before unrelated host preflight, while
-retaining exact pin checks and the final atomic reservation. Its ARM Clippy
-and build pass; its fresh VM execution/replay proof is pending.
+retaining exact pin checks and the final atomic reservation.
+
+That change passes at source `779bc84137430d46c4f98755a561e8b24fa164f7`.
+Fresh job `e2c701baf1474001` repeats the complete actual SDK/MCP/Bash run,
+with 24 frames on each side, one physical signed read receipt and 51 outside
+samples. All 155 earlier worker files stay unchanged. With the legacy worker
+lease deliberately held, replay returns the consumed-ID refusal in
+523.923 ms, read-only reconcile returns the original terminal, and a wrong
+request pin refuses before host preflight. All 161 final worker files remain
+unchanged. The tested library ELF remains byte-identical to the one that
+passed all 177 ARM tests. ARM Clippy and the new main binary build pass.
 
 Public evidence, excluding product homes and Guard stores:
 
@@ -72,12 +81,19 @@ Public evidence, excluding product homes and Guard stores:
 | Export, 1,495,040 bytes / 208 members | `242e75a36de417c1e3fa6f97b986aac5ce6552ee4030118a397074aa3778b885` |
 | Combined report | `fde34916d2dc1ef22bb8cd6793136ad8e7f42305b40738e7296232217537c96e` |
 | Reference report | `a4f0c2758c0943231f162c305ef2bb6f053765633a3c9a57abf7de9d5580313b` |
+| Replay-fix input, 24,442,880 bytes / 2 members | `5d681d1931ef718509348420a0ec9f60439187a7a23426ba693aebd05c0dfc42` |
+| Replay-fix export, 993,280 bytes / 133 members | `cc723ac10805ede72f6ca7d70be0317cb88878ff14520ad8e78c50f98e9010dc` |
+| Fresh replay-fix execution report | `33a82fca7a330ecc7b7b3d142c894d500c72bcc48200930c1ca0f38697bab642` |
 
 Run `ci/gauntlet-rs/proofs/verify_native_sdk_mcp_transport_20261027.py` with
 the retained evidence directory. It independently checks the public archive,
 ELFs, receipts, actual wire/output joins, physical DB/effect and process
 samples. The diagnostic product prefix remains the historical `62aa7ba7`
 build; this is not current-upstream product qualification.
+The companion `verify_native_sdk_mcp_replay_20261027.py` verifies both retained
+archives and the fresh execution/replay result. It checks the exact runtime
+source delta, unchanged test ELF and original timeout without rewriting old
+evidence or borrowing a prior job's terminal.
 
 Every v5 terminal remains `invalid-evidence`, with execution eligibility,
 Guard causality and outside signing-key admission false. This diagnostic

@@ -359,8 +359,12 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
       samples. V4 reference job `e2c701baf1473902` also passes. Mac tests (80),
       native ARM worker tests (177; 24 existing ignores), 31 rootfs tests plus
       subprocess and Mac/ARM Clippy pass. No qualification credit is inferred.
-      The original replay courier timeout stays retained; early consumed-ID
-      refusal is implemented and compiled, with its fresh live proof pending.
+      The original replay courier timeout stays retained. At `779bc841`, fresh
+      job `e2c701baf1474001` repeats the complete execution with 51 samples;
+      replay refuses in 523.923 ms while the legacy lease is held, reconcile
+      returns the original terminal, and wrong request pins refuse before
+      preflight. Independent readback verifies the new archive and unchanged
+      161 worker files. The tested library ELF remains byte-identical.
       See [combined transport](gauntlet-rust-native-sdk-mcp-transport.md).
   - [x] Run fresh current-source Native success, timeout and cancellation
     through the complete Rust worker on the published 3.57.0 runtime. GNU actor

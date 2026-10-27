@@ -487,7 +487,15 @@ approval ceremony for routine work already authorized by this request.
   files. An early consumed-ID refusal now avoids unrelated host preflight;
   its ARM Clippy/build pass, with fresh VM verification pending. See
   [combined transport](gauntlet-rust-native-sdk-mcp-transport.md).
-- Next: verify bounded replay startup, finish independent scoring and
+- 2026-10-27: source `779bc841` passes fresh combined job
+  `e2c701baf1474001` and independent outside readback: 24 frontend/24 upstream
+  frames, exact SDK MCP/Bash results, one signed physical SQLite read and
+  51 process samples. Replay refuses in 523.923 ms while the legacy lease
+  is held; reconcile returns the original terminal and a wrong request pin
+  refuses. All 161 worker files remain intact. The tested library ELF is
+  unchanged, ARM Clippy/builds pass, and no model request occurs. The original
+  timeout stays retained. See [combined transport](gauntlet-rust-native-sdk-mcp-transport.md).
+- Next: finish independent deterministic role scoring and
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;
