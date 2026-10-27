@@ -310,9 +310,22 @@ Its 140-member / 1,095,680-byte export is
 Select `010-timeout` in the successful lifecycle reader. This source's
 five-member / 65,945,600-byte input bundle is
 `8a5c6d89946133120bdf4c8d09796240781774e2124e2cd5a4141a83a18fc9d9`.
-The older failures and successful cancellation remain immutable. A fresh
-same-source cancellation regression is running separately. All current
+The older failures and successful cancellation remain immutable. The fresh
+same-source cancellation regression is verified below. All current
 qualification and outside-key admission flags stay false; no model calls ran.
+
+The same-source cancellation `e2c701baf1475002` also passes independent
+host readback. Root cancels only after the exact kernel child and original
+overlay readiness are bound, then verifies child death and cleanup. Final
+readback keeps the same ready inode/bytes at link count one; absent execution
+result/Post fields remain unavailable. Both Native and SDK/MCP capture joins
+are checked alongside 61 outside samples. Replay refuses in 533.798 ms with
+all 239 worker files preserved. The report is
+`bec13dad1a943842774e4ca68f4f51a0700d9d5f8c7427f9b4662eb2382c674f`.
+Its 132-member / 1,024,000-byte export is
+`78e147a78ba515833515c82f981213e74d2eb2505f6e18fce1206839fede527e`.
+Select `010-cancel` in the lifecycle reader. Neither successful lifecycle
+diagnostic grants qualified role completion or outside-key admission.
 
 Remaining work includes live detached-lifecycle verification, kernel/mount authority,
 provider mapping, complete role scoring,

@@ -18,6 +18,22 @@ PYTHON = "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960"
 CANCEL = "controller requested product-cell cancellation after held detached readiness"
 DISPATCH = "controlled SDK sink cancellation after detached readiness"
 PROOFS = {
+    "010-cancel": {
+        "index": "010-cancel",
+        "input_index": "010",
+        "role": "cancel",
+        "job_file": "cancel",
+        "source": "35852bd601d35709b79b64f69466faeaa55ad1d9",
+        "report": "bec13dad1a943842774e4ca68f4f51a0700d9d5f8c7427f9b4662eb2382c674f",
+        "export": ("78e147a78ba515833515c82f981213e74d2eb2505f6e18fce1206839fede527e", 1024000, 132),
+        "input": ("8a5c6d89946133120bdf4c8d09796240781774e2124e2cd5a4141a83a18fc9d9", 65945600, 5),
+        "courier": "de9e8bc2526795a0a3667f75624e19a7822a8e44103af347250025f3701263d8",
+        "prior": 233,
+        "final": 239,
+        "samples": 61,
+        "forbidden": False,
+        "rootfs_tests": "40",
+    },
     "010-timeout": {
         "index": "010-timeout",
         "input_index": "010",
@@ -355,6 +371,7 @@ def verify(directory, attempt="008-cancel"):
 if __name__ == "__main__":
     if len(sys.argv) not in [2, 3]:
         raise SystemExit(
-            "usage: verify_native_lifecycle_control_20261027.py EVIDENCE_DIRECTORY [008-cancel|010-timeout]"
+            "usage: verify_native_lifecycle_control_20261027.py EVIDENCE_DIRECTORY "
+            "[008-cancel|010-timeout|010-cancel]"
         )
     print(json.dumps(verify(Path(sys.argv[1]), *sys.argv[2:]), sort_keys=True))

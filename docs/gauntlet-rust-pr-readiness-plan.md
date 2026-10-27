@@ -616,7 +616,15 @@ approval ceremony for routine work already authorized by this request.
   Mac rootfs suite and affected Clippy/builds pass. A same-source cancellation
   regression remains underway. The lifecycle checkpoint is pushed to the
   fork, with failed attempts retained and all qualification flags false.
-- Next: verify the same-source cancellation regression and finish deterministic role scoring, then
+- 2026-10-27: same-source cancellation `e2c701baf1475002` at `35852bd6`
+  also passes independent SDK/MCP/Root readback. Kernel-bound readiness
+  precedes cancellation; held-child death, unchanged ready inode/bytes and
+  cleanup are verified without manufacturing an execution result or Post.
+  Replay refuses in 533.798 ms and preserves all 239 worker files. Both
+  lifecycle paths now pass bounded actual diagnostics on the same Rust
+  generation. All qualification, Guard causality and outside-key admission
+  flags remain false; zero model calls ran.
+- Next: finish independent deterministic role scoring and outside key custody, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;

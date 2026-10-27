@@ -424,7 +424,10 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
       Replay refuses in 526.615 ms; 233 worker files remain intact. Native
       ARM passes 179 worker/40 rootfs tests plus subprocess, and the 33-test
       Mac rootfs suite and affected Clippy/builds pass. The same-source
-      cancellation regression remains pending. All qualification flags stay
+      cancellation `e2c701baf1475002` also passes independent readback:
+      61 outside samples, complete cleanup, preserved missing SDK result/
+      Post and 239 intact worker files. Replay refuses in 533.798 ms.
+      All qualification flags stay
       false; complete role scoring and source-matched conformance stay open.
       See [deterministic controls](gauntlet-rust-native-deterministic-controls.md).
   - [x] Run fresh current-source Native success, timeout and cancellation
