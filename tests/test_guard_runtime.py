@@ -80,6 +80,9 @@ from codex_plugin_scanner.guard.store import (
     GuardStore,
 )
 from codex_plugin_scanner.guard.synced_policy import synced_policy_payload
+from tests.codex_read_only_inspection import (
+    codex_command_is_read_only_source_inspection,
+)
 from tests.guard_signed_approval_fixtures import write_synthetic_daemon_auth_token
 from tests.policy_bundle_signing_helpers import (
     policy_bundle_test_keyring,
@@ -20398,7 +20401,7 @@ def test_codex_read_only_source_inspection_external_targets_require_plain_non_re
     source_file.write_text("export const browser = true;\n")
     (source_root / ".git").write_text("gitdir: ../.git/worktrees/test-checkout\n")
 
-    assert guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert codex_command_is_read_only_source_inspection(
         f"grep 'browser' {source_file}",
         cwd=workspace_dir,
         home_dir=home_dir,
@@ -20407,7 +20410,7 @@ def test_codex_read_only_source_inspection_external_targets_require_plain_non_re
     workspace_source = workspace_dir / "src" / "local.ts"
     workspace_source.parent.mkdir()
     workspace_source.write_text("export const browser = true;\n")
-    assert guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert codex_command_is_read_only_source_inspection(
         f"grep -r 'browser' {workspace_source.parent}",
         cwd=workspace_dir,
         home_dir=home_dir,
@@ -20429,7 +20432,7 @@ def test_codex_read_only_source_inspection_external_targets_require_plain_non_re
         f"bash -c \"grep 'browser' {source_file}\"",
     )
     for command in rejected_commands:
-        assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+        assert not codex_command_is_read_only_source_inspection(
             command,
             cwd=workspace_dir,
             home_dir=home_dir,
@@ -20449,7 +20452,7 @@ def test_codex_read_only_source_inspection_rejects_globbed_targets(tmp_path: Pat
     ]
 
     for command in commands:
-        assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+        assert not codex_command_is_read_only_source_inspection(
             command,
             cwd=workspace_dir,
         )
@@ -20467,7 +20470,7 @@ def test_codex_read_only_source_inspection_allows_quoted_bracket_targets(tmp_pat
     ]
 
     for command in commands:
-        assert guard_commands_module._codex_command_is_read_only_source_inspection(
+        assert codex_command_is_read_only_source_inspection(
             command,
             cwd=workspace_dir,
         )
@@ -20485,7 +20488,7 @@ def test_codex_read_only_source_inspection_allows_safe_sed_chains(tmp_path: Path
         "sed -n '940,1005p' src/services/skill-registry/skill-registry-service.ts"
     )
 
-    assert guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert codex_command_is_read_only_source_inspection(
         command,
         cwd=workspace_dir,
     )
@@ -20509,11 +20512,11 @@ def test_codex_read_only_source_inspection_rejects_unbounded_sed_ranges(tmp_path
     source_file = workspace_dir / "src" / "safe.ts"
     _write_text(source_file, "export const safe = true;\n")
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "sed -n '9999999p' src/safe.ts",
         cwd=workspace_dir,
     )
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         f"sed -n '{'9' * 10000}p' src/safe.ts",
         cwd=workspace_dir,
     )
@@ -20526,7 +20529,7 @@ def test_codex_read_only_source_inspection_rejects_sed_chain_with_secret_file(tm
 
     command = "sed -n '450,510p' src/api/routes/skill-registry.ts && cat .env"
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         command,
         cwd=workspace_dir,
     )
@@ -20544,7 +20547,7 @@ def test_codex_read_only_source_inspection_preserves_pipelines_in_safe_chains(tm
         "sed -n '940,1005p' src/services/skill-registry/skill-registry-service.ts"
     )
 
-    assert guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert codex_command_is_read_only_source_inspection(
         command,
         cwd=workspace_dir,
     )
@@ -20569,7 +20572,7 @@ def test_codex_read_only_source_inspection_allows_cd_then_bounded_secret_term_se
         f"rg -n {shlex.quote(pattern)} src app __tests__ docs -g '!**/*.map' | sed -n '1,260p'"
     )
 
-    assert guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert codex_command_is_read_only_source_inspection(
         command,
         cwd=repo_root,
         home_dir=tmp_path,
@@ -20605,7 +20608,7 @@ def test_codex_read_only_source_inspection_rejects_cd_parent_escape(tmp_path: Pa
         "rg -n token_label src | sed -n '1,40p'"
     )
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         command,
         cwd=repo_root,
         home_dir=tmp_path,
@@ -20627,7 +20630,7 @@ def test_codex_read_only_source_inspection_allows_tilde_worktree_targets(tmp_pat
         "~/CascadeProjects/hashgraph-online/cloud-portal/.worktrees/guard-auth-phase-r-default-surfaces/__tests__"
     )
 
-    assert guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert codex_command_is_read_only_source_inspection(
         command,
         cwd=repo_root,
         home_dir=tmp_path,
@@ -20706,7 +20709,7 @@ def test_codex_read_only_source_inspection_allows_git_diff_with_bounded_sed(
         "tests/test_guard_approvals.py | sed -n '1,260p'"
     )
 
-    assert guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert codex_command_is_read_only_source_inspection(
         command,
         cwd=workspace_dir,
     )
@@ -20736,7 +20739,7 @@ def test_codex_read_only_source_inspection_rejects_git_diff_secret_path(
     workspace_dir = tmp_path / "workspace"
     _write_text(workspace_dir / ".env", "TOKEN_LABEL=value\n")
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff -- .env | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -20758,7 +20761,7 @@ def test_codex_read_only_source_inspection_rejects_git_diff_external_config(
 """.strip(),
     )
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -20780,7 +20783,7 @@ def test_codex_read_only_source_inspection_rejects_git_diff_textconv_config(
 """.strip(),
     )
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -20802,7 +20805,7 @@ def test_codex_read_only_source_inspection_rejects_git_diff_driver_command_confi
 """.strip(),
     )
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -20818,7 +20821,7 @@ def test_codex_read_only_source_inspection_rejects_git_external_diff_env(
     source_file = workspace_dir / "src" / "safe.ts"
     _write_text(source_file, "export const safe = true;\n")
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -20834,7 +20837,7 @@ def test_codex_read_only_source_inspection_rejects_git_config_parameters_env(
     source_file = workspace_dir / "src" / "safe.ts"
     _write_text(source_file, "export const safe = true;\n")
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -20858,7 +20861,7 @@ def test_codex_read_only_source_inspection_rejects_git_diff_global_textconv_conf
     source_file = workspace_dir / "src" / "safe.ts"
     _write_text(source_file, "export const safe = true;\n")
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -20884,7 +20887,7 @@ def test_codex_read_only_source_inspection_rejects_git_diff_included_config_with
     source_file = workspace_dir / "src" / "safe.ts"
     _write_text(source_file, "export const safe = true;\n")
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -20910,7 +20913,7 @@ def test_codex_read_only_source_inspection_rejects_git_diff_included_config_with
     source_file = workspace_dir / "src" / "safe.ts"
     _write_text(source_file, "export const safe = true;\n")
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -20937,7 +20940,7 @@ def test_codex_read_only_source_inspection_ignores_unmatched_git_include_if(
     _write_text(source_file, "export const safe = true;\n")
     _write_text(workspace_dir / ".git" / "HEAD", "ref: refs/heads/main\n")
 
-    assert guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert codex_command_is_read_only_source_inspection(
         "git diff -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -20964,7 +20967,7 @@ def test_codex_read_only_source_inspection_rejects_matched_git_include_if(
     _write_text(global_config, f'[includeIf "gitdir:{workspace_dir}/"]\n    path = {included_config}\n')
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(global_config))
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -20991,7 +20994,7 @@ def test_codex_read_only_source_inspection_rejects_git_include_if_gitdir_matches
     _write_text(global_config, f'[includeIf "gitdir:{workspace_dir / ".git"}"]\n    path = {included_config}\n')
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(global_config))
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -21023,7 +21026,7 @@ def test_codex_read_only_source_inspection_rejects_git_include_if_gitdir_matches
     _write_text(global_config, f'[includeIf "gitdir:{symlink_dir / ".git"}"]\n    path = {included_config}\n')
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(global_config))
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff -- src/safe.ts | sed -n '1,40p'",
         cwd=symlink_dir,
     )
@@ -21050,7 +21053,7 @@ def test_codex_read_only_source_inspection_rejects_git_include_if_relative_gitdi
     _write_text(global_config, f'[includeIf "gitdir:./workspace/.git"]\n    path = {included_config}\n')
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(global_config))
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -21086,7 +21089,7 @@ def test_codex_read_only_source_inspection_rejects_git_include_if_hasconfig(
     )
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(global_config))
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -21125,7 +21128,7 @@ def test_codex_read_only_source_inspection_rejects_git_include_if_hasconfig_nest
     )
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(global_config))
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -21150,7 +21153,7 @@ def test_codex_read_only_source_inspection_rejects_git_config_continued_include_
 """.strip(),
     )
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -21177,7 +21180,7 @@ def test_codex_read_only_source_inspection_rejects_git_include_if_onbranch_prefi
     _write_text(global_config, f'[includeIf "onbranch:feature/"]\n    path = {included_config}\n')
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(global_config))
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -21199,7 +21202,7 @@ def test_codex_read_only_source_inspection_allows_git_diff_with_external_helpers
 """.strip(),
     )
 
-    assert guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert codex_command_is_read_only_source_inspection(
         "git diff --no-ext-diff --no-textconv -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -21214,7 +21217,7 @@ def test_codex_read_only_source_inspection_rejects_git_config_injection(
     source_file = workspace_dir / "src" / "safe.ts"
     _write_text(source_file, "export const safe = true;\n")
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git -c diff.external=/tmp/guard-helper diff -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -21229,7 +21232,7 @@ def test_codex_read_only_source_inspection_rejects_unknown_git_diff_option(
     source_file = workspace_dir / "src" / "safe.ts"
     _write_text(source_file, "export const safe = true;\n")
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff --mystery -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -21244,7 +21247,7 @@ def test_codex_read_only_source_inspection_rejects_git_diff_paths_without_separa
     source_file = workspace_dir / "src" / "safe.ts"
     _write_text(source_file, "export const safe = true;\n")
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -21259,7 +21262,7 @@ def test_codex_read_only_source_inspection_rejects_disallowed_option_after_optio
     source_file = workspace_dir / "src" / "safe.ts"
     _write_text(source_file, "export const safe = true;\n")
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff --color --output=/tmp/leak -- src/safe.ts | sed -n '1,40p'",
         cwd=workspace_dir,
     )
@@ -21274,7 +21277,7 @@ def test_codex_read_only_source_inspection_rejects_unbounded_sed_filter(
     source_file = workspace_dir / "src" / "safe.ts"
     _write_text(source_file, "export const safe = true;\n")
 
-    assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+    assert not codex_command_is_read_only_source_inspection(
         "git diff -- src/safe.ts | sed 's/token/value/'",
         cwd=workspace_dir,
     )
@@ -21289,7 +21292,7 @@ def test_codex_read_only_source_inspection_rejects_invalid_sed_without_crashing(
         "sed -i 's/safe/unsafe/' src/safe.ts",
         "sed --unknown -n '1,40p' src/safe.ts",
     ):
-        assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+        assert not codex_command_is_read_only_source_inspection(
             command,
             cwd=workspace_dir,
         )
@@ -21309,7 +21312,7 @@ def test_codex_read_only_source_inspection_rejects_malformed_chains(tmp_path: Pa
     ]
 
     for command in commands:
-        assert not guard_commands_module._codex_command_is_read_only_source_inspection(
+        assert not codex_command_is_read_only_source_inspection(
             command,
             cwd=workspace_dir,
         )
