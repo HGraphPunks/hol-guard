@@ -444,7 +444,11 @@ approval ceremony for routine work already authorized by this request.
   real socket tests pass. The full Mac workspace passes 474 tests; Mac/ARM
   Clippy and static ARM builds pass. Root listener/peer/proxy/SDK integration
   remains pending. See [MCP component proof](gauntlet-rust-mcp-service-proof-20261027.md).
-- Next: execute MCP component tests on ARM, then finish Native MCP/service ownership, independent scoring and
+- 2026-10-27: all 20 current MCP/world tests pass natively as Root on ARM at
+  `5433f744`, with no failures/ignores. Independent host readback verifies
+  the four ELF inputs, 15 result members and six actual catalog fixture
+  producer records. No Root proxy/SDK integration or Guard score is inferred.
+- Next: finish Native MCP/service ownership, independent scoring and
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;

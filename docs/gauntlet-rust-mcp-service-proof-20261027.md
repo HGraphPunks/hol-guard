@@ -48,8 +48,24 @@ and complete negotiation/request/response exchange. World's original
 The complete Mac workspace passes 474 tests across 226 targets with zero
 failures or ignores; log `rust-workspace-mcp-002.log` has SHA-256
 `2738b7b1c70d984c7e7e60fec579361e4d7fd1b1e3b32889407a227d1dc4c803`.
-Warnings-denied Mac/ARM Clippy and static ARM test builds pass. Native ARM
-execution of this component remains next.
+Warnings-denied Mac/ARM Clippy and static ARM test builds pass.
+
+Native ARM execution now passes at source
+`5433f74440d0fc5d912583a381197ee7c96fc982`: nine dispatch, five persistent
+socket, five world durability and one 153-operation Python parity test. All
+20 pass as Root with zero failures/ignores. The five-member input archive
+has SHA-256
+`1801251c0bc1ab7fb67d2cbd6e2aea3a2d86368fafecb2e8f87bf42fe961c801`;
+the 15-member result archive has SHA-256
+`41809cde0ff911b9870e4dbbc931b1153fc386c24e7987e5cb39baba4523f021`.
+The committed inert `verify_rust_mcp_native_20261027.py` checks all ELF input
+bytes, exact native test counts/output hashes, and the original catalog
+producer's source/launch/output/cleanup records. That six-member catalog
+export has SHA-256
+`b98493282d9b6b5d56c0d31dd0e085616156361b82a6d94a6cfb286a0610a4e5`.
+Podman's successful `--rm` also removes the transient CID file; its absence
+was retained rather than replaced with an invented record. The earlier
+courier size-assertion error refused before any destination creation.
 
 This component is not yet wired to the Root-owned listener, authenticated
 Native MCP proxy/container, SDK resource endpoints, shared builtin/MCP budget
