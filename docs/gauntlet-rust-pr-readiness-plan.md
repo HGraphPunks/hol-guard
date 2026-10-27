@@ -275,6 +275,18 @@ approval ceremony for routine work already authorized by this request.
   the observed Podman client into the durable marker and adds explicit
   quiescent dependency repair with aborted/null-exit semantics. ARM64 Clippy
   passes; actual recovery and a fresh complete run remain next.
-- Next: prepare compatible dependencies, then deterministic authority. No new
+- 2026-10-26: quiescent dependency recovery passes five pin/lease refusals,
+  preserves all original files, and replays the same aborted/null-exit receipt.
+  Fresh current-source jobs `e2c701baf1471401` and `1402` then complete through
+  the Rust host and corrected Root supervisor. The latter has an independent
+  actual-exporter/kernel/effective-limit observation; both have independently
+  absent final resources. Wrong source/capsule/image/runtime/executable, both
+  busy leases and host/guest replay refuse without changing retained files.
+  Host verification checks all 80 exported evidence members, every byte/CRC
+  of three dependency ZIPs and the same 2,302-file framed digest. Each contains
+  62 distributions including MCP 1.30.0. All failed attempts/observers remain;
+  no package is imported as Root or admitted. See [dependency run proof](gauntlet-rust-native-dependency-run-vm-proof-20261026.md).
+  Inert prefix construction and candidate requirement validation remain next.
+- Next: construct the compatible prefix, then deterministic authority. No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.

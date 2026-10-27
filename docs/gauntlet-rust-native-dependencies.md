@@ -29,7 +29,8 @@ zero model requests.
 Three Mac tests verify binary ZIP readback, preservation on replay refusal,
 no execution of `.pth` content, linked-file/root refusal, and byte/seek bounds
 without allocating a 256-MiB test file. ARM64 compilation and warnings-denied
-Mac/ARM64 worker Clippy pass. This adapter has **not yet run in a live container**.
+Mac/ARM64 worker Clippy pass. Its live container execution and independent
+kernel observation now pass in the [dependency run proof](gauntlet-rust-native-dependency-run-vm-proof-20261026.md).
 
 The Rust host command `gauntlet-host-prepare-dependency-inputs` now creates a
 closed three-file capsule under an existing one-use local source slot. It
@@ -97,13 +98,18 @@ the exact original intent/reservation, all captured inputs, retained CID and
 absence of client/container/cgroups/profile, then writes a separate `aborted`
 receipt with null exit code and no execution credit. Missing running evidence
 stays null; no marker or terminal is invented. The original files are preserved,
-and later admission independently rechecks this separate receipt. Live repair
-and a fresh complete run are pending.
+and later admission independently rechecks this separate receipt. The live
+repair, replay and five pin/lease refusal cases now pass. Two fresh jobs then
+complete from exact current source `62aa7ba7`; both retain running/report/terminal
+identities and independently verified cleanup. Job `e2c701baf1471402` also has a
+successful outside kernel observation. See the [complete proof](gauntlet-rust-native-dependency-run-vm-proof-20261026.md).
 
 The independent observer of the first run is retained as unavailable: it read
 the container's parent systemd scope without calculating effective limits
-along the observed process's complete cgroup ancestry. Limits require a fresh
-kernel observation; the unavailable record supplies no containment proof.
+along the observed process's complete cgroup ancestry. A second observer also
+refused absent limit files at the cgroup root. Both unavailable records remain.
+The final observer reads every non-root ancestor and verifies the actual
+effective 12-GiB, zero-swap, 512-PID and two-CPU limits without a probe error.
 The first worker initialization also refused an installer-created 0555 file;
 the recorded correction restricts that new file to the existing required 0500
 mode. The source-matched actual Root library then passes 126 tests, with 24
@@ -120,9 +126,8 @@ run used the approved local socket capability without changing those tests.
 
 The remaining composition and verification are explicit:
 
-- Verify the new prelaunch host intent, actual unprivileged exporter and Root
-  supervision together on the owned VM, including independent kernel/cleanup
-  observations, replay and interrupted-job reconciliation.
+- Extend recovery beyond the proven quiescent profile, with actual dependency
+  timeout, cancellation and transport-interruption cases.
 - After verified cleanup, Root must independently capture/inspect the ZIP,
   construct an inert dependency prefix and validate the candidate's complete
   declared requirements against it before any control can use that prefix.
