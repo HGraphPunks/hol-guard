@@ -661,7 +661,15 @@ approval ceremony for routine work already authorized by this request.
   The first workspace test exposes the stale controller-tree pin; actual
   Python bootstrap and Rust independently agree on the new 401-file,
   412-entry digest `a6b9a563…a6063d`. Only the current-source pin changes;
-  historical baselines and proofs stay retained. Merged validation is pending;
+  historical baselines and proofs stay retained. Merged validation now passes
+  at `3736c099`: 501 Rust tests, warnings-denied Clippy, the matching 3.58.0
+  Native build, three output and seven image-hardening tests, all five program
+  checks and 453 Python regressions. Four observer cases skipped for PATH
+  reasons also pass separately with retained macOS Bun; the remaining local
+  bridge skip requires the pinned Linux executable and retains its separate
+  eight-vector VM proof. The validator's generated docs are preserved outside
+  the branch before restoring their committed bytes. Required CI remains
+  user-owned and pending; parent exits remain 24/62;
   see [upstream synchronization](gauntlet-rust-upstream-sync-ee0b44f4.md).
 - Next: finish independent deterministic role scoring and outside key custody, then
   fresh source-matched publication/conformance.
