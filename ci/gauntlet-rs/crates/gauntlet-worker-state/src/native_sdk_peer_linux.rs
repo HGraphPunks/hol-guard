@@ -1,5 +1,5 @@
 //! Held pidfds, executable inode and namespace descriptors for one actual SDK.
-use super::{checked_status, sdk_cgroup, sdk_label};
+use super::{checked_status, sdk_cgroup, sdk_process_label};
 use crate::linux_process::observe_process;
 use crate::sdk_wire_peer::{
     authenticate_sdk_relay_peer_ineligible, bind_sdk_relay_to_ancestor_ineligible,
@@ -40,12 +40,7 @@ impl Snapshot {
         let status = checked_status(&read_at(&process, "status", 16384)?, pin.pid)?;
         let current = String::from_utf8(read_at(&process, "attr/current", 4096)?)
             .map_err(|_| "SDK LSM label UTF-8")?;
-        let name = label
-            .strip_suffix(" (unconfined)")
-            .ok_or("SDK template mode differs")?;
-        if sdk_label(name)? != label || current.trim() != label {
-            return Err("SDK named unconfined template label differs".into());
-        }
+        let label = sdk_process_label(label, current.trim())?;
         let mut namespaces = BTreeMap::new();
         for name in ["mnt", "pid", "net", "ipc", "uts", "cgroup", "user"] {
             let fd = openat(
@@ -64,7 +59,7 @@ impl Snapshot {
             pidfd,
             namespaces,
             status,
-            label: label.into(),
+            label,
         };
         snapshot.recheck()?;
         Ok(snapshot)

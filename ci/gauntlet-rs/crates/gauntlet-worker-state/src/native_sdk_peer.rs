@@ -16,6 +16,24 @@ pub(crate) fn sdk_label(name: &str) -> Result<String, String> {
     Ok(format!("{name} (unconfined)"))
 }
 
+/// Ubuntu's crun profile can stack with the exact declared SDK profile.
+/// Preserve the observed complete label; never normalize away a component.
+pub(super) fn sdk_process_label(expected: &str, observed: &str) -> Result<String, String> {
+    let declared = expected.strip_prefix("crun//&").unwrap_or(expected);
+    let name = declared
+        .strip_suffix(" (unconfined)")
+        .ok_or("SDK template mode differs")?;
+    if sdk_label(name)? != declared
+        || (observed != expected
+            && (expected != declared || observed != format!("crun//&{declared}")))
+    {
+        return Err(format!(
+            "SDK template process label differs: observed {observed:?}, expected {expected:?}"
+        ));
+    }
+    Ok(observed.into())
+}
+
 pub(super) fn sdk_cgroup(container: &str, label: &str, actual: &str) -> Result<(), String> {
     let name = label
         .strip_suffix(" (unconfined)")
@@ -123,6 +141,27 @@ mod tests {
             "hol-gauntlet-sdk-aaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-extra",
         ] {
             assert!(sdk_label(name).is_err());
+        }
+    }
+    #[test]
+    fn sdk_process_label_keeps_the_exact_runtime_stack_and_refuses_other_profiles() {
+        let name = format!("hol-gauntlet-sdk-{}-{}", "a".repeat(16), "b".repeat(32));
+        let label = sdk_label(&name).unwrap();
+        let stacked = format!("crun//&{label}");
+        assert_eq!(sdk_process_label(&label, &label).unwrap(), label);
+        assert_eq!(sdk_process_label(&label, &stacked).unwrap(), stacked);
+        assert_eq!(sdk_process_label(&stacked, &stacked).unwrap(), stacked);
+        assert!(sdk_process_label(&stacked, &label).is_err());
+        for bad in [
+            "unconfined".into(),
+            format!("{name} (enforce)"),
+            format!("other//&{label}"),
+            format!("crun//&crun//&{label}"),
+            format!("crun//&{label}//&other"),
+            label.replace(&"a".repeat(16), &"c".repeat(16)),
+            label.replace(&"b".repeat(32), &"c".repeat(32)),
+        ] {
+            assert!(sdk_process_label(&label, &bad).is_err(), "{bad}");
         }
     }
     #[test]

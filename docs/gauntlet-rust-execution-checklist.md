@@ -291,6 +291,20 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
     members, the dual receipt and 141 passing Root tests with 24 existing
     fixture ignores. See [SDK publication proof](gauntlet-rust-native-sdk-publication-vm-proof-20261027.md).
     SDK/Bun execution, MCP and independently scored controls remain open.
+  - [x] Retain and independently read back the SDK launcher refusals and
+    scoped recovery before accepting a fresh run. Exports 025/027/028/029/030
+    preserve all original failures, the exact never-started CID repair,
+    separate consumed/aborted receipts with unknown exits, lease/pin/replay
+    refusals and 94 worker files. The committed inert readers verify every
+    exported member and input pin. The current agent reaches its exact
+    delegated cgroup and resource limits, then refuses its process label
+    before Bun starts. A separate fresh held-pidfd diagnostic identifies the
+    exact `crun//&SDK` label; the corrected source keeps that complete stack
+    fixed and passes 450 Mac tests plus Mac/ARM Clippy. Live SDK acceptance
+    remains open. See [SDK transport evidence](gauntlet-rust-native-sdk-transport.md).
+  - [ ] Complete the Rust-owned actual SDK/Bun pre-import binding, same-UID
+    negative, genuine Bash tool route and captured-result delivery on the
+    current installed runtime, then add MCP and independently scored controls.
   - [x] Run fresh current-source Native success, timeout and cancellation
     through the complete Rust worker on the published 3.57.0 runtime. GNU actor
     ABI preflight refuses the earlier static actor before artifact creation;

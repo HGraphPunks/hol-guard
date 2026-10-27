@@ -258,9 +258,11 @@ impl NativeSdkAgent {
                 }
                 limits.insert(name.into(), json!(expected));
             }
-            agent.kernel = Some(
-                json!({"pid":pid,"start_ticks":stat.start_ticks,"cgroup":cgroup,"limits":limits}),
-            );
+            let label = String::from_utf8(read(&proc.join("attr/current"), 4096)?)
+                .map_err(|_| "SDK init LSM label UTF-8")?;
+            agent.kernel = Some(json!({"pid":pid,"start_ticks":stat.start_ticks,
+                "cgroup":cgroup,"limits":limits,"lsm_label":label.trim(),
+                "declared_lsm_label":expected_label}));
             let boundary = NativeSdkBoundary::observe(
                 agent.cid.as_ref().unwrap(),
                 &SdkWirePeerPin {

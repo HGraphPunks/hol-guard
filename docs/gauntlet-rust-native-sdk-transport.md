@@ -2,10 +2,12 @@
 
 The current Native hook diagnostic passes on the owned ARM VM; see the
 [retained transport proof](gauntlet-rust-native-hook-vm-proof-20261027.md).
-This next implementation adds SDK request state, a kernel peer observer and
-inert public dependency publication. The SDK listener/launcher is still being
-connected. These components do not supply an SDK run, conformance or Guard
-verdict. The parent checklist remains 24/62 complete.
+The Rust worker now owns SDK request state, dependency publication, gate and
+hook listeners, fixed Podman launch and cleanup, and the Native Bash route.
+Owned-VM attempts have reached the agent's kernel boundary; the latest
+attempt refuses its process label before Bun starts. Actual SDK execution,
+conformance and Guard scoring remain open. The parent checklist remains
+24/62 complete.
 
 `NativeSdkRequest` accepts the explicitly bounded Bash-only SDK hook profile
 and the separate contained-execution request. It preserves complete original
@@ -240,3 +242,58 @@ The cgroup-bound source passes 449 Mac tests across 218 targets with zero
 failures or ignores; log `rust-workspace-native-sdk-transport-030.log`
 has SHA-256 `ac87dad58cf780b3512244cf31ba95c2aeb06e1628a1fa047a2017c43f47e28f`.
 Mac/ARM64 Clippy and ARM builds pass. The next fresh SDK control is pending.
+
+Job `e2c701baf1473001` at `2213e73f` verifies the actual delegated cgroup
+`/holgauntletruste2c701baf1473001.slice/libpod-<exact-CID>.scope/container`
+with the expected 2 GiB memory, 256 PID and two-CPU limits. It then refuses
+`SDK named unconfined template label differs`, before Bun/SDK launch. The
+ordinary terminal remains `invalid-evidence`, exit 2; the SDK container,
+profile, product cell, job slice and image lease are absent after cleanup.
+The original process label was not retained by that generation. New source
+retains the observed and declared labels before validating them and includes
+both in any mismatch error. A fresh diagnostic reuses the pinned worker to
+capture the init label independently without widening acceptance.
+
+The generation-030 immutable export has 84 members and 440,320 bytes,
+SHA-256 `7ac9557ca0a4082d621269efad32db1ff39cc26430f20b13ed6b17324925e3c2`.
+Its host prelaunch pin is
+`1ffc2339f4df604a3a72045c291118b9f782c09d69a2f840d8d2a02ae57bbf16`;
+all 82 prior worker files are preserved, with 88 files now retained.
+Root passes 151 worker tests with 24 existing fixture ignores, 30 rootfs
+tests and one subprocess check.
+
+The committed inert
+[`verify_native_sdk_transport_recovery_20261027.py`](../ci/gauntlet-rs/proofs/verify_native_sdk_transport_recovery_20261027.py)
+and its adjacent fixed-attempt reader independently verify exports 025,
+027, 028, 029 and 030, their input binaries and host pins, original failed
+bytes, both scoped repairs, canonical replay/readback relations, and exact
+retained state. Run it with the evidence-directory argument; `--output`
+creates a new report exclusively. The full reader and Ruff pass. This is
+failure/recovery and boundary evidence, with no SDK, MCP, model or Guard pass.
+
+Fresh label diagnostic `e2c701baf1473101` reuses the exact generation-030
+worker and input rather than claiming another build. A held pidfd sample
+matches the agent's PID/start/cgroup tuple, zero capabilities, NNP, seccomp,
+limits and the actual `/usr/bin/sleep` ELF. Its complete process label is
+`crun//&hol-gauntlet-sdk-e2c701baf1473101-833b4fbe9db5c62edae8011b4a5ec99d (unconfined)`.
+The named SDK profile is present in the runtime's stack. AppArmor describes
+these composed labels and restrictions in its [stacking reference](https://apparmor.net/advanced/AppArmorStacking/).
+
+The new reader permits only the declared SDK label or that exact label
+stacked with `crun`. Once measured, the complete label must remain identical
+for the init, Bun and later rechecks; it cannot lose the runtime component.
+Other profiles, changed jobs/nonces, additional stacks and different modes
+refuse. The unchanged template's loaded mode is still verified separately.
+The ordinary failure, cleanup and all 94 worker files are retained. The
+80-member, 409,600-byte export has SHA-256
+`8085e7a61b57da58723571061772dc213a36c87e785d61ec5c5bdd6936f08e61`;
+host prelaunch pin
+`43b9f0714660880c464bc9ccf2219cf93167a3d664b0cd698934967837deac5f`.
+The adjacent `verify_native_sdk_transport_label_20261027.py` verifies that
+diagnostic independently and passes Ruff. The new source passes 450 Mac tests
+across 218 targets with zero failures or ignores, both warnings-denied
+Clippy targets and ARM64 worker/test compilation. Workspace log
+`rust-workspace-native-sdk-transport-032.log` has SHA-256
+`32e4dd2355c2497a055b4c5b908caeec883ab952a9934c1846e754bb3da6b9f3`.
+A fresh run of the stack-aware source is next; no actual SDK result is
+credited by these diagnostics.
