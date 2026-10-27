@@ -16,6 +16,28 @@ pub(crate) fn sdk_label(name: &str) -> Result<String, String> {
     Ok(format!("{name} (unconfined)"))
 }
 
+pub(super) fn sdk_cgroup(container: &str, label: &str, actual: &str) -> Result<(), String> {
+    let name = label
+        .strip_suffix(" (unconfined)")
+        .ok_or("SDK template mode differs")?;
+    if sdk_label(name)? != label || !crate::hex(container, 64) {
+        return Err("fixed SDK CID/label required".into());
+    }
+    let job = name
+        .strip_prefix("hol-gauntlet-sdk-")
+        .unwrap()
+        .split_once('-')
+        .unwrap()
+        .0;
+    let scope = format!("/holgauntletrust{job}.slice/libpod-{container}.scope");
+    if actual != scope && actual != format!("{scope}/container") {
+        return Err(format!(
+            "SDK container ID/cgroup relation differs: {actual}"
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn checked_status(raw: &[u8], pid: u32) -> Result<BTreeMap<String, String>, String> {
     let text = std::str::from_utf8(raw).map_err(|_| "SDK process status UTF-8")?;
     let mut result = BTreeMap::new();
@@ -101,6 +123,24 @@ mod tests {
             "hol-gauntlet-sdk-aaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-extra",
         ] {
             assert!(sdk_label(name).is_err());
+        }
+    }
+    #[test]
+    fn sdk_payload_cgroup_cannot_borrow_a_sibling_job_cid_or_descendant() {
+        let job = "a".repeat(16);
+        let cid = "b".repeat(64);
+        let label = sdk_label(&format!("hol-gauntlet-sdk-{job}-{}", "c".repeat(32))).unwrap();
+        let scope = format!("/holgauntletrust{job}.slice/libpod-{cid}.scope");
+        sdk_cgroup(&cid, &label, &scope).unwrap();
+        sdk_cgroup(&cid, &label, &format!("{scope}/container")).unwrap();
+        for bad in [
+            format!("{scope}/container/child"),
+            format!("{scope}/other"),
+            scope.replace(&job, &"d".repeat(16)),
+            scope.replace(&cid, &"e".repeat(64)),
+            format!("/system.slice/libpod-{cid}.scope"),
+        ] {
+            assert!(sdk_cgroup(&cid, &label, &bad).is_err(), "{bad}");
         }
     }
     #[test]

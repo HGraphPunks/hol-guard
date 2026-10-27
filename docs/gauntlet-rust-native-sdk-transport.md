@@ -208,3 +208,35 @@ ignores; log `rust-workspace-native-sdk-transport-029b.log` has SHA-256
 `6049040e4beff250c1eef64010d3048d30c907a8e9329096cd78b366496beef4`.
 Mac/ARM64 Clippy and ARM builds pass. Live metadata repair and a fresh SDK
 attempt remain next.
+
+The exact created-container repair now passes at `a506de2e`, with receipt
+`080760c7cc9dbd504194e2fba57deb6a26cf27cfe3a729cd9e116c6b888a6433`
+and intent `b7ae2e005e8b02f05ee183c0ef31d30accfef59434c3763554577cc95ada0297`.
+It reopens exactly and preserves all 75 original worker files. The separate
+closed-history repair records job `e2c701baf1472801` consumed/aborted with
+unknown exit; receipt
+`9cc45ffc6492a61c357487b24bd32771b99a88e4dc35f5fa3ac141a5bff9b433`
+also reopens exactly. Wrong pins and both leases refuse in both routes.
+Root passes 150 worker tests with 24 existing fixture ignores, plus 30 rootfs
+tests and its subprocess check.
+
+Fresh job `e2c701baf1472901` creates, starts and removes its SDK container
+successfully, but the boundary reader refuses its payload cgroup relation
+before Bun/SDK launch. The reader had assumed the payload occupied the libpod
+scope directly. Podman/crun can place it in the fixed `container` leaf.
+The corrected reader binds the exact job from the fresh named label, full
+outside CID and either that exact scope or its single fixed leaf. Sibling
+jobs/CIDs and arbitrary descendants refuse. Early cgroup/limit observations
+are retained even when later startup checks fail. No scope, limit, namespace,
+capability or label requirement is removed.
+
+The immutable repair/cgroup-refusal export has 101 members and 471,040 bytes,
+SHA-256 `6e2ac9913c65c68a31d1afc45eccca2f41069c1b6357800bf3f459f030572d14`.
+It retains both repair receipts, original failures, replay/readback results,
+helper captures and preservation of all 82 worker files. The first export
+courier had a syntax error before executing any action; its corrected export
+does not replace an earlier archive or worker record.
+The cgroup-bound source passes 449 Mac tests across 218 targets with zero
+failures or ignores; log `rust-workspace-native-sdk-transport-030.log`
+has SHA-256 `ac87dad58cf780b3512244cf31ba95c2aeb06e1628a1fa047a2017c43f47e28f`.
+Mac/ARM64 Clippy and ARM builds pass. The next fresh SDK control is pending.

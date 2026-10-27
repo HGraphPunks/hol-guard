@@ -1,5 +1,5 @@
 //! Held pidfds, executable inode and namespace descriptors for one actual SDK.
-use super::{checked_status, sdk_label};
+use super::{checked_status, sdk_cgroup, sdk_label};
 use crate::linux_process::observe_process;
 use crate::sdk_wire_peer::{
     authenticate_sdk_relay_peer_ineligible, bind_sdk_relay_to_ancestor_ineligible,
@@ -124,13 +124,7 @@ impl NativeSdkBoundary {
         product_actor: &Value,
     ) -> Result<Self, String> {
         gauntlet_cell_rootfs::require_outside_root()?;
-        if !crate::hex(container_id, 64)
-            || !pin
-                .cgroup
-                .ends_with(&format!("/libpod-{container_id}.scope"))
-        {
-            return Err("SDK container ID/cgroup relation differs".into());
-        }
+        sdk_cgroup(container_id, label, &pin.cgroup)?;
         let snapshot = Snapshot::new(pin, label)?;
         let ids = snapshot.status["NSpid"]
             .split_ascii_whitespace()

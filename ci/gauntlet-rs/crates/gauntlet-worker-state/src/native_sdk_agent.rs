@@ -258,6 +258,9 @@ impl NativeSdkAgent {
                 }
                 limits.insert(name.into(), json!(expected));
             }
+            agent.kernel = Some(
+                json!({"pid":pid,"start_ticks":stat.start_ticks,"cgroup":cgroup,"limits":limits}),
+            );
             let boundary = NativeSdkBoundary::observe(
                 agent.cid.as_ref().unwrap(),
                 &SdkWirePeerPin {
@@ -269,7 +272,7 @@ impl NativeSdkAgent {
                 actor,
             )?;
             agent.inspection = Some(value);
-            agent.kernel = Some(json!({"init":boundary.observation(),"limits":limits}));
+            agent.kernel.as_mut().unwrap()["init"] = boundary.observation();
             Ok(boundary)
         })();
         launched
@@ -435,7 +438,7 @@ impl NativeSdkAgent {
     }
     pub(crate) fn observation(&self) -> Value {
         json!({"schema":"hol-gauntlet-native-sdk-agent-owner.v1","job_id":self.job,"nonce":self.nonce,
-            "name":self.name,"container_id":self.cid,"inspection":self.inspection,"kernel":self.kernel,
+            "name":self.name,"container_id":self.cid,"cgroup":self.cgroup,"inspection":self.inspection,"kernel":self.kernel,
             "apparmor_sha256":self.profile_sha256,"cleanup_complete":self.closed,"execution_eligible":false})
     }
 }
