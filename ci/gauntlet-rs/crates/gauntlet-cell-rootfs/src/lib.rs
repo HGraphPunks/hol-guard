@@ -56,6 +56,8 @@ mod native_lifecycle_control;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_lifecycle_kernel;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_lifecycle_ready;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_lifecycle_spec;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_request;
@@ -100,8 +102,6 @@ pub use native_guard_fixture::{
     seed_lifecycle as seed_native_lifecycle_fixture, seed_sdk as seed_native_sdk_fixture,
 };
 pub use native_guard_spec::NativeGuardPins;
-#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-pub use native_lifecycle_control::verify_closed as verify_native_closed_lifecycle;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_worker_support::{
     begin_owned_job_slice, require_image_lease_absent, require_outside_root,

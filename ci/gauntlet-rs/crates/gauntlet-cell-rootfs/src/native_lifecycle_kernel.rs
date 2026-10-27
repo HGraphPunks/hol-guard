@@ -3,7 +3,7 @@
 use crate::kernel_process::{alive, read_at, root_proc};
 use crate::native_lifecycle_spec::NativeLifecycleSpec;
 use crate::{hash, NativeCell, Result};
-use rustix::fs::{fstat, openat, FileType, Mode, OFlags};
+use rustix::fs::{fstat, openat, readlinkat, FileType, Mode, OFlags};
 use rustix::process::{pidfd_open, Pid, PidfdFlags};
 use serde_json::{json, Value};
 use std::{
@@ -92,6 +92,7 @@ fn ancestry(root: &OwnedFd, pid: u32, anchor: u32, anchor_start: u64) -> Result<
 pub(crate) struct HeldLifecycleChild {
     pidfd: OwnedFd,
     process: OwnedFd,
+    pub workspace: OwnedFd,
     pub observation: Value,
 }
 impl HeldLifecycleChild {
@@ -99,7 +100,6 @@ impl HeldLifecycleChild {
         cell: &NativeCell,
         handle: &str,
         spec: &NativeLifecycleSpec,
-        ready: &Value,
     ) -> Result<Option<Self>> {
         let root = root_proc()?;
         let gate = cell
@@ -160,9 +160,7 @@ impl HeldLifecycleChild {
                 .get("NSpid")
                 .and_then(|v| v.split_whitespace().last())
                 .and_then(|v| v.parse::<u64>().ok());
-            if local != ready["pid"].as_u64() {
-                continue;
-            }
+            let local = local.ok_or("detached namespace PID unavailable")?;
             for key in ["Uid", "Gid"] {
                 if status.get(key).map(String::as_str) != Some("10004\t10004\t10004\t10004") {
                     return Err("detached host privilege identity differs".into());
@@ -233,6 +231,24 @@ impl HeldLifecycleChild {
                 }
             }
             let parents = ancestry(&root, pid, anchor, anchor_start)?;
+            // The Linux product sandbox writes to an overlay. The task's lower
+            // directory is deliberately not the child's live workspace view.
+            // Follow only this held, kernel-identified process's procfs cwd link.
+            let cwd = readlinkat(&process, "cwd", Vec::new()).map_err(|e| e.to_string())?;
+            if cwd.as_bytes() != b"/runtime/home/project" {
+                return Err("detached child cwd is not the fixed contained workspace".into());
+            }
+            let workspace = openat(
+                &process,
+                "cwd",
+                OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+                Mode::empty(),
+            )
+            .map_err(|e| e.to_string())?;
+            let directory = fstat(&workspace).map_err(|e| e.to_string())?;
+            if FileType::from_raw_mode(directory.st_mode) != FileType::Directory {
+                return Err("detached cwd is not a held directory".into());
+            }
             let after = stat(&process, pid)?;
             let executable_after = openat(
                 &process,
@@ -250,11 +266,14 @@ impl HeldLifecycleChild {
                 return Err("detached process changed during held observation".into());
             }
             let observation = json!({"pid":pid,"start_ticks":number(&first,19)?,"pidfd_held":true,"argv":spec.argv(),"argv_sha256":hash(&command),
-                "status":status,"namespaces":ns,"lsm_label":label.trim(),"cgroup":wanted,"ancestry":parents,
+                "status":status,"namespace_pid":local,"namespaces":ns,"lsm_label":label.trim(),"cgroup":wanted,"ancestry":parents,
+                "workspace_view":{"source":"kernel-held-process-cwd.v1","path":"/runtime/home/project",
+                    "device":directory.st_dev,"inode":directory.st_ino,"uid":directory.st_uid,"gid":directory.st_gid,"mode":directory.st_mode & 0o7777},
                 "executable_device":e.st_dev,"executable_inode":e.st_ino,"executable_sha256":hash(&bytes)});
             return Ok(Some(Self {
                 pidfd,
                 process,
+                workspace,
                 observation,
             }));
         }

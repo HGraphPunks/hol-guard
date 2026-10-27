@@ -241,7 +241,7 @@ fn run_profile(
                 .lifecycle()
                 .ok_or("actual detached lifecycle observation missing".into())
                 .and_then(|v| {
-                    gauntlet_cell_rootfs::verify_native_closed_lifecycle(
+                    plane.verify_closed_lifecycle(
                         &preparation,
                         role.ok_or("lifecycle role missing")?,
                         v,

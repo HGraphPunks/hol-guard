@@ -570,12 +570,23 @@ approval ceremony for routine work already authorized by this request.
   111 affected Mac tests and Clippy pass. Live native verification is pending.
 - 2026-10-27: retained failed timeout job `e2c701baf1474601` at `f01deadb`.
   Native returns 124 and the outside sampler observes the child, but readiness
-  is never published. The role remains failed, without a claimed child death
+  is not observed at the lower workspace. The role remains failed, without a claimed child death
   or late-effect absence. Independent readback checks its 138-member export,
   cleanup, 66 samples and 197 preserved worker files; replay refuses in
   521.009 ms. A new explicit fixture version retains child errors and removes
   the FFI dependency while preserving exclusive publication and kernel checks.
   ARM checks/binaries and 111 Mac tests/Clippy pass; corrected runs are pending.
+- 2026-10-27: retained both failed v2-fixture attempts at `5dea4ffb`:
+  timeout `e2c701baf1474701` and cancel `e2c701baf1474702`. Each returns
+  124 without Root joining readiness; neither qualifies. Independent readback
+  preserves both terminals and 209 worker files. The cancel observer directly
+  sees a complete ready file in the child's overlay cwd while the lower task
+  has none, confirming the historical product's discard-on-timeout behavior.
+  Rust now discovers the kernel child first and holds that exact cwd and file
+  through cleanup. Early unlink, same-bytes replacement and late writes
+  refuse; overlay retirement is accepted only after held-child death with
+  unchanged bytes. ARM Clippy/static tests compile and 113 affected Mac tests
+  plus Clippy pass. Fresh native verification of this correction remains open.
 - Next: verify corrected detached-lifecycle roles and finish deterministic role scoring, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)

@@ -180,14 +180,14 @@ capture and a dead held child before controller cleanup. Cancellation closes
 the owned product cell only after kernel readiness, then aborts the SDK owner;
 missing execution/result/Post fields remain explicitly unavailable. Authenticated
 SDK requests are retained before dispatch so the aborted sink is not lost.
-Both roles require cleanup-gated physical ready-file/late-effect readback.
+Both roles require cleanup-gated readback of the actual child view and physical lower paths.
 ARM Clippy, static tests and main binaries compile; all 111 affected Mac tests
 and Mac Clippy pass.
 
 At `f01deadbe43e31e41f4a6f93c540dbe31b2b8f0d`, timeout job
 `e2c701baf1474601` correctly remains failed. The installed Native sink returns
 124 and the outside observer witnesses the detached interpreter, but no ready
-file is published and Root cannot join readiness to the child. No termination
+file is observed in the lower workspace and Root cannot join readiness to the child. No termination
 or late-effect absence is inferred. All resources drain; the 197 worker files
 remain intact and replay refuses in 521.009 ms. The unused cancellation
 declaration is preserved without execution. Independent readback validates
@@ -202,7 +202,38 @@ library hard-link publication, without an FFI dependency. Root treats the
 temporary two-link state as not ready and still requires the final original
 single-link generation plus kernel custody. Original v1 fixture bytes and the
 failed export remain retained. ARM Clippy/static tests/binaries and all 111
-Mac tests/Clippy pass; fresh corrected timeout/cancel runs remain pending.
+Mac tests/Clippy pass. At `5dea4ffb0e25c07e18ff071e57add86e6d9a00fd`,
+timeout `e2c701baf1474701` and cancellation `e2c701baf1474702` both remain
+failed: each returns an actual 124 without Root joining readiness. Their
+reports are respectively `0b4594a992c27fcba9510e04f0106d75184639b49956efad33d445c22d232bdb`
+and `ad1692c65f9a6e3da38d94e9b4af01552908e593b601f0bd2ec7b329b6300b3d`.
+Replay refuses under the held legacy lease in 516.571 ms and 528.152 ms,
+preserving 203 and 209 worker files. The exports have 138 members / 1,024,000
+bytes, SHA-256 `7cd42eacaa06e10abe6ad2b7fcd7f94c9c340f579a65d706c87fbfe4f09d1a22`,
+and 132 members / 1,003,520 bytes, SHA-256
+`fa24d43d9f778e392b92ba43201ef641e7d7e0f1fa779b4e8db9fc07a4a4b8ff`.
+The failure reader accepts optional `007` or `007-cancel` attempt selectors.
+
+The cancellation attempt's independent observer establishes the cause without
+changing either failed result. The actual child has a different overlay view
+at `/runtime/home/project`: its ready file is UID/GID 10004, mode 0600,
+single-link, SHA-256 `b0a69160689f08d4e7b978ea6a212864bafaf6d142b9b89daae49c5a81dfa840`,
+and names that child's namespace PID/session/group. The lower workspace has
+no corresponding file. The installed historical product applies overlay
+changes only after the backend returns; timeout raises before that step and
+removes the upper layer. Inherited child stderr therefore cannot resolve the
+original observer's wrong filesystem view.
+
+The Rust observer now identifies the child independently before reading its
+procfs current-directory view, then holds both that directory and its ready
+inode through product, SDK and MCP cleanup. Unlinking by overlay cleanup is
+accepted only after held-child death and with unchanged retained bytes;
+replacement, early unlink and late writes refuse. Closed readback uses those
+live Root-held descriptors and separately requires the physical lower paths
+to remain absent. Two regression tests cover unlink/death ordering and
+same-bytes replacement/late effects. All 113 affected Mac tests and Mac Clippy
+pass. ARM Clippy and static test compilation pass; fresh native test execution
+and live verification of this observer correction remain open.
 
 Remaining work includes live detached-lifecycle verification, kernel/mount authority,
 provider mapping, complete role scoring,

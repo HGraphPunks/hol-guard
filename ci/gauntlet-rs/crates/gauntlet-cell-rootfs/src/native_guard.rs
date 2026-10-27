@@ -16,6 +16,7 @@ pub struct NativeHookPlane {
     pub(crate) observations: Vec<Value>,
     pub(crate) hooks: Vec<Value>,
     pub(crate) executions: Vec<Value>,
+    lifecycle_witness: Option<crate::native_lifecycle_control::NativeLifecycleControl>,
 }
 pub struct NativeLifecycleExecution {
     pub execution: Option<Value>,
@@ -60,6 +61,7 @@ impl NativeHookPlane {
             observations: Vec::new(),
             hooks: Vec::new(),
             executions: Vec::new(),
+            lifecycle_witness: None,
         })
     }
 
@@ -309,7 +311,9 @@ impl NativeHookPlane {
             self.cell
                 .capture(&argv, b"", Duration::from_secs(timeout + 30))
         };
-        let lifecycle = lifecycle.map(|v| v.finish(&self.cell, &captured));
+        let lifecycle_observation = lifecycle.as_mut().map(|v| v.finish(&self.cell, &captured));
+        self.lifecycle_witness = lifecycle;
+        let lifecycle = lifecycle_observation;
         if let Some(control) = &lifecycle {
             self.observations
                 .push(json!({"kind":"native-detached-lifecycle-control","observation":control}));
@@ -340,6 +344,20 @@ impl NativeHookPlane {
     pub fn close(&mut self) -> Result<()> {
         self.ready = false;
         self.cell.close()
+    }
+    pub fn verify_closed_lifecycle(
+        &mut self,
+        preparation: &crate::CellPreparation,
+        role: crate::NativeControlRole,
+        control: &Value,
+    ) -> Result<Value> {
+        if !self.cell.cleanup_complete() {
+            return Err("closed lifecycle requires drained product cell".into());
+        }
+        self.lifecycle_witness
+            .as_mut()
+            .ok_or("actual held lifecycle witness missing")?
+            .verify_closed(preparation, role, control)
     }
     pub fn observation(&self) -> Value {
         json!({"schema":"hol-gauntlet-native-hook-plane.v1","pins":self.pins.to_json(),"controller_session_id":self.session,
