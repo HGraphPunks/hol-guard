@@ -242,6 +242,11 @@ approval ceremony for routine work already authorized by this request.
   command compiler rebuild/program verification pass. The expanded Mac
   suite passes 757 tests plus three subtests, with zero failures/errors/skips;
   three source/install-plan tests also pass. See [upstream synchronization](gauntlet-rust-upstream-sync-9dd2fefb.md).
+- 2026-10-26: added a fixed Rust UID-65532 dependency exporter with frozen
+  wheel-only UV installation and descriptor-bound bounded inert ZIP capture.
+  Three Mac data/refusal tests and ARM64 compilation plus Mac/ARM64 worker
+  Clippy pass. Live Root ownership, host intent and inert prefix composition
+  remain in progress; see [dependency preparation](gauntlet-rust-native-dependencies.md).
 - Next: prepare compatible dependencies, then deterministic authority. No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.
