@@ -298,7 +298,23 @@ approval ceremony for routine work already authorized by this request.
   library passes 129 tests with 24 preexisting ignores; the full Mac workspace
   passes 419. Independent host readback verifies all 29 members and reconstructs
   the complete prefix digest. See [prefix proof](gauntlet-rust-native-dependency-prefix-vm-proof-20261026.md).
-- Next: compose and validate the current candidate prefix, then deterministic
-  authority. No new
+- 2026-10-26: corrected composition at `fc80aecd` passes on fresh candidate
+  job `e2c701baf1471601`, after preserving the earlier mode-mismatch partial
+  and snapshot-courier refusal. The rebuilt candidate again passes four
+  selected and 187 complete contained tests. Root composition verifies all
+  4,411 prefix entries and six CLI aliases; twelve composition and two
+  dependency refusals preserve all 4,041 original files/links. All 13 active
+  requirements pass over 63 installed distributions, including MCP 1.30.0.
+  Independent host verification checks all 46 export members, reconstructs
+  the complete tree and matches the actual source-pinned Python dependency
+  loop with explicit Linux markers. See [composition proof](gauntlet-rust-native-candidate-prefix-vm-proof-20261026.md).
+- 2026-10-26: implemented one-use source-path runtime publication with closed
+  clone receipts, complete typed requirements, both leases, repeated data
+  custody, private partials, no-replace publication and dual receipts. The
+  full Mac workspace passes 425 tests; Mac/ARM64 Clippy pass with warnings
+  denied. Live publication and independent controls remain next. The user
+  will handle disabled fork CI; continue implementation and owned-VM work.
+- Next: verify immutable runtime publication, then deterministic authority.
+  No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.

@@ -4,6 +4,20 @@ fn run() -> Result<(), String> {
     use std::io::{Read, Write};
     gauntlet_worker_state::install_native_worker_signals()?;
     let args = std::env::args().collect::<Vec<_>>();
+    if args.len() == 10 && args[1] == "--publish-native-runtime" {
+        let pins = gauntlet_worker_state::NativeRuntimePins {
+            job_id: &args[2],
+            source_sha: &args[3],
+            version: &args[4],
+            clone_receipt_sha256: &args[5],
+            prefix_tree_sha256: &args[6],
+            native_sha256: &args[7],
+            python_full_version: &args[8],
+            generation: &args[9],
+        };
+        println!("{}", gauntlet_worker_state::publish_native_runtime(&pins)?);
+        return Ok(());
+    }
     if args.len() == 12 && args[1] == "--clone-native-candidate-prefix" {
         let pins = gauntlet_worker_state::NativeCandidatePrefixPins {
             job_id: &args[2],

@@ -154,9 +154,8 @@ The remaining composition and verification are explicit:
 
 - Extend recovery beyond the proven quiescent profile, with actual dependency
   timeout, cancellation and transport-interruption cases.
-- After verified cleanup, Root must independently capture/inspect the ZIP,
-  construct an inert dependency prefix and validate the candidate's complete
-  declared requirements against it before any control can use that prefix.
+- Publish the verified composed prefix as one-use source-bound runtime data,
+  then complete independent controls and fresh conformance before admission.
 
 `gauntlet-vm-worker --clone-native-candidate-prefix` now composes a separately
 published dependency prefix and candidate wheel under both worker leases. Its
@@ -203,8 +202,27 @@ new native receipt; the historical schema is unchanged. The corrected complete
 Mac workspace again passes 423 tests, log SHA-256
 `895fe5ca7b5d97d6f2c7ee74fe6d214a464f4b526f61dd6550b90cac9271a449`.
 The consumed attempt is preserved; fresh candidate job `e2c701baf1471601`
-uses the same exact product source for the next proof. Successful live
-composition and complete requirements remain pending.
+uses the same exact product source for the next proof. The
+[successful complete proof](gauntlet-rust-native-candidate-prefix-vm-proof-20261026.md)
+now verifies the entire 4,411-entry prefix, all six CLI aliases, 14 refusal
+cases and all 23 requirements over 63 distributions. Thirteen requirements
+are active and satisfied, including MCP 1.30.0. Host readback verifies all 46
+members, independently reconstructs every prefix file/hash and matches the
+exact source-pinned Python staging loop with explicit Linux marker values.
+
+The next explicit native operation, `--publish-native-runtime`, is implemented
+as a one-use inert data publication under
+`/opt/hol-gauntlet/candidates/<source>/prefix`. It verifies the closed outside-
+hashed clone receipt, computes the complete typed requirement proof, takes
+both leases, rechecks source/dependency/candidate/interpreter/tree custody,
+copies through held descriptors into a private source/job partial and verifies
+the exact copied tree before rename without replacement. Two canonical
+receipts bind the published source path and original job. Existing/partial
+slots refuse; no final deployment or eligibility is written and no package
+executes as Root. The full Mac workspace passes 425 tests, with no failures
+or ignores, log SHA-256
+`e72f6ca366cd47e71e86cada08b545116fcea10a3ebfb5d46a9ffea9f2563d8a`.
+Mac/ARM64 warnings-denied Clippy pass. Its live publication proof remains open.
 
 The inner attachment check does not establish the kernel policy's enforcement
 mode by itself; the Root owner must observe that independently. An adapter
