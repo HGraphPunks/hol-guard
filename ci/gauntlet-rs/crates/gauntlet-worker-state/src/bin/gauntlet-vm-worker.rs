@@ -4,6 +4,24 @@ fn run() -> Result<(), String> {
     use std::io::{Read, Write};
     gauntlet_worker_state::install_native_worker_signals()?;
     let args = std::env::args().collect::<Vec<_>>();
+    if args.len() == 11 && args[1] == "--capture-dependency-inputs" {
+        let pins = gauntlet_worker_state::NativeDependencyInputPins {
+            job: &args[2],
+            source: &args[3],
+            source_archive: &args[4],
+            payload_sha256: &args[5],
+            payload_bytes: args[6]
+                .parse()
+                .map_err(|_| "exact dependency capsule byte count required")?,
+            project_sha256: &args[7],
+            lock_sha256: &args[8],
+            exporter_sha256: &args[9],
+            generation: &args[10],
+        };
+        let raw = gauntlet_worker_state::capture_native_dependency_inputs(&pins)?;
+        println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
+        return Ok(());
+    }
     if args.len() == 7 && args[1] == "--capture-build-source" {
         let bytes = args[5]
             .parse::<u64>()

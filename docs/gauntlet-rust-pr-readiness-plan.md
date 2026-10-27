@@ -247,6 +247,13 @@ approval ceremony for routine work already authorized by this request.
   Three Mac data/refusal tests and ARM64 compilation plus Mac/ARM64 worker
   Clippy pass. Live Root ownership, host intent and inert prefix composition
   remain in progress; see [dependency preparation](gauntlet-rust-native-dependencies.md).
+- 2026-10-26: implemented exact-Git dependency input capsules on the host and
+  lease-bound, generation/source/byte/hash-pinned native stdin capture. Two
+  real Git tests and the closed ZIP decoder test pass; Mac/ARM64 Clippy passes.
+  Source archive/receipts stay immutable, unsafe exporter formats refuse,
+  partials remain consumed and all extracted files are independently read
+  back before publication. The live VM capsule proof is next; this operation
+  executes no dependency code or installer.
 - Next: prepare compatible dependencies, then deterministic authority. No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.

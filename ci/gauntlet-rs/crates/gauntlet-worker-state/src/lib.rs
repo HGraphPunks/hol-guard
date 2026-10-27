@@ -79,9 +79,17 @@ mod builder_candidate_preflight;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_dependency_archive;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_dependency_capture;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_dependency_export;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_dependency_inputs;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_dependency_capture::capture_native_dependency_inputs;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_dependency_export::export_native_dependencies;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_dependency_inputs::NativeDependencyInputPins;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod builder_candidate_process;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

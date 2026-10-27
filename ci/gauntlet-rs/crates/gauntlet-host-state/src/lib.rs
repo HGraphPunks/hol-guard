@@ -6,8 +6,10 @@ use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::fmt;
 
+mod local_dependency_inputs;
 mod local_source_pack;
 mod local_source_prepare;
+pub use local_dependency_inputs::prepare_local_dependency_inputs;
 mod operations;
 pub use local_source_prepare::{prepare_local_source_archive_one_use, LocalSourcePrepareError};
 pub use operations::{load_operations_bytes, public_vm_operations, OperationsError};

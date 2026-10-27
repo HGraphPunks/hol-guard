@@ -98,6 +98,8 @@ fn git(bare: &Path, args: &[&str]) -> Result<Vec<u8>, LocalSourcePrepareError> {
             ("GIT_CONFIG_NOSYSTEM", "1"),
             ("GIT_CONFIG_GLOBAL", "/dev/null"),
             ("GIT_TERMINAL_PROMPT", "0"),
+            ("GIT_NO_LAZY_FETCH", "1"),
+            ("GIT_NO_REPLACE_OBJECTS", "1"),
         ],
     )
     .map_err(|_| LocalSourcePrepareError::GitUnavailable)

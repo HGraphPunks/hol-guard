@@ -31,10 +31,30 @@ no execution of `.pth` content, linked-file/root refusal, and byte/seek bounds
 without allocating a 256-MiB test file. ARM64 compilation and warnings-denied
 Mac/ARM64 worker Clippy pass. This adapter has **not yet run in a live container**.
 
+The Rust host command `gauntlet-host-prepare-dependency-inputs` now creates a
+closed three-file capsule under an existing one-use local source slot. It
+reverifies that archive/ref/Git graph, reads the two exact committed ordinary
+blobs without checkout, and accepts only an outside-pinned owned static ARM64
+ELF adapter. It writes and reads back the private capsule, rechecks the graph
+and commits a separate canonical receipt. Real Git tests cover an advanced
+worktree, immutable source/replay, linked project files and wrong/dynamic
+exporter formats. The ZIP dependency adds only a locked graph edge; no package
+version changes.
+
+The native worker's explicit `--capture-dependency-inputs` operation receives
+that capsule through its existing bounded cancellable stdin copier. Both
+permanent leases, the actual worker generation, captured source hash and
+strict native source receipt are required. Root validates exactly the three
+ordinary members and outside hashes, writes 0444 project/lock files and a 0555
+adapter under a private partial tree, independently reads them back, and
+publishes without replacement. The archive and receipt stay source/job-bound;
+failed partials remain consumed. No adapter or installer executes during this
+operation. The source-sized live VM capture proof is the next validation step.
+
 The remaining composition is explicit:
 
-- A Rust host input producer must bind both files to the selected Git commit
-  and record the exact target, image and runner/adapter pins before launch.
+- The Rust host must record the exact target, image and runner/adapter pins
+  before launching the dependency job.
 - A Root Rust owner must stage those inputs once under both permanent leases,
   verify the builder image, helpers and enforced job policy, and supervise the
   bounded unprivileged container with durable unknown-job blocking and cleanup.
