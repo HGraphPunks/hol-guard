@@ -41,6 +41,19 @@ ATTEMPTS = {
         "files": 209,
         "samples": 67,
     },
+    "008": {
+        "export": ("1fbb5e3433b75c24dfeab40e2a6f61f7c614ecd719607cd33059bcc31fc232f2", 1054720),
+        "input": "3e5a46bae23fc7c09d1f5547beaec1dd8712dda6810af844bdc41e4c91e41c26",
+        "input_bytes": 65914880,
+        "source": "0bd3254fd41d904e8d3898f9a9410e8ce341dbfe",
+        "courier": "6e265d8f0a690adb9ba06eb778182c946ea75c3daa480d09dd0138d34a5df3e3",
+        "report": "c396ac6510fbb3057a8ec22b35d605cabaa3d54091e5f0b2646a6ee260434887",
+        "files": 215,
+        "samples": 67,
+        "observer": "002",
+        "root_lifecycle": True,
+        "rootfs_passes": "38",
+    },
 }
 
 
@@ -55,7 +68,7 @@ def verify(directory, attempt="006"):
     inputs = archive(
         directory / f"native-role-controls-input-{number}.tar",
         pins["input"],
-        65863680,
+        pins.get("input_bytes", 65863680),
         5,
     )
     transfer = parse(inputs.pop("transfer.json"))
@@ -85,11 +98,24 @@ def verify(directory, attempt="006"):
     ineligible(control)
     assert control["status"] == "failed" and control["control_role"] == role
     assert control["qualified_role_complete"] is False
-    lifecycle = control["router"]["lifecycle"]
-    assert lifecycle["capture_exit_code"] == 124 and lifecycle["capture_error"] is None
-    assert lifecycle["ready"] is lifecycle["detached_child"] is lifecycle["detached_child_dead"] is None
+    if pins.get("root_lifecycle"):
+        assert control["router"]["lifecycle"] is None
+        lifecycle = next(
+            row["observation"]
+            for row in control["plane"]["observations"]
+            if row["kind"] == "native-detached-lifecycle-control"
+        )
+        assert lifecycle["capture_exit_code"] is None
+        assert lifecycle["capture_error"] == "held lifecycle readiness replaced or changed after control"
+        assert lifecycle["detached_child_dead"] is lifecycle["product_cell_closed"] is True
+        assert lifecycle["ready"]["pid"] == lifecycle["detached_child"]["namespace_pid"] == 4
+        assert lifecycle["error"] == "actual Native timeout/controller cancellation outcome differs"
+    else:
+        lifecycle = control["router"]["lifecycle"]
+        assert lifecycle["capture_exit_code"] == 124 and lifecycle["capture_error"] is None
+        assert lifecycle["ready"] is lifecycle["detached_child"] is lifecycle["detached_child_dead"] is None
+        assert lifecycle["error"] == "actual detached child was not observed before control termination"
     assert lifecycle["late_effect_absent"] is None and lifecycle["status"] == "failed"
-    assert lifecycle["error"] == "actual detached child was not observed before control termination"
     assert "sdk" not in control["measurements"] and control["effect"] is None
     assert all(
         report[k]
@@ -128,16 +154,24 @@ def verify(directory, attempt="006"):
             "pgrp": 4,
         }
         assert view["files"]["detached-ready.pending"] is view["files"]["late-detached-effect.txt"] is None
+        if pins.get("root_lifecycle"):
+            child = lifecycle["detached_child"]
+            assert children[0]["pid"] == child["pid"] and children[0]["start_ticks"] == child["start_ticks"]
+            assert children[0]["argv_sha256"] == child["argv_sha256"]
+            assert parse(ready["utf8"].encode()) == lifecycle["ready"]
     assert parse(data["proof/worker-tests.json"])["results"] == [["ok", "179", "0", "24"]]
-    assert parse(data["proof/rootfs-tests.json"])["results"] == [["ok", "1", "0", "0"], ["ok", "36", "0", "0"]]
+    assert parse(data["proof/rootfs-tests.json"])["results"] == [
+        ["ok", "1", "0", "0"],
+        ["ok", pins.get("rootfs_passes", "36"), "0", "0"],
+    ]
     replay = parse(data["proof/fast-replay-summary.json"])
     assert replay["worker_files_unchanged"] == pins["files"] and replay["reconcile_original_terminal"]
     return {
         "schema": "hol-gauntlet-native-lifecycle-failure-readback.v1",
         "job_id": pin["job_id"],
-        "actual_timeout_exit": 124,
+        "actual_timeout_exit": lifecycle["capture_exit_code"],
         "outside_child_start_observed": True,
-        "published_readiness_observed": False,
+        "published_readiness_observed": bool(pins.get("root_lifecycle")),
         "outside_overlay_readiness_observed": True if observer == "002" else None,
         "failure_preserved": True,
         "worker_files_preserved": pins["files"],
@@ -149,5 +183,7 @@ def verify(directory, attempt="006"):
 
 if __name__ == "__main__":
     if len(sys.argv) not in [2, 3]:
-        raise SystemExit("usage: verify_native_lifecycle_failure_20261027.py EVIDENCE_DIRECTORY [006|007|007-cancel]")
+        raise SystemExit(
+            "usage: verify_native_lifecycle_failure_20261027.py EVIDENCE_DIRECTORY [006|007|007-cancel|008]"
+        )
     print(json.dumps(verify(Path(sys.argv[1]), *sys.argv[2:]), sort_keys=True))

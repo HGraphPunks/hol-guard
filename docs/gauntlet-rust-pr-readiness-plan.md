@@ -587,6 +587,15 @@ approval ceremony for routine work already authorized by this request.
   refuse; overlay retirement is accepted only after held-child death with
   unchanged bytes. ARM Clippy/static tests compile and 113 affected Mac tests
   plus Clippy pass. Fresh native verification of this correction remains open.
+- 2026-10-27: observer `0bd3254f` passes 179 native worker and 38 rootfs
+  tests plus subprocess. Fresh timeout `e2c701baf1474801` now binds the
+  actual child and overlay readiness, but remains failed because a live
+  ready-file check interrupts teardown before the normal capture result.
+  Independent readback retains this partial result and 215 worker files;
+  replay refuses in 516.879 ms. A regression and pidfd recheck address the
+  death-between-snapshots ordering, retaining detailed failure metadata.
+  The 32-test Mac rootfs suite and affected Mac/ARM Clippy/static compilation
+  pass. No completed timeout SDK join, role qualification or cutover is inferred.
 - Next: verify corrected detached-lifecycle roles and finish deterministic role scoring, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)

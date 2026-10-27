@@ -235,6 +235,26 @@ same-bytes replacement/late effects. All 113 affected Mac tests and Mac Clippy
 pass. ARM Clippy and static test compilation pass; fresh native test execution
 and live verification of this observer correction remain open.
 
+At observer source `0bd3254fd41d904e8d3898f9a9410e8ce341dbfe`, fresh
+timeout `e2c701baf1474801` binds both the actual kernel child and its overlay
+readiness. It still fails: the live ready-file recheck aborts during teardown,
+so the actual capture exit is unavailable, even though the held child is
+subsequently observed dead. No normal timeout result or completed SDK join is
+claimed. Independent readback checks this partial capture, the matching
+outside child/readiness, cleanup and 215 preserved worker files. Replay
+refuses in 516.879 ms. The report is
+`c396ac6510fbb3057a8ec22b35d605cabaa3d54091e5f0b2646a6ee260434887`;
+the 138-member / 1,054,720-byte export is
+`1fbb5e3433b75c24dfeab40e2a6f61f7c614ecd719607cd33059bcc31fc232f2`.
+Select `008` in the failure reader.
+
+The next observer rechecks the held pidfd before retrying an unlink-aware
+file read when death occurs between snapshots. It retains detailed synthetic
+inode metadata on failure and still rejects replacement or modified bytes.
+A third regression requires fresh death observation for that retry. The
+32-test Mac rootfs suite and affected Mac/ARM Clippy/static compilation pass;
+fresh native execution remains required.
+
 Remaining work includes live detached-lifecycle verification, kernel/mount authority,
 provider mapping, complete role scoring,
 outside signing-key admission and fresh current-source staging/installed

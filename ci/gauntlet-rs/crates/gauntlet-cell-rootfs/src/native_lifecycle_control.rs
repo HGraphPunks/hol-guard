@@ -62,8 +62,8 @@ impl NativeLifecycleControl {
                 if ready.ready["pid"] != child.observation["namespace_pid"] {
                     return Err("ready claim does not name the independently held child".into());
                 }
+                ready.recheck_with_liveness(|| Ok(!child.is_alive()?))?;
                 let alive = child.is_alive()?;
-                ready.recheck(!alive)?;
                 if self.spec.role == NativeControlRole::Cancel && alive {
                     self.requested = true;
                     return Err("controller requested product-cell cancellation after held detached readiness".into());

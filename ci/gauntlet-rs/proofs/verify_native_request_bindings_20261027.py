@@ -35,12 +35,12 @@ CASES = {
 }
 
 
-def read_transport(directory, proof):
+def read_transport(directory, proof, *, read_lifecycle=None):
     """Read only the exact public artifacts pinned by a versioned proof caller."""
     source, report_pin, index = proof["source"], proof["report"], proof["index"]
     data = archive(directory / f"native-role-controls-vm-results-{index}.tar", *proof["export"])
     inputs = archive(
-        directory / f"native-role-controls-input-{index}.tar",
+        directory / f"native-role-controls-input-{proof.get('input_index', index)}.tar",
         *proof["input"],
     )
     transfer = parse(inputs.pop("transfer.json"))
@@ -49,7 +49,7 @@ def read_transport(directory, proof):
         assert transfer["files"][name] == {"bytes": len(raw), "sha256": sha(raw)}
         assert raw[:4] == b"\x7fELF" and raw[18:20] == b"\xb7\0"
     prelaunch = parse((directory / f"native-role-controls-prelaunch-{index}.json").read_bytes())
-    assert prelaunch["source_commit"] == source
+    assert prelaunch.get("source_commit", prelaunch["pins"]["source_commit"]) == source
     assert (
         sha((directory / f"native-role-controls-proof-courier-{index}.py").read_bytes()) == prelaunch["courier_sha256"]
     )
@@ -94,16 +94,22 @@ def read_transport(directory, proof):
     assert bun["executable_sha256"] == pin["declaration"]["sdk"]["bun_sha256"]
     for name in ["same_uid_negative", "mcp_same_uid_negative"]:
         assert binding[name]["refused_before_sdk_import"] and binding[name]["unprivileged_result"]["denied"]
-    actual = control["measurements"]["sdk"]
-    assert actual["exit_code"] == 0 and actual["stderr"] == ""
-    result = actual["result"]
-    assert result["uid"] == 10001 and result["version"] == "18.4.12" and result["syntheticStreamCalls"] == 3
-    assert result["mcpExercised"] is True and result["modelExercised"] is result["qualificationEligible"] is False
-    assert result["providerRequests"] == 0 and len(result["results"]) == 2
-    assert all(result["modelContextProjection"][n] for n in ["originalCommandVisible", "executionTransportRetained"])
     forbidden = control["measurements"].get("forbidden_command_control")
     assert (forbidden is not None) == proof["forbidden"]
-    common.bash(data, control, result, extra_pre_payload=forbidden["native_pre_payload"] if forbidden else None)
+    if read_lifecycle is None:
+        actual = control["measurements"]["sdk"]
+        assert actual["exit_code"] == 0 and actual["stderr"] == ""
+        result = actual["result"]
+        assert result["uid"] == 10001 and result["version"] == "18.4.12" and result["syntheticStreamCalls"] == 3
+        assert result["mcpExercised"] is True and result["modelExercised"] is result["qualificationEligible"] is False
+        assert result["providerRequests"] == 0 and len(result["results"]) == 2
+        assert all(
+            result["modelContextProjection"][n] for n in ["originalCommandVisible", "executionTransportRetained"]
+        )
+        common.bash(data, control, result, extra_pre_payload=forbidden["native_pre_payload"] if forbidden else None)
+    else:
+        assert proof["role"] in {"timeout", "cancel"} and forbidden is None
+        result = read_lifecycle(control, data, pin)
     mcp = control["mcp"]
     assert mcp["outside_signing_key_admitted"] is False and mcp["cleanup_errors"] == []
     upstreams = {s["family"]: s for s in mcp["upstreams"]}
@@ -143,7 +149,8 @@ def read_transport(directory, proof):
         for call in [r for r in requests if r.get("method") == "tools/call"]:
             calls.append(call)
             read = next(r for r in responses if r["id"] == call["id"])
-            assert result["results"][0]["content"] == read["result"]["content"]
+            if result is not None:
+                assert result["results"][0]["content"] == read["result"]["content"]
     assert len(calls) == 1
     common.world(data, "combined", mcp, calls)
     budget = control["operation_budget"]

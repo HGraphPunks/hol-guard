@@ -27,6 +27,11 @@ fn content_inode(a: &Stat, b: &Stat) -> bool {
         && a.st_mtime == b.st_mtime
         && a.st_mtime_nsec == b.st_mtime_nsec
 }
+fn metadata(s: &Stat) -> Value {
+    json!({"device":s.st_dev,"inode":s.st_ino,"mode":s.st_mode,"links":s.st_nlink,
+        "uid":s.st_uid,"gid":s.st_gid,"bytes":s.st_size,"mtime":s.st_mtime,"mtime_nsec":s.st_mtime_nsec,
+        "ctime":s.st_ctime,"ctime_nsec":s.st_ctime_nsec})
+}
 
 impl HeldLifecycleReady {
     pub fn read(directory: &OwnedFd, spec: &NativeLifecycleSpec) -> Result<Option<Self>> {
@@ -85,6 +90,18 @@ impl HeldLifecycleReady {
             ready,
         }))
     }
+    pub fn recheck_with_liveness(
+        &mut self,
+        child_dead: impl Fn() -> Result<bool>,
+    ) -> Result<Value> {
+        let dead = child_dead()?;
+        match self.recheck(dead) {
+            // Timeout may kill the child and retire the overlay between the
+            // pidfd check and file stat. Reobserve death before allowing unlink.
+            Err(_) if !dead && child_dead()? => self.recheck(true),
+            result => result,
+        }
+    }
     pub fn recheck(&mut self, child_dead: bool) -> Result<Value> {
         let before = fstat(&self.file).map_err(|e| e.to_string())?;
         let visible = statat(
@@ -92,6 +109,10 @@ impl HeldLifecycleReady {
             "detached-ready.json",
             AtFlags::SYMLINK_NOFOLLOW,
         );
+        let visible_metadata = match &visible {
+            Ok(s) => metadata(s),
+            Err(e) => json!({"error":e.to_string()}),
+        };
         let unlinked = match visible {
             Ok(visible)
                 if crate::fs_input::same(&self.original, &visible)
@@ -104,7 +125,12 @@ impl HeldLifecycleReady {
             {
                 true
             }
-            _ => return Err("held lifecycle readiness replaced or changed after control".into()),
+            _ => {
+                return Err(format!(
+                    "held lifecycle readiness replaced or changed after control: {}",
+                    json!({"original":metadata(&self.original),"held":metadata(&before),"visible":visible_metadata,"child_dead":child_dead})
+                ))
+            }
         };
         self.file
             .seek(SeekFrom::Start(0))
@@ -202,5 +228,20 @@ mod tests {
         let mut held = hold(&fd, &spec);
         std::fs::write(dir.path().join("late-detached-effect.txt"), "late").unwrap();
         assert!(held.recheck(true).is_err());
+    }
+    #[test]
+    fn death_during_readback_requires_a_fresh_liveness_observation() {
+        let (dir, fd, spec) = setup();
+        let mut held = hold(&fd, &spec);
+        std::fs::remove_file(dir.path().join("detached-ready.json")).unwrap();
+        assert!(held.recheck_with_liveness(|| Ok(false)).is_err());
+        let checks = std::cell::Cell::new(0);
+        held.recheck_with_liveness(|| {
+            let n = checks.get();
+            checks.set(n + 1);
+            Ok(n > 0)
+        })
+        .unwrap();
+        assert_eq!(checks.get(), 2);
     }
 }
