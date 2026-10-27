@@ -32,6 +32,7 @@ pub enum CandidatePrefixCloneError {
     ArchiveInvalid,
     BaselineMismatch,
     StageMismatch,
+    ConsoleScriptsInvalid,
     ExistingClone,
     CloneUncertain,
     ReadbackMismatch,
@@ -48,6 +49,7 @@ impl fmt::Display for CandidatePrefixCloneError {
             Self::ArchiveInvalid => "captured candidate archive differs from outside pins",
             Self::BaselineMismatch => "reviewed baseline prefix differs from outside tree pin",
             Self::StageMismatch => "one-use inert wheel stage differs from outside tree pin",
+            Self::ConsoleScriptsInvalid => "wheel console declaration or launcher custody differs",
             Self::ExistingClone => "one-use inert prefix clone already exists",
             Self::CloneUncertain => "private prefix clone could not be written durably",
             Self::ReadbackMismatch => "cloned prefix bytes or tree metadata differ on readback",
@@ -222,6 +224,10 @@ pub(crate) fn clone_prefix(
     )
     .map_err(|_| CandidatePrefixCloneError::StageMismatch)?;
     private_directory(&stage_fd).map_err(|_| CandidatePrefixCloneError::StageMismatch)?;
+    if native.is_some() {
+        crate::native_candidate_launchers::validate(&stage_fd, version)
+            .map_err(|_| CandidatePrefixCloneError::ConsoleScriptsInvalid)?;
+    }
     match mkdirat(&job, TARGET, Mode::from_bits_truncate(0o700)) {
         Ok(()) => (),
         Err(Errno::EXIST) => return Err(CandidatePrefixCloneError::ExistingClone),
@@ -243,7 +249,7 @@ pub(crate) fn clone_prefix(
     overlay_wheel(&stage_fd, &target, "", 0, &mut wheel_files, &mut bytes)?;
     if native.is_some() {
         bytes += crate::native_candidate_launchers::write(&stage_fd, &target, version)
-            .map_err(|_| CandidatePrefixCloneError::StageMismatch)?;
+            .map_err(|_| CandidatePrefixCloneError::ConsoleScriptsInvalid)?;
     }
     if wheel_files == 0 {
         return Err(CandidatePrefixCloneError::StageMismatch);

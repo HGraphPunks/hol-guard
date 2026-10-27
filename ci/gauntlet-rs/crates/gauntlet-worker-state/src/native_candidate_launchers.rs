@@ -101,12 +101,16 @@ fn read(parent: &OwnedFd, name: &str, mode: rustix::fs::RawMode) -> Result<Vec<u
     Ok(raw)
 }
 
-pub(crate) fn write(stage: &OwnedFd, prefix: &OwnedFd, version: &str) -> Result<u64, String> {
+pub(crate) fn validate(stage: &OwnedFd, version: &str) -> Result<(), String> {
     if !gauntlet_evidence::valid_package_version(version) {
         return Err("fixed package version required".into());
     }
     let info = directory(stage, &format!("hol_guard-{version}.dist-info"))?;
-    declaration(&read(&info, "entry_points.txt", 0o644)?)?;
+    declaration(&read(&info, "entry_points.txt", 0o444)?)
+}
+
+pub(crate) fn write(stage: &OwnedFd, prefix: &OwnedFd, version: &str) -> Result<u64, String> {
+    validate(stage, version)?;
     let bin = directory(prefix, "bin")?;
     for (name, _) in ENTRIES {
         match statat(&bin, name, AtFlags::SYMLINK_NOFOLLOW) {
@@ -179,6 +183,7 @@ mod tests {
             ),
         )
         .unwrap();
+        std::fs::set_permissions(&metadata, std::fs::Permissions::from_mode(0o444)).unwrap();
         let open = |path: &std::path::Path| {
             rustix::fs::open(
                 path,
@@ -191,7 +196,12 @@ mod tests {
         let target = open(&prefix);
         assert!(write(&source, &target, "3.57.0").is_err());
         assert_eq!(std::fs::read_dir(prefix.join("bin")).unwrap().count(), 0);
+        std::fs::set_permissions(&metadata, std::fs::Permissions::from_mode(0o600)).unwrap();
         std::fs::write(&metadata, text).unwrap();
+        std::fs::set_permissions(&metadata, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(validate(&source, "3.57.0").is_err());
+        assert_eq!(std::fs::read_dir(prefix.join("bin")).unwrap().count(), 0);
+        std::fs::set_permissions(&metadata, std::fs::Permissions::from_mode(0o444)).unwrap();
         let expected: u64 = ENTRIES
             .iter()
             .map(|(_, target)| script(target).len() as u64)

@@ -179,7 +179,32 @@ Python parsing as inert data and actual shell relocation through paths with
 spaces/quotes using a fixture interpreter. The full Mac workspace passes 423
 tests across 215 targets, with no failures/ignores; retained log SHA-256 is
 `7a84f6377cce1ca068e134b4b91c036b034cc72162d520f69a86e698d79b815c`.
-The live composed-prefix and complete requirement proofs remain pending.
+The first live composed-prefix attempt at `5fa3f5f3` passes eleven pin/lease
+refusals, then refuses the new launcher's wrong 0644 expectation: published
+inert-wheel metadata is 0444. Its complete partial stays Root-private mode
+0700, with 4,405 entries and 117,017,632 bytes, no launcher, no publication
+receipt and no candidate execution. All 4,041 original files/links remain
+unchanged. The first independent snapshot courier also refused two retained
+unprivileged export files before any Rust operation; its separate correction
+pins their publisher UID/GID, exact modes and outside hashes while retaining
+the Root input reader. Both failures remain recorded.
+Independent host verification checks all 27 members of the 2,007,040-byte
+failed-attempt export, SHA-256
+`821afdc60c204c4cc09351f2716d39b15e77ff075d408fd73693b93f04245ad9`,
+and reconstructs the private partial from the earlier verified wheel and
+dependency data. The partial digest is
+`8c0d3a91bc60ce364c27c0eac5bcd0e21f47463bc766b391d38a15b380a08f1a`.
+The source-matched Root library passes 133 tests with 24 preexisting fixture
+ignores; the historical clone fixture also passes when run explicitly.
+
+The follow-up requires exact 0444 metadata, tests refusal of 0644, and validates
+the complete declaration before creating a prefix. It adds the version to the
+new native receipt; the historical schema is unchanged. The corrected complete
+Mac workspace again passes 423 tests, log SHA-256
+`895fe5ca7b5d97d6f2c7ee74fe6d214a464f4b526f61dd6550b90cac9271a449`.
+The consumed attempt is preserved; fresh candidate job `e2c701baf1471601`
+uses the same exact product source for the next proof. Successful live
+composition and complete requirements remain pending.
 
 The inner attachment check does not establish the kernel policy's enforcement
 mode by itself; the Root owner must observe that independently. An adapter

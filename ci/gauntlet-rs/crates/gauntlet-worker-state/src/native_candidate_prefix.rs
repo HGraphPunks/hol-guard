@@ -55,6 +55,7 @@ pub(crate) fn value(
     let mut v = proof.to_json();
     v["schema"] = "hol-gauntlet-native-candidate-prefix.v1".into();
     v["source_archive_sha256"] = pins.source_archive_sha256.into();
+    v["version"] = pins.version.into();
     v["dependency_job_id"] = pins.dependency_job_id.into();
     v["dependency_prefix_receipt_sha256"] = pins.dependency_prefix_receipt_sha256.into();
     v["clone_generation"] = pins.generation.into();
