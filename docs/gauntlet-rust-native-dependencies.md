@@ -222,7 +222,13 @@ slots refuse; no final deployment or eligibility is written and no package
 executes as Root. The full Mac workspace passes 425 tests, with no failures
 or ignores, log SHA-256
 `e72f6ca366cd47e71e86cada08b545116fcea10a3ebfb5d46a9ffea9f2563d8a`.
-Mac/ARM64 warnings-denied Clippy pass. Its live publication proof remains open.
+Mac/ARM64 warnings-denied Clippy pass. The
+[live publication proof](gauntlet-rust-native-runtime-publication-vm-proof-20261026.md)
+now passes: ten pin/lease/replay refusals preserve 8,059 original files/links,
+the published 4,411-entry tree matches exactly, both receipts agree, and host
+readback verifies all 23 export members. The actual Root library passes 135
+tests with 24 preexisting fixture ignores. Independent controls and fresh
+conformance remain open; the runtime is unadmitted.
 
 The inner attachment check does not establish the kernel policy's enforcement
 mode by itself; the Root owner must observe that independently. An adapter

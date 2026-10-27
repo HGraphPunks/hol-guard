@@ -314,7 +314,14 @@ approval ceremony for routine work already authorized by this request.
   full Mac workspace passes 425 tests; Mac/ARM64 Clippy pass with warnings
   denied. Live publication and independent controls remain next. The user
   will handle disabled fork CI; continue implementation and owned-VM work.
-- Next: verify immutable runtime publication, then deterministic authority.
+- 2026-10-26: one-use runtime publication at `c89e0008` passes in the owned
+  ARM VM. Ten wrong-pin/lease/replay cases preserve 8,059 original files/links;
+  the complete 4,411-entry published tree and both receipts match. Host readback
+  verifies all 23 export members against the independently reconstructed
+  prefix and exact Python requirement oracle. Actual Root ARM64 passes 135
+  library tests with 24 preexisting fixture ignores. All data stays unadmitted;
+  see [publication proof](gauntlet-rust-native-runtime-publication-vm-proof-20261026.md).
+- Next: source-matched independent Native controls and fresh conformance.
   No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.

@@ -58,6 +58,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument("--export", type=pathlib.Path, required=True)
 parser.add_argument("--dependency-export", type=pathlib.Path, required=True)
 parser.add_argument("--source-archive", type=pathlib.Path, required=True)
+parser.add_argument("--publication-export", type=pathlib.Path)
 parser.add_argument("--repository", type=pathlib.Path, default=pathlib.Path(__file__).resolve().parents[3])
 parser.add_argument("--output", type=pathlib.Path)
 args = parser.parse_args()
@@ -66,6 +67,8 @@ inputs = {
     "native-candidate-prefix-vm-results-016.tar": args.export,
     "native-dependency-prefix-vm-results-014.tar": args.dependency_export,
 }
+if args.publication_export is not None:
+    inputs["native-runtime-publication-vm-results-017.tar"] = args.publication_export
 
 
 def archive(name, pin):
@@ -302,6 +305,70 @@ out = {
     "guard_causality_verified": False,
     "model_requests": 0,
 }
+if args.publication_export is not None:
+    publication = archive(
+        "native-runtime-publication-vm-results-017.tar",
+        "22d3eb8c01e63e01b36c63b130491049295dea0599ea4e1990da855bca17e161",
+    )
+    assert len(publication) == 23
+    manifest = json.loads(publication.pop("results.sha256.json"))
+    assert set(publication) == set(manifest["files"])
+    for name, pin in manifest["files"].items():
+        assert len(publication[name]) == pin["bytes"]
+        assert hashlib.sha256(publication[name]).hexdigest() == pin["sha256"]
+    receipt = publication["runtime/native-runtime.v1.json"]
+    assert receipt == publication["build/native-runtime-publication.v1.json"]
+    receipt_hash = hashlib.sha256(receipt).hexdigest()
+    assert receipt_hash == "3b5ed1b9d5ea1faa395aae6526d7ec746408d376fb134ae5e6b0bc9df930f432"
+    runtime = json.loads(receipt)
+    assert runtime["schema"] == "hol-gauntlet-native-runtime-publication.v1"
+    assert runtime["source_sha"] == v["source_sha"] and runtime["version"] == v["version"]
+    assert runtime["publisher_generation"] == "47cd8c5a8b110870e0d1be2439818121a89ab2797ab60d2011ad5ca532792235"
+    assert runtime["prefix_tree_sha256"] == digest
+    assert runtime["prefix_entries"] == 4411 and runtime["prefix_bytes"] == total
+    assert runtime["dependency_requirements"] == requirements
+    assert publication["build/native-candidate-prefix.v1.json"] == data["build/native-candidate-prefix.v1.json"]
+    assert runtime["clone_receipt_sha256"] == out["receipt_sha256"]
+    assert json.loads(publication["proof/published-prefix-tree.json"])["rows"] == rows
+    assert all(
+        runtime[key] is False
+        for key in [
+            "candidate_executed",
+            "conformance_completed",
+            "artifact_admitted",
+            "execution_eligible",
+            "guard_causality_verified",
+        ]
+    )
+    assert runtime["model_requests"] == 0
+    for name in [
+        "wrong-source",
+        "wrong-version",
+        "wrong-clone-receipt",
+        "wrong-prefix-tree",
+        "wrong-native",
+        "wrong-python-version",
+        "wrong-generation",
+        "rust-lease-busy",
+        "legacy-lease-busy",
+        "replay",
+    ]:
+        assert json.loads(publication["proof/" + name + ".json"])["returncode"] == 2
+    proof = json.loads(publication["proof/proof.json"])
+    assert proof["status"] == "passed" and proof["all_original_files_unchanged"] == 8059
+    assert proof["dual_receipts_match"] is True
+    assert hashlib.sha256(publication["proof/worker-lib.log"]).hexdigest() == (
+        "b12eb1186550da5c296b068572f14052212213cc6d61bd2927df4bea66f4c11a"
+    )
+    out["runtime_publication"] = {
+        "all_23_members_verified": True,
+        "published_tree_matches": True,
+        "dual_receipts_identical": True,
+        "receipt_sha256": receipt_hash,
+        "refusals_verified": 10,
+        "root_tests_passed": 135,
+        "root_fixture_ignores": 24,
+    }
 if args.output is not None:
     fd = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, "w") as f:
