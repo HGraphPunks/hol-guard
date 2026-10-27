@@ -255,6 +255,41 @@ A third regression requires fresh death observation for that retry. The
 32-test Mac rootfs suite and affected Mac/ARM Clippy/static compilation pass;
 fresh native execution remains required.
 
+Cancellation `e2c701baf1474802` at `0bd3254f` passes the bounded diagnostic
+and independent host readback. Root first binds the actual detached child,
+its original overlay-ready inode/bytes and Native CLI ancestry, then cancels
+the product cell and observes held-child death. SDK owner teardown lets the
+MCP transports drain normally. Final readback reuses the held overlay
+descriptors and separately checks absent physical lower paths. The missing
+SDK execution result and Post hook stay unavailable. Independent verification
+joins the SDK sink relay ancestry/token, real delegated MCP frames, capture
+journal, compiled fixture and 62 outside observations. Replay refuses in
+522.862 ms with all 221 worker files unchanged. Report:
+`b7f8adb0979ba265d708ea0247248af78d37d95381466d890fef7f97dedbe918`.
+The 132-member / 1,024,000-byte public export has SHA-256
+`1944c3557a240a562df2e5bcd30ae80807c8f86931493076b8ec8d394f716b1a`.
+Run `ci/gauntlet-rs/proofs/verify_native_lifecycle_control_20261027.py`.
+This does not supply a qualified role or an outside signing-key anchor.
+
+Timeout `e2c701baf1474901` at `fa409a89` remains failed and retained. Its
+detailed metadata establishes a Linux overlay detail: after child death,
+lookup through the held directory still returns the same inode with link
+count zero. Held/visible metadata match; inode, content size, owner, mode and
+mtime remain unchanged from readiness. The observer previously admitted
+retirement only when lookup returned ENOENT. Independent failure readback
+checks that exact state, partial capture, 67 samples and 227 worker files;
+replay refuses in 519.795 ms. The report is
+`9c4615e56f95d6f2755aa8cde47faf8105ed749123af1bde2ce35898642fb417`,
+and the 138-member / 1,054,720-byte export is
+`1c0056149ff3183254a024a3950d8345a05fcdd0ab7c78c2af6c6d7b89088bf3`.
+Select `009` in the failure reader.
+
+The next observer also accepts that still-lookupable retired dentry only
+after held-child death, when it matches the same zero-link held inode and
+retained bytes. A regression rejects a live child or substituted inode.
+The 33-test Mac rootfs suite and Mac/ARM Clippy/static compilation pass.
+Fresh native verification remains pending.
+
 Remaining work includes live detached-lifecycle verification, kernel/mount authority,
 provider mapping, complete role scoring,
 outside signing-key admission and fresh current-source staging/installed

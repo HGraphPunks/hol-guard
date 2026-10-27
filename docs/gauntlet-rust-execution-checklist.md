@@ -408,6 +408,17 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
       retained and independently checked. The next version preserves child
       errors and uses standard-library exclusive readiness publication;
       corrected native verification remains pending.
+      Subsequent independent observations locate readiness in the child's
+      overlay, not the physical lower workspace. At `0bd3254f`, cancellation
+      `e2c701baf1474802` passes the bounded actual SDK/MCP/Root lifecycle and
+      host readback, including held-child death and explicit missing result/
+      Post. Replay refuses in 522.862 ms; 221 worker files remain intact.
+      Timeout `e2c701baf1474901` at `fa409a89` remains failed and retained
+      with 227 files: Linux still resolves the same zero-link overlay dentry
+      after death. A narrowly bound retirement check and regression are
+      implemented; the 33-test Mac rootfs suite and Mac/ARM Clippy/static
+      compilation pass. Fresh native timeout verification and qualified
+      role scoring remain open. Parent-exit counts remain unchanged.
       See [deterministic controls](gauntlet-rust-native-deterministic-controls.md).
   - [x] Run fresh current-source Native success, timeout and cancellation
     through the complete Rust worker on the published 3.57.0 runtime. GNU actor

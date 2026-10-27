@@ -54,6 +54,20 @@ ATTEMPTS = {
         "root_lifecycle": True,
         "rootfs_passes": "38",
     },
+    "009": {
+        "export": ("1c0056149ff3183254a024a3950d8345a05fcdd0ab7c78c2af6c6d7b89088bf3", 1054720),
+        "input": "e697285221935bdb13bcaad738fceb58ff7fbeabb36452da34bdb76098ade574",
+        "input_bytes": 65945600,
+        "source": "fa409a89cbd2add85246690f8f82f14e875076a2",
+        "courier": "98f5eeb7c95b633dc38d7172621f29c3e5b84b638be98f92b96c1fdad2707528",
+        "report": "9c4615e56f95d6f2755aa8cde47faf8105ed749123af1bde2ce35898642fb417",
+        "files": 227,
+        "samples": 67,
+        "observer": "002",
+        "root_lifecycle": True,
+        "retired_dentry": True,
+        "rootfs_passes": "39",
+    },
 }
 
 
@@ -106,7 +120,16 @@ def verify(directory, attempt="006"):
             if row["kind"] == "native-detached-lifecycle-control"
         )
         assert lifecycle["capture_exit_code"] is None
-        assert lifecycle["capture_error"] == "held lifecycle readiness replaced or changed after control"
+        if pins.get("retired_dentry"):
+            prefix = "held lifecycle readiness replaced or changed after control: "
+            assert lifecycle["capture_error"].startswith(prefix)
+            state = parse(lifecycle["capture_error"][len(prefix) :].encode())
+            assert state["child_dead"] and state["held"] == state["visible"]
+            assert state["held"]["links"] == 0 and state["original"]["links"] == 1
+            for field in ["device", "inode", "mode", "uid", "gid", "bytes", "mtime", "mtime_nsec"]:
+                assert state["held"][field] == state["original"][field]
+        else:
+            assert lifecycle["capture_error"] == "held lifecycle readiness replaced or changed after control"
         assert lifecycle["detached_child_dead"] is lifecycle["product_cell_closed"] is True
         assert lifecycle["ready"]["pid"] == lifecycle["detached_child"]["namespace_pid"] == 4
         assert lifecycle["error"] == "actual Native timeout/controller cancellation outcome differs"
@@ -184,6 +207,6 @@ def verify(directory, attempt="006"):
 if __name__ == "__main__":
     if len(sys.argv) not in [2, 3]:
         raise SystemExit(
-            "usage: verify_native_lifecycle_failure_20261027.py EVIDENCE_DIRECTORY [006|007|007-cancel|008]"
+            "usage: verify_native_lifecycle_failure_20261027.py EVIDENCE_DIRECTORY [006|007|007-cancel|008|009]"
         )
     print(json.dumps(verify(Path(sys.argv[1]), *sys.argv[2:]), sort_keys=True))

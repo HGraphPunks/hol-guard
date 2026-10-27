@@ -32,6 +32,11 @@ fn metadata(s: &Stat) -> Value {
         "uid":s.st_uid,"gid":s.st_gid,"bytes":s.st_size,"mtime":s.st_mtime,"mtime_nsec":s.st_mtime_nsec,
         "ctime":s.st_ctime,"ctime_nsec":s.st_ctime_nsec})
 }
+fn retired(dead: bool, original: &Stat, held: &Stat, visible: Option<&Stat>) -> bool {
+    dead && held.st_nlink == 0
+        && content_inode(original, held)
+        && visible.is_none_or(|s| crate::fs_input::same(held, s))
+}
 
 impl HeldLifecycleReady {
     pub fn read(directory: &OwnedFd, spec: &NativeLifecycleSpec) -> Result<Option<Self>> {
@@ -120,9 +125,10 @@ impl HeldLifecycleReady {
             {
                 false
             }
-            Err(rustix::io::Errno::NOENT)
-                if child_dead && before.st_nlink == 0 && content_inode(&self.original, &before) =>
-            {
+            // A held overlay mount can still resolve the retired dentry.
+            // It must name the same zero-link inode as the held descriptor.
+            Ok(visible) if retired(child_dead, &self.original, &before, Some(&visible)) => true,
+            Err(rustix::io::Errno::NOENT) if retired(child_dead, &self.original, &before, None) => {
                 true
             }
             _ => {
@@ -243,5 +249,23 @@ mod tests {
         })
         .unwrap();
         assert_eq!(checks.get(), 2);
+    }
+    #[test]
+    fn lookupable_retired_overlay_dentry_requires_dead_child_and_exact_held_inode() {
+        let (dir, fd, spec) = setup();
+        let held = hold(&fd, &spec);
+        std::fs::remove_file(dir.path().join("detached-ready.json")).unwrap();
+        let current = fstat(&held.file).unwrap();
+        assert!(retired(true, &held.original, &current, Some(&current)));
+        assert!(!retired(false, &held.original, &current, Some(&current)));
+        let mut substituted = fstat(&held.file).unwrap();
+        substituted.st_ino += 1;
+        assert!(!retired(true, &held.original, &current, Some(&substituted)));
+        assert!(!retired(
+            true,
+            &held.original,
+            &substituted,
+            Some(&substituted)
+        ));
     }
 }

@@ -596,6 +596,17 @@ approval ceremony for routine work already authorized by this request.
   death-between-snapshots ordering, retaining detailed failure metadata.
   The 32-test Mac rootfs suite and affected Mac/ARM Clippy/static compilation
   pass. No completed timeout SDK join, role qualification or cutover is inferred.
+- 2026-10-27: cancellation `e2c701baf1474802` at `0bd3254f` passes the
+  actual Root/SDK/MCP diagnostic and independent host readback, including
+  held overlay readiness, scoped cancellation, child death, cleanup and
+  explicitly missing SDK result/Post. All 221 worker files remain intact;
+  replay refuses in 522.862 ms. No role qualification is inferred.
+  Timeout `e2c701baf1474901` at `fa409a89` remains failed and independently
+  retained with 227 worker files. Metadata identifies a still-lookupable
+  zero-link overlay dentry after death. The next observer accepts only its
+  exact held inode and unchanged bytes; a regression rejects live-child or
+  inode substitution. The 33-test Mac rootfs suite and Mac/ARM Clippy/static
+  compilation pass; fresh native timeout verification remains open.
 - Next: verify corrected detached-lifecycle roles and finish deterministic role scoring, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
