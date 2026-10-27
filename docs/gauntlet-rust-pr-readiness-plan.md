@@ -655,6 +655,14 @@ approval ceremony for routine work already authorized by this request.
   hashes are in [host-pinned controls](gauntlet-rust-native-host-keyed-controls.md).
   This remains historical-product diagnostics; independent Rust grading,
   current-product-source publication/conformance and parent exits stay open.
+- 2026-10-27: merged upstream `ee0b44f4` as `86fce565`, retaining both
+  Native APIs at the one insertion conflict. Reviewed the required-extension
+  permission-only fixture correction and refreshed all 432 source pins.
+  The first workspace test exposes the stale controller-tree pin; actual
+  Python bootstrap and Rust independently agree on the new 401-file,
+  412-entry digest `a6b9a563…a6063d`. Only the current-source pin changes;
+  historical baselines and proofs stay retained. Merged validation is pending;
+  see [upstream synchronization](gauntlet-rust-upstream-sync-ee0b44f4.md).
 - Next: finish independent deterministic role scoring and outside key custody, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
