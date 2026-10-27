@@ -268,6 +268,13 @@ approval ceremony for routine work already authorized by this request.
   zero failures/ignores. Warnings-denied Mac/ARM64 Clippy and ARM64 compilation
   pass. The unchanged pinned VM image, cgroup manager and job policy are
   prepared; the actual composed VM run remains next. No parent exit closes.
+- 2026-10-26: the first composed dependency job installs all 62 locked packages
+  and Rust captures its archive, but terminal publication correctly refuses a
+  missing running-process marker. It remains unresolved and consumed; all
+  logs/inputs/output and the failed observer are retained. The follow-up wires
+  the observed Podman client into the durable marker and adds explicit
+  quiescent dependency repair with aborted/null-exit semantics. ARM64 Clippy
+  passes; actual recovery and a fresh complete run remain next.
 - Next: prepare compatible dependencies, then deterministic authority. No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.

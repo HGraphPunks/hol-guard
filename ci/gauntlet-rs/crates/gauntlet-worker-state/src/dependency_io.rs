@@ -11,7 +11,13 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::os::fd::OwnedFd;
 
-fn read(dir: &OwnedFd, name: &str, owner: u32, mode: u32, maximum: u64) -> Result<Vec<u8>, String> {
+pub(crate) fn read(
+    dir: &OwnedFd,
+    name: &str,
+    owner: u32,
+    mode: u32,
+    maximum: u64,
+) -> Result<Vec<u8>, String> {
     let fd = openat(
         dir,
         name,

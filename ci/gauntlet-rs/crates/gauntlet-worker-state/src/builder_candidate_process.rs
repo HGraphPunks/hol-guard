@@ -192,7 +192,7 @@ pub(crate) fn run_candidate_process(
     job: &OwnedFd,
     still_owned: &impl Fn() -> Result<(), CandidateProcessError>,
 ) -> Result<CandidateProcessObservation, CandidateProcessError> {
-    run_process(plan, job, still_owned, false, &|| Ok(()))
+    run_process(plan, job, still_owned, false, &|| Ok(()), &|_, _| Ok(()))
 }
 
 pub(crate) fn run_precreated_dependency_process(
@@ -200,8 +200,16 @@ pub(crate) fn run_precreated_dependency_process(
     job: &OwnedFd,
     still_owned: &impl Fn() -> Result<(), CandidateProcessError>,
     drain_container: &impl Fn() -> Result<(), CandidateProcessError>,
+    record_running: &impl Fn(crate::ProcessIdentity, &str) -> Result<(), CandidateProcessError>,
 ) -> Result<CandidateProcessObservation, CandidateProcessError> {
-    run_process(plan, job, still_owned, true, drain_container)
+    run_process(
+        plan,
+        job,
+        still_owned,
+        true,
+        drain_container,
+        record_running,
+    )
 }
 
 fn run_process(
@@ -210,6 +218,7 @@ fn run_process(
     still_owned: &impl Fn() -> Result<(), CandidateProcessError>,
     precreated_dependency: bool,
     drain_container: &impl Fn() -> Result<(), CandidateProcessError>,
+    record_running: &impl Fn(crate::ProcessIdentity, &str) -> Result<(), CandidateProcessError>,
 ) -> Result<CandidateProcessObservation, CandidateProcessError> {
     if !precreated_dependency && !container_absent(&plan.job_id)? {
         return Err(CandidateProcessError::ExistingContainer);
@@ -272,6 +281,18 @@ fn run_process(
         cleanup(&mut group, &mut child, drain_container)?;
         return Err(CandidateProcessError::ProcessMismatch);
     };
+    if record_running(
+        crate::ProcessIdentity {
+            pid: child.id(),
+            start_ticks: client_start_ticks,
+        },
+        group.path(),
+    )
+    .is_err()
+    {
+        cleanup(&mut group, &mut child, drain_container)?;
+        return Err(CandidateProcessError::ProcessMismatch);
+    }
     let (child_stdout, child_stderr) = match (child.stdout.take(), child.stderr.take()) {
         (Some(stdout), Some(stderr)) => (stdout, stderr),
         _ => {

@@ -78,8 +78,37 @@ exports are copied once into Root-owned 0444 data with independent readback.
 The terminal stays `invalid-evidence`. Unresolved dependency state blocks later
 dependency, native worker and candidate runs; it is never automatically retried.
 The v3 inert initializer adds only the separate private dependency journal.
-ARM64 compilation and warnings-denied Mac/ARM64 Clippy pass. **This full
-composition has not yet run on the VM.**
+ARM64 compilation and warnings-denied Mac/ARM64 Clippy pass. The first composed
+VM attempt is retained as unresolved job `e2c701baf1471301`: the actual
+unprivileged exporter installs all 62 frozen packages, including MCP 1.30.0,
+and creates a 17,489,481-byte archive, SHA-256
+`a6a25abbbead6dbf5510534474c0da9bc36c423ff374b21ce7dad3917a75f642`.
+Rust captures that data and removes the container, cgroups and enforced
+profile, then refuses terminal publication because the journal lacks its
+mandatory running-process marker. The initial job remains consumed, with no
+report or terminal; its archive is unadmitted. The host retains an uncertain
+execution result rather than a package/environment pass.
+
+The follow-up connects the actual observed Podman client's PID, start ticks
+and cgroup to `mark_running_under_lease` before collecting its result. It also
+adds explicit `--repair-native-dependencies` for quiescent, externally pinned
+jobs. Repair takes both permanent leases and the dependency lease, verifies
+the exact original intent/reservation, all captured inputs, retained CID and
+absence of client/container/cgroups/profile, then writes a separate `aborted`
+receipt with null exit code and no execution credit. Missing running evidence
+stays null; no marker or terminal is invented. The original files are preserved,
+and later admission independently rechecks this separate receipt. Live repair
+and a fresh complete run are pending.
+
+The independent observer of the first run is retained as unavailable: it read
+the container's parent systemd scope without calculating effective limits
+along the observed process's complete cgroup ancestry. Limits require a fresh
+kernel observation; the unavailable record supplies no containment proof.
+The first worker initialization also refused an installer-created 0555 file;
+the recorded correction restricts that new file to the existing required 0500
+mode. The source-matched actual Root library then passes 126 tests, with 24
+preexisting fixture ignores, log SHA-256
+`6f86cdf26ae4afd6cabe935f04f85ab00aebeb5f428ecc1c72eae4124c221fa2`.
 
 The complete Mac workspace passes 416 tests across 215 targets with zero
 failures/ignores. Log `rust-workspace-native-dependency-run-009.log` has SHA-256

@@ -10,7 +10,7 @@ use crate::builder_image_context::{
 };
 use crate::builder_policy::{profile_absent, profile_is_loaded, read_policy, run_parser};
 use crate::dependency_podman::DependencyContainer;
-use crate::{ProcessIdentity, RunReservationJournal, TerminalOutcome};
+use crate::{RunReservationJournal, TerminalOutcome};
 use gauntlet_contracts::{canonicalize, DependencyRunIntent, WorkerRequest};
 use serde_json::{json, Value};
 use std::path::Path;
@@ -161,11 +161,31 @@ pub fn run_native_dependencies(
     let mut container = DependencyContainer::new(&intent);
     let execution = (|| {
         let plan = container.create()?;
-        run_precreated_dependency_process(&plan, &slot, &still_owned, &|| {
-            container
-                .drain()
-                .map_err(|_| CandidateProcessError::CleanupUncertain)
-        })
+        run_precreated_dependency_process(
+            &plan,
+            &slot,
+            &still_owned,
+            &|| {
+                container
+                    .drain()
+                    .map_err(|_| CandidateProcessError::CleanupUncertain)
+            },
+            &|process, group| {
+                journal
+                    .mark_running_under_lease(
+                        &job_lease,
+                        &request,
+                        p.text("source_sha"),
+                        &digest,
+                        generation,
+                        &started.sha256,
+                        process,
+                        group,
+                    )
+                    .map(|_| ())
+                    .map_err(|_| CandidateProcessError::ProcessMismatch)
+            },
+        )
         .map_err(|e| e.to_string())
     })();
     // Keep the enforced policy if exact-container teardown cannot be proved.
@@ -194,15 +214,11 @@ pub fn run_native_dependencies(
     } else {
         None
     };
-    let own = crate::linux_process::parse_proc_stat(
-        &std::fs::read("/proc/self/stat").map_err(|e| e.to_string())?,
-        std::process::id(),
-    )
-    .ok_or("dependency owner kernel identity missing")?;
-    let process = ProcessIdentity {
-        pid: std::process::id(),
-        start_ticks: own.start_ticks,
-    };
+    let running = journal
+        .running_marker(job, p.text("source_sha"), &digest, generation)
+        .map_err(|e| e.to_string())?
+        .ok_or("dependency client lacks retained running identity")?;
+    let process = running.process;
     let report = json!({"schema":"hol-gauntlet-native-dependency-result.v1","job_id":job,"source_sha":p.text("source_sha"),
         "intent_sha256":digest,"intent":serde_json::from_slice::<Value>(raw).map_err(|e| e.to_string())?,"worker_generation":generation,
         "started_marker_sha256":started.sha256,"container_id":cid,"exit_code":exit,"execution_error":execution.as_ref().err(),

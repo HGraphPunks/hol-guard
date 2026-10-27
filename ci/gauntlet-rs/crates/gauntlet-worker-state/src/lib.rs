@@ -81,9 +81,13 @@ mod dependency_io;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod dependency_podman;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod dependency_repair;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod dependency_run;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod dependency_state;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use dependency_repair::repair_native_dependencies;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_dependency_archive;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
