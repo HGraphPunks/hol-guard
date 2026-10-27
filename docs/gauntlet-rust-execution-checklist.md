@@ -369,8 +369,12 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
     - [ ] Complete the v6 deterministic roles and their independent physical
       scoring. The closed role parser and installed-Native nine-case binding
       recorder are implemented, with an unchanged held trap required for
-      refusal. Mac tests (107), Mac/ARM Clippy and ARM library/binary builds
-      pass; native library execution and live request-binding remain pending.
+      refusal. At `f013438b`, fresh v6 job `e2c701baf1474101` passes all nine
+      actual Native refusals, with independent wire/CLI/capture/physical-trap
+      verification, 57 outside samples and 167 preserved worker files. Native
+      ARM tests pass 177 worker cases, 33 rootfs cases plus subprocess; Mac
+      tests (107), Mac/ARM Clippy and ARM binaries pass. Full role scoring and
+      the forbidden-command positive/negative control remain open.
       Four roles still refuse as incomplete, and no qualified role is claimed.
       See [deterministic controls](gauntlet-rust-native-deterministic-controls.md).
   - [x] Run fresh current-source Native success, timeout and cancellation

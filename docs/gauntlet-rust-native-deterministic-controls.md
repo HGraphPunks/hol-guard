@@ -29,13 +29,33 @@ An unreadable or substituted namespace is unavailable rather than evidence
 of an absent effect. These Root control probes are separate from SDK/model
 operations and do not mint an SDK budget permit.
 
-The common role parser, request recorder and trap owner compile for ARM64
-with warnings-denied Clippy. The affected macOS suites pass 107 tests and
-Clippy; static ARM test compilation passes. Fresh native library execution
-and live v6 request-binding execution remain pending at this checkpoint.
+At source `f013438b680595d05fc2fc2e11963596ae2b2af1`, fresh v6 job
+`e2c701baf1474101` passes all nine installed-Native request-binding cases.
+Every case returns 126 with the actual Native authorization refusal, safely
+retires its request and leaves the unchanged physical trap without an effect.
+Independent host readback checks the original malformed bytes, CLI bindings,
+captures, fixture metadata/bytes, SDK MCP/Bash results, signed physical SQLite
+read and 57 outside process samples. All 161 earlier worker files stay intact;
+the final map contains 167. Replay refuses in 521.121 ms while the legacy lease
+is held; reconcile returns the original terminal and wrong request pins refuse.
+
+Native ARM execution passes 177 worker tests (24 existing fixture ignores),
+33 rootfs tests and its nested subprocess test. The affected macOS suites pass
+107 tests. Warnings-denied Mac/ARM Clippy and both ARM main binary builds pass.
 The retained first compiler refusal caught a non-comparable `Stat` result
 and use of the rootfs declaration where the task declaration was required;
 the corrected owner uses the already authenticated `TaskMount`.
+
+The public input archive is 65,095,680 bytes / five members, SHA-256
+`7730fd2ac9a145ef6db43facb07f17608d005551675a275136001ef8f60d7e64`.
+The public export is 1,208,320 bytes / 159 members, SHA-256
+`8399235c821e35c2a1699538fe152e2b88b4e31a73035cfab1486fa522c199ce`.
+The report SHA-256 is
+`8ea8ae6564e8807a8602dcc78c357c64153e477b43edf490b5c9caf7b3429dfa`.
+Run `ci/gauntlet-rs/proofs/verify_native_request_bindings_20261027.py` with
+the retained evidence directory. Its result remains explicitly ineligible;
+the diagnostic uses the historical `62aa7ba7` product prefix. Product home
+and Guard stores are excluded from the public export.
 
 Remaining work includes the real forbidden-command positive/negative control,
 boundary canaries/kernel probes, injected response disposition, observed

@@ -503,7 +503,16 @@ approval ceremony for routine work already authorized by this request.
   Affected Mac tests (107), Mac/ARM Clippy and static ARM tests compile/pass;
   fresh native execution remains pending. See
   [deterministic controls](gauntlet-rust-native-deterministic-controls.md).
-- Next: verify live request-binding controls, finish independent deterministic role scoring and
+- 2026-10-27: at `f013438b`, fresh v6 job `e2c701baf1474101` passes all
+  nine real Native request-binding refusals after actual SDK/MCP/Bash execution.
+  Independent readback verifies raw malformed requests, exact CLI/capture
+  joins, physical unchanged trap/SQLite state and 57 outside samples. Replay
+  refuses while the legacy lease is held, and all 167 worker files stay
+  intact. Native ARM tests pass 177 worker and 33 rootfs cases plus subprocess;
+  Mac tests (107), Mac/ARM Clippy and binaries pass. This closes the bounded
+  request-refusal proof; complete role scoring and other four roles remain
+  open. See [deterministic controls](gauntlet-rust-native-deterministic-controls.md).
+- Next: finish the real forbidden-command counterfactual and deterministic role scoring, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;
