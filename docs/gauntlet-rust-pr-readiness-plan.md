@@ -644,9 +644,17 @@ approval ceremony for routine work already authorized by this request.
   files remain intact. A lost acknowledgement at `5101` is
   conservatively repaired aborted, with restart/wrong-pin/replay proofs and
   no fabricated terminal. A passive offline Rust completion verifier passes
-  actual positive and five hostile-variant cases. The cancellation v7
-  proof is underway. Historical product source and all ineligible flags
+  actual positive and five hostile-variant cases. Historical product source and all ineligible flags
   remain explicit; parent exits stay 24/62.
+- 2026-10-27: cancellation `e2c701baf1475107` also passes actual host-pinned
+  execution and independent readback, preserving missing SDK result/Post.
+  All six distinct outside keys and completions pass the offline Rust verifier;
+  a cross-job replay refuses. There are 420 outside kernel observations and
+  284 unchanged worker files. Final outside inventory confirms all owned
+  controller/product/SDK/MCP resources absent. The six-role index and exact
+  hashes are in [host-pinned controls](gauntlet-rust-native-host-keyed-controls.md).
+  This remains historical-product diagnostics; independent Rust grading,
+  current-product-source publication/conformance and parent exits stay open.
 - Next: finish independent deterministic role scoring and outside key custody, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)

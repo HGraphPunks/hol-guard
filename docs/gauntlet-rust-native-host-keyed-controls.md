@@ -146,7 +146,7 @@ The Mac host sender is 2,298,736 bytes, SHA-256
 The six-member input archive is 83,179,520 bytes, SHA-256
 `f554628652863c1e03a53b94cab2346ca3cd671569c2322930fa6a9e8da0b435`.
 
-The first five fresh v7 jobs pass both the Rust host's retained-key
+All six fresh v7 jobs pass both the Rust host's retained-key
 authentication and independent public-artifact readback:
 
 | Role | Job ID | Root report SHA-256 | Outside samples |
@@ -156,6 +156,7 @@ authentication and independent public-artifact readback:
 | Injection | `e2c701baf1475104` | `31efb131ee33a38031001a1cb99ee8f5a98fd2f550f693bb88f54deb81621887` | 75 |
 | Boundary | `e2c701baf1475105` | `783ab402b2115c6689c04aa165c0be423aa9b013a1f1e94f4b45ae5d8993f545` | 65 |
 | Timeout | `e2c701baf1475106` | `69eacb8ddc945afefa6ec344b9cdf98af3ac305c1faad03b2ff1fbf4b8dea605` | 64 |
+| Cancellation | `e2c701baf1475107` | `2657c493d6b73609e3b12419bc55fe00b6bd1364c26a356ff9154f5e3a101340` | 60 |
 
 Each uses a fresh public key actually retained in the private Mac journal
 before the Rust acknowledgement. Readback checks the signature again under
@@ -169,8 +170,21 @@ forbidden-command probe and positive deletion/reseed counterfactual pass.
 Boundary checks the three original canary inodes/bytes, positive visibility,
 six path refusals and two network refusals. Timeout binds the actual 124
 capture to the SDK error flag/content and real PostToolUse, held-child death,
-unchanged ready bytes and closed overlay/lower absence. All 277 worker files
-through these five jobs remain unchanged.
+unchanged ready bytes and closed overlay/lower absence. Cancellation binds
+the Root request to held readiness and child death, preserving the missing
+SDK result and Post. All 284 worker files through these six jobs remain
+unchanged. The final outside inventory confirms no owned controller cgroup,
+product slice/unit, or any of the seven jobs' SDK/MCP containers and scoped
+profiles remains.
+
+All six distinct outside keys and completions also pass the passive Rust
+verifier. A success completion presented for the input-binding job refuses.
+The six-role index is `native-host-keyed-all-six-proof-001.json`, 3,826
+bytes, SHA-256
+`fffb2f7fac27508353ac1377fbbe3423f40f71aa3a2251bc96f0b8ece8443fa7`.
+It records 420 outside kernel samples and explicit ineligible flags.
+The final 284-file worker map hashes to
+`e85147012c78319b05420b1f164e318783af50645c8e9b29183da42054ae9158`.
 
 A fresh Rust host process reconciles the success completion byte-for-byte
 and refuses wrong role, preparation and source context. The new passive
@@ -209,11 +223,10 @@ Evidence is retained outside the repository under
 source and courier; the historical input-binding and injection readers still
 accept their original immutable proofs after the shared helper extraction.
 
-Cancellation v7 verification remains underway. These
-jobs use the historical product candidate `62aa7ba7` and do not supply the
+These jobs use the historical product candidate `62aa7ba7` and do not supply the
 required current-product-source staging/installed conformance set. All
 qualification, Guard-causality and outside-key-admission flags stay false;
 model requests remain zero. Parent exits remain 24/62. Complete independent
-Rust role scoring, all six host-pinned records, current-source publication
+Rust role scoring, complete crash/restart authority, current-source publication
 and twelve fresh conformance runs remain open.
 

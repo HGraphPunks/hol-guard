@@ -20,6 +20,13 @@ from verify_native_mcp_transport_20261027 import canonical, digest, parse, sha
 SOURCE = "f53bc490f7483ad41a781d62dc4d0d2c6a47c6a9"
 COURIER = "c495242bf61d858976fc03832423a37b9727ec6b3002e601f351b3f24a552d6d"
 PROOFS = {
+    "cancel": {
+        "report": "2657c493d6b73609e3b12419bc55fe00b6bd1364c26a356ff9154f5e3a101340",
+        "export": ("247c6c2b808746acbc1b2fba383accb981b0958e0a0c4e18d5a5b17964b3cf5d", 1259520, 138),
+        "prior": 277,
+        "final": 284,
+        "samples": 60,
+    },
     "timeout": {
         "report": "69eacb8ddc945afefa6ec344b9cdf98af3ac305c1faad03b2ff1fbf4b8dea605",
         "export": ("08f5980f79304782597357a473fb541ae824ecbac0fcdfd2e8c096938f49a39d", 1310720, 140),
