@@ -158,6 +158,12 @@ mod candidate_dependencies_live;
 mod candidate_host_anchor;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_prefix_clone;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_candidate_launchers;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_candidate_prefix;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_candidate_prefix::{clone_native_candidate_prefix, NativeCandidatePrefixPins};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_result_read;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

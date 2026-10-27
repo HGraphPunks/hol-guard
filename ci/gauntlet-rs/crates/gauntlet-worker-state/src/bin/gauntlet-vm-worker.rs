@@ -4,6 +4,25 @@ fn run() -> Result<(), String> {
     use std::io::{Read, Write};
     gauntlet_worker_state::install_native_worker_signals()?;
     let args = std::env::args().collect::<Vec<_>>();
+    if args.len() == 12 && args[1] == "--clone-native-candidate-prefix" {
+        let pins = gauntlet_worker_state::NativeCandidatePrefixPins {
+            job_id: &args[2],
+            source_sha: &args[3],
+            source_archive_sha256: &args[4],
+            archive_sha256: &args[5],
+            version: &args[6],
+            dependency_job_id: &args[7],
+            dependency_prefix_receipt_sha256: &args[8],
+            dependency_prefix_tree_sha256: &args[9],
+            stage_tree_sha256: &args[10],
+            generation: &args[11],
+        };
+        println!(
+            "{}",
+            gauntlet_worker_state::clone_native_candidate_prefix(&pins)?
+        );
+        return Ok(());
+    }
     if args.len() == 8 && args[1] == "--stage-native-dependency-prefix" {
         let pins = gauntlet_worker_state::DependencyPrefixPins {
             job_id: &args[2],

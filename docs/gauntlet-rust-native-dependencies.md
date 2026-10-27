@@ -158,6 +158,29 @@ The remaining composition and verification are explicit:
   construct an inert dependency prefix and validate the candidate's complete
   declared requirements against it before any control can use that prefix.
 
+`gauntlet-vm-worker --clone-native-candidate-prefix` now composes a separately
+published dependency prefix and candidate wheel under both worker leases. Its
+closed arguments bind the candidate job/source/archive/version, dependency
+job/receipt/tree, staged wheel tree and actual worker generation. The dependency
+receipt must name the same source; current interpreter, run, input and complete
+archive/tree custody are reverified before and after copying. Unknown jobs,
+cancellation and insufficient disk refuse. A private consumed target remains
+on uncertain failure, with a separate canonical receipt only after readback.
+
+The historical `/opt/hol-gauntlet/candidates/<source>/prefix` clone and its
+shadow-v1 schema keep their original entrypoint. Shared descriptor copying and
+its tests were split into smaller files. Only the explicit native path adds
+the six console scripts declared by the exact wheel, including the three
+legacy aliases. Unknown, missing, duplicate or changed declarations refuse.
+Fixed shell/Python launchers locate the sibling interpreter, preserve arguments
+and use isolated mode without writing bytecode. No launcher runs during Root
+staging. Tests check all six declarations, exclusive write/replay preservation,
+Python parsing as inert data and actual shell relocation through paths with
+spaces/quotes using a fixture interpreter. The full Mac workspace passes 423
+tests across 215 targets, with no failures/ignores; retained log SHA-256 is
+`7a84f6377cce1ca068e134b4b91c036b034cc72162d520f69a86e698d79b815c`.
+The live composed-prefix and complete requirement proofs remain pending.
+
 The inner attachment check does not establish the kernel policy's enforcement
 mode by itself; the Root owner must observe that independently. An adapter
 report or successful package installation supplies no Guard verdict, artifact
