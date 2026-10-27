@@ -23,6 +23,7 @@ from tests.coverage_ci import under_coverage_scale
 from tests.native_approval_writes import (
     _store_for,
     add_approval_request,
+    bulk_resolve_approval_requests,
     native_approval_connection,
     native_store,
     page_cursor,
