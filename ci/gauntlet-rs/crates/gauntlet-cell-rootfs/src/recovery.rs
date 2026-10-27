@@ -12,6 +12,10 @@ struct Retained {
 }
 
 fn retained(spec: &CellPreparation) -> Result<Retained> {
+    retained_history(spec, false)
+}
+
+fn retained_history(spec: &CellPreparation, closed: bool) -> Result<Retained> {
     crate::kernel_process::root_proc()?;
     fs_input::directory(&spec.stage)?;
     let image_raw = fs_input::read(
@@ -19,9 +23,9 @@ fn retained(spec: &CellPreparation) -> Result<Retained> {
         64 * 1024 * 1024,
     )?;
     let image = crate::recovery_protocol::events(&image_raw)?;
-    // This version repairs only a reserved, mounted, launch-pending lease.
-    // A different helper history cannot silently confer mount ownership.
-    if image.len() != 4
+    // The closed profile is read-only and never confers mount ownership. The
+    // historical repair profile still accepts exactly its four pending rows.
+    if image.len() != if closed { 6 } else { 4 }
         || image[0]["kind"] != "image-reserved"
         || image[0]["data"]
             != json!({"image_id":spec.image_id,"podman_sha256":spec.podman_sha256,"stage":spec.stage})
@@ -32,6 +36,9 @@ fn retained(spec: &CellPreparation) -> Result<Retained> {
         || image[3]["data"] != json!({"image_id":spec.image_id})
     {
         return Err("retained image history does not authorize quiescent recovery".into());
+    }
+    if closed {
+        crate::recovery_protocol::closed_image(&image, &spec.image_id)?;
     }
     let raw = fs_input::read(&spec.stage.join("native-rootfs.v1.json"), 8192)?;
     let rootfs = RootfsSpec::parse(&raw, &hash(&raw))?;
@@ -77,6 +84,9 @@ fn retained(spec: &CellPreparation) -> Result<Retained> {
         64 * 1024 * 1024,
     )?;
     let records = crate::recovery_protocol::events(&events_raw)?;
+    if closed {
+        crate::recovery_protocol::closed_supervisor(&records)?;
+    }
     let first = &records[0];
     let profile = first["data"]["profile"]
         .as_str()
@@ -148,6 +158,15 @@ fn retained(spec: &CellPreparation) -> Result<Retained> {
 pub fn verify_quiescent_preparation(spec: &CellPreparation) -> Result<Value> {
     let retained = retained(spec)?;
     crate::require_image_lease_absent(&spec.image_id, &spec.podman_sha256)?;
+    Ok(retained.facts)
+}
+
+/// Already-closed SDK attempts need no image mutation. Require the complete
+/// release/cleanup history and all current absence/custody checks afresh.
+pub fn verify_closed_native_preparation(spec: &CellPreparation) -> Result<Value> {
+    let mut retained = retained_history(spec, true)?;
+    crate::require_image_lease_absent(&spec.image_id, &spec.podman_sha256)?;
+    retained.facts["image_history"] = json!("already-closed-v1");
     Ok(retained.facts)
 }
 

@@ -79,7 +79,11 @@ pub(crate) fn verified_receipt(
     if sdk {
         crate::native_sdk_quiescence::require_sdk_quiescence(&spec, &preparation)?;
     }
-    let current = gauntlet_cell_rootfs::verify_quiescent_preparation(&preparation)?;
+    let current = if sdk {
+        gauntlet_cell_rootfs::verify_closed_native_preparation(&preparation)?
+    } else {
+        gauntlet_cell_rootfs::verify_quiescent_preparation(&preparation)?
+    };
     if receipt.cleanup["quiescent"] != current {
         return Err("repaired job custody or quiescence changed".into());
     }
@@ -139,7 +143,12 @@ pub fn repair_native_worker(
     }
     lease.verify(&journal.root).map_err(|e| e.to_string())?;
     crate::builder_image_context::verify_python_lock(&python).map_err(|e| e.to_string())?;
-    let mut cleanup = gauntlet_cell_rootfs::recover_quiescent_preparation(&preparation)?;
+    let mut cleanup = if sdk {
+        let quiescent = gauntlet_cell_rootfs::verify_closed_native_preparation(&preparation)?;
+        json!({"quiescent":quiescent,"image_unmounted":true,"active_pointer_absent":true,"active_pointer_sha256":null})
+    } else {
+        gauntlet_cell_rootfs::recover_quiescent_preparation(&preparation)?
+    };
     if sdk {
         crate::native_sdk_quiescence::require_sdk_quiescence(&spec, &preparation)?;
         cleanup["sdk_agent_absent"] = json!(true);

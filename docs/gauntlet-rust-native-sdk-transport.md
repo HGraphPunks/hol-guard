@@ -124,3 +124,23 @@ semantics remain unchanged. Actual SDK repair and the corrected fresh control
 remain pending. The corrected source passes all 446 Mac tests and Mac/ARM64
 warnings-denied Clippy; log `rust-workspace-native-sdk-transport-026.log`
 has SHA-256 `01f1a95f9e2ee3ba404a9f5f0bc7ea4cdf1f87c9b95e0a8f962f05096848d417`.
+
+The first repair attempt at `f243516e` passes SDK absence checks, then
+correctly refuses the older recovery path's four-row pending-image history:
+this job already has the complete six-row image release and successful
+Native cleanup. Its refusal is retained, with no repair receipt or original
+evidence mutation. SDK v2 repair now selects a separate read-only closed
+history verifier. It requires the exact owned release, both final supervisor
+cleanup records, unchanged prefix and current process/cgroup/mount/profile/
+image-lease absence; it never adopts or unmounts a lease. The historical
+pending-image repair remains unchanged.
+
+Helper output now flows through nonblocking pipes into strictly bounded
+retained files. The limit does not alter Podman's storage/database file-size
+limits. A native test preserves binary bytes and refuses overflow before
+writing it. The Mac workspace passes 447 tests across 218 targets with zero
+failures or ignores; log `rust-workspace-native-sdk-transport-027b.log`
+has SHA-256 `e73e61367a9515f03a118c6ff5df0e80ae77c8ad88028591805cf1fa9c5f5019`.
+Mac/ARM64 Clippy and ARM compilation pass. The preceding constructor borrow
+error remains in `rust-native-sdk-transport-arm-clippy-027.log`; no VM
+execution used that failed compile. The live closed-history repair is next.

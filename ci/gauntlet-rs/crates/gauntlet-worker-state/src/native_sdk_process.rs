@@ -3,9 +3,9 @@
 use rustix::fs::{fstat, fsync, openat, Mode, OFlags};
 use sha2::{Digest, Sha256};
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::os::fd::{FromRawFd, OwnedFd};
-use std::os::unix::process::{CommandExt, ExitStatusExt};
+use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Child, Command, Output, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -69,6 +69,8 @@ pub(crate) struct RootChild {
     child: Child,
     output: File,
     errors: File,
+    output_pipe: Option<OwnedFd>,
+    errors_pipe: Option<OwnedFd>,
     consumed: bool,
 }
 impl RootCommands {
@@ -154,29 +156,42 @@ impl RootChild {
             .env("HOME", "/root")
             .env("TMPDIR", "/var/tmp")
             .stdin(Stdio::null())
-            .stdout(output.try_clone().map_err(|e| e.to_string())?)
-            .stderr(errors.try_clone().map_err(|e| e.to_string())?);
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
         // SAFETY: fixed async-signal-safe syscalls only; no candidate Root code.
         unsafe {
             command.pre_exec(|| {
-                let limit = libc::rlimit {
-                    rlim_cur: LIMIT,
-                    rlim_max: LIMIT,
-                };
-                if libc::setrlimit(libc::RLIMIT_FSIZE, &limit) != 0 {
-                    return Err(std::io::Error::last_os_error());
-                }
                 libc::umask(0o077);
                 Ok(())
             });
         }
-        let child = command.spawn().map_err(|e| e.to_string())?;
-        Ok(RootChild {
+        let mut child = command.spawn().map_err(|e| e.to_string())?;
+        let output_pipe = child.stdout.take().ok_or("SDK stdout pipe absent")?.into();
+        let errors_pipe = child.stderr.take().ok_or("SDK stderr pipe absent")?.into();
+        let mut owner = RootChild {
             child,
             output,
             errors,
+            output_pipe: Some(output_pipe),
+            errors_pipe: Some(errors_pipe),
             consumed: false,
-        })
+        };
+        let configured = (|| -> Result<(), String> {
+            for pipe in [
+                owner.output_pipe.as_ref().unwrap(),
+                owner.errors_pipe.as_ref().unwrap(),
+            ] {
+                let flags = rustix::fs::fcntl_getfl(pipe).map_err(|e| e.to_string())?;
+                rustix::fs::fcntl_setfl(pipe, flags | OFlags::NONBLOCK)
+                    .map_err(|e| e.to_string())?;
+            }
+            Ok(())
+        })();
+        if let Err(error) = configured {
+            owner.stop()?;
+            return Err(error);
+        }
+        Ok(owner)
     }
     fn wait(&mut self, seconds: u64, cancel: &AtomicBool) -> Result<Output, String> {
         let deadline = Instant::now() + Duration::from_secs(seconds);
@@ -193,10 +208,38 @@ impl RootChild {
     }
 }
 impl RootChild {
+    fn drain(pipe: &mut Option<OwnedFd>, file: &mut File) -> Result<(), String> {
+        let Some(fd) = pipe.as_ref() else {
+            return Ok(());
+        };
+        let mut raw = [0; 8192];
+        loop {
+            match rustix::io::read(fd, &mut raw) {
+                Ok(0) => {
+                    *pipe = None;
+                    return Ok(());
+                }
+                Ok(n) => {
+                    if file.metadata().map_err(|e| e.to_string())?.len() + n as u64 > LIMIT {
+                        return Err(
+                            "SDK helper output bound exceeded; retained prefix is incomplete"
+                                .into(),
+                        );
+                    }
+                    file.write_all(&raw[..n]).map_err(|e| e.to_string())?;
+                }
+                Err(rustix::io::Errno::AGAIN) => return Ok(()),
+                Err(rustix::io::Errno::INTR) => {}
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+    }
     pub(crate) fn poll(&mut self) -> Result<Option<Output>, String> {
         if self.consumed {
             return Err("SDK helper result already consumed".into());
         }
+        Self::drain(&mut self.output_pipe, &mut self.output)?;
+        Self::drain(&mut self.errors_pipe, &mut self.errors)?;
         for file in [&self.output, &self.errors] {
             if file.metadata().map_err(|e| e.to_string())?.len() > LIMIT {
                 return Err("SDK helper output bound".into());
@@ -205,6 +248,9 @@ impl RootChild {
         let Some(status) = self.child.try_wait().map_err(|e| e.to_string())? else {
             return Ok(None);
         };
+        if self.output_pipe.is_some() || self.errors_pipe.is_some() {
+            return Ok(None);
+        }
         let read = |file: &mut File| -> Result<Vec<u8>, String> {
             file.sync_all().map_err(|e| e.to_string())?;
             file.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
@@ -219,9 +265,6 @@ impl RootChild {
         };
         let stdout = read(&mut self.output)?;
         let stderr = read(&mut self.errors)?;
-        if status.signal() == Some(libc::SIGXFSZ) {
-            return Err("SDK helper exceeded retained output limit".into());
-        }
         self.consumed = true;
         Ok(Some(Output {
             status,
@@ -278,4 +321,29 @@ pub(crate) fn read_only_podman(pin: &str, args: &[String]) -> Result<Output, Str
     let output = child.wait(20, &AtomicBool::new(false))?;
     verify_helper("/usr/bin/podman", pin)?;
     Ok(output)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::net::UnixStream;
+    #[test]
+    fn helper_capture_preserves_binary_bytes_and_never_writes_beyond_its_limit() {
+        let (mut sender, receiver) = UnixStream::pair().unwrap();
+        receiver.set_nonblocking(true).unwrap();
+        let mut pipe = Some(receiver.into());
+        let mut file = tempfile::tempfile().unwrap();
+        sender.write_all(b"binary\x00\xffbytes").unwrap();
+        RootChild::drain(&mut pipe, &mut file).unwrap();
+        file.seek(SeekFrom::Start(0)).unwrap();
+        let mut raw = Vec::new();
+        file.read_to_end(&mut raw).unwrap();
+        assert_eq!(raw, b"binary\x00\xffbytes");
+        assert!(pipe.is_some());
+        file.set_len(LIMIT - 2).unwrap();
+        sender.write_all(b"excess bytes").unwrap();
+        assert!(RootChild::drain(&mut pipe, &mut file).is_err());
+        assert_eq!(file.metadata().unwrap().len(), LIMIT - 2);
+        drop(sender);
+    }
 }

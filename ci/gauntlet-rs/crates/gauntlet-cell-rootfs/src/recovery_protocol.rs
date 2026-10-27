@@ -48,6 +48,33 @@ pub(crate) fn active(raw: &[u8], image: &str, stage: &Path) -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn closed_image(records: &[Value], image: &str) -> Result<()> {
+    if records.len() != 6
+        || records[4]["kind"] != "image-releasing"
+        || records[4]["data"] != serde_json::json!({"image_id":image})
+        || records[5]["kind"] != "image-cleanup"
+        || records[5]["data"]
+            != serde_json::json!({"image_id":image,"owned_mount_absent":true,"borrowed_mount_untouched":false})
+    {
+        return Err("closed SDK image history is not an owned completed release".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn closed_supervisor(records: &[Value]) -> Result<()> {
+    if records.len() < 3
+        || records[records.len() - 2]["kind"] != "terminal-cleanup"
+        || records[records.len() - 2]["data"]
+            != serde_json::json!({"cgroup_absent":true,"rootfs_mount_absent":true,"failures":[]})
+        || records.last().unwrap()["kind"] != "rust-image-cleanup"
+        || records.last().unwrap()["data"]
+            != serde_json::json!({"image_mount_absent":true,"active_lease_removed":true})
+    {
+        return Err("closed SDK supervisor cleanup history is incomplete".into());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -93,5 +120,25 @@ mod tests {
         assert!(active(&raw, &format!("sha256:{}", "c".repeat(64)), stage).is_err());
         assert!(active(&raw, &image, Path::new("/var/lib/hol-gauntlet-rust/other")).is_err());
         assert!(active(&raw[..raw.len() - 1], &image, stage).is_err());
+    }
+    #[test]
+    fn closed_history_cannot_borrow_a_mount_or_hide_uncertain_cleanup() {
+        let mut image = vec![json!({}); 6];
+        image[4] = json!({"kind":"image-releasing","data":{"image_id":"image"}});
+        image[5] = json!({"kind":"image-cleanup","data":{"image_id":"image","owned_mount_absent":true,"borrowed_mount_untouched":false}});
+        closed_image(&image, "image").unwrap();
+        assert!(closed_image(&image[..4], "image").is_err());
+        assert!(closed_image(&image, "other").is_err());
+        image[5]["data"]["borrowed_mount_untouched"] = json!(true);
+        assert!(closed_image(&image, "image").is_err());
+        let mut supervisor = vec![
+            json!({}),
+            json!({"kind":"terminal-cleanup","data":{"cgroup_absent":true,"rootfs_mount_absent":true,"failures":[]}}),
+            json!({"kind":"rust-image-cleanup","data":{"image_mount_absent":true,"active_lease_removed":true}}),
+        ];
+        closed_supervisor(&supervisor).unwrap();
+        assert!(closed_supervisor(&supervisor[..2]).is_err());
+        supervisor[1]["data"]["failures"] = json!(["uncertain"]);
+        assert!(closed_supervisor(&supervisor).is_err());
     }
 }

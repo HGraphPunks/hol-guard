@@ -15,8 +15,14 @@ pub(crate) fn check_inspection(
         .as_str()
         .filter(|s| crate::hex(s, 64))
         .ok_or("SDK container ID unavailable")?;
-    if value["Name"] != format!("/{name}")
-        || value["Image"] != NATIVE_SDK_AGENT_IMAGE
+    if value["Name"]
+        .as_str()
+        .map(|s| s.strip_prefix('/').unwrap_or(s))
+        != Some(name)
+        || value["Image"]
+            .as_str()
+            .map(|s| s.strip_prefix("sha256:").unwrap_or(s))
+            != NATIVE_SDK_AGENT_IMAGE.strip_prefix("sha256:")
         || value["Config"]["User"] != "10001:10001"
         || value["Config"]["WorkingDir"] != "/runtime/home/project"
         || value["Path"] != "/usr/bin/sleep"
@@ -109,6 +115,10 @@ mod tests {
                 "CapAdd":[],"CapDrop":["CAP_ALL"],"SecurityOpt":["no-new-privileges",format!("apparmor={name}")]},
             "Mounts":[{"Destination":"/runtime/bun","Source":"/opt/bun","Type":"bind","RW":false,"Propagation":"rprivate"}]});
         assert!(check_inspection(&value, name, &job, &nonce, &mounts, true).is_ok());
+        let mut other_display = value.clone();
+        other_display["Name"] = json!(name);
+        other_display["Image"] = json!(NATIVE_SDK_AGENT_IMAGE.strip_prefix("sha256:").unwrap());
+        assert!(check_inspection(&other_display, name, &job, &nonce, &mounts, true).is_ok());
         for (pointer, bad) in [
             ("/Config/User", json!("0:0")),
             ("/Image", json!("other")),
