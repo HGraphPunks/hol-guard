@@ -69,6 +69,9 @@ impl NativeHookPlane {
         crate::native_guard_probe::inert_native(&self.cell, &self.pins)?;
         let claim = crate::native_guard_probe::identity(&mut self.cell, &self.pins)?;
         self.observations.push(json!({"kind":"unprivileged-identity-adapter","claim":claim,"product_claims_authenticated":false}));
+        // Native path trust uses the explicit configured home. HOME alone
+        // cannot place the idmapped task beneath that root. Guard state and
+        // the public OMP config remain at their separately fixed paths.
         let mut argv = vec!["/usr/bin/env".into(), "HOME=/runtime/home".into()];
         argv.extend(self.cell.guard_command(&[
             "daemon",
@@ -76,7 +79,7 @@ impl NativeHookPlane {
             "--guard-home",
             "/product/guard",
             "--home",
-            "/product/home",
+            "/runtime/home",
             "--port",
             "18765",
             "--workspace",
@@ -97,7 +100,7 @@ impl NativeHookPlane {
             "--guard-home",
             "/product/guard",
             "--home",
-            "/product/home",
+            "/runtime/home",
         ]);
         let mut started = false;
         for _ in 0..60 {
@@ -130,7 +133,8 @@ impl NativeHookPlane {
         if !started {
             return Err("Native daemon hook readiness deadline".into());
         }
-        let barrier = crate::native_guard_probe::readiness(&mut self.cell, setup)?;
+        let barrier =
+            crate::native_guard_probe::readiness(&mut self.cell, setup, &mut self.observations)?;
         self.observations
             .push(json!({"kind":"native-workspace-readiness","response":barrier}));
         self.ready = true;
@@ -163,7 +167,7 @@ impl NativeHookPlane {
             "--guard-home",
             "/product/guard",
             "--home",
-            "/product/home",
+            "/runtime/home",
             "--workspace",
             self.cell.workspace_path(),
         ]);
@@ -234,7 +238,7 @@ impl NativeHookPlane {
             "--guard-home",
             "/product/guard",
             "--home",
-            "/product/home",
+            "/runtime/home",
             "--workspace",
             self.cell.workspace_path(),
             "--request-file",

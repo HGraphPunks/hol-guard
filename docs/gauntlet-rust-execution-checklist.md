@@ -270,8 +270,11 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
     Pre/sink/Post transport and one-use original-input/captured-output binding
     in Rust. The descriptor-held handoff refuses mutation, aliases and renamed
     survivors. Sixty-four source-pinned Python response cases match. Local
-    tests and ARM compilation pass; the fixed controller-generated diagnostic
-    still needs its first live v2 run and supplies no SDK/Guard verdict. See
+    tests and ARM compilation pass. The first live v2 run reached Native but
+    failed its readiness barrier with `invalid_workspace`; its failed record
+    and cleanup remain retained. The v1 regression passed and wrong Native pins
+    refused. The corrected explicit task-home context needs a fresh job and
+    supplies no SDK/Guard verdict. See
     [transport contract](gauntlet-rust-native-hook-transport.md).
   - [x] Run fresh current-source Native success, timeout and cancellation
     through the complete Rust worker on the published 3.57.0 runtime. GNU actor

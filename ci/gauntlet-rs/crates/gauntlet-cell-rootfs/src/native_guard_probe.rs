@@ -54,7 +54,11 @@ pub(crate) fn identity(cell: &mut NativeCell, pins: &NativeGuardPins) -> Result<
     Ok(v)
 }
 
-pub(crate) fn readiness(cell: &mut NativeCell, setup: Instant) -> Result<Value> {
+pub(crate) fn readiness(
+    cell: &mut NativeCell,
+    setup: Instant,
+    observations: &mut Vec<Value>,
+) -> Result<Value> {
     let seconds = setup
         .saturating_duration_since(Instant::now())
         .as_secs()
@@ -67,6 +71,13 @@ pub(crate) fn readiness(cell: &mut NativeCell, setup: Instant) -> Result<Value> 
         cell.product_python_command(&["-c", READINESS, cell.workspace_path(), &seconds_text]);
     // A single normal readiness request; no response is retried or fabricated.
     let output = cell.capture(&argv, b"", Duration::from_secs(seconds))?;
+    observations.push(json!({"kind":"native-workspace-readiness-capture",
+        "exit_code":output.returncode,"stdout_sha256":crate::hash(&output.stdout),
+        "stderr_sha256":crate::hash(&output.stderr),
+        "response":if output.stdout.len() <= 4096 {
+            gauntlet_contracts::canonicalize(&output.stdout).ok()
+                .and_then(|raw| serde_json::from_slice::<Value>(&raw).ok())
+        } else {None}}));
     if output.returncode != 0 || output.stdout.len() > 4096 {
         return Err("Native workspace readiness adapter failed".into());
     }

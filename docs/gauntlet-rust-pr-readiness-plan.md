@@ -347,7 +347,13 @@ approval ceremony for routine work already authorized by this request.
   pass, alongside Ruff and ARM compilation. The first v2 live worker
   remains next; the fixed diagnostic explicitly has no SDK or Guard score.
   See [transport contract](gauntlet-rust-native-hook-transport.md).
-- Next: live Native hook transport, independent SDK-backed controls and fresh conformance.
+- 2026-10-27: retain the first live v2 job's `invalid_workspace` readiness
+  failure, the passed v1 regression and the wrong-Native-pin refusal. Native
+  uses its explicit configured home for path trust, so the Rust adapter now
+  supplies the fixed task home to its normal CLI calls. Mac rootfs/worker tests,
+  warnings-denied Mac/ARM Clippy and ARM compilation pass. The corrected
+  context still needs a fresh job. No approval or isolation policy changes.
+- Next: corrected live Native hook transport, independent SDK-backed controls and fresh conformance.
   No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.

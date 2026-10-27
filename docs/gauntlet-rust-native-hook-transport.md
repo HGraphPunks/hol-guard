@@ -72,5 +72,25 @@ with zero failures/ignores. Retained log
 `c0098b6c27e0910c144e30fa1c509f8d52bc4b03b612d9051d6455c0c1f898ba`.
 Warnings-denied Mac/ARM64 Clippy, Ruff and ARM compilation pass. A mechanical
 Clippy Boolean simplification follows that full run; the 64-case parity reader
-is checked again before the VM inputs are frozen. The first live v2 worker
-execution remains pending at this implementation checkpoint.
+is checked again before the VM inputs are frozen.
+
+The first live v2 worker ran as job `e2c701baf1472101` from source
+`e1eb0a1a567078d44ec57fd4bb852a897aa79ae6`. It reached the independently
+observed pinned Native executable, then failed before any semantic hook:
+the single readiness response was `{"ready":false,"reason_code":"invalid_workspace"}`
+(SHA-256 `8deab129ddc1dbe74c4baee45b8cf279e0fdfed6b7fd6e60f2ad454da03e2768`).
+The failed controller exited 2, all resources drained, and the runtime prefix
+remained unchanged. Its worker report has SHA-256
+`7d1375965821c807cf5b31da8c67bd10166e38ccf092f1e6fe039f91e892f401`.
+The same generation's v1 success regression `e2c701baf1472102` passed;
+the wrong-Native-pin job `e2c701baf1472103` refused before identity execution
+or hooks and cleaned up. No job was retried or overwritten.
+
+Current Native directory trust uses the daemon's explicit configured home,
+rather than its `HOME` environment variable. The Rust adapter now passes the
+actual fixed task home `/runtime/home` to the normal daemon, status, hook and
+contained CLI. Guard state stays at `/product/guard`, and the public OMP config
+stays at `/product/home/omp.json`. No path policy, approval or isolation rule
+changes. Readiness captures are projected into the report before validation;
+their complete original bytes already remain in the supervisor journal and
+hash-bound capture files. A new one-use job will verify the corrected context.
