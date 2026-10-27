@@ -366,6 +366,13 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
       preflight. Independent readback verifies the new archive and unchanged
       161 worker files. The tested library ELF remains byte-identical.
       See [combined transport](gauntlet-rust-native-sdk-mcp-transport.md).
+    - [ ] Complete the v6 deterministic roles and their independent physical
+      scoring. The closed role parser and installed-Native nine-case binding
+      recorder are implemented, with an unchanged held trap required for
+      refusal. Mac tests (107), Mac/ARM Clippy and ARM library/binary builds
+      pass; native library execution and live request-binding remain pending.
+      Four roles still refuse as incomplete, and no qualified role is claimed.
+      See [deterministic controls](gauntlet-rust-native-deterministic-controls.md).
   - [x] Run fresh current-source Native success, timeout and cancellation
     through the complete Rust worker on the published 3.57.0 runtime. GNU actor
     ABI preflight refuses the earlier static actor before artifact creation;

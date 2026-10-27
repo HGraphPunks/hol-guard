@@ -9,8 +9,8 @@ use std::time::{Duration, Instant};
 pub struct NativeHookPlane {
     pub(crate) cell: NativeCell,
     pub(crate) pins: NativeGuardPins,
-    session: String,
-    ready: bool,
+    pub(crate) session: String,
+    pub(crate) ready: bool,
     prompt: Option<Value>,
     calls: NativeHookCalls,
     pub(crate) observations: Vec<Value>,

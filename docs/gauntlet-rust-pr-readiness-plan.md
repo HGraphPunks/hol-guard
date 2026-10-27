@@ -495,7 +495,15 @@ approval ceremony for routine work already authorized by this request.
   refuses. All 161 worker files remain intact. The tested library ELF is
   unchanged, ARM Clippy/builds pass, and no model request occurs. The original
   timeout stays retained. See [combined transport](gauntlet-rust-native-sdk-mcp-transport.md).
-- Next: finish independent deterministic role scoring and
+- 2026-10-27: partial v6 deterministic diagnostics add a closed role field and
+  real installed-Native request-binding recorder after actual SDK completion.
+  All nine raw historical mutations require Native authorization refusal and
+  an unchanged descriptor-held trap with no effect; unrelated failures cannot
+  count as intervention. Other four roles still refuse as incomplete.
+  Affected Mac tests (107), Mac/ARM Clippy and static ARM tests compile/pass;
+  fresh native execution remains pending. See
+  [deterministic controls](gauntlet-rust-native-deterministic-controls.md).
+- Next: verify live request-binding controls, finish independent deterministic role scoring and
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;

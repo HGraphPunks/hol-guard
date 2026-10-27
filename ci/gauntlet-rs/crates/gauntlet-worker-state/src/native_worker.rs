@@ -115,6 +115,9 @@ pub fn execute_native_controller(
         NativeJobExecution::SdkMcpTransport { guard, sdk } => {
             crate::native_sdk_mcp_control::run(&spec, guard, sdk, cancellation)
         }
+        NativeJobExecution::DeterministicControl { guard, sdk, role } => {
+            crate::native_sdk_mcp_control::run_role(&spec, guard, sdk, cancellation, *role)
+        }
     };
     finished.store(true, Ordering::Release);
     watcher
@@ -273,14 +276,18 @@ pub fn dispatch_native_worker(
     verify_python_lock(&python).map_err(|e| e.to_string())?;
     let sdk_quiescent = matches!(
         spec.execution,
-        NativeJobExecution::SdkTransport { .. } | NativeJobExecution::SdkMcpTransport { .. }
+        NativeJobExecution::SdkTransport { .. }
+            | NativeJobExecution::SdkMcpTransport { .. }
+            | NativeJobExecution::DeterministicControl { .. }
     );
     if sdk_quiescent {
         crate::native_sdk_quiescence::require_sdk_quiescence(&spec, &preparation)?;
     }
     let mcp_quiescent = matches!(
         spec.execution,
-        NativeJobExecution::McpTransport(_) | NativeJobExecution::SdkMcpTransport { .. }
+        NativeJobExecution::McpTransport(_)
+            | NativeJobExecution::SdkMcpTransport { .. }
+            | NativeJobExecution::DeterministicControl { .. }
     );
     if mcp_quiescent {
         crate::native_mcp_quiescence::require_mcp_quiescence(&spec, &preparation)?;
@@ -301,6 +308,7 @@ pub fn dispatch_native_worker(
         NativeJobExecution::SdkTransport { .. } => "hol-gauntlet-native-worker-report.v3",
         NativeJobExecution::McpTransport(_) => "hol-gauntlet-native-worker-report.v4",
         NativeJobExecution::SdkMcpTransport { .. } => "hol-gauntlet-native-worker-report.v5",
+        NativeJobExecution::DeterministicControl { .. } => "hol-gauntlet-native-worker-report.v6",
     };
     let unavailable_reason = match spec.execution {
         NativeJobExecution::Apparatus(_) => "native apparatus profile has no independently scored Guard controls or host signing-key pin",
@@ -308,6 +316,7 @@ pub fn dispatch_native_worker(
         NativeJobExecution::SdkTransport { .. } => "native SDK Bash transport has no MCP, independently scored Guard controls, six-role conformance or host signing-key pin",
         NativeJobExecution::McpTransport(_) => "native MCP diagnostic has no actual SDK composition, combined builtin/MCP budget, independent Guard decision/effect scoring or outside signing-key admission",
         NativeJobExecution::SdkMcpTransport { .. } => "native SDK/MCP/Bash diagnostic has no independent Guard request/decision/effect scoring, six-role conformance or outside signing-key admission",
+        NativeJobExecution::DeterministicControl {..}=>"Native deterministic role diagnostic has no qualified current-source suite or outside signing-key admission",
     };
     let mut report = json!({"schema":report_schema,"profile":spec.profile(),
         "source_sha":source,"job_id":spec.job_id,"deployment_digest":deployment,"worker_generation":generation,

@@ -24,13 +24,20 @@ mod kernel_status;
 mod mounts;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_apparatus;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_binding_fixture;
 mod native_case;
+mod native_control_role;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_guard;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_guard_control;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_guard_fixture;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_guard_negative_cases;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_guard_negatives;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_guard_probe;
 mod native_guard_spec;
@@ -65,6 +72,7 @@ pub use kernel_process::{CellProcessExpectation, HeldCellProcess};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_apparatus::run_native_apparatus;
 pub use native_case::{NativeApparatusReport, NativeCase};
+pub use native_control_role::NativeControlRole;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_guard::NativeHookPlane;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
