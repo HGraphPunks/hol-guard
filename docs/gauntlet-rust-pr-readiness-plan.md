@@ -459,6 +459,15 @@ approval ceremony for routine work already authorized by this request.
   ARM component tests pass 170 cases with 24 existing ignores; shared macOS
   worker tests and both warnings-denied Clippy targets pass. The first live
   v4 execution remains pending at this checkpoint. See [Native MCP transport](gauntlet-rust-native-mcp-transport.md).
+- 2026-10-27: actual v4 Native MCP job `e2c701baf1473801` passes at
+  `eafefd5b`: both normal CLI proxies/resident children reach Root Rust
+  sessions and SQLite. Host readback verifies 14 wire frames, two signatures
+  and physical records, 20 outside process samples, preserved 137 prior files
+  and cleanup. The original stale-systemd-pin reservation is explicitly
+  aborted without inventing an exit; a wrong helper now refuses before
+  reservation. The required-workspace-owner refusal remains retained.
+  Actual SDK composition and independent scoring remain open. See
+  [Native MCP transport](gauntlet-rust-native-mcp-transport.md).
 - Next: finish Native MCP/service ownership, independent scoring and
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
