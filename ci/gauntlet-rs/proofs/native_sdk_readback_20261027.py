@@ -7,7 +7,7 @@ import verify_native_current_worker_20261026 as v
 BUN_ARGV = b"/runtime/bun\0/runtime/public/private_cell_sdk_conformance.ts\0/runtime/public/episode.json"
 
 
-def worker(data, role, pin, hashes, expected_exit, report_sha256):
+def worker(data, role, pin, hashes, expected_exit, report_sha256, *, host_pinned=False):
     root = role + "/worker/"
     raw = data[root + "report.json"]
     report = v.parse(raw)
@@ -44,7 +44,16 @@ def worker(data, role, pin, hashes, expected_exit, report_sha256):
     assert v.sha(data[root + "native.stderr"]) == report["controller_stderr_sha256"]
     assert report["execution_eligible"] is report["guard_causality_verified"] is False
     assert report["model_requests"] == 0
-    if data[root + "native.stdout"]:
+    if host_pinned:
+        assert report["schema"] == "hol-gauntlet-native-worker-report.v7"
+        assert started["schema"] == "hol-gauntlet-worker-started.v2"
+        assert terminal["schema"] == "hol-gauntlet-worker-terminal.v2"
+        assert v.sha(data[root + "controller-key.json"]) == hashes[pin["job_id"] + ".controller-key.json"]
+        assert data[root + "native.stdout"].decode() == report["controller_envelope_utf8"]
+        envelope = v.parse(data[root + "native.stdout"])
+        assert set(envelope) == {"record", "signature"}
+        assert envelope["record"]["controller_report"] == report["controller_report"]
+    elif data[root + "native.stdout"]:
         assert v.parse(data[root + "native.stdout"]) == report["controller_report"]
     else:
         assert report["controller_report"] is None

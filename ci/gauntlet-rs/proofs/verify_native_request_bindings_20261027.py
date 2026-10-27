@@ -38,9 +38,11 @@ CASES = {
 def read_transport(directory, proof, *, read_lifecycle=None):
     """Read only the exact public artifacts pinned by a versioned proof caller."""
     source, report_pin, index = proof["source"], proof["report"], proof["index"]
-    data = archive(directory / f"native-role-controls-vm-results-{index}.tar", *proof["export"])
+    data = archive(
+        directory / proof.get("export_file", f"native-role-controls-vm-results-{index}.tar"), *proof["export"]
+    )
     inputs = archive(
-        directory / f"native-role-controls-input-{proof.get('input_index', index)}.tar",
+        directory / proof.get("input_file", f"native-role-controls-input-{proof.get('input_index', index)}.tar"),
         *proof["input"],
     )
     transfer = parse(inputs.pop("transfer.json"))
@@ -48,23 +50,27 @@ def read_transport(directory, proof, *, read_lifecycle=None):
     for name, raw in inputs.items():
         assert transfer["files"][name] == {"bytes": len(raw), "sha256": sha(raw)}
         assert raw[:4] == b"\x7fELF" and raw[18:20] == b"\xb7\0"
-    prelaunch = parse((directory / f"native-role-controls-prelaunch-{index}.json").read_bytes())
+    prelaunch = parse(
+        (directory / proof.get("prelaunch_file", f"native-role-controls-prelaunch-{index}.json")).read_bytes()
+    )
     assert prelaunch.get("source_commit", prelaunch["pins"]["source_commit"]) == source
     assert (
-        sha((directory / f"native-role-controls-proof-courier-{index}.py").read_bytes()) == prelaunch["courier_sha256"]
+        sha((directory / proof.get("courier_file", f"native-role-controls-proof-courier-{index}.py")).read_bytes())
+        == prelaunch["courier_sha256"]
     )
     assert prelaunch["courier_sha256"] == proof["courier"]
     pin = prelaunch["pins"]
     assert pin == parse(data[f"proof/job-{proof.get('job_file', 'input_binding')}.json"])
     assert pin["worker_generation"] == sha(inputs["gauntlet-vm-worker"])
-    assert pin["declaration"]["schema"] == "hol-gauntlet-native-worker-job.v6"
+    version = 7 if proof.get("host_pinned", False) else 6
+    assert pin["declaration"]["schema"] == f"hol-gauntlet-native-worker-job.v{version}"
     assert pin["declaration"]["role"] == proof.get("role", "input-binding")
     hashes, prior = (parse(data["proof/" + n + ".json"]) for n in ["final-worker-hashes", "prior-worker-hashes"])
     assert len(hashes) == proof["final"] and len(prior) == proof["prior"]
     assert all(hashes[n] == h for n, h in prior.items())
     assert prior["e2c701baf1474001.report.json"] == "33a82fca7a330ecc7b7b3d142c894d500c72bcc48200930c1ca0f38697bab642"
-    report = sdk.worker(data, "combined", pin, hashes, 0, report_pin)
-    assert report["schema"] == "hol-gauntlet-native-worker-report.v6"
+    report = sdk.worker(data, "combined", pin, hashes, 0, report_pin, host_pinned=proof.get("host_pinned", False))
+    assert report["schema"] == f"hol-gauntlet-native-worker-report.v{version}"
     assert report["mcp_agent_absent"] and report["mcp_profile_absent"]
     control = report["controller_report"]
     ineligible(control)
@@ -159,9 +165,8 @@ def read_transport(directory, proof, *, read_lifecycle=None):
     return control, data, pin
 
 
-def read(directory, proof):
-    control, data, pin = read_transport(directory, proof)
-    source, report_pin = proof["source"], proof["report"]
+def read_binding_controls(control, data, pin):
+    """Recompute the nine Native refusals against their physical trap."""
     controls = control["measurements"]["request_binding_controls"]
     ineligible(controls)
     rows = controls["rows"]
@@ -261,6 +266,13 @@ def read(directory, proof):
     metadata = parse(data["results.sha256.json"])["filesystem"]["combined/workspace/negative_tests/test_trap.py"]
     assert metadata["uid"] == metadata["gid"] == 10001 and metadata["mode"] == 0o600 and metadata["links"] == 1
     assert metadata["device"] == controls["fixture"]["device"] and metadata["inode"] == controls["fixture"]["inode"]
+    return {"native_refusals": len(rows), "trap_unchanged_and_absent_effect": True}
+
+
+def read(directory, proof):
+    control, data, pin = read_transport(directory, proof)
+    source, report_pin = proof["source"], proof["report"]
+    read_binding_controls(control, data, pin)
     assert parse(data["proof/worker-tests.json"])["results"] == [["ok", "177", "0", "24"]]
     assert parse(data["proof/rootfs-tests.json"])["results"] == [["ok", "1", "0", "0"], ["ok", "33", "0", "0"]]
     replay = parse(data["proof/fast-replay-summary.json"])

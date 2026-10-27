@@ -634,6 +634,19 @@ approval ceremony for routine work already authorized by this request.
   [host-pinned controls](gauntlet-rust-native-host-keyed-controls.md).
   The user will handle disabled GitHub Actions separately; continue authorized
   implementation and local/VM verification without bypassing required checks.
+- 2026-10-27: source `f53bc490` passes 186 native worker tests (24 existing
+  ignores), 64 evidence tests and 40 rootfs tests plus subprocess. Three fresh
+  v7 roles now use the real Rust Mac host pin/ack and Root controller signer:
+  success `e2c701baf1475102`, input binding `5103` and injection `5104`.
+  Boundary `5105` also passes its canary and path/network checks, and timeout
+  `5106` passes its real 124/SDK/Post/held-overlay relation. All five
+  pass independent signature/kernel/SDK/MCP/physical readback; 277 worker
+  files remain intact. A lost acknowledgement at `5101` is
+  conservatively repaired aborted, with restart/wrong-pin/replay proofs and
+  no fabricated terminal. A passive offline Rust completion verifier passes
+  actual positive and five hostile-variant cases. The cancellation v7
+  proof is underway. Historical product source and all ineligible flags
+  remain explicit; parent exits stay 24/62.
 - Next: finish independent deterministic role scoring and outside key custody, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)

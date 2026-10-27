@@ -129,10 +129,91 @@ and `rust-native-host-keyed-arm-build-004.jsonl`, SHA-256
 `f95f920b5a5f191336b8cd53f0dbdb8b894ea9ba169200adf639c74009d673fb`.
 The Mac host executable also builds successfully.
 
-Root execution of the new tests, fresh actual host-to-VM
-delivery, interrupted acknowledgement repair, restart/substitution proof and
-independent live readback are still pending. This document records
-implementation and completed local evidence only. All six source-matched
-qualified role records and the twelve-run staging/installed conformance set
-remain open, as do the other parent migration exits.
+Root execution now passes 186 worker tests with the 24 existing ignores,
+64 evidence tests, and 40 rootfs tests plus its subprocess case. The worker,
+evidence and rootfs logs respectively hash to
+`770ae71dd6abc4511c1eab21de6c184814e6da3d18e1974f436f5569d81aa927`,
+`e843c308ccf45f32b5fd301a43b007f541a224393ea1a0ba04684a358021c622`,
+and `690359ba4bfc07b7341d7e70a444c3bbc1a473b6b90066b89f7130608d70df1e`.
+
+## Actual host-to-VM checkpoint
+
+Runtime source `f53bc490f7483ad41a781d62dc4d0d2c6a47c6a9` is pushed
+on the fork. The installed worker is 25,393,808 bytes, SHA-256
+`49220338c4ecb412ec02c122e3711b740277b74a1ca760a7deea5c957970c9f7`.
+The Mac host sender is 2,298,736 bytes, SHA-256
+`51f0bb46490eff6825626e5266e9691d7521f50e7e08fe6713920d395cf6d815`.
+The six-member input archive is 83,179,520 bytes, SHA-256
+`f554628652863c1e03a53b94cab2346ca3cd671569c2322930fa6a9e8da0b435`.
+
+The first five fresh v7 jobs pass both the Rust host's retained-key
+authentication and independent public-artifact readback:
+
+| Role | Job ID | Root report SHA-256 | Outside samples |
+| --- | --- | --- | --- |
+| Success | `e2c701baf1475102` | `9db4288246e3f47f442ec5491a785ad63480b11230503e232e63cbbc70485e8c` | 66 |
+| Input binding | `e2c701baf1475103` | `47b04b9caca697c0397199bc5566664be23dc2bf792c5dab207533b9544bc09f` | 90 |
+| Injection | `e2c701baf1475104` | `31efb131ee33a38031001a1cb99ee8f5a98fd2f550f693bb88f54deb81621887` | 75 |
+| Boundary | `e2c701baf1475105` | `783ab402b2115c6689c04aa165c0be423aa9b013a1f1e94f4b45ae5d8993f545` | 65 |
+| Timeout | `e2c701baf1475106` | `69eacb8ddc945afefa6ec344b9cdf98af3ac305c1faad03b2ff1fbf4b8dea605` | 64 |
+
+Each uses a fresh public key actually retained in the private Mac journal
+before the Rust acknowledgement. Readback checks the signature again under
+that outside key, the Root controller's actual ELF/argv/PID/start ticks and
+cgroup, SDK identity/requests/results, Native captures, MCP transcripts and
+physical SQLite/task artifacts. Input binding checks all nine malformed
+requests and the unchanged trap. Injection checks the source-pinned catalog
+payload through the provider, Native proxy and SDK. The payload is forwarded;
+no model-resistance or MCP-withholding result is inferred. The separate
+forbidden-command probe and positive deletion/reseed counterfactual pass.
+Boundary checks the three original canary inodes/bytes, positive visibility,
+six path refusals and two network refusals. Timeout binds the actual 124
+capture to the SDK error flag/content and real PostToolUse, held-child death,
+unchanged ready bytes and closed overlay/lower absence. All 277 worker files
+through these five jobs remain unchanged.
+
+A fresh Rust host process reconciles the success completion byte-for-byte
+and refuses wrong role, preparation and source context. The new passive
+`gauntlet-host-verify-native-control` command also accepts its retained
+completion and refuses missing terminal, a qualification claim, substituted
+signature, rehashed effect data and a rehashed controller PID. This command
+uses only the existing host journal and public completion file:
+
+```text
+gauntlet-host-verify-native-control PRIVATE_PIN_DIRECTORY COMPLETION_JSON SOURCE_SHA JOB_ID DEPLOYMENT_SHA256 WORKER_SHA256 PREPARATION_SHA256 ROLE
+```
+
+Its bounded regular-file reader refuses symlinks, hardlinks, empty and
+oversized files. The focused test, warnings-denied Clippy and build pass.
+The tested executable hashes to
+`c803605075ff4a4ed1704d09b2f4d135a94040a413939eb9fb2ba68f50cfc844`.
+It grants no execution or qualification eligibility.
+
+The negative courier initially expected an incorrect prepared-schema name
+and closed the connection before supplying any acknowledgement. Preserve
+that failed courier as `native-host-keyed-ack-refusal-001.py`; it is a
+lost-acknowledgement case, not a completed invalid-ack test. The outside
+prepared hashes match the retained Root reservation
+`e2c701baf1475101`. Rust repair rejects a wrong outside hash, records
+`aborted/never-released` with null exit, returns the identical receipt on
+restart, and refuses replay. The normal terminal remains unavailable.
+The repair receipt hashes to
+`99cd622fbcda69344cabd387230ffcf313580c4f32183b127bc8f6a11ea70fc4`.
+The initial atime-comparison installer failure and export-copy ownership
+correction are also retained; neither changed a runtime verdict or archive
+content. The exporter reads only fixed public files and synthetic fixtures.
+
+Evidence is retained outside the repository under
+`../gauntlet-rust-pr-ready-evidence-20261026`. The independent
+`verify_native_host_keyed_control_20261027.py` reader pins each archive,
+source and courier; the historical input-binding and injection readers still
+accept their original immutable proofs after the shared helper extraction.
+
+Cancellation v7 verification remains underway. These
+jobs use the historical product candidate `62aa7ba7` and do not supply the
+required current-product-source staging/installed conformance set. All
+qualification, Guard-causality and outside-key-admission flags stay false;
+model requests remain zero. Parent exits remain 24/62. Complete independent
+Rust role scoring, all six host-pinned records, current-source publication
+and twelve fresh conformance runs remain open.
 

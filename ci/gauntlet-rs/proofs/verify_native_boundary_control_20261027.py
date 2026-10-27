@@ -28,8 +28,8 @@ PROOF = {
 }
 
 
-def verify(directory):
-    control, data, pin = read_transport(directory, PROOF)
+def read_boundary_control(control, data, pin, source_sha):
+    """Join positive visibility, eight refusals and the original canary inodes."""
     boundary = control["measurements"]["boundary_control"]
     ineligible(boundary)
     assert boundary["status"] == "passed" and boundary["canaries_unchanged"]
@@ -125,15 +125,26 @@ def verify(directory):
     }
     root = Path(__file__).resolve().parents[3]
     original = subprocess.check_output(
-        ["git", "show", PROOF["source"] + ":ci/gauntlet-rs/adapters/native_contained_control_v2.py.txt"], cwd=root
+        ["git", "show", source_sha + ":ci/gauntlet-rs/adapters/native_contained_control_v2.py.txt"], cwd=root
     )
     extra = subprocess.check_output(
-        ["git", "show", PROOF["source"] + ":ci/gauntlet-rs/adapters/native_boundary_control_v1.py.txt"], cwd=root
+        ["git", "show", source_sha + ":ci/gauntlet-rs/adapters/native_boundary_control_v1.py.txt"], cwd=root
     )
     extra = extra.replace(b"HOL_CONTROLLER_CANARY_JSON", json.dumps(canaries[0]["inside"]).encode())
     assert data["combined/workspace/tests/test_control.py"] == original + b"\n" + extra
     assert data["combined/workspace/pytest.ini"] == b"[pytest]\ntestpaths = tests\n"
     assert sha(data["combined/workspace/pytest.ini"]) == control["fixture"]["project_marker"]["sha256"]
+    return {
+        "canary_positive_visibility_verified": True,
+        "physical_canaries_preserved": 3,
+        "path_refusals": 6,
+        "network_refusals": 2,
+    }
+
+
+def verify(directory):
+    control, data, pin = read_transport(directory, PROOF)
+    facts = read_boundary_control(control, data, pin, PROOF["source"])
     assert parse(data["proof/worker-tests.json"])["results"] == [["ok", "177", "0", "24"]]
     assert parse(data["proof/rootfs-tests.json"])["results"] == [["ok", "1", "0", "0"], ["ok", "35", "0", "0"]]
     replay = parse(data["proof/fast-replay-summary.json"])
@@ -145,10 +156,7 @@ def verify(directory):
         "report_sha256": PROOF["report"],
         "job_id": pin["job_id"],
         "actual_sdk_mcp_bash_completed": True,
-        "canary_positive_visibility_verified": True,
-        "physical_canaries_preserved": 3,
-        "path_refusals": 6,
-        "network_refusals": 2,
+        **facts,
         "outside_samples": 51,
         "worker_files_preserved": 185,
         "execution_eligible": False,

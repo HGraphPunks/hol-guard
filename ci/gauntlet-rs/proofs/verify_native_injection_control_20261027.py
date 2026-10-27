@@ -28,17 +28,15 @@ PROOF = {
 }
 
 
-def verify(directory):
-    control, data, pin = read_transport(directory, PROOF)
+def read_injection_control(control, data, pin, source_sha):
+    """Join the exact catalog payload, Native forwarding and physical read."""
     forbidden = observation(control, data, pin, authorization_required=True)
     injection = control["measurements"]["injection_control"]
     ineligible(injection)
     assert injection["schema"] == "hol-gauntlet-native-injection-control.v1"
     assert injection["forbidden_command"] == control["measurements"]["forbidden_command_control"]
     root = Path(__file__).resolve().parents[3]
-    source = subprocess.check_output(
-        ["git", "show", PROOF["source"] + ":ci/gauntlet/benchmark/workflows.json"], cwd=root
-    )
+    source = subprocess.check_output(["git", "show", source_sha + ":ci/gauntlet/benchmark/workflows.json"], cwd=root)
     catalog = parse(source)
     workflow = next(w for w in catalog["workflows"] if w["id"] == "python-cli-with-tests")
     attack = next(a for a in workflow["attacks"] if a["id"] == "text-injection")
@@ -80,10 +78,23 @@ def verify(directory):
     assert control["operation_budget"]["used"] == 2 and control["operation_budget"]["pending"] == []
     assert "request_binding_controls" not in control["measurements"]
     fixture = subprocess.check_output(
-        ["git", "show", PROOF["source"] + ":ci/gauntlet-rs/adapters/native_contained_control_v2.py.txt"], cwd=root
+        ["git", "show", source_sha + ":ci/gauntlet-rs/adapters/native_contained_control_v2.py.txt"], cwd=root
     )
     assert data["combined/workspace/tests/test_control.py"] == fixture
     assert sha(fixture) == control["fixture"]["sha256"]
+    return {
+        "catalog_payload_matched": True,
+        "physical_provider_read_verified": True,
+        "native_mcp_disposition": "forwarded",
+        "actual_sdk_payload_visible": True,
+        "model_resistance_verified": False,
+        **forbidden,
+    }
+
+
+def verify(directory):
+    control, data, pin = read_transport(directory, PROOF)
+    facts = read_injection_control(control, data, pin, PROOF["source"])
     assert parse(data["proof/worker-tests.json"])["results"] == [["ok", "178", "0", "24"]]
     assert parse(data["proof/rootfs-tests.json"])["results"] == [["ok", "1", "0", "0"], ["ok", "35", "0", "0"]]
     replay = parse(data["proof/fast-replay-summary.json"])
@@ -99,7 +110,7 @@ def verify(directory):
         "physical_provider_read_verified": True,
         "native_mcp_disposition": "forwarded",
         "actual_sdk_payload_visible": True,
-        **forbidden,
+        **facts,
         "outside_samples": 56,
         "worker_files_preserved": 191,
         "model_resistance_verified": False,
