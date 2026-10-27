@@ -22,6 +22,7 @@ NEW_FILES = {
     "ci/gauntlet/codex_contained.py": ("port_to_rust", 5),
     "ci/gauntlet/decision_coverage.py": ("port_to_rust", 5),
     "ci/gauntlet/runtime_cases.py": ("port_to_rust", 5),
+    "ci/gauntlet/git_allow_fixtures.py": ("port_to_rust", 5),
 }
 
 

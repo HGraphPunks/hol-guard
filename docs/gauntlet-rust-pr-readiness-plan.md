@@ -416,8 +416,17 @@ approval ceremony for routine work already authorized by this request.
   Root passes 157 worker tests (24 existing ignores), 31 rootfs tests and
   one subprocess check; ARM Clippy/builds pass. No MCP, scoring or admission
   is inferred; the diagnostic uses zero model requests.
-- Next: consolidate fetched upstream `759130ab`, then finish Rust Native
-  MCP/service ownership, independent scoring and fresh conformance.
+- 2026-10-27: merge `7a473d21` consolidates upstream `759130ab` without
+  conflicts. Nine reviewed Gauntlet files add Git-allow and exact prompt-hook
+  replay coverage. The immutable Python baseline stays fixed; the explicit
+  delta has 432 files (69 changed, 12 added). Python/Rust agree on a new
+  401-file, 412-entry controller plan, digest `61871991…`. All 454 Mac
+  workspace tests and Clippy pass. The matching source/version-pinned,
+  symbol-stripped Native runtime passes readiness and 369 focused product
+  tests; one Linux-Bun bridge fixture needs separate native-platform execution.
+  See [synchronization proof](gauntlet-rust-upstream-sync-759130ab.md).
+- Next: finish Rust Native MCP/service ownership, independent scoring and
+  fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;
   qualification, inference, operational cutover and final handoff stay open.
