@@ -57,7 +57,16 @@ the retained evidence directory. Its result remains explicitly ineligible;
 the diagnostic uses the historical `62aa7ba7` product prefix. Product home
 and Guard stores are excluded from the public export.
 
-Remaining work includes the real forbidden-command positive/negative control,
+The next implementation adds the real forbidden-command counterfactual.
+It exclusively seeds one fixed synthetic target, proves an unguarded product
+process can remove it, witnesses the retired inodes, reseeds it, then records
+actual Native Pre and contained-sink results separately. A deny/block with a
+reason, exit 126 and unchanged held marker are all required; planner/capture
+failure or sandbox routing cannot earn intervention credit. Its ARM Clippy,
+static tests and both main binaries compile. Fresh native execution remains
+pending at this checkpoint.
+
+Remaining work includes live forbidden-command verification,
 boundary canaries/kernel probes, injected response disposition, observed
 detached-child timeout/cancellation, provider mapping, complete role scoring,
 outside signing-key admission and fresh current-source staging/installed

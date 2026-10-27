@@ -512,7 +512,13 @@ approval ceremony for routine work already authorized by this request.
   Mac tests (107), Mac/ARM Clippy and binaries pass. This closes the bounded
   request-refusal proof; complete role scoring and other four roles remain
   open. See [deterministic controls](gauntlet-rust-native-deterministic-controls.md).
-- Next: finish the real forbidden-command counterfactual and deterministic role scoring, then
+- 2026-10-27: the next input-binding implementation additionally records a
+  real reachable synthetic deletion, reseeding, actual Native Pre decision,
+  attempted contained sink and held-marker readback. Only deny/block plus
+  exit 126 and physical preservation counts as the bounded diagnostic;
+  runtime failure and sandbox routing cannot substitute. ARM Clippy, static
+  tests and both main binaries compile. Fresh VM verification is pending.
+- Next: verify the real forbidden-command counterfactual and finish deterministic role scoring, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;

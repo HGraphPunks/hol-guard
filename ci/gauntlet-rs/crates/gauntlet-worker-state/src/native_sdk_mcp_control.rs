@@ -134,6 +134,12 @@ fn run_profile(
             if !passed {
                 return Err("actual Native request-binding control failed".into());
             }
+            let forbidden = plane.probe_forbidden_command()?;
+            let passed = forbidden["status"] == "passed";
+            measurements.insert("forbidden_command_control".into(), forbidden);
+            if !passed {
+                return Err("actual Native forbidden-command control failed".into());
+            }
         }
         Ok(())
     })();

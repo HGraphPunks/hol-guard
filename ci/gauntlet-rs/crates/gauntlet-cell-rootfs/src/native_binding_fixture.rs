@@ -33,7 +33,7 @@ fn same(a: &Stat, b: &Stat) -> bool {
         && a.st_gid == b.st_gid
         && a.st_mode == b.st_mode
 }
-fn workspace(task: &TaskMount) -> Result<OwnedFd> {
+pub(crate) fn workspace(task: &TaskMount) -> Result<OwnedFd> {
     if task.source.parent() != Some(task.custody_root.as_path())
         || task.source.file_name().and_then(|s| s.to_str()) != Some("workspace")
         || task.destination != std::path::Path::new("/runtime/home/project")

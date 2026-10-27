@@ -29,11 +29,15 @@ mod native_binding_fixture;
 mod native_case;
 mod native_control_role;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_forbidden_fixture;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_guard;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_guard_control;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_guard_fixture;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_guard_forbidden;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_guard_negative_cases;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

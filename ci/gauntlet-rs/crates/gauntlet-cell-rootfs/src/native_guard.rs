@@ -141,7 +141,7 @@ impl NativeHookPlane {
         Ok(())
     }
 
-    fn invoke(&mut self, payload: &Value) -> Result<Value> {
+    pub(crate) fn invoke(&mut self, payload: &Value) -> Result<Value> {
         if !self.ready
             || self.cell.cleanup_complete()
             || payload["config_path"] != "/product/home/omp.json"
