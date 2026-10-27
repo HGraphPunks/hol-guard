@@ -49,7 +49,15 @@ ordinary members and outside hashes, writes 0444 project/lock files and a 0555
 adapter under a private partial tree, independently reads them back, and
 publishes without replacement. The archive and receipt stay source/job-bound;
 failed partials remain consumed. No adapter or installer executes during this
-operation. The source-sized live VM capture proof is the next validation step.
+operation. The [source-sized live VM capture proof](gauntlet-rust-native-dependency-input-vm-proof-20261026.md)
+now passes, including both competing leases, wrong generation/source/hash,
+truncation, overflow, member-hash mismatch and replay preservation. Independent
+host readback verifies all 36 retained evidence members. The current Mac
+workspace passes 413 tests across 213 targets with no failures or ignores;
+the actual Root ARM64 library passes 126 tests with 24 preexisting fixture
+ignores. The first ARM run exposed a stale current-context test expectation;
+its failed log is retained alongside the corrected, independently recomputed
+oracle. The exporter itself still has not run in a live container.
 
 The remaining composition is explicit:
 

@@ -252,8 +252,13 @@ approval ceremony for routine work already authorized by this request.
   real Git tests and the closed ZIP decoder test pass; Mac/ARM64 Clippy passes.
   Source archive/receipts stay immutable, unsafe exporter formats refuse,
   partials remain consumed and all extracted files are independently read
-  back before publication. The live VM capsule proof is next; this operation
-  executes no dependency code or installer.
+  back before publication. The source-sized live VM proof now passes all
+  generation/source/lease/hash/length/member/replay cases, with independent
+  host verification of 36 evidence members. The current Mac workspace passes
+  413 tests across 213 targets, with zero failures/ignores. Root ARM64 passes
+  126 tests, with 24 preexisting fixture ignores; its first stale builder-context
+  expectation and failed log remain retained. See [dependency input proof](gauntlet-rust-native-dependency-input-vm-proof-20261026.md).
+  This operation executes no dependency code or installer.
 - Next: prepare compatible dependencies, then deterministic authority. No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.
