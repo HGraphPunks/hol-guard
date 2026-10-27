@@ -66,7 +66,25 @@ pub fn seed_sdk(spec: &CellPreparation) -> Result<Value> {
 /// V6 controls also exercise the installed read-only planner. Its project
 /// root must be recognized independently of the benign workspace route.
 pub fn seed_control(spec: &CellPreparation) -> Result<Value> {
-    let mut fixture = seed_sdk(spec)?;
+    project_marker(spec, seed_sdk(spec)?)
+}
+
+pub fn seed_boundary(spec: &CellPreparation) -> Result<Value> {
+    let root = spec.stage.parent().ok_or("boundary job root required")?;
+    let path = root.join("controller-canary.txt");
+    let extra = include_str!("../../../adapters/native_boundary_control_v1.py.txt").replace(
+        "HOL_CONTROLLER_CANARY_JSON",
+        &serde_json::to_string(&path).map_err(|e| e.to_string())?,
+    );
+    let body = format!("{SDK_FIXTURE}\n{extra}");
+    let fixture = seed_fixed(spec, &body, "hol-gauntlet-native-contained-fixture.v4",
+        "native_contained_control_v2.py.txt + native_boundary_control_v1.py.txt; fixed outside job canary")?;
+    let mut fixture = project_marker(spec, fixture)?;
+    fixture["schema"] = json!("hol-gauntlet-native-contained-fixture.v4");
+    Ok(fixture)
+}
+
+fn project_marker(spec: &CellPreparation, mut fixture: Value) -> Result<Value> {
     let root = workspace(spec)?;
     let marker = b"[pytest]\ntestpaths = tests\n";
     let fd = openat(

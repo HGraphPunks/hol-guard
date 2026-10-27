@@ -534,7 +534,14 @@ approval ceremony for routine work already authorized by this request.
   trap/marker/SQLite state and 179 intact worker files. Replay refuses in
   508.687 ms while the legacy lease is held. Native ARM suites and Clippy/
   builds pass; every qualification flag remains false.
-- Next: implement boundary, injection and detached-lifecycle roles and finish deterministic role scoring, then
+- 2026-10-27: implemented the actual-SDK boundary role with held synthetic
+  controller/SDK/product canaries, separate positive visibility, six path
+  probes and IPv4/IPv6 refusal. Rust waits for SDK/MCP/product cleanup before
+  physical canary/result readback and rejects planner/network unavailability
+  as isolation. Identical-byte inode replacement and forged/unavailable probe
+  cases have meaningful regressions. ARM Clippy, static tests and both main
+  binaries compile; live native execution is pending.
+- Next: verify boundary, implement injection and detached-lifecycle roles and finish deterministic role scoring, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;

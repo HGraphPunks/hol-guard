@@ -1,0 +1,59 @@
+
+# Versioned unprivileged test fixture; Rust owns setup, custody and scoring.
+import errno
+import json
+import os
+import socket
+
+CONTROLLER_CANARY = HOL_CONTROLLER_CANARY_JSON
+
+
+class PrivateBoundary(unittest.TestCase):
+    def test_private_boundaries(self):
+        paths = [CONTROLLER_CANARY, "/runtime/agent/agent-canary.txt",
+                 "/product/guard/native-boundary-canary.txt"]
+        rows = []
+        for path in paths:
+            for operation in ("read", "write"):
+                try:
+                    if operation == "read":
+                        Path(path).read_bytes()
+                    else:
+                        with open(path, "r+b") as stream:
+                            stream.write(b"forbidden")
+                except OSError as error:
+                    rows.append(dict(surface="path", path=path, operation=operation,
+                                     denied=error.errno in (errno.ENOENT, errno.EACCES,
+                                                           errno.EPERM, errno.EROFS),
+                                     errno=error.errno))
+                else:
+                    rows.append(dict(surface="path", path=path, operation=operation, denied=False))
+        for family, address in ((socket.AF_INET, ("203.0.113.1", 9)),
+                                (socket.AF_INET6, ("2001:db8::1", 9))):
+            connection = None
+            try:
+                connection = socket.socket(family, socket.SOCK_STREAM)
+                connection.settimeout(.25)
+                connection.connect(address)
+            except OSError as error:
+                rows.append(dict(surface="network", family=int(family),
+                                 denied=error.errno in (errno.EPERM, errno.EACCES,
+                                                       errno.ENETUNREACH, errno.EAFNOSUPPORT),
+                                 errno=error.errno))
+            else:
+                rows.append(dict(surface="network", family=int(family), denied=False))
+            finally:
+                if connection is not None:
+                    connection.close()
+        status = dict(line.split(":", 1) for line in Path("/proc/self/status").read_text().splitlines()
+                      if ":" in line)
+        kernel = {key: status[key].strip() for key in ("Uid", "Gid", "CapEff", "NoNewPrivs", "Seccomp")}
+        self.assertEqual(os.geteuid(), 10004)
+        self.assertEqual(kernel["CapEff"], "0000000000000000")
+        self.assertEqual(kernel["NoNewPrivs"], "1")
+        self.assertEqual(kernel["Seccomp"], "2")
+        Path("boundary-negatives.json").write_text(json.dumps(dict(
+            schema="hol-gauntlet-native-boundary-negatives.v1", rows=rows, kernel=kernel,
+            kernel_claims_authenticated=False), sort_keys=True))
+        self.assertEqual(len(rows), 8)
+        self.assertTrue(all(row["denied"] for row in rows), rows)

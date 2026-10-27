@@ -9,7 +9,8 @@ use crate::native_sdk_public::{NativeSdkPublic, PROMPT};
 use crate::native_sdk_router::NativeSdkRouter;
 use crate::{NativeJobSpec, NativeSdkPins, NativeSdkSockets, VerifiedNativeSdkAssets};
 use gauntlet_cell_rootfs::{
-    NativeApparatusReport, NativeControlRole, NativeGuardPins, NativeHookPlane,
+    NativeApparatusReport, NativeBoundaryControl, NativeControlRole, NativeGuardPins,
+    NativeHookPlane,
 };
 use serde_json::{json, Value};
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
@@ -41,7 +42,9 @@ fn run_profile(
     if role.is_some_and(|r| {
         !matches!(
             r,
-            NativeControlRole::Success | NativeControlRole::InputBinding
+            NativeControlRole::Success
+                | NativeControlRole::InputBinding
+                | NativeControlRole::Boundary
         )
     }) {
         return Err("Native deterministic role implementation remains incomplete".into());
@@ -55,7 +58,9 @@ fn run_profile(
         .ok_or("composed SDK preparation missing")?;
     let preparation = job.preparation(&raw)?;
     let assets = VerifiedNativeSdkAssets::load(sdk_pins)?;
-    let fixture = if role.is_some() {
+    let fixture = if role == Some(NativeControlRole::Boundary) {
+        gauntlet_cell_rootfs::seed_native_boundary_fixture(&preparation)?
+    } else if role.is_some() {
         gauntlet_cell_rootfs::seed_native_control_fixture(&preparation)?
     } else {
         gauntlet_cell_rootfs::seed_native_sdk_fixture(&preparation)?
@@ -74,6 +79,12 @@ fn run_profile(
         .actor_observation()
         .cloned()
         .ok_or("SDK product actor missing")?;
+    let mut cell = cell;
+    let mut boundary_control = if role == Some(NativeControlRole::Boundary) {
+        Some(NativeBoundaryControl::prepare(&mut cell)?)
+    } else {
+        None
+    };
     let mut plane = NativeHookPlane::new(
         cell,
         pins.clone(),
@@ -103,6 +114,12 @@ fn run_profile(
         let owner = agent.as_mut().unwrap();
         let boundary = owner.launch(&assets, &public, &actor, &cancel)?;
         mcp.check_sdk_boundary(&boundary.observation())?;
+        if let Some(control) = boundary_control.as_ref() {
+            measurements.insert(
+                "sdk_boundary_canary_positive".into(),
+                owner.boundary_canary_positive(&control.sdk_canary_sha256(), &cancel)?,
+            );
+        }
         sdk = Some(owner.launch_sdk(&cancel)?);
         let process = sdk.as_mut().unwrap();
         let (peer, binding) = bind(
@@ -152,6 +169,29 @@ fn run_profile(
     let agent_cleanup = agent.as_mut().map_or(Ok(()), NativeSdkAgent::close);
     let socket_cleanup = sockets.close();
     let cell_cleanup = plane.close();
+    let boundary_after = if boundary_control.is_some()
+        && [
+            sdk_cleanup.is_ok(),
+            mcp_cleanup.is_ok(),
+            agent_cleanup.is_ok(),
+            cell_cleanup.is_ok(),
+        ]
+        .contains(&false)
+    {
+        Err("boundary readback requires drained SDK, MCP and product".into())
+    } else {
+        boundary_control
+            .as_mut()
+            .map(NativeBoundaryControl::readback)
+            .transpose()
+    };
+    if let Ok(Some(value)) = &boundary_after {
+        measurements.insert("boundary_control".into(), value.clone());
+    } else if let Err(error) = &boundary_after {
+        measurements.insert("boundary_control".into(),json!({"status":"failed","error":error,
+            "initial_canary_custody":boundary_control.as_ref().map(NativeBoundaryControl::observation),
+            "execution_eligible":false,"guard_causality_verified":false}));
+    }
     let public_after = public.verify();
     let assets_after = assets.verify_after_cleanup();
     let host_null_after = host_null.recheck();
@@ -194,6 +234,7 @@ fn run_profile(
         effect.as_ref().err(),
         budget_complete.as_ref().err(),
         joined.as_ref().err(),
+        boundary_after.as_ref().err(),
     ]
     .into_iter()
     .flatten()

@@ -7,8 +7,10 @@ retain their meanings and reject the extra role field.
 
 This implementation is partial. `success` runs the existing actual SDK
 control. `input-binding` additionally invokes the installed Native sink with
-all nine historical malformed requests. `injection`, `boundary`, `timeout`
-and `cancel` currently refuse as incomplete before product startup. Declared
+all nine historical malformed requests and the real forbidden-command control.
+`boundary` adds the actual SDK-driven canary and network fixture described
+below. `injection`, `timeout` and `cancel` currently refuse as incomplete
+before product startup. Declared
 roles are not a claim that the six-role qualification suite is available.
 Every terminal remains `invalid-evidence`, with eligibility and Guard
 causality false. `qualified_role_complete` is explicitly false.
@@ -106,7 +108,19 @@ The report is `bb6863ad827ef1fc68c4f3b0456c99553185af5d4a045c6fbad5fe87d10bc1dd`
 `ci/gauntlet-rs/proofs/verify_native_forbidden_control_20261027.py` checks both
 the rejected and corrected original exports. No old artifact is rewritten.
 
-Remaining work includes boundary canaries/kernel probes, injected response disposition, observed
+The next `boundary` implementation appends the versioned unprivileged fixture
+`native_boundary_control_v1.py.txt` to the SDK's existing test file. Root
+exclusively creates and holds synthetic controller, SDK-agent and product-Guard
+canaries. Positive unprivileged reads prove the SDK and product canaries exist
+in their respective planes before the SDK-driven contained test probes six
+read/write boundaries and IPv4/IPv6 isolation. Self-reported kernel fields
+remain unauthenticated. After all cells drain, Rust checks the original held
+canaries and physical report; unavailable cleanup or network timeouts cannot
+count as successful isolation. A real replacement regression rejects a new
+canary inode containing identical bytes. ARM Clippy and both static test/main
+binary builds pass; fresh native boundary execution is pending.
+
+Remaining work includes live boundary verification, kernel/mount authority, injected response disposition, observed
 detached-child timeout/cancellation, provider mapping, complete role scoring,
 outside signing-key admission and fresh current-source staging/installed
 conformance. The successful [combined SDK transport](gauntlet-rust-native-sdk-mcp-transport.md)

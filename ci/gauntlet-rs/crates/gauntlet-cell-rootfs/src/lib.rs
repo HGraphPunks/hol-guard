@@ -26,6 +26,10 @@ mod mounts;
 mod native_apparatus;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_binding_fixture;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_boundary_control;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_boundary_result;
 mod native_case;
 mod native_control_role;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
@@ -75,6 +79,8 @@ mod supervisor_spec;
 pub use kernel_process::{CellProcessExpectation, HeldCellProcess};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_apparatus::run_native_apparatus;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_boundary_control::NativeBoundaryControl;
 pub use native_case::{NativeApparatusReport, NativeCase};
 pub use native_control_role::NativeControlRole;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
@@ -84,7 +90,8 @@ pub use native_guard_control::run_native_hook_transport;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_guard_fixture::{
     effect as read_native_hook_fixture_effect, seed as seed_native_hook_fixture,
-    seed_control as seed_native_control_fixture, seed_sdk as seed_native_sdk_fixture,
+    seed_boundary as seed_native_boundary_fixture, seed_control as seed_native_control_fixture,
+    seed_sdk as seed_native_sdk_fixture,
 };
 pub use native_guard_spec::NativeGuardPins;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
