@@ -142,7 +142,20 @@ pub fn dispatch_native_worker(
             .project_read_only(&request, source, Some(deployment), generation)
             .map_err(|e| e.to_string());
     }
+    if request.deployment_digest() != Some(deployment) {
+        return Err("native deployment differs from outside pin".into());
+    }
     let lease = journal.acquire_active_lease().map_err(|e| e.to_string())?;
+    // A consumed identity cannot run again, irrespective of unrelated host
+    // preflight cost or availability. Malformed/mismatched markers still fail
+    // closed through the existing bounded journal reader.
+    if journal
+        .started(request.job_id(), source, deployment, generation)
+        .map_err(|e| e.to_string())?
+        .is_some()
+    {
+        return Err(crate::ReservationError::AlreadyStarted.to_string());
+    }
     let python = python_worker_lock().map_err(|e| e.to_string())?;
     require_no_unknown_jobs(&journal)?;
     crate::dependency_state::require_idle()?;
@@ -150,9 +163,6 @@ pub fn dispatch_native_worker(
         return Err("native worker cancelled before admission".into());
     }
     let (spec, preparation) = load(&request, generation)?;
-    if request.deployment_digest() != Some(deployment) {
-        return Err("native deployment differs from outside pin".into());
-    }
     gauntlet_cell_rootfs::require_image_lease_absent(
         &preparation.image_id,
         &preparation.podman_sha256,

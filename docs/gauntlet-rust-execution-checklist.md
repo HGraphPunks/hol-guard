@@ -351,11 +351,16 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
       warnings-denied Clippy pass. Actual SDK MCP composition, combined
       builtin/MCP budget and scoring remain open; see
       [Native MCP transport](gauntlet-rust-native-mcp-transport.md).
-    - [ ] Verify the combined v5 Rust-owned SDK/MCP/Bash profile on the owned
-      ARM VM. Implementation adds actual SDK descendant relay checks, two
-      pre-import same-UID controls and a shared one-use operation budget. Mac
-      worker tests (80), Mac/ARM Clippy and static ARM builds pass; live ARM
-      tests, execution and outside artifact verification remain pending.
+    - [x] Verify the combined v5 Rust-owned SDK/MCP/Bash diagnostic on the owned
+      ARM VM. At `dde4cb73`, job `e2c701baf1473901` passes both actual SDK tool
+      results, two same-UID refusals, a shared MCP/Bash budget and cleanup.
+      Independent public readback joins 24 frontend/upstream frames each,
+      one signed SQLite receipt, physical records/effect and 50 outside
+      samples. V4 reference job `e2c701baf1473902` also passes. Mac tests (80),
+      native ARM worker tests (177; 24 existing ignores), 31 rootfs tests plus
+      subprocess and Mac/ARM Clippy pass. No qualification credit is inferred.
+      The original replay courier timeout stays retained; early consumed-ID
+      refusal is implemented and compiled, with its fresh live proof pending.
       See [combined transport](gauntlet-rust-native-sdk-mcp-transport.md).
   - [x] Run fresh current-source Native success, timeout and cancellation
     through the complete Rust worker on the published 3.57.0 runtime. GNU actor

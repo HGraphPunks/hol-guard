@@ -476,7 +476,18 @@ approval ceremony for routine work already authorized by this request.
   and static ARM builds pass; actual ARM tests and the composed VM execution
   remain pending. This is an implementation checkpoint, not a control pass;
   see [combined transport](gauntlet-rust-native-sdk-mcp-transport.md).
-- Next: verify the combined SDK/MCP/Bash execution, finish independent scoring and
+- 2026-10-27: at `dde4cb73`, actual combined job `e2c701baf1473901` passes.
+  Independent readback checks both SDK tool results, 24 frontend/24 upstream
+  frames, the signed SQLite receipt, captured Bash output, physical effect,
+  50 outside samples and cleanup. Existing v4 reference job `e2c701baf1473902`
+  also passes, with 24 samples. All 177 native ARM worker tests and 31 rootfs
+  tests plus subprocess pass. The original replay courier's malformed
+  reconcile refusal and later SDK replay timeout remain retained; corrected
+  reconcile calls recover both original terminals without altering 155 worker
+  files. An early consumed-ID refusal now avoids unrelated host preflight;
+  its ARM Clippy/build pass, with fresh VM verification pending. See
+  [combined transport](gauntlet-rust-native-sdk-mcp-transport.md).
+- Next: verify bounded replay startup, finish independent scoring and
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;
