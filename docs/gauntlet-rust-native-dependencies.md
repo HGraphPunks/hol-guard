@@ -144,7 +144,11 @@ package or candidate code. Mac refusal/data tests and ARM64 warnings-denied
 Clippy pass. The full Mac workspace passes 419 tests across 215 targets with
 zero failures or ignores; log `rust-workspace-native-dependency-prefix-014.log`
 has SHA-256 `9000f9e65aec9ebc2726dd46308f9e23650c1dc31447dbad2698fbc78676860e`.
-The first live prefix operation remains pending.
+The [first live prefix operation](gauntlet-rust-native-dependency-prefix-vm-proof-20261026.md)
+now passes: all 2,302 dependency files match the ZIP, nine refusals/replay cases
+preserve the original inputs, the actual Root library passes 129 tests with
+24 preexisting fixture ignores, and the host independently reconstructs the
+complete 2,649-entry prefix from all 29 retained export members.
 
 The remaining composition and verification are explicit:
 

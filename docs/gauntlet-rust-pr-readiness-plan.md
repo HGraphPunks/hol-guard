@@ -287,6 +287,18 @@ approval ceremony for routine work already authorized by this request.
   62 distributions including MCP 1.30.0. All failed attempts/observers remain;
   no package is imported as Root or admitted. See [dependency run proof](gauntlet-rust-native-dependency-run-vm-proof-20261026.md).
   Inert prefix construction and candidate requirement validation remain next.
-- Next: construct the compatible prefix, then deterministic authority. No new
+- 2026-10-26: repeat the Rust-owned current Native build at exact product
+  source `62aa7ba7`, including upstream Native `9dd2fefb`. Four selected and
+  187 complete contained tests pass. Host readback verifies all 22 members,
+  the 1,705-entry wheel and actual Native bytes; old 1,722-entry proof remains
+  retained. See [current build proof](gauntlet-rust-native-candidate-build-current-20261026.md).
+- 2026-10-26: source-pinned Rust stager `c19dcfc7` constructs and publishes the
+  successful dependency output as inert Root data. All 2,302 files match the
+  ZIP; nine refusals/replay cases preserve 18 original files. The Root ARM64
+  library passes 129 tests with 24 preexisting ignores; the full Mac workspace
+  passes 419. Independent host readback verifies all 29 members and reconstructs
+  the complete prefix digest. See [prefix proof](gauntlet-rust-native-dependency-prefix-vm-proof-20261026.md).
+- Next: compose and validate the current candidate prefix, then deterministic
+  authority. No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.
