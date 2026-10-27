@@ -315,6 +315,14 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
     see [SDK transport evidence](gauntlet-rust-native-sdk-transport.md).
   - [ ] Add Rust-owned Native MCP/service execution, independent Guard
     request/decision/effect scoring, source-matched controls and conformance.
+    - [x] Port the seven-family transactional synthetic state engine into
+      `gauntlet-world`, including SQLite state/receipt/idempotency atomicity,
+      exact signed receipts, ACLs, pagination and insertion-sensitive search.
+      Rust matches 153 source-pinned actual Python operations and every
+      intermediate snapshot/receipt digest; five additional durability and
+      refusal tests pass. The full Mac workspace passes 460 tests; Mac/ARM
+      Clippy and static ARM test builds pass. Native ARM execution and Root
+      MCP integration remain open; see [world proof](gauntlet-rust-world-proof-20261027.md).
   - [x] Run fresh current-source Native success, timeout and cancellation
     through the complete Rust worker on the published 3.57.0 runtime. GNU actor
     ABI preflight refuses the earlier static actor before artifact creation;

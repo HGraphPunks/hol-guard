@@ -425,7 +425,14 @@ approval ceremony for routine work already authorized by this request.
   symbol-stripped Native runtime passes readiness and 369 focused product
   tests; one Linux-Bun bridge fixture needs separate native-platform execution.
   See [synchronization proof](gauntlet-rust-upstream-sync-759130ab.md).
-- Next: finish Rust Native MCP/service ownership, independent scoring and
+- 2026-10-27: `gauntlet-world` ports the seven-family transactional provider
+  state, signed receipts and idempotency to Rust. It matches 153 frozen actual
+  Python operations and every intermediate snapshot/receipt digest. Five more
+  tests cover persistent reopen, atomic rollback, anchors, strict inputs and
+  large integer versions. All 460 Mac tests and Mac/ARM Clippy pass; static
+  ARM tests compile. Root file/socket/process ownership and MCP dispatch are
+  separate pending components. See [world proof](gauntlet-rust-world-proof-20261027.md).
+- Next: execute the Rust world tests on ARM, finish Native MCP/service ownership, independent scoring and
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;
