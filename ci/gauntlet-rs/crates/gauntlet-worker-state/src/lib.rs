@@ -269,6 +269,10 @@ mod native_mcp_connection;
 mod native_mcp_control;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_mcp_quiescence;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_startup_repair;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_startup_repair::repair_native_pre_controller;
 mod native_sdk_protocol;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_sdk_result;

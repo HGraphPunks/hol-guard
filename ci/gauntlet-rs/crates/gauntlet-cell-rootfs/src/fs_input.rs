@@ -97,7 +97,10 @@ pub(crate) fn read(path: &Path, maximum: usize) -> Result<Vec<u8>> {
 pub(crate) fn pinned(path: &Path, maximum: usize, expected: &str) -> Result<Vec<u8>> {
     let raw = read(path, maximum)?;
     if !crate::hex(expected, 64) || hash(&raw) != expected {
-        return Err("Root input differs from outside digest".into());
+        return Err(format!(
+            "Root input {} differs from outside digest",
+            path.display()
+        ));
     }
     Ok(raw)
 }

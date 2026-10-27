@@ -305,6 +305,9 @@ pub(crate) fn run_native_mcp_transport(
     let receipts = world.receipts()?;
     let final_snapshot = world.snapshot()?;
     let count = budget.load(Ordering::Acquire);
+    if served.iter().any(|session| session["status"] == "failed") {
+        errors.push("Root MCP session failed; original frames retained".into());
+    }
     let error = attempted
         .err()
         .or_else(|| errors.first().cloned())

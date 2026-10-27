@@ -116,6 +116,13 @@ fn run() -> Result<(), String> {
         println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
         return Ok(());
     }
+    if args.len() == 8 && args[1] == "--repair-native-pre-controller" {
+        let raw = gauntlet_worker_state::repair_native_pre_controller(
+            &args[2], &args[3], &args[4], &args[5], &args[6], &args[7],
+        )?;
+        println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
+        return Ok(());
+    }
     if args.len() == 8 && args[1] == "--repair-native" {
         let raw = gauntlet_worker_state::repair_native_worker(
             &args[2], &args[3], &args[4], &args[5], &args[6], &args[7],

@@ -51,12 +51,37 @@ Component verification before the first live v4 execution:
   declaration and SDK parser changes. The earlier full 474-test workspace
   checkpoint remains retained.
 
-Live v4 execution is pending at this checkpoint. Original failed logs remain
-retained. No new migration parent exit closes here.
+The first v4 attempt at `038ab99e`, job `e2c701baf1473601`, failed its
+`systemctl` digest check after an unattended Ubuntu systemd update. The audit
+also found a changed `systemd-run`. Both files match the installed
+`255.4-1ubuntu8.18` package's file records.
+The reservation was consumed, but no controller marker/log/key, product
+stage or workspace output was created. The outside sampler recorded zero
+product processes; all 129 earlier worker files and the host null-device
+identity remain unchanged. The original 16-member failure export is 30,720
+bytes, SHA-256 `d4888d33f62473c133203d33246bed71031bff1aba294bc007e177c3aff1254f`.
+The original started-marker digest is
+`26dc7efc4fe80b70eeb06b1400e84ae61211471d74572c9a47b6fbeb99ab06ba`.
+
+Rust now validates every pinned host helper and the constructor before
+consuming a fresh job, and repeats the ordinary checks at launch. Digest
+errors identify the public input path. A distinct pre-controller recovery
+requires the outside original reservation digest, both worker leases, no
+controller artifacts, the exact original empty Root workspace, absent stage,
+controller cgroup, product slice, MCP container/profile and image lease. Its
+immutable receipt records aborted/never-released/null-exit state. It neither
+creates a terminal/exit result nor makes the consumed ID reusable. Admission
+requires exactly one validated terminal, running-controller repair or this
+new startup repair; original declarations and evidence remain unchanged.
+
+After this fix, warnings-denied ARM Clippy passes, 173 worker tests pass with
+24 existing ignores, and all 31 rootfs tests plus the nested subprocess test
+pass natively as Root. Actual startup recovery and a fresh Native MCP
+execution remain pending at this checkpoint. No parent migration exit closes.
 
 Actual SDK MCP composition, Git/package developer metadata, the combined
 builtin/MCP budget, outside key admission, independent request/decision/effect
 scoring, current-source controls and interrupted v4 recovery remain open.
-The existing repair entrypoint refuses v4 instead of applying an earlier
-profile's repair contract. All worker terminals remain `invalid-evidence`,
+The existing running-controller repair entrypoint refuses v4 instead of
+applying an earlier profile's repair contract. All worker terminals remain `invalid-evidence`,
 execution-ineligible and Guard-causality-unverified, with zero model requests.

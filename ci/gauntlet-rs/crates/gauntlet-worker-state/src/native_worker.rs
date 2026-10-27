@@ -155,6 +155,7 @@ pub fn dispatch_native_worker(
         &preparation.podman_sha256,
     )?;
     crate::require_rust_job_slice_absent(&spec.job_id).map_err(|e| e.to_string())?;
+    gauntlet_cell_rootfs::verify_preparation_host_helpers(&preparation)?;
     let started = journal
         .reserve_under_lease(&lease, &request, source, deployment, generation)
         .map_err(|e| e.to_string())?;

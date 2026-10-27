@@ -76,13 +76,9 @@ pub(crate) fn serve(
     // expected proxy result. Keep the peer retirement/cancel diagnostic in
     // full; it cannot stand in for the later outside process-drain check.
     let expected_close = closing.load(Ordering::Acquire);
-    if !expected_close {
-        if let Some(error) = &error {
-            return Err(error.clone());
-        }
-    }
     Ok(
         json!({"schema":"hol-gauntlet-native-mcp-upstream-session.v1","family":family.name(),
+        "status":if error.is_some() && !expected_close {"failed"} else {"closed"},
         "peer":peer.observation(),"frames":frames,"operations":operations,
         "shutdown_observation":error,"owner_requested_close":expected_close,
         "shared_upstream_operation_limit":4,"sdk_builtin_budget_composed":false,

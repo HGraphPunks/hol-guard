@@ -77,7 +77,8 @@ pub use native_guard_fixture::{
 pub use native_guard_spec::NativeGuardPins;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_worker_support::{
-    begin_owned_job_slice, require_image_lease_absent, require_outside_root, verify_systemctl,
+    begin_owned_job_slice, require_image_lease_absent, require_outside_root,
+    verify_preparation_host_helpers, verify_systemctl,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use preparation::prepare_and_start;

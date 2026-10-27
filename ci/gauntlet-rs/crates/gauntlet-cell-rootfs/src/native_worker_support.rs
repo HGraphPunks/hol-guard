@@ -40,6 +40,28 @@ pub fn verify_systemctl(expected: &str) -> Result<()> {
     Ok(())
 }
 
+/// Inert validation before the worker consumes a job. Repeat the ordinary
+/// checks at launch as well: OS upgrades can replace helpers between phases.
+pub fn verify_preparation_host_helpers(spec: &crate::CellPreparation) -> Result<()> {
+    let value = spec.supervisor(&"0".repeat(64))?;
+    let raw = value.to_string();
+    let launch = crate::SupervisorSpec::parse(raw.as_bytes(), &crate::hash(raw.as_bytes()))?;
+    for (path, pin) in &launch.host_helpers {
+        fs_input::pinned(Path::new(path), 16 * 1024 * 1024, pin)?;
+    }
+    fs_input::pinned(
+        &launch.constructor,
+        16 * 1024 * 1024,
+        &launch.constructor_sha256,
+    )?;
+    fs_input::pinned(
+        Path::new("/usr/bin/podman"),
+        128 * 1024 * 1024,
+        &spec.podman_sha256,
+    )?;
+    Ok(())
+}
+
 pub fn require_image_lease_absent(image: &str, podman_sha256: &str) -> Result<()> {
     crate::kernel_process::root_proc()?;
     let id = crate::image_protocol::image_id(image)?;

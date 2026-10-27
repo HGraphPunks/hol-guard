@@ -63,6 +63,7 @@ pub(crate) fn require_no_unknown_jobs(journal: &RunReservationJournal) -> Result
                 | "native.stdout"
                 | "native.stderr"
                 | "native-repair.json"
+                | "native-startup-repair.json"
         ) {
             return Err("unrecognized worker sidecar blocks native dispatch".into());
         }
@@ -104,7 +105,17 @@ pub(crate) fn require_no_unknown_jobs(journal: &RunReservationJournal) -> Result
         let repair =
             crate::native_repair::verified_receipt(journal, source, &job, deployment, generation)?
                 .is_some();
-        if !reserved || (terminal == repair) {
+        let startup = crate::native_startup_repair::verified_receipt(
+            journal, source, &job, deployment, generation,
+        )?
+        .is_some();
+        if !reserved
+            || [terminal, repair, startup]
+                .into_iter()
+                .filter(|value| *value)
+                .count()
+                != 1
+        {
             return Err("active or unknown prior job blocks new work".into());
         }
         crate::require_rust_job_slice_absent(&job).map_err(|e| e.to_string())?;
