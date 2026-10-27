@@ -161,38 +161,12 @@ fn serve(
 }
 fn verify_result(sdk: &Value, router: &NativeSdkRouter) -> Result<(), String> {
     router.verify_completed()?;
-    let result = &sdk["result"];
-    if sdk["exit_code"] != 0
-        || result["schema"] != "private-cell-sdk-conformance-result.v1"
-        || result["version"] != "18.4.12"
-        || result["uid"] != 10001
-        || result["syntheticStreamCalls"] != 2
-        || result["mcpExercised"] != false
-        || result["modelExercised"] != false
-        || result["providerRequests"] != 0
-        || result["qualificationEligible"] != false
-        || result["modelContextProjection"]["originalCommandVisible"] != true
-        || result["modelContextProjection"]["executionTransportRetained"] != true
-    {
-        return Err("actual SDK conformance result/context projection differs".into());
-    }
-    let rows = result["results"]
-        .as_array()
-        .filter(|a| a.len() == 1)
-        .ok_or("one actual SDK Bash result required")?;
     let event = router
         .events
         .iter()
         .find(|v| v["kind"] == "sdk-contained-completed")
         .ok_or("SDK Root capture absent")?;
-    if rows[0]["toolCallId"] != "sdk-contained-control"
-        || rows[0]["toolName"] != "bash"
-        || rows[0]["isError"] != false
-        || rows[0]["content"] != event["output"]["tool_response"]
-    {
-        return Err("SDK did not receive the exact benign Native-reviewed captured output".into());
-    }
-    Ok(())
+    crate::native_sdk_result::verify(sdk, &event["output"])
 }
 pub(crate) fn run_native_sdk_transport(
     job: &NativeJobSpec,
@@ -209,7 +183,7 @@ pub(crate) fn run_native_sdk_transport(
         .ok_or("SDK preparation absent")?;
     let preparation = job.preparation(&raw)?;
     let assets = VerifiedNativeSdkAssets::load(sdk_pins)?;
-    let fixture = gauntlet_cell_rootfs::seed_native_hook_fixture(&preparation)?;
+    let fixture = gauntlet_cell_rootfs::seed_native_sdk_fixture(&preparation)?;
     let public = NativeSdkPublic::prepare(&job.job_root())?;
     let mut sockets = NativeSdkSockets::new(&job.job_id)?;
     let cell = gauntlet_cell_rootfs::prepare_and_start(

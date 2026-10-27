@@ -238,6 +238,8 @@ mod launch_plan;
 mod native_job_spec;
 pub use native_job_spec::{NativeJobExecution, NativeJobSpec};
 mod native_sdk_protocol;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_sdk_result;
 pub use native_sdk_protocol::{NativeSdkHook, NativeSdkLedger, NativeSdkRequest};
 mod native_sdk_socket_io;
 pub use native_sdk_socket_io::{read_native_sdk_line, write_native_sdk_line};

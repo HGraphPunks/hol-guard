@@ -4,9 +4,10 @@ The current Native hook diagnostic passes on the owned ARM VM; see the
 [retained transport proof](gauntlet-rust-native-hook-vm-proof-20261027.md).
 The Rust worker now owns SDK request state, dependency publication, gate and
 hook listeners, fixed Podman launch and cleanup, and the Native Bash route.
-Owned-VM attempts have reached the agent's kernel boundary; the latest
-attempt refuses its process label before Bun starts. Actual SDK execution,
-conformance and Guard scoring remain open. The parent checklist remains
+The latest owned-VM attempt completes an actual SDK session and delivers
+the exact Native-captured Bash output. The benign test still fails because
+npm aborts, so the complete diagnostic remains failed and ineligible.
+MCP, conformance and Guard scoring remain open. The parent checklist remains
 24/62 complete.
 
 `NativeSdkRequest` accepts the explicitly bounded Bash-only SDK hook profile
@@ -297,3 +298,41 @@ Clippy targets and ARM64 worker/test compilation. Workspace log
 `32e4dd2355c2497a055b4c5b908caeec883ab952a9934c1846e754bb3da6b9f3`.
 A fresh run of the stack-aware source is next; no actual SDK result is
 credited by these diagnostics.
+
+Job `e2c701baf1473201` at `426c7d93` now completes the actual pinned SDK
+18.4.12 session. The Root gate binds the held Bun executable and process
+before SDK import, and independently refuses a different same-UID peer.
+The real SDK emits one Bash Pre, one consumed execution route and one Post;
+normal Native containment authorizes the route, and Native reviews the actual
+captured output. Both SDK context projections retain the original command.
+The SDK receives the exact captured bytes and error flag, exits 0 and uses
+two synthetic stream calls with zero provider requests.
+
+The benign command fails: `npm --version` aborts with SIGABRT inside the
+standard-library fixture, while the expected private workspace effect exists.
+The controller's former combined predicate reports
+`SDK did not receive the exact benign Native-reviewed captured output`;
+host readback proves delivery was exact and the fixture outcome failed.
+New source distinguishes these conditions and retains the failure as a
+failure. The explicit v2 unprivileged fixture retains stdout/stderr for
+Node/npm failures and preserves every success, boundary and version assertion;
+v1 bytes and earlier evidence remain unchanged.
+
+The 98-member, 573,440-byte immutable export has SHA-256
+`3ff026ef1ca0389ea5d33ae3c8856768ea8d3dd2ea2bdd9961c992044e974695`;
+the host prelaunch pin is
+`18b4b6558806ad2d82c8a6a87249ab0bb239314036d42db3c57eba8c045fbc73`.
+The inert `verify_native_sdk_bash_20261027.py` verifies all members, binary
+inputs, 100 retained worker files, independent Bun PID/start/executable
+samples, pre-import and same-UID controls, the complete SDK/Native output
+relation, physical effect and cleanup. It returns `benign_control_passed:
+false`. Root passes 152 worker tests with 24 existing fixture ignores, 30
+rootfs tests and one subprocess check.
+
+The improved result classification and v2 fixture pass 453 Mac tests across
+218 targets with zero failures or ignores, both warnings-denied Clippy targets
+and ARM64 compilation. Workspace log
+`rust-workspace-native-sdk-transport-033.log` has SHA-256
+`dce286ce774a2cb09c3f47f679324e8dff5ec0492a0ea1ec40fc01e793b13474`.
+The fresh stderr-retaining diagnostic is next. None of these results grants
+Guard-causality, benchmark qualification or model-inference credit.

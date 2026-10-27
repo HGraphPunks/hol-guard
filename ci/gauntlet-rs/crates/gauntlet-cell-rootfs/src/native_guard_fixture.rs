@@ -10,6 +10,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::os::fd::OwnedFd;
 
 const FIXTURE: &str = include_str!("../../../adapters/native_contained_control_v1.py.txt");
+const SDK_FIXTURE: &str = include_str!("../../../adapters/native_contained_control_v2.py.txt");
 const DIRECTORY: OFlags = OFlags::RDONLY
     .union(OFlags::DIRECTORY)
     .union(OFlags::NOFOLLOW)
@@ -49,6 +50,20 @@ fn workspace(spec: &CellPreparation) -> Result<OwnedFd> {
 }
 
 pub fn seed(spec: &CellPreparation) -> Result<Value> {
+    seed_fixed(
+        spec,
+        FIXTURE,
+        "hol-gauntlet-native-contained-fixture.v1",
+        "deterministic_probes.FIXTURES.success@62aa7ba7",
+    )
+}
+
+pub fn seed_sdk(spec: &CellPreparation) -> Result<Value> {
+    seed_fixed(spec, SDK_FIXTURE, "hol-gauntlet-native-contained-fixture.v2",
+        "native_contained_control_v2.py.txt; unchanged success assertions with retained Node/npm diagnostics")
+}
+
+fn seed_fixed(spec: &CellPreparation, fixture: &str, schema: &str, source: &str) -> Result<Value> {
     crate::require_outside_root()?;
     let root = workspace(spec)?;
     for item in Dir::read_from(&root).map_err(|e| e.to_string())? {
@@ -67,7 +82,7 @@ pub fn seed(spec: &CellPreparation) -> Result<Value> {
     )
     .map_err(|e| e.to_string())?;
     let mut file = File::from(fd);
-    file.write_all(FIXTURE.as_bytes())
+    file.write_all(fixture.as_bytes())
         .map_err(|e| e.to_string())?;
     fchmod(&file, Mode::RUSR | Mode::WUSR).map_err(|e| e.to_string())?;
     fchown(
@@ -86,7 +101,7 @@ pub fn seed(spec: &CellPreparation) -> Result<Value> {
         .map_err(|e| e.to_string())?;
     let visible =
         statat(&tests, "test_control.py", AtFlags::SYMLINK_NOFOLLOW).map_err(|e| e.to_string())?;
-    if copied != FIXTURE.as_bytes()
+    if copied != fixture.as_bytes()
         || before.st_uid != 10001
         || before.st_gid != 10001
         || before.st_nlink != 1
@@ -106,10 +121,8 @@ pub fn seed(spec: &CellPreparation) -> Result<Value> {
     fsync(&tests)
         .and_then(|_| fsync(&root))
         .map_err(|e| e.to_string())?;
-    Ok(
-        json!({"schema":"hol-gauntlet-native-contained-fixture.v1","source":"deterministic_probes.FIXTURES.success@62aa7ba7",
-        "file":"tests/test_control.py","sha256":hash(FIXTURE.as_bytes()),"bytes":FIXTURE.len(),"uid":10001,"gid":10001,"product_code_executed":false}),
-    )
+    Ok(json!({"schema":schema,"source":source,
+        "file":"tests/test_control.py","sha256":hash(fixture.as_bytes()),"bytes":fixture.len(),"uid":10001,"gid":10001,"product_code_executed":false}))
 }
 
 pub fn effect(spec: &CellPreparation) -> Result<Value> {

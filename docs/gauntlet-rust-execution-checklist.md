@@ -302,9 +302,14 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
     exact `crun//&SDK` label; the corrected source keeps that complete stack
     fixed and passes 450 Mac tests plus Mac/ARM Clippy. Live SDK acceptance
     remains open. See [SDK transport evidence](gauntlet-rust-native-sdk-transport.md).
-  - [ ] Complete the Rust-owned actual SDK/Bun pre-import binding, same-UID
-    negative, genuine Bash tool route and captured-result delivery on the
-    current installed runtime, then add MCP and independently scored controls.
+  - [ ] Complete the Rust-owned actual SDK/Bun benign control on the current
+    installed runtime, then add MCP and independently scored controls. Job
+    `e2c701baf1473201` at `426c7d93` completes the actual SDK session,
+    pre-import binding, same-UID refusal, genuine Native-reviewed Bash route
+    and exact captured-result delivery. The benign fixture still fails with
+    npm SIGABRT; the 98-member export and inert reader preserve that failed
+    outcome and 100 worker files. The v2 fixture retains stderr without
+    removing assertions; the source passes 453 Mac tests and Mac/ARM Clippy.
   - [x] Run fresh current-source Native success, timeout and cancellation
     through the complete Rust worker on the published 3.57.0 runtime. GNU actor
     ABI preflight refuses the earlier static actor before artifact creation;
