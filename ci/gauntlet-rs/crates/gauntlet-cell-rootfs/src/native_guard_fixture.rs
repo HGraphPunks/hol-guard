@@ -63,6 +63,56 @@ pub fn seed_sdk(spec: &CellPreparation) -> Result<Value> {
         "native_contained_control_v2.py.txt; unchanged success assertions with retained Node/npm diagnostics")
 }
 
+/// V6 controls also exercise the installed read-only planner. Its project
+/// root must be recognized independently of the benign workspace route.
+pub fn seed_control(spec: &CellPreparation) -> Result<Value> {
+    let mut fixture = seed_sdk(spec)?;
+    let root = workspace(spec)?;
+    let marker = b"[pytest]\ntestpaths = tests\n";
+    let fd = openat(
+        &root,
+        "pytest.ini",
+        OFlags::RDWR | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::RUSR | Mode::WUSR,
+    )
+    .map_err(|e| e.to_string())?;
+    let mut file = File::from(fd);
+    file.write_all(marker).map_err(|e| e.to_string())?;
+    fchmod(&file, Mode::RUSR | Mode::WUSR).map_err(|e| e.to_string())?;
+    fchown(
+        &file,
+        Some(Uid::from_raw(10001)),
+        Some(Gid::from_raw(10001)),
+    )
+    .map_err(|e| e.to_string())?;
+    file.sync_all().map_err(|e| e.to_string())?;
+    let held = fstat(&file).map_err(|e| e.to_string())?;
+    let visible =
+        statat(&root, "pytest.ini", AtFlags::SYMLINK_NOFOLLOW).map_err(|e| e.to_string())?;
+    file.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
+    let mut raw = Vec::new();
+    Read::by_ref(&mut file)
+        .take(128)
+        .read_to_end(&mut raw)
+        .map_err(|e| e.to_string())?;
+    if raw != marker
+        || held.st_nlink != 1
+        || held.st_uid != 10001
+        || held.st_gid != 10001
+        || held.st_mode & 0o7777 != 0o600
+        || !fs_input::same(&held, &visible)
+        || !fs_input::same(&held, &fstat(&file).map_err(|e| e.to_string())?)
+    {
+        return Err("native control project marker custody differs".into());
+    }
+    fsync(&root).map_err(|e| e.to_string())?;
+    fixture["schema"] = json!("hol-gauntlet-native-contained-fixture.v3");
+    fixture["project_marker"] = json!({"file":"pytest.ini","sha256":hash(marker),
+        "bytes":marker.len(),"uid":held.st_uid,"gid":held.st_gid,"mode":0o600,
+        "device":held.st_dev,"inode":held.st_ino});
+    Ok(fixture)
+}
+
 fn seed_fixed(spec: &CellPreparation, fixture: &str, schema: &str, source: &str) -> Result<Value> {
     crate::require_outside_root()?;
     let root = workspace(spec)?;

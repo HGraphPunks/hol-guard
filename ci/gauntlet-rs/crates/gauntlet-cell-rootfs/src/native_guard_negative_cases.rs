@@ -83,6 +83,8 @@ mod tests {
             "contained_test_authorization_failed",
             " contained_test_authorization_failed: x",
             "planner_failure: refused",
+            "pytest_restricted_invalid_workspace: missing project marker",
+            "pytest_restricted_invalid_command: refused",
             "runtime unavailable",
         ] {
             assert!(!rejected(text.as_bytes()));

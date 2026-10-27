@@ -103,15 +103,22 @@ impl NativeHookPlane {
             })
             && decision.get("required_execution_profile").is_none()
             && decision["observe_mode"] != true;
-        let passed =
-            exit == Some(126) && actual_deny && cleanup.is_ok() && preserved.as_ref() == Ok(&true);
+        let authorization_refused = executed
+            .as_ref()
+            .is_ok_and(|v| crate::native_guard_negative_cases::rejected(&v.stderr));
+        let passed = exit == Some(126)
+            && authorization_refused
+            && actual_deny
+            && cleanup.is_ok()
+            && preserved.as_ref() == Ok(&true);
         let result = json!({"schema":"hol-gauntlet-native-forbidden-command-control.v1","status":if passed{"passed"}else{"failed"},
             "positive_exit_code":positive.returncode,"positive_effect_observed":true,
             "positive_marker":positive_before.observation(),"marker_before":before,
             "native_pre_decision":decision,"native_pre_payload":payload,"request":request,"native_command":argv,
             "exit_code":exit,"stdout_sha256":executed.as_ref().ok().map(|v|hash(&v.stdout)),
             "stderr":executed.as_ref().ok().map(|v|String::from_utf8_lossy(&v.stderr).into_owned()),
-            "capture_error":executed.as_ref().err(),"effect_present":preserved.as_ref().ok().map(|v|!v),
+            "capture_error":executed.as_ref().err(),"native_sink_authorization_refused":authorization_refused,
+            "effect_present":preserved.as_ref().ok().map(|v|!v),
             "marker_sha256_after":preserved.as_ref().ok().filter(|v|**v).map(|_|hash(b"preserve")),
             "marker_custody_error":preserved.as_ref().err(),"cleanup_complete":cleanup.is_ok(),"cleanup_error":cleanup.as_ref().err(),
             "root_control_probe_not_sdk_operation":true,"execution_eligible":false,"guard_causality_verified":false,"model_requests":0});

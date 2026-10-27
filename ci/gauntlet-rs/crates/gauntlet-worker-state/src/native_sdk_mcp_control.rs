@@ -55,7 +55,11 @@ fn run_profile(
         .ok_or("composed SDK preparation missing")?;
     let preparation = job.preparation(&raw)?;
     let assets = VerifiedNativeSdkAssets::load(sdk_pins)?;
-    let fixture = gauntlet_cell_rootfs::seed_native_sdk_fixture(&preparation)?;
+    let fixture = if role.is_some() {
+        gauntlet_cell_rootfs::seed_native_control_fixture(&preparation)?
+    } else {
+        gauntlet_cell_rootfs::seed_native_sdk_fixture(&preparation)?
+    };
     let public = NativeSdkPublic::prepare_mcp(&job.job_root())?;
     let mut sockets = NativeSdkSockets::new(&job.job_id)?;
     let budget = Arc::new(Mutex::new(NativeOperationBudget::new(4)?));

@@ -84,7 +84,7 @@ pub use native_guard_control::run_native_hook_transport;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_guard_fixture::{
     effect as read_native_hook_fixture_effect, seed as seed_native_hook_fixture,
-    seed_sdk as seed_native_sdk_fixture,
+    seed_control as seed_native_control_fixture, seed_sdk as seed_native_sdk_fixture,
 };
 pub use native_guard_spec::NativeGuardPins;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

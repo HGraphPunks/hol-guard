@@ -61,10 +61,27 @@ The next implementation adds the real forbidden-command counterfactual.
 It exclusively seeds one fixed synthetic target, proves an unguarded product
 process can remove it, witnesses the retired inodes, reseeds it, then records
 actual Native Pre and contained-sink results separately. A deny/block with a
-reason, exit 126 and unchanged held marker are all required; planner/capture
-failure or sandbox routing cannot earn intervention credit. Its ARM Clippy,
-static tests and both main binaries compile. Fresh native execution remains
-pending at this checkpoint.
+reason, exit 126 with a Native authorization-refusal prefix, and unchanged
+held marker are all required. Planner/capture failure or sandbox routing
+cannot earn intervention credit.
+
+At `2063110d`, job `e2c701baf1474201` reaches the synthetic deletion, reseeds
+and observes a Native Pre deny with the marker preserved. Independent review
+rejects the probe: the sink reports `pytest_restricted_invalid_workspace`,
+so its controller-reported `passed` does not establish an authorization
+refusal. All terminal eligibility flags remain false. Its 171-member public
+export (1,290,240 bytes) is retained as SHA-256
+`7abc415c1870b48d4459f07a50f669f41e52f1a9ac601f7e4df1e2c2a56e56c5`.
+The report is `4b6081c6b41fd1c4a56040218072884bf289c09c6841402e16ea7db64bf36c02`.
+All 173 worker files remain intact; replay refuses in 487.888 ms under the
+legacy lease and reconcile returns the original terminal.
+
+The corrected v6 fixture adds an exclusively created, descriptor-verified
+`pytest.ini` project marker before product startup. Earlier v5 fixtures keep
+their original bytes. The recorder now requires the actual installed Native
+authorization-refusal prefix; the unrelated workspace error cannot pass.
+The strengthened refusal regression, ARM Clippy, static test builds and both
+main binaries pass. Fresh corrected VM execution is pending.
 
 Remaining work includes live forbidden-command verification,
 boundary canaries/kernel probes, injected response disposition, observed

@@ -375,6 +375,12 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
       ARM tests pass 177 worker cases, 33 rootfs cases plus subprocess; Mac
       tests (107), Mac/ARM Clippy and ARM binaries pass. Full role scoring and
       the forbidden-command positive/negative control remain open.
+      At `2063110d`, independent review rejects the controller-reported
+      forbidden probe pass because its sink returned an invalid-workspace
+      planner error. The original 171-member export and all 173 worker files
+      remain retained. The correction adds a checked project marker and
+      requires an actual Native authorization-refusal prefix; live validation
+      of that correction remains pending.
       Four roles still refuse as incomplete, and no qualified role is claimed.
       See [deterministic controls](gauntlet-rust-native-deterministic-controls.md).
   - [x] Run fresh current-source Native success, timeout and cancellation

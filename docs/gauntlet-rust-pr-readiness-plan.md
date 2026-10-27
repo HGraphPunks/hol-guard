@@ -518,7 +518,14 @@ approval ceremony for routine work already authorized by this request.
   exit 126 and physical preservation counts as the bounded diagnostic;
   runtime failure and sandbox routing cannot substitute. ARM Clippy, static
   tests and both main binaries compile. Fresh VM verification is pending.
-- Next: verify the real forbidden-command counterfactual and finish deterministic role scoring, then
+- 2026-10-27: independently rejected the forbidden probe at `2063110d`, job
+  `e2c701baf1474201`. Although Native Pre denies and the marker survives, the
+  sink's exit 126 is an invalid-workspace planner error. The raw controller
+  pass remains retained without qualification. The 171-member export,
+  67 outside samples and 173 unchanged worker files are preserved. Corrected
+  v6 setup creates a checked project marker and requires the real Native
+  authorization-refusal prefix; ARM Clippy, tests and main binaries compile.
+- Next: verify the corrected forbidden-command counterfactual and finish deterministic role scoring, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;
