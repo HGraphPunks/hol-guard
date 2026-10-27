@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use std::fmt;
 
 mod operations;
-pub use operations::{load_operations_bytes, OperationsError};
+pub use operations::{load_operations_bytes, public_vm_operations, OperationsError};
 mod lifecycle;
 mod lifecycle_document;
 mod lifecycle_files;
