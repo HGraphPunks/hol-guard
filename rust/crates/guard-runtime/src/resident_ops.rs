@@ -488,6 +488,11 @@ pub(crate) fn evaluate_resident_bytes_with_cancellation(
                     &request,
                 )
             }
+            ResidentOperationV1::TrustAttestationVerify(request) => {
+                crate::trust_attestation_verify_op::evaluate_trust_attestation_verify_request(
+                    &request,
+                )
+            }
             ResidentOperationV1::LocalToolEligibility(request) => {
                 crate::local_tool_eligibility_op::evaluate_local_tool_eligibility_request(&request)
             }

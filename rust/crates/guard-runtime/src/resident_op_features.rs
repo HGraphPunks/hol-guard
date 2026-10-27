@@ -88,6 +88,7 @@ pub(crate) const RESIDENT_OP_FEATURES: &[&str] = &[
     guard_contracts::CONNECTOR_SETUP_CONTEXT_FEATURE,
     guard_contracts::ARTIFACT_RISK_FEATURE,
     guard_contracts::SUPPLY_CHAIN_BUNDLE_VERIFY_FEATURE,
+    guard_contracts::TRUST_ATTESTATION_VERIFY_FEATURE,
     guard_contracts::LOCAL_TOOL_ELIGIBILITY_FEATURE,
     guard_contracts::APPROVAL_PROOF_FEATURE,
     guard_contracts::APPROVAL_PROOF_CLAIM_ROW_FEATURE,
