@@ -56,12 +56,7 @@ from codex_plugin_scanner.guard.models import (
 from codex_plugin_scanner.guard.native_runner_authority import NativeRunnerAuthorityError
 from codex_plugin_scanner.guard.policy import decide_action, decide_action_with_v2
 from codex_plugin_scanner.guard.policy_bundle_delivery import policy_bundle_acknowledgement_payload
-from codex_plugin_scanner.guard.policy_bundle_parser import (
-    computed_policy_bundle_hash,
-    payload_hash_for_policy_bundle,
-    policy_bundle_rejection_message,
-    validated_policy_bundle_payload,
-)
+from codex_plugin_scanner.guard.policy_bundle_parser import policy_bundle_rejection_message
 from codex_plugin_scanner.guard.proxy import RemoteGuardProxy
 from codex_plugin_scanner.guard.receipts import build_receipt
 from codex_plugin_scanner.guard.runtime import guard_run_evaluation as guard_run_evaluation
@@ -84,6 +79,11 @@ from tests.codex_read_only_inspection import (
     codex_command_is_read_only_source_inspection,
 )
 from tests.guard_signed_approval_fixtures import write_synthetic_daemon_auth_token
+from tests.policy_bundle_parser_support import (
+    computed_policy_bundle_hash,
+    payload_hash_for_policy_bundle,
+    validated_policy_bundle_payload,
+)
 from tests.policy_bundle_signing_helpers import (
     policy_bundle_test_keyring,
     policy_bundle_test_verification_key,
