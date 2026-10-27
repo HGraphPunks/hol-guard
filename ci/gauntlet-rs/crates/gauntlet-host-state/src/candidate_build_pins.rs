@@ -194,7 +194,12 @@ impl HostCandidateBuildPins {
         }
         let bytes = canonicalize(value.to_string().as_bytes())
             .map_err(|_| HostCandidateBuildPinError::InvalidPins)?;
-        if bytes.is_empty() || bytes.len() as u64 > MAX_PIN_BYTES {
+        let limit = if target.is_some() {
+            MAX_PIN_BYTES
+        } else {
+            2048
+        };
+        if bytes.is_empty() || bytes.len() as u64 > limit {
             return Err(HostCandidateBuildPinError::InvalidPins);
         }
         Ok(bytes)
@@ -221,6 +226,9 @@ impl HostCandidateBuildPins {
             Some(SCHEMA_V4) if object.len() == 21 => SCHEMA_V4,
             _ => return Err(HostCandidateBuildPinError::UnsafeRecord),
         };
+        if schema != SCHEMA_V4 && bytes.len() > 2048 {
+            return Err(HostCandidateBuildPinError::UnsafeRecord);
+        }
         let source_sha = string("source_sha")?;
         let pins = Self {
             job_id: string("job_id")?,
