@@ -11,12 +11,29 @@ from pathlib import Path
 import verify_native_current_worker_20261026 as worker
 import verify_native_request_bindings_20261027 as transport
 import verify_native_sdk_mcp_transport_20261027 as common
+from verify_native_forbidden_control_20261027 import capture
 from verify_native_mcp_transport_20261027 import digest, ineligible, parse, sha
 
 PYTHON = "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960"
 CANCEL = "controller requested product-cell cancellation after held detached readiness"
 DISPATCH = "controlled SDK sink cancellation after detached readiness"
 PROOFS = {
+    "010-timeout": {
+        "index": "010-timeout",
+        "input_index": "010",
+        "role": "timeout",
+        "job_file": "timeout",
+        "source": "35852bd601d35709b79b64f69466faeaa55ad1d9",
+        "report": "161bca5a46f538e1a43f2c1c66d4ff6298df35c021ba041e2561a077f799f1ef",
+        "export": ("58cf57b14a72270858b2787dabd955a77dc65c259e49864e5ca6c55037beb276", 1095680, 140),
+        "input": ("8a5c6d89946133120bdf4c8d09796240781774e2124e2cd5a4141a83a18fc9d9", 65945600, 5),
+        "courier": "970ffe130bd4a7b7df7e991b8291cc76a2081cc5427c2c75a9a38df056056e09",
+        "prior": 227,
+        "final": 233,
+        "samples": 61,
+        "forbidden": False,
+        "rootfs_tests": "40",
+    },
     "008-cancel": {
         "index": "008-cancel",
         "input_index": "008",
@@ -70,6 +87,7 @@ def lifecycle(control, data, pin):
     assert len(file["utf8"].encode()) == file["bytes"] and file["view"] == "kernel-held-process-cwd.v1"
     assert file["uid"] == file["gid"] == 10004 and file["mode"] == 0o600 and file["original_links"] == 1
     assert file["held_bytes_unchanged"] and file["late_effect_absent"]
+    assert file["final_links"] in [0, 1] and file["overlay_cleanup_unlinked"] == (file["final_links"] == 0)
     assert ready == {
         "schema": "hol-gauntlet-native-detached-ready.v1",
         "role": life["role"],
@@ -138,6 +156,7 @@ def lifecycle(control, data, pin):
         "execute-contained-test",
     ]
     assert anchors[0]["cgroup"] == child["cgroup"]
+    assert argv[argv.index("--timeout-seconds") + 1] == {"cancel": "30", "timeout": "5"}[life["role"]]
     captures = [
         r["data"]
         for r in events
@@ -170,6 +189,7 @@ def lifecycle(control, data, pin):
     assert all(
         effect["ready_file"][n] == file[n] for n in ["device", "inode", "sha256", "utf8", "bytes", "uid", "gid", "mode"]
     )
+    assert 0 <= effect["ready_file"]["final_links"] <= file["final_links"]
     physical = parse(data["combined/physical-lifecycle-absence.json"])
     assert physical["absent"] == ["detached-ready.json", "detached-ready.pending", "late-detached-effect.txt"]
     return life
@@ -239,9 +259,65 @@ def cancelled(control, data, pin):
     return None
 
 
+def timed_out(control, data, pin):
+    life = lifecycle(control, data, pin)
+    assert life["role"] == "timeout" and life["capture_exit_code"] == 124 and life["capture_error"] is None
+    assert life["cancel_requested_after_kernel_readiness"] is life["product_cell_closed"] is False
+    actual = control["measurements"]["sdk"]
+    assert actual["exit_code"] == 0 and actual["stderr"] == ""
+    result = actual["result"]
+    assert result["uid"] == 10001 and result["version"] == "18.4.12" and result["syntheticStreamCalls"] == 3
+    assert result["mcpExercised"] is True and result["modelExercised"] is result["qualificationEligible"] is False
+    assert result["providerRequests"] == 0 and len(result["results"]) == 2
+    raw = [
+        b
+        for n, b in data.items()
+        if n.startswith("combined/sdk-processes/") and n.endswith(".stdout") and sha(b) == actual["stdout_sha256"]
+    ]
+    assert len(raw) == 1 and parse(raw[0]) == result
+    pre, sink, post = control["requests"]
+    assert [r["sequence"] for r in [pre, sink, post]] == [1, 2, 3]
+    assert all(
+        r["peer_rechecked_before_response"] and r["response_sha256"] == digest(r["response"]) for r in [pre, sink, post]
+    )
+    assert pre["request"]["hook_event_name"] == "PreToolUse" and post["request"]["hook_event_name"] == "PostToolUse"
+    assert (
+        sink["request"]["operation"] == "execute-contained"
+        and sink["request"]["token"] == pre["response"]["execution_token"]
+    )
+    plane = control["plane"]
+    assert [h["hook_event_name"] for h in plane["hooks"]] == ["UserPromptSubmit", "PreToolUse", "PostToolUse"]
+    assert len(plane["executions"]) == 1
+    execution = plane["executions"][0]
+    assert execution == sink["response"]["result"] and execution["exit_code"] == 124
+    captured = capture(
+        data, journal(data), execution["native_command"], 124, execution["stdout_sha256"], execution["stderr_sha256"]
+    )
+    assert all(captured[n] == execution[n].encode() for n in ["stdout", "stderr"])
+    output = post["response"]["contained_output"]
+    text = f"Exit code: 124\nSTDOUT:\n{execution['stdout']}\nSTDERR:\n{execution['stderr']}"
+    assert output["tool_response"] == [{"type": "text", "text": text}] and output["is_error"] is True
+    assert output["output_sha256"] == sha(text.encode()) and output["result_digest"] == digest(execution)
+    assert output["pre_payload_digest"] == execution["payload_digest"] == plane["hooks"][1]["payload_digest"]
+    assert plane["hooks"][1]["payload"]["tool_input"] == pre["request"]["tool_input"]
+    assert plane["hooks"][1]["response"] == pre["response"]["product_response"]
+    bash = result["results"][1]
+    assert bash["toolCallId"] == "sdk-contained-control" and bash["toolName"] == "bash" and bash["isError"] is True
+    assert bash["content"] == output["tool_response"] == plane["hooks"][2]["payload"]["tool_response"]
+    assert plane["hooks"][2]["response"]["reviewed_output_sha256"] == output["output_sha256"]
+    assert all(
+        control["router"]["ledger"][n] == 1
+        for n in ["pre_count", "route_count", "sink_count", "completed_sink_count", "post_count"]
+    )
+    assert all(control["measurements"]["replay_refusals"][n] for n in ["pre", "sink", "post", "native_plane_unchanged"])
+    return result
+
+
 def verify(directory, attempt="008-cancel"):
     proof = PROOFS[attempt]
-    control, data, pin = transport.read_transport(directory, proof, read_lifecycle=cancelled)
+    control, data, pin = transport.read_transport(
+        directory, proof, read_lifecycle=cancelled if proof["role"] == "cancel" else timed_out
+    )
     assert (
         sha((directory / "native-role-lifecycle-observer-002.py").read_bytes())
         == "16a0a2e4b72bd3d38a4122f9e379680982fffd51ed33bbada15bfff210fecf57"
@@ -261,10 +337,11 @@ def verify(directory, attempt="008-cancel"):
         "schema": "hol-gauntlet-native-lifecycle-host-readback.v1",
         "job_id": pin["job_id"],
         "role": control["control_role"],
-        "root_cancellation_after_held_readiness": True,
+        "root_cancellation_after_held_readiness": proof["role"] == "cancel",
+        "actual_timeout_and_sdk_error_output_bound": proof["role"] == "timeout",
         "held_child_dead": True,
         "closed_overlay_and_lower_readback": True,
-        "missing_sdk_result_and_post_preserved": True,
+        "missing_sdk_result_and_post_preserved": proof["role"] == "cancel",
         "kernel_samples": proof["samples"],
         "worker_files_preserved": proof["final"],
         "qualified_role_complete": False,
@@ -277,5 +354,7 @@ def verify(directory, attempt="008-cancel"):
 
 if __name__ == "__main__":
     if len(sys.argv) not in [2, 3]:
-        raise SystemExit("usage: verify_native_lifecycle_control_20261027.py EVIDENCE_DIRECTORY [008-cancel]")
+        raise SystemExit(
+            "usage: verify_native_lifecycle_control_20261027.py EVIDENCE_DIRECTORY [008-cancel|010-timeout]"
+        )
     print(json.dumps(verify(Path(sys.argv[1]), *sys.argv[2:]), sort_keys=True))

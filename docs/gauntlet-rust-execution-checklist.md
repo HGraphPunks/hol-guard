@@ -419,6 +419,13 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
       implemented; the 33-test Mac rootfs suite and Mac/ARM Clippy/static
       compilation pass. Fresh native timeout verification and qualified
       role scoring remain open. Parent-exit counts remain unchanged.
+      At `35852bd6`, fresh timeout `e2c701baf1475001` passes independent
+      Native 124/SDK error/Post, held-child/dead-overlay and cleanup readback.
+      Replay refuses in 526.615 ms; 233 worker files remain intact. Native
+      ARM passes 179 worker/40 rootfs tests plus subprocess, and the 33-test
+      Mac rootfs suite and affected Clippy/builds pass. The same-source
+      cancellation regression remains pending. All qualification flags stay
+      false; complete role scoring and source-matched conformance stay open.
       See [deterministic controls](gauntlet-rust-native-deterministic-controls.md).
   - [x] Run fresh current-source Native success, timeout and cancellation
     through the complete Rust worker on the published 3.57.0 runtime. GNU actor

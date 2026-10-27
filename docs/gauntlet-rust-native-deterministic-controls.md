@@ -290,6 +290,30 @@ retained bytes. A regression rejects a live child or substituted inode.
 The 33-test Mac rootfs suite and Mac/ARM Clippy/static compilation pass.
 Fresh native verification remains pending.
 
+At source `35852bd601d35709b79b64f69466faeaa55ad1d9`, fresh timeout
+`e2c701baf1475001` passes the bounded diagnostic and independent host
+readback. The actual Native sink returns 124, Root observes held-child death,
+and both ready-file readbacks retain the original bytes at link count zero.
+The SDK receives exactly that captured error output with `isError=true` and
+completes the matching Post hook. Root then drains product/SDK/MCP resources
+and checks the physical lower paths are absent. Independent verification
+joins the compiled fixture, child/executable/ancestry and 61 outside samples,
+Native capture, SDK/MCP wire state and unchanged physical SQLite records.
+Replay refuses in 526.615 ms with all 233 worker files preserved. Native ARM
+passes 179 worker and 40 rootfs tests plus subprocess; Mac passes the
+33-test rootfs suite, with affected Mac/ARM Clippy and binaries clean.
+
+The timeout report is
+`161bca5a46f538e1a43f2c1c66d4ff6298df35c021ba041e2561a077f799f1ef`.
+Its 140-member / 1,095,680-byte export is
+`58cf57b14a72270858b2787dabd955a77dc65c259e49864e5ca6c55037beb276`.
+Select `010-timeout` in the successful lifecycle reader. This source's
+five-member / 65,945,600-byte input bundle is
+`8a5c6d89946133120bdf4c8d09796240781774e2124e2cd5a4141a83a18fc9d9`.
+The older failures and successful cancellation remain immutable. A fresh
+same-source cancellation regression is running separately. All current
+qualification and outside-key admission flags stay false; no model calls ran.
+
 Remaining work includes live detached-lifecycle verification, kernel/mount authority,
 provider mapping, complete role scoring,
 outside signing-key admission and fresh current-source staging/installed

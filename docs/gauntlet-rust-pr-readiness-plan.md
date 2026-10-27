@@ -607,7 +607,16 @@ approval ceremony for routine work already authorized by this request.
   exact held inode and unchanged bytes; a regression rejects live-child or
   inode substitution. The 33-test Mac rootfs suite and Mac/ARM Clippy/static
   compilation pass; fresh native timeout verification remains open.
-- Next: verify corrected detached-lifecycle roles and finish deterministic role scoring, then
+- 2026-10-27: timeout `e2c701baf1475001` at `35852bd6` passes the actual
+  SDK/MCP/Root diagnostic and independent host readback. The genuine 124
+  capture, SDK error content/flag and Post bind correctly; held-child death,
+  retained zero-link readiness bytes, cleanup and physical lower absence
+  are verified. Replay refuses in 526.615 ms with 233 worker files preserved.
+  Native ARM passes 179 worker/40 rootfs tests plus subprocess; the 33-test
+  Mac rootfs suite and affected Clippy/builds pass. A same-source cancellation
+  regression remains underway. The lifecycle checkpoint is pushed to the
+  fork, with failed attempts retained and all qualification flags false.
+- Next: verify the same-source cancellation regression and finish deterministic role scoring, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;
