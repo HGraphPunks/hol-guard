@@ -333,6 +333,12 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
       natively as Root on ARM; host readback verifies every ELF, result and
       real catalog producer record. Root peer/proxy/SDK integration remains
       pending; see [MCP proof](gauntlet-rust-mcp-service-proof-20261027.md).
+    - [x] Add Root-private SQLite and fixed upstream/resource/gate listeners,
+      with exclusive creation, held/visible inode checks, descriptor isolation,
+      sticky custody refusal and conservative partial-startup retirement.
+      Seven new tests pass natively as Root on ARM; the worker suite passes
+      164 tests with 24 existing ignores. Actual peer, proxy and SDK MCP
+      execution remain open; see [Root boundary proof](gauntlet-rust-mcp-root-boundary-proof-20261027.md).
   - [x] Run fresh current-source Native success, timeout and cancellation
     through the complete Rust worker on the published 3.57.0 runtime. GNU actor
     ABI preflight refuses the earlier static actor before artifact creation;

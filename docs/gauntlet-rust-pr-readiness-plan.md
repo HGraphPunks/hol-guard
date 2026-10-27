@@ -448,6 +448,12 @@ approval ceremony for routine work already authorized by this request.
   `5433f744`, with no failures/ignores. Independent host readback verifies
   the four ELF inputs, 15 result members and six actual catalog fixture
   producer records. No Root proxy/SDK integration or Guard score is inferred.
+- 2026-10-27: Root-owned SQLite and all seven families' fixed listeners now
+  enforce held/visible custody, exclusive initialization and scoped retirement.
+  All seven new custody tests pass natively as Root on ARM; the worker suite
+  passes 164 tests with 24 existing ignores. The independent reader checks
+  both original VM result exports. This does not authenticate a connection or
+  establish process/stream drain; see [Root boundary proof](gauntlet-rust-mcp-root-boundary-proof-20261027.md).
 - Next: finish Native MCP/service ownership, independent scoring and
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)

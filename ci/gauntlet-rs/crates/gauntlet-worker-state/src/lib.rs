@@ -237,6 +237,14 @@ mod job_slice_guard;
 mod launch_plan;
 mod native_job_spec;
 pub use native_job_spec::{NativeJobExecution, NativeJobSpec};
+#[cfg(target_os = "linux")]
+mod native_mcp_store;
+#[cfg(target_os = "linux")]
+pub use native_mcp_store::NativeMcpWorld;
+#[cfg(target_os = "linux")]
+mod native_mcp_sockets;
+#[cfg(target_os = "linux")]
+pub use native_mcp_sockets::NativeMcpSockets;
 mod native_sdk_protocol;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_sdk_result;
