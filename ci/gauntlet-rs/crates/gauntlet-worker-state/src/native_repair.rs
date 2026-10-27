@@ -59,6 +59,13 @@ pub(crate) fn verified_receipt(
         .ok_or("repair running marker missing")?;
     let (spec, preparation) = load(&request(source, job, deployment)?, generation)?;
     let receipt = NativeRepairReceipt::parse(&raw)?;
+    let sdk = matches!(
+        spec.execution,
+        crate::NativeJobExecution::SdkTransport { .. }
+    );
+    if sdk != (receipt.schema == "hol-gauntlet-native-worker-repair.v2") {
+        return Err("native repair schema differs from the original SDK/non-SDK profile".into());
+    }
     receipt.validate(
         source,
         job,
@@ -69,6 +76,9 @@ pub(crate) fn verified_receipt(
         &spec.preparation_sha256,
     )?;
     controller_absent(&running)?;
+    if sdk {
+        crate::native_sdk_quiescence::require_sdk_quiescence(&spec, &preparation)?;
+    }
     let current = gauntlet_cell_rootfs::verify_quiescent_preparation(&preparation)?;
     if receipt.cleanup["quiescent"] != current {
         return Err("repaired job custody or quiescence changed".into());
@@ -120,9 +130,21 @@ pub fn repair_native_worker(
         .ok_or("native job lacks a retained running identity")?;
     controller_absent(&running)?;
     let (spec, preparation) = load(&run, generation)?;
+    let sdk = matches!(
+        spec.execution,
+        crate::NativeJobExecution::SdkTransport { .. }
+    );
+    if sdk {
+        crate::native_sdk_quiescence::require_sdk_quiescence(&spec, &preparation)?;
+    }
     lease.verify(&journal.root).map_err(|e| e.to_string())?;
     crate::builder_image_context::verify_python_lock(&python).map_err(|e| e.to_string())?;
-    let cleanup = gauntlet_cell_rootfs::recover_quiescent_preparation(&preparation)?;
+    let mut cleanup = gauntlet_cell_rootfs::recover_quiescent_preparation(&preparation)?;
+    if sdk {
+        crate::native_sdk_quiescence::require_sdk_quiescence(&spec, &preparation)?;
+        cleanup["sdk_agent_absent"] = json!(true);
+        cleanup["sdk_profile_absent"] = json!(true);
+    }
     controller_absent(&running)?;
     if journal
         .running_marker(job, source, deployment, generation)
@@ -135,7 +157,12 @@ pub fn repair_native_worker(
     lease.verify(&journal.root).map_err(|e| e.to_string())?;
     crate::builder_image_context::verify_python_lock(&python).map_err(|e| e.to_string())?;
     let receipt = NativeRepairReceipt {
-        schema: "hol-gauntlet-native-worker-repair.v1".into(),
+        schema: if sdk {
+            "hol-gauntlet-native-worker-repair.v2"
+        } else {
+            "hol-gauntlet-native-worker-repair.v1"
+        }
+        .into(),
         source_sha: source.into(),
         job_id: job.into(),
         deployment_digest: deployment.into(),

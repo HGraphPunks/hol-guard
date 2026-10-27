@@ -87,7 +87,8 @@ retained bounded helper processes, readonly public helpers, actual Bun binding,
 same-UID peer negative, complete original Bash input, one-use contained route,
 captured-output delivery and replay refusal. It uses the unchanged SDK v1
 synthetic-stream adapter, with Bash only and no MCP or provider connection.
-Its first live execution remains pending. The profile always returns
+Its first live execution refused before agent creation, as recorded below.
+The profile always returns
 `invalid-evidence`; independent Guard scoring, host signing-key admission,
 MCP and fresh six-role staging/installed conformance remain open.
 
@@ -101,3 +102,25 @@ job's SDK label and no scoped SDK AppArmor profile before writing a terminal.
 An uncertain cleanup stays an unknown job rather than gaining a terminal
 from the controller's claim alone. Historical v1/v2 report shapes remain
 unchanged.
+
+The first live job, `e2c701baf1472501` at source `c62ca717`, retained
+`unsafe SDK Root helper`: the new 16 MiB helper bound excluded the existing
+35,455,464-byte pinned Podman binary. Native cleanup and full prefix/SDK
+readback completed, but the independent worker postcheck hit the same bound
+and correctly left no terminal. The failed archive retains all 44 members,
+245,760 bytes, SHA-256
+`d3825a288cd282ca7e5882bb2b15ded274ff0551340ba3a5c0a042aa72df14ac`.
+All 54 prior worker files are unchanged. No SDK agent or SDK import occurred.
+
+The follow-up reader uses the existing image-operation reader's 128 MiB
+Podman bound, preserving the exact outside executable digest and custody
+requirements; the AppArmor parser retains its 16 MiB bound. Read-only SDK
+absence checks use bounded anonymous non-executable memory files so repeated
+repair verification creates no disk slot. A distinct v2 repair receipt
+requires outside SDK container/profile absence in addition to the original
+Native quiescence checks. It keeps the job consumed with `status: aborted`,
+unknown exit status and no eligibility/model credit. Original v1 repair
+semantics remain unchanged. Actual SDK repair and the corrected fresh control
+remain pending. The corrected source passes all 446 Mac tests and Mac/ARM64
+warnings-denied Clippy; log `rust-workspace-native-sdk-transport-026.log`
+has SHA-256 `01f1a95f9e2ee3ba404a9f5f0bc7ea4cdf1f87c9b95e0a8f962f05096848d417`.

@@ -4,7 +4,7 @@ use rustix::fs::{fstat, fsync, openat, Mode, OFlags};
 use sha2::{Digest, Sha256};
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
-use std::os::fd::OwnedFd;
+use std::os::fd::{FromRawFd, OwnedFd};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
 use std::process::{Child, Command, Output, Stdio};
@@ -27,6 +27,13 @@ pub(crate) fn verify_helper(path: &str, pin: &str) -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
     let before = fstat(&fd).map_err(|e| e.to_string())?;
+    // Match the existing image-operation reader: the pinned Podman binary is
+    // 35,455,464 bytes on the owned VM. Parser inputs retain the 16 MiB bound.
+    let maximum = if path == "/usr/bin/podman" {
+        128 * 1024 * 1024
+    } else {
+        16 * 1024 * 1024
+    };
     if before.st_uid != 0
         || before.st_gid != 0
         || before.st_nlink != 1
@@ -34,14 +41,14 @@ pub(crate) fn verify_helper(path: &str, pin: &str) -> Result<(), String> {
         || before.st_mode & 0o022 != 0
         || before.st_mode & 0o111 == 0
         || before.st_size <= 0
-        || before.st_size > 16 * 1024 * 1024
+        || before.st_size > maximum
     {
         return Err("unsafe SDK Root helper".into());
     }
     let mut raw = Vec::new();
     let file = File::from(fd);
     (&file)
-        .take(16 * 1024 * 1024 + 1)
+        .take(maximum as u64 + 1)
         .read_to_end(&mut raw)
         .map_err(|e| e.to_string())?;
     if !crate::dependency_prefix_meta::same(&before, &fstat(&file).map_err(|e| e.to_string())?)
@@ -67,9 +74,6 @@ pub(crate) struct RootChild {
 impl RootCommands {
     pub(crate) fn new(job: &Path, podman: &str, parser: &str) -> Result<Self, String> {
         Self::in_directory(job, "sdk-processes", podman, parser)
-    }
-    pub(crate) fn for_post(job: &Path, podman: &str, parser: &str) -> Result<Self, String> {
-        Self::in_directory(job, "sdk-final-processes", podman, parser)
     }
     fn in_directory(job: &Path, name: &str, podman: &str, parser: &str) -> Result<Self, String> {
         verify_helper("/usr/bin/podman", podman)?;
@@ -118,6 +122,30 @@ impl RootCommands {
         let output = log("stdout")?;
         let errors = log("stderr")?;
         fsync(&self.directory).map_err(|e| e.to_string())?;
+        RootChild::spawn(path, args, output, errors)
+    }
+    pub(crate) fn run(
+        &mut self,
+        parser: bool,
+        args: &[String],
+        seconds: u64,
+        cancel: &AtomicBool,
+    ) -> Result<Output, String> {
+        let mut child = self.spawn(parser, args)?;
+        let output = child.wait(seconds, cancel)?;
+        verify_helper(
+            if parser {
+                "/usr/sbin/apparmor_parser"
+            } else {
+                "/usr/bin/podman"
+            },
+            if parser { &self.parser } else { &self.podman },
+        )?;
+        Ok(output)
+    }
+}
+impl RootChild {
+    fn spawn(path: &str, args: &[String], output: File, errors: File) -> Result<Self, String> {
         let mut command = Command::new(path);
         command
             .args(args)
@@ -150,29 +178,14 @@ impl RootCommands {
             consumed: false,
         })
     }
-    pub(crate) fn run(
-        &mut self,
-        parser: bool,
-        args: &[String],
-        seconds: u64,
-        cancel: &AtomicBool,
-    ) -> Result<Output, String> {
-        let mut child = self.spawn(parser, args)?;
+    fn wait(&mut self, seconds: u64, cancel: &AtomicBool) -> Result<Output, String> {
         let deadline = Instant::now() + Duration::from_secs(seconds);
         loop {
-            if let Some(output) = child.poll()? {
-                verify_helper(
-                    if parser {
-                        "/usr/sbin/apparmor_parser"
-                    } else {
-                        "/usr/bin/podman"
-                    },
-                    if parser { &self.parser } else { &self.podman },
-                )?;
+            if let Some(output) = self.poll()? {
                 return Ok(output);
             }
             if cancel.load(Ordering::Acquire) || Instant::now() >= deadline {
-                child.stop()?;
+                self.stop()?;
                 return Err("SDK Root helper cancelled or exceeded deadline".into());
             }
             std::thread::sleep(Duration::from_millis(10));
@@ -237,4 +250,32 @@ impl Drop for RootChild {
     fn drop(&mut self) {
         let _ = self.stop();
     }
+}
+
+/// Read-only post/repair checks keep bounded output in anonymous non-executable
+/// memory files. Reopening a repair receipt must not create another disk slot.
+pub(crate) fn read_only_podman(pin: &str, args: &[String]) -> Result<Output, String> {
+    verify_helper("/usr/bin/podman", pin)?;
+    let anonymous = || -> Result<File, String> {
+        // SAFETY: the static name is NUL-terminated; a successful syscall
+        // returns a newly owned FD. 0x8 is Linux MFD_NOEXEC_SEAL (kernel >=6.3).
+        let raw = unsafe {
+            libc::syscall(
+                libc::SYS_memfd_create,
+                c"hol-gauntlet-sdk-read-only".as_ptr(),
+                libc::MFD_CLOEXEC | 0x8,
+            )
+        };
+        if raw < 0 {
+            return Err(std::io::Error::last_os_error().to_string());
+        }
+        // SAFETY: transfer sole ownership of the just-created descriptor.
+        let file = unsafe { File::from_raw_fd(raw as i32) };
+        rustix::fs::fchmod(&file, Mode::from_bits_truncate(0o600)).map_err(|e| e.to_string())?;
+        Ok(file)
+    };
+    let mut child = RootChild::spawn("/usr/bin/podman", args, anonymous()?, anonymous()?)?;
+    let output = child.wait(20, &AtomicBool::new(false))?;
+    verify_helper("/usr/bin/podman", pin)?;
+    Ok(output)
 }

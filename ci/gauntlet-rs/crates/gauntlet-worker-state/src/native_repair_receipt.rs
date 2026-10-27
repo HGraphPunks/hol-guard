@@ -50,7 +50,8 @@ impl NativeRepairReceipt {
         running: &str,
         preparation: &str,
     ) -> Result<(), String> {
-        if self.schema != "hol-gauntlet-native-worker-repair.v1"
+        let sdk = self.schema == "hol-gauntlet-native-worker-repair.v2";
+        if (!sdk && self.schema != "hol-gauntlet-native-worker-repair.v1")
             || self.source_sha != source
             || self.job_id != job
             || self.deployment_digest != deployment
@@ -65,7 +66,7 @@ impl NativeRepairReceipt {
             || self.guard_causality_verified
             || self.exit_code.is_some()
             || self.cleanup.as_object().is_none_or(|o| {
-                o.len() != 4
+                o.len() != if sdk { 6 } else { 4 }
                     || [
                         "quiescent",
                         "image_unmounted",
@@ -78,6 +79,9 @@ impl NativeRepairReceipt {
             || self.cleanup["quiescent"].as_object().is_none()
             || self.cleanup["image_unmounted"] != true
             || self.cleanup["active_pointer_absent"] != true
+            || (sdk
+                && (self.cleanup["sdk_agent_absent"] != true
+                    || self.cleanup["sdk_profile_absent"] != true))
             || !(self.cleanup["active_pointer_sha256"].is_null()
                 || self.cleanup["active_pointer_sha256"]
                     .as_str()
@@ -131,5 +135,20 @@ mod tests {
             bad_value[key] = bad;
             assert!(validate(&bad_value).is_err(), "{key}");
         }
+        let mut sdk = value.clone();
+        sdk["schema"] = json!("hol-gauntlet-native-worker-repair.v2");
+        assert!(validate(&sdk).is_err());
+        sdk["cleanup"]["sdk_agent_absent"] = json!(true);
+        sdk["cleanup"]["sdk_profile_absent"] = json!(true);
+        validate(&sdk).unwrap();
+        for key in ["sdk_agent_absent", "sdk_profile_absent"] {
+            let mut changed = sdk.clone();
+            changed["cleanup"][key] = json!(false);
+            assert!(validate(&changed).is_err());
+            changed["cleanup"].as_object_mut().unwrap().remove(key);
+            assert!(validate(&changed).is_err());
+        }
+        sdk["schema"] = json!("hol-gauntlet-native-worker-repair.v1");
+        assert!(validate(&sdk).is_err());
     }
 }

@@ -373,6 +373,14 @@ approval ceremony for routine work already authorized by this request.
   42,324 source, 20 result and three binary-input members. Root passes 141
   tests with 24 existing fixture ignores. SDK/Bun remain unexecuted. See
   [SDK publication proof](gauntlet-rust-native-sdk-publication-vm-proof-20261027.md).
+- 2026-10-27: source `c62ca717` adds the actual SDK/Bash transport and
+  independent worker cleanup postcondition. The first live attempt refuses
+  before agent creation because its new helper bound excludes the already
+  pinned 35 MB Podman; original unknown-job bytes and all 44 failed export
+  members remain retained. The corrected reader matches the existing image
+  reader's Podman bound, and SDK quiescent recovery gets its own v2 receipt.
+  Mac passes all 446 tests and Mac/ARM64 Clippy. Actual repair and a fresh SDK
+  attempt remain next; no SDK/Guard/model credit is supplied.
 - Next: independent SDK-backed controls, Native MCP ownership and fresh conformance.
   The next Rust slice adds closed SDK request/route state, held kernel peer
   identity and source-pinned inert SDK/Bun publication; see the

@@ -1,20 +1,15 @@
 //! Outside-worker postcondition. A controller's own cleanup claim cannot
 //! close a job while SDK container metadata or its scoped LSM profile survives.
-use crate::native_sdk_process::RootCommands;
+use crate::native_sdk_process::read_only_podman;
 use crate::NativeJobSpec;
 use gauntlet_cell_rootfs::CellPreparation;
 use std::io::Read;
-use std::sync::atomic::AtomicBool;
 pub(crate) fn require_sdk_quiescence(
     job: &NativeJobSpec,
     spec: &CellPreparation,
 ) -> Result<(), String> {
-    let parser = spec
-        .host_helper_sha256("/usr/sbin/apparmor_parser")
-        .ok_or("SDK post parser pin required")?;
-    let mut commands = RootCommands::for_post(&job.job_root(), &spec.podman_sha256, parser)?;
-    let output = commands.run(
-        false,
+    let output = read_only_podman(
+        &spec.podman_sha256,
         &[
             "ps".into(),
             "--all".into(),
@@ -22,8 +17,6 @@ pub(crate) fn require_sdk_quiescence(
             format!("label=hol.gauntlet.sdk.job={}", job.job_id),
             "--format=json".into(),
         ],
-        20,
-        &AtomicBool::new(false),
     )?;
     if !output.status.success() {
         return Err("SDK post container inventory unavailable".into());
