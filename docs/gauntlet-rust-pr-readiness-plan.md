@@ -321,7 +321,15 @@ approval ceremony for routine work already authorized by this request.
   prefix and exact Python requirement oracle. Actual Root ARM64 passes 135
   library tests with 24 preexisting fixture ignores. All data stays unadmitted;
   see [publication proof](gauntlet-rust-native-runtime-publication-vm-proof-20261026.md).
-- Next: source-matched independent Native controls and fresh conformance.
+- 2026-10-26: the first current Native apparatus worker fails before readiness
+  because a static musl actor cannot load pinned glibc libseccomp. Its actual
+  controller exit 2, null report, invalid-evidence terminal and complete
+  independent cleanup remain retained. Add GNU actor ABI preflight before
+  artifact mutation and at full readback, a bounded inert build reader and
+  ARM64 CI release-artifact check. All 427 Mac workspace tests and
+  warnings-denied Clippy pass. The new GNU artifact and fresh worker cases
+  remain next; see [retained failure](gauntlet-rust-native-current-worker-failure-20261026.md).
+- Next: current Native worker lifecycle, independent controls and fresh conformance.
   No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.

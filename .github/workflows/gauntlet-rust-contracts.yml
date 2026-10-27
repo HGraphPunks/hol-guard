@@ -186,6 +186,15 @@ jobs:
         run: rustup toolchain install 1.88.0 --profile minimal
       - name: Link all Rust Gauntlet executables on Linux ARM64
         run: cargo +1.88.0 build --manifest-path ci/gauntlet-rs/Cargo.toml --workspace --bins --locked
+      - name: Build and inspect the deployable glibc actor
+        env:
+          CARGO_PROFILE_RELEASE_DEBUG: 0
+          CARGO_PROFILE_RELEASE_STRIP: symbols
+        run: |
+          cargo +1.88.0 build --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-product-cell --bin gauntlet-product-cell --release --locked
+          actor=ci/gauntlet-rs/target/release/gauntlet-product-cell
+          pin=$(sha256sum "$actor" | cut -d ' ' -f 1)
+          ci/gauntlet-rs/target/debug/gauntlet-native-actor-verify "$actor" "$pin"
       - name: Exercise the authenticated Rust/Python bridge on Linux ARM64
         run: cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml -p gauntlet-agent-bridge --locked
       - name: Compare Python product-cell frame bytes and realm separation on ARM64

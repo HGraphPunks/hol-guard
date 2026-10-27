@@ -240,6 +240,9 @@ fn compare_files(
         }
         observed.insert(name.clone(), pin.clone());
     }
+    if manifest.native_actor_sha256().is_some() {
+        crate::verify_native_actor_elf(&files[crate::NATIVE_CELL_ACTOR])?;
+    }
     Ok(PrivateCellInventory {
         manifest_sha256: manifest.manifest_sha256.clone(),
         files: observed,

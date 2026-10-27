@@ -35,6 +35,7 @@ mod local_conformance_package;
 mod local_conformance_runtime;
 mod model_budget;
 mod model_endpoint;
+mod native_actor_elf;
 mod native_review_summary;
 mod native_transport_relations;
 mod omp_transcript;
@@ -128,6 +129,7 @@ pub use model_budget::{read_signed_model_budget, verify_signed_model_budget};
 pub use model_endpoint::{
     model_endpoint, verify_advertised_model, verify_model_endpoint, ModelEndpoint, DEFAULT_BASE_URL,
 };
+pub use native_actor_elf::verify_native_actor_elf;
 pub use native_review_summary::{
     native_review_completed, recompute_native_review_summary, verify_native_review_summary,
 };

@@ -5,6 +5,11 @@ This independent Cargo workspace is an implementation slice of the
 Gauntlet's trusted code separately from the HOL Guard product workspace in
 `rust/`; a candidate product build must never supply its own verifier.
 
+The native product-cell actor has a separate
+[GNU/glibc release build contract](../../docs/gauntlet-rust-native-actor-build.md).
+The Root worker and constructor may be static musl; the actor must support
+the pinned dynamic libseccomp ABI within its existing 2-MiB bound.
+
 `gauntlet-contracts` accepts bounded JSON byte records, rejects
 duplicate keys and nonfinite values, reproduces the Python canonical JSON
 bytes and SHA-256 digest, and applies the Python depth, node, byte and decimal

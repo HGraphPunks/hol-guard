@@ -29,6 +29,7 @@ pub enum PrivateCellShadowError {
     InvalidPins,
     LeaseUnavailable,
     SourceMismatch,
+    ActorAbiUnavailable,
     ShadowMismatch,
     ExistingTarget,
     WriteUncertain,
@@ -42,6 +43,9 @@ impl fmt::Display for PrivateCellShadowError {
             Self::InvalidPins => "exact private-cell outside pins required",
             Self::LeaseUnavailable => "Rust or Python worker lease unavailable",
             Self::SourceMismatch => "pinned old actor or initializer differs from source bytes",
+            Self::ActorAbiUnavailable => {
+                "native actor requires the bounded glibc libseccomp loader ABI"
+            }
             Self::ShadowMismatch => "one-use candidate shadow root unavailable",
             Self::ExistingTarget => "one-use private-cell artifact target already exists",
             Self::WriteUncertain => "private-cell artifact creation is incomplete or uncertain",
@@ -263,6 +267,10 @@ fn prepare_artifacts(
         MAX_ACTOR,
         runtime.actor_mode(),
     )?;
+    if runtime == ArtifactRuntime::RustV1 {
+        gauntlet_evidence::verify_native_actor_elf(&actor)
+            .map_err(|_| PrivateCellShadowError::ActorAbiUnavailable)?;
+    }
     let initializer = source_bytes(
         &source,
         "initializer",
