@@ -237,6 +237,11 @@ approval ceremony for routine work already authorized by this request.
   targets, with zero failures/ignores, and workspace Clippy passes. The
   retained dependency prefix's MCP 1.28.1 does not satisfy the candidate's
   >=1.30.0 requirement; a new compatible prefix remains necessary.
+- 2026-10-26: merged 33 newer upstream commits through `9dd2fefb` at
+  `e76b3763` without conflicts or Gauntlet-source changes. Matching Native and
+  command compiler rebuild/program verification pass. The expanded Mac
+  suite passes 757 tests plus three subtests, with zero failures/errors/skips;
+  three source/install-plan tests also pass. See [upstream synchronization](gauntlet-rust-upstream-sync-9dd2fefb.md).
 - Next: prepare compatible dependencies, then deterministic authority. No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.
