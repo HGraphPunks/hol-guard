@@ -397,8 +397,18 @@ approval ceremony for routine work already authorized by this request.
   A scoped held-device restoration has a durable receipt. New Rust source
   isolates OCI stdin with EOF pipes, checks host-device custody and supports
   exact pending-image recovery; 454 Mac tests and Mac/ARM Clippy pass.
-- Next: prove the scoped pending-image recovery and corrected SDK benign
-  control, then finish Rust Native MCP/service ownership, independent scoring
+- 2026-10-27: source `5c09afa2` repairs the exact pending image lease, preserves
+  104 original worker files and reopens the consumed/aborted receipt exactly.
+  Its fresh SDK job passes the benign Node/npm command, captured delivery,
+  replay refusals and cleanup, but the new host character-device timestamp
+  predicate refuses; type/ownership/permissions and inode identity remain
+  correct. The inert 126-member reader retains the failed outcome, missing
+  outside post-exec Bun sample and all 117 worker files. A narrow identity
+  check and executable-generation sampling are next. Upstream `759130ab`
+  is fetched for the next consolidation; the current VM artifacts remain
+  pinned to their recorded source.
+- Next: prove the corrected SDK benign control with actual outside Bun
+  readback, then finish Rust Native MCP/service ownership, independent scoring
   and fresh conformance. The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;
   qualification, inference, operational cutover and final handoff stay open.

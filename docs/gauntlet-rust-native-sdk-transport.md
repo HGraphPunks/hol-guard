@@ -4,11 +4,12 @@ The current Native hook diagnostic passes on the owned ARM VM; see the
 [retained transport proof](gauntlet-rust-native-hook-vm-proof-20261027.md).
 The Rust worker now owns SDK request state, dependency publication, gate and
 hook listeners, fixed Podman launch and cleanup, and the Native Bash route.
-An owned-VM attempt completes an actual SDK session and delivers
-the exact Native-captured Bash output. The benign test still fails because
-npm aborts, so the complete diagnostic remains failed and ineligible.
-MCP, conformance and Guard scoring remain open. The parent checklist remains
-24/62 complete.
+The owned VM completes an actual SDK session, benign Node/npm fixture,
+exact Native-captured Bash delivery, replay refusals and cleanup. The latest
+complete diagnostic still fails an overstrict host-device timestamp check;
+its outside sampler also misses Bun's post-exec image. Corrected source and
+sampling await a fresh run. MCP, conformance and Guard scoring remain open.
+The parent checklist remains 24/62 complete.
 
 `NativeSdkRequest` accepts the explicitly bounded Bash-only SDK hook profile
 and the separate contained-execution request. It preserves complete original
@@ -377,3 +378,52 @@ ignores, both warnings-denied Clippy targets and ARM64 builds. Workspace log
 `f7224e8154c685cb7995d02b454f1dfcdeda6c8b1e74d7d471de90c54b6027c5`.
 Live image recovery and a fresh SDK run remain next. The npm stderr has not
 yet been captured by the v2 fixture.
+
+The exact pending-image recovery now passes at `5c09afa2`, including wrong
+pins, both busy leases and byte-identical reopening. Receipt
+`9f5ae3f9fd0839efd3e32f0b6ee4a28b14823f150cdc7d95611d446c09e303d6`
+records the original job consumed/aborted, unknown exit and removal of only
+its owned image mount/pointer. All 104 original worker files remain unchanged.
+Root passes 155 worker tests with 24 existing fixture ignores, 31 rootfs
+tests and one subprocess check.
+
+Fresh job `e2c701baf1473401` completes the genuine SDK route and the benign
+fixture with exit 0, including Node 22.22.2, npm 10.9.7, the exact pinned Node
+ELF, physical effect, context projection, one-use/replay checks and cleanup.
+Its final controller still fails because the new generic file-metadata check
+requires the host character device's timestamps to remain identical. The
+device/inode, type, UID/GID0, permissions, link count and major/minor remain
+correct; ctime changed. New source compares those device custody properties
+explicitly and retains timestamps before/after as observations. It preserves
+all ownership and permission refusals. Two native tests cover timestamp-only
+changes and actual device substitution; ARM Clippy and compilation pass.
+
+The v1 outside courier also samples that Bun PID during the runtime's
+pre-exec stage and then deduplicates solely by PID/start tick. It therefore
+does not retain the later Bun executable sample for this attempt. The host
+reader reports `outside_bun_executable_observed: false` instead of substituting
+the worker's own measurement. The next courier must resample each executable
+inode/argv generation, and the next SDK proof requires the actual Bun sample.
+The worker's separate held pre-import gate did verify Bun; this distinction
+does not confer independent benchmark qualification.
+
+The 126-member, 614,400-byte export has SHA-256
+`b85d2c58faff9dbcf00d7e190d3efa26ce8cf30d884c7c7e8f0a3f5256f03deb`;
+host prelaunch pin
+`261afb13e9e68f8b6887227d16313892f1f715ba5a9e8f03abd0138d230dfcfe`.
+The inert custody reader verifies all input/result members, the device
+restoration and pending-image recovery against the original failure, actual
+SDK/Native output and Node/effect bytes, the timestamp refusal, the fresh
+wrong-publication refusal, and preservation of 117 worker files. The attempt
+remains failed and ineligible. A fresh device-identity/executable-generation
+proof is next; MCP, Guard causality and inference remain open.
+
+The read-only proof sampler is now versioned as
+`proofs/native_sdk_kernel_sampler_20261027.py`. It scopes reads to the exact
+job, holds pidfds/executable descriptors and resamples each executable
+device/inode/argv generation. It does not control jobs or grant admission.
+The shared inert SDK readback requires a post-exec Bun executable sample by
+default; the retained generation-034 reader explicitly reports its absence.
+The Linux-only device identity correction and its two native tests compile
+with warnings-denied ARM Clippy. The unchanged Mac code retains its 454-test
+pass; fresh native tests and the generation-035 SDK run remain next.
