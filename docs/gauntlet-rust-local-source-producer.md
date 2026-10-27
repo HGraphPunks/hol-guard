@@ -37,3 +37,15 @@ and VM before launch. Result reconciliation refuses a different target or
 transport. Historical v2/v3 records retain their schemas and 2-KiB bound;
 target-bound v4 records have a 4-KiB bound. These intent records do not admit
 the built artifact or establish VM attestation.
+
+At producer source `6bb4cbfbc3ebfc502dd8b926da085e7d71ea853c`, the measured
+2,806,736-byte Mac executable has SHA-256
+`c0b3f45621a8c81732f1bcdef51d4554df9539023d1b26588bddd14a31b19ae5`.
+It captured the full exact older candidate `84549fd4` under fresh job
+`e2c701baf1471301`: seven regular tar members, 55,702,249 compressed bytes,
+archive SHA-256 `21363432af545de03c24609b0bee78016921e0577e308f05953b51e49b58d237`.
+The source receipt is
+`27545120732b77103618baecedf0c3a684d84483c8a9a179f66e77897abb3218`.
+Replay exited 2 and preserved both hashes. No VM/build/model was launched by
+this proof. Its records and private Git objects remain in the host evidence
+directory under `native-rust-source-state-004`.

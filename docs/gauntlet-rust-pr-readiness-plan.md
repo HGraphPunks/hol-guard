@@ -204,6 +204,39 @@ approval ceremony for routine work already authorized by this request.
   The actual Root suite passes 120 tests with 24 existing fixture-specific
   ignores separate. No Python control-plane worker is installed or job
   dispatched. See [initialization proof](gauntlet-rust-native-initialization-vm-proof-20261026.md).
-- Next: complete source-matched deterministic authority. No new
+- 2026-10-26: installed the exact 431-file current controller source through
+  Rust on the new VM and independently verified its 400 files/411 entries.
+  Build integration corrected v1's loose build parent using explicit layout
+  v2 while retaining the measured empty original directory and receipt.
+  Bounded Rust stdin capture at `c80ac788` now stages the actual 54.8-MB 3.57.0
+  source archive through the downstream candidate reader; wrong hash/length,
+  both leases and replay cases pass with rejected partials retained. The
+  actual Root suite passes 122 tests with 24 existing fixture-specific ignores
+  separate. See [native source proof](gauntlet-rust-native-source-vm-proof-20261026.md).
+- 2026-10-26: source `afbff8e1` adds an explicit host candidate VM selector
+  and v4 prelaunch pins binding its exact transport and target. Reconciliation
+  refuses a different VM/transport; v2/v3 historical readers remain. The full
+  all-feature Mac workspace passes 405 tests with zero failures/ignores.
+  Two fresh candidate builds failed cleanly: wrong archive format, then Native
+  tests running before compilation. Both remain consumed. Source `84549fd4`
+  fixes the latter ordering, with 17 existing Python tests and three source
+  inventory/plan tests passing. The immutable 420-file baseline stays intact;
+  the current 431-file delta now has 68 changed and 11 added files, and the
+  independently matched controller tree is `681f2043…`. Fresh current-source
+  image/build execution is underway; Git-object archive creation remains an
+  explicit proof courier, independently checked by Rust.
+- 2026-10-26: fresh job `e2c701baf1471201` builds exact 3.57.0 source
+  `84549fd4`, with four selected and 187 full contained tests passing. Rust
+  captures its 24.2-MB artifact once, verifies/stages all 1,722 wheel entries,
+  and reconciles the retained result against the original target-bound host
+  pin. Outside kernel and final cleanup checks pass; Python independently
+  matches the complete wheel/native bytes. See [current candidate build](gauntlet-rust-native-candidate-build-20261026.md).
+  Rust source producer `6bb4cbfb` separately captures the full exact Git graph
+  and preserves it on replay refusal, replacing the proof courier for future
+  local captures. The complete Mac workspace now passes 407 tests across 210
+  targets, with zero failures/ignores, and workspace Clippy passes. The
+  retained dependency prefix's MCP 1.28.1 does not satisfy the candidate's
+  >=1.30.0 requirement; a new compatible prefix remains necessary.
+- Next: prepare compatible dependencies, then deterministic authority. No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.

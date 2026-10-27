@@ -49,8 +49,16 @@ and `hol-gauntlet-native-idmap-provision-20261026-001.log`, SHA-256
 The [Rust initializer](gauntlet-rust-native-initialization-vm-proof-20261026.md)
 subsequently created native storage and both permanent worker locks without
 installing a Python control-plane worker or dispatching a job.
+Its explicit [v2 layout and source capture](gauntlet-rust-native-source-vm-proof-20261026.md)
+correct the historical v1 build-parent mode while preserving the old directory
+and receipt.
 
-This establishes build headroom and system prerequisites. A reviewed Rust
-controller/worker generation, source archive, builder/executor images, fresh
-current-source candidate and six-plus-six conformance are still required.
-No candidate or model workload has run in this VM.
+Rust has installed source-bound inert controller generations and built a
+source-pinned builder image here. Two attempted candidate builds failed and
+cleaned up: the first received a working-tree archive; the second exposed a
+Native-dependent test running before Native was compiled. Their immutable
+records remain. A [corrected build](gauntlet-rust-native-candidate-build-20261026.md)
+passes with a fresh job/controller, complete wheel verification and inert
+staging. Compatible dependencies, reviewed execution artifacts and six-plus-six
+conformance are still required. No inference or quota reset has
+occurred.

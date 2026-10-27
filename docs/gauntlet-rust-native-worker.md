@@ -41,7 +41,10 @@ then reopens it through the actual candidate-build custody reader and writes
 a private ineligible source receipt. Mismatch/interruption retains a consumed
 partial slot; replay cannot overwrite it. No archive is unpacked or executed,
 and the historical guest-home transfer path remains a separate adapter.
-Live v2 initialization/source-capture composition proof is pending.
+The [v2 initialization/source proof](gauntlet-rust-native-source-vm-proof-20261026.md)
+passes with the actual 54.8-MB current-source Git archive and candidate reader,
+all refusal/replay cases and 122 actual Root tests. Rejected partials and the
+original v1 empty directory/receipt remain retained.
 
 The preparation is fixed at
 `/var/lib/hol-gauntlet-rust/native-jobs/<job>/preparation.v1.json`. Stage,
