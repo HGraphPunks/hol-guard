@@ -266,12 +266,17 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
       - [ ] Reconcile Guard decisions and cleanup from independently pinned inputs and post-run observations, then score all six controls and construct a fresh source-bound conformance package.
   - [ ] Write an immutable Rust-only deployment manifest and final config under the build-job-keyed shadow namespace after fresh conformance, then extend the fixed worker request/prelaunch reader to admit that exact namespace against outside host pins. The existing v1 reader hardcodes Python's `/opt/hol-gauntlet/candidates/<source>/config.json`, and that source directory already belongs to a retained Python candidate; a Rust run must not overwrite or silently reuse it.
 - [ ] Port product-cell isolation and six staging plus six installed deterministic controls; authenticate native Pre/Post and physical effects independently.
-  - The first worker attempt on the newly published exact-current runtime is
-    retained as failed-before-ready: a static musl actor cannot load the pinned
-    glibc libseccomp library. Its controller exit is 2 despite management RPC
-    success; outside cleanup is verified. GNU actor ABI preflight/build checks
-    now pass 427 Mac tests and Clippy; fresh VM cases remain pending. See the
-    [retained current-worker failure](gauntlet-rust-native-current-worker-failure-20261026.md).
+  - [x] Run fresh current-source Native success, timeout and cancellation
+    through the complete Rust worker on the published 3.57.0 runtime. GNU actor
+    ABI preflight refuses the earlier static actor before artifact creation;
+    all three controllers exit 0 and all resources drain. Two independent live
+    kernel observations match the actual actor/filter/namespace/resource tuple.
+    Host readback verifies all 117 export/ten input members, unchanged prefix,
+    terminal bindings and retained failures. Root passes 135 worker tests
+    (24 existing fixture ignores), 59 evidence and 23 rootfs plus one subprocess
+    check; Mac passes 427 tests and Mac/ARM64 Clippy. See the
+    [current worker proof](gauntlet-rust-native-current-worker-vm-proof-20261026.md).
+    This releases an apparatus effect, without a Guard decision or eligibility.
   - [x] Match Python's distinct product-cell HMAC frame schema, domain, roles and three frozen wire-byte vectors in Rust. Mac and offline Linux ARM64 parity tests passed; two live Rust/Python product-cell RPC directions passed on Mac, and the VM realm refused the same-key cell frame. Code pin `1ae40a54`; see [product-cell frame proof](gauntlet-rust-product-cell-frames-proof.md). Private bootstrap, actor/cgroup ownership, Guard effects and control verdicts remain open.
   - [x] Port the unprivileged product actor, measured one-use exec gate, Root layout reader, loopback topology checks and two-layer pinned libseccomp startup into `gauntlet-product-cell` at `cc6948cd`. Six Mac/eight isolated ARM unit tests and both-platform Clippy passed. The real ARM64 executable, driven by Python's existing authenticated client, passed all eight operations under both network profiles, including outside observation of the pre-release gate, fixed environment, actual binary I/O, release replay/foreign-handle refusal, output limits and clean exit. See [native product-cell proof](gauntlet-rust-product-cell-native-proof.md). These are disposable container apparatus tests with zero model requests; versioned VM artifacts, AppArmor/rootfs/supervisor integration, Guard/effect causality and conformance remain open.
   - [x] Add an explicit source-pinned v2 native artifact format, distinct one-use Rust artifact/config targets, and adapter/custody readers that bind native process arguments to the outside manifest and initializer pins. The focused Python regression suite passed 151 tests; Mac evidence/worker libraries passed 57 and ARM libraries passed 171 with 24 explicit VM tests separate. No AppArmor or isolation permission was relaxed. See [versioned native deployment](gauntlet-rust-native-cell-deployment.md). Actual VM launch, Guard controls, full Root Rust ownership and conformance remain open.

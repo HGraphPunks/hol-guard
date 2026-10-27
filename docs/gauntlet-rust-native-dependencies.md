@@ -230,6 +230,14 @@ readback verifies all 23 export members. The actual Root library passes 135
 tests with 24 preexisting fixture ignores. Independent controls and fresh
 conformance remain open; the runtime is unadmitted.
 
+The [current Native worker lifecycle proof](gauntlet-rust-native-current-worker-vm-proof-20261026.md)
+now passes success, timeout and cancellation on that runtime through Rust.
+The earlier static-musl actor failure is retained; GNU ABI preflight and a
+separate release build correct it without changing the library or isolation
+pins. All prefix bytes remain unchanged, and host readback verifies 117 export
+members. This is apparatus evidence; independent Guard controls and fresh
+conformance remain next.
+
 The inner attachment check does not establish the kernel policy's enforcement
 mode by itself; the Root owner must observe that independently. An adapter
 report or successful package installation supplies no Guard verdict, artifact

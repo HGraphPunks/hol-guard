@@ -61,5 +61,9 @@ log `rust-workspace-native-actor-abi-019.log` has SHA-256
 Warnings-denied Mac Clippy passes. Fresh VM preflight/lifecycle evidence is
 still pending at this checkpoint.
 
+The separate [current-worker proof](gauntlet-rust-native-current-worker-vm-proof-20261026.md)
+records the later fresh GNU actor success/timeout/cancellation cases. This
+original failed job and its evidence remain unchanged.
+
 No model request, Guard-causality verdict, conformance, admission, cutover or
 completed parent checklist exit is claimed.

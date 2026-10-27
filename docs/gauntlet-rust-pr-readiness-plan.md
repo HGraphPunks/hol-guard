@@ -329,7 +329,17 @@ approval ceremony for routine work already authorized by this request.
   ARM64 CI release-artifact check. All 427 Mac workspace tests and
   warnings-denied Clippy pass. The new GNU artifact and fresh worker cases
   remain next; see [retained failure](gauntlet-rust-native-current-worker-failure-20261026.md).
-- Next: current Native worker lifecycle, independent controls and fresh conformance.
+- 2026-10-26: source `c3a75ccd` passes fresh current Native success, timeout and
+  cancellation through the complete Rust worker. The new factory refuses the
+  static actor before artifact creation. Two separate live kernel observations
+  match the GNU actor, filter/namespace/resource tuple; all cases drain. Host
+  readback verifies 117 export and ten input members, complete unchanged prefix,
+  terminal bindings and retained failures. Root passes 135 worker tests with
+  24 existing fixture ignores, all 59 evidence tests and 23 rootfs plus one
+  subprocess check. The two initial evidence fixture-path failures and two
+  proof-caller errors remain recorded; test-only `7f62bc36` embeds the same
+  frozen data. See [current worker proof](gauntlet-rust-native-current-worker-vm-proof-20261026.md).
+- Next: independent Native controls and fresh conformance.
   No new
   conformance, model result, eligible verdict, cutover or completed parent
   exit is claimed.
