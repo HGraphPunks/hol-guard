@@ -133,10 +133,10 @@ fn project_marker(spec: &CellPreparation, mut fixture: Value) -> Result<Value> {
 
 pub fn seed_lifecycle(spec: &CellPreparation, role: crate::NativeControlRole) -> Result<Value> {
     let lifecycle = crate::native_lifecycle_spec::NativeLifecycleSpec::new(&spec.stage, role)?;
-    let fixture=seed_fixed(spec,&lifecycle.fixture(),"hol-gauntlet-native-contained-fixture.v5",
-        "native_lifecycle_parent_v1.py.txt + native_lifecycle_child_v1.py.txt; unprivileged detached fixture")?;
+    let fixture=seed_fixed(spec,&lifecycle.fixture(),"hol-gauntlet-native-contained-fixture.v6",
+        "native_lifecycle_parent_v2.py.txt + native_lifecycle_child_v2.py.txt; unprivileged detached fixture with retained child errors")?;
     let mut fixture = project_marker(spec, fixture)?;
-    fixture["schema"] = json!("hol-gauntlet-native-contained-fixture.v5");
+    fixture["schema"] = json!("hol-gauntlet-native-contained-fixture.v6");
     fixture["lifecycle_role"] = json!(role.as_str());
     fixture["detached_token"] = json!(lifecycle.token);
     fixture["detached_code_sha256"] = json!(hash(lifecycle.code.as_bytes()));

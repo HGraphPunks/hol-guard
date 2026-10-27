@@ -402,6 +402,12 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
       cleanup-gated physical readback. All 111 affected Mac tests and Clippy
       pass; fresh native lifecycle verification remains pending. No
       qualified role is claimed.
+      The first timeout at `f01deadb` remains failed: real exit 124 and an
+      outside-observed child do not substitute for missing readiness. The
+      original failed 138-member export, 66 samples and 197 worker files are
+      retained and independently checked. The next version preserves child
+      errors and uses standard-library exclusive readiness publication;
+      corrected native verification remains pending.
       See [deterministic controls](gauntlet-rust-native-deterministic-controls.md).
   - [x] Run fresh current-source Native success, timeout and cancellation
     through the complete Rust worker on the published 3.57.0 runtime. GNU actor

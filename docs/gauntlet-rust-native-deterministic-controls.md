@@ -182,7 +182,27 @@ missing execution/result/Post fields remain explicitly unavailable. Authenticate
 SDK requests are retained before dispatch so the aborted sink is not lost.
 Both roles require cleanup-gated physical ready-file/late-effect readback.
 ARM Clippy, static tests and main binaries compile; all 111 affected Mac tests
-and Mac Clippy pass. Fresh lifecycle VM execution is pending.
+and Mac Clippy pass.
+
+At `f01deadbe43e31e41f4a6f93c540dbe31b2b8f0d`, timeout job
+`e2c701baf1474601` correctly remains failed. The installed Native sink returns
+124 and the outside observer witnesses the detached interpreter, but no ready
+file is published and Root cannot join readiness to the child. No termination
+or late-effect absence is inferred. All resources drain; the 197 worker files
+remain intact and replay refuses in 521.009 ms. The unused cancellation
+declaration is preserved without execution. Independent readback validates
+the failed terminal and original measurements. The public export has 138
+members / 1,034,240 bytes, SHA-256
+`5de76f155752e62d3655b75329ee30076c7d248e06cd4e4923d43274974f4652`;
+the report is `cd3ae78714048cca7af33152f6f1de94ec92c8d733bb3dd08fc3d01b6bab6e0f`.
+Run `ci/gauntlet-rs/proofs/verify_native_lifecycle_failure_20261027.py`.
+
+The next fixture version retains child stderr and uses exclusive standard-
+library hard-link publication, without an FFI dependency. Root treats the
+temporary two-link state as not ready and still requires the final original
+single-link generation plus kernel custody. Original v1 fixture bytes and the
+failed export remain retained. ARM Clippy/static tests/binaries and all 111
+Mac tests/Clippy pass; fresh corrected timeout/cancel runs remain pending.
 
 Remaining work includes live detached-lifecycle verification, kernel/mount authority,
 provider mapping, complete role scoring,

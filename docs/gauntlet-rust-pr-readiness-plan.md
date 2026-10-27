@@ -568,7 +568,15 @@ approval ceremony for routine work already authorized by this request.
   requests and cleanup-gated physical readback. Missing cancellation output/
   Post remains unavailable. ARM Clippy/static tests and binaries compile;
   111 affected Mac tests and Clippy pass. Live native verification is pending.
-- Next: verify detached-lifecycle roles and finish deterministic role scoring, then
+- 2026-10-27: retained failed timeout job `e2c701baf1474601` at `f01deadb`.
+  Native returns 124 and the outside sampler observes the child, but readiness
+  is never published. The role remains failed, without a claimed child death
+  or late-effect absence. Independent readback checks its 138-member export,
+  cleanup, 66 samples and 197 preserved worker files; replay refuses in
+  521.009 ms. A new explicit fixture version retains child errors and removes
+  the FFI dependency while preserving exclusive publication and kernel checks.
+  ARM checks/binaries and 111 Mac tests/Clippy pass; corrected runs are pending.
+- Next: verify corrected detached-lifecycle roles and finish deterministic role scoring, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;

@@ -23,13 +23,13 @@ impl NativeLifecycleSpec {
             return Err("exact owned lifecycle job and role required".into());
         }
         let token = format!("hol-gauntlet-native-detached-{}-{id}", role.as_str());
-        let code = include_str!("../../../adapters/native_lifecycle_child_v1.py.txt")
+        let code = include_str!("../../../adapters/native_lifecycle_child_v2.py.txt")
             .replace("HOL_LIFECYCLE_ROLE_JSON", &json!(role.as_str()).to_string())
             .replace("HOL_LIFECYCLE_TOKEN_JSON", &json!(token).to_string());
         Ok(Self { role, token, code })
     }
     pub fn fixture(&self) -> String {
-        include_str!("../../../adapters/native_lifecycle_parent_v1.py.txt")
+        include_str!("../../../adapters/native_lifecycle_parent_v2.py.txt")
             .replace("HOL_DETACHED_CODE_JSON", &json!(self.code).to_string())
     }
     pub fn argv(&self) -> Vec<String> {

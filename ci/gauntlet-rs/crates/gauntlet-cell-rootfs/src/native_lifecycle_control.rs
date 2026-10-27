@@ -133,6 +133,11 @@ impl NativeLifecycleControl {
         };
         let mut file = File::from(fd);
         let s = fstat(&file).map_err(|e| e.to_string())?;
+        // Exclusive hard-link publication has a short two-link state before
+        // the temporary name is retired. It supplies neither readiness nor credit.
+        if s.st_nlink == 2 {
+            return Ok(());
+        }
         if FileType::from_raw_mode(s.st_mode) != FileType::RegularFile
             || s.st_uid != 10001
             || s.st_gid != 10001
