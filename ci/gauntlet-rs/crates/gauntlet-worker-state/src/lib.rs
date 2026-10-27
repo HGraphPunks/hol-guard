@@ -262,6 +262,8 @@ mod native_sdk_control;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_sdk_created_repair;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_host_device;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_sdk_process;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_sdk_public;

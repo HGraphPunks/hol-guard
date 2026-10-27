@@ -175,6 +175,7 @@ pub(crate) fn run_native_sdk_transport(
     cancelled: Arc<AtomicBool>,
 ) -> Result<NativeApparatusReport, String> {
     gauntlet_cell_rootfs::require_outside_root()?;
+    let host_null = crate::native_sdk_host_device::NativeSdkHostNull::open()?;
     let declaration = job.preparation_path();
     let root =
         crate::open_root_owned_public_directory(&job.job_root()).map_err(|e| e.to_string())?;
@@ -243,6 +244,7 @@ pub(crate) fn run_native_sdk_transport(
     let cell_cleanup = plane.close();
     let public_after = public.verify();
     let assets_after = assets.verify_after_cleanup();
+    let host_null_after = host_null.recheck();
     let tree =
         gauntlet_evidence::inventory_tree(&prefix, gauntlet_evidence::TreeKind::InstalledPrefix)
             .map_err(|e| e.to_string());
@@ -264,6 +266,7 @@ pub(crate) fn run_native_sdk_transport(
         cell_cleanup.as_ref().err(),
         public_after.as_ref().err(),
         assets_after.as_ref().err(),
+        host_null_after.as_ref().err(),
         effect.as_ref().err(),
     ]
     .into_iter()
@@ -279,6 +282,7 @@ pub(crate) fn run_native_sdk_transport(
         "fixture":fixture,"actor":actor,"measurements":measurements,"requests":requests,"router":router.observation(),
         "plane":plane.observation(),"agent":agent.as_ref().map(NativeSdkAgent::observation),"sockets":sockets.observation(),
         "public_helpers":public.observation(),"assets":assets.observation(),"effect":effect.as_ref().ok(),
+        "host_null_before":host_null.before(),"host_null_after":host_null_after.as_ref().ok(),"host_null_unchanged":host_null_after.is_ok(),
         "prefix_unchanged":prefix_unchanged,"prefix_tree_sha256":tree.as_ref().ok().map(|t|&t.digest),
         "sdk_cleanup_complete":sdk_cleanup.is_ok(),"agent_cleanup_complete":agent_cleanup.is_ok(),
         "cell_cleanup_complete":cell_cleanup.is_ok(),"cleanup_errors":errors,"public_helpers_unchanged":public_after.is_ok(),

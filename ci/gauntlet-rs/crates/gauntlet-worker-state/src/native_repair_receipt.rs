@@ -77,6 +77,11 @@ impl NativeRepairReceipt {
                     .any(|k| !o.contains_key(*k))
             })
             || self.cleanup["quiescent"].as_object().is_none()
+            || (sdk
+                && !matches!(
+                    self.cleanup["quiescent"]["image_history"].as_str(),
+                    Some("already-closed-v1" | "recovered-pending-v1")
+                ))
             || self.cleanup["image_unmounted"] != true
             || self.cleanup["active_pointer_absent"] != true
             || (sdk
@@ -140,7 +145,14 @@ mod tests {
         assert!(validate(&sdk).is_err());
         sdk["cleanup"]["sdk_agent_absent"] = json!(true);
         sdk["cleanup"]["sdk_profile_absent"] = json!(true);
+        assert!(validate(&sdk).is_err());
+        sdk["cleanup"]["quiescent"]["image_history"] = json!("already-closed-v1");
         validate(&sdk).unwrap();
+        sdk["cleanup"]["quiescent"]["image_history"] = json!("recovered-pending-v1");
+        validate(&sdk).unwrap();
+        sdk["cleanup"]["quiescent"]["image_history"] = json!("unknown");
+        assert!(validate(&sdk).is_err());
+        sdk["cleanup"]["quiescent"]["image_history"] = json!("already-closed-v1");
         for key in ["sdk_agent_absent", "sdk_profile_absent"] {
             let mut changed = sdk.clone();
             changed["cleanup"][key] = json!(false);

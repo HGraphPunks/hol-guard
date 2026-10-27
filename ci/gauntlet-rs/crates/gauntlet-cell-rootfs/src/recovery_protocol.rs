@@ -3,6 +3,32 @@ use crate::{hash, hex, Result};
 use serde_json::Value;
 use std::path::Path;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeImageHistory {
+    Pending,
+    Closed,
+}
+
+pub(crate) fn image_history(records: &[Value]) -> Result<NativeImageHistory> {
+    if records
+        .get(3)
+        .is_none_or(|row| row["kind"] != "image-cell-launch-pending")
+    {
+        return Err("retained image launch history is incomplete".into());
+    }
+    match records.len() {
+        4 => Ok(NativeImageHistory::Pending),
+        6 => {
+            let image = records[0]["data"]["image_id"]
+                .as_str()
+                .ok_or("retained image identity missing")?;
+            closed_image(records, image)?;
+            Ok(NativeImageHistory::Closed)
+        }
+        _ => Err("retained image history is neither pending nor closed".into()),
+    }
+}
+
 pub(crate) fn events(raw: &[u8]) -> Result<Vec<Value>> {
     if raw.is_empty() || raw.len() > 64 * 1024 * 1024 || raw.last() != Some(&b'\n') {
         return Err("complete bounded recovery journal required".into());
@@ -79,6 +105,25 @@ pub(crate) fn closed_supervisor(records: &[Value]) -> Result<()> {
 mod tests {
     use super::*;
     use serde_json::json;
+    #[test]
+    fn pending_ownership_cannot_masquerade_as_a_completed_release() {
+        let mut records = vec![json!({}); 4];
+        records[0] = json!({"data":{"image_id":"pinned-image"}});
+        records[3] = json!({"kind":"image-cell-launch-pending"});
+        assert_eq!(
+            image_history(&records).unwrap(),
+            NativeImageHistory::Pending
+        );
+        records.push(json!({"kind":"image-releasing","data":{"image_id":"pinned-image"}}));
+        assert!(image_history(&records).is_err());
+        records.push(
+            json!({"kind":"image-cleanup","data":{"image_id":"pinned-image",
+            "owned_mount_absent":true,"borrowed_mount_untouched":false}}),
+        );
+        assert_eq!(image_history(&records).unwrap(), NativeImageHistory::Closed);
+        records[5]["data"]["borrowed_mount_untouched"] = json!(true);
+        assert!(image_history(&records).is_err());
+    }
     fn chain(kinds: &[&str]) -> Vec<u8> {
         let mut raw = Vec::new();
         let mut previous = "0".repeat(64);

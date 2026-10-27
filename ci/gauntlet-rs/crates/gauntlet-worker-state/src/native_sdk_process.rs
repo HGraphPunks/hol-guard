@@ -155,7 +155,10 @@ impl RootChild {
             .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
             .env("HOME", "/root")
             .env("TMPDIR", "/var/tmp")
-            .stdin(Stdio::null())
+            // crun 1.14 can chown an inherited non-TTY stdin during exec.
+            // Keep host /dev/null out of that boundary. This helper accepts
+            // no input; closing the private pipe supplies EOF explicitly.
+            .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         // SAFETY: fixed async-signal-safe syscalls only; no candidate Root code.
@@ -166,6 +169,7 @@ impl RootChild {
             });
         }
         let mut child = command.spawn().map_err(|e| e.to_string())?;
+        drop(child.stdin.take());
         let output_pipe = child.stdout.take().ok_or("SDK stdout pipe absent")?.into();
         let errors_pipe = child.stderr.take().ok_or("SDK stderr pipe absent")?.into();
         let mut owner = RootChild {

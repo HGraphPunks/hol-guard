@@ -322,6 +322,7 @@ impl NativeSdkAgent {
             false,
             &strings(&[
                 "exec",
+                "--interactive",
                 self.cid.as_ref().ok_or("SDK CID absent")?,
                 "/runtime/bun",
                 "/runtime/public/private_cell_sdk_conformance.ts",
@@ -334,6 +335,7 @@ impl NativeSdkAgent {
             false,
             &strings(&[
                 "exec",
+                "--interactive",
                 self.cid.as_ref().ok_or("SDK CID absent")?,
                 "/usr/bin/python3",
                 "-I",

@@ -381,10 +381,24 @@ approval ceremony for routine work already authorized by this request.
   reader's Podman bound, and SDK quiescent recovery gets its own v2 receipt.
   Mac passes all 446 tests and Mac/ARM64 Clippy. Actual repair and a fresh SDK
   attempt remain next; no SDK/Guard/model credit is supplied.
-- Next: independent SDK-backed controls, Native MCP ownership and fresh conformance.
-  The next Rust slice adds closed SDK request/route state, held kernel peer
-  identity and source-pinned inert SDK/Bun publication; see the
-  [SDK transport components](gauntlet-rust-native-sdk-transport.md).
-  No new
-  conformance, model result, eligible verdict, cutover or completed parent
-  exit is claimed.
+- 2026-10-27: exact created-CID and closed-image SDK repairs preserve original
+  failed bytes and record consumed/aborted jobs without fabricated exits.
+  Fresh kernel diagnostics establish the exact delegated cgroup and
+  `crun//&SDK` process label; strict source checks retain that complete stack.
+- 2026-10-27: actual SDK job `e2c701baf1473201` at `426c7d93` completes Bun
+  pre-import binding, same-UID refusal, genuine Native Pre/contained route/Post
+  and exact SDK output delivery. The benign fixture fails with npm SIGABRT;
+  the independent 98-member reader preserves the failed outcome and all 100
+  worker files. No MCP, model or Guard-causality credit is inferred.
+- 2026-10-27: the next source adds separate output/outcome checks and a v2
+  stderr-retaining fixture. Its fresh startup refuses changed host null-device
+  ownership before SDK launch, retaining an unknown job and exact pending
+  image lease. The pre-repair export/host reader preserve 104 worker files.
+  A scoped held-device restoration has a durable receipt. New Rust source
+  isolates OCI stdin with EOF pipes, checks host-device custody and supports
+  exact pending-image recovery; 454 Mac tests and Mac/ARM Clippy pass.
+- Next: prove the scoped pending-image recovery and corrected SDK benign
+  control, then finish Rust Native MCP/service ownership, independent scoring
+  and fresh conformance. The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
+  records each failure and acceptance boundary. Parent exits remain 24/62;
+  qualification, inference, operational cutover and final handoff stay open.

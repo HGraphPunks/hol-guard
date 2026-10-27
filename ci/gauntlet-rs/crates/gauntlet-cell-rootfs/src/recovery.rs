@@ -161,6 +161,21 @@ pub fn verify_quiescent_preparation(spec: &CellPreparation) -> Result<Value> {
     Ok(retained.facts)
 }
 
+/// Select only after the full retained declarations, chain, custody and live
+/// quiescence checks. Selection alone never grants image mount ownership.
+pub fn native_preparation_image_history(
+    spec: &CellPreparation,
+) -> Result<crate::NativeImageHistory> {
+    let raw = fs_input::read(
+        &spec.stage.join("native-image-events.v1.jsonl"),
+        64 * 1024 * 1024,
+    )?;
+    let records = crate::recovery_protocol::events(&raw)?;
+    let history = crate::recovery_protocol::image_history(&records)?;
+    retained_history(spec, history == crate::NativeImageHistory::Closed)?;
+    Ok(history)
+}
+
 /// Already-closed SDK attempts need no image mutation. Require the complete
 /// release/cleanup history and all current absence/custody checks afresh.
 pub fn verify_closed_native_preparation(spec: &CellPreparation) -> Result<Value> {

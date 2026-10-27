@@ -84,8 +84,11 @@ pub use preparation::prepare_and_start;
 pub use preparation_spec::CellPreparation;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use recovery::{
-    recover_quiescent_preparation, verify_closed_native_preparation, verify_quiescent_preparation,
+    native_preparation_image_history, recover_quiescent_preparation,
+    verify_closed_native_preparation, verify_quiescent_preparation,
 };
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+pub use recovery_protocol::NativeImageHistory;
 pub use spec::{NetworkProfile, RootfsSpec, StateProfile};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use supervisor::NativeCell;

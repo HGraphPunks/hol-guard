@@ -80,7 +80,17 @@ pub(crate) fn verified_receipt(
         crate::native_sdk_quiescence::require_sdk_quiescence(&spec, &preparation)?;
     }
     let current = if sdk {
-        gauntlet_cell_rootfs::verify_closed_native_preparation(&preparation)?
+        match receipt.cleanup["quiescent"]["image_history"].as_str() {
+            Some("already-closed-v1") => {
+                gauntlet_cell_rootfs::verify_closed_native_preparation(&preparation)?
+            }
+            Some("recovered-pending-v1") => {
+                let mut facts = gauntlet_cell_rootfs::verify_quiescent_preparation(&preparation)?;
+                facts["image_history"] = json!("recovered-pending-v1");
+                facts
+            }
+            _ => return Err("SDK repair image history is unknown".into()),
+        }
     } else {
         gauntlet_cell_rootfs::verify_quiescent_preparation(&preparation)?
     };
@@ -144,8 +154,19 @@ pub fn repair_native_worker(
     lease.verify(&journal.root).map_err(|e| e.to_string())?;
     crate::builder_image_context::verify_python_lock(&python).map_err(|e| e.to_string())?;
     let mut cleanup = if sdk {
-        let quiescent = gauntlet_cell_rootfs::verify_closed_native_preparation(&preparation)?;
-        json!({"quiescent":quiescent,"image_unmounted":true,"active_pointer_absent":true,"active_pointer_sha256":null})
+        match gauntlet_cell_rootfs::native_preparation_image_history(&preparation)? {
+            gauntlet_cell_rootfs::NativeImageHistory::Closed => {
+                let quiescent =
+                    gauntlet_cell_rootfs::verify_closed_native_preparation(&preparation)?;
+                json!({"quiescent":quiescent,"image_unmounted":true,"active_pointer_absent":true,"active_pointer_sha256":null})
+            }
+            gauntlet_cell_rootfs::NativeImageHistory::Pending => {
+                let mut cleanup =
+                    gauntlet_cell_rootfs::recover_quiescent_preparation(&preparation)?;
+                cleanup["quiescent"]["image_history"] = json!("recovered-pending-v1");
+                cleanup
+            }
+        }
     } else {
         gauntlet_cell_rootfs::recover_quiescent_preparation(&preparation)?
     };

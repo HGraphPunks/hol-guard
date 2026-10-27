@@ -4,7 +4,7 @@ The current Native hook diagnostic passes on the owned ARM VM; see the
 [retained transport proof](gauntlet-rust-native-hook-vm-proof-20261027.md).
 The Rust worker now owns SDK request state, dependency publication, gate and
 hook listeners, fixed Podman launch and cleanup, and the Native Bash route.
-The latest owned-VM attempt completes an actual SDK session and delivers
+An owned-VM attempt completes an actual SDK session and delivers
 the exact Native-captured Bash output. The benign test still fails because
 npm aborts, so the complete diagnostic remains failed and ineligible.
 MCP, conformance and Guard scoring remain open. The parent checklist remains
@@ -336,3 +336,44 @@ and ARM64 compilation. Workspace log
 `dce286ce774a2cb09c3f47f679324e8dff5ec0492a0ea1ec40fc01e793b13474`.
 The fresh stderr-retaining diagnostic is next. None of these results grants
 Guard-causality, benchmark qualification or model-inference credit.
+
+The subsequent fresh job `e2c701baf1473301` at `be71fe9c` stops before SDK
+launch. Its Root constructor refuses host `/dev/null` because its owner has
+changed to UID/GID10001. The failed service is already collected before
+readiness; conservative cleanup retains the original four-row image lease
+and the job stays unknown, with no report, terminal or inferred exit.
+All 104 worker files are retained. The 36-member, 163,840-byte pre-repair
+export has SHA-256
+`4147456101102a92411b4a7516e28e50bde2974365b31e773c58f3bbb615496f`.
+Its independent host reader verifies the original bytes, exact active-pointer
+hash, failed startup/cleanup history, input source and outside fixture pin.
+
+The VM has crun 1.14.1 (`de537a7965bfbe9992e2cfae0baeb56a08128171`).
+Its [exec implementation](https://raw.githubusercontent.com/containers/crun/1.14.1/src/libcrun/container.c)
+changes non-TTY stdio ownership before dropping to the container UID. Passing
+host `/dev/null` to this path explains the observed ownership change.
+The Rust helper now supplies a closed private pipe, and both fixed SDK exec
+routes explicitly forward that EOF pipe. A held descriptor independently
+requires the original Root null-device inode and complete metadata before
+and after SDK operations. The original device requirement is preserved.
+
+After the immutable export and host verification, a bounded owned-VM repair
+restores only the held character-device 1:3 inode from UID/GID10001 to Root,
+under both leases with durable intent and receipt. Receipt
+`87d4ad1580b7ece73c04c2d329dbf6fd13a4e72c22f0b303744944108e5b877e`
+preserves all 104 worker files and leaves the unknown job/image lease intact.
+This is environment restoration, without job completion or execution credit.
+
+The SDK repair path now distinguishes the exact four-row pending owned
+image history from a six-row already-closed history. Pending recovery uses
+the existing ownership/quiescence checks and held image lock before unmount;
+closed recovery remains read-only. Both require independently absent SDK
+metadata/profile, dead controller/product resources, unchanged declarations
+and runtime, and exact consumed/aborted receipt reopening. A recovered pending
+history has its own explicit marker; neither path fabricates an exit.
+The source passes 454 Mac tests across 218 targets with zero failures or
+ignores, both warnings-denied Clippy targets and ARM64 builds. Workspace log
+`rust-workspace-native-sdk-transport-034.log` has SHA-256
+`f7224e8154c685cb7995d02b454f1dfcdeda6c8b1e74d7d471de90c54b6027c5`.
+Live image recovery and a fresh SDK run remain next. The npm stderr has not
+yet been captured by the v2 fixture.
