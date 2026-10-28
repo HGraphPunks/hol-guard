@@ -17,6 +17,12 @@ the earlier render/sampler failures remain retained. All 305 prior worker
 records survive, and the current baseline contains 312 records.
 Complete Native grading remains open. The 24/62 parent-exit count is unchanged.
 
+The next R3 correction is [Native worker sizing](gauntlet-rust-native-task-pressure.md):
+keep the resource ceiling, both active launches, reserved metadata and
+interactive capacity while reducing fixed pools on known small CPU allocations.
+Focused concurrency tests and a new source-matched product build/control are
+required before claiming the task-pressure issue is resolved.
+
 ## Goal and completion contract
 
 Finish the Gauntlet migration on a tested branch in `HGraphPunks/hol-guard`,
