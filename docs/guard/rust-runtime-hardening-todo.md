@@ -142,7 +142,7 @@ measured parity gate, not the detection itself.
 
 ## PR 7: Supply chain, fuzz, chaos, soak, and opt-in gate
 
-- [ ] NRH-T120 add Cargo advisory, source, license, duplication, and banned-crate gates — the repository has no `deny.toml` and runs no `cargo deny` or `cargo audit` job;
+- [x] NRH-T120 add Cargo advisory, source, license, duplication, and banned-crate gates — `deny.toml` pins the allowed licences, sources and duplicate exceptions, and the `Cargo supply chain` job runs `cargo deny check` on every pull request;
 - [x] NRH-T121 generate Rust SBOM/provenance bound to every native wheel and verify staged/published wheel bytes — `publish.yml` writes the release toolchain SBOM and refuses to publish a wheel whose bytes do not verify against the release's `intoto.jsonl` provenance bundle;
 - [ ] NRH-T122 add persistent frame/envelope/output/scanner/prompt/command/path/response fuzz targets and deterministic PR seeds — `fuzz.yml` runs ClusterFuzzLite over the Python package only; there are no Rust fuzz targets;
 - [ ] NRH-T123 add 10,000 malformed frames, auth floods, 16 slow clients, 64 mixed clients, fallback saturation, daemon kills, disk/read-only/stale/low-FD chaos;
