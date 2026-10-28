@@ -777,12 +777,20 @@ approval ceremony for routine work already authorized by this request.
   checkpoint and matching v2 declaration are required for readback credit;
   old reports cannot borrow a new event. Observer execution/admission stays
   separate. The Mac workspace passes 561 tests; final affected rootfs tests
-  pass 41 cases, and Mac/ARM warnings-denied Clippy passes. Native ARM unit
-  execution and a fresh actual producer run remain pending. See
+  pass 41 cases, and Mac/ARM warnings-denied Clippy passes. At source
+  `c3c8fa5d`, all seven new cases also pass natively under Root. A fresh
+  host-pinned zero-model control against the explicit retained 3.58.0 candidate
+  verifies the interpreter witness, raw SDK frames, acknowledged hook inputs,
+  signed journal checkpoint and complete output streams. Twenty actual/restart/
+  refusal cases and 32 byte-identical historical regressions pass. An earlier
+  authenticated npm failure at the unchanged 128-task ceiling remains retained
+  and unresolved; the passing rerun's kernel task peak is 126. All 284 original
+  worker files survive both jobs, with 298 records retained afterward. See
   [prelaunch pins](gauntlet-rust-native-prelaunch-interpreter-pins.md).
   No parent exit closes and no model request runs.
-- Next: exercise the new producer receipts with a fresh pinned launch, finish
-  independent deterministic role scoring and outside key custody,
+- Next: resolve intermittent product task pressure without relaxing the
+  resource/fixture contract, finish independent deterministic role scoring,
+  Native descendant/effect custody and outside key admission,
   then twelve fresh source-matched staging/installed roles and conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;
