@@ -22,6 +22,15 @@ tests, 19 focused Root ARM tests, five Linux artifact cases and 32 unchanged
 historical readbacks. This offline proof does not supply Native wire semantics,
 actual effect writers, complete role grading or outside admission.
 
+The initial [Native pipe snapshot proof](gauntlet-rust-native-stdio-plan.md)
+also passes: producer `01889017` has 22 owned ARM tests; verifier `bd262dca`
+has 615 Mac tests, 27 focused Root ARM tests, eleven identical Mac/ARM snapshot
+replays/refusals and 32 unchanged legacy readbacks. Fixed readback checks both
+public exports and all 673 committed Rust source files. Earlier failures and
+all 326 worker records remain preserved. These synthetic stopped-buffer
+snapshots do not establish atomic Native wire bytes or request semantics.
+Fresh Native v4 controls and all parent exits remain open.
+
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
 ```

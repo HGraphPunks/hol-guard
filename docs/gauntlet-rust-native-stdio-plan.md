@@ -153,8 +153,34 @@ working reader's independent summary is SHA-256
 source hashes are retained before committing this verifier. All 615 macOS
 workspace tests pass with zero failures/ignored, with log SHA-256
 `e559ee8b21fa4880cb272516bb2b9d19267413ca197e0dd9c3c88b5b9dcb4fd8`.
-Formatting and Mac/ARM warnings-denied Clippy pass. Exact committed reader
-builds, ARM replay and the legacy control corpus remain the next checks.
+Formatting and Mac/ARM warnings-denied Clippy pass.
+
+Committed verifier `bd262dcad72278b58ae1059866a217acf366c90b` reproduces the
+working reader bytes. Its 2,372,720-byte Mac stdio reader has SHA-256
+`dd9ce2f5e7424e7ec96c71d9111f1434316d5e855a1ffbfb44e8dddb55cfbb80`;
+its 3,567,680-byte ARM reader has SHA-256
+`1bf6f2053a6c117d11ce12723d17adb7f6dd213b4a1e2ccf553b67e7fd3a2f39`.
+On ARM, 27 focused stdio/process/signed-trace/image tests pass. All eleven
+snapshot replay/refusal outputs match the Mac results byte for byte, as do
+actual/restart/refusal checks against historical Native control `5602`. All
+32 legacy control readbacks remain byte-identical with the committed verifier.
+The ARM reader export contains 126 members and 1,085,440 bytes, SHA-256
+`7fd4b64adaf380b004becedc9387fe959df6b4fa6002ec60105e4a7c4bc9c701`.
+
+The [fixed-generation host verifier](../ci/gauntlet-rs/proofs/verify_native_stdio_pipe_20261028.py)
+and [ARM proof helper](../ci/gauntlet-rs/proofs/native_stdio_arm_proof_20261028.py)
+verify both public exports, all source/ELF/log/metadata pins, the retained fixture
+and SSH failures, all 673 Rust source files against the committed verifier,
+the 615-test source match, 32 legacy outputs and both unchanged worker leases/
+record sets. A fresh Mac replay reproduces all eleven outcomes. The final
+host readback output has SHA-256
+`e7c9bd07f82f1baff1f9860176a0e60fcce0c9c62ed480c7fdb0b643e87c4a8c`.
+The two long-inline-command SSH failures executed no installer; read-only
+reconciliation found both destinations absent. The identical program then
+installed successfully from hash-verified file bytes. No validation assertion
+or permission check was weakened. No new Native product or model job ran in
+these proofs. Fresh launch-v4 Native controls are next; request semantics,
+atomic observation, physical writers and all parent exits remain open.
 
 [`process_vm_readv`](https://man7.org/linux/man-pages/man2/process_vm_readv.2.html)
 does not promise atomic transfers. The producer explicitly records

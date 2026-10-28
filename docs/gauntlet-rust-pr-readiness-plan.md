@@ -32,10 +32,16 @@ ordering regression and count-parser failure remain retained. This is offline
 verifier proof against product `dc3b9336`; it supplies no new product execution,
 request semantics, writer attribution or custody admission.
 
-Next implementation: [outside Native client pipe capture](gauntlet-rust-native-stdio-plan.md),
-with a separately versioned syscall observer, closed launch declaration and
-Root journal. Native stream bytes and physical effect writers remain separate
-obligations. Kernel close notifications do not supply missing write causality.
+The initial [outside Native client pipe snapshot observer](gauntlet-rust-native-stdio-plan.md)
+is implemented in closed launch v4 and process checkpoint v2. Producer
+`01889017` passes 22 owned ARM tests; independent verifier `bd262dca` passes
+615 Mac workspace tests, Mac/ARM Clippy, 27 focused Root ARM tests, eleven
+cross-platform replay/refusal cases and 32 unchanged legacy readbacks. Both
+failed fixture attempts and SSH failures remain retained, with all 326 worker
+records unchanged. These are synthetic snapshot proofs, with atomic wire and
+request semantics explicitly unverified. Fresh Native v4 controls are next.
+Native stream semantics and physical effect writers remain separate obligations.
+Kernel close notifications do not supply missing write causality.
 
 ## Goal and completion contract
 
@@ -862,7 +868,19 @@ approval ceremony for routine work already authorized by this request.
   parser failures. All 326 worker records are unchanged. See
   [Native image lineage](gauntlet-rust-native-image-lineage.md). Internal
   requests, effect writers and admission remain open; no parent exit closes.
-- Next: retain and diagnose the intermittent polling-sampler failure while
+- 2026-10-28: closed launch-v4 Native pipe snapshots and their independent Rust
+  replay/framing are implemented at producer `01889017` and verifier
+  `bd262dca`. Four actual synthetic pipe histories (4,161 bytes/five frames)
+  and seven refusal outcomes match across Mac/ARM. All 615 Mac tests, Mac/ARM
+  Clippy, 22 producer and 27 reader ARM tests, five historical control checks
+  and 32 byte-identical legacy readbacks pass. Fixed host verification checks
+  all 82/126 public export members and 673 committed Rust sources. Failed
+  fixtures/transport attempts and all 326 worker records remain retained.
+  See [Native stdio plan and proof](gauntlet-rust-native-stdio-plan.md).
+  Fresh Native controls, atomic bytes, request semantics and writers remain
+  open; no parent exit closes and no model request ran.
+- Next: run a fresh Native v4 control and retain its actual pipe snapshots,
+  diagnose the intermittent polling-sampler failure while
   finishing independent deterministic role scoring,
   Native descendant/effect custody and outside key admission,
   then twelve fresh source-matched staging/installed roles and conformance.
