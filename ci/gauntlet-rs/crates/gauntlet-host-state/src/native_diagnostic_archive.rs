@@ -19,18 +19,21 @@ const LIMIT: usize = 128 * 1024 * 1024;
 enum ArtifactSubset {
     InputBinding,
     Boundary,
+    Mcp,
 }
 impl ArtifactSubset {
-    fn role(self) -> &'static str {
+    fn role(self) -> Option<&'static str> {
         match self {
-            Self::InputBinding => "input-binding",
-            Self::Boundary => "boundary",
+            Self::InputBinding => Some("input-binding"),
+            Self::Boundary => Some("boundary"),
+            Self::Mcp => None,
         }
     }
     fn schema(self) -> &'static str {
         match self {
             Self::InputBinding => "hol-gauntlet-host-native-binding-artifact-readback.v1",
             Self::Boundary => "hol-gauntlet-host-native-boundary-artifact-readback.v1",
+            Self::Mcp => "hol-gauntlet-host-native-mcp-artifact-readback.v1",
         }
     }
 }
@@ -178,13 +181,22 @@ impl HostNativeControlReadback {
     pub fn verify_boundary_artifacts(&self, path: &Path, expected_sha256: &str) -> Result<Value> {
         self.verify_artifact_subset(path, expected_sha256, ArtifactSubset::Boundary)
     }
+    /// Reconcile actual SDK/MCP frames, captured Native bytes and physical
+    /// provider receipts/database. Live process custody remains separate.
+    pub fn verify_mcp_artifacts(&self, path: &Path, expected_sha256: &str) -> Result<Value> {
+        self.verify_artifact_subset(path, expected_sha256, ArtifactSubset::Mcp)
+    }
     fn verify_artifact_subset(
         &self,
         path: &Path,
         expected_sha256: &str,
         subset: ArtifactSubset,
     ) -> Result<Value> {
-        require(self.diagnostic()["control_role"] == subset.role())?;
+        require(
+            subset
+                .role()
+                .is_none_or(|role| self.diagnostic()["control_role"] == role),
+        )?;
         let raw = read_stable(path, expected_sha256)?;
         let files = members(&raw)?;
         let get = |name: &str| {
@@ -201,6 +213,7 @@ impl HostNativeControlReadback {
         )?;
         let preparation_raw = get("combined/preparation.v1.json")?;
         let preparation = parse(preparation_raw)?;
+        let declaration = parse(get("combined/declaration.json")?)?;
         require(
             self.diagnostic()["preparation_sha256"] == sha(preparation_raw)
                 && observation["deployment_digest"] == sha(get("combined/declaration.json")?)
@@ -212,6 +225,13 @@ impl HostNativeControlReadback {
                             .ok_or("missing pinned Native source")?
                     ),
         )?;
+        if matches!(subset, ArtifactSubset::Mcp) {
+            require(
+                declaration["guard"] == self.diagnostic()["guard_pins"]
+                    && declaration["sdk"] == self.diagnostic()["sdk_pins"]
+                    && declaration["preparation_sha256"] == sha(preparation_raw),
+            )?;
+        }
         let relations = match subset {
             ArtifactSubset::InputBinding => gauntlet_evidence::verify_native_binding_diagnostic(
                 self.diagnostic(),
@@ -223,6 +243,9 @@ impl HostNativeControlReadback {
                 &preparation,
                 &files,
             ),
+            ArtifactSubset::Mcp => {
+                gauntlet_evidence::verify_native_mcp_diagnostic(self.diagnostic(), &files)
+            }
         }
         .map_err(|e| e.to_string())?;
         Ok(json!({"schema":subset.schema(),

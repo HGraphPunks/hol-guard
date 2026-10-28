@@ -42,8 +42,12 @@ mod native_control_envelope;
 mod native_diagnostic_artifacts;
 mod native_forbidden_diagnostic;
 mod native_hook_response;
+mod native_mcp_diagnostic;
+mod native_mcp_inputs;
 mod native_review_summary;
 mod native_transport_relations;
+mod native_world_database;
+mod native_world_diagnostic;
 mod omp_transcript;
 mod package_version;
 mod payload;
@@ -143,10 +147,13 @@ pub use native_control_envelope::{
     AuthenticatedNativeControlReport, NativeControlReportPins, NATIVE_CONTROL_ENVELOPE_LIMIT,
 };
 pub use native_hook_response::normalize_native_hook_response;
+pub use native_mcp_diagnostic::verify_native_mcp_diagnostic;
 pub use native_review_summary::{
     native_review_completed, recompute_native_review_summary, verify_native_review_summary,
 };
 pub use native_transport_relations::verify_native_transport_relations;
+pub use native_world_database::verify_native_world_database;
+pub use native_world_diagnostic::verify_native_world_diagnostic;
 pub use omp_transcript::{parse_omp_transcript, read_omp_transcript, TRANSCRIPT_LIMIT};
 pub use package_version::{valid_package_version, verify_installed_version_metadata};
 pub use pilot_terminal::reduce_pilot_terminal;
