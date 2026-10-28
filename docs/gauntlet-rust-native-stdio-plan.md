@@ -2,7 +2,7 @@
 
 Status: bounded syscall metadata and transfer accounting are implemented after
 verifier checkpoint `98a544f3` and published evidence checkpoint `5ddb5d52`.
-The live ARM syscall ABI fixture is compiled and awaits execution. The actual
+The live ARM syscall ABI fixture passes in the owned VM. The actual
 pipe-memory observer, signed capture and frame verifier remain unimplemented.
 The existing image-lineage proof
 does not observe internal Native request bytes. All parent exits remain 24/62.
@@ -64,8 +64,25 @@ ignored tests. Its retained log is
 `native-stdio-working-workspace-tests-003.log`, SHA-256
 `2da4ed92cb1a6f7b29631d9ea0320790307c294bc4c67e8d56e2efe4ba5b026c`.
 The new live fixture uses the existing pinned owned-process executable; its
-intentional final exit is 97. Compilation does not establish live ABI or
-request-byte capture, and no parent checklist exit advances from this step.
+intentional final exit is 97. No parent checklist exit advances from this step.
+
+Source checkpoint `483c29a0823ab77c48ed593e9867fa382e15f5d5` builds the frozen
+ARM test ELF (10,982,032 bytes), SHA-256
+`26121816670af4f62fe0b68c1841014b4dd2207ce2747b2d055a9969125f099b`.
+Under both worker leases, nine decoder tests and seven process fixtures pass
+with zero failures or ignored tests. The live ABI test sees two syscall entries,
+one exit and the actual final exit 97. It reads no target memory and executes
+no candidate product. The retained public export has 25 members and 337,920
+bytes, SHA-256
+`61daa708d0253718b83bc626b10d79d60af89f37f72da7740c8536d8256ac256`.
+Its host [readback](../ci/gauntlet-rs/proofs/verify_native_stdio_syscall_20261028.py)
+checks every archive member, Root metadata, source blob, exact test count and
+unchanged 326-record worker baseline. The separately frozen Rust process reader
+also accepts four complete legacy fixture histories and refuses the retained
+lost-recorder history. The readback output SHA-256 is
+`c72343d13378655bb98f60ad8c9ee6787e6d4f53228f0c9469e257eab3815f56`.
+This establishes the live metadata ABI; actual pipe bytes and all qualification,
+custody, Native semantics and effect-writer claims remain unverified.
 
 ## Kernel contracts and separate effect work
 
