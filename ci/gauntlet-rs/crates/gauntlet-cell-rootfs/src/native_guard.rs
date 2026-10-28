@@ -364,11 +364,16 @@ impl NativeHookPlane {
             json!({
             "schema":"hol-gauntlet-cell-journal-binding.v1","available":false,"error":error})
         });
-        json!({"schema":"hol-gauntlet-native-hook-plane.v1","pins":self.pins.to_json(),"controller_session_id":self.session,
+        let mut observation = json!({"schema":"hol-gauntlet-native-hook-plane.v1","pins":self.pins.to_json(),"controller_session_id":self.session,
             "capture_input_receipt_schema":"hol-gauntlet-capture-input-terminal.v1","capture_journal":journal,
             "prompt":self.prompt,"observations":self.observations,"hooks":self.hooks,"executions":self.executions,
             "cleanup_complete":self.cell.cleanup_complete(),"identity_adapter_sha256":hash(crate::native_guard_probe::IDENTITY.as_bytes()),
             "readiness_adapter_sha256":hash(crate::native_guard_probe::READINESS.as_bytes()),
-            "sdk_exercised":false,"product_claims_authenticated":false,"guard_causality_verified":false,"execution_eligible":false,"model_requests":0})
+            "sdk_exercised":false,"product_claims_authenticated":false,"guard_causality_verified":false,"execution_eligible":false,"model_requests":0});
+        if let Some(events) = self.cell.process_events_observation() {
+            observation["schema"] = json!("hol-gauntlet-native-hook-plane.v2");
+            observation["process_events"] = events;
+        }
+        observation
     }
 }

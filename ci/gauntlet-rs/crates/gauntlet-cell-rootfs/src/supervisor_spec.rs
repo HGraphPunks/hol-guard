@@ -23,6 +23,7 @@ pub struct SupervisorSpec {
     pub host_helpers: BTreeMap<String, String>,
     pub image_interpreter_sha256: Option<String>,
     pub outside_observer_sha256: Option<String>,
+    pub process_events: bool,
 }
 
 pub const HOST_HELPERS: &[&str] = &[
@@ -57,10 +58,17 @@ impl SupervisorSpec {
         ];
         let mut pinned_fields = fields.to_vec();
         pinned_fields.extend(["image_interpreter_sha256", "outside_observer_sha256"]);
+        let mut traced_fields = pinned_fields.clone();
+        traced_fields.push("process_events");
         let value = object(raw, 8192, &fields, "hol-gauntlet-cell-supervisor.v1")
-            .or_else(|_| object(raw, 8192, &pinned_fields, "hol-gauntlet-cell-supervisor.v2"))?;
+            .or_else(|_| object(raw, 8192, &pinned_fields, "hol-gauntlet-cell-supervisor.v2"))
+            .or_else(|_| object(raw, 8192, &traced_fields, "hol-gauntlet-cell-supervisor.v3"))?;
+        let process_events = value["schema"] == "hol-gauntlet-cell-supervisor.v3";
+        if process_events && value["process_events"] != "outside-root-ptrace.v1" {
+            return Err("fixed outside Root process-event recorder required".into());
+        }
         let (image_interpreter_sha256, outside_observer_sha256) =
-            if value["schema"] == "hol-gauntlet-cell-supervisor.v2" {
+            if value["schema"] != "hol-gauntlet-cell-supervisor.v1" {
                 let interpreter = text(&value, "image_interpreter_sha256")?;
                 let observer = text(&value, "outside_observer_sha256")?;
                 if !hex(interpreter, 64) || !hex(observer, 64) {
@@ -130,6 +138,7 @@ impl SupervisorSpec {
             host_helpers,
             image_interpreter_sha256,
             outside_observer_sha256,
+            process_events,
         })
     }
 
@@ -247,5 +256,38 @@ mod tests {
             .unwrap()
             .remove("outside_observer_sha256");
         assert!(parse(&value).is_err());
+    }
+
+    #[test]
+    fn only_closed_v3_can_require_the_fixed_process_event_recorder() {
+        let mut value = fixture();
+        assert!(!parse(&value).unwrap().process_events);
+        value["image_interpreter_sha256"] = json!("a".repeat(64));
+        value["outside_observer_sha256"] = json!("b".repeat(64));
+        value["schema"] = json!("hol-gauntlet-cell-supervisor.v2");
+        assert!(!parse(&value).unwrap().process_events);
+        value["process_events"] = json!("outside-root-ptrace.v1");
+        assert!(parse(&value).is_err());
+        value["schema"] = json!("hol-gauntlet-cell-supervisor.v3");
+        assert!(parse(&value).unwrap().process_events);
+        for bad in [
+            json!(false),
+            Value::Null,
+            json!("poll"),
+            json!("/bin/observer"),
+        ] {
+            let mut changed = value.clone();
+            changed["process_events"] = bad;
+            assert!(parse(&changed).is_err());
+        }
+        for field in [
+            "process_events",
+            "image_interpreter_sha256",
+            "outside_observer_sha256",
+        ] {
+            let mut changed = value.clone();
+            changed.as_object_mut().unwrap().remove(field);
+            assert!(parse(&changed).is_err());
+        }
     }
 }

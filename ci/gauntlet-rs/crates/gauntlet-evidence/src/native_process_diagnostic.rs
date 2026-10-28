@@ -239,7 +239,10 @@ pub fn verify_native_process_diagnostic(
     let mcp_relations = crate::verify_native_mcp_diagnostic(control, files)
         .map_err(|_| EvidenceError::Invalid("process readback MCP artifacts differ"))?;
     let artifacts = Artifacts::new(files)?;
-    let journal_bound = if preparation["launch"]["schema"] == "hol-gauntlet-cell-supervisor.v2" {
+    let journal_bound = if matches!(
+        preparation["launch"]["schema"].as_str(),
+        Some("hol-gauntlet-cell-supervisor.v2" | "hol-gauntlet-cell-supervisor.v3")
+    ) {
         crate::native_capture_input::journal_binding(&control["plane"], &artifacts)?
     } else {
         false
@@ -249,6 +252,12 @@ pub fn verify_native_process_diagnostic(
         &artifacts.events,
         interpreter_sha256,
         observer_sha256,
+        journal_bound,
+    )?;
+    let process_events = crate::native_process_trace_diagnostic::verify(
+        preparation,
+        &control["plane"],
+        &artifacts,
         journal_bound,
     )?;
     let observed = artifacts.json("proof/outside-kernel.json")?;
@@ -473,6 +482,9 @@ pub fn verify_native_process_diagnostic(
         "mcp_artifact_relations":mcp_relations,"execution_eligible":false,"guard_causality_verified":false,"model_requests":0});
     if let Some(provenance) = launch_provenance {
         result["launch_provenance"] = provenance;
+    }
+    if let Some(events) = process_events {
+        result["process_events"] = events;
     }
     Ok(result)
 }

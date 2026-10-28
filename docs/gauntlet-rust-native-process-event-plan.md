@@ -135,3 +135,30 @@ and [`verify_native_process_events_arm_20261027.py`](../ci/gauntlet-rs/proofs/ve
 The Rust reader owns replay and refusal decisions. No model request, worker
 quota reset, resource-ceiling change or production-gate change occurs. The
 62-parent checklist stays at 24 complete; this closes no parent exit.
+
+## Launch v3 integration in progress, 2026-10-28
+
+The closed supervisor v3 now requires `process_events: "outside-root-ptrace.v1"`
+and both v2 interpreter/observer pins. V1/v2 declarations cannot opt into the
+recorder or gain its fields. Root starts the recorder after measuring the
+filtered actor and resource floors, before the private bootstrap or any spawn
+RPC. Held actor/gate reads accept a trace stop only when the kernel's
+`TracerPid` matches the recorder's actual thread; old untraced reads keep
+their original contract. A stopped initial actor must remain single threaded.
+
+Cell shutdown stops the owned unit and drains the recorder before declaring
+cleanup complete. The separate checkpoint is recorded once in the main Root
+journal and exposed only through Native hook-plane v2. A lost or incomplete
+recorder leaves cleanup uncertain and cannot manufacture a complete history.
+The consuming reader requires the signed main journal, exact file generation,
+early actor/start ordering and one matching stopped exec for every held gate.
+The old launch and plane versions retain their output shape.
+
+Working-source validation passes 48 Mac rootfs tests, four trace/lifecycle join
+tests, three launch-provenance tests and Mac/ARM affected-crate warnings-denied
+Clippy. The initial Clippy owned-string comparison failure remains retained;
+the correction parses the string-typed kernel tracer ID without changing its
+meaning. Fresh exact-source Native execution, full workspace validation and
+legacy-output regressions remain pending for this launch slice. The earlier
+fixture/readback proof above remains tied to its recorded sources. Complete
+Native image/effect grading, outside admission and all parent exits stay open.

@@ -22,6 +22,8 @@ mod kernel_mounts;
 mod kernel_process;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod kernel_status;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod kernel_trace_owner;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod mounts;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
@@ -105,6 +107,8 @@ mod supervisor_io;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod supervisor_journal;
 mod supervisor_spec;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod supervisor_trace;
 
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use kernel_process::{CellProcessExpectation, HeldCellProcess};

@@ -106,8 +106,13 @@ pub fn verify_native_hook_diagnostic(
     let artifacts = Artifacts::new(files)?;
     let prefix = text(preparation, "runtime_prefix")?;
     let plane = &control["plane"];
+    let plane_schema = if preparation["launch"]["schema"] == "hol-gauntlet-cell-supervisor.v3" {
+        "hol-gauntlet-native-hook-plane.v2"
+    } else {
+        "hol-gauntlet-native-hook-plane.v1"
+    };
     require(
-        plane["schema"] == "hol-gauntlet-native-hook-plane.v1"
+        plane["schema"] == plane_schema
             && plane["pins"] == control["guard_pins"]
             && plane["cleanup_complete"] == true
             && plane["product_claims_authenticated"] == false

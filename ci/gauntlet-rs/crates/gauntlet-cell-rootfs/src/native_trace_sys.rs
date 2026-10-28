@@ -3,6 +3,13 @@ use crate::native_trace_wait::{decode, Wait};
 use crate::Result;
 use std::ptr;
 
+pub(super) fn thread_id() -> Result<u32> {
+    u32::try_from(unsafe { libc::syscall(libc::SYS_gettid) })
+        .ok()
+        .filter(|v| *v > 0)
+        .ok_or_else(|| "positive recorder kernel TID required".into())
+}
+
 #[cfg(target_env = "musl")]
 type Request = libc::c_int;
 #[cfg(not(target_env = "musl"))]

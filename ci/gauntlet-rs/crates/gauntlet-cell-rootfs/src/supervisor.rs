@@ -38,6 +38,9 @@ pub struct NativeCell {
     pub(crate) closed: bool,
     pub(crate) image: Option<crate::image_lease::ImageLease>,
     pub(crate) image_interpreter: Option<crate::image_interpreter::HeldImageInterpreter>,
+    pub(crate) process_events: Option<crate::NativeProcessEvents>,
+    pub(crate) process_events_result: Option<Result<Value>>,
+    pub(crate) process_events_journaled: bool,
     declaration_sha256: String,
     actor_sha256: String,
 }
@@ -178,6 +181,9 @@ impl NativeCell {
             closed: false,
             image,
             image_interpreter,
+            process_events: None,
+            process_events_result: None,
+            process_events_journaled: false,
             declaration_sha256: expected_sha256.into(),
             actor_sha256,
         };
@@ -219,6 +225,10 @@ impl NativeCell {
             },
             filtered,
             cpu: self.cpu,
+            tracer_tid: self
+                .process_events
+                .as_ref()
+                .map(crate::NativeProcessEvents::tracer_tid),
         })
     }
 
@@ -251,14 +261,22 @@ impl NativeCell {
         payload: &Value,
         deadline: Instant,
     ) -> Result<Value> {
+        self.recorder_health()?;
         let left = deadline
             .saturating_duration_since(Instant::now())
             .min(Duration::from_secs(5));
-        self.client
+        let response = self
+            .client
             .as_ref()
             .ok_or("product client unavailable")?
             .call(operation, payload, left, &self.cancelled)
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string());
+        match (response, self.recorder_health()) {
+            (Ok(value), Ok(())) => Ok(value),
+            (Err(error), Ok(())) => Err(error),
+            (Ok(_), Err(error)) => Err(error),
+            (Err(error), Err(recorder)) => Err(format!("{error}; process recorder: {recorder}")),
+        }
     }
 
     pub(crate) fn run_helper(

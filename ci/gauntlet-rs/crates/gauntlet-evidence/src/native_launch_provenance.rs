@@ -27,7 +27,11 @@ pub(crate) fn verify(
         return Ok(None);
     }
     require(
-        launch["schema"] == "hol-gauntlet-cell-supervisor.v2"
+        matches!(
+            launch["schema"].as_str(),
+            Some("hol-gauntlet-cell-supervisor.v2" | "hol-gauntlet-cell-supervisor.v3")
+        ) && (launch["schema"] != "hol-gauntlet-cell-supervisor.v3"
+            || launch["process_events"] == "outside-root-ptrace.v1")
             && journal_bound
             && hex(interpreter, 64)
             && hex(observer, 64)
@@ -123,5 +127,17 @@ mod tests {
         let mut changed = prep;
         changed["launch"]["outside_observer_sha256"] = json!("c".repeat(64));
         assert!(read(&changed, &events, true).is_err());
+    }
+
+    #[test]
+    fn v3_retains_prelaunch_pins_and_cannot_select_another_recorder() {
+        let (mut prep, events) = fixture();
+        prep["launch"]["schema"] = json!("hol-gauntlet-cell-supervisor.v3");
+        assert!(read(&prep, &events, true).is_err());
+        prep["launch"]["process_events"] = json!("outside-root-ptrace.v1");
+        assert!(read(&prep, &events, true).unwrap().is_some());
+        assert!(read(&prep, &events, false).is_err());
+        prep["launch"]["process_events"] = json!("poll");
+        assert!(read(&prep, &events, true).is_err());
     }
 }

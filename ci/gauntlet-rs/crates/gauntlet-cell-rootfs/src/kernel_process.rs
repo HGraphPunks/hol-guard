@@ -21,6 +21,8 @@ pub struct CellProcessExpectation {
     pub executable_sha256: String,
     pub filtered: bool,
     pub cpu: Option<u32>,
+    /// Established by this cell's outside recorder, never a product claim.
+    pub tracer_tid: Option<u32>,
 }
 
 impl CellProcessExpectation {
@@ -41,6 +43,9 @@ impl CellProcessExpectation {
                     .is_some_and(|s| hex(s, 16)))
             || !hex(&self.executable_sha256, 64)
             || self.local_pid == 0
+            || self
+                .tracer_tid
+                .is_some_and(|n| !self.filtered || n == 0 || n > i32::MAX as u32)
         {
             return Err(
                 "exact product service cgroup, local PID and executable pin required".into(),
@@ -239,7 +244,7 @@ impl HeldCellProcess {
             Mode::empty(),
         )
         .map_err(|e| e.to_string())?;
-        let start_ticks = crate::kernel_status::start_ticks(&read_at(&proc, "stat", 4096)?, pid)?;
+        let start_ticks = crate::kernel_trace_owner::ticks(&proc, pid, expected.tracer_tid)?;
         let mut held = Self {
             pidfd,
             proc,
@@ -263,7 +268,7 @@ impl HeldCellProcess {
 
     fn sample_with_pipes(&self, permitted: &BTreeSet<String>) -> Result<Value> {
         if !self.is_alive()?
-            || crate::kernel_status::start_ticks(&read_at(&self.proc, "stat", 4096)?, self.pid)?
+            || crate::kernel_trace_owner::ticks(&self.proc, self.pid, self.expectation.tracer_tid)?
                 != self.start_ticks
         {
             return Err("owned product process exited or PID was reused".into());
@@ -310,7 +315,7 @@ impl HeldCellProcess {
         )
         .map_err(|e| e.to_string())?;
         if !self.is_alive()?
-            || crate::kernel_status::start_ticks(&read_at(&self.proc, "stat", 4096)?, self.pid)?
+            || crate::kernel_trace_owner::ticks(&self.proc, self.pid, self.expectation.tracer_tid)?
                 != self.start_ticks
         {
             return Err("product process changed during outside collection".into());
@@ -355,6 +360,16 @@ impl HeldCellProcess {
             return Err("measured product identity changed before release".into());
         }
         Ok(())
+    }
+    pub(crate) fn adopt_trace_owner(&mut self, tid: u32) -> Result<()> {
+        if !self.expectation.filtered
+            || self.expectation.local_pid != 1
+            || self.expectation.tracer_tid.is_some()
+        {
+            return Err("only the initially held filtered actor may adopt its recorder".into());
+        }
+        self.expectation.tracer_tid = Some(tid);
+        self.recheck()
     }
     pub(crate) fn recheck_actor(&self, child_pipes: &BTreeSet<String>) -> Result<Value> {
         if self.expectation.local_pid != 1 || !self.expectation.filtered {
@@ -402,6 +417,7 @@ mod tests {
             executable_sha256: "b".repeat(64),
             filtered: true,
             cpu: None,
+            tracer_tid: None,
         };
         assert!(good.validate().is_ok());
         let mut bad = good.clone();

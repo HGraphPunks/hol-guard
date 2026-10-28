@@ -116,6 +116,9 @@ pub(crate) struct Capture<'a> {
     pub(crate) stderr: &'a [u8],
 }
 impl<'a> Artifacts<'a> {
+    pub(crate) fn contains(&self, name: &str) -> bool {
+        self.files.contains_key(name)
+    }
     pub(crate) fn new(files: &'a BTreeMap<String, Vec<u8>>) -> Result<Self> {
         require(
             !files.is_empty()

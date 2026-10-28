@@ -452,4 +452,4 @@ pub fn verify_native_process_events(raw: &[u8], checkpoint: &Value) -> Result<Va
 
 #[cfg(test)]
 #[path = "native_process_events_tests.rs"]
-mod tests;
+pub(crate) mod tests;

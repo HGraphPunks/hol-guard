@@ -57,6 +57,7 @@ mod native_process_event_identity;
 mod native_process_events;
 mod native_process_kernel;
 mod native_process_public;
+mod native_process_trace_diagnostic;
 mod native_product_kernel;
 mod native_review_summary;
 mod native_runtime_kernel;

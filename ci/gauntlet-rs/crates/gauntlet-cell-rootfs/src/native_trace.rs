@@ -21,6 +21,7 @@ pub struct NativeProcessEvents {
     abort: Arc<AtomicBool>,
     result: SharedResult,
     thread: Option<JoinHandle<()>>,
+    tracer_tid: u32,
 }
 
 impl NativeProcessEvents {
@@ -81,9 +82,13 @@ impl NativeProcessEvents {
             abort,
             result,
             thread: Some(thread),
+            tracer_tid: 0,
         };
         match receiver.recv_timeout(Duration::from_secs(6)) {
-            Ok(Ok(())) => Ok(recorder),
+            Ok(Ok(tid)) => {
+                recorder.tracer_tid = tid;
+                Ok(recorder)
+            }
             Ok(Err(error)) => {
                 recorder.abort.store(true, Ordering::Release);
                 Err(error)
@@ -108,6 +113,10 @@ impl NativeProcessEvents {
             return Err("owned recorder exited without a result".into());
         }
         Ok(())
+    }
+
+    pub fn tracer_tid(&self) -> u32 {
+        self.tracer_tid
     }
 
     fn reap_finished(&mut self) -> Result<()> {

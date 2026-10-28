@@ -75,7 +75,7 @@ impl Engine {
         Ok(())
     }
 
-    pub(super) fn run(&mut self, ready: &SyncSender<Result<()>>) -> Result<Value> {
+    pub(super) fn run(&mut self, ready: &SyncSender<Result<u32>>) -> Result<Value> {
         let tid = *self.active.keys().next().ok_or("initial actor required")?;
         sys::seize(tid)?;
         let deadline = Instant::now() + Duration::from_secs(5);
@@ -96,6 +96,9 @@ impl Engine {
             }
         }
         let image = self.active[&tid].task.exec_image(&self.cgroup)?;
+        if image["task"]["status"]["Threads"] != "1" {
+            return Err("single-threaded actor required at the initial trace stop".into());
+        }
         if let Some(expected) = &self.expected_actor {
             if image["executable"]["sha256"] != expected["executable_sha256"]
                 || image["namespaces"] != expected["namespaces"]
@@ -117,7 +120,7 @@ impl Engine {
         )?;
         self.resume(tid, 0)?;
         ready
-            .send(Ok(()))
+            .send(Ok(sys::thread_id()?))
             .map_err(|_| "recorder readiness receiver disappeared")?;
         loop {
             if self.abort.load(Ordering::Acquire) {

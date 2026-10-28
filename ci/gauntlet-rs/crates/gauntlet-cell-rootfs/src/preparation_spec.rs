@@ -103,8 +103,14 @@ impl CellPreparation {
             "job_slice",
             "host_helpers",
         ];
-        if launch["schema"] == "hol-gauntlet-cell-supervisor.v2" {
+        if matches!(
+            launch["schema"].as_str(),
+            Some("hol-gauntlet-cell-supervisor.v2" | "hol-gauntlet-cell-supervisor.v3")
+        ) {
             fields.extend(["image_interpreter_sha256", "outside_observer_sha256"]);
+        }
+        if launch["schema"] == "hol-gauntlet-cell-supervisor.v3" {
+            fields.push("process_events");
         }
         if launch
             .as_object()
@@ -227,5 +233,24 @@ mod tests {
             .unwrap()
             .remove("image_interpreter_sha256");
         assert!(parse(&value).is_err());
+    }
+
+    #[test]
+    fn traced_preparation_preserves_the_mandatory_v3_recorder_and_both_pins() {
+        let mut value = fixture();
+        value["launch"]["schema"] = json!("hol-gauntlet-cell-supervisor.v3");
+        value["launch"]["process_events"] = json!("outside-root-ptrace.v1");
+        value["launch"]["image_interpreter_sha256"] = json!("a".repeat(64));
+        value["launch"]["outside_observer_sha256"] = json!("b".repeat(64));
+        let supervisor = parse(&value).unwrap().supervisor(&"c".repeat(64)).unwrap();
+        assert_eq!(supervisor["process_events"], "outside-root-ptrace.v1");
+        assert_eq!(supervisor["schema"], "hol-gauntlet-cell-supervisor.v3");
+        for legacy in [
+            "hol-gauntlet-cell-supervisor.v1",
+            "hol-gauntlet-cell-supervisor.v2",
+        ] {
+            value["launch"]["schema"] = json!(legacy);
+            assert!(parse(&value).is_err());
+        }
     }
 }

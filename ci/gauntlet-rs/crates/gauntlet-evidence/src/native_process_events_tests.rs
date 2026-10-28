@@ -1,7 +1,7 @@
 use super::*;
 use base64::{engine::general_purpose::STANDARD, Engine};
 
-fn task_value(tid: u64, tgid: u64, start: u64) -> Value {
+pub(crate) fn task_value(tid: u64, tgid: u64, start: u64) -> Value {
     let mut status = json!({"Uid":"10004 10004 10004 10004","Gid":"10004 10004 10004 10004","Groups":"",
         "NoNewPrivs":"1","Seccomp":"2","Seccomp_filters":"2","NSpid":tid.to_string(),
         "TracerPid":"99","Threads":"1","Cpus_allowed_list":"0"});
@@ -10,7 +10,7 @@ fn task_value(tid: u64, tgid: u64, start: u64) -> Value {
     }
     json!({"tid":tid,"tgid":tgid,"start_ticks":start,"parent_pid":1,"cgroup":"/test/owned","status":status})
 }
-fn image_value(tid: u64, tgid: u64, start: u64) -> Value {
+pub(crate) fn image_value(tid: u64, tgid: u64, start: u64) -> Value {
     let mut ns = json!({});
     for name in crate::native_process_kernel::NAMESPACES {
         ns[name] = json!("1:2");
@@ -40,7 +40,7 @@ fn complete(created: u64, finals: u64, replacements: u64, execs: u64) -> (&'stat
         "active_tasks":0,"pending_births":0,"pending_stops":0,"execution_eligible":false}),
     )
 }
-fn pack(events: &[(&str, Value)]) -> (Vec<u8>, Value) {
+pub(crate) fn pack(events: &[(&str, Value)]) -> (Vec<u8>, Value) {
     let mut raw = Vec::new();
     let mut previous = "0".repeat(64);
     for (sequence, (kind, data)) in events.iter().enumerate() {
