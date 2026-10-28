@@ -30136,6 +30136,38 @@
       "expect": "allow"
     },
     {
+      "id": "gh-pr-list-author-signed-in-user",
+      "fix_area": "gh",
+      "harnesses": [
+        "claude-code",
+        "codex",
+        "omp",
+        "zcode"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "gh pr list --author @me --state open"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
+      "id": "gh-search-prs-review-requested-signed-in-user",
+      "fix_area": "gh",
+      "harnesses": [
+        "claude-code",
+        "codex",
+        "omp",
+        "zcode"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "gh search prs --review-requested @me --state open"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
       "id": "jq-stdin-map-field",
       "fix_area": "gh",
       "harnesses": [
