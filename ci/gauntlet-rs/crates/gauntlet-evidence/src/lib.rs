@@ -61,6 +61,7 @@ mod native_process_trace_diagnostic;
 mod native_product_kernel;
 mod native_review_summary;
 mod native_runtime_kernel;
+mod native_runtime_trace;
 mod native_transport_relations;
 mod native_world_database;
 mod native_world_diagnostic;

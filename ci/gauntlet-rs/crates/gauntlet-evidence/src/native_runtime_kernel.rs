@@ -96,12 +96,14 @@ pub(crate) fn verify(
         }
     }
     require(!checked.is_empty())?;
-    Ok(
-        json!({"schema":"hol-gauntlet-native-runtime-client-relations.v1",
+    let mut result = json!({"schema":"hol-gauntlet-native-runtime-client-relations.v1",
         "native_runtime_sha256":native,"installed_runtime_clients_checked":clients.len(),"cli_relations":checked,
         "missing_internal_client_observations":missing,"all_selected_cli_clients_observed":missing.is_empty(),
         "internal_native_request_bytes_checked":false,"all_native_runtime_descendants_graded":false,
         "independent_process_custody_checked":false,"outside_signing_key_admitted":false,
-        "execution_eligible":false,"guard_causality_verified":false,"model_requests":0}),
-    )
+        "execution_eligible":false,"guard_causality_verified":false,"model_requests":0});
+    if let Some(images) = crate::native_runtime_trace::verify(control, preparation, artifacts)? {
+        result["process_event_images"] = images;
+    }
+    Ok(result)
 }
