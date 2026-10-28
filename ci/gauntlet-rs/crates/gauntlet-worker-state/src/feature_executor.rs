@@ -44,6 +44,16 @@ fn absent(group: &FeatureGroup) -> Result<(), String> {
 
 fn test_environment(group: &FeatureGroup) -> BTreeMap<String, String> {
     let mut env = environment();
+    // Preparation isolates Git configuration for clone/checkout. These extra
+    // variables are not in Python's product-test environment: their names
+    // change Native's Git authority proof even when the value is /dev/null.
+    for key in [
+        "GIT_CONFIG_NOSYSTEM",
+        "GIT_CONFIG_GLOBAL",
+        "GIT_TERMINAL_PROMPT",
+    ] {
+        env.remove(key);
+    }
     env.insert("HOL_GUARD_NATIVE".into(), "force".into());
     env.insert(
         "HOL_GUARD_NATIVE_BINARY".into(),
@@ -231,6 +241,18 @@ mod tests {
         for (index, group) in schedule.iter().enumerate() {
             assert_eq!(group.source_native(), index < 13);
             let env = test_environment(group);
+            for key in [
+                "GIT_CONFIG_NOSYSTEM",
+                "GIT_CONFIG_GLOBAL",
+                "GIT_TERMINAL_PROMPT",
+            ] {
+                assert!(environment().contains_key(key));
+                assert!(
+                    !env.contains_key(key),
+                    "setup Git variable leaked to {}",
+                    group.id()
+                );
+            }
             assert_eq!(env["HOL_GUARD_NATIVE"], "force");
             assert_eq!(env.contains_key("PYTHONPATH"), index < 13);
             assert_eq!(
