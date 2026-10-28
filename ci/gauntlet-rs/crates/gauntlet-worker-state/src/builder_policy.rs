@@ -135,6 +135,27 @@ pub(crate) fn profile_is_loaded(name: &str) -> Result<bool, BuilderPolicyError> 
     Ok(text.lines().any(|line| line == format!("{name} (enforce)")))
 }
 
+pub(crate) fn profile_absent(name: &str) -> Result<bool, BuilderPolicyError> {
+    let descriptor = open(
+        PROFILES,
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|_| BuilderPolicyError::CleanupUncertain)?;
+    let mut bytes = Vec::new();
+    File::from(descriptor)
+        .take(MAX_PROFILES_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| BuilderPolicyError::CleanupUncertain)?;
+    if bytes.len() as u64 > MAX_PROFILES_BYTES {
+        return Err(BuilderPolicyError::CleanupUncertain);
+    }
+    let text = std::str::from_utf8(&bytes).map_err(|_| BuilderPolicyError::CleanupUncertain)?;
+    Ok(!text.lines().any(|line| {
+        line.starts_with(&format!("{name} ")) || line.starts_with(&format!("{name}//"))
+    }))
+}
+
 pub(crate) fn run_parser(action: &str, policy_path: &str) -> Result<(), BuilderPolicyError> {
     let mut command = Command::new(PARSER);
     command.args([action, policy_path]);

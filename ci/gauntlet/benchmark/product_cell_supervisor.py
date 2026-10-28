@@ -17,7 +17,7 @@ import time
 import uuid
 from pathlib import Path
 
-from .json_data import canonical_json, strict_json_loads
+from .json_data import canonical_json
 from .product_cell_protocol import CellCodec
 from .product_vm_rootfs import _trusted
 from .vm_bridge_io import BridgeIO
@@ -108,12 +108,9 @@ class ProductCell:
         manifest_raw=manifest_path.read_bytes()
         if len(manifest_raw)>1024**2 or hashlib.sha256(manifest_raw).hexdigest()!=expected_manifest_digest:
             raise ValueError('cell artifacts differ from external manifest pin')
-        manifest=strict_json_loads(manifest_raw)
+        from .product_cell_layout import read_artifact_runtime
+        manifest,self.actor_argv=read_artifact_runtime(manifest_raw,expected_manifest_digest,initializer_sha256)
         self.artifact_manifest_digest=expected_manifest_digest
-        if (type(manifest) is not dict or set(manifest)!={'schema','files'}
-                or manifest['schema']!='product-cell-artifacts.v1' or type(manifest['files']) is not dict
-                or not 1<=len(manifest['files'])<=128):
-            raise ValueError('invalid cell artifact manifest')
         public=set()
         for name,pin in manifest['files'].items():
             relative=Path(name)
@@ -141,6 +138,9 @@ class ProductCell:
         self.loaded,self.closed=False,False
         self.children={}
         self.observations=[]
+        if manifest['schema']=='product-cell-artifacts.v2':
+            self.observations.append({'kind':'native-cell-runtime',
+                                      'artifact_manifest_raw':manifest_raw.decode('utf-8')})
         self.cleanup_errors=[]
         self.boot=Path('/proc/sys/kernel/random/boot_id').read_text().strip()
 
@@ -185,7 +185,8 @@ class ProductCell:
                     'from ci.gauntlet.benchmark.product_vm_rootfs import construct;'
                     'construct(Path(sys.argv[2]),initializer_digest=sys.argv[3],product_state=Path(sys.argv[2])/"state",'
                     'loopback_parent_namespace=sys.argv[4] or None,expected_system_digest=sys.argv[5] or None,'
-                    'idmap_runtime=sys.argv[6],expected_task_digest=sys.argv[7] or None)')
+                    'idmap_runtime=sys.argv[6],expected_task_digest=sys.argv[7] or None,'
+                    'expected_artifact_manifest_digest=sys.argv[8])')
             parent_net=os.readlink('/proc/self/ns/net') if self.network_profile=='private-loopback-v1' else ''
             slice_options,cgroup=cell_placement(self.job_slice,self.unit)
             argv=['/usr/bin/systemd-run','--quiet','--collect','--wait','--pipe','--unit='+self.unit,
@@ -195,7 +196,7 @@ class ProductCell:
                   '--property=KillMode=control-group',*self.cpu_properties,'/usr/bin/aa-exec','-p',self.name,'--',
                   '/usr/bin/unshare','--mount','--pid','--net','--ipc','--uts','--cgroup','--fork','--kill-child=KILL',
                   '/usr/bin/python3','-I','-B','-c',launch,code,str(self.stage),self.initializer_sha256,parent_net,
-                  self.system_digest or '',self.idmap_runtime,self.task_digest or '']
+                  self.system_digest or '',self.idmap_runtime,self.task_digest or '',self.artifact_manifest_digest]
             self.process=subprocess.Popen(argv,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
                                           close_fds=True,env=ENV,bufsize=0,start_new_session=True)
             for stream in (self.process.stdin,self.process.stdout,self.process.stderr):
@@ -261,7 +262,8 @@ class ProductCell:
             raise ValueError('invalid actor process gate reply')
         identity=self._find(result['local_pid'])
         verify_actor(identity,profile=self.name,namespaces=self.namespaces,allowed_cpu=self.allowed_cpu)
-        expected=['/usr/bin/python3','-I','-B','/public/ci/gauntlet/benchmark/product_exec_gate.py',*argv]
+        from .product_cell_layout import measured_gate_prefix
+        expected=[*measured_gate_prefix(self.actor_argv),*argv]
         if identity['argv']!=expected or set(identity['fds'])!={'0','1','2'}:
             raise ValueError('actual gated process argv/descriptors mismatch')
         self.children[result['handle']]=identity

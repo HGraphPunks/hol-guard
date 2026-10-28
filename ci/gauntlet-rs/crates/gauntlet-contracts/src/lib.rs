@@ -9,8 +9,12 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
 
+mod dependency_run;
 mod effect_file_handle;
+pub use dependency_run::{DependencyRunIntent, DependencyRunPins, DEPENDENCY_INTENT_LIMIT};
 mod effect_writer_image;
+mod feature_catalog;
+mod feature_spec;
 mod identity;
 mod policy;
 mod prelaunch_handoff;
@@ -22,6 +26,13 @@ pub use effect_file_handle::{EffectFileHandle, MAX_EFFECT_HANDLE_BYTES};
 pub use effect_writer_image::{
     validate_effect_writer_images, EFFECT_IMAGE_JOURNAL_SCHEMA, EFFECT_IMAGE_RECEIPT_SCHEMA,
     MAX_EFFECT_WRITER_IMAGES,
+};
+pub use feature_catalog::{
+    fixed_feature_catalog, fixed_feature_schedule, FeatureCatalogError, FeatureGroup,
+    FEATURE_CATALOG_SHA256,
+};
+pub use feature_spec::{
+    FeatureExecutorSpec, FeatureSpecError, FEATURE_NODE_SHA256, FEATURE_SPEC_LIMIT,
 };
 pub use identity::{is_git_sha, validate_source_identity, IdentityError};
 pub use policy::{bind_gate_policy, GatePolicyError};
@@ -35,6 +46,8 @@ pub use worker_request::{WorkerAction, WorkerRequest, WorkerRequestError};
 pub use worker_response::{WorkerResponse, WorkerResponseError, WorkerState};
 
 pub const MAX_RECORD_BYTES: usize = 16 * 1024 * 1024;
+/// Complete public v7 worker records share the bounded data-record limit.
+pub const NATIVE_HOST_PINNED_COMPLETION_LIMIT: usize = MAX_RECORD_BYTES;
 pub const MAX_DEPTH: usize = 32;
 pub const MAX_NODES: usize = 500_000;
 const MAX_INTEGER_DIGITS: usize = 4_300; // CPython 3.12's default decimal-int limit.

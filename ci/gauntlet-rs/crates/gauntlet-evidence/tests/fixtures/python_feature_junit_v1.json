@@ -1,0 +1,245 @@
+{
+  "cases": [
+    {
+      "case": "pass",
+      "exit_code": 0,
+      "python": {
+        "accepted": true,
+        "counts": {
+          "errors": 0,
+          "failures": 0,
+          "skipped": 0,
+          "tests": 2
+        },
+        "status": "passed"
+      },
+      "rust_v2_refuses": false,
+      "xml": "<testsuite tests=\"2\" failures=\"0\" errors=\"0\" skipped=\"0\"><testcase name=\"a\"/><testcase name=\"b\"/></testsuite>"
+    },
+    {
+      "case": "multiple-suites",
+      "exit_code": 0,
+      "python": {
+        "accepted": true,
+        "counts": {
+          "errors": 0,
+          "failures": 0,
+          "skipped": 0,
+          "tests": 2
+        },
+        "status": "passed"
+      },
+      "rust_v2_refuses": false,
+      "xml": "<testsuites><testsuite tests=\"1\" failures=\"0\" errors=\"0\" skipped=\"0\"><testcase name=\"a\"/></testsuite><testsuite tests=\"1\" failures=\"0\" errors=\"0\" skipped=\"0\"><testcase name=\"b\"/></testsuite></testsuites>"
+    },
+    {
+      "case": "failed",
+      "exit_code": 1,
+      "python": {
+        "accepted": true,
+        "counts": {
+          "errors": 0,
+          "failures": 1,
+          "skipped": 0,
+          "tests": 1
+        },
+        "status": "failed"
+      },
+      "rust_v2_refuses": false,
+      "xml": "<testsuite tests=\"1\" failures=\"1\" errors=\"0\" skipped=\"0\"><testcase name=\"a\"><failure message=\"assertion\">synthetic</failure></testcase></testsuite>"
+    },
+    {
+      "case": "error",
+      "exit_code": 1,
+      "python": {
+        "accepted": true,
+        "counts": {
+          "errors": 1,
+          "failures": 0,
+          "skipped": 0,
+          "tests": 1
+        },
+        "status": "failed"
+      },
+      "rust_v2_refuses": false,
+      "xml": "<testsuite tests=\"1\" failures=\"0\" errors=\"1\" skipped=\"0\"><testcase name=\"a\"><error>synthetic</error></testcase></testsuite>"
+    },
+    {
+      "case": "skipped",
+      "exit_code": 0,
+      "python": {
+        "accepted": true,
+        "counts": {
+          "errors": 0,
+          "failures": 0,
+          "skipped": 1,
+          "tests": 1
+        },
+        "status": "incomplete"
+      },
+      "rust_v2_refuses": false,
+      "xml": "<testsuite tests=\"1\" failures=\"0\" errors=\"0\" skipped=\"1\"><testcase name=\"a\"><skipped message=\"unsupported\"/></testcase></testsuite>"
+    },
+    {
+      "case": "exit-nonzero",
+      "exit_code": 1,
+      "python": {
+        "accepted": true,
+        "counts": {
+          "errors": 0,
+          "failures": 0,
+          "skipped": 0,
+          "tests": 1
+        },
+        "status": "failed"
+      },
+      "rust_v2_refuses": false,
+      "xml": "<testsuite tests=\"1\" failures=\"0\" errors=\"0\" skipped=\"0\"><testcase name=\"a\"/></testsuite>"
+    },
+    {
+      "case": "zero-tests",
+      "exit_code": 0,
+      "python": {
+        "accepted": true,
+        "counts": {
+          "errors": 0,
+          "failures": 0,
+          "skipped": 0,
+          "tests": 0
+        },
+        "status": "invalid-evidence"
+      },
+      "rust_v2_refuses": false,
+      "xml": "<testsuite tests=\"0\" failures=\"0\" errors=\"0\" skipped=\"0\"/>"
+    },
+    {
+      "case": "escaped-text",
+      "exit_code": 0,
+      "python": {
+        "accepted": true,
+        "counts": {
+          "errors": 0,
+          "failures": 0,
+          "skipped": 0,
+          "tests": 1
+        },
+        "status": "passed"
+      },
+      "rust_v2_refuses": false,
+      "xml": "<testsuite tests=\"1\" failures=\"0\" errors=\"0\" skipped=\"0\"><testcase name=\"a\"><system-out>&lt;script&gt;&amp; plain</system-out></testcase></testsuite>"
+    },
+    {
+      "case": "malformed",
+      "exit_code": 0,
+      "python": {
+        "accepted": false,
+        "error_class": "ParseError"
+      },
+      "rust_v2_refuses": true,
+      "xml": "<testsuite>"
+    },
+    {
+      "case": "no-suites",
+      "exit_code": 0,
+      "python": {
+        "accepted": false,
+        "error_class": "ValueError"
+      },
+      "rust_v2_refuses": true,
+      "xml": "<testsuites/>"
+    },
+    {
+      "case": "counter-spoof",
+      "exit_code": 0,
+      "python": {
+        "accepted": true,
+        "counts": {
+          "errors": 0,
+          "failures": 0,
+          "skipped": 0,
+          "tests": 99
+        },
+        "status": "passed"
+      },
+      "rust_v2_refuses": true,
+      "xml": "<testsuite tests=\"99\" failures=\"0\" errors=\"0\" skipped=\"0\"><testcase name=\"one\"/></testsuite>"
+    },
+    {
+      "case": "hidden-failure",
+      "exit_code": 0,
+      "python": {
+        "accepted": true,
+        "counts": {
+          "errors": 0,
+          "failures": 0,
+          "skipped": 0,
+          "tests": 1
+        },
+        "status": "passed"
+      },
+      "rust_v2_refuses": true,
+      "xml": "<testsuite tests=\"1\" failures=\"0\" errors=\"0\" skipped=\"0\"><testcase name=\"a\"><failure>hidden</failure></testcase></testsuite>"
+    },
+    {
+      "case": "negative-counter",
+      "exit_code": 0,
+      "python": {
+        "accepted": true,
+        "counts": {
+          "errors": 0,
+          "failures": 0,
+          "skipped": 0,
+          "tests": -1
+        },
+        "status": "passed"
+      },
+      "rust_v2_refuses": true,
+      "xml": "<testsuite tests=\"-1\" failures=\"0\" errors=\"0\" skipped=\"0\"/>"
+    },
+    {
+      "case": "unknown-root",
+      "exit_code": 0,
+      "python": {
+        "accepted": true,
+        "counts": {
+          "errors": 0,
+          "failures": 0,
+          "skipped": 0,
+          "tests": 1
+        },
+        "status": "passed"
+      },
+      "rust_v2_refuses": true,
+      "xml": "<evidence><testsuite tests=\"1\" failures=\"0\" errors=\"0\" skipped=\"0\"><testcase name=\"a\"/></testsuite></evidence>"
+    },
+    {
+      "case": "inline-entity",
+      "exit_code": 0,
+      "python": {
+        "accepted": true,
+        "counts": {
+          "errors": 0,
+          "failures": 0,
+          "skipped": 0,
+          "tests": 1
+        },
+        "status": "passed"
+      },
+      "rust_v2_refuses": true,
+      "xml": "<!DOCTYPE testsuite [<!ENTITY sample \"bounded\">]><testsuite tests=\"1\" failures=\"0\" errors=\"0\" skipped=\"0\"><testcase name=\"a\"><system-out>&sample;</system-out></testcase></testsuite>"
+    },
+    {
+      "case": "namespace",
+      "exit_code": 0,
+      "python": {
+        "accepted": false,
+        "error_class": "ValueError"
+      },
+      "rust_v2_refuses": true,
+      "xml": "<x:testsuite xmlns:x=\"urn:other\" tests=\"0\" failures=\"0\" errors=\"0\" skipped=\"0\"/>"
+    }
+  ],
+  "python_source_commit": "b4efd8171b06d0e13cbe12a077c376ecdc891fd1",
+  "python_source_sha256": "d3d5b72d7bd9c725d7cc9b90aa3bb7bc442a99a5e188943f4686bf34e4c048de",
+  "schema": "hol-gauntlet-feature-junit-python-oracle.v1"
+}

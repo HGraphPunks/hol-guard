@@ -15,20 +15,12 @@ from pathlib import Path
 
 from ..store_policy_decision import policy_decision_hash_exists
 from .hook_fail_closed import render_accepted_allow, render_pre_tool
-from .hook_native_exact_action import GUARD_CONTROL_ACTION_TYPES, native_exact_action
 
 _LOGGER = logging.getLogger(__name__)
 
 EXACT_ACTION_CONTEXT_TOKEN_KEY = "exact_context_token"
 EXACT_ACTION_IDENTITY_KIND_KEY = "exact_identity_kind"
 ONCE_ONLY_REASON_KEY = "once_only_reason"
-
-
-class TokenUnset:
-    """Sentinel type: distinguishes "not supplied" from a computed ``None`` token."""
-
-
-TOKEN_UNSET = TokenUnset()
 
 
 def native_saved_decision_response(
@@ -103,50 +95,6 @@ def native_saved_decision_response(
     return render_accepted_allow(harness, allowed, guard_home=store_guard_home(store))
 
 
-def native_saved_review_response(
-    store: object,
-    *,
-    harness: str,
-    tool_name: str,
-    artifact_id: str,
-    payload: Mapping[str, object],
-    native_result: Mapping[str, object],
-    native_receipt: Mapping[str, object] | None,
-    workspace: Path | None,
-    home_dir: Path | None,
-    precomputed_token: str | None | TokenUnset = TOKEN_UNSET,
-    guard_home: Path | None = None,
-) -> dict[str, object] | None:
-    """Return the saved exact-action outcome for a paused native review.
-
-    ``precomputed_token`` lets the caller reuse the token it already derived for
-    this exact request instead of repeating its filesystem and resident work.
-    """
-
-    token = (
-        native_exact_action(
-            harness=harness,
-            tool_name=tool_name,
-            payload=payload,
-            native_result=native_result,
-            native_receipt=native_receipt,
-            workspace=workspace,
-            home_dir=home_dir,
-            guard_home=guard_home,
-        )[0]
-        if isinstance(precomputed_token, TokenUnset)
-        else precomputed_token
-    )
-    return native_saved_decision_response(
-        store,
-        harness=harness,
-        token=token,
-        artifact_id=artifact_id,
-        native_result=native_result,
-        workspace=workspace,
-    )
-
-
 def store_guard_home(store: object) -> Path | None:
     """The store's Guard home, so the resident renders against the right state directory."""
 
@@ -186,22 +134,9 @@ def _native_review_is_approvable(native_result: Mapping[str, object]) -> bool:
     ) in {"review", "require-reapproval"}
 
 
-def _native_review_is_overridable(native_result: Mapping[str, object]) -> bool:
-    """A review a broad local-CLI grant may lift: never Guard control or a package action."""
-
-    if not _native_review_is_approvable(native_result):
-        return False
-    action = native_result.get("action")
-    action_type = action.get("action_type") if isinstance(action, Mapping) else None
-    return action_type not in {*GUARD_CONTROL_ACTION_TYPES, "package"}
-
-
 __all__ = [
     "EXACT_ACTION_CONTEXT_TOKEN_KEY",
     "EXACT_ACTION_IDENTITY_KIND_KEY",
     "ONCE_ONLY_REASON_KEY",
-    "TOKEN_UNSET",
-    "TokenUnset",
     "native_saved_decision_response",
-    "native_saved_review_response",
 ]

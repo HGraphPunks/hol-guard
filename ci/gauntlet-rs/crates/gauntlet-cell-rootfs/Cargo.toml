@@ -1,0 +1,30 @@
+[package]
+name = "gauntlet-cell-rootfs"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+description = "Root PID1 filesystem constructor for the native Gauntlet apparatus"
+
+[features]
+owned-process-trace-fixture = []
+
+[[bin]]
+name = "gauntlet-process-trace-fixture"
+path = "src/bin/gauntlet-process-trace-fixture.rs"
+required-features = ["owned-process-trace-fixture"]
+
+[dependencies]
+base64 = "=0.22.1"
+gauntlet-agent-bridge = { path = "../gauntlet-agent-bridge" }
+gauntlet-contracts = { path = "../gauntlet-contracts" }
+gauntlet-evidence = { path = "../gauntlet-evidence" }
+gauntlet-product-cell = { path = "../gauntlet-product-cell" }
+ring = "=0.17.14"
+libc = "=0.2.191"
+rustix = { version = "=1.1.5", features = ["fs", "process", "event"] }
+serde_json = { version = "=1.0.151", features = ["arbitrary_precision"] }
+sha2 = "=0.10.9"
+uuid = "=1.20.0"
+
+[dev-dependencies]
+tempfile = "=3.27.0"

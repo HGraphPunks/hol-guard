@@ -75,12 +75,19 @@ fn podman_command() -> Command {
 }
 
 pub(crate) fn container_absent(job_id: &str) -> Result<bool, CandidateProcessError> {
+    container_target_absent(&format!("hol-gauntlet-build-{job_id}"))
+}
+
+pub(crate) fn container_id_absent(cid: &str) -> Result<bool, CandidateProcessError> {
+    if !crate::hex(cid, 64) {
+        return Err(CandidateProcessError::ContainerUnknown);
+    }
+    container_target_absent(cid)
+}
+
+fn container_target_absent(target: &str) -> Result<bool, CandidateProcessError> {
     let mut command = podman_command();
-    command.args([
-        "container",
-        "exists",
-        &format!("hol-gauntlet-build-{job_id}"),
-    ]);
+    command.args(["container", "exists", target]);
     command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -168,11 +175,13 @@ fn record_stream(
 fn cleanup(
     group: &mut OwnedCandidateCgroup,
     child: &mut std::process::Child,
+    drain_container: &impl Fn() -> Result<(), CandidateProcessError>,
 ) -> Result<(), CandidateProcessError> {
     let killed = group.kill();
     let reaped = reap_probe_child_bounded(child);
+    let container = drain_container();
     let drained = group.drain_and_remove();
-    if killed.is_err() || reaped.is_err() || drained.is_err() {
+    if killed.is_err() || reaped.is_err() || container.is_err() || drained.is_err() {
         return Err(CandidateProcessError::CleanupUncertain);
     }
     Ok(())
@@ -183,11 +192,53 @@ pub(crate) fn run_candidate_process(
     job: &OwnedFd,
     still_owned: &impl Fn() -> Result<(), CandidateProcessError>,
 ) -> Result<CandidateProcessObservation, CandidateProcessError> {
-    if !container_absent(&plan.job_id)? {
+    run_process(plan, job, still_owned, false, &|| Ok(()), &|_, _| Ok(()))
+}
+
+pub(crate) fn run_precreated_dependency_process(
+    plan: &BuilderRunPlan,
+    job: &OwnedFd,
+    still_owned: &impl Fn() -> Result<(), CandidateProcessError>,
+    drain_container: &impl Fn() -> Result<(), CandidateProcessError>,
+    record_running: &impl Fn(crate::ProcessIdentity, &str) -> Result<(), CandidateProcessError>,
+) -> Result<CandidateProcessObservation, CandidateProcessError> {
+    run_process(
+        plan,
+        job,
+        still_owned,
+        true,
+        drain_container,
+        record_running,
+    )
+}
+
+fn run_process(
+    plan: &BuilderRunPlan,
+    job: &OwnedFd,
+    still_owned: &impl Fn() -> Result<(), CandidateProcessError>,
+    precreated_dependency: bool,
+    drain_container: &impl Fn() -> Result<(), CandidateProcessError>,
+    record_running: &impl Fn(crate::ProcessIdentity, &str) -> Result<(), CandidateProcessError>,
+) -> Result<CandidateProcessObservation, CandidateProcessError> {
+    if !precreated_dependency && !container_absent(&plan.job_id)? {
         return Err(CandidateProcessError::ExistingContainer);
     }
-    let stdout = create_log(job, "candidate-run.stdout.log")?;
-    let stderr = create_log(job, "candidate-run.stderr.log")?;
+    let stdout = create_log(
+        job,
+        if precreated_dependency {
+            "dependency-run.stdout.log"
+        } else {
+            "candidate-run.stdout.log"
+        },
+    )?;
+    let stderr = create_log(
+        job,
+        if precreated_dependency {
+            "dependency-run.stderr.log"
+        } else {
+            "candidate-run.stderr.log"
+        },
+    )?;
     fsync(job).map_err(|_| CandidateProcessError::LogUnavailable)?;
     let mut group = OwnedCandidateCgroup::create(&plan.job_id)
         .map_err(|_| CandidateProcessError::CgroupUnavailable)?;
@@ -227,13 +278,25 @@ pub(crate) fn run_candidate_process(
                 .map(|_| stat.start_ticks)
         });
     let Some(client_start_ticks) = observed else {
-        cleanup(&mut group, &mut child)?;
+        cleanup(&mut group, &mut child, drain_container)?;
         return Err(CandidateProcessError::ProcessMismatch);
     };
+    if record_running(
+        crate::ProcessIdentity {
+            pid: child.id(),
+            start_ticks: client_start_ticks,
+        },
+        group.path(),
+    )
+    .is_err()
+    {
+        cleanup(&mut group, &mut child, drain_container)?;
+        return Err(CandidateProcessError::ProcessMismatch);
+    }
     let (child_stdout, child_stderr) = match (child.stdout.take(), child.stderr.take()) {
         (Some(stdout), Some(stderr)) => (stdout, stderr),
         _ => {
-            cleanup(&mut group, &mut child)?;
+            cleanup(&mut group, &mut child, drain_container)?;
             return Err(CandidateProcessError::SpawnFailed);
         }
     };
@@ -268,7 +331,7 @@ pub(crate) fn run_candidate_process(
             Err(_) => break Err(CandidateProcessError::CleanupUncertain),
         }
     };
-    cleanup(&mut group, &mut child)?;
+    cleanup(&mut group, &mut child, drain_container)?;
     let (first_id, first) = receiver
         .recv_timeout(Duration::from_secs(5))
         .map_err(|_| CandidateProcessError::CleanupUncertain)?;

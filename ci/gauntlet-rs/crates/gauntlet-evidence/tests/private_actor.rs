@@ -1,22 +1,15 @@
 use gauntlet_evidence::verify_private_actor;
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
-use std::path::Path;
+
+#[path = "support/private_custody_source.rs"]
+mod private_custody_source;
 
 #[test]
 fn python_private_actor_privilege_floor_matches() {
     let fixture: Value =
         serde_json::from_str(include_str!("fixtures/private_actor_v1.json")).unwrap();
     assert_eq!(fixture["schema"], "gauntlet-python-private-actor.v1");
-    let source = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .unwrap()
-        .join("ci/gauntlet/benchmark/private_cell_custody.py");
-    assert_eq!(
-        fixture["source_sha256"],
-        format!("{:x}", Sha256::digest(std::fs::read(source).unwrap()))
-    );
+    private_custody_source::assert_private_custody_source(&fixture, &["_actor"]);
     let cases = fixture["cases"].as_array().unwrap();
     assert_eq!(cases.len(), 20);
     assert_eq!(

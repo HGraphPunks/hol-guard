@@ -155,7 +155,11 @@ pub(crate) fn same_file(left: &Stat, right: &Stat) -> bool {
         && left.st_ctime_nsec == right.st_ctime_nsec
 }
 
-fn read_regular_bytes(dir: &OwnedFd, name: &str, owner: u32) -> Result<Vec<u8>, PrivateJobError> {
+pub(crate) fn read_regular_bytes(
+    dir: &OwnedFd,
+    name: &str,
+    owner: u32,
+) -> Result<Vec<u8>, PrivateJobError> {
     let descriptor = openat(
         dir,
         name,

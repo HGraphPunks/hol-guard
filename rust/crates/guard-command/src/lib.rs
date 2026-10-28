@@ -8,6 +8,24 @@ mod artifact_hash_url;
 #[cfg(test)]
 mod artifact_hash_url_tests;
 pub mod artifact_risk;
+pub mod attestation_envelope;
+#[cfg(test)]
+mod attestation_envelope_tests;
+pub mod attestation_payload;
+#[cfg(test)]
+mod attestation_payload_tests;
+pub mod attestation_signature;
+#[cfg(test)]
+mod attestation_signature_tests;
+pub mod attestation_timestamp;
+#[cfg(test)]
+mod attestation_timestamp_tests;
+pub mod attestation_verification;
+#[cfg(test)]
+mod attestation_verification_tests;
+pub mod attestation_verify;
+#[cfg(test)]
+mod attestation_verify_tests;
 pub mod bash_approval;
 pub mod benign_request_api;
 pub mod browser_mcp_intent;
@@ -23,46 +41,32 @@ pub mod catalog_read_model;
 mod catalog_read_model_tests;
 mod catalog_read_projection;
 mod catalog_read_query;
+pub mod ci_workflow_risk;
 pub mod cloud_catalog;
 pub mod cloud_scrub;
 mod cloud_scrub_shell;
 mod cloud_scrub_source_search;
 mod codex_output_args;
-mod codex_output_commands;
-mod codex_output_entry;
 mod codex_output_env;
 pub mod command_action_risk_classes;
 mod command_ascii_comparison;
 mod command_candidate_common;
 mod command_common_cli_matchers;
 pub mod command_expression_match;
-mod compound_artifact;
 mod credential_store_names;
 pub mod cursor_shell_command;
+pub mod editor_task_risk;
+pub mod instruction_file_risk;
 pub mod policy_document;
-pub use codex_output_entry::{review_codex_tool_output, ToolOutputOutcome};
-pub use codex_output_env::{Ctx, GitCheck, GitProbe, GitRun, InspectionHost};
+pub use codex_output_env::{Ctx, GitCheck, GitProbe, InspectionHost};
+pub use codex_output_inspection::is_bounded_read_only_filter;
 pub mod codex_output_fnmatch;
 mod codex_output_fs;
-mod codex_output_git_conditions;
-mod codex_output_git_config;
-mod codex_output_git_diff;
-mod codex_output_identity;
 mod codex_output_inspection;
-mod codex_output_inspection_flow;
-mod codex_output_pathspecs;
-mod codex_output_post_tool;
-mod codex_output_post_tool_copy;
-mod codex_output_post_tool_skips;
-mod codex_output_post_tool_sources;
 mod codex_output_py;
 mod codex_output_search;
 mod codex_output_shlex;
 mod codex_output_source_paths;
-mod codex_output_splitters;
-mod codex_output_wrappers;
-mod codex_prompt_attachment;
-pub mod codex_prompt_credential_file;
 pub mod command_compatibility;
 mod command_contained_routine_candidates;
 mod command_critical_floors;
@@ -85,6 +89,9 @@ mod command_operand_matchers;
 pub mod command_option_parsing;
 mod command_parse_surface;
 mod command_segment_parsing;
+pub mod command_shadow;
+#[cfg(test)]
+mod command_shadow_tests;
 pub mod command_shell_read_factors;
 mod command_specialized_matchers;
 mod command_structure;
@@ -105,8 +112,12 @@ mod embedded_script_evidence;
 #[cfg(test)]
 mod embedded_script_evidence_tests;
 mod env_wrapper;
+pub mod evidence_hash;
+#[cfg(test)]
+mod evidence_hash_tests;
 mod executable_flag_contract;
 pub mod extension_control;
+pub mod extension_control_terminal;
 pub mod extension_evidence;
 pub mod extension_trust;
 mod github_additional_commands;
@@ -124,10 +135,14 @@ pub mod github_workflow_lineage;
 #[cfg(test)]
 mod github_workflow_lineage_tests;
 pub mod github_workflow_operations;
+pub mod harness_attribution;
 mod harness_config_names;
 pub mod harness_identity;
 mod home_path_text;
+#[cfg(test)]
+mod home_path_text_parity_tests;
 pub mod homebrew_intent;
+pub mod hook_config_risk;
 mod inline_shell_quoting;
 pub mod jsonc;
 #[cfg(unix)]
@@ -141,8 +156,10 @@ mod launch_identity_common;
 pub mod launch_identity_environment;
 #[cfg(windows)]
 mod launch_identity_windows;
+pub mod launch_screen;
 pub mod local_tool_eligibility;
 pub mod mcp_arguments;
+pub mod mcp_config_risk;
 pub mod mcp_launch_environment;
 pub mod mcp_runtime_evidence;
 pub mod mcp_skill_firewall;
@@ -157,12 +174,14 @@ pub mod native_command_extension_evidence;
 #[cfg(test)]
 mod native_command_extension_evidence_tests;
 pub mod native_command_program;
+pub mod network_protection_bundle;
 pub mod network_url;
 pub mod npm_source_spec;
 pub mod ordered_json;
 #[cfg(unix)]
 pub mod package_context_build;
 pub mod package_execution_context;
+mod package_extension_ids;
 pub mod package_intent_common;
 pub mod package_intent_parser;
 pub mod package_manager_command;
@@ -179,6 +198,9 @@ mod powershell_floors;
 mod powershell_parser;
 mod powershell_reads;
 pub mod protect_request;
+pub mod protection_health;
+#[cfg(test)]
+mod protection_health_tests;
 pub mod pytest_argv;
 mod read_only_fanout;
 pub mod reviewed_invocation_bindings;
@@ -360,11 +382,13 @@ pub mod source_cli;
 pub mod tool_action_identity;
 #[cfg(test)]
 mod tool_action_identity_tests;
+pub mod trust_claim;
+#[cfg(test)]
+mod trust_claim_tests;
 pub mod typescript_launch_evidence;
 #[cfg(test)]
 #[path = "../../../test_support/unique_nanos.rs"]
 mod unique_nanos;
-mod unmodeled_shell_artifact;
 
 pub mod package_context_environment;
 
@@ -422,6 +446,8 @@ pub mod target_identities;
 pub mod workspace_inventory;
 #[cfg(test)]
 mod workspace_path_guard_tests;
+#[cfg(unix)]
+mod workspace_roots;
 
 // RTM-014/017/020/023 pending modules — compile signal only until legs complete.
 pub mod aibom_reporting;
@@ -448,6 +474,8 @@ pub mod egress_caller_policy;
 pub mod egress_proxy_credentials;
 mod egress_spool;
 pub mod false_positive_rules;
+#[cfg(unix)]
+mod forwarded_settings;
 pub mod guard_sync_transport;
 #[path = "adapters/hook/hook_adapter_envelope.rs"]
 pub mod hook_adapter_envelope;
@@ -460,6 +488,9 @@ mod hook_adapter_envelope_text;
 mod hook_adapter_omp_tests;
 #[path = "adapters/hook/hook_adapter_paths.rs"]
 pub mod hook_adapter_paths;
+#[cfg(test)]
+#[path = "adapters/hook/hook_adapter_target_file_tests.rs"]
+mod hook_adapter_target_file_tests;
 use guard_hook_payload::{hook_adapter_cline_tables, hook_adapter_pyjson, hook_adapter_pytext};
 pub use guard_hook_payload::{
     hook_adapter_prepare, hook_adapter_prepare_cline, hook_adapter_value,
@@ -519,9 +550,11 @@ pub mod shims;
 pub mod signals;
 pub mod skill_content_risk;
 pub mod skill_dependency_manifest;
+pub mod skill_document_text_evidence;
 pub mod skill_identity;
 pub mod strict_json;
 pub mod supply_chain_bundle;
+pub mod supply_chain_bundle_cache_trust;
 pub mod supply_chain_package_identity;
 pub mod supply_chain_risk;
 pub mod supply_chain_support;
@@ -529,3 +562,6 @@ pub mod verified_npm;
 pub mod verified_read_decision;
 #[cfg(test)]
 mod verified_read_decision_tests;
+pub mod verified_read_plan;
+#[cfg(test)]
+mod verified_read_plan_tests;

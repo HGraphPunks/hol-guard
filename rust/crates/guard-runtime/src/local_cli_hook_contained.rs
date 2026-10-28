@@ -186,9 +186,32 @@ pub(crate) fn unverified_action(request: &LocalCliHookRequestV1) -> &str {
 
 /// `has_local_cli_block_rules`; an unreadable store counts as having one.
 pub(crate) fn has_block_rules(request: &LocalCliHookRequestV1) -> bool {
-    let Ok(path) =
-        crate::local_store_read::require_store_path(&request.store_path, &request.guard_home)
-    else {
+    has_block_rules_at(&request.store_path, &request.guard_home)
+}
+
+/// `has_block_rules` for the store at `store_path` under `guard_home`.
+pub(crate) fn has_block_rules_at(store_path: &str, guard_home: &str) -> bool {
+    holds_rows_at(
+        store_path,
+        guard_home,
+        &[
+            ("local_cli_grant", Some("blocked")),
+            ("local_cli_command_grant", Some("block")),
+        ],
+    )
+}
+
+/// Whether the store at `store_path` holds any CLI grant, allowed or
+/// blocked. A grant read only finds a custom rule for a CLI with a
+/// `local_cli_grant` row, so without one no launch need be derived. An
+/// unreadable store counts as holding one.
+pub(crate) fn has_grant_rows_at(store_path: &str, guard_home: &str) -> bool {
+    holds_rows_at(store_path, guard_home, &[("local_cli_grant", None)])
+}
+
+/// Whether any of `tables` holds a row, in `state` when one is named.
+fn holds_rows_at(store_path: &str, guard_home: &str, tables: &[(&str, Option<&str>)]) -> bool {
+    let Ok(path) = crate::local_store_read::require_store_path(store_path, guard_home) else {
         return true;
     };
     let connection = match crate::local_store_read::open_read_only(&path) {
@@ -196,20 +219,24 @@ pub(crate) fn has_block_rules(request: &LocalCliHookRequestV1) -> bool {
         Ok(None) => return false,
         Err(_) => return true,
     };
-    for (table, state) in [
-        ("local_cli_grant", "blocked"),
-        ("local_cli_command_grant", "block"),
-    ] {
+    for &(table, state) in tables {
         match crate::local_store_read::table_exists(&connection, table) {
             Ok(false) => continue,
             Ok(true) => {}
             Err(_) => return true,
         }
-        let found = connection.query_row(
-            &format!("select exists(select 1 from {table} where state = ?1)"),
-            [state],
-            |row| row.get::<_, bool>(0),
-        );
+        let found = match state {
+            Some(state) => connection.query_row(
+                &format!("select exists(select 1 from {table} where state = ?1)"),
+                [state],
+                |row| row.get::<_, bool>(0),
+            ),
+            None => connection.query_row(
+                &format!("select exists(select 1 from {table})"),
+                [],
+                |row| row.get::<_, bool>(0),
+            ),
+        };
         if found.unwrap_or(true) {
             return true;
         }

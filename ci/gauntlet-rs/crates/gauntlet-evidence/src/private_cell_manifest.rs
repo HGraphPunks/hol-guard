@@ -59,6 +59,14 @@ pub struct PrivateCellManifest {
     pub files: BTreeMap<String, String>,
 }
 
+impl PrivateCellManifest {
+    pub fn native_actor_sha256(&self) -> Option<&str> {
+        self.files
+            .get("public/gauntlet-product-cell")
+            .map(String::as_str)
+    }
+}
+
 /// Exact controller-owned bootstrap bytes embedded in this verifier build.
 /// Artifact writers may copy these bytes, but still need independent outside
 /// pins and a separate whole-directory verification before using the result.
@@ -126,6 +134,13 @@ pub fn verify_private_cell_manifest(
         .map_err(|_| EvidenceError::Invalid("invalid private-cell manifest JSON"))?;
     let value: Value = serde_json::from_slice(&canonical)
         .map_err(|_| EvidenceError::Invalid("invalid private-cell manifest JSON"))?;
+    if value["schema"] == "product-cell-artifacts.v2" {
+        return crate::private_cell_native_manifest::verify_native_private_cell_manifest(
+            raw,
+            expected_manifest_sha256,
+            expected_initializer_sha256,
+        );
+    }
     let object =
         value
             .as_object()
@@ -205,7 +220,7 @@ mod tests {
         let canonical = canonicalize(&raw).unwrap();
         assert_eq!(
             sha256(&canonical),
-            "909592fac5403f683df5673f5f195eac014986e91d50e547b7c214871507ae54"
+            "6db98fdb27fb0290fa8cf4af38663bbfe4445ee39dcd0498fd384d3d1bbdc8a9"
         );
     }
 

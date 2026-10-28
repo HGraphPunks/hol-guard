@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import argparse
 import ast
 import hashlib
 import json
 from pathlib import Path
-
 
 REPOSITORY = Path(__file__).resolve().parents[3]
 SOURCE = REPOSITORY / "ci/gauntlet/benchmark"
@@ -17,9 +17,10 @@ def declared_modules() -> tuple[tuple[str, ...], tuple[str, ...]]:
     tree = ast.parse(DECLARATION.read_text(encoding="utf-8"))
     values = {}
     for node in tree.body:
-        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-            if node.targets[0].id in {"ROOT_MODULES", "PUBLIC_MODULES"}:
-                values[node.targets[0].id] = ast.literal_eval(node.value)
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id in {"ROOT_MODULES", "PUBLIC_MODULES"}):
+            values[node.targets[0].id] = ast.literal_eval(node.value)
     root, public = values["ROOT_MODULES"], values["PUBLIC_MODULES"]
     if not all(isinstance(name, str) and name.isidentifier() for name in (*root, *public)):
         raise ValueError("invalid Python private-cell module declarations")
@@ -29,6 +30,9 @@ def declared_modules() -> tuple[tuple[str, ...], tuple[str, ...]]:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--native',action='store_true',help='derive the v2 Rust actor bundle source map')
+    native=parser.parse_args().native
     root, public = declared_modules()
     files = {}
     for folder, modules in (("code", root), ("public", public)):
@@ -40,6 +44,9 @@ def main() -> None:
             )
     files["product_vm.apparmor"] = (SOURCE / "product_vm.apparmor").read_bytes()
     files["public/product_vm_seccomp_oci_v1.json"] = (SOURCE / "product_vm_seccomp_oci_v1.json").read_bytes()
+    if native:
+        files={name:raw for name,raw in files.items()
+               if not name.startswith('public/') or name=='public/product_vm_seccomp_oci_v1.json'}
     hashes = {name: hashlib.sha256(raw).hexdigest() for name, raw in files.items()}
     canonical = json.dumps(hashes, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
     print(json.dumps({"files": len(files), "digest": hashlib.sha256(canonical).hexdigest()}, sort_keys=True))

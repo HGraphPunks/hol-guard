@@ -3,9 +3,10 @@
 use crate::builder_candidate_source::same_file;
 use crate::builder_image_context::{python_worker_lock, verify_python_lock, RUST_STATE};
 use crate::candidate_shadow_assets::{private_directory, write_data};
+use crate::private_cell_artifact_mode::ArtifactRuntime;
 use crate::{open_root_owned_public_directory, RunReservationJournal};
 use gauntlet_contracts::canonicalize;
-use gauntlet_evidence::{fixed_private_cell_sources, verify_private_cell_artifacts};
+use gauntlet_evidence::verify_private_cell_artifacts;
 use rustix::fs::{fstat, fsync, mkdirat, openat, statat, AtFlags, FileType, Mode, OFlags};
 use rustix::io::Errno;
 use rustix::process::geteuid;
@@ -19,7 +20,6 @@ use std::os::fd::OwnedFd;
 use std::path::Path;
 
 const SHADOW_ROOT: &str = "/opt/hol-gauntlet/rust-shadow-candidates";
-const TARGET: &str = "cell-artifacts";
 const MAX_ACTOR: u64 = 2 * 1024 * 1024;
 const MAX_INITIALIZER: u64 = 2 * 1024 * 1024;
 
@@ -29,6 +29,7 @@ pub enum PrivateCellShadowError {
     InvalidPins,
     LeaseUnavailable,
     SourceMismatch,
+    ActorAbiUnavailable,
     ShadowMismatch,
     ExistingTarget,
     WriteUncertain,
@@ -42,6 +43,9 @@ impl fmt::Display for PrivateCellShadowError {
             Self::InvalidPins => "exact private-cell outside pins required",
             Self::LeaseUnavailable => "Rust or Python worker lease unavailable",
             Self::SourceMismatch => "pinned old actor or initializer differs from source bytes",
+            Self::ActorAbiUnavailable => {
+                "native actor requires the bounded glibc libseccomp loader ABI"
+            }
             Self::ShadowMismatch => "one-use candidate shadow root unavailable",
             Self::ExistingTarget => "one-use private-cell artifact target already exists",
             Self::WriteUncertain => "private-cell artifact creation is incomplete or uncertain",
@@ -63,6 +67,8 @@ pub struct PrivateCellShadowPins<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateCellShadowProof {
+    runtime: ArtifactRuntime,
+    actor_sha256: String,
     job_id: String,
     artifact_path: String,
     source_map_sha256: String,
@@ -74,7 +80,7 @@ pub struct PrivateCellShadowProof {
 
 impl PrivateCellShadowProof {
     pub fn to_json(&self) -> Value {
-        json!({
+        let mut value = json!({
             "schema":"hol-gauntlet-private-cell-shadow-artifacts.v1",
             "job_id":self.job_id,
             "artifact_path":self.artifact_path,
@@ -86,7 +92,13 @@ impl PrivateCellShadowProof {
             "artifacts_verified_inert":true,
             "candidate_code_executed":false,
             "execution_eligible":false,
-        })
+        });
+        if self.runtime == ArtifactRuntime::RustV1 {
+            value["schema"] = json!("hol-gauntlet-private-cell-shadow-artifacts.v2");
+            value["actor_runtime"] = json!("rust");
+            value["actor_sha256"] = json!(self.actor_sha256);
+        }
+        value
     }
 }
 
@@ -206,6 +218,19 @@ fn put_file(
 pub fn prepare_private_cell_shadow_artifacts_ineligible(
     pins: &PrivateCellShadowPins<'_>,
 ) -> Result<PrivateCellShadowProof, PrivateCellShadowError> {
+    prepare_artifacts(pins, ArtifactRuntime::PythonV1)
+}
+
+pub fn prepare_native_private_cell_shadow_artifacts_ineligible(
+    pins: &PrivateCellShadowPins<'_>,
+) -> Result<PrivateCellShadowProof, PrivateCellShadowError> {
+    prepare_artifacts(pins, ArtifactRuntime::RustV1)
+}
+
+fn prepare_artifacts(
+    pins: &PrivateCellShadowPins<'_>,
+    runtime: ArtifactRuntime,
+) -> Result<PrivateCellShadowProof, PrivateCellShadowError> {
     if geteuid().as_raw() != 0 {
         return Err(PrivateCellShadowError::RootRequired);
     }
@@ -216,7 +241,7 @@ pub fn prepare_private_cell_shadow_artifacts_ineligible(
     {
         return Err(PrivateCellShadowError::InvalidPins);
     }
-    let sources = fixed_private_cell_sources();
+    let sources = runtime.sources();
     let source_hashes: BTreeMap<_, _> = sources
         .iter()
         .map(|(name, raw)| (name.clone(), hash(raw)))
@@ -235,7 +260,17 @@ pub fn prepare_private_cell_shadow_artifacts_ineligible(
     let python_lock = python_worker_lock().map_err(|_| PrivateCellShadowError::LeaseUnavailable)?;
     let source = open_root_owned_public_directory(Path::new(pins.source_artifacts))
         .map_err(|_| PrivateCellShadowError::SourceMismatch)?;
-    let actor = source_bytes(&source, "actor.py", pins.actor_sha256, MAX_ACTOR, 0o444)?;
+    let actor = source_bytes(
+        &source,
+        runtime.actor_name(),
+        pins.actor_sha256,
+        MAX_ACTOR,
+        runtime.actor_mode(),
+    )?;
+    if runtime == ArtifactRuntime::RustV1 {
+        gauntlet_evidence::verify_native_actor_elf(&actor)
+            .map_err(|_| PrivateCellShadowError::ActorAbiUnavailable)?;
+    }
     let initializer = source_bytes(
         &source,
         "initializer",
@@ -247,14 +282,14 @@ pub fn prepare_private_cell_shadow_artifacts_ineligible(
     let shadow = open_root_owned_public_directory(&shadow_path)
         .map_err(|_| PrivateCellShadowError::ShadowMismatch)?;
     private_directory(&shadow).map_err(|_| PrivateCellShadowError::ShadowMismatch)?;
-    match mkdirat(&shadow, TARGET, Mode::from_bits_truncate(0o700)) {
+    match mkdirat(&shadow, runtime.target(), Mode::from_bits_truncate(0o700)) {
         Ok(()) => fsync(&shadow).map_err(|_| PrivateCellShadowError::WriteUncertain)?,
         Err(Errno::EXIST) => return Err(PrivateCellShadowError::ExistingTarget),
         Err(_) => return Err(PrivateCellShadowError::WriteUncertain),
     }
     let target = openat(
         &shadow,
-        TARGET,
+        runtime.target(),
         OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
         Mode::empty(),
     )
@@ -264,27 +299,40 @@ pub fn prepare_private_cell_shadow_artifacts_ineligible(
     for (name, raw) in &sources {
         put_file(&target, name, raw, 0o444)?;
     }
-    put_file(&target, "public/actor.py", &actor, 0o444)?;
+    put_file(
+        &target,
+        runtime.actor_relative(),
+        &actor,
+        runtime.actor_mode(),
+    )?;
     put_file(&target, "public/initializer", &initializer, 0o555)?;
-    files.insert("public/actor.py".into(), pins.actor_sha256.to_owned());
+    files.insert(
+        runtime.actor_relative().into(),
+        pins.actor_sha256.to_owned(),
+    );
     files.insert(
         "public/initializer".into(),
         pins.initializer_sha256.to_owned(),
     );
-    let manifest_raw =
-        serde_json::to_vec(&json!({"schema":"product-cell-artifacts.v1","files":files}))
-            .map_err(|_| PrivateCellShadowError::WriteUncertain)?;
+    let manifest_raw = serde_json::to_vec(&runtime.manifest(files, pins.actor_sha256))
+        .map_err(|_| PrivateCellShadowError::WriteUncertain)?;
     let mut manifest =
         canonicalize(&manifest_raw).map_err(|_| PrivateCellShadowError::WriteUncertain)?;
     manifest.push(b'\n');
     let manifest_sha = hash(&manifest);
     put_file(&target, "manifest.json", &manifest, 0o444)?;
     fsync(&target).map_err(|_| PrivateCellShadowError::WriteUncertain)?;
-    let artifact_path = shadow_path.join(TARGET);
+    let artifact_path = shadow_path.join(runtime.target());
     let inventory =
         verify_private_cell_artifacts(&artifact_path, &manifest_sha, pins.initializer_sha256)
             .map_err(|_| PrivateCellShadowError::ReadbackMismatch)?;
-    let source_after = source_bytes(&source, "actor.py", pins.actor_sha256, MAX_ACTOR, 0o444)?;
+    let source_after = source_bytes(
+        &source,
+        runtime.actor_name(),
+        pins.actor_sha256,
+        MAX_ACTOR,
+        runtime.actor_mode(),
+    )?;
     let initializer_after = source_bytes(
         &source,
         "initializer",
@@ -300,6 +348,8 @@ pub fn prepare_private_cell_shadow_artifacts_ineligible(
         .map_err(|_| PrivateCellShadowError::LeaseUnavailable)?;
     verify_python_lock(&python_lock).map_err(|_| PrivateCellShadowError::LeaseUnavailable)?;
     Ok(PrivateCellShadowProof {
+        runtime,
+        actor_sha256: pins.actor_sha256.to_owned(),
         job_id: pins.job_id.to_owned(),
         artifact_path: artifact_path.to_string_lossy().into_owned(),
         source_map_sha256: pins.source_map_sha256.to_owned(),

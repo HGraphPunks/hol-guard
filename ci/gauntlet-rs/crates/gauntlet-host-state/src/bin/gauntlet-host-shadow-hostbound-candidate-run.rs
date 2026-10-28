@@ -2,18 +2,19 @@
 //! guest runner, and print only its ineligible terminal claim.
 
 use gauntlet_host_state::{
-    HostCandidateBuildPinJournal, HostCandidateBuildPins, VmCandidateBuildPlan,
+    public_vm_operations, HostCandidateBuildPinJournal, HostCandidateBuildPins,
+    VmCandidateBuildPlan,
 };
 use serde_json::Value;
 use std::path::Path;
 
 fn run() -> Result<Value, String> {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() != 20 {
-        return Err("usage: gauntlet-host-shadow-hostbound-candidate-run PRIVATE_PIN_DIR JOB_ID SOURCE_COMMIT SOURCE_ARCHIVE_SHA256 VERSION TAG CONTROLLER_ROOT CONTROLLER_TREE_SHA256 UV_BASE_IMAGE_ID RUST_BASE_IMAGE_ID BUILDER_IMAGE_ID POLICY_SHA256 PODMAN_SHA256 SLIRP_SHA256 APPARMOR_PARSER_SHA256 SECCOMP_SHA256 RUNNER_BINARY_SHA256 RESULT_READER_BINARY_SHA256 READINESS_BINARY_SHA256".to_owned());
+    if args.len() != 20 && !(args.len() == 22 && args[20] == "--vm") {
+        return Err("usage: gauntlet-host-shadow-hostbound-candidate-run PRIVATE_PIN_DIR JOB_ID SOURCE_COMMIT SOURCE_ARCHIVE_SHA256 VERSION TAG CONTROLLER_ROOT CONTROLLER_TREE_SHA256 UV_BASE_IMAGE_ID RUST_BASE_IMAGE_ID BUILDER_IMAGE_ID POLICY_SHA256 PODMAN_SHA256 SLIRP_SHA256 APPARMOR_PARSER_SHA256 SECCOMP_SHA256 RUNNER_BINARY_SHA256 RESULT_READER_BINARY_SHA256 READINESS_BINARY_SHA256 [--vm VM_NAME]".to_owned());
     }
-    let operations: Value = serde_json::from_str(include_str!("../../operations-defaults-v1.json"))
-        .map_err(|_| "compiled public VM defaults invalid".to_owned())?;
+    let operations = public_vm_operations(args.get(21).map(String::as_str))
+        .map_err(|error| error.to_string())?;
     let pins = HostCandidateBuildPins {
         job_id: args[2].clone(),
         source_sha: args[3].clone(),

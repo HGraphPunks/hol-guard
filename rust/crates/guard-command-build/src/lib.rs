@@ -45,8 +45,6 @@ mod codex_output_py;
 mod codex_output_search;
 #[path = "../../guard-command/src/codex_output_shlex.rs"]
 mod codex_output_shlex;
-#[path = "../../guard-command/src/codex_output_source_paths.rs"]
-mod codex_output_source_paths;
 #[path = "../../guard-command/src/command_ascii_comparison.rs"]
 mod command_ascii_comparison;
 #[path = "../../guard-command/src/command_common_cli_matchers.rs"]
@@ -118,6 +116,9 @@ mod executable_flag_contract;
 pub mod extension_control;
 #[path = "../../guard-command/src/false_positive_rules.rs"]
 pub mod false_positive_rules;
+#[cfg(unix)]
+#[path = "../../guard-command/src/forwarded_settings.rs"]
+pub mod forwarded_settings;
 #[path = "../../guard-command/src/github_additional_commands.rs"]
 mod github_additional_commands;
 #[path = "../../guard-command/src/github_capability_contract.rs"]
@@ -132,6 +133,8 @@ pub mod github_workflow_authorization;
 pub mod github_workflow_operations;
 #[path = "../../guard-command/src/guard_sync_transport.rs"]
 pub mod guard_sync_transport;
+#[path = "../../guard-command/src/harness_attribution.rs"]
+pub mod harness_attribution;
 #[path = "../../guard-command/src/harness_config_names.rs"]
 mod harness_config_names;
 #[path = "../../guard-command/src/harness_identity.rs"]
@@ -175,6 +178,8 @@ pub mod ordered_json;
 pub mod package_approval;
 #[path = "../../guard-command/src/package_execution_context.rs"]
 pub mod package_execution_context;
+#[path = "../../guard-command/src/package_extension_ids.rs"]
+pub mod package_extension_ids;
 #[path = "../../guard-command/src/package_intent_common.rs"]
 pub mod package_intent_common;
 #[path = "../../guard-command/src/package_intent_parser.rs"]
@@ -334,6 +339,9 @@ pub mod target_identities;
 pub mod typescript_launch_evidence;
 #[path = "../../guard-command/src/workspace_inventory.rs"]
 pub mod workspace_inventory;
+#[cfg(unix)]
+#[path = "../../guard-command/src/workspace_roots.rs"]
+pub mod workspace_roots;
 use guard_hook_payload::{
     hook_adapter_cline_tables, hook_adapter_prepare_cursor, hook_adapter_pyjson,
     hook_adapter_pytext,
@@ -371,10 +379,14 @@ pub mod shims;
 pub mod strict_json;
 #[path = "../../guard-command/src/supply_chain_bundle.rs"]
 pub mod supply_chain_bundle;
+#[path = "../../guard-command/src/supply_chain_bundle_cache_trust.rs"]
+pub mod supply_chain_bundle_cache_trust;
 #[path = "../../guard-command/src/supply_chain_package_identity.rs"]
 pub mod supply_chain_package_identity;
 #[path = "../../guard-command/src/supply_chain_risk.rs"]
 pub mod supply_chain_risk;
+#[path = "../../guard-command/src/supply_chain_support.rs"]
+pub mod supply_chain_support;
 pub(crate) use command_parse_surface::{
     default_dialect, default_provenance, default_transport, is_fd_dup_redirect,
     parse_command_unbound, parse_explicit_powershell, parse_inline_shell_script,

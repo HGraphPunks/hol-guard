@@ -27,6 +27,10 @@ mod deterministic_injection;
 mod deterministic_report;
 mod deterministic_signed_injection;
 mod episode_score;
+mod feature_junit;
+mod feature_report;
+mod feature_report_files;
+pub use feature_report_files::verify_feature_report_files_v2;
 mod host_calls;
 mod io;
 #[cfg(target_os = "linux")]
@@ -35,16 +39,54 @@ mod local_conformance_package;
 mod local_conformance_runtime;
 mod model_budget;
 mod model_endpoint;
+mod native_actor_elf;
+mod native_binding_diagnostic;
+mod native_boundary_diagnostic;
+mod native_capture_input;
+mod native_capture_stream;
+mod native_control_diagnostic;
+mod native_control_envelope;
+mod native_diagnostic_artifacts;
+mod native_forbidden_diagnostic;
+mod native_hook_diagnostic;
+mod native_hook_response;
+mod native_launch_provenance;
+mod native_lifecycle_diagnostic;
+mod native_lifecycle_fixture;
+mod native_mcp_diagnostic;
+mod native_mcp_inputs;
+mod native_process_diagnostic;
+mod native_process_event_files;
+mod native_process_event_identity;
+mod native_process_events;
+mod native_process_kernel;
+mod native_process_public;
+mod native_process_trace_diagnostic;
+mod native_product_kernel;
 mod native_review_summary;
+mod native_runtime_kernel;
+mod native_runtime_trace;
+mod native_stdio_contract;
+mod native_stdio_diagnostic;
+mod native_stdio_events;
+mod native_stdio_files;
+mod native_stdio_frames;
+mod native_stdio_hook_identity;
+mod native_stdio_hook_relations;
+mod native_stdio_process;
 mod native_transport_relations;
+mod native_world_database;
+mod native_world_diagnostic;
 mod omp_transcript;
 mod package_version;
 mod payload;
 mod pilot_terminal;
 mod private_actor;
+mod private_cell_deployment;
 mod private_cell_files;
 mod private_cell_manifest;
 mod private_cell_mounts;
+mod private_cell_native_manifest;
 mod private_hook_samples;
 mod private_network;
 mod private_runtime_prompt;
@@ -111,6 +153,8 @@ pub use deterministic_report::{
 };
 pub use deterministic_signed_injection::reduce_signed_injection_attribution;
 pub use episode_score::evaluate_audited_episode;
+pub use feature_junit::{verify_feature_junit_v2, FeatureJunitCounts, MAX_FEATURE_JUNIT_BYTES};
+pub use feature_report::verify_feature_report_v2;
 pub use host_calls::reconcile_host_calls;
 #[cfg(target_os = "linux")]
 pub use local_conformance_files::{
@@ -126,19 +170,43 @@ pub use model_budget::{read_signed_model_budget, verify_signed_model_budget};
 pub use model_endpoint::{
     model_endpoint, verify_advertised_model, verify_model_endpoint, ModelEndpoint, DEFAULT_BASE_URL,
 };
+pub use native_actor_elf::verify_native_actor_elf;
+pub use native_binding_diagnostic::verify_native_binding_diagnostic;
+pub use native_boundary_diagnostic::verify_native_boundary_diagnostic;
+pub use native_capture_input::verify_native_capture_input;
+pub use native_control_diagnostic::verify_native_control_diagnostic;
+pub use native_control_envelope::{
+    native_control_signing_record, verify_native_control_envelope,
+    AuthenticatedNativeControlReport, NativeControlReportPins, NATIVE_CONTROL_ENVELOPE_LIMIT,
+};
+pub use native_hook_diagnostic::verify_native_hook_diagnostic;
+pub use native_hook_response::normalize_native_hook_response;
+pub use native_mcp_diagnostic::verify_native_mcp_diagnostic;
+pub use native_process_diagnostic::verify_native_process_diagnostic;
+pub use native_process_event_files::verify_native_process_event_files;
+pub use native_process_events::verify_native_process_events;
 pub use native_review_summary::{
     native_review_completed, recompute_native_review_summary, verify_native_review_summary,
 };
+pub use native_stdio_events::verify_native_stdio_events;
+pub use native_stdio_files::verify_native_stdio_files;
 pub use native_transport_relations::verify_native_transport_relations;
+pub use native_world_database::verify_native_world_database;
+pub use native_world_diagnostic::verify_native_world_diagnostic;
 pub use omp_transcript::{parse_omp_transcript, read_omp_transcript, TRANSCRIPT_LIMIT};
 pub use package_version::{valid_package_version, verify_installed_version_metadata};
 pub use pilot_terminal::reduce_pilot_terminal;
 pub use private_actor::verify_private_actor;
+pub use private_cell_deployment::verify_shadow_private_cell_artifacts;
 pub use private_cell_files::{verify_private_cell_artifacts, PrivateCellInventory};
 pub use private_cell_manifest::{
     fixed_private_cell_sources, verify_private_cell_manifest, PrivateCellManifest,
 };
 pub use private_cell_mounts::verify_private_cell_mount_relation;
+pub use private_cell_native_manifest::{
+    fixed_native_private_cell_sources, native_cell_runtime_from_observations,
+    verify_native_private_cell_manifest, NATIVE_CELL_ACTOR,
+};
 pub use private_hook_samples::verify_private_hook_samples;
 pub use private_network::verify_private_network_topology;
 pub use private_runtime_prompt::verify_private_runtime_prompt_relation;

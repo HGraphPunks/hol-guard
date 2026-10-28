@@ -1,0 +1,17 @@
+"""Unprivileged SDK negative control; no product or controller imports."""
+import errno
+import json
+import os
+import socket
+
+with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+    connection.settimeout(5)
+    connection.connect('/runtime/guard-hook/hook.sock')
+    try:
+        connection.sendall(b'{}\n')
+        denied = connection.recv(4096) == b''
+    except OSError as error:
+        denied = error.errno in (errno.EPIPE, errno.ECONNRESET)
+print(json.dumps({'schema': 'sdk-same-uid-peer-control.v1',
+                  'uid': os.getuid(), 'denied': denied}))
+raise SystemExit(0 if denied else 2)

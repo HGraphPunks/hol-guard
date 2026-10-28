@@ -29,7 +29,10 @@ never exercises:
   a ``.venv`` holding the console scripts ``uv sync`` installs, and the
   ``Makefile``, ``go.mod`` and ``Cargo.toml`` entry points. A real checkout is
   rarely all of these at once, but each is a command shape agents run dozens of
-  times an hour, and none of them is interesting enough to review.
+  times an hour, and none of them is interesting enough to review;
+* every ``${HOME}``, ``${PRIVATE_TMP}`` and ``${WORKTREE}`` path a benign case
+  names, derived from the cases by ``tests.benign_fp_gate_paths`` so a mined case
+  reads a path that exists. Credential-looking names are never created.
 """
 
 from __future__ import annotations
@@ -45,17 +48,19 @@ from pathlib import Path
 import pytest
 
 from ci.gauntlet.edge_clone_fixtures import write_edge_clone
-from ci.gauntlet.fixtures import BENCH_CHECKOUT, BENCH_FILES
+from ci.gauntlet.fixtures import BENCH_CHECKOUT, BENCH_FILES, HOME_TOOLCHAIN_INIT_TEXT
 from ci.gauntlet.realism_fixtures import REVIEW_NOTES, SESSION_SOURCE
 from ci.gauntlet.source_output_fixtures import SOURCES as TOKEN_SOURCES
-from codex_plugin_scanner.guard.adapters import codex_contained_tests
+from tests import codex_containment_route
 from tests.benign_fp_gate_configs import KUBECONFIG, LFS_GITCONFIG
 from tests.benign_fp_gate_connectors import write_connectors
+from tests.benign_fp_gate_cursor_project import cursor_project_path, write_cursor_projects
 from tests.benign_fp_gate_developer_checkout import head_commit, write_developer_checkout
 from tests.benign_fp_gate_feature_app import build_feature_app, feature_app_path
-from tests.benign_fp_gate_git import _git, _session_worktree, _stopped_rebase
+from tests.benign_fp_gate_git import _git, _session_worktree, _signed_checkout, _stopped_rebase
 from tests.benign_fp_gate_hooked_clone import hooked_worktree_path, write_hooked_clone
 from tests.benign_fp_gate_long_lived_clone import write_long_lived_clones
+from tests.benign_fp_gate_paths import materialise
 from tests.benign_fp_gate_projects import (
     _INSTALLED_PACKAGES,
     _NODE_PACKAGES,
@@ -140,6 +145,8 @@ class BenignFixture:
             "${STAGE}": str(self.stage),
             # Left unresolved on purpose: the link is what the case is about.
             "${LINKED_WORKTREE}": str(self.linked_worktree),
+            # Cursor's working-file directory for the session workspace.
+            "${CURSOR_PROJECT}": str(cursor_project_path(self.home, self.worktree)),
         }
 
     def cwd(self, name: str) -> Path:
@@ -159,6 +166,7 @@ class BenignFixture:
             "tmp_org": self.tmp_org,
             "org_rebase": self.org.parent / "app-portal-rebase",
             "org_rebase_exec": self.org.parent / "app-portal-rebase-exec",
+            "signed_app": self.home / "Code" / "signed" / "app-signed",
             # A checkout whose `.gitignore` re-includes a hidden template, as most application repositories do.
             "ignore_negation": self.home / "Code" / "ignore-rules" / "billing-api",
             "feature_app": feature_app_path(self.home),
@@ -211,6 +219,12 @@ def build_fixture(root: Path) -> BenignFixture:
         home / ".nvm/versions/node/v25.2.1/lib/node_modules/inert-pkg/package.json",
         '{\n  "name": "inert-pkg",\n  "version": "3.1.0"\n}\n',
     )
+    # The version manager's own init file, which every Node project sources
+    # before it runs anything. Its shape is the point: helper functions, a
+    # pipeline, and tool names the command itself never spells, so no scan can
+    # call its words a tame set of settings the way it can an activation
+    # script's. Sourcing it still has to reach an approval the user can give.
+    _write(home / ".nvm" / "nvm.sh", HOME_TOOLCHAIN_INIT_TEXT)
     _write(
         home / ".github/workflows/inert-check.yml",
         "name: inert-check\non: [push]\njobs:\n  check:\n    runs-on: ubuntu-latest\n",
@@ -266,6 +280,9 @@ def build_fixture(root: Path) -> BenignFixture:
     _write(parent / "src" / "report-window.ts", COMMITTED_SOURCE)
     _write(parent / "src" / "password-reset-email.tsx", "export const Email = () => null;\n")
     _write(parent / "app" / "registry" / "[slug]" / "page.tsx", "export default function Page() { return null; }\n")
+    # Larger than the 32 KiB command bound, as many READMEs are. Cursor sends
+    # the whole file body with each read of it.
+    _write(parent / "docs" / "large-guide.md", "# Guide\n" + "Plain guide paragraph text.\n" * 1600)
     _write(parent / ".agents" / "skills" / "x" / "SKILL.md", "---\nname: x\n---\nSynthetic skill body.\n")
     # Git treats a link as a file, so `node_modules/` alone leaves the borrowed
     # `dashboard/node_modules` link below unignored.
@@ -372,6 +389,24 @@ def build_fixture(root: Path) -> BenignFixture:
         repository.mkdir(parents=True)
         _git(repository, "init", "--quiet", "--initial-branch=main", home=home)
         _write(repository / ".github" / "workflows" / "ci.yml", "name: ci\n")
+        # Tracked content a checkout keeps in hidden directories: the manifest
+        # a harness is installed from and the card a web client publishes.
+        _write(repository / ".codex-plugin" / "plugin.json", f'{{"name": "{name}"}}\n')
+        _write(repository / ".well-known" / "agent-card.json", f'{{"name": "{name}"}}\n')
+        # A workflow named after a tool, and a published agent card whose name
+        # is the vendor word on its own.
+        _write(repository / ".github" / "workflows" / "docker.yml", "name: docker\n")
+        _write(repository / ".well-known" / "agent.json", f'{{"name": "{name}"}}\n')
+        # Targets for the negatives beside them: the repository's own
+        # administrative tree, a credential store name and a compiled blob.
+        _write(repository / ".git" / "hooks" / "pre-commit.sh", "#!/bin/sh\nexit 0\n")
+        _write(repository / ".codex-plugin" / "credentials.json", "{}\n")
+        _write(repository / ".codex-plugin" / "runtime.node", "\x00binary\n")
+        # A tool's own tree, a config file spelled as a directory and a
+        # credential store holding a file named as source.
+        _write(repository / ".cursor" / "mcp.json", '{"mcpServers": {}}\n')
+        _write(repository / ".dockerignore" / "notes.md", "# fixture\n")
+        _write(repository / ".secrets" / "read.py", "TOKEN = 'fixture'\n")
         _write(repository / "src" / "index.ts", f"export const name = '{name}';\n")
         _write(repository / "README.md", f"# {name}\n")
         _write(repository / "src" / "lib.rs", 'pub fn name() -> &\'static str {\n    "fixture"\n}\n')
@@ -401,6 +436,7 @@ def build_fixture(root: Path) -> BenignFixture:
     write_hooked_clone(org, home, _git)
     # Years-old clones gaining sibling worktrees, one with a post-checkout hook.
     write_long_lived_clones(home, _git)
+    _signed_checkout(home)
     _stopped_rebase(org, home, "app-portal-rebase")
     # A rebase started with an `exec` step keeps that program in its saved todo list.
     _stopped_rebase(org, home, "app-portal-rebase-exec", "-x", "true")
@@ -473,6 +509,23 @@ def build_fixture(root: Path) -> BenignFixture:
     _git(bench, "commit", "--quiet", "-m", "bench base", home=home)
     # A leaf directly in /tmp that does not exist yet, as a throwaway checkout destination.
     scratch = Path(_system_tmp()) / f"hg-fp-scratch-{os.getpid()}-{secrets.token_hex(4)}"
+    # Paths the mined cases name under the scrubbed project stand-ins, derived from the cases themselves.
+    materialise({"HOME": home, "PRIVATE_TMP": private_tmp, "WORKTREE": worktree})
+    write_cursor_projects(home, worktree)
+    # Sources the mined cases search by pattern. ``materialise`` builds the
+    # directory a glob names but not a file inside it, and a pattern that
+    # matches nothing makes the case measure an empty expansion instead of the
+    # search it was mined from.
+    _write(worktree / "signup-funnel" / "workers" / "queue.ts", "export const drain = () => read_workspace_record();\n")
+    _write(
+        worktree / "signup-funnel" / "lib" / "records" / "workspace.ts",
+        "export function read_workspace_record() {\n  return null;\n}\n",
+    )
+    _write(
+        worktree / "build.rs",
+        "// Build script for the fixture crate.\nenum WorkspaceRecord {\n    Draft,\n}\n\nfn main() {}\n",
+    )
+    _write(worktree / "compose.yaml", "services:\n  app:\n    image: scratch\n")
     # Source files a session staged in /tmp before copying them into a checkout.
     stage = Path(tempfile.mkdtemp(prefix="hg-fp-stage-", dir=_system_tmp())).resolve()
     _write(stage / "x.ts", "export const summary = 2;\n")
@@ -510,11 +563,11 @@ def route_codex(result: dict[str, object], payload: dict[str, object], fixture: 
     file goes to the fixture's own directory, which ``cleanup`` removes.
     """
     with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(codex_contained_tests, "launching_codex_executable", lambda: Path("/usr/local/bin/codex"))
-        patch.setattr(codex_contained_tests, "codex_applies_updated_input", lambda *_args, **_kwargs: True)
+        patch.setattr(codex_containment_route, "launching_codex_executable", lambda: Path("/usr/local/bin/codex"))
+        patch.setattr(codex_containment_route, "codex_applies_updated_input", lambda *_args, **_kwargs: True)
         fixture.contained_requests.mkdir(exist_ok=True)
         patch.setattr(tempfile, "tempdir", str(fixture.contained_requests))
-        return codex_contained_tests.route_codex_containment(
+        return codex_containment_route.route_codex_containment(
             dict(result),
             hook_input=json.dumps(payload),
             guard_home=fixture.guard_home,

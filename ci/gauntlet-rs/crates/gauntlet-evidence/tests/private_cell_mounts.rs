@@ -1,7 +1,8 @@
 use gauntlet_evidence::verify_private_cell_mount_relation;
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
-use std::path::Path;
+
+#[path = "support/private_custody_source.rs"]
+mod private_custody_source;
 
 fn fixture() -> Value {
     serde_json::from_str(include_str!("fixtures/private_cell_mount_v1.json")).unwrap()
@@ -29,14 +30,9 @@ fn run(row: &Value, mountinfo: &str) -> gauntlet_evidence::Result<Value> {
 fn python_task_idmap_and_mount_inventory_match() {
     let fixture = fixture();
     assert_eq!(fixture["schema"], "gauntlet-python-private-cell-mount.v1");
-    let source = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .unwrap()
-        .join("ci/gauntlet/benchmark/private_cell_custody.py");
-    assert_eq!(
-        fixture["source_sha256"],
-        format!("{:x}", Sha256::digest(std::fs::read(source).unwrap()))
+    private_custody_source::assert_private_custody_source(
+        &fixture,
+        &["_sha", "_one", "_tasks", "_mountinfo"],
     );
     let cases = fixture["cases"].as_array().unwrap();
     assert_eq!(cases.len(), 26);

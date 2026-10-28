@@ -48,7 +48,7 @@ use guard_command::hook_adapter_value::{OMap, OValue, PyJsonError};
 
 use crate::bounded_hook_bridge::{read_hook_input, write_stdout, Input, MAX_HOOK_INPUT_BYTES};
 use crate::claude_hook_bridge_render::py_strip;
-use crate::codex_hook_bridge_direct::{direct_answer, CURSOR};
+use crate::codex_hook_bridge_direct::{direct_answer_reporting, CURSOR};
 use crate::codex_hook_response::{POST_TOOL_USE, PRE_TOOL_USE};
 use crate::cursor_hook_bridge_response::{
     python_document, read_python_document, rendered, unavailable_output, unmapped_json,
@@ -75,6 +75,13 @@ const USER_PROMPT_SUBMIT: &str = "UserPromptSubmit";
 const EARLIER_EVENT_KEYS: [&str; 2] = ["event", "eventName"];
 /// The prompt names the daemon reviews as a `UserPromptSubmit`, compacted.
 const PROMPT_EVENTS: [&str; 3] = ["prompt", "userpromptsubmit", "userpromptsubmitted"];
+/// The tool Cursor's `preToolUse` names a shell call.
+const SHELL_TOOL: &str = "Shell";
+/// The field `_prepare_cursor_hook_payload` names a `beforeShellExecution`
+/// hook's source with.
+const SOURCE_HOOK_FIELD: &str = "cursor_source_hook_event";
+/// Names the probe to the daemon, which answers only a named probe silently.
+const PROBE_FIELD: &str = "cursor_route_probe";
 
 /// The client's fail-closed reply for a hook it names `event`.
 fn fail_closed(event: &str) -> Reply {
@@ -191,6 +198,9 @@ struct Request {
     /// The event the client names its answer for.
     event: String,
     kind: Kind,
+    /// Cursor's `preToolUse` for `Shell`: the silent probe, answered by
+    /// `probe::reply`.
+    probe: bool,
 }
 
 /// The client's `hook_event_name.strip().lower()` check for an observer,
@@ -254,7 +264,7 @@ fn request_for(client: &Client, payload: &OMap, mapped: bool) -> Option<Request>
     // Cursor's `after*` hooks prepare as themselves; one is sent only where
     // the client would also answer it as an observer.
     let event = cursor_client_event(payload)?;
-    let prepared = prepare_payload("cursor", payload, None).ok()?;
+    let mut prepared = prepare_payload("cursor", payload, None).ok()?;
     let kind = match prepared.get_str("hook_event_name") {
         Some(PRE_TOOL_USE) => Kind::PreToolUse,
         // The daemon reads `event` and `eventName` before this name.
@@ -271,6 +281,14 @@ fn request_for(client: &Client, payload: &OMap, mapped: bool) -> Option<Request>
         }
         _ => return None,
     };
+    // `beforeShellExecution` prepares as a `Shell` call that names its
+    // source hook; Cursor's own `preToolUse` for `Shell` does not.
+    let probe = kind == Kind::PreToolUse
+        && prepared.get_str("tool_name") == Some(SHELL_TOOL)
+        && !prepared.contains_key(SOURCE_HOOK_FIELD);
+    if probe {
+        prepared.insert(PROBE_FIELD, OValue::Bool(true));
+    }
     let workspace = workspace(&prepared, std::env::var_os(PROJECT_DIR_ENV), mapped).ok()?;
     let compact = OValue::Map(prepared).compact_json();
     // The stamp writes the surrogates back only when it reads them as such.
@@ -292,6 +310,7 @@ fn request_for(client: &Client, payload: &OMap, mapped: bool) -> Option<Request>
         query,
         event,
         kind,
+        probe,
     })
 }
 
@@ -363,7 +382,7 @@ fn reply(client: &Client, raw: &[u8]) -> Reply {
         Kind::Prompt => USER_PROMPT_SUBMIT,
         Kind::After => POST_TOOL_USE,
     };
-    let resident = direct_answer(
+    let resident = direct_answer_reporting(
         CURSOR,
         Path::new(&client.guard_home),
         &request.query,
@@ -371,6 +390,10 @@ fn reply(client: &Client, raw: &[u8]) -> Reply {
         &request.data,
         client.deadline,
     );
+    if request.probe {
+        let (stdout, code) = probe::reply(client, &request, resident);
+        return Reply::Answered(stdout, code);
+    }
     daemon::daemon_reply(client, &request, resident)
 }
 
@@ -422,6 +445,9 @@ pub(crate) fn run(python_argv: &[String]) -> i32 {
 
 #[path = "cursor_hook_bridge_daemon.rs"]
 mod daemon;
+
+#[path = "cursor_hook_bridge_probe.rs"]
+mod probe;
 
 #[cfg(all(test, unix))]
 #[path = "cursor_hook_bridge_tests.rs"]

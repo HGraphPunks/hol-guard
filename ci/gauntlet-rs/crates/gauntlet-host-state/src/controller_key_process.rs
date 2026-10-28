@@ -86,6 +86,22 @@ impl HostPreparedProcess {
         if limit == 0 || limit > 8192 {
             return Err(HostKeyPinError::FrameTooLarge);
         }
+        self.wait_result(timeout, limit)
+    }
+
+    /// Read only the new native completion envelope's bounded public records.
+    /// Historical result readers retain their original 8192-byte bound.
+    pub fn wait_bounded_native_completion(
+        &mut self,
+        timeout: Duration,
+    ) -> Result<Vec<u8>, HostKeyPinError> {
+        self.wait_result(
+            timeout,
+            gauntlet_contracts::NATIVE_HOST_PINNED_COMPLETION_LIMIT + 1,
+        )
+    }
+
+    fn wait_result(&mut self, timeout: Duration, limit: usize) -> Result<Vec<u8>, HostKeyPinError> {
         let stdout = self
             .child
             .0
@@ -143,6 +159,85 @@ impl Drop for ChildOwner {
 }
 
 impl HostControllerKeyPinJournal {
+    /// Own the readback transport before writing its one bounded request.
+    /// The existing durable pin is required; no acknowledgement is sent.
+    pub fn send_native_readback_request_and_bind_child(
+        &self,
+        child: Child,
+        request: &WorkerRequest,
+        expected: &HostPrelaunchIdentity,
+        timeout: Duration,
+    ) -> Result<HostPreparedProcess, HostProcessFailure> {
+        let mut accepted = self.bind_native_readback_child(child, expected)?;
+        let result = (|| {
+            if !expected.valid()
+                || !matches!(
+                    request.action(),
+                    WorkerAction::Inspect | WorkerAction::Reconcile
+                )
+                || request.source_sha() != expected.source_sha
+                || request.job_id() != expected.job_id
+            {
+                return Err(HostKeyPinError::WrongRequest);
+            }
+            if timeout.is_zero() || timeout > Duration::from_secs(60) {
+                return Err(HostKeyPinError::TransportTimedOut);
+            }
+            let raw = canonicalize(request.to_json().to_string().as_bytes())
+                .map_err(|_| HostKeyPinError::WrongRequest)?;
+            let input = accepted
+                .child
+                .0
+                .as_mut()
+                .and_then(|child| child.stdin.take())
+                .ok_or(HostKeyPinError::TransportFailed)?;
+            write_frame(input.as_raw_fd(), &raw, Instant::now() + timeout)?;
+            drop(input);
+            Ok(())
+        })();
+        result.map_err(|reason| HostProcessFailure {
+            reason,
+            pin_recorded_or_uncertain: true,
+        })?;
+        Ok(accepted)
+    }
+
+    /// Bind a read-only native result transport to an already durable pin.
+    /// This sends no acknowledgement and cannot authorize another execution.
+    pub fn bind_native_readback_child(
+        &self,
+        child: Child,
+        expected: &HostPrelaunchIdentity,
+    ) -> Result<HostPreparedProcess, HostProcessFailure> {
+        let owned = ChildOwner(Some(child));
+        if !expected.valid() {
+            return Err(HostProcessFailure {
+                reason: HostKeyPinError::WrongPreparedIdentity,
+                pin_recorded_or_uncertain: true,
+            });
+        }
+        let record = self
+            .read(&expected.job_id)
+            .map_err(|reason| HostProcessFailure {
+                reason,
+                pin_recorded_or_uncertain: !matches!(reason, HostKeyPinError::Missing),
+            })?;
+        if record.pins.source_sha != expected.source_sha
+            || record.pins.job_id != expected.job_id
+            || record.pins.deployment_digest != expected.deployment_digest
+            || record.pins.worker_generation != expected.worker_generation
+        {
+            return Err(HostProcessFailure {
+                reason: HostKeyPinError::WrongPreparedIdentity,
+                pin_recorded_or_uncertain: true,
+            });
+        }
+        Ok(HostPreparedProcess {
+            child: owned,
+            record,
+        })
+    }
+
     /// Consume a caller-launched child with piped stdout (prepared frame) and
     /// stdin (ack). The caller must use fixed, externally pinned argv and null
     /// or independently drained stderr. No child is spawned by this method.

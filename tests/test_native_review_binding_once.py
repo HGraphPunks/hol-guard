@@ -20,22 +20,20 @@ def test_native_review_asks_the_resident_for_the_review_binding_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, native_context_digest: Path
 ) -> None:
     """Queueing a review reuses the pause path's binding instead of a second resident round trip."""
-    from codex_plugin_scanner.guard.daemon import hook_native_review_approval, hook_worker_native
+    from codex_plugin_scanner.guard.daemon import hook_native_review_approval
 
     workspace = _wrangler_workspace(tmp_path, monkeypatch)
     result, receipt = _verdict()
     worker, _store = _hook_worker(tmp_path, monkeypatch, result, receipt)
     bindings: list[str | None] = []
-    real = hook_native_review_approval.native_review_binding
+    real_evidence = hook_native_review_approval.review_evidence_parts
 
-    def counting(*args: Any, **kwargs: Any) -> str | None:
-        binding = real(*args, **kwargs)
-        bindings.append(binding)
-        return binding
+    def counting_evidence(review_evidence: Any) -> tuple[bool, str | None, str | None, str | None] | None:
+        evidence = real_evidence(review_evidence)
+        bindings.append(None if evidence is None else evidence[1])
+        return evidence
 
-    monkeypatch.setattr(hook_native_review_approval, "native_review_binding", counting)
-    # The Claude permission notice runs after the response is rendered; keep this count on the hook deadline path.
-    monkeypatch.setattr(hook_worker_native, "record_claude_permission_notice_for_native_review", lambda *_a, **_k: None)
+    monkeypatch.setattr(hook_native_review_approval, "review_evidence_parts", counting_evidence)
     response = worker.review_http_payload(
         payload={
             "hook_event_name": "PreToolUse",

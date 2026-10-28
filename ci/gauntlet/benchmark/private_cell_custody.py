@@ -12,6 +12,7 @@ from pathlib import PurePosixPath
 from .contracts import canonical_json, strict_json_loads
 from .native_builtin_plane import decode_hook_response
 from .native_product_container import validate_identity_claim
+from .product_cell_layout import measured_gate_prefix, observed_actor_argv
 from .product_custody import _kernel, _require
 from .product_vm_network import validate_topology
 
@@ -179,6 +180,9 @@ def verify_private_cell_plane(value,*,settings,workspace_source,provider_mounts,
         allowed={'idmapped-task-mounts','before-cell-gate',
             'private-loopback-network','filtered-cell','resource-ceilings','gated-product-process',
             'retired-product-process','cell-stderr','terminal-cleanup'}
+        actor_argv=observed_actor_argv(rows,cfg['artifact_manifest_sha256'],cfg['initializer_sha256'])
+        if actor_argv[0]=='/public/gauntlet-product-cell':
+            allowed.add('native-cell-runtime')
         if expected_interrupted_command is not None:
             allowed.add('capture-failure')
             failed=[row for row in rows if row.get('kind')=='capture-failure']
@@ -198,8 +202,8 @@ def verify_private_cell_plane(value,*,settings,workspace_source,provider_mounts,
             'actual enforcing cell profile/namespaces required')
         for key,field in (('mnt','mount_namespace'),('pid','pid_namespace'),('net','network_namespace')):
             _require(namespaces[key]==boundary['identity'][field],'actor and boundary namespace observations differ')
-        for identity,argv,has_filters in ((initial,['/public/initializer','/usr/bin/python3','-I','-B',
-            '/public/actor.py','/public'],False),(filtered,['/usr/bin/python3','-I','-B','/public/actor.py','/public'],True)):
+        for identity,argv,has_filters in ((initial,['/public/initializer',*actor_argv],False),
+                                         (filtered,actor_argv,True)):
             _actor(identity,label=filtered['lsm_label'],namespaces=namespaces,filtered=has_filters)
             _require(identity['argv']==argv and identity['pid']==filtered['pid']
                 and identity['start_time']==filtered['start_time']
@@ -224,8 +228,8 @@ def verify_private_cell_plane(value,*,settings,workspace_source,provider_mounts,
                 _require(row['handle'] not in handles,'reused product process gate handle')
                 handles.add(row['handle'])
                 _actor(row['identity'],label=filtered['lsm_label'],namespaces=namespaces,filtered=True)
-                _require(row['identity']['argv'][:4]==['/usr/bin/python3','-I','-B',
-                    '/public/ci/gauntlet/benchmark/product_exec_gate.py'],'product process lacks measured exec gate')
+                gate=measured_gate_prefix(actor_argv)
+                _require(row['identity']['argv'][:len(gate)]==gate,'product process lacks measured exec gate')
             _require(row['kind']!='capture-failure' or expected_interrupted_command is not None,
                      'partial failed capture cannot establish valid execution')
         terminal=_one(rows,'terminal-cleanup')

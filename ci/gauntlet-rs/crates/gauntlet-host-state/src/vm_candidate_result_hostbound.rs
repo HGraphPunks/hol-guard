@@ -81,8 +81,15 @@ impl VmHostBoundCandidateResultPlan {
         let record = journal
             .read(job_id)
             .map_err(|_| VmHostBoundCandidateResultError::HostPinUnavailable)?;
+        if record
+            .vm_target
+            .as_ref()
+            .is_some_and(|(transport, target)| transport != limactl || target != vm)
+        {
+            return Err(VmHostBoundCandidateResultError::InvalidConfig);
+        }
         let pins = &record.pins;
-        let tagged = record.schema == "hol-gauntlet-host-candidate-build-pin.v3";
+        let tagged = record.schema != "hol-gauntlet-host-candidate-build-pin.v2";
         let mut argv = vec![
             limactl.to_owned(),
             "shell".to_owned(),
@@ -144,7 +151,7 @@ impl VmHostBoundCandidateResultPlan {
             .as_object()
             .ok_or(VmHostBoundCandidateResultError::InvalidResponse)?;
         let pins = &self.record.pins;
-        let tagged = self.record.schema == "hol-gauntlet-host-candidate-build-pin.v3";
+        let tagged = self.record.schema != "hol-gauntlet-host-candidate-build-pin.v2";
         if object.len() != 20 + usize::from(tagged)
             || value["schema"]
                 != if tagged {

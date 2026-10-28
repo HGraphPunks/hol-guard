@@ -2,9 +2,13 @@
 
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 fn run() -> Result<String, String> {
-    let args: Vec<String> = std::env::args().collect();
+    let mut args: Vec<String> = std::env::args().collect();
+    let native = args.get(1).is_some_and(|value| value == "--rust-actor");
+    if native {
+        args.remove(1);
+    }
     if args.len() != 13 {
-        return Err("usage: gauntlet-candidate-shadow-config-current JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 ARCHIVE_SHA256 VERSION NATIVE_SHA256 PREFIX_TREE_SHA256 WHEEL_SHA256 TEMPLATE_PATH TEMPLATE_RAW_SHA256 TEMPLATE_CANONICAL_SHA256 PRIVATE_CELL_MANIFEST_SHA256".to_owned());
+        return Err("usage: gauntlet-candidate-shadow-config-current [--rust-actor] JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 ARCHIVE_SHA256 VERSION NATIVE_SHA256 PREFIX_TREE_SHA256 WHEEL_SHA256 TEMPLATE_PATH TEMPLATE_RAW_SHA256 TEMPLATE_CANONICAL_SHA256 PRIVATE_CELL_MANIFEST_SHA256".to_owned());
     }
     let pins = gauntlet_worker_state::CandidateConfigArtifactPins {
         job_id: &args[1],
@@ -19,11 +23,18 @@ fn run() -> Result<String, String> {
         template_raw_sha256: &args[10],
         template_canonical_sha256: &args[11],
     };
-    gauntlet_worker_state::write_shadow_candidate_config_with_private_cell_ineligible(
-        &pins, &args[12],
-    )
-    .map(|proof| proof.to_json().to_string())
-    .map_err(|error| error.to_string())
+    let result = if native {
+        gauntlet_worker_state::write_shadow_candidate_config_with_native_cell_ineligible(
+            &pins, &args[12],
+        )
+    } else {
+        gauntlet_worker_state::write_shadow_candidate_config_with_private_cell_ineligible(
+            &pins, &args[12],
+        )
+    };
+    result
+        .map(|proof| proof.to_json().to_string())
+        .map_err(|error| error.to_string())
 }
 
 #[cfg(not(all(target_os = "linux", target_arch = "aarch64")))]

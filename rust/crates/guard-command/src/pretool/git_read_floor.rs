@@ -82,6 +82,16 @@ fn verdict(
     {
         return Verdict::Clear;
     }
+    // A proven `origin` refresh or fast-forward of one answers for its whole
+    // chain: it starts no hook, filter or transport program, and the Git
+    // reads standing beside it were each proven helper-free in the directory
+    // it runs in. Those reads keep that proof, so the fetch or merge before
+    // them is not an unsettled step.
+    if super::git_remote_ops::exact_safe_command(model, context, deadline, execution_environment)
+        .is_some()
+    {
+        return Verdict::Clear;
+    }
     // A proven read prefix holds no Git segment and changes nothing a later
     // read depends on, so the floor judges the command from its `cd` onward.
     if let Some(rest) = super::segment_proof::after_read_prefix(model, context) {
@@ -130,7 +140,9 @@ fn verdict(
     if git_after_later_cd(model) {
         return Verdict::Review;
     }
-    let destination = super::segment_proof::verified_cwd_compound_context(model, context);
+    // `cd ../app && git status` runs the read in `../app`, so it is probed
+    // there. The `cd` itself writes nothing a later read could pick up.
+    let destination = super::segment_proof::git_read_cwd_compound_context(model, context);
     let read_context = super::PathContext {
         cwd: destination.as_deref().or(context.cwd),
         ..context
@@ -220,14 +232,27 @@ fn verdict(
             .is_none_or(|executable| super::executable_basename(executable) != "git")
             || super::symlink_writes::current_branch_read(segment, read_context)
     });
-    let settled = |prior: usize| {
+    let settled = |prior: usize, later: &crate::CommandSegmentV1| {
         let segment = segments[prior];
         benign.contains(&prior)
+            || (prior == 0 && destination.is_some())
             || write_free(segment)
             || (link_settles
                 && super::symlink_writes::safe_symlink_arguments(segment, read_context))
-            || super::git_remote_ops::verified_fetch(segment, read_context)
-            || super::git_remote_ops::verified_fetch(segment, context)
+            || super::git_remote_ops::verified_refresh(
+                segment,
+                later,
+                read_context,
+                deadline,
+                execution_environment,
+            )
+            || super::git_remote_ops::verified_refresh(
+                segment,
+                later,
+                context,
+                deadline,
+                execution_environment,
+            )
             || super::worktree_add::proven_alone(
                 model,
                 prior,
@@ -268,7 +293,7 @@ fn verdict(
         // invalidate. Other Git operations retain their own native
         // review/permission floors, not this read floor.
         if inspection.is_some() {
-            unsettled.extend((0..index).filter(|prior| !settled(*prior)));
+            unsettled.extend((0..index).filter(|prior| !settled(*prior, segment)));
         }
     }
     unsettled.sort_unstable();
@@ -426,6 +451,7 @@ fn may_inspect(arguments: &[String]) -> bool {
                         | "for-each-ref"
                         | "rev-list"
                         | "stash"
+                        | "submodule"
                 )
             }
         }

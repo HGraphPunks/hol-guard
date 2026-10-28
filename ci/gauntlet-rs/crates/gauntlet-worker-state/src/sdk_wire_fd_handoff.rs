@@ -13,6 +13,13 @@ const MARKER: u8 = b'N';
 #[cfg(target_os = "linux")]
 const MAX_RECEIVED_FDS: usize = 4;
 
+// Linux libc ABIs use either socklen_t or size_t for ancillary lengths.
+// Keep checked conversions valid for both without assuming a field width.
+#[cfg(target_os = "linux")]
+fn checked_length<T, U: TryFrom<T>>(value: T) -> Result<U, String> {
+    U::try_from(value).map_err(|_| "Native ancillary length conversion overflow".to_owned())
+}
+
 #[cfg(target_os = "linux")]
 pub(crate) fn send_native_socket(
     handoff: &UnixStream,
@@ -37,7 +44,7 @@ pub(crate) fn send_native_socket(
     message.msg_iov = &mut payload;
     message.msg_iovlen = 1;
     message.msg_control = control.as_mut_ptr().cast();
-    message.msg_controllen = control.len() * size_of::<usize>();
+    message.msg_controllen = checked_length(control.len() * size_of::<usize>())?;
     // SAFETY: message contains a valid iovec and a sufficiently large,
     // aligned control buffer. The resulting CMSG_DATA points inside it.
     let header = unsafe { libc::CMSG_FIRSTHDR(&message) };
@@ -47,7 +54,7 @@ pub(crate) fn send_native_socket(
     unsafe {
         (*header).cmsg_level = libc::SOL_SOCKET;
         (*header).cmsg_type = libc::SCM_RIGHTS;
-        (*header).cmsg_len = libc::CMSG_LEN(size_of::<libc::c_int>() as u32) as usize;
+        (*header).cmsg_len = checked_length(libc::CMSG_LEN(size_of::<libc::c_int>() as u32))?;
         std::ptr::write_unaligned(
             libc::CMSG_DATA(header).cast::<libc::c_int>(),
             native_socket.as_raw_fd(),
@@ -78,7 +85,7 @@ pub(crate) fn receive_native_socket(handoff: &UnixStream) -> Result<UnixStream, 
     message.msg_iov = &mut payload;
     message.msg_iovlen = 1;
     message.msg_control = control.as_mut_ptr().cast();
-    message.msg_controllen = control.len() * size_of::<usize>();
+    message.msg_controllen = checked_length(control.len() * size_of::<usize>())?;
     // SAFETY: recvmsg writes only into the live iovec/control buffers. The
     // kernel marks any received descriptor CLOEXEC before returning it.
     let read = unsafe { libc::recvmsg(handoff.as_raw_fd(), &mut message, libc::MSG_CMSG_CLOEXEC) };
@@ -96,7 +103,7 @@ pub(crate) fn receive_native_socket(handoff: &UnixStream) -> Result<UnixStream, 
         headers += 1;
         let length = unsafe { (*header).cmsg_len as usize };
         let minimum = unsafe { libc::CMSG_LEN(0) as usize };
-        if length < minimum || length > message.msg_controllen {
+        if length < minimum || length > checked_length::<_, usize>(message.msg_controllen)? {
             invalid_control = true;
             break;
         }
@@ -192,13 +199,14 @@ mod tests {
         message.msg_iov = &mut payload;
         message.msg_iovlen = 1;
         message.msg_control = control.as_mut_ptr().cast();
-        message.msg_controllen = control.len() * size_of::<usize>();
+        message.msg_controllen = checked_length(control.len() * size_of::<usize>()).unwrap();
         let header = unsafe { libc::CMSG_FIRSTHDR(&message) };
         assert!(!header.is_null());
         unsafe {
             (*header).cmsg_level = libc::SOL_SOCKET;
             (*header).cmsg_type = libc::SCM_RIGHTS;
-            (*header).cmsg_len = libc::CMSG_LEN((2 * size_of::<libc::c_int>()) as u32) as usize;
+            (*header).cmsg_len =
+                checked_length(libc::CMSG_LEN((2 * size_of::<libc::c_int>()) as u32)).unwrap();
             let fds = libc::CMSG_DATA(header).cast::<libc::c_int>();
             std::ptr::write_unaligned(fds, first.as_raw_fd());
             std::ptr::write_unaligned(fds.add(1), second.as_raw_fd());
