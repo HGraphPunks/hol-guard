@@ -107,6 +107,7 @@ impl NativeCell {
 
     pub fn spawn(&mut self, argv: &[String], deadline: Instant) -> Result<String> {
         let result = (|| {
+            self.recheck_image_interpreter()?;
             gauntlet_product_cell::validate_product_argv(argv).map_err(|e| e.to_string())?;
             if self.children.len() >= 64 {
                 return Err("Root active product process bound".into());
@@ -166,6 +167,7 @@ impl NativeCell {
 
     pub fn release(&mut self, handle: &str, deadline: Instant) -> Result<()> {
         let result = (|| {
+            self.recheck_image_interpreter()?;
             self.children
                 .get(handle)
                 .ok_or("foreign product handle")?

@@ -46,6 +46,7 @@ mod native_diagnostic_artifacts;
 mod native_forbidden_diagnostic;
 mod native_hook_diagnostic;
 mod native_hook_response;
+mod native_launch_provenance;
 mod native_lifecycle_diagnostic;
 mod native_lifecycle_fixture;
 mod native_mcp_diagnostic;

@@ -21,6 +21,8 @@ pub struct SupervisorSpec {
     pub cpu: CpuProfile,
     pub job_slice: Option<String>,
     pub host_helpers: BTreeMap<String, String>,
+    pub image_interpreter_sha256: Option<String>,
+    pub outside_observer_sha256: Option<String>,
 }
 
 pub const HOST_HELPERS: &[&str] = &[
@@ -42,22 +44,32 @@ impl SupervisorSpec {
         if !hex(expected, 64) || hash(raw) != expected {
             return Err("supervisor declaration differs from outside pin".into());
         }
-        let value = object(
-            raw,
-            8192,
-            &[
-                "schema",
-                "rootfs_declaration",
-                "rootfs_sha256",
-                "constructor",
-                "constructor_sha256",
-                "wall_seconds",
-                "cpu_profile",
-                "job_slice",
-                "host_helpers",
-            ],
-            "hol-gauntlet-cell-supervisor.v1",
-        )?;
+        let fields = [
+            "schema",
+            "rootfs_declaration",
+            "rootfs_sha256",
+            "constructor",
+            "constructor_sha256",
+            "wall_seconds",
+            "cpu_profile",
+            "job_slice",
+            "host_helpers",
+        ];
+        let mut pinned_fields = fields.to_vec();
+        pinned_fields.extend(["image_interpreter_sha256", "outside_observer_sha256"]);
+        let value = object(raw, 8192, &fields, "hol-gauntlet-cell-supervisor.v1")
+            .or_else(|_| object(raw, 8192, &pinned_fields, "hol-gauntlet-cell-supervisor.v2"))?;
+        let (image_interpreter_sha256, outside_observer_sha256) =
+            if value["schema"] == "hol-gauntlet-cell-supervisor.v2" {
+                let interpreter = text(&value, "image_interpreter_sha256")?;
+                let observer = text(&value, "outside_observer_sha256")?;
+                if !hex(interpreter, 64) || !hex(observer, 64) {
+                    return Err("exact prelaunch interpreter and observer digests required".into());
+                }
+                (Some(interpreter.to_owned()), Some(observer.to_owned()))
+            } else {
+                (None, None)
+            };
         let rootfs_declaration = literal_path(text(&value, "rootfs_declaration")?)?;
         let constructor = literal_path(text(&value, "constructor")?)?;
         if !rootfs_declaration.starts_with("/var/lib/hol-gauntlet-rust")
@@ -116,6 +128,8 @@ impl SupervisorSpec {
             cpu,
             job_slice,
             host_helpers,
+            image_interpreter_sha256,
+            outside_observer_sha256,
         })
     }
 
@@ -200,5 +214,38 @@ mod tests {
         }
         let raw = fixture().to_string();
         assert!(SupervisorSpec::parse(raw.as_bytes(), &"0".repeat(64)).is_err());
+    }
+    #[test]
+    fn pinned_launch_is_closed_versioned_and_cannot_borrow_a_legacy_declaration() {
+        let mut value = fixture();
+        assert!(parse(&value).unwrap().image_interpreter_sha256.is_none());
+        value["image_interpreter_sha256"] = json!("d".repeat(64));
+        value["outside_observer_sha256"] = json!("e".repeat(64));
+        assert!(parse(&value).is_err());
+        value["schema"] = json!("hol-gauntlet-cell-supervisor.v2");
+        let pins = parse(&value).unwrap();
+        assert_eq!(
+            pins.image_interpreter_sha256.as_deref(),
+            Some("d".repeat(64).as_str())
+        );
+        assert_eq!(
+            pins.outside_observer_sha256.as_deref(),
+            Some("e".repeat(64).as_str())
+        );
+        for (key, bad) in [
+            ("image_interpreter_sha256", json!(true)),
+            ("outside_observer_sha256", Value::Null),
+            ("image_interpreter_sha256", json!("latest")),
+            ("interpreter_path", json!("/tmp/custom")),
+        ] {
+            let mut changed = value.clone();
+            changed[key] = bad;
+            assert!(parse(&changed).is_err(), "{key}");
+        }
+        value
+            .as_object_mut()
+            .unwrap()
+            .remove("outside_observer_sha256");
+        assert!(parse(&value).is_err());
     }
 }

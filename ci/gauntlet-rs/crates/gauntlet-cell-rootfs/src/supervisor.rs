@@ -36,6 +36,7 @@ pub struct NativeCell {
     pub(crate) service_observed: bool,
     pub(crate) closed: bool,
     pub(crate) image: Option<crate::image_lease::ImageLease>,
+    pub(crate) image_interpreter: Option<crate::image_interpreter::HeldImageInterpreter>,
     declaration_sha256: String,
     actor_sha256: String,
 }
@@ -117,6 +118,11 @@ impl NativeCell {
             return Err("rootfs declaration must belong to its exact owned stage".into());
         }
         let inputs = crate::inputs::load(rootfs)?;
+        let image_interpreter = spec
+            .image_interpreter_sha256
+            .as_deref()
+            .map(|pin| crate::image_interpreter::HeldImageInterpreter::open(&inputs.image, pin))
+            .transpose()?;
         if !absent(&inputs.spec.stage.join("rootfs"))? {
             return Err("one-use product rootfs already exists".into());
         }
@@ -146,6 +152,11 @@ impl NativeCell {
         journal.append("prepared",json!({"supervisor_declaration_sha256":expected_sha256,
             "rootfs_declaration_sha256":spec.rootfs_sha256,"constructor_sha256":spec.constructor_sha256,
             "profile":profile,"cgroup":cgroup,"cpu":cpu,"execution_eligible":false}))?;
+        if let Some(pin) = &image_interpreter {
+            let mut value = pin.observation();
+            value["outside_observer_declared_sha256"] = json!(spec.outside_observer_sha256);
+            journal.append("image-interpreter-pinned", value)?;
+        }
         let mut cell = Self {
             inputs,
             spec,
@@ -165,6 +176,7 @@ impl NativeCell {
             service_observed: false,
             closed: false,
             image,
+            image_interpreter,
             declaration_sha256: expected_sha256.into(),
             actor_sha256,
         };
@@ -233,6 +245,7 @@ impl NativeCell {
     }
 
     fn launch(&mut self) -> Result<()> {
+        self.recheck_image_interpreter()?;
         let profile_path = self.inputs.spec.stage.join("native-cell.apparmor");
         let template = include_str!("../../../../gauntlet/benchmark/product_vm.apparmor");
         let mut file = std::fs::OpenOptions::new()

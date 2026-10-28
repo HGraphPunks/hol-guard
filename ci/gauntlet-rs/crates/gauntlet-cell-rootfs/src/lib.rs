@@ -3,6 +3,8 @@
 mod construct;
 pub mod declarations;
 mod fs_input;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod image_interpreter;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod image_lease;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

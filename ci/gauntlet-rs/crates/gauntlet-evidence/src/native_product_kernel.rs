@@ -110,6 +110,7 @@ pub(crate) fn launches(
     artifacts: &Artifacts<'_>,
     samples: &KernelSamples<'_>,
     interpreter: &str,
+    interpreter_prelaunch_pinned: bool,
 ) -> Result<Value> {
     let job = text(control, "job_id")?;
     let actor = &control["actor"];
@@ -180,7 +181,7 @@ pub(crate) fn launches(
         json!({"schema":"hol-gauntlet-native-product-launch-relations.v1",
         "actor_observed":true,"prefix_python_launches_checked":checked.len(),"launches":checked,
         "non_prefix_helper_launches_not_graded":helper_count,"all_product_launches_graded":helper_count==0,
-        "actor_digest_prelaunch_admitted":false,"interpreter_prelaunch_pinned":false,
+        "actor_digest_prelaunch_admitted":false,"interpreter_prelaunch_pinned":interpreter_prelaunch_pinned,
         "outside_signing_key_admitted":false,"independent_process_custody_checked":false,
         "execution_eligible":false,"guard_causality_verified":false,"model_requests":0}),
     )

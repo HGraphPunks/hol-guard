@@ -770,7 +770,19 @@ approval ceremony for routine work already authorized by this request.
   Retained compiler/schema/fixture-group/transfer-permission failures are
   documented in the [control artifact proof](gauntlet-rust-native-control-artifact-verifier.md).
   No fresh product/model execution or parent exit is claimed; CI stays pending.
-- Next: finish independent deterministic role scoring and outside key custody,
+- 2026-10-27: add closed supervisor launch v2 with explicit outside interpreter
+  and observer digests. Root holds and hashes the fixed ARM64 image interpreter
+  before startup, checks its ancestors and close-on-exec descriptors, and
+  rechecks its generation before product spawn/release. The signed journal
+  checkpoint and matching v2 declaration are required for readback credit;
+  old reports cannot borrow a new event. Observer execution/admission stays
+  separate. The Mac workspace passes 561 tests; final affected rootfs tests
+  pass 41 cases, and Mac/ARM warnings-denied Clippy passes. Native ARM unit
+  execution and a fresh actual producer run remain pending. See
+  [prelaunch pins](gauntlet-rust-native-prelaunch-interpreter-pins.md).
+  No parent exit closes and no model request runs.
+- Next: exercise the new producer receipts with a fresh pinned launch, finish
+  independent deterministic role scoring and outside key custody,
   then twelve fresh source-matched staging/installed roles and conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;

@@ -109,6 +109,7 @@ pub fn verify_native_control_diagnostic(
         &artifacts,
         &samples,
         interpreter,
+        hooks["process_relations"]["interpreter_prelaunch_pinned"] == true,
     )
     .map_err(|e| EvidenceError::Context("Native product launch observations", Box::new(e)))?;
     let native_clients =

@@ -239,6 +239,18 @@ pub fn verify_native_process_diagnostic(
     let mcp_relations = crate::verify_native_mcp_diagnostic(control, files)
         .map_err(|_| EvidenceError::Invalid("process readback MCP artifacts differ"))?;
     let artifacts = Artifacts::new(files)?;
+    let journal_bound = if preparation["launch"]["schema"] == "hol-gauntlet-cell-supervisor.v2" {
+        crate::native_capture_input::journal_binding(&control["plane"], &artifacts)?
+    } else {
+        false
+    };
+    let launch_provenance = crate::native_launch_provenance::verify(
+        preparation,
+        &artifacts.events,
+        interpreter_sha256,
+        observer_sha256,
+        journal_bound,
+    )?;
     let observed = artifacts.json("proof/outside-kernel.json")?;
     let samples = KernelSamples::new(&observed, observer_sha256)
         .map_err(|_| EvidenceError::Invalid("outside process sample inventory differs"))?;
@@ -450,17 +462,19 @@ pub fn verify_native_process_diagnostic(
             checked!(unique.insert(number(&identity["pid"])?))?;
         }
     }
-    Ok(
-        json!({"schema":"hol-gauntlet-native-process-artifact-relations.v1","outside_observer_sha256":observer_sha256,
+    let mut result = json!({"schema":"hol-gauntlet-native-process-artifact-relations.v1","outside_observer_sha256":observer_sha256,
         "interpreter_readback_sha256":interpreter_sha256,"outside_kernel_samples":samples.rows.len(),
         "sdk_and_mcp_processes_checked":unique.len(),"sdk_request_peers_checked":requests.len(),
         "root_negative_controls_checked":2,"independently_observed_negative_probes":negative_count,
         "public_sdk_helpers_checked":8,"outside_kernel_observations_checked":true,
         "raw_sdk_request_bytes_checked":raw_requests == requests.len(),"raw_sdk_requests_checked":raw_requests,
-        "interpreter_prelaunch_pinned":false,"independent_process_custody_checked":false,
+        "interpreter_prelaunch_pinned":launch_provenance.is_some(),"independent_process_custody_checked":false,
         "outside_observer_admitted":false,"outside_signing_key_admitted":false,"qualified_role_complete":false,
-        "mcp_artifact_relations":mcp_relations,"execution_eligible":false,"guard_causality_verified":false,"model_requests":0}),
-    )
+        "mcp_artifact_relations":mcp_relations,"execution_eligible":false,"guard_causality_verified":false,"model_requests":0});
+    if let Some(provenance) = launch_provenance {
+        result["launch_provenance"] = provenance;
+    }
+    Ok(result)
 }
 
 #[cfg(test)]

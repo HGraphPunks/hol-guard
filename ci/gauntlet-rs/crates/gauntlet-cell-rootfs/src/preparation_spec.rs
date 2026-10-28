@@ -94,7 +94,7 @@ impl CellPreparation {
         let image_id = text("image_id")?;
         crate::image_protocol::image_id(&image_id)?;
         let launch = value["launch"].clone();
-        let fields = [
+        let mut fields = vec![
             "schema",
             "constructor",
             "constructor_sha256",
@@ -103,6 +103,9 @@ impl CellPreparation {
             "job_slice",
             "host_helpers",
         ];
+        if launch["schema"] == "hol-gauntlet-cell-supervisor.v2" {
+            fields.extend(["image_interpreter_sha256", "outside_observer_sha256"]);
+        }
         if launch
             .as_object()
             .is_none_or(|o| o.len() != fields.len() || fields.iter().any(|k| !o.contains_key(*k)))
@@ -200,6 +203,29 @@ mod tests {
         }
         let mut value = v;
         value["launch"]["environment"] = json!({"LD_PRELOAD":"/task/file"});
+        assert!(parse(&value).is_err());
+    }
+    #[test]
+    fn preparation_carries_both_versioned_prelaunch_pins_into_the_supervisor() {
+        let mut value = fixture();
+        value["launch"]["image_interpreter_sha256"] = json!("a".repeat(64));
+        value["launch"]["outside_observer_sha256"] = json!("b".repeat(64));
+        assert!(parse(&value).is_err());
+        value["launch"]["schema"] = json!("hol-gauntlet-cell-supervisor.v2");
+        let parsed = parse(&value).unwrap();
+        let supervisor = parsed.supervisor(&"c".repeat(64)).unwrap();
+        assert_eq!(
+            supervisor["image_interpreter_sha256"],
+            value["launch"]["image_interpreter_sha256"]
+        );
+        assert_eq!(
+            supervisor["outside_observer_sha256"],
+            value["launch"]["outside_observer_sha256"]
+        );
+        value["launch"]
+            .as_object_mut()
+            .unwrap()
+            .remove("image_interpreter_sha256");
         assert!(parse(&value).is_err());
     }
 }
