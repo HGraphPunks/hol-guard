@@ -757,6 +757,19 @@ approval ceremony for routine work already authorized by this request.
   [hook artifact proof](gauntlet-rust-native-hook-artifact-verifier.md).
   Native process/effect/lifecycle grading, fresh capture execution and outside
   admission remain open. No parent exit closes; CI remains user-owned/pending.
+- 2026-10-27: control verifier `575c83a9` composes all six historical roles
+  with 66 gate/interpreter launches, 43 actual Native clients, 67 reconstructed
+  output captures, physical fixture/effect joins and both held detached lifecycle
+  relations. All 81 archive cases, including 43 refusals, pass. Nine internal
+  client samples and seven helper launches remain gaps; outside child-death
+  observation, writer attribution, internal Native requests and admission stay
+  open. The Mac workspace passes 554 tests and Mac/ARM warnings-denied Clippy
+  passes. Eleven focused Root ARM tests, six actual grader readbacks, six exact
+  Mac-matching restarts and five refusals pass. Public host readback verifies
+  every export member, fixture copy and 284 unchanged prior worker records.
+  Retained compiler/schema/fixture-group/transfer-permission failures are
+  documented in the [control artifact proof](gauntlet-rust-native-control-artifact-verifier.md).
+  No fresh product/model execution or parent exit is claimed; CI stays pending.
 - Next: finish independent deterministic role scoring and outside key custody,
   then twelve fresh source-matched staging/installed roles and conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
