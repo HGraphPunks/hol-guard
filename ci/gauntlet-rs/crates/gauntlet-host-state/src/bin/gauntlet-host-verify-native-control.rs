@@ -50,14 +50,15 @@ fn read_completion(path: &Path) -> Result<Vec<u8>, String> {
 fn run() -> Result<(), String> {
     let args = std::env::args().collect::<Vec<_>>();
     if args.len() != 9
-        && !(args.len() == 14 && args[9] == "--process-artifacts")
+        && !(args.len() == 14
+            && matches!(args[9].as_str(), "--process-artifacts" | "--hook-artifacts"))
         && !(args.len() == 12
             && matches!(
                 args[9].as_str(),
                 "--input-binding-artifacts" | "--boundary-artifacts" | "--mcp-artifacts"
             ))
     {
-        return Err("usage: gauntlet-host-verify-native-control PRIVATE_PIN_DIRECTORY COMPLETION_JSON SOURCE_SHA JOB_ID DEPLOYMENT_SHA256 WORKER_SHA256 PREPARATION_SHA256 ROLE [--input-binding-artifacts|--boundary-artifacts|--mcp-artifacts PUBLIC_USTAR SHA256 | --process-artifacts PUBLIC_USTAR SHA256 INTERPRETER_SHA256 OBSERVER_SHA256]".into());
+        return Err("usage: gauntlet-host-verify-native-control PRIVATE_PIN_DIRECTORY COMPLETION_JSON SOURCE_SHA JOB_ID DEPLOYMENT_SHA256 WORKER_SHA256 PREPARATION_SHA256 ROLE [--input-binding-artifacts|--boundary-artifacts|--mcp-artifacts PUBLIC_USTAR SHA256 | --process-artifacts|--hook-artifacts PUBLIC_USTAR SHA256 INTERPRETER_SHA256 OBSERVER_SHA256]".into());
     }
     let journal =
         HostControllerKeyPinJournal::open(Path::new(&args[1])).map_err(|e| e.to_string())?;
@@ -92,10 +93,20 @@ fn run() -> Result<(), String> {
                 verified.verify_mcp_artifacts(Path::new(&args[10]), &args[11])?;
         }
     }
-    if args.len() == 14 {
+    if args.len() == 14 && args[9] == "--process-artifacts" {
         output["schema"] =
             serde_json::json!("hol-gauntlet-offline-native-process-artifact-verification.v1");
         output["process_artifacts"] = verified.verify_process_artifacts(
+            Path::new(&args[10]),
+            &args[11],
+            &args[12],
+            &args[13],
+        )?;
+    }
+    if args.len() == 14 && args[9] == "--hook-artifacts" {
+        output["schema"] =
+            serde_json::json!("hol-gauntlet-offline-native-hook-artifact-verification.v1");
+        output["hook_artifacts"] = verified.verify_hook_artifacts(
             Path::new(&args[10]),
             &args[11],
             &args[12],

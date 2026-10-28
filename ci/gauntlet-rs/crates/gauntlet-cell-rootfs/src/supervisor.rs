@@ -76,6 +76,9 @@ impl NativeCell {
     pub fn cleanup_complete(&self) -> bool {
         self.closed
     }
+    pub(crate) fn capture_journal_binding(&self) -> Result<Value> {
+        self.journal.binding()
+    }
     pub fn supervisor_declaration_sha256(&self) -> &str {
         &self.declaration_sha256
     }

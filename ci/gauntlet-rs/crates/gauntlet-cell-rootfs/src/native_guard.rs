@@ -360,7 +360,12 @@ impl NativeHookPlane {
             .verify_closed(preparation, role, control)
     }
     pub fn observation(&self) -> Value {
+        let journal = self.cell.capture_journal_binding().unwrap_or_else(|error| {
+            json!({
+            "schema":"hol-gauntlet-cell-journal-binding.v1","available":false,"error":error})
+        });
         json!({"schema":"hol-gauntlet-native-hook-plane.v1","pins":self.pins.to_json(),"controller_session_id":self.session,
+            "capture_input_receipt_schema":"hol-gauntlet-capture-input-terminal.v1","capture_journal":journal,
             "prompt":self.prompt,"observations":self.observations,"hooks":self.hooks,"executions":self.executions,
             "cleanup_complete":self.cell.cleanup_complete(),"identity_adapter_sha256":hash(crate::native_guard_probe::IDENTITY.as_bytes()),
             "readiness_adapter_sha256":hash(crate::native_guard_probe::READINESS.as_bytes()),
