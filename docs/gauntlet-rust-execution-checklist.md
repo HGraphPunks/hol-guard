@@ -37,6 +37,11 @@ fixed-host replay/refusal cases pass. The sampler completes 772 observations,
 peaks at 112 tasks and reports zero PID-limit rejections. All 326 earlier
 records survive in the new 333-record baseline. Request semantics, atomic
 bytes, physical writers, outside admission and every parent exit remain open.
+The [copied hook subset](gauntlet-rust-native-copied-hook-relations.md) now joins
+five request/response exchanges to three acknowledged outer hooks and two
+contained reauthorizations. Eight focused tests, 623 Mac workspace tests and
+nine retained-control cases pass; owned ARM execution and historical readbacks
+remain next. This subset grants no full request-semantics or parent-exit credit.
 
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete

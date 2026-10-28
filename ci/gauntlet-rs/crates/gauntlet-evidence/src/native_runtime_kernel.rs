@@ -43,6 +43,7 @@ pub(crate) fn verify(
     preparation: &Value,
     artifacts: &Artifacts<'_>,
     samples: &KernelSamples<'_>,
+    hooks: &Value,
 ) -> Result<Value> {
     let prefix = text(preparation, "runtime_prefix")?;
     let path = format!(
@@ -105,7 +106,13 @@ pub(crate) fn verify(
     if let Some(images) = crate::native_runtime_trace::verify(control, preparation, artifacts)? {
         result["process_event_images"] = images;
     }
-    if let Some(stdio) = crate::native_stdio_diagnostic::verify(control, preparation, artifacts)? {
+    if let Some(stdio) = crate::native_stdio_diagnostic::verify(
+        control,
+        preparation,
+        artifacts,
+        &result["process_event_images"],
+        hooks,
+    )? {
         result["native_stdio_snapshots"] = stdio;
     }
     Ok(result)

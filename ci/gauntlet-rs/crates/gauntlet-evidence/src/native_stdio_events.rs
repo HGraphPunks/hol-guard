@@ -43,6 +43,16 @@ struct Replay {
     transfers: u64,
     done: bool,
 }
+pub(crate) struct SnapshotStream {
+    pub(crate) stream: u64,
+    pub(crate) identity: Value,
+    pub(crate) read: Vec<u8>,
+    pub(crate) written: Vec<u8>,
+}
+pub(crate) struct Readback {
+    pub(crate) summary: Value,
+    pub(crate) streams: Vec<SnapshotStream>,
+}
 fn integer(value: &Value) -> Result<u64> {
     value
         .as_u64()
@@ -348,6 +358,10 @@ pub fn verify_native_stdio_events(
     process_raw: &[u8],
     checkpoint: &Value,
 ) -> Result<Value> {
+    Ok(replay(raw, process_raw, checkpoint)?.summary)
+}
+
+pub(crate) fn replay(raw: &[u8], process_raw: &[u8], checkpoint: &Value) -> Result<Readback> {
     require(checkpoint["schema"] == "hol-gauntlet-native-process-events.v2")?;
     let task_history = crate::verify_native_process_events(process_raw, checkpoint)?;
     let capture = &checkpoint["native_stdio"];
@@ -401,6 +415,7 @@ pub fn verify_native_stdio_events(
     }
     require(replay.done && integer(&pin["events"])? == count && pin["tail_sha256"] == previous)?;
     let mut streams = Vec::new();
+    let mut measured = Vec::new();
     let mut frame_count = 0;
     for (id, stream) in replay.streams {
         let read = crate::native_stdio_frames::summary(&stream.read, 6 * 1024 * 1024)?;
@@ -412,9 +427,16 @@ pub fn verify_native_stdio_events(
             "ending":stream.reason,"calls":stream.calls,"read_eof_observed":stream.eof,
             "interrupted_stdio_call_observed":stream.interrupted,"read":read,"written":written}),
         );
+        measured.push(SnapshotStream {
+            stream: id,
+            identity: stream.identity,
+            read: stream.read,
+            written: stream.written,
+        });
     }
-    Ok(
-        json!({"schema":"hol-gauntlet-native-stdio-readback.v1","scope":declaration["scope"],
+    Ok(Readback {
+        streams: measured,
+        summary: json!({"schema":"hol-gauntlet-native-stdio-readback.v1","scope":declaration["scope"],
         "journal_sha256":sha256(raw),"process_journal_sha256":sha256(process_raw),
         "task_history":task_history,"kernel_task_exec_and_end_joins_checked":true,
         "counts":capture["counts"],"streams":streams,"complete_frames":frame_count,
@@ -422,7 +444,7 @@ pub fn verify_native_stdio_events(
         "request_semantics_verified":false,"all_native_runtime_descendants_graded":false,
         "outside_observer_admitted":false,"outside_signing_key_admitted":false,
         "execution_eligible":false,"guard_causality_verified":false,"model_requests":0}),
-    )
+    })
 }
 
 #[cfg(test)]

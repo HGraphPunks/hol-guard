@@ -113,9 +113,10 @@ pub fn verify_native_control_diagnostic(
     )
     .map_err(|e| EvidenceError::Context("Native product launch observations", Box::new(e)))?;
     let native_clients =
-        crate::native_runtime_kernel::verify(control, preparation, &artifacts, &samples).map_err(
-            |e| EvidenceError::Context("Native runtime client observations", Box::new(e)),
-        )?;
+        crate::native_runtime_kernel::verify(control, preparation, &artifacts, &samples, &hooks)
+            .map_err(|e| {
+                EvidenceError::Context("Native runtime client observations", Box::new(e))
+            })?;
     let streams = crate::native_capture_stream::verify(&artifacts)
         .map_err(|e| EvidenceError::Context("Native capture stream reconstruction", Box::new(e)))?;
     require(streams["partial_captures"].as_u64() == Some(if role == "cancel" { 1 } else { 0 }))?;

@@ -49,6 +49,14 @@ actual final waits and peaks at 112 tasks without PID-limit rejections; all
 Native stream semantics and physical effect writers remain separate obligations.
 Kernel close notifications do not supply missing write causality.
 
+The next [copied hook relation verifier](gauntlet-rust-native-copied-hook-relations.md)
+joins five copied exchanges to three acknowledged outer hooks and two contained
+reauthorizations, independently recomputing request/intent/decision identities.
+Eight focused tests, 623 Mac workspace tests, Mac/ARM Clippy and nine retained
+control readbacks pass. The final background drain remains explicitly unanswered.
+Committed-source binding, owned ARM execution and historical compatibility are
+the next checks; this bounded subset closes no parent exit.
+
 ## Goal and completion contract
 
 Finish the Gauntlet migration on a tested branch in `HGraphPunks/hol-guard`,
@@ -897,8 +905,18 @@ approval ceremony for routine work already authorized by this request.
   [actual Native pipe proof](gauntlet-rust-native-stdio-live-proof-20261028.md).
   Atomic wire bytes, request semantics, physical writers and admission remain
   open; no parent exit closes and no model request ran.
-- Next: join copied Native requests/responses to actual gates and acknowledged
-  outer inputs, diagnose the intermittent polling-sampler failure while
+- 2026-10-28: copied Native hook relations now join five exchanges to actual
+  gates, three acknowledged outer inputs and two contained reauthorizations.
+  Independent v3 request, v2 intent and decision-receipt identities match all
+  five actual vectors. Eight hostile/serialization/outer-context tests, 623 Mac
+  workspace tests and nine retained-control cases pass. The original typed-
+  context test failures remain retained. See
+  [copied hook relations](gauntlet-rust-native-copied-hook-relations.md).
+  Owned ARM execution and committed-source readback remain next; full semantics,
+  atomic wire observation, writers and all parent exits stay open.
+- Next: verify the committed copied-hook reader on owned ARM and historical
+  controls, then finish metadata request semantics and atomic observation.
+  Diagnose the intermittent polling-sampler failure while
   finishing independent deterministic role scoring,
   Native descendant/effect custody and outside key admission,
   then twelve fresh source-matched staging/installed roles and conformance.

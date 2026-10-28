@@ -67,6 +67,8 @@ mod native_stdio_diagnostic;
 mod native_stdio_events;
 mod native_stdio_files;
 mod native_stdio_frames;
+mod native_stdio_hook_identity;
+mod native_stdio_hook_relations;
 mod native_stdio_process;
 mod native_transport_relations;
 mod native_world_database;

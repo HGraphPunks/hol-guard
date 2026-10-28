@@ -26,7 +26,7 @@ fn expected_pre(control: &Value) -> Result<Value> {
         "guard_contained_output_profile":"controller-contained-output.v1"}),
     )
 }
-fn completed_output(control: &Value) -> Result<Option<Value>> {
+pub(crate) fn completed_output(control: &Value) -> Result<Option<Value>> {
     let executions = list(&control["plane"]["executions"], 1)?;
     if control["control_role"] == "cancel" {
         require(executions.is_empty() && control["measurements"].get("sdk").is_none())?;
@@ -57,7 +57,7 @@ fn completed_output(control: &Value) -> Result<Option<Value>> {
     )?;
     Ok(Some(output))
 }
-fn hook_payloads(control: &Value, output: Option<&Value>) -> Result<Vec<Value>> {
+pub(crate) fn hook_payloads(control: &Value, output: Option<&Value>) -> Result<Vec<Value>> {
     let plane = &control["plane"];
     let session = text(plane, "controller_session_id")?;
     require(!session.is_empty() && session.len() <= 256)?;

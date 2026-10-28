@@ -38,6 +38,21 @@ pub(crate) fn summary(raw: &[u8], maximum: usize) -> Result<Value> {
     )
 }
 
+/// Decode complete copied JSON objects for a separate, scoped relation check.
+/// Generic framing still retains malformed and interrupted streams unchanged.
+pub(crate) fn objects(raw: &[u8], maximum: usize) -> Result<Vec<Value>> {
+    let framed = summary(raw, maximum)?;
+    require(framed["status"] == "complete")?;
+    let mut values = Vec::new();
+    for frame in framed["frames"].as_array().unwrap() {
+        require(frame["json_object"] == true)?;
+        let start = frame["offset"].as_u64().unwrap() as usize + 4;
+        let count = frame["bytes"].as_u64().unwrap() as usize;
+        values.push(parse(&raw[start..start + count])?);
+    }
+    Ok(values)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

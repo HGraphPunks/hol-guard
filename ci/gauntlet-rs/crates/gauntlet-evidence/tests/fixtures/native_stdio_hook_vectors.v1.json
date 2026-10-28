@@ -1,0 +1,923 @@
+{
+  "execution_eligible": false,
+  "guard_causality_verified": false,
+  "job_id": "e2c701baf1475701",
+  "model_requests": 0,
+  "producer_source": "77e7b7e7f9e4c5fada74ae2ff2e2a612214f90b9",
+  "product_source": "dc3b9336308dab4892bf0c0e0f328a9c8b7efc12",
+  "public_archive_sha256": "24e4ab9b915d32c5d599553a1b38a460d8355e64109d5defb5a0bc07c35e9376",
+  "schema": "hol-gauntlet-copied-native-hook-vectors.v1",
+  "vectors": [
+    {
+      "contained_reauthorization": false,
+      "frame_index": 7,
+      "outer_input": {
+        "config_path": "/product/home/omp.json",
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": "Read the delegated developer-spec document through docs.read, then run the existing standard-library tests with python3 -m unittest discover -s tests -v. Do not change tests.",
+        "session_id": "gauntlet-native-sdk-mcp-e2c701baf1475701"
+      },
+      "outer_response": {
+        "decision": "allow",
+        "hookSpecificOutput": {
+          "hookEventName": "UserPromptSubmit"
+        },
+        "policy_action": "warn",
+        "reason_code": "native_policy_warning"
+      },
+      "request": {
+        "deadline_budget_ms": 2479,
+        "event": "UserPromptSubmit",
+        "harness": "omp",
+        "observe_local_cli": true,
+        "policy_generation": 2,
+        "policy_snapshot": {
+          "generation": 2,
+          "policy_digest": "25200787bad5fcc505c4014de0b50dde01af0b78bdf1c09529f451d3766dca18",
+          "runtime_identity": "bdaf053911cd278930c17e3c58b7741e23334a5156817db78780349f8635eb10"
+        },
+        "raw_payload": {
+          "config_path": "/product/home/omp.json",
+          "hook_event_name": "UserPromptSubmit",
+          "prompt": "Read the delegated developer-spec document through docs.read, then run the existing standard-library tests with python3 -m unittest discover -s tests -v. Do not change tests.",
+          "session_id": "gauntlet-native-sdk-mcp-e2c701baf1475701"
+        },
+        "request_id": null,
+        "schema": "guard-hook-envelope.v2",
+        "source": {
+          "cwd": "/runtime/home/project",
+          "execution_environment": {
+            "environment_digest": "281a6a462f7696699f6851b8fffb7d2cd3fd8a31c10bbefcb5522e69597e64a5",
+            "environment_names": [
+              "HOME",
+              "LANG",
+              "MALLOC_ARENA_MAX",
+              "PATH"
+            ],
+            "git_config_no_system": false,
+            "git_pager_disabled": false,
+            "home": "/product/home",
+            "library_search_paths": {},
+            "pager_disabled": false,
+            "path": "/usr/local/bin:/usr/bin:/bin",
+            "xdg_config_home": null
+          },
+          "guard_home": "/product/guard",
+          "home_dir": "/runtime/home",
+          "source_ref_external_allowed": true
+        }
+      },
+      "request_frame_sha256": "090eef8706a9a3caf21bb7754b7b027d17a2db0580295befc38b901f22557ff8",
+      "response": {
+        "authority": "rust",
+        "containment_route": "none",
+        "event_name": "UserPromptSubmit",
+        "harness": "omp",
+        "harness_response": {
+          "decision": "allow",
+          "hookSpecificOutput": {
+            "hookEventName": "UserPromptSubmit"
+          },
+          "policy_action": "warn",
+          "reason_code": "native_policy_warning"
+        },
+        "payload_kind": "inline",
+        "receipt": {
+          "authority": "rust",
+          "command_extensions": {
+            "catalog_digest": "1010d77b14121700b6118983d4cf9823baed9b244157d648e3cadb18d0287498",
+            "control_effective_digest": "3c967c12661cf7ba90d5ad976c172bc1deeb5fe08321f0f999d9b7b4adc1836d",
+            "control_revision": 0,
+            "managed_control_revision": 0,
+            "observation_count": 0,
+            "observations_digest": "bbaa894876351846955210b68623f35273743ce707410926f36860f85d74bcf3",
+            "program_digest": "4e00a023ddb75dbd3084ed173c23ee892a47c56e8427a1657676dc47d99df88d",
+            "schema": "guard.native-command-receipt-binding.v1",
+            "trust_digest": "aa437eec9b2a68fd3cac25c033ccbf5c9612fa2c4244bf83bc7b3df414f5e07d",
+            "uncertainty_count": 0
+          },
+          "deadline_budget_ms": 2479,
+          "decision": "allow",
+          "decision_id": "585122c114f6a40c174ba6f832d19e17850a4e98d8e084261ca981bebbc99514",
+          "event_name": "UserPromptSubmit",
+          "execution_intent_digest": "d6c087963ce11b32484a4b245c13049247b068365c439dcb6e881e0b8d678e5c",
+          "harness": "omp",
+          "model_output_action": "not_applicable",
+          "observe_mode": false,
+          "observed_policy_action": null,
+          "origin_authentication": "9ecdff76b762262fc4dabcbc7e72e7785cb0c55705f3192b63543d756340462b",
+          "payload_kind": "inline",
+          "policy_action": "warn",
+          "policy_digest": "25200787bad5fcc505c4014de0b50dde01af0b78bdf1c09529f451d3766dca18",
+          "policy_generation": 2,
+          "reason_code": "native_policy_warning",
+          "request_digest": "428e8fe0606d1a931cc62e94e75f0a784a16d3a717e31a99080a314754cbe395",
+          "request_id": "sha256:428e8fe0606d1a931cc62e94e75f0a784a16d3a717e31a99080a314754cbe395",
+          "review_anchor_digest": "21e70ce855d94d60b61d487f775ef8cb8ece9d4a46db0aa97355523f025aa79e",
+          "reviewed_output_sha256": null,
+          "rule_digest": "d477c93c5e1ae1d5334da3a6d255660d813d727acbad183bbfc05e5ef035ddb4",
+          "runtime_identity": "bdaf053911cd278930c17e3c58b7741e23334a5156817db78780349f8635eb10",
+          "schema": "guard-native-hook-decision-receipt.v1",
+          "source_ref_external_allowed": true,
+          "version": 1,
+          "workspace_bound": true
+        },
+        "request_id": "sha256:428e8fe0606d1a931cc62e94e75f0a784a16d3a717e31a99080a314754cbe395",
+        "result": {
+          "action": {
+            "action_type": "prompt",
+            "bounded": true,
+            "event": "UserPromptSubmit",
+            "harness": "omp",
+            "operation": "submit",
+            "schema": "guard-pre-tool-action.v1",
+            "sensitive_target": false,
+            "version": 1
+          },
+          "authority": "rust",
+          "command_extensions": {
+            "binding": {
+              "catalog_digest": "1010d77b14121700b6118983d4cf9823baed9b244157d648e3cadb18d0287498",
+              "control_effective_digest": "3c967c12661cf7ba90d5ad976c172bc1deeb5fe08321f0f999d9b7b4adc1836d",
+              "control_revision": 0,
+              "managed_control_revision": 0,
+              "observation_count": 0,
+              "observations_digest": "bbaa894876351846955210b68623f35273743ce707410926f36860f85d74bcf3",
+              "program_digest": "4e00a023ddb75dbd3084ed173c23ee892a47c56e8427a1657676dc47d99df88d",
+              "schema": "guard.native-command-receipt-binding.v1",
+              "trust_digest": "aa437eec9b2a68fd3cac25c033ccbf5c9612fa2c4244bf83bc7b3df414f5e07d",
+              "uncertainty_count": 0
+            },
+            "evaluation_error": null,
+            "observations": [],
+            "permission_observations": [],
+            "schema": "guard.native-command-observations.v1"
+          },
+          "decision": "allow",
+          "explicitly_benign": false,
+          "minimum_action": "warn",
+          "policy_action": "warn",
+          "reason": "HOL Guard raised this action under the installed policy's default action.",
+          "reason_code": "native_policy_warning",
+          "schema": "guard-pre-tool-result.v1",
+          "version": 1
+        },
+        "schema": "guard-hook-edge-result.v2"
+      },
+      "response_frame_sha256": "33456a2a19247c6846fc038a3922d57219932d9ae36166cde9ee6605df28f82f",
+      "stream": 5
+    },
+    {
+      "contained_reauthorization": false,
+      "frame_index": 2,
+      "outer_input": {
+        "config_path": "/product/home/omp.json",
+        "guard_contained_output_profile": "controller-contained-output.v1",
+        "guard_execution_environment": {
+          "environment_digest": "a35f0d4c27fbd182b92a6083457e8c8f4eb11008db5e8912acb30c913b5d0885",
+          "environment_names": [
+            "HOME",
+            "PATH",
+            "PYTHONPATH",
+            "container"
+          ],
+          "git_config_no_system": false,
+          "git_pager_disabled": false,
+          "home": "/runtime/home",
+          "library_search_paths": {},
+          "pager_disabled": false,
+          "path": "/usr/bin:/bin",
+          "xdg_config_home": null
+        },
+        "hook_event_name": "PreToolUse",
+        "session_id": "gauntlet-native-sdk-mcp-e2c701baf1475701",
+        "tool_call_id": "sdk-contained-control",
+        "tool_input": {
+          "command": "python3 -m unittest discover -s tests -v"
+        },
+        "tool_name": "bash"
+      },
+      "outer_response": {
+        "command_binding_digest": "bbaa894876351846955210b68623f35273743ce707410926f36860f85d74bcf3",
+        "decision": "deny",
+        "policy_action": "sandbox-required",
+        "reason": "HOL Guard runs this command in a protected workspace sandbox (no network, no home access, no PTY or Docker socket). Every program it starts, including children of an interpreter, runs contained and can write only the workspace, $TMPDIR and a private scratch $HOME; only commands Guard proves safe run directly, outside the sandbox.",
+        "reason_code": "native_workspace_containment_required",
+        "required_execution_profile": "workspace-contained-v1"
+      },
+      "request": {
+        "deadline_budget_ms": 3593,
+        "event": "PreToolUse",
+        "harness": "omp",
+        "local_cli_rules": {
+          "env": {
+            "HOME": "/product/home",
+            "LANG": "C.UTF-8",
+            "MALLOC_ARENA_MAX": "2",
+            "PATH": "/usr/local/bin:/usr/bin:/bin"
+          },
+          "store_path": "/product/guard/guard.db",
+          "user_home": "/product/home"
+        },
+        "observe_local_cli": true,
+        "policy_generation": 3,
+        "policy_snapshot": {
+          "generation": 3,
+          "policy_digest": "25200787bad5fcc505c4014de0b50dde01af0b78bdf1c09529f451d3766dca18",
+          "runtime_identity": "bdaf053911cd278930c17e3c58b7741e23334a5156817db78780349f8635eb10"
+        },
+        "raw_payload": {
+          "config_path": "/product/home/omp.json",
+          "guard_contained_output_profile": "controller-contained-output.v1",
+          "hook_event_name": "PreToolUse",
+          "session_id": "gauntlet-native-sdk-mcp-e2c701baf1475701",
+          "tool_call_id": "sdk-contained-control",
+          "tool_input": {
+            "command": "python3 -m unittest discover -s tests -v"
+          },
+          "tool_name": "bash"
+        },
+        "request_id": null,
+        "schema": "guard-hook-envelope.v2",
+        "source": {
+          "cwd": "/runtime/home/project",
+          "execution_environment": {
+            "environment_digest": "a35f0d4c27fbd182b92a6083457e8c8f4eb11008db5e8912acb30c913b5d0885",
+            "environment_names": [
+              "HOME",
+              "PATH",
+              "PYTHONPATH",
+              "container"
+            ],
+            "git_config_no_system": false,
+            "git_pager_disabled": false,
+            "home": "/runtime/home",
+            "library_search_paths": {},
+            "pager_disabled": false,
+            "path": "/usr/bin:/bin",
+            "xdg_config_home": null
+          },
+          "guard_home": "/product/guard",
+          "home_dir": "/runtime/home",
+          "source_ref_external_allowed": true
+        }
+      },
+      "request_frame_sha256": "3976d952b4a245f07c2cedd2749014fb9b54baf37d6cebbc28ff7c41d2978b7f",
+      "response": {
+        "authority": "rust",
+        "containment_route": "sink",
+        "event_name": "PreToolUse",
+        "harness": "omp",
+        "harness_response": {
+          "command_binding_digest": "bbaa894876351846955210b68623f35273743ce707410926f36860f85d74bcf3",
+          "decision": "deny",
+          "policy_action": "sandbox-required",
+          "reason": "HOL Guard runs this command in a protected workspace sandbox (no network, no home access, no PTY or Docker socket). Every program it starts, including children of an interpreter, runs contained and can write only the workspace, $TMPDIR and a private scratch $HOME; only commands Guard proves safe run directly, outside the sandbox.",
+          "reason_code": "native_workspace_containment_required",
+          "required_execution_profile": "workspace-contained-v1"
+        },
+        "payload_kind": "inline",
+        "receipt": {
+          "authority": "rust",
+          "command_extensions": {
+            "catalog_digest": "1010d77b14121700b6118983d4cf9823baed9b244157d648e3cadb18d0287498",
+            "control_effective_digest": "3c967c12661cf7ba90d5ad976c172bc1deeb5fe08321f0f999d9b7b4adc1836d",
+            "control_revision": 0,
+            "managed_control_revision": 0,
+            "observation_count": 0,
+            "observations_digest": "bbaa894876351846955210b68623f35273743ce707410926f36860f85d74bcf3",
+            "program_digest": "4e00a023ddb75dbd3084ed173c23ee892a47c56e8427a1657676dc47d99df88d",
+            "schema": "guard.native-command-receipt-binding.v1",
+            "trust_digest": "aa437eec9b2a68fd3cac25c033ccbf5c9612fa2c4244bf83bc7b3df414f5e07d",
+            "uncertainty_count": 0
+          },
+          "deadline_budget_ms": 3593,
+          "decision": "deny",
+          "decision_id": "3bf964ac6d7fd4acd4921050f02cd535803502a80d31ce8a6eeb6022a9d9919b",
+          "event_name": "PreToolUse",
+          "execution_intent_digest": "24cdb82543783cd4970e4816648fb5983dd4b2e5637add22308a9a09cf370683",
+          "harness": "omp",
+          "model_output_action": "not_applicable",
+          "observe_mode": false,
+          "observed_policy_action": null,
+          "origin_authentication": "b6d1bdaef5f8b215d92cbaefd830cbf1959f857b0b80acb536d7ef5cafa8ab6d",
+          "payload_kind": "inline",
+          "policy_action": "sandbox-required",
+          "policy_digest": "25200787bad5fcc505c4014de0b50dde01af0b78bdf1c09529f451d3766dca18",
+          "policy_generation": 3,
+          "reason_code": "native_workspace_containment_required",
+          "request_digest": "24b79c4e38730ea32f48d585017d1ec0007cd27d35438fa06ed92852ea29dd2e",
+          "request_id": "sha256:24b79c4e38730ea32f48d585017d1ec0007cd27d35438fa06ed92852ea29dd2e",
+          "review_anchor_digest": "6e52380d03ec027c58d7b9756937c77eb02ba1e6dc40f09c52bfe2b1c6837968",
+          "reviewed_output_sha256": null,
+          "rule_digest": "d477c93c5e1ae1d5334da3a6d255660d813d727acbad183bbfc05e5ef035ddb4",
+          "runtime_identity": "bdaf053911cd278930c17e3c58b7741e23334a5156817db78780349f8635eb10",
+          "schema": "guard-native-hook-decision-receipt.v1",
+          "source_ref_external_allowed": true,
+          "version": 1,
+          "workspace_bound": true
+        },
+        "request_id": "sha256:24b79c4e38730ea32f48d585017d1ec0007cd27d35438fa06ed92852ea29dd2e",
+        "result": {
+          "action": {
+            "action_type": "command",
+            "bounded": true,
+            "event": "PreToolUse",
+            "harness": "omp",
+            "operation": "execute",
+            "schema": "guard-pre-tool-action.v1",
+            "sensitive_target": false,
+            "version": 1
+          },
+          "authority": "rust",
+          "command_extensions": {
+            "binding": {
+              "catalog_digest": "1010d77b14121700b6118983d4cf9823baed9b244157d648e3cadb18d0287498",
+              "control_effective_digest": "3c967c12661cf7ba90d5ad976c172bc1deeb5fe08321f0f999d9b7b4adc1836d",
+              "control_revision": 0,
+              "managed_control_revision": 0,
+              "observation_count": 0,
+              "observations_digest": "bbaa894876351846955210b68623f35273743ce707410926f36860f85d74bcf3",
+              "program_digest": "4e00a023ddb75dbd3084ed173c23ee892a47c56e8427a1657676dc47d99df88d",
+              "schema": "guard.native-command-receipt-binding.v1",
+              "trust_digest": "aa437eec9b2a68fd3cac25c033ccbf5c9612fa2c4244bf83bc7b3df414f5e07d",
+              "uncertainty_count": 0
+            },
+            "evaluation_error": null,
+            "observations": [],
+            "permission_observations": [],
+            "schema": "guard.native-command-observations.v1"
+          },
+          "decision": "deny",
+          "explicitly_benign": false,
+          "minimum_action": "sandbox-required",
+          "policy_action": "sandbox-required",
+          "reason": "HOL Guard runs this command in a protected workspace sandbox (no network, no home access, no PTY or Docker socket). Every program it starts, including children of an interpreter, runs contained and can write only the workspace, $TMPDIR and a private scratch $HOME; only commands Guard proves safe run directly, outside the sandbox.",
+          "reason_code": "native_workspace_containment_required",
+          "schema": "guard-pre-tool-result.v1",
+          "version": 1
+        },
+        "schema": "guard-hook-edge-result.v2"
+      },
+      "response_frame_sha256": "91ddede08028f3c64a374ea9f985c5f56cfa45d425f0150fea063fb92fe16bcb",
+      "stream": 8
+    },
+    {
+      "contained_reauthorization": true,
+      "frame_index": 15,
+      "outer_input": {
+        "config_path": "/product/home/omp.json",
+        "guard_contained_output_profile": "controller-contained-output.v1",
+        "guard_execution_environment": {
+          "environment_digest": "a35f0d4c27fbd182b92a6083457e8c8f4eb11008db5e8912acb30c913b5d0885",
+          "environment_names": [
+            "HOME",
+            "PATH",
+            "PYTHONPATH",
+            "container"
+          ],
+          "git_config_no_system": false,
+          "git_pager_disabled": false,
+          "home": "/runtime/home",
+          "library_search_paths": {},
+          "pager_disabled": false,
+          "path": "/usr/bin:/bin",
+          "xdg_config_home": null
+        },
+        "hook_event_name": "PreToolUse",
+        "session_id": "gauntlet-native-sdk-mcp-e2c701baf1475701",
+        "tool_call_id": "sdk-contained-control",
+        "tool_input": {
+          "command": "python3 -m unittest discover -s tests -v"
+        },
+        "tool_name": "bash"
+      },
+      "outer_response": {
+        "command_binding_digest": "bbaa894876351846955210b68623f35273743ce707410926f36860f85d74bcf3",
+        "decision": "deny",
+        "policy_action": "sandbox-required",
+        "reason": "HOL Guard runs this command in a protected workspace sandbox (no network, no home access, no PTY or Docker socket). Every program it starts, including children of an interpreter, runs contained and can write only the workspace, $TMPDIR and a private scratch $HOME; only commands Guard proves safe run directly, outside the sandbox.",
+        "reason_code": "native_workspace_containment_required",
+        "required_execution_profile": "workspace-contained-v1"
+      },
+      "request": {
+        "deadline_budget_ms": 750,
+        "event": "PreToolUse",
+        "harness": "omp",
+        "local_cli_rules": {
+          "env": {
+            "HOME": "/product/home",
+            "LANG": "C.UTF-8",
+            "MALLOC_ARENA_MAX": "2",
+            "PATH": "/usr/local/bin:/usr/bin:/bin"
+          },
+          "store_path": "/product/guard/guard.db",
+          "user_home": "/product/home"
+        },
+        "observe_local_cli": true,
+        "policy_generation": 4,
+        "policy_snapshot": {
+          "generation": 4,
+          "policy_digest": "25200787bad5fcc505c4014de0b50dde01af0b78bdf1c09529f451d3766dca18",
+          "runtime_identity": "bdaf053911cd278930c17e3c58b7741e23334a5156817db78780349f8635eb10"
+        },
+        "raw_payload": {
+          "config_path": "/product/home/omp.json",
+          "guard_contained_output_profile": "controller-contained-output.v1",
+          "guard_containment_receipt_only": true,
+          "hook_event_name": "PreToolUse",
+          "session_id": "gauntlet-native-sdk-mcp-e2c701baf1475701",
+          "tool_call_id": "sdk-contained-control",
+          "tool_input": {
+            "command": "python3 -m unittest discover -s tests -v"
+          },
+          "tool_name": "bash"
+        },
+        "request_id": null,
+        "schema": "guard-hook-envelope.v2",
+        "source": {
+          "cwd": "/runtime/home/project",
+          "execution_environment": {
+            "environment_digest": "281a6a462f7696699f6851b8fffb7d2cd3fd8a31c10bbefcb5522e69597e64a5",
+            "environment_names": [
+              "HOME",
+              "LANG",
+              "MALLOC_ARENA_MAX",
+              "PATH"
+            ],
+            "git_config_no_system": false,
+            "git_pager_disabled": false,
+            "home": "/product/home",
+            "library_search_paths": {},
+            "pager_disabled": false,
+            "path": "/usr/local/bin:/usr/bin:/bin",
+            "xdg_config_home": null
+          },
+          "guard_home": "/product/guard",
+          "home_dir": "/runtime/home",
+          "source_ref_external_allowed": true
+        }
+      },
+      "request_frame_sha256": "c20ea9d16a6d8036a95e4943ca625b560d7dc0a2048271bf0252a5b977309991",
+      "response": {
+        "authority": "rust",
+        "containment_route": "sink",
+        "event_name": "PreToolUse",
+        "harness": "omp",
+        "harness_response": {
+          "command_binding_digest": "bbaa894876351846955210b68623f35273743ce707410926f36860f85d74bcf3",
+          "decision": "deny",
+          "policy_action": "sandbox-required",
+          "reason": "HOL Guard runs this command in a protected workspace sandbox (no network, no home access, no PTY or Docker socket). Every program it starts, including children of an interpreter, runs contained and can write only the workspace, $TMPDIR and a private scratch $HOME; only commands Guard proves safe run directly, outside the sandbox.",
+          "reason_code": "native_workspace_containment_required",
+          "required_execution_profile": "workspace-contained-v1"
+        },
+        "payload_kind": "inline",
+        "receipt": {
+          "authority": "rust",
+          "command_extensions": {
+            "catalog_digest": "1010d77b14121700b6118983d4cf9823baed9b244157d648e3cadb18d0287498",
+            "control_effective_digest": "3c967c12661cf7ba90d5ad976c172bc1deeb5fe08321f0f999d9b7b4adc1836d",
+            "control_revision": 0,
+            "managed_control_revision": 0,
+            "observation_count": 0,
+            "observations_digest": "bbaa894876351846955210b68623f35273743ce707410926f36860f85d74bcf3",
+            "program_digest": "4e00a023ddb75dbd3084ed173c23ee892a47c56e8427a1657676dc47d99df88d",
+            "schema": "guard.native-command-receipt-binding.v1",
+            "trust_digest": "aa437eec9b2a68fd3cac25c033ccbf5c9612fa2c4244bf83bc7b3df414f5e07d",
+            "uncertainty_count": 0
+          },
+          "deadline_budget_ms": 750,
+          "decision": "deny",
+          "decision_id": "773422155ef308f307e3d1b5e0c2920de76d4b2763f251f91a16b9a1ad4a074d",
+          "event_name": "PreToolUse",
+          "execution_intent_digest": "1b1076eb51196d435b060924bc6ebebe93e85e562e706c9f0ab2341a95b41568",
+          "harness": "omp",
+          "model_output_action": "not_applicable",
+          "observe_mode": false,
+          "observed_policy_action": null,
+          "origin_authentication": "1f84c25f8f87d251e10797dac0a946b2a06998863d3606cb31100a5c0ffd7816",
+          "payload_kind": "inline",
+          "policy_action": "sandbox-required",
+          "policy_digest": "25200787bad5fcc505c4014de0b50dde01af0b78bdf1c09529f451d3766dca18",
+          "policy_generation": 4,
+          "reason_code": "native_workspace_containment_required",
+          "request_digest": "01aef1727a24370fb6150b2356e64be060888becb3d55d260a7585d766c81fe8",
+          "request_id": "sha256:01aef1727a24370fb6150b2356e64be060888becb3d55d260a7585d766c81fe8",
+          "review_anchor_digest": "4c4121e6af022963b2bb9c2f260eb2deeb0027e6a3f0fcb2b6077c269f08cb41",
+          "reviewed_output_sha256": null,
+          "rule_digest": "d477c93c5e1ae1d5334da3a6d255660d813d727acbad183bbfc05e5ef035ddb4",
+          "runtime_identity": "bdaf053911cd278930c17e3c58b7741e23334a5156817db78780349f8635eb10",
+          "schema": "guard-native-hook-decision-receipt.v1",
+          "source_ref_external_allowed": true,
+          "version": 1,
+          "workspace_bound": true
+        },
+        "request_id": "sha256:01aef1727a24370fb6150b2356e64be060888becb3d55d260a7585d766c81fe8",
+        "result": {
+          "action": {
+            "action_type": "command",
+            "bounded": true,
+            "event": "PreToolUse",
+            "harness": "omp",
+            "operation": "execute",
+            "schema": "guard-pre-tool-action.v1",
+            "sensitive_target": false,
+            "version": 1
+          },
+          "authority": "rust",
+          "command_extensions": {
+            "binding": {
+              "catalog_digest": "1010d77b14121700b6118983d4cf9823baed9b244157d648e3cadb18d0287498",
+              "control_effective_digest": "3c967c12661cf7ba90d5ad976c172bc1deeb5fe08321f0f999d9b7b4adc1836d",
+              "control_revision": 0,
+              "managed_control_revision": 0,
+              "observation_count": 0,
+              "observations_digest": "bbaa894876351846955210b68623f35273743ce707410926f36860f85d74bcf3",
+              "program_digest": "4e00a023ddb75dbd3084ed173c23ee892a47c56e8427a1657676dc47d99df88d",
+              "schema": "guard.native-command-receipt-binding.v1",
+              "trust_digest": "aa437eec9b2a68fd3cac25c033ccbf5c9612fa2c4244bf83bc7b3df414f5e07d",
+              "uncertainty_count": 0
+            },
+            "evaluation_error": null,
+            "observations": [],
+            "permission_observations": [],
+            "schema": "guard.native-command-observations.v1"
+          },
+          "decision": "deny",
+          "explicitly_benign": false,
+          "minimum_action": "sandbox-required",
+          "policy_action": "sandbox-required",
+          "reason": "HOL Guard runs this command in a protected workspace sandbox (no network, no home access, no PTY or Docker socket). Every program it starts, including children of an interpreter, runs contained and can write only the workspace, $TMPDIR and a private scratch $HOME; only commands Guard proves safe run directly, outside the sandbox.",
+          "reason_code": "native_workspace_containment_required",
+          "schema": "guard-pre-tool-result.v1",
+          "version": 1
+        },
+        "schema": "guard-hook-edge-result.v2"
+      },
+      "response_frame_sha256": "c31740ff24d09d39be10f45bd135f551e5409a33de7453e6b4a76dd9f9ffa20f",
+      "stream": 9
+    },
+    {
+      "contained_reauthorization": true,
+      "frame_index": 23,
+      "outer_input": {
+        "config_path": "/product/home/omp.json",
+        "guard_contained_output_profile": "controller-contained-output.v1",
+        "guard_execution_environment": {
+          "environment_digest": "a35f0d4c27fbd182b92a6083457e8c8f4eb11008db5e8912acb30c913b5d0885",
+          "environment_names": [
+            "HOME",
+            "PATH",
+            "PYTHONPATH",
+            "container"
+          ],
+          "git_config_no_system": false,
+          "git_pager_disabled": false,
+          "home": "/runtime/home",
+          "library_search_paths": {},
+          "pager_disabled": false,
+          "path": "/usr/bin:/bin",
+          "xdg_config_home": null
+        },
+        "hook_event_name": "PreToolUse",
+        "session_id": "gauntlet-native-sdk-mcp-e2c701baf1475701",
+        "tool_call_id": "sdk-contained-control",
+        "tool_input": {
+          "command": "python3 -m unittest discover -s tests -v"
+        },
+        "tool_name": "bash"
+      },
+      "outer_response": {
+        "command_binding_digest": "bbaa894876351846955210b68623f35273743ce707410926f36860f85d74bcf3",
+        "decision": "deny",
+        "policy_action": "sandbox-required",
+        "reason": "HOL Guard runs this command in a protected workspace sandbox (no network, no home access, no PTY or Docker socket). Every program it starts, including children of an interpreter, runs contained and can write only the workspace, $TMPDIR and a private scratch $HOME; only commands Guard proves safe run directly, outside the sandbox.",
+        "reason_code": "native_workspace_containment_required",
+        "required_execution_profile": "workspace-contained-v1"
+      },
+      "request": {
+        "deadline_budget_ms": 750,
+        "event": "PreToolUse",
+        "harness": "omp",
+        "local_cli_rules": {
+          "env": {
+            "HOME": "/product/home",
+            "LANG": "C.UTF-8",
+            "MALLOC_ARENA_MAX": "2",
+            "PATH": "/usr/local/bin:/usr/bin:/bin"
+          },
+          "store_path": "/product/guard/guard.db",
+          "user_home": "/product/home"
+        },
+        "observe_local_cli": true,
+        "policy_generation": 4,
+        "policy_snapshot": {
+          "generation": 4,
+          "policy_digest": "25200787bad5fcc505c4014de0b50dde01af0b78bdf1c09529f451d3766dca18",
+          "runtime_identity": "bdaf053911cd278930c17e3c58b7741e23334a5156817db78780349f8635eb10"
+        },
+        "raw_payload": {
+          "config_path": "/product/home/omp.json",
+          "guard_contained_output_profile": "controller-contained-output.v1",
+          "guard_containment_receipt_only": true,
+          "hook_event_name": "PreToolUse",
+          "session_id": "gauntlet-native-sdk-mcp-e2c701baf1475701",
+          "tool_call_id": "sdk-contained-control",
+          "tool_input": {
+            "command": "python3 -m unittest discover -s tests -v"
+          },
+          "tool_name": "bash"
+        },
+        "request_id": null,
+        "schema": "guard-hook-envelope.v2",
+        "source": {
+          "cwd": "/runtime/home/project",
+          "execution_environment": {
+            "environment_digest": "281a6a462f7696699f6851b8fffb7d2cd3fd8a31c10bbefcb5522e69597e64a5",
+            "environment_names": [
+              "HOME",
+              "LANG",
+              "MALLOC_ARENA_MAX",
+              "PATH"
+            ],
+            "git_config_no_system": false,
+            "git_pager_disabled": false,
+            "home": "/product/home",
+            "library_search_paths": {},
+            "pager_disabled": false,
+            "path": "/usr/local/bin:/usr/bin:/bin",
+            "xdg_config_home": null
+          },
+          "guard_home": "/product/guard",
+          "home_dir": "/runtime/home",
+          "source_ref_external_allowed": true
+        }
+      },
+      "request_frame_sha256": "c20ea9d16a6d8036a95e4943ca625b560d7dc0a2048271bf0252a5b977309991",
+      "response": {
+        "authority": "rust",
+        "containment_route": "sink",
+        "event_name": "PreToolUse",
+        "harness": "omp",
+        "harness_response": {
+          "command_binding_digest": "bbaa894876351846955210b68623f35273743ce707410926f36860f85d74bcf3",
+          "decision": "deny",
+          "policy_action": "sandbox-required",
+          "reason": "HOL Guard runs this command in a protected workspace sandbox (no network, no home access, no PTY or Docker socket). Every program it starts, including children of an interpreter, runs contained and can write only the workspace, $TMPDIR and a private scratch $HOME; only commands Guard proves safe run directly, outside the sandbox.",
+          "reason_code": "native_workspace_containment_required",
+          "required_execution_profile": "workspace-contained-v1"
+        },
+        "payload_kind": "inline",
+        "receipt": {
+          "authority": "rust",
+          "command_extensions": {
+            "catalog_digest": "1010d77b14121700b6118983d4cf9823baed9b244157d648e3cadb18d0287498",
+            "control_effective_digest": "3c967c12661cf7ba90d5ad976c172bc1deeb5fe08321f0f999d9b7b4adc1836d",
+            "control_revision": 0,
+            "managed_control_revision": 0,
+            "observation_count": 0,
+            "observations_digest": "bbaa894876351846955210b68623f35273743ce707410926f36860f85d74bcf3",
+            "program_digest": "4e00a023ddb75dbd3084ed173c23ee892a47c56e8427a1657676dc47d99df88d",
+            "schema": "guard.native-command-receipt-binding.v1",
+            "trust_digest": "aa437eec9b2a68fd3cac25c033ccbf5c9612fa2c4244bf83bc7b3df414f5e07d",
+            "uncertainty_count": 0
+          },
+          "deadline_budget_ms": 750,
+          "decision": "deny",
+          "decision_id": "773422155ef308f307e3d1b5e0c2920de76d4b2763f251f91a16b9a1ad4a074d",
+          "event_name": "PreToolUse",
+          "execution_intent_digest": "1b1076eb51196d435b060924bc6ebebe93e85e562e706c9f0ab2341a95b41568",
+          "harness": "omp",
+          "model_output_action": "not_applicable",
+          "observe_mode": false,
+          "observed_policy_action": null,
+          "origin_authentication": "1f84c25f8f87d251e10797dac0a946b2a06998863d3606cb31100a5c0ffd7816",
+          "payload_kind": "inline",
+          "policy_action": "sandbox-required",
+          "policy_digest": "25200787bad5fcc505c4014de0b50dde01af0b78bdf1c09529f451d3766dca18",
+          "policy_generation": 4,
+          "reason_code": "native_workspace_containment_required",
+          "request_digest": "01aef1727a24370fb6150b2356e64be060888becb3d55d260a7585d766c81fe8",
+          "request_id": "sha256:01aef1727a24370fb6150b2356e64be060888becb3d55d260a7585d766c81fe8",
+          "review_anchor_digest": "4c4121e6af022963b2bb9c2f260eb2deeb0027e6a3f0fcb2b6077c269f08cb41",
+          "reviewed_output_sha256": null,
+          "rule_digest": "d477c93c5e1ae1d5334da3a6d255660d813d727acbad183bbfc05e5ef035ddb4",
+          "runtime_identity": "bdaf053911cd278930c17e3c58b7741e23334a5156817db78780349f8635eb10",
+          "schema": "guard-native-hook-decision-receipt.v1",
+          "source_ref_external_allowed": true,
+          "version": 1,
+          "workspace_bound": true
+        },
+        "request_id": "sha256:01aef1727a24370fb6150b2356e64be060888becb3d55d260a7585d766c81fe8",
+        "result": {
+          "action": {
+            "action_type": "command",
+            "bounded": true,
+            "event": "PreToolUse",
+            "harness": "omp",
+            "operation": "execute",
+            "schema": "guard-pre-tool-action.v1",
+            "sensitive_target": false,
+            "version": 1
+          },
+          "authority": "rust",
+          "command_extensions": {
+            "binding": {
+              "catalog_digest": "1010d77b14121700b6118983d4cf9823baed9b244157d648e3cadb18d0287498",
+              "control_effective_digest": "3c967c12661cf7ba90d5ad976c172bc1deeb5fe08321f0f999d9b7b4adc1836d",
+              "control_revision": 0,
+              "managed_control_revision": 0,
+              "observation_count": 0,
+              "observations_digest": "bbaa894876351846955210b68623f35273743ce707410926f36860f85d74bcf3",
+              "program_digest": "4e00a023ddb75dbd3084ed173c23ee892a47c56e8427a1657676dc47d99df88d",
+              "schema": "guard.native-command-receipt-binding.v1",
+              "trust_digest": "aa437eec9b2a68fd3cac25c033ccbf5c9612fa2c4244bf83bc7b3df414f5e07d",
+              "uncertainty_count": 0
+            },
+            "evaluation_error": null,
+            "observations": [],
+            "permission_observations": [],
+            "schema": "guard.native-command-observations.v1"
+          },
+          "decision": "deny",
+          "explicitly_benign": false,
+          "minimum_action": "sandbox-required",
+          "policy_action": "sandbox-required",
+          "reason": "HOL Guard runs this command in a protected workspace sandbox (no network, no home access, no PTY or Docker socket). Every program it starts, including children of an interpreter, runs contained and can write only the workspace, $TMPDIR and a private scratch $HOME; only commands Guard proves safe run directly, outside the sandbox.",
+          "reason_code": "native_workspace_containment_required",
+          "schema": "guard-pre-tool-result.v1",
+          "version": 1
+        },
+        "schema": "guard-hook-edge-result.v2"
+      },
+      "response_frame_sha256": "c31740ff24d09d39be10f45bd135f551e5409a33de7453e6b4a76dd9f9ffa20f",
+      "stream": 9
+    },
+    {
+      "contained_reauthorization": false,
+      "frame_index": 2,
+      "outer_input": {
+        "config_path": "/product/home/omp.json",
+        "guard_contained_output_profile": "controller-contained-output.v1",
+        "guard_execution_environment": {
+          "environment_digest": "a35f0d4c27fbd182b92a6083457e8c8f4eb11008db5e8912acb30c913b5d0885",
+          "environment_names": [
+            "HOME",
+            "PATH",
+            "PYTHONPATH",
+            "container"
+          ],
+          "git_config_no_system": false,
+          "git_pager_disabled": false,
+          "home": "/runtime/home",
+          "library_search_paths": {},
+          "pager_disabled": false,
+          "path": "/usr/bin:/bin",
+          "xdg_config_home": null
+        },
+        "hook_event_name": "PostToolUse",
+        "is_error": false,
+        "session_id": "gauntlet-native-sdk-mcp-e2c701baf1475701",
+        "tool_call_id": "sdk-contained-control",
+        "tool_input": {
+          "command": "python3 -m unittest discover -s tests -v"
+        },
+        "tool_name": "bash",
+        "tool_response": [
+          {
+            "text": "Exit code: 0\nSTDOUT:\n\nSTDERR:\ntest_boundary (test_control.Control.test_boundary) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.287s\n\nOK\n",
+            "type": "text"
+          }
+        ]
+      },
+      "outer_response": {
+        "decision": "allow",
+        "model_output_action": "allow_original",
+        "notice": "none",
+        "output_masked": false,
+        "policy_action": "warn",
+        "reason_code": "native_policy_warning",
+        "reviewed_output_sha256": "6a41e54e44b42aa3ba9ccce5cc25ef03506f57dc6ffee886d58861909721cb90"
+      },
+      "request": {
+        "deadline_budget_ms": 3458,
+        "event": "PostToolUse",
+        "harness": "omp",
+        "observe_local_cli": true,
+        "policy_generation": 5,
+        "policy_snapshot": {
+          "generation": 5,
+          "policy_digest": "25200787bad5fcc505c4014de0b50dde01af0b78bdf1c09529f451d3766dca18",
+          "runtime_identity": "bdaf053911cd278930c17e3c58b7741e23334a5156817db78780349f8635eb10"
+        },
+        "raw_payload": {
+          "config_path": "/product/home/omp.json",
+          "guard_contained_output_profile": "controller-contained-output.v1",
+          "hook_event_name": "PostToolUse",
+          "is_error": false,
+          "session_id": "gauntlet-native-sdk-mcp-e2c701baf1475701",
+          "tool_call_id": "sdk-contained-control",
+          "tool_input": {
+            "command": "python3 -m unittest discover -s tests -v"
+          },
+          "tool_name": "bash",
+          "tool_response": [
+            {
+              "text": "Exit code: 0\nSTDOUT:\n\nSTDERR:\ntest_boundary (test_control.Control.test_boundary) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.287s\n\nOK\n",
+              "type": "text"
+            }
+          ]
+        },
+        "request_id": null,
+        "schema": "guard-hook-envelope.v2",
+        "source": {
+          "cwd": "/runtime/home/project",
+          "execution_environment": {
+            "environment_digest": "a35f0d4c27fbd182b92a6083457e8c8f4eb11008db5e8912acb30c913b5d0885",
+            "environment_names": [
+              "HOME",
+              "PATH",
+              "PYTHONPATH",
+              "container"
+            ],
+            "git_config_no_system": false,
+            "git_pager_disabled": false,
+            "home": "/runtime/home",
+            "library_search_paths": {},
+            "pager_disabled": false,
+            "path": "/usr/bin:/bin",
+            "xdg_config_home": null
+          },
+          "guard_home": "/product/guard",
+          "home_dir": "/runtime/home",
+          "source_ref_external_allowed": true
+        },
+        "structured_output_config": {
+          "managed_locked_settings": [],
+          "managed_policy": null,
+          "managed_policy_hash": null,
+          "managed_policy_status": "absent"
+        }
+      },
+      "request_frame_sha256": "d5aa149e7f6baf50823b5351149d722b3eb38774e585b9f1387dbb7b5b6781dc",
+      "response": {
+        "authority": "rust",
+        "containment_route": "none",
+        "event_name": "PostToolUse",
+        "harness": "omp",
+        "harness_response": {
+          "decision": "allow",
+          "model_output_action": "allow_original",
+          "notice": "none",
+          "output_masked": false,
+          "policy_action": "warn",
+          "reason_code": "native_policy_warning",
+          "reviewed_output_sha256": "6a41e54e44b42aa3ba9ccce5cc25ef03506f57dc6ffee886d58861909721cb90"
+        },
+        "payload_kind": "inline",
+        "receipt": {
+          "authority": "rust",
+          "deadline_budget_ms": 3458,
+          "decision": "allow",
+          "decision_id": "d829dd9e99fc4af7784f0410abe46ee0b0bc2a580db366c028290dd073a22303",
+          "event_name": "PostToolUse",
+          "execution_intent_digest": "f81a86a8906534661ee2aadc30be42851a613657c34c5969141b977562a9fe52",
+          "harness": "omp",
+          "model_output_action": "allow_original",
+          "observe_mode": false,
+          "observed_policy_action": null,
+          "origin_authentication": "b76d73edaf22c3f0af75c238eeb04aac50bed65bed6403970abae3c48a17541e",
+          "payload_kind": "inline",
+          "policy_action": "warn",
+          "policy_digest": "25200787bad5fcc505c4014de0b50dde01af0b78bdf1c09529f451d3766dca18",
+          "policy_generation": 5,
+          "reason_code": "native_policy_warning",
+          "request_digest": "2eaa6740a0cf6f88f245f4c97c4f43e4fe382302e61aaf93c64e43f808b87eab",
+          "request_id": "sha256:2eaa6740a0cf6f88f245f4c97c4f43e4fe382302e61aaf93c64e43f808b87eab",
+          "review_anchor_digest": "9b6875a033ffb5faf9b0b1ad7f605c923b653b3fc32001da43844a9bcf1392b7",
+          "reviewed_output_sha256": "6a41e54e44b42aa3ba9ccce5cc25ef03506f57dc6ffee886d58861909721cb90",
+          "rule_digest": "d477c93c5e1ae1d5334da3a6d255660d813d727acbad183bbfc05e5ef035ddb4",
+          "runtime_identity": "bdaf053911cd278930c17e3c58b7741e23334a5156817db78780349f8635eb10",
+          "schema": "guard-native-hook-decision-receipt.v1",
+          "source_ref_external_allowed": true,
+          "version": 1,
+          "workspace_bound": true
+        },
+        "request_id": "sha256:2eaa6740a0cf6f88f245f4c97c4f43e4fe382302e61aaf93c64e43f808b87eab",
+        "result": {
+          "decision": "allow",
+          "model_output_action": "allow_original",
+          "notice": "none",
+          "output_masked": false,
+          "policy_action": "warn",
+          "reason_code": "native_policy_warning",
+          "reviewed_output_sha256": "6a41e54e44b42aa3ba9ccce5cc25ef03506f57dc6ffee886d58861909721cb90"
+        },
+        "schema": "guard-hook-edge-result.v2"
+      },
+      "response_frame_sha256": "e82d5bc458896cb1e18fb19d3b04180335d31eda35aa03910330f60198c6e546",
+      "stream": 12
+    }
+  ]
+}

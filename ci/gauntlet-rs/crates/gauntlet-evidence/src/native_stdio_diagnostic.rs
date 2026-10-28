@@ -1,6 +1,6 @@
 //! Bind snapshots to the versioned launch, signed closure and Root file identity.
 use crate::native_diagnostic_artifacts::{require, Artifacts};
-use crate::{verify_native_stdio_events, Result};
+use crate::Result;
 use serde_json::Value;
 
 const FILE: &str = "combined/cell/native-stdio-events.v1.jsonl";
@@ -8,6 +8,8 @@ pub(crate) fn verify(
     control: &Value,
     preparation: &Value,
     artifacts: &Artifacts<'_>,
+    images: &Value,
+    hooks: &Value,
 ) -> Result<Option<Value>> {
     let launch = &preparation["launch"];
     if launch["schema"] != "hol-gauntlet-cell-supervisor.v4" {
@@ -33,9 +35,14 @@ pub(crate) fn verify(
     for key in ["device", "inode", "uid", "gid", "mode", "links"] {
         require(metadata.get(key).is_some() && metadata[key] == capture["journal"][key])?;
     }
-    Ok(Some(verify_native_stdio_events(
+    let readback = crate::native_stdio_events::replay(
         artifacts.raw(FILE)?,
         artifacts.raw("combined/cell/native-process-events.v1.jsonl")?,
         checkpoint,
-    )?))
+    )?;
+    let relations =
+        crate::native_stdio_hook_relations::verify(control, artifacts, &readback, images, hooks)?;
+    let mut result = readback.summary;
+    result["copied_hook_relations"] = relations;
+    Ok(Some(result))
 }
