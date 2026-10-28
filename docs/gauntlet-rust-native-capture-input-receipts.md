@@ -30,7 +30,25 @@ The static ARM library tests compile, log SHA-256
 `23b2445243406abc07a04e541cf41d0956d90304eb69b98fc6fbe0e0a0a52f21`;
 the executable is 9,600,952 bytes, SHA-256
 `257235f58cff57b6e5984a17bfc2d73edc7766bdc550b990f15cd99e69b408a6`.
-Native test execution remains pending at this implementation checkpoint.
+All three new state tests also pass natively under Root on the owned ARM VM
+at source `052cbabd00a889d5b862205c22f58a5b695140d8`. Both worker leases
+remain held, all 284 prior worker files retain their hashes and owned product
+cgroups remain absent. These are focused unit tests; fresh actual Native
+capture execution and the consuming grader remain pending.
+
+The executable was compiled before the implementation commit; the courier
+checks every changed source file against that exact committed Git object.
+The 9,605,120-byte two-member input hashes to
+`ec73a5b4524ed8f10870e643f7f488d266768773107eede5f84a69cea4108179`.
+The 10,240-byte six-member public export hashes to
+`1d34a7411d1f41091f4f9e058d6eb77129b40b61ddc4b47674180fbd7d12b041`.
+Root hashes the held output before the transport handoff. The native test log
+hashes to `b206d807bc3df9225013c192fbe01bbd5573b7fb383b3252eb6d63fa62cdaf06`.
+The [fixed-generation reader](../ci/gauntlet-rs/proofs/verify_native_capture_input_arm_20261027.py)
+verifies all members, source/ELF/log/metadata pins and unchanged records. Its
+successful stdout hashes to
+`f65b2cda1cbc95c380645354b1232982410334dbc605f42a8cfc4e84220f87d0`.
+Ruff formatting and lint pass; zero model requests ran.
 
 All three changed source files are pinned in
 `native-capture-input-arm-artifacts-001.json`: `lib.rs`,

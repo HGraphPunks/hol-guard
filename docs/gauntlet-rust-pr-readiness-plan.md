@@ -738,8 +738,10 @@ approval ceremony for routine work already authorized by this request.
   arguments and output captures. Partial/never-started delivery, early EOF,
   changed bytes and replay cannot become complete input. Mac rootfs passes
   36 tests; Mac/ARM rootfs warnings-denied Clippy and static ARM tests compile.
-  Actual native execution and the consuming Native hook/Bash/lifecycle grader
-  remain pending; old absent input receipts stay unverified. See
+  All three new tests also pass natively under Root at `052cbabd`, with
+  independent source/ELF/log/export readback, both leases and all 284 prior
+  worker files unchanged. Fresh actual capture execution and the consuming
+  Native hook/Bash/lifecycle grader remain pending; old absent input receipts stay unverified. See
   [input receipts](gauntlet-rust-native-capture-input-receipts.md).
   No parent exit closes; all qualification/causality flags remain false.
 - Next: finish independent deterministic role scoring and outside key custody,
