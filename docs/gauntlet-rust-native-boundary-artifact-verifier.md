@@ -85,6 +85,6 @@ The initial host-reader attempt lacked `cryptography` in system Python; its
 failure remains retained. The configured integration Python passes unchanged.
 Both proof scripts pass Ruff formatting and lint. No model requests ran.
 
-Fresh 3.58.0 runtime publication, twelve current-source staging/installed
-controls, independent process grading and the remaining operational, workflow,
+The separate [3.58.0 runtime publication](gauntlet-rust-current358-runtime-proof-20261027.md)
+now passes. Twelve current-source staging/installed controls, independent process grading and the remaining operational, workflow,
 legacy and cutover exits remain open. Required CI is user-owned and pending.
