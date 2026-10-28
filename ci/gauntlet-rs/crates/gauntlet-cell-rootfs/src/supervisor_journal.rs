@@ -174,7 +174,7 @@ mod tests {
             0,
             "Root journal tests require the owned Root VM"
         );
-        let temp = tempfile::tempdir().unwrap();
+        let temp = tempfile::tempdir_in("/run").unwrap();
         let mut journal = Journal::create(temp.path()).unwrap();
         journal.append("test", json!({"value":1})).unwrap();
         let binding = journal.binding().unwrap();
@@ -201,7 +201,7 @@ mod tests {
             0,
             "Root journal tests require the owned Root VM"
         );
-        let temp = tempfile::tempdir().unwrap();
+        let temp = tempfile::tempdir_in("/run").unwrap();
         let mut journal = Journal::create(temp.path()).unwrap();
         journal.append("committed", json!({})).unwrap();
         journal.poisoned = true;
