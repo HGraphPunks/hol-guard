@@ -63,16 +63,28 @@ Independent R4 work now implements the fixed
 [Rust feature executor and v2 report reader](gauntlet-rust-feature-audit.md):
 all 28 groups and 52 pytest selectors, exact source/installed contexts,
 bounded unprivileged setup and subprocess ownership, actual JUnit counts and
-complete per-group artifact verification. The fresh development-container
-audit attempts all 28 groups: 26 pass, one fails an installed Codex safe-Git
-hook assertion and one retains a pre-existing Pi expected failure. All 1,289
-case outcomes, 60 outside observations and final cleanup are independently
-verified, with all 333 prior worker records unchanged. The full Mac workspace
-passes 634 tests, and eight new ARM reader tests, five ARM artifact outcomes,
-six fresh Mac outcomes and exact Python baseline counts agree. The Root
-development launcher still needs Rust durable worker integration; the failed
-product assertion remains unresolved. Setup/pack/bootstrap failures remain
-retained. Parent exits stay 24/62, and CI remains user-owned and pending.
+complete per-group artifact verification. The first audit attempted all 28
+groups with one Codex failure and an existing Pi expected failure. The
+unchanged safe-Git test exposed the Rust runner's setup-only Git variables
+leaking into product tests. Fix `cb9ea66e` preserves the Python test environment
+and all original assertions. Fresh audit `5803` now passes 27 groups and all
+59 Codex/Claude cases: 1,288 passes, zero failures and the same one expected
+failure, retaining aggregate `incomplete`. Ten ARM tests, 70 outside
+observations, exact cleanup, all 708 executor Git blobs, Python counts and
+identical Mac/ARM readback verify, with all 333 old worker records unchanged.
+The original failure and all setup/pack/bootstrap failures remain retained.
+The full Mac workspace passes 634 tests. The Root development launcher still
+needs Rust durable worker integration. Parent exits stay 24/62, and CI remains
+user-owned and pending.
+
+The [upstream synchronization through 931cafb2](gauntlet-rust-upstream-sync-931cafb2.md)
+imports 30 commits without conflict, preserving both migration runtime modules
+and CPU-aware worker budget. Two reviewed Gauntlet file changes update the
+432-file map while the immutable 420-file baseline remains unchanged. Python
+and Rust agree on the new 401-file/412-entry controller plan at `ff8d1459…`.
+All 45 focused Native tests, Native compilation/Clippy, 634 migration tests
+and Mac/ARM Clippy pass. No retained VM controller or ARM product publication
+was replaced; fresh current-source qualification remains open.
 
 ## Goal and completion contract
 

@@ -1,8 +1,9 @@
 # Rust feature audit
 
-Updated 2026-10-28. The fixed unprivileged executor has completed its first
-source-matched diagnostic audit: 26 groups passed, one failed and one was
-incomplete. Independent Mac/ARM readback is verified. Rust worker admission,
+Updated 2026-10-28. The latest source-matched diagnostic audit has 27 passed
+groups, zero failed groups and one incomplete group. Its 1,289 cases contain
+1,288 passes and one existing expected failure. Independent Mac/ARM readback
+is verified. Rust worker admission,
 durable audit ownership and interruption recovery remain open. This work closes no
 parent migration milestone: progress stays 24/62, or 39%.
 
@@ -83,7 +84,7 @@ The standalone report verifier states
 by this audit. Product fixtures do not establish live SaaS or agent-version
 qualification.
 
-## Validation and current attempt
+## Initial implementation and retained attempt
 
 The first implementation passes all nine new catalog/spec/JUnit/report tests
 and the 632-test macOS migration suite, with no failures or skips. Current
@@ -133,7 +134,7 @@ outside result binding and operator invocation into Rust remains required.
 Required cloud CI is still user-owned and pending. These diagnostic results
 and tests do not satisfy final migration readiness.
 
-## Completed audit and independent readback
+## First audit and independent readback
 
 Audit `e2c701baf1475802` reports 1,289 testcases: 1,287 passed, one failed and
 one expected failure. All groups were attempted. Its overall status is
@@ -199,3 +200,53 @@ The metadata pack's duplicate-path error and two prewrite ARM bootstrap
 errors remain retained. The corrected bounded read helper was tested locally
 with both string and Path inputs before the successful ARM run. No failed
 attempt was overwritten or represented as completed execution.
+
+## Corrected environment and repeat audit
+
+The Codex failure came from the Rust executor's preparation Git variables
+leaking into pytest. Against the same frozen source-matched Mac Native build,
+the unchanged assertion fails with `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_NOSYSTEM`
+and `GIT_TERMINAL_PROMPT` and passes without them. The Native environment
+trust check conservatively refuses Git configuration whose value did not
+travel with the request. Product policy and test assertions are unchanged.
+
+Fix `cb9ea66e7848ef113735f69bf4658c6ea8024fb3` removes the three setup-only
+variables from every product-test context and keeps them for preparation.
+The context test checks that boundary for all 28 groups. The fixed ARM
+executor has 9,878,128 bytes and digest
+`2f5b02b29451f5c94fbb0df430bbea24138d269c3ae8051fea73ae0843e96f9c`;
+its 708-entry source map hashes to
+`ebc283be6f4c0ea8205d0ea44c4d2fa0b03eab14f1c5af7322d0167292e33096`.
+Every entry matches its Git blob at `cb9ea66e`.
+
+Fresh audit `e2c701baf1475803` retains the exact original product, source
+archive, candidate, wheel, Native ELF, Node and 28-group/52-selector catalog.
+Ten ARM tests and both same-UID probes pass before the complete schedule.
+All 59 Codex/Claude cases now pass. Only that group's outcome changes:
+27 groups pass and the pre-existing Pi expected failure keeps one group and
+the aggregate `incomplete`. Counts are 1,289 total, zero failures, zero errors
+and one skipped/expected failure. The compiler digest remains byte-identical
+at `f379f334…b1c5`.
+
+All 70 outside observations match the actual executor ELF, PID-1 namespace
+and 12-GiB/two-CPU/2048-task limits. Exact container/cgroup/profile cleanup
+is confirmed and all 333 prior worker records remain unchanged. The corrected
+report hashes to
+`28353f575d031eddfe933d7bf866af20455d35f7c84029880f80c9631527e9f7`.
+Mac and ARM actual/restart readbacks are byte-identical at
+`d5ad2b5ea991400ed470490a32d0af9ecb14c06f7d12838496c49b4437b1d2cb`.
+
+| Retained corrected export | Bytes / members | SHA-256 |
+| --- | --- | --- |
+| `native-feature-executor-vm-results-003.tar` | 10,485,760 / 104 | `7de5dcb693cd466930a3a8f420da0ede4035111126a7640ca7f85454e37ceb8c` |
+| `native-feature-env-readback-vm-results-001.tar` | 20,480 / 5 | `34c5661d9eb7cb8c4888540310016c521569cb172bfb03d71282242b31992192` |
+
+The [fixed comparison proof](../ci/gauntlet-rs/proofs/verify_feature_environment_20261028.py)
+checks the original and corrected complete exports, all source-map blobs,
+unchanged product inputs and assertions, each XML/log digest, Python baseline
+and actual testcase counts, 70 observations and exact Mac/ARM readback.
+It uses the preserved original proof helpers and frozen standalone reader;
+it starts no product or model job. Its output is
+`native-feature-environment-fixed-host-proof-001.json`. The earlier failure
+and expected failure keep their original classifications. Rust durable Root
+worker integration and final qualification remain open.
