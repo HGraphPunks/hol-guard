@@ -222,6 +222,24 @@ actual held descriptor, including repeated Root-owned inodes. It uses the
 existing accelerated SHA-256 engine and retains no executable descriptors
 between execs. A same-size Root mutation regression must read the changed
 bytes without depending on a timestamp difference. Hash/read bounds, image
-output and grading criteria stay the same. Corrected Root proof and a new
-Native control are pending; no live performance or failure-resolution claim
-is made yet.
+output and grading criteria stay the same. At corrected source `e98f4887`,
+all 583 Mac workspace tests, Mac/ARM warnings-denied Clippy and Rustfmt pass.
+All 36 focused Root ARM cases pass, including rapid same-size Root writes,
+inode replacement, ownership/permission changes, read-only close-on-exec
+inputs and 256 repeated measurements without descriptor retention. Both
+leases and all 305 worker records remain intact. The 35-member passing export
+is `native-trace-image-full-vm-results-001.tar`, 194560 bytes, SHA-256
+`67d04460ae2587fe234fdf308c6b70eb1dcc4bdcf62cd45026e37c14d76d49e2`.
+The independent inert
+[`verify_native_process_image_hash_20261028.py`](../ci/gauntlet-rs/proofs/verify_native_process_image_hash_20261028.py)
+courier checks all 70 members across the failed and corrected exports, source
+and binary pins, Root metadata and every test log. Its proof is
+`native-process-image-hash-readback-proof-001.json`, SHA-256
+`5c297b9dcba6578c9c54442f5546fd816a6d9450894b107d06d6c6c54d3d7753`.
+
+The corrected 583-test, Mac Clippy and ARM Clippy log SHA-256 values are
+`622145063de005a031e24c35410b7451f2c81366368d33991a1d8e1efbcf46e3`,
+`f095a883645734b2baaf1184be3851395166be62d203a9a052fb837389b668cf`
+and `741b199a472939a09e01883c12737185a8d3e8ea1eb814371082400e8ff3c713`.
+A new Native control is pending; no live performance or failure-resolution
+claim is made yet. No parent exit closes.

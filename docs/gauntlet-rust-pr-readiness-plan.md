@@ -5,8 +5,10 @@ Status: active implementation; the Rust replacement is not qualified.
 
 Current R3 work: [outside Rust process-event recording](gauntlet-rust-native-process-event-plan.md)
 is integrated in closed launch v3, with signed checkpoint and gate joins.
-At `cc3ce245`, all 579 Mac workspace tests, Mac/ARM warnings-denied Clippy,
-27 focused Root ARM cases and 32 byte-identical legacy controls pass. Fresh
+At `e98f4887`, all 583 Mac workspace tests, Mac/ARM warnings-denied Clippy and
+36 focused Root ARM cases pass. The corrected recorder hashes every exec;
+a failed metadata-cache attempt remains retained. At prior `cc3ce245`, all
+32 legacy controls reproduce their outputs byte for byte. Fresh
 zero-model control `e2c701baf1475403` retains a complete 559-task/559-final-wait
 history, independently replayed by Rust, but fails when Native output rendering
 is unavailable; the SDK withholds output. The outside sampler separately
