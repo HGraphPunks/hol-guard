@@ -696,8 +696,20 @@ approval ceremony for routine work already authorized by this request.
   [boundary artifact proof](gauntlet-rust-native-boundary-artifact-verifier.md).
   Live process custody and full role qualification remain open; no parent
   exit closes. The user will handle disabled CI separately.
-- Next: finish independent deterministic role scoring and outside key custody, then
-  fresh source-matched publication/conformance.
+- 2026-10-27: exact current product/tool source `9f42d9dd` passes a fresh
+  3.58.0 build (four selected and 187 complete contained tests), independently
+  observed locked dependency run, every wheel/dependency byte, complete inert
+  prefix and immutable source-path publication. Thirty-six refusal/lease/
+  positive/replay cases pass with an optimized source-matched Rust worker.
+  Independent host reconstruction verifies all 104 public export members,
+  four complete trees and the exact Python requirement loop: 63 distributions,
+  23 requirements, 13 active and satisfied, 10 inactive. A stale interpreter
+  pin, missed first observer and read-only export refusal stay retained;
+  corrected observation uses a fresh job. All 284 old worker records and
+  ineligible flags remain unchanged. See [current runtime proof](gauntlet-rust-current358-runtime-proof-20261027.md).
+  No parent exit closes; fresh deterministic conformance remains open.
+- Next: finish independent deterministic role scoring and outside key custody,
+  then twelve fresh source-matched staging/installed roles and conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
   records each failure and acceptance boundary. Parent exits remain 24/62;
   qualification, inference, operational cutover and final handoff stay open.
