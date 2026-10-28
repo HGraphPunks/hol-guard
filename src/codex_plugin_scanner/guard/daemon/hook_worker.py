@@ -159,6 +159,7 @@ class HookWorker(HookWorkerNativeMixin):
         policy_snapshot: Mapping[str, object] | None = None,
         request_id: str | None = None,
         local_cli_rules: bool = False,
+        observe_local_cli: bool = False,
         structured_output_config: Mapping[str, object] | None = None,
     ) -> dict[str, object] | None:
         runtime_status = self._native_runtime_status()
@@ -175,6 +176,7 @@ class HookWorker(HookWorkerNativeMixin):
             deadline=deadline,
             policy_snapshot=policy_snapshot,
             runtime_status=runtime_status,
+            observe_local_cli=observe_local_cli,
             **({"request_id": request_id} if request_id is not None else {}),
             # The edge settles the daemon's custom extension rules; a launch
             # resolves against the daemon's home and environment.
