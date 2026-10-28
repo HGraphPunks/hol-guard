@@ -104,6 +104,7 @@ and independently retained tool metadata; no old record, grading assertion or
 permission check is rewritten. Ruff lint and formatting pass.
 
 No model requests, quota reset, production gate, CI bypass or merge occurs.
-Required final-head CI remains user-owned and pending. Next work joins copied
-Native requests/responses to their actual gate and outer hook/capture inputs;
+Required final-head CI remains user-owned and pending. The subsequent
+[copied-hook verifier](gauntlet-rust-native-copied-hook-relations.md) joins five
+actual exchanges to their gates and outer inputs. Metadata-operation semantics,
 atomic observation and physical writer attribution remain separate requirements.

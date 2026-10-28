@@ -39,9 +39,11 @@ records survive in the new 333-record baseline. Request semantics, atomic
 bytes, physical writers, outside admission and every parent exit remain open.
 The [copied hook subset](gauntlet-rust-native-copied-hook-relations.md) now joins
 five request/response exchanges to three acknowledged outer hooks and two
-contained reauthorizations. Eight focused tests, 623 Mac workspace tests and
-nine retained-control cases pass; owned ARM execution and historical readbacks
-remain next. This subset grants no full request-semantics or parent-exit credit.
+contained reauthorizations. Committed verifier `3ea621aa` passes eight focused
+and 623 complete Mac tests, fourteen Root ARM tests, nine identical Mac/ARM
+artifact outcomes, five fresh fixed-host checks and 32 unchanged historical
+readbacks. All 691 source-map entries and 42 public export members verify.
+This subset grants no full request-semantics or parent-exit credit.
 
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete

@@ -1,6 +1,7 @@
 # Copied Native hook request and decision relations
 
-The Rust verifier now correlates five actual copied Native hook exchanges with
+Rust verifier `3ea621aa7e2cc2985ce5e31fe6ae9017a2aefdb0` correlates five
+actual copied Native hook exchanges with
 three acknowledged outer hooks and two contained-execution reauthorizations
 in retained launch-v4 control `e2c701baf1475701`. It independently recomputes
 the request identity, execution-intent identity and decision-receipt identity,
@@ -102,9 +103,36 @@ Nine actual signed/MCP/process/hook/control/restart/wrong-pin cases pass.
 The complete control output is SHA-256
 `ea113422a647ff19a8e1c0895de05f879b06f899552b306fa7f5604767ae1e35`;
 restart reproduces it byte for byte. The other signed/MCP/process/hook outputs
-remain byte-identical to the preceding reader. Committed-source executable
-binding, owned ARM execution and the 32 historical readbacks are the next checks.
-The 333-record worker baseline and every earlier failure remain retained.
+remain byte-identical to the preceding reader. The committed rebuild reproduces
+the working Mac bytes exactly. All 691 source-map entries, including 677 Rust
+files, match the committed Git blobs. The committed source map has SHA-256
+`fbbd694222149c39ec6e23891b921663835b1736564963f69119905a003e9b59`.
+All 32 historical control readbacks remain byte-identical, with proof SHA-256
+`8ab9ebc64121f8058aede12e446cec2d640e9e6deda3063e9347f176ff32d2f4`.
+
+The committed ARM reader is 8,918,472 bytes, SHA-256
+`12ed96ac6544a98f95de409032f931ffd74efd465c22ecba0d8390cf392335ff`.
+Its test ELF is 23,385,616 bytes, SHA-256
+`512c7060c1582986f21d0c17fc41f5a70ac3673f14a6817dc114c0275db31599`.
+On the owned ARM VM, all fourteen stdio tests (eight new and six existing)
+and nine actual artifact/restart/wrong-pin cases pass under both worker leases.
+The complete control output matches the Mac output byte for byte. The copied
+public host pin remains an explicit fixture; this supplies no outside admission.
+No new product or model job executes and all 333 worker records remain intact.
+
+The public ARM export is 8,110,080 bytes with 42 members, SHA-256
+`a7c4cbc4a7edbf58b560cdc89cd3e23954275d1075b333df44b518b973958fde`.
+The [fixed host courier](../ci/gauntlet-rs/proofs/verify_native_copied_hooks_20261028.py)
+and [ARM helper](../ci/gauntlet-rs/proofs/native_copied_hooks_arm_proof_20261028.py)
+verify every member, Root metadata, source/ELF/log pin, test count, nine ARM
+outcomes, 32 legacy outputs and unchanged worker baseline. They also join all
+five frozen fixture vectors to the actual request/response frame and canonical
+JSON hashes produced by Rust replay. Five fresh Mac actual/restart/wrong-pin
+outcomes pass. The resulting `native-hook-correlation-proof-001.json` is SHA-256
+`c4b5dec306f6be5bacda1747981dd79c9ad94aa0445f15e0ae11f5ecca466d3a`.
+Ruff lint and formatting pass. Reproduce with
+`python3 ci/gauntlet-rs/proofs/verify_native_copied_hooks_20261028.py EVIDENCE_DIRECTORY NEW_THREE_DIGIT_INDEX`;
+all new output paths are exclusive. Every earlier failed attempt remains retained.
 
 The public diagnostic addition is `native_stdio_snapshots.copied_hook_relations`.
 The standalone stdio summary and old launch modes retain their existing shape;

@@ -53,9 +53,11 @@ The next [copied hook relation verifier](gauntlet-rust-native-copied-hook-relati
 joins five copied exchanges to three acknowledged outer hooks and two contained
 reauthorizations, independently recomputing request/intent/decision identities.
 Eight focused tests, 623 Mac workspace tests, Mac/ARM Clippy and nine retained
-control readbacks pass. The final background drain remains explicitly unanswered.
-Committed-source binding, owned ARM execution and historical compatibility are
-the next checks; this bounded subset closes no parent exit.
+control readbacks pass. Committed verifier `3ea621aa` also passes fourteen Root
+ARM tests, nine identical cross-platform artifact outcomes, five fresh fixed-host
+checks and 32 unchanged historical readbacks. All 691 source-map entries and the
+42-member public export verify. The final background drain remains explicitly
+unanswered. This bounded subset closes no parent exit.
 
 ## Goal and completion contract
 
@@ -912,10 +914,14 @@ approval ceremony for routine work already authorized by this request.
   workspace tests and nine retained-control cases pass. The original typed-
   context test failures remain retained. See
   [copied hook relations](gauntlet-rust-native-copied-hook-relations.md).
-  Owned ARM execution and committed-source readback remain next; full semantics,
-  atomic wire observation, writers and all parent exits stay open.
-- Next: verify the committed copied-hook reader on owned ARM and historical
-  controls, then finish metadata request semantics and atomic observation.
+  Committed verifier `3ea621aa` subsequently passes fourteen Root ARM tests,
+  nine byte-identical cross-platform artifact outcomes, five fresh fixed-host
+  checks and 32 unchanged legacy readbacks. Fixed verification checks all 691
+  source-map entries, all 42 public ARM export members and all five fixture
+  vectors against actual Rust frame replay. Both worker leases and all 333
+  records remain intact. Full semantics, atomic wire observation, writers and
+  all parent exits stay open.
+- Next: finish metadata request semantics and atomic observation.
   Diagnose the intermittent polling-sampler failure while
   finishing independent deterministic role scoring,
   Native descendant/effect custody and outside key admission,
