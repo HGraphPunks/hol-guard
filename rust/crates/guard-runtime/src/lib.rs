@@ -268,6 +268,7 @@ mod directory_trust;
 mod discovery_placement_op;
 mod edge;
 mod edge_git_push;
+mod edge_receipt;
 mod edge_review_evidence;
 mod edge_structured;
 mod encrypted_secret_store;

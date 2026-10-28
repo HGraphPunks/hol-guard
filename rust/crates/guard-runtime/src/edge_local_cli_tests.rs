@@ -86,6 +86,7 @@ fn case(label: &str, state: Option<&str>, recording_only: bool) -> (GuardHookEnv
             exact_action_control_digest: None,
         }),
         observe_local_cli: false,
+        record_receipt: false,
         structured_output_config: None,
     };
     (envelope, identity.name)
