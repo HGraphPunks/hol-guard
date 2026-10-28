@@ -7422,6 +7422,37 @@
    "rationale": "Argument validation for the filter stage is the classifier's, not the sink's: a grep naming a file or reading patterns, and a ripgrep spelling its own valued options, never reach the filter chain at all, so the native tests replace the ValueError the Python sink used to raise."
   },
   {
+   "old_node": "tests/test_prompt_system_message_lazy_reason.py::test_claude_asks_for_no_reason_it_will_not_show",
+   "source_sha256": "b1644e0ce525c79bfe740ab3290f5fa7cffd2a7fd7d2eec9d2ef792fce9551a6",
+   "replacement_nodes": [],
+   "status": "obsolete_implementation_assertion",
+   "rationale": "Exercises the retired Python prompt system-message composers, which read the resident's reason only when they showed one. The resident composes the prompt notice itself now, so no Python caller reads a reason it does not show."
+  },
+  {
+   "old_node": "tests/test_prompt_system_message_lazy_reason.py::test_codex_asks_for_no_reason_a_running_prompt_will_not_show",
+   "source_sha256": "b1644e0ce525c79bfe740ab3290f5fa7cffd2a7fd7d2eec9d2ef792fce9551a6",
+   "replacement_nodes": [],
+   "status": "obsolete_implementation_assertion",
+   "rationale": "Exercises the retired Python prompt system-message composers, which read the resident's reason only when they showed one. The resident composes the prompt notice itself now, so no Python caller reads a reason it does not show."
+  },
+  {
+   "old_node": "tests/test_prompt_system_message_lazy_reason.py::test_a_paused_codex_prompt_still_reads_the_residents_reason",
+   "source_sha256": "b1644e0ce525c79bfe740ab3290f5fa7cffd2a7fd7d2eec9d2ef792fce9551a6",
+   "replacement_nodes": [],
+   "status": "obsolete_implementation_assertion",
+   "rationale": "Exercises the retired Python prompt system-message composers, which read the resident's reason only when they showed one. The resident composes the prompt notice itself now, so no Python caller reads a reason it does not show."
+  },
+  {
+   "old_node": "tests/test_claude_prompt_notice_vectors.py::test_claude_prompt_notice_vectors_are_current",
+   "source_sha256": "a20c6c1dc48d0cf4edcce8aecfc6d9a2ef7180afea26d2e4416b86f1dca0a138",
+   "replacement_nodes": [
+    "rust/crates/guard-runtime/src/hook_direct_claude_prompt_text_tests.rs::the_notice_matches_the_daemon",
+    "rust/crates/guard-runtime/src/hook_direct_claude_prompt_text_tests.rs::a_reason_the_daemon_would_stringify_defers"
+   ],
+   "status": "obsolete_implementation_assertion",
+   "rationale": "Re-ran the retired Python prompt notice against its recorded vectors. The recorded vectors stay and the native prompt-notice suite replays them."
+  },
+  {
    "old_node": "tests/test_codex_bridge_early_proxy.py::test_codex_bridge_proxy_answers_allow_before_guard_imports",
    "source_sha256": "b1df34010bc2c39140830a6d0185783ebb7b9e431b4f9c73e7aa2c416c0c9234",
    "replacement_nodes": [
@@ -7948,6 +7979,41 @@
    "old_node": "tests/test_codex_daemon_hook_resume.py::test_codex_json_pretool_package_install_reason_includes_request",
    "new_node": "tests/test_guard_phase04_harness_ux.py::test_codex_json_pretool_package_install_names_its_request",
    "reason": "The hook's package-install denial still names its approval request; the check reads the request id and approval link carried in the hook output fields now that the Python reason parser is gone."
+  },
+  {
+   "old_node": "tests/test_guard_kubernetes_runtime.py::test_pi_post_tool_output_labels_kubernetes_secret_source",
+   "new_node": "tests/test_guard_kubernetes_runtime.py::test_pi_post_tool_output_holds_secret_from_kubernetes_read",
+   "reason": "The live hook answer for this payload shape still withholds the credential output; the Kubernetes source label it carries is checked by the native post-tool review's payload-shape test."
+  },
+  {
+   "old_node": "tests/test_guard_kubernetes_runtime.py::test_pi_post_tool_output_labels_argv_wrapped_kubernetes_secret_source",
+   "new_node": "tests/test_guard_kubernetes_runtime.py::test_pi_post_tool_output_holds_secret_from_argv_wrapped_kubernetes_read",
+   "reason": "The live hook answer for this payload shape still withholds the credential output; the Kubernetes source label it carries is checked by the native post-tool review's payload-shape test."
+  },
+  {
+   "old_node": "tests/test_guard_kubernetes_runtime.py::test_pi_post_tool_output_labels_single_item_command_args_kubernetes_secret_source",
+   "new_node": "tests/test_guard_kubernetes_runtime.py::test_pi_post_tool_output_holds_secret_from_single_item_command_args_kubernetes_read",
+   "reason": "The live hook answer for this payload shape still withholds the credential output; the Kubernetes source label it carries is checked by the native post-tool review's payload-shape test."
+  },
+  {
+   "old_node": "tests/test_guard_kubernetes_runtime.py::test_pi_post_tool_output_labels_commands_payload_kubernetes_secret_source",
+   "new_node": "tests/test_guard_kubernetes_runtime.py::test_pi_post_tool_output_holds_secret_from_commands_payload_kubernetes_read",
+   "reason": "The live hook answer for this payload shape still withholds the credential output; the Kubernetes source label it carries is checked by the native post-tool review's payload-shape test."
+  },
+  {
+   "old_node": "tests/test_guard_kubernetes_runtime.py::test_pi_post_tool_output_labels_later_commands_payload_kubernetes_secret_source",
+   "new_node": "tests/test_guard_kubernetes_runtime.py::test_pi_post_tool_output_holds_secret_from_later_commands_payload_kubernetes_read",
+   "reason": "The live hook answer for this payload shape still withholds the credential output; the Kubernetes source label it carries is checked by the native post-tool review's payload-shape test."
+  },
+  {
+   "old_node": "tests/test_guard_kubernetes_runtime.py::test_pi_post_tool_output_labels_wrapped_kubernetes_secret_source",
+   "new_node": "tests/test_guard_kubernetes_runtime.py::test_pi_post_tool_output_holds_secret_from_wrapped_kubernetes_read",
+   "reason": "The live hook answer for this payload shape still withholds the credential output; the Kubernetes source label it carries is checked by the native post-tool review's payload-shape test."
+  },
+  {
+   "old_node": "tests/test_guard_kubernetes_runtime.py::test_pi_post_tool_output_preserves_kubernetes_secret_volume_source",
+   "new_node": "tests/test_guard_kubernetes_runtime.py::test_pi_post_tool_output_holds_secret_from_kubernetes_secret_volume_read",
+   "reason": "The live hook answer for this payload shape still withholds the credential output; the Kubernetes source label it carries is checked by the native post-tool review's payload-shape test."
   }
  ],
  "unchanged_regression_suites": [
@@ -8504,6 +8570,21 @@
    ],
    "base_commit": "6bf9f88edec5328884d18b3e9afbe1ef8342aada",
    "remaining_role": "Evaluates the request artifact the resident's package_review_plan op builds and applies the verdict: a block always, an allow only when the resident proved the npm that runs. The command lookup (Copilot toolArgs included), shape check, intent parse and artifact build run in the resident."
+  },
+  {
+   "path": "src/codex_plugin_scanner/guard/daemon/hook_native_package_review.py",
+   "source_sha256": "9b6c33d181442a4681ea6522448ff8d0c154ac6690d1284313a6c911f9032040",
+   "forbidden_symbols": [
+    "_script_free_watch",
+    "_first_message",
+    "LIFECYCLE_SCRIPTS_ENABLED_CODE"
+   ],
+   "native_replacements": [
+    "rust/crates/guard-command/src/supply_chain_package_eval/review_settlement.rs",
+    "rust/crates/guard-runtime/src/supply_chain_eval_op.rs"
+   ],
+   "base_commit": "647fb01f6455b97b6fb15ebc296ecc1fd363cb3c",
+   "remaining_role": "Applies the resident's review settlement to the native verdict and renders it; which evaluator verdict lets a planned install continue, stops it with guidance, or blocks it is decided in Rust."
   }
  ],
  "retired_bodies": [

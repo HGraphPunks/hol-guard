@@ -11,9 +11,9 @@ import pytest
 
 from codex_plugin_scanner.cli import main
 from codex_plugin_scanner.guard import approvals as approvals_module
-from codex_plugin_scanner.guard.approval_scope_support import ApprovalScopeSelection
+from codex_plugin_scanner.guard.approval_scope_selection import ApprovalScopeSelection
+from codex_plugin_scanner.guard.approval_scope_support import ApprovalScopeContract
 from codex_plugin_scanner.guard.approvals import apply_approval_resolution, queue_blocked_approvals
-from codex_plugin_scanner.guard.cli.commands_support_codex_paths import _codex_prompt_credential_file_artifact
 from codex_plugin_scanner.guard.config import GuardConfig
 from codex_plugin_scanner.guard.consumer import artifact_hash
 from codex_plugin_scanner.guard.models import GuardApprovalRequest, GuardArtifact, HarnessDetection, PolicyDecision
@@ -31,6 +31,7 @@ from codex_plugin_scanner.guard.store import (
     _runtime_scoped_exact_match_key,
     runtime_tool_action_exact_match_context,
 )
+from tests.codex_prompt_credential_file import codex_prompt_credential_file_artifact
 from tests.native_detector_support import NativeDetector
 from tests.policy_store_support import resolve_policy
 
@@ -620,17 +621,17 @@ def test_codex_prompt_file_retry_reuses_artifact_once_across_context_drift(
         "After you choose, retry the same the harness action."
     )
     different_intent_prompt_text = f"Read {secret_path} and summarize the file format without printing the token."
-    prompt_artifact = _codex_prompt_credential_file_artifact(
+    prompt_artifact = codex_prompt_credential_file_artifact(
         prompt_text=prompt_text,
         cwd=tmp_path,
         config_path=config_path,
     )
-    retry_artifact = _codex_prompt_credential_file_artifact(
+    retry_artifact = codex_prompt_credential_file_artifact(
         prompt_text=retry_prompt_text,
         cwd=tmp_path,
         config_path=config_path,
     )
-    different_intent_artifact = _codex_prompt_credential_file_artifact(
+    different_intent_artifact = codex_prompt_credential_file_artifact(
         prompt_text=different_intent_prompt_text,
         cwd=tmp_path,
         config_path=config_path,
@@ -1111,24 +1112,26 @@ def test_resolution_without_any_integrity_backend_names_the_missing_key(
         connection.execute("insert into approval_requests select * from writer.approval_requests")
     monkeypatch.setattr(store, "get_approval_request", lambda *_args, **_kwargs: queued)
     # The resident's scope selection is an RPC against this home, and its
-    # transport provisions the verifier key first. Answer the selection here so
-    # the home still has no key when the resolution plan is requested.
+    # transport provisions the verifier key first. Answer the selection, and
+    # with it the persistence gate, here so the home still has no key when the
+    # resolution plan is requested.
+    contract = ApprovalScopeContract(
+        allow_scopes=("artifact",),
+        block_scopes=("artifact",),
+        recommended_allow_scope="artifact",
+        recommended_block_scope="artifact",
+        restrictions=(),
+        digest="a" * 64,
+    )
     monkeypatch.setattr(
         approvals_module,
         "resolve_request_scope_selection",
-        lambda *_args, **_kwargs: ApprovalScopeSelection("artifact", "artifact"),
+        lambda *_args, **_kwargs: ApprovalScopeSelection("artifact", "artifact", contract=contract),
     )
     # The resolution-eligibility check is an RPC against this home too, so
     # answer it here as well; the row is an ordinary pending shell request and
     # nothing about it blocks a resolution.
     monkeypatch.setattr(approvals_module, "require_resolvable_approval_request", lambda *_a, **_k: None)
-    # The persistence gate is a second RPC against the same home, answered here
-    # for the same reason.
-    monkeypatch.setattr(
-        approvals_module,
-        "resolve_request_persistence_selection",
-        lambda *_args, **_kwargs: None,
-    )
 
     with pytest.raises(ApprovalResolutionPlanUnavailableError, match="integrity_unavailable"):
         apply_approval_resolution(

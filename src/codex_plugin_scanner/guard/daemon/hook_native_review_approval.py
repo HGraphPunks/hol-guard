@@ -9,10 +9,10 @@ import uuid
 from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from ..models import GuardApprovalRequest
-from ..native_hook_adapter import NativeHookAdapterError
+from ..native_hook_adapter import NativeHookAdapterError, native_review_request
 from ..native_hook_authority_state import hook_authority_integrity_key
 from .hook_fail_closed import (
     canonical_harness,
@@ -21,7 +21,7 @@ from .hook_fail_closed import (
     render_pre_tool_review,
     render_silent_review_block,
 )
-from .hook_native_exact_action import native_exact_action, native_review_binding, native_review_evidence
+from .hook_native_exact_action import native_review_evidence
 from .hook_native_local_cli import native_local_cli_grant_response
 from .hook_native_package_review import native_package_review_response
 from .hook_native_review_binding import (
@@ -30,17 +30,10 @@ from .hook_native_review_binding import (
     native_review_matching_block,
     native_review_policy_binding,
 )
-from .hook_native_saved_approval import (
-    EXACT_ACTION_CONTEXT_TOKEN_KEY,
-    EXACT_ACTION_IDENTITY_KIND_KEY,
-    ONCE_ONLY_REASON_KEY,
-    TOKEN_UNSET,
-    TokenUnset,
-    native_saved_review_response,
-)
-from .hook_request_parsing import pre_tool_command, pre_tool_input
-from .native_review_action_envelope import native_review_action_envelope as _native_review_action_envelope
-from .native_review_action_envelope import native_review_tool_name as _native_review_tool_name
+from .hook_native_saved_approval import native_saved_decision_response
+from .hook_request_parsing import native_review_launch_target as _native_review_launch_target
+from .hook_request_parsing import native_review_tool_name as _native_review_tool_name
+from .hook_request_parsing import pre_tool_command
 from .native_review_allow_hint import native_review_hint
 from .native_review_connector import (
     connector_agent_reason,
@@ -56,6 +49,18 @@ if TYPE_CHECKING:
     from ..store import GuardStore
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _policy_binding_failed(harness: str, native_result: Mapping[str, object], guard_home: Path) -> dict[str, object]:
+    failed = dict(native_result)
+    failed.update(
+        decision="deny",
+        minimum_action="block",
+        policy_action="block",
+        reason_code="native_review_policy_binding_invalid",
+        reason="HOL Guard could not bind this review to its native policy.",
+    )
+    return render_pre_tool(harness, failed, guard_home=guard_home)
 
 
 def pause_native_pre_tool_for_approval(
@@ -76,15 +81,7 @@ def pause_native_pre_tool_for_approval(
     try:
         native_review_policy_binding(harness=harness, native_result=native_result, verified_receipt=native_receipt)
     except ValueError:
-        failed = dict(native_result)
-        failed.update(
-            decision="deny",
-            minimum_action="block",
-            policy_action="block",
-            reason_code="native_review_policy_binding_invalid",
-            reason="HOL Guard could not bind this review to its native policy.",
-        )
-        return render_pre_tool(harness, failed, guard_home=guard_home)
+        return _policy_binding_failed(harness, native_result, guard_home)
     launch_target = _native_review_launch_target(payload)
     tool_name = _native_review_tool_name(payload)
     # Custom-extension and saved exact-action blocks win over any allow or pending once approval.
@@ -99,13 +96,11 @@ def pause_native_pre_tool_for_approval(
     if custom is not None and custom[0]:
         return custom[1]
     # A matching custom grant never uses the evidence below, so it settles first.
-    # One resident ask answers both the retry binding and the exact-action token.
-    # The saved-decision lookup and the queued request must bind the identical
-    # token, and each derivation re-reads operands and repeats resident
-    # launch-identity round trips, so it is derived once here.
-    identity, exact_token, once_only_reason = native_review_evidence(
+    # One resident ask re-checks the receipt's policy binding and answers both
+    # the retry binding and the exact-action token. The saved-decision lookup
+    # and the queued request must bind the identical token, so it is derived once.
+    valid, identity, exact_token, once_only_reason = native_review_evidence(
         harness=harness,
-        tool_name=tool_name,
         payload=payload,
         native_result=native_result,
         native_receipt=native_receipt,
@@ -113,18 +108,15 @@ def pause_native_pre_tool_for_approval(
         home_dir=home_dir,
         guard_home=guard_home,
     )
-    saved = native_saved_review_response(
+    if not valid:
+        return _policy_binding_failed(harness, native_result, guard_home)
+    saved = native_saved_decision_response(
         store,
         harness=harness,
-        tool_name=tool_name,
+        token=exact_token,
         artifact_id=_native_review_artifact_id(harness, tool_name),
-        payload=payload,
         native_result=native_result,
-        native_receipt=native_receipt,
         workspace=workspace,
-        home_dir=home_dir,
-        precomputed_token=exact_token,
-        guard_home=guard_home,
     )
     if saved is not None:
         return saved
@@ -234,6 +226,7 @@ def pause_native_pre_tool_for_approval(
             approval_center_url=approval_center_url,
             review_binding=identity,
             connector=connector,
+            policy_binding_verified=True,
         )
         if queued is None:
             _LOGGER.warning("Silent review blocked without an inbox row for %s", harness)
@@ -274,6 +267,7 @@ def pause_native_pre_tool_for_approval(
         approval_center_url=approval_center_url,
         review_binding=identity,
         connector=connector,
+        policy_binding_verified=True,
         claude_notice=canonical_harness(harness) == "claude-code",
     )
     if queued is None:
@@ -305,31 +299,26 @@ def queue_native_pre_tool_review(
     native_receipt: Mapping[str, object] | None,
     workspace: Path | None,
     guard_home: Path,
+    exact_token: str | None,
+    review_binding: str | None,
     home_dir: Path | None = None,
     deadline: float | None = None,
-    exact_token: str | None | TokenUnset = TOKEN_UNSET,
     once_only_reason: str | None = None,
     approval_center_url: str | None = None,
-    review_binding: str | None | TokenUnset = TOKEN_UNSET,
     connector: SetupConnector | None = None,
     bound_bash: Mapping[str, object] | None = None,
     claude_notice: bool = False,
+    policy_binding_verified: bool = False,
 ) -> dict[str, object] | None:
-    try:
-        native_review_policy_binding(harness=harness, native_result=native_result, verified_receipt=native_receipt)
-    except ValueError:
-        return None
+    if not policy_binding_verified:
+        try:
+            native_review_policy_binding(harness=harness, native_result=native_result, verified_receipt=native_receipt)
+        except ValueError:
+            return None
     persist = getattr(store, "add_approval_request", None)
     lookup = getattr(store, "get_approval_request", None)
     if not callable(persist) or not callable(lookup):
         return None
-    launch_target = _native_review_launch_target(payload)
-    tool_name = _native_review_tool_name(payload)
-    request_id = uuid.uuid4().hex
-    artifact_id = _native_review_artifact_id(harness, tool_name)
-    queue_group_id = None if connector is None else connector.queue_group_id
-    from ..native_bash_protocol import ARTIFACT_ID, ARTIFACT_TYPE, DESCRIPTOR_SCHEMA
-
     if bound_bash is not None:
         from .native_review_bound_bash import valid_bound_bash_review
 
@@ -342,33 +331,41 @@ def queue_native_pre_tool_review(
             native_receipt=native_receipt,
         ):
             return None
-        artifact_id = ARTIFACT_ID
-        lineage = bound_bash["review_lineage"]
-        assert isinstance(lineage, Mapping)
-        queue_group_id = f"native-bash-review:{lineage['lineage_id']}"
-    if approval_center_url is None:
-        approval_center_url = native_review_approval_center_url(store)
-    approval_url = f"{approval_center_url}/requests/{request_id}"
-    reason = str(native_result.get("reason") or "HOL Guard requires review before this action can execute.")
-    if bound_bash is not None:
-        reason += " Keep blocked applies to this request's retries for up to 24 hours; a new user request is separate."
-    # The pause path already asked the resident for this binding. Asking again
-    # repeats a resident round trip that can exhaust the hook deadline on Windows.
-    binding = (
-        native_review_binding(harness, payload, native_result, native_receipt, workspace, guard_home)
-        if isinstance(review_binding, TokenUnset)
-        else review_binding
-    )
+    request_id = uuid.uuid4().hex
+    review = {
+        "result": dict(native_result),
+        "native_receipt": dict(native_receipt) if native_receipt is not None else None,
+        "request_id": request_id,
+        "approval_center_url": (
+            native_review_approval_center_url(store) if approval_center_url is None else approval_center_url
+        ),
+        "guard_home": str(guard_home),
+        "review_binding": review_binding,
+        "exact_token": exact_token,
+        "once_only_reason": once_only_reason,
+        "queue_group_id": None if connector is None else connector.queue_group_id,
+        "bound_bash": (
+            None
+            if bound_bash is None
+            else {"subject": bound_bash["subject"], "review_lineage": bound_bash["review_lineage"]}
+        ),
+    }
     try:
-        action_envelope = _native_review_action_envelope(
-            harness=harness,
-            payload=payload,
-            native_result=native_result,
-            native_receipt=native_receipt,
+        fields = native_review_request(
+            harness,
+            payload,
+            review,
             workspace=workspace,
-            guard_home=guard_home,
             home_dir=home_dir,
+            guard_home=guard_home,
             deadline=deadline,
+        )
+        request = GuardApprovalRequest(
+            **cast("dict[str, Any]", {key: value for key, value in fields.items() if key != "changed_fields"}),
+            changed_fields=tuple(cast("list[str]", fields["changed_fields"])),
+            extension_allow_hint=native_review_hint(
+                store, payload, native_result, workspace, home_dir, deadline, connector
+            ),
         )
     except (OSError, RuntimeError, TypeError, ValueError, KeyError) as error:
         # Never make an action approvable when its details could not be safely presented.
@@ -377,65 +374,12 @@ def queue_native_pre_tool_review(
         reason = error.code if isinstance(error, NativeHookAdapterError) else type(error).__name__
         _LOGGER.warning("Native review presentation failed for %s (%s)", request_id, reason)
         return None
-    if action_envelope is None:
-        _LOGGER.warning("Native review presentation failed for %s (ValueError)", request_id)
-        return None
-    # Offer an exact-action Always only when the action binds to a stable token.
-    if isinstance(exact_token, TokenUnset):
-        exact_token, once_only_reason = native_exact_action(
-            harness=harness,
-            tool_name=tool_name,
-            payload=payload,
-            native_result=native_result,
-            native_receipt=native_receipt,
-            workspace=workspace,
-            home_dir=home_dir,
-            guard_home=guard_home,
-        )
-    if exact_token is not None:
-        action_envelope[EXACT_ACTION_CONTEXT_TOKEN_KEY] = exact_token
-        if pre_tool_command(payload) is None:
-            action_envelope[EXACT_ACTION_IDENTITY_KIND_KEY] = "tool-target"
-    elif once_only_reason is not None:
-        action_envelope[ONCE_ONLY_REASON_KEY] = once_only_reason
-    if bound_bash is not None:
-        action_envelope["native_bash"] = {
-            "schema": DESCRIPTOR_SCHEMA,
-            "artifact_id": artifact_id,
-            "artifact_hash": exact_token,
-            "subject": bound_bash["subject"],
-            "review_lineage": bound_bash["review_lineage"],
-        }
-    request = GuardApprovalRequest(
-        request_id=request_id,
-        harness=harness,
-        artifact_id=artifact_id,
-        artifact_name=tool_name,
-        artifact_hash=binding or request_id,
-        policy_action="review",
-        recommended_scope="artifact",
-        changed_fields=("native_pre_tool",),
-        source_scope="project" if workspace is not None else "harness",
-        config_path=str(workspace if workspace is not None else guard_home),
-        review_command=f"hol-guard approvals approve {request_id}",
-        approval_url=approval_url,
-        workspace=str(workspace) if workspace is not None else None,
-        artifact_type=ARTIFACT_TYPE if bound_bash is not None else "tool_call",
-        launch_target=launch_target,
-        risk_summary=reason,
-        action_envelope_json=action_envelope,
-        raw_command_text=pre_tool_command(payload),
-        queue_group_id=queue_group_id,
-        extension_allow_hint=native_review_hint(
-            store, payload, native_result, workspace, home_dir, deadline, connector
-        ),
-    )
     now = datetime.now(tz=timezone.utc).isoformat()
     # A prompted Claude review also gets the permission notice its
     # PermissionRequest hook answers from; the resident builds and signs it in
     # the same store write.
     claude_review = (
-        _claude_review_notice(store, harness, payload, native_result, binding, request, deadline)
+        _claude_review_notice(store, harness, payload, native_result, review_binding, request, deadline)
         if claude_notice
         else None
     )
@@ -529,19 +473,6 @@ _NOTICE_DEADLINE_MARGIN_SECONDS = 1.0
 
 def _notice_time_left(deadline: float | None) -> bool:
     return deadline is None or deadline - time.monotonic() > _NOTICE_DEADLINE_MARGIN_SECONDS
-
-
-def _native_review_launch_target(payload: Mapping[str, object]) -> str:
-    command = pre_tool_command(payload)
-    if command is not None:
-        return command
-    tool_input = pre_tool_input(payload)
-    if tool_input is not None:
-        for key in ("url", "path", "file_path", "target"):
-            value = tool_input.get(key)
-            if isinstance(value, str) and value.strip():
-                return value.strip()
-    return f"tool:{_native_review_tool_name(payload)}"
 
 
 __all__ = [
