@@ -686,6 +686,16 @@ approval ceremony for routine work already authorized by this request.
   independent exact-ELF/source/log readback.
   Independent live process/request custody and the other role grades remain
   open, as does fresh current-source conformance. Parent exits stay 24/62.
+- 2026-10-27: boundary verifier `cec21c2c` independently checks physical
+  canaries, positive visibility, six path/two network errno refusals, fixture
+  bytes and capture chains against the host-authenticated completion. Fifteen
+  retained-artifact cases pass; input-binding output remains byte-identical.
+  Mac passes 515 tests; Mac/ARM Clippy and seven native Root evidence/archive
+  tests pass. Independent public-export readback verifies source/ELF/log pins,
+  both held leases and all 284 unchanged worker files. See
+  [boundary artifact proof](gauntlet-rust-native-boundary-artifact-verifier.md).
+  Live process custody and full role qualification remain open; no parent
+  exit closes. The user will handle disabled CI separately.
 - Next: finish independent deterministic role scoring and outside key custody, then
   fresh source-matched publication/conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
