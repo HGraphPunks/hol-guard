@@ -720,6 +720,19 @@ approval ceremony for routine work already authorized by this request.
   product, independent process custody and all ineligible flags remain
   explicit. See [MCP artifact proof](gauntlet-rust-native-mcp-artifact-verifier.md).
   No parent exit closes; CI remains user-owned and pending.
+- 2026-10-27: process verifier `70c0d1d9` matches 48 primary SDK/MCP process
+  tuples against 420 separate kernel samples across all six historical roles.
+  Fifty artifact/restart/regression/refusal cases pass, preserving four missed
+  negative probes and all missing raw SDK request bytes as unverified. Explicit
+  interpreter/observer readback pins do not become historical prelaunch pins.
+  Future executions now retain versioned raw SDK request/response captures.
+  The workspace development run passes 537 tests; final eight focused tests,
+  Mac/ARM warnings-denied Clippy and ten Root ARM tests pass. Host readback
+  verifies every public export member and all 284 unchanged worker records.
+  See [process artifact proof](gauntlet-rust-native-process-artifact-verifier.md).
+  Fresh raw-capture execution, complete Native hook/Bash/lifecycle grading,
+  observer/key admission and current-source conformance remain open; no parent
+  exit closes and all qualification/causality flags remain false.
 - Next: finish independent deterministic role scoring and outside key custody,
   then twelve fresh source-matched staging/installed roles and conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)

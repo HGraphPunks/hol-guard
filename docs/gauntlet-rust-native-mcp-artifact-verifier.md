@@ -84,6 +84,11 @@ checks every file and exact source/ELF/log/metadata pin; its successful stdout
 hashes to `d3676425a377f73e7405aa13a6c4a5a75983f55b554f6c929e5865b14c5f95c8`.
 Both proof helpers pass Ruff formatting and lint. No model requests ran.
 
+The separate [SDK/MCP process reader](gauntlet-rust-native-process-artifact-verifier.md)
+now joins the six archives to outside kernel samples, preserving historical
+missing observations and raw SDK bytes as unverified. Full process custody and
+Native hook/Bash/lifecycle grading remain open.
+
 The [current 3.58.0 runtime publication](gauntlet-rust-current358-runtime-proof-20261027.md)
 is separately proven. Twelve fresh staging/installed roles and conformance,
 independent process grading, feature audit and remaining operational/workflow/
