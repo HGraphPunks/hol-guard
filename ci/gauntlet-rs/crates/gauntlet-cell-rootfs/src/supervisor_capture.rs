@@ -1,4 +1,5 @@
 //! Root checks measured gates and actual retirement around authenticated RPCs.
+use crate::supervisor_capture_input::CaptureInput;
 use crate::{NativeCell, Result};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::{json, Value};
@@ -287,11 +288,14 @@ impl NativeCell {
         let deadline = Instant::now() + timeout;
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();
+        let mut input = CaptureInput::new(argv, raw)?;
         let result: Result<i64> = (|| {
             if self.cancelled.load(Ordering::Acquire) {
                 return Err("product capture cancelled before admission".into());
             }
             let handle = self.spawn(argv, deadline)?;
+            self.journal
+                .append("capture-input-bound", input.bind(&handle)?)?;
             self.release(&handle, deadline)?;
             let mut offset = 0usize;
             let mut ended = false;
@@ -314,6 +318,7 @@ impl NativeCell {
                     if !exact(&reply, &["written"]) {
                         return Err("exact product write result required".into());
                     }
+                    input.delivered(&raw[offset..offset + written])?;
                     offset += written;
                 } else if !ended {
                     if self.call("end_input", &json!({"handle":handle}), deadline)?
@@ -321,6 +326,7 @@ impl NativeCell {
                     {
                         return Err("product input close acknowledgement differs".into());
                     }
+                    input.closed()?;
                     ended = true;
                 }
                 let chunk =
@@ -339,6 +345,7 @@ impl NativeCell {
                         }
                         if !ended {
                             self.end_input(&handle, deadline)?;
+                            input.closed()?;
                         }
                         self.retire(&handle, deadline)?;
                         return Ok(code);
@@ -347,6 +354,16 @@ impl NativeCell {
                 std::thread::sleep(Duration::from_millis(5));
             }
         })();
+        let result = match self
+            .journal
+            .append("capture-input-terminal", input.observation())
+        {
+            Ok(()) => result,
+            Err(error) => Err(match result {
+                Ok(_) => format!("capture input custody uncertain: {error}"),
+                Err(prior) => format!("{prior}; capture input custody uncertain: {error}"),
+            }),
+        };
         match result {
             Ok(code) => {
                 self.journal

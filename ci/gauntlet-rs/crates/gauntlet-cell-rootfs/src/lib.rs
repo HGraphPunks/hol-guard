@@ -75,6 +75,8 @@ mod spec;
 mod supervisor;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod supervisor_capture;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod supervisor_capture_input;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod supervisor_cleanup;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

@@ -733,6 +733,15 @@ approval ceremony for routine work already authorized by this request.
   Fresh raw-capture execution, complete Native hook/Bash/lifecycle grading,
   observer/key admission and current-source conformance remain open; no parent
   exit closes and all qualification/causality flags remain false.
+- 2026-10-27: add versioned Root capture-input bindings and delivery receipts
+  so future Native graders can join exact stdin digests to gated handles,
+  arguments and output captures. Partial/never-started delivery, early EOF,
+  changed bytes and replay cannot become complete input. Mac rootfs passes
+  36 tests; Mac/ARM rootfs warnings-denied Clippy and static ARM tests compile.
+  Actual native execution and the consuming Native hook/Bash/lifecycle grader
+  remain pending; old absent input receipts stay unverified. See
+  [input receipts](gauntlet-rust-native-capture-input-receipts.md).
+  No parent exit closes; all qualification/causality flags remain false.
 - Next: finish independent deterministic role scoring and outside key custody,
   then twelve fresh source-matched staging/installed roles and conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)
