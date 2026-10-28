@@ -5,12 +5,15 @@ snapshot producer are implemented after
 verifier checkpoint `98a544f3` and published evidence checkpoint `5ddb5d52`.
 The live ARM syscall ABI and pipe fixtures pass in the owned VM. Independent
 Rust snapshot replay, framing and signed launch-v4 integration are implemented
-and pass 615 macOS workspace tests and Mac/ARM Clippy. Fresh Native product
-controls, atomic wire observation and request semantics remain open.
+and pass 615 macOS workspace tests and Mac/ARM Clippy. A fresh
+[launch-v4 Native control](gauntlet-rust-native-stdio-live-proof-20261028.md)
+passes with 12 streams and 497 complete frames, reproduced independently on
+Mac and ARM. Atomic wire observation and request semantics remain open.
 The existing image-lineage proof
 does not observe internal Native request bytes. All parent exits remain 24/62.
-The latest owned-VM worker baseline is the unchanged 326-record set,
-`16b21c170df5494738bc40b188694f186c87a2f9caca75d1f50d05459d4aa9be`.
+The latest owned-VM worker baseline has 333 records, preserving all earlier
+326 records, SHA-256
+`f7e44a5879bfbd8bd19097fc5b81927dfe93103b8db330813266bf25ad327a9d`.
 
 ## Scope and implementation order
 

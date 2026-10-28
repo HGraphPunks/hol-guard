@@ -20,7 +20,8 @@ and recomputes process/MCP/hook/control artifacts, exact SDK input/output,
 physical fixture relations and all nine gated launches. Internal Native wire
 bytes, effect-writer attribution, full descendant grading and outside admission
 remain open. The first sampler failure and every historical failed attempt
-remain retained. The current worker baseline contains 326 records.
+remain retained. Those controls leave 326 worker records, all preserved by the
+newer launch-v4 control below.
 Complete Native grading remains open. The 24/62 parent-exit count is unchanged.
 
 Verifier `98a544f3` now adds [complete Native image lineage](gauntlet-rust-native-image-lineage.md)
@@ -38,8 +39,13 @@ is implemented in closed launch v4 and process checkpoint v2. Producer
 615 Mac workspace tests, Mac/ARM Clippy, 27 focused Root ARM tests, eleven
 cross-platform replay/refusal cases and 32 unchanged legacy readbacks. Both
 failed fixture attempts and SSH failures remain retained, with all 326 worker
-records unchanged. These are synthetic snapshot proofs, with atomic wire and
-request semantics explicitly unverified. Fresh Native v4 controls are next.
+records unchanged. The subsequent
+[fresh Native v4 control](gauntlet-rust-native-stdio-live-proof-20261028.md)
+at tool `77e7b7e7` and product `dc3b9336` passes with 12 streams and 497 complete
+frames, independently reproduced on Mac and ARM. It closes all 460 tasks with
+actual final waits and peaks at 112 tasks without PID-limit rejections; all
+772 pressure samples complete without errors. The current baseline retains
+333 worker records. Atomic wire and request semantics remain unverified.
 Native stream semantics and physical effect writers remain separate obligations.
 Kernel close notifications do not supply missing write causality.
 
@@ -879,8 +885,20 @@ approval ceremony for routine work already authorized by this request.
   See [Native stdio plan and proof](gauntlet-rust-native-stdio-plan.md).
   Fresh Native controls, atomic bytes, request semantics and writers remain
   open; no parent exit closes and no model request ran.
-- Next: run a fresh Native v4 control and retain its actual pipe snapshots,
-  diagnose the intermittent polling-sampler failure while
+- 2026-10-28: fresh launch-v4 control `e2c701baf1475701` at tool `77e7b7e7`
+  and product `dc3b9336` passes the original Node/npm fixture with 12 Native
+  streams, 529 I/O calls, 382,274 bytes and 497 complete frames. All 460 tasks
+  close with actual final waits. Nine Mac/ARM artifact cases and five fresh
+  fixed-host replay/refusal cases pass, with identical complete control output.
+  Both fixed public exports (147/39 members) verify. Pressure observation
+  completes 772 samples, peaks at 112 tasks and records zero PID-limit
+  rejections. All 326 earlier records survive in the 333-record baseline.
+  Installer/courier failures remain retained. See
+  [actual Native pipe proof](gauntlet-rust-native-stdio-live-proof-20261028.md).
+  Atomic wire bytes, request semantics, physical writers and admission remain
+  open; no parent exit closes and no model request ran.
+- Next: join copied Native requests/responses to actual gates and acknowledged
+  outer inputs, diagnose the intermittent polling-sampler failure while
   finishing independent deterministic role scoring,
   Native descendant/effect custody and outside key admission,
   then twelve fresh source-matched staging/installed roles and conformance.

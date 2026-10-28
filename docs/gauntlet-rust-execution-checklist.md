@@ -12,8 +12,9 @@ Root traces and Rust artifact readback are recorded in the
 [2026-10-28 runtime proof](gauntlet-rust-native-pressure-runtime-proof-20261028.md).
 Both controls peak at 108 with no PID-limit rejection. The first polling-sampler
 assertion remains unresolved; the second records 70 samples without errors.
-Full deterministic grading and conformance remain open, with 326 worker
-records retained. These bounded results close no parent exit.
+Full deterministic grading and conformance remain open. Those controls retain
+326 worker records; the newer launch-v4 control below preserves them all.
+These bounded results close no parent exit.
 
 Verifier `98a544f3` also passes the bounded
 [Native image-lineage proof](gauntlet-rust-native-image-lineage.md): 60 exec
@@ -29,7 +30,13 @@ replays/refusals and 32 unchanged legacy readbacks. Fixed readback checks both
 public exports and all 673 committed Rust source files. Earlier failures and
 all 326 worker records remain preserved. These synthetic stopped-buffer
 snapshots do not establish atomic Native wire bytes or request semantics.
-Fresh Native v4 controls and all parent exits remain open.
+The [fresh Native v4 control](gauntlet-rust-native-stdio-live-proof-20261028.md)
+at tool `77e7b7e7` and product `dc3b9336` passes with 12 streams, 497 complete
+frames and 460 actual final waits. Nine Mac/ARM artifact cases and five fresh
+fixed-host replay/refusal cases pass. The sampler completes 772 observations,
+peaks at 112 tasks and reports zero PID-limit rejections. All 326 earlier
+records survive in the new 333-record baseline. Request semantics, atomic
+bytes, physical writers, outside admission and every parent exit remain open.
 
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
