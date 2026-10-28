@@ -23,6 +23,15 @@ remain open. The first sampler failure and every historical failed attempt
 remain retained. The current worker baseline contains 326 records.
 Complete Native grading remains open. The 24/62 parent-exit count is unchanged.
 
+Verifier `98a544f3` now adds [complete Native image lineage](gauntlet-rust-native-image-lineage.md)
+for the retained traced control: 60 actual Native exec images, 29 fork/clone
+inheritances and 87 distinct task identities under all nine gates. All 594
+Mac workspace tests, Mac/ARM Clippy, 19 focused Root ARM tests, five Linux
+artifact cases and 32 byte-identical historical readbacks pass. The inheritance
+ordering regression and count-parser failure remain retained. This is offline
+verifier proof against product `dc3b9336`; it supplies no new product execution,
+request semantics, writer attribution or custody admission.
+
 ## Goal and completion contract
 
 Finish the Gauntlet migration on a tested branch in `HGraphPunks/hol-guard`,
@@ -838,6 +847,16 @@ approval ceremony for routine work already authorized by this request.
   All 312 prior records survive, with 326 records now retained. See
   [merged-source runtime proof](gauntlet-rust-native-pressure-runtime-proof-20261028.md).
   These are diagnostic controls; no conformance or parent exit is claimed.
+- 2026-10-28: verifier `98a544f3` accounts for every Native exec image in the
+  retained current-source control, including compiler copies and inherited
+  images, with kernel-creation-time ancestry, exact ELF digests and privilege
+  floors. All 594 Mac tests, Mac/ARM warnings-denied Clippy, nine focused image
+  cases, 19 total focused Root ARM tests, five Linux artifact cases and 32
+  byte-identical legacy readbacks pass. Independent 41-member export readback
+  reproduces the Mac/ARM result and retains the initial inheritance and count
+  parser failures. All 326 worker records are unchanged. See
+  [Native image lineage](gauntlet-rust-native-image-lineage.md). Internal
+  requests, effect writers and admission remain open; no parent exit closes.
 - Next: retain and diagnose the intermittent polling-sampler failure while
   finishing independent deterministic role scoring,
   Native descendant/effect custody and outside key admission,

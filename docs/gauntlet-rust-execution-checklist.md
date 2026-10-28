@@ -15,6 +15,13 @@ assertion remains unresolved; the second records 70 samples without errors.
 Full deterministic grading and conformance remain open, with 326 worker
 records retained. These bounded results close no parent exit.
 
+Verifier `98a544f3` also passes the bounded
+[Native image-lineage proof](gauntlet-rust-native-image-lineage.md): 60 exec
+images, 29 inheritances and 87 task identities under nine gates, with 594 Mac
+tests, 19 focused Root ARM tests, five Linux artifact cases and 32 unchanged
+historical readbacks. This offline proof does not supply Native wire semantics,
+actual effect writers, complete role grading or outside admission.
+
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
 ```
