@@ -151,11 +151,7 @@ impl Task {
         self.recheck(cgroup)
     }
 
-    pub(super) fn exec_image(
-        &self,
-        cgroup: &str,
-        images: &mut crate::native_trace_image::Images,
-    ) -> Result<Value> {
+    pub(super) fn exec_image(&self, cgroup: &str) -> Result<Value> {
         self.recheck(cgroup)?;
         // Follow only the kernel's executable link of this ptrace-stopped task.
         let fd = openat(
@@ -165,7 +161,7 @@ impl Task {
             Mode::empty(),
         )
         .map_err(|e| e.to_string())?;
-        let image = images.measure(fd)?;
+        let image = crate::native_trace_image::measure(fd)?;
         let before = &image.metadata;
         let argv = read_at(&self.proc, "cmdline", 65536)?;
         if argv.is_empty() || !argv.ends_with(b"\0") {

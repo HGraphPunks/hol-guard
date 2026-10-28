@@ -208,14 +208,20 @@ control and all parent exits stay open. No resource ceiling, output safety
 criterion or inference quota changes.
 
 The first live history measured 3283186512 executable bytes across 152 execs.
-To reduce repeated measurement work, the recorder now retains at most 64
-read-only, close-on-exec file descriptors for bounded regular images owned by
-Root, with one link and no group/world write permission. Reuse requires the
-new kernel executable descriptor and retained descriptor to match the entire
-device/inode/owner/mode/link/size/mtime/ctime generation used for the original
-hash. Changed, writable and unprivileged images are hashed again; a full cache
-also hashes new images. Image output, event protocol, hash/read bounds and
-grading criteria stay the same. All 52 Mac rootfs tests and Mac/ARM rootfs
-warnings-denied Clippy pass. The explicit Root mutation/replacement/descriptor
-bound tests and a new Native control are pending; no live performance or
-failure-resolution claim is made yet.
+A metadata-based reuse attempt at `b434ab73` passes all 583 Mac workspace
+tests and Mac/ARM warnings-denied Clippy, but the Root ARM proof catches an
+unsafe same-size mutation: filesystem timestamps can remain unchanged across
+a rapid write. That attempt passes 35 cases and fails one; its complete
+35-member export is `native-trace-image-vm-results-001.tar`, 194560 bytes,
+SHA-256 `116928dcf6ffb06b3aa835a85a76af80dc61da19a3e10b5bbd92d0bfd69f0646`.
+Both leases and all 305 worker records remain intact. The failed implementation
+and proof remain in history; the reuse path is removed in the following change.
+
+The corrected implementation hashes every stopped executable through its
+actual held descriptor, including repeated Root-owned inodes. It uses the
+existing accelerated SHA-256 engine and retains no executable descriptors
+between execs. A same-size Root mutation regression must read the changed
+bytes without depending on a timestamp difference. Hash/read bounds, image
+output and grading criteria stay the same. Corrected Root proof and a new
+Native control are pending; no live performance or failure-resolution claim
+is made yet.
