@@ -5,6 +5,14 @@ edition = "2021"
 rust-version = "1.88"
 description = "Root PID1 filesystem constructor for the native Gauntlet apparatus"
 
+[features]
+owned-process-trace-fixture = []
+
+[[bin]]
+name = "gauntlet-process-trace-fixture"
+path = "src/bin/gauntlet-process-trace-fixture.rs"
+required-features = ["owned-process-trace-fixture"]
+
 [dependencies]
 base64 = "=0.22.1"
 gauntlet-agent-bridge = { path = "../gauntlet-agent-bridge" }

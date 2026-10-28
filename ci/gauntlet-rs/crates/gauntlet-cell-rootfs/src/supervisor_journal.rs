@@ -15,6 +15,7 @@ pub(crate) struct Journal {
     count: u64,
     previous: String,
     poisoned: bool,
+    maximum_events: u64,
 }
 
 impl Journal {
@@ -24,6 +25,12 @@ impl Journal {
 
     pub(crate) fn create_image(stage: &std::path::Path) -> Result<Self> {
         Self::create_file(stage, "native-image-events.v1.jsonl")
+    }
+
+    pub(crate) fn create_process_events(stage: &std::path::Path) -> Result<Self> {
+        let mut journal = Self::create_file(stage, "native-process-events.v1.jsonl")?;
+        journal.maximum_events = 65536;
+        Ok(journal)
     }
 
     pub(crate) fn create_recovery(stage: &std::path::Path) -> Result<Self> {
@@ -61,6 +68,7 @@ impl Journal {
             count: 0,
             previous: "0".repeat(64),
             poisoned: false,
+            maximum_events: 10000,
         })
     }
 
@@ -95,7 +103,7 @@ impl Journal {
     }
 
     pub(crate) fn append(&mut self, kind: &str, data: Value) -> Result<()> {
-        if self.poisoned || self.count >= 10000 {
+        if self.poisoned || self.count >= self.maximum_events {
             return Err("supervisor journal unavailable or exhausted".into());
         }
         self.stable()?;

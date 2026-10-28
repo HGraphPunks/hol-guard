@@ -3,6 +3,11 @@
 Updated: 2026-10-27. Execution model: GPT-6.1 Sol, Max reasoning.
 Status: active implementation; the Rust replacement is not qualified.
 
+Current R3 work: [outside Rust process-event recording](gauntlet-rust-native-process-event-plan.md)
+is implemented behind an explicit API with opt-in owned-VM fixtures. Launch
+wiring, native fixture execution and consuming journal verification remain
+pending. The 24/62 parent-exit count is unchanged.
+
 ## Goal and completion contract
 
 Finish the Gauntlet migration on a tested branch in `HGraphPunks/hol-guard`,
