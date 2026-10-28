@@ -20,13 +20,14 @@ enum ArtifactSubset {
     InputBinding,
     Boundary,
     Mcp,
+    Process,
 }
 impl ArtifactSubset {
     fn role(self) -> Option<&'static str> {
         match self {
             Self::InputBinding => Some("input-binding"),
             Self::Boundary => Some("boundary"),
-            Self::Mcp => None,
+            Self::Mcp | Self::Process => None,
         }
     }
     fn schema(self) -> &'static str {
@@ -34,6 +35,7 @@ impl ArtifactSubset {
             Self::InputBinding => "hol-gauntlet-host-native-binding-artifact-readback.v1",
             Self::Boundary => "hol-gauntlet-host-native-boundary-artifact-readback.v1",
             Self::Mcp => "hol-gauntlet-host-native-mcp-artifact-readback.v1",
+            Self::Process => "hol-gauntlet-host-native-process-artifact-readback.v1",
         }
     }
 }
@@ -174,23 +176,40 @@ impl HostNativeControlReadback {
         path: &Path,
         expected_sha256: &str,
     ) -> Result<Value> {
-        self.verify_artifact_subset(path, expected_sha256, ArtifactSubset::InputBinding)
+        self.verify_artifact_subset(path, expected_sha256, ArtifactSubset::InputBinding, None)
     }
     /// Recompute the three synthetic canaries and eight reported refusals.
     /// Kernel/process custody and Guard intervention remain separate checks.
     pub fn verify_boundary_artifacts(&self, path: &Path, expected_sha256: &str) -> Result<Value> {
-        self.verify_artifact_subset(path, expected_sha256, ArtifactSubset::Boundary)
+        self.verify_artifact_subset(path, expected_sha256, ArtifactSubset::Boundary, None)
     }
     /// Reconcile actual SDK/MCP frames, captured Native bytes and physical
     /// provider receipts/database. Live process custody remains separate.
     pub fn verify_mcp_artifacts(&self, path: &Path, expected_sha256: &str) -> Result<Value> {
-        self.verify_artifact_subset(path, expected_sha256, ArtifactSubset::Mcp)
+        self.verify_artifact_subset(path, expected_sha256, ArtifactSubset::Mcp, None)
+    }
+    /// Match separate public kernel samples to the host-authenticated report.
+    /// Interpreter/observer digests are explicit readback pins, not v7 launch pins.
+    pub fn verify_process_artifacts(
+        &self,
+        path: &Path,
+        expected_sha256: &str,
+        interpreter_sha256: &str,
+        observer_sha256: &str,
+    ) -> Result<Value> {
+        self.verify_artifact_subset(
+            path,
+            expected_sha256,
+            ArtifactSubset::Process,
+            Some((interpreter_sha256, observer_sha256)),
+        )
     }
     fn verify_artifact_subset(
         &self,
         path: &Path,
         expected_sha256: &str,
         subset: ArtifactSubset,
+        process_pins: Option<(&str, &str)>,
     ) -> Result<Value> {
         require(
             subset
@@ -225,7 +244,7 @@ impl HostNativeControlReadback {
                             .ok_or("missing pinned Native source")?
                     ),
         )?;
-        if matches!(subset, ArtifactSubset::Mcp) {
+        if matches!(subset, ArtifactSubset::Mcp | ArtifactSubset::Process) {
             require(
                 declaration["guard"] == self.diagnostic()["guard_pins"]
                     && declaration["sdk"] == self.diagnostic()["sdk_pins"]
@@ -245,6 +264,17 @@ impl HostNativeControlReadback {
             ),
             ArtifactSubset::Mcp => {
                 gauntlet_evidence::verify_native_mcp_diagnostic(self.diagnostic(), &files)
+            }
+            ArtifactSubset::Process => {
+                let (interpreter, observer) =
+                    process_pins.ok_or("explicit process readback pins missing")?;
+                gauntlet_evidence::verify_native_process_diagnostic(
+                    self.diagnostic(),
+                    &preparation,
+                    &files,
+                    interpreter,
+                    observer,
+                )
             }
         }
         .map_err(|e| e.to_string())?;

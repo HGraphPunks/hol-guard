@@ -44,6 +44,9 @@ mod native_forbidden_diagnostic;
 mod native_hook_response;
 mod native_mcp_diagnostic;
 mod native_mcp_inputs;
+mod native_process_diagnostic;
+mod native_process_kernel;
+mod native_process_public;
 mod native_review_summary;
 mod native_transport_relations;
 mod native_world_database;
@@ -148,6 +151,7 @@ pub use native_control_envelope::{
 };
 pub use native_hook_response::normalize_native_hook_response;
 pub use native_mcp_diagnostic::verify_native_mcp_diagnostic;
+pub use native_process_diagnostic::verify_native_process_diagnostic;
 pub use native_review_summary::{
     native_review_completed, recompute_native_review_summary, verify_native_review_summary,
 };

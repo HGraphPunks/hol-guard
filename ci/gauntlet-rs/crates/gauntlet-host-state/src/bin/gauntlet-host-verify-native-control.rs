@@ -1,5 +1,5 @@
 //! Offline authentication of one public completion against the prior host pin.
-//! Explicit options check binding, boundary or SDK/MCP artifact subsets. No execution,
+//! Explicit options check binding, boundary, SDK/MCP or kernel artifact subsets. No execution,
 //! repair, complete role scoring or qualification is performed.
 use gauntlet_host_state::{HostControllerKeyPinJournal, HostPrelaunchIdentity};
 use sha2::{Digest, Sha256};
@@ -50,13 +50,14 @@ fn read_completion(path: &Path) -> Result<Vec<u8>, String> {
 fn run() -> Result<(), String> {
     let args = std::env::args().collect::<Vec<_>>();
     if args.len() != 9
+        && !(args.len() == 14 && args[9] == "--process-artifacts")
         && !(args.len() == 12
             && matches!(
                 args[9].as_str(),
                 "--input-binding-artifacts" | "--boundary-artifacts" | "--mcp-artifacts"
             ))
     {
-        return Err("usage: gauntlet-host-verify-native-control PRIVATE_PIN_DIRECTORY COMPLETION_JSON SOURCE_SHA JOB_ID DEPLOYMENT_SHA256 WORKER_SHA256 PREPARATION_SHA256 ROLE [--input-binding-artifacts|--boundary-artifacts|--mcp-artifacts PUBLIC_USTAR SHA256]".into());
+        return Err("usage: gauntlet-host-verify-native-control PRIVATE_PIN_DIRECTORY COMPLETION_JSON SOURCE_SHA JOB_ID DEPLOYMENT_SHA256 WORKER_SHA256 PREPARATION_SHA256 ROLE [--input-binding-artifacts|--boundary-artifacts|--mcp-artifacts PUBLIC_USTAR SHA256 | --process-artifacts PUBLIC_USTAR SHA256 INTERPRETER_SHA256 OBSERVER_SHA256]".into());
     }
     let journal =
         HostControllerKeyPinJournal::open(Path::new(&args[1])).map_err(|e| e.to_string())?;
@@ -90,6 +91,16 @@ fn run() -> Result<(), String> {
             output["mcp_artifacts"] =
                 verified.verify_mcp_artifacts(Path::new(&args[10]), &args[11])?;
         }
+    }
+    if args.len() == 14 {
+        output["schema"] =
+            serde_json::json!("hol-gauntlet-offline-native-process-artifact-verification.v1");
+        output["process_artifacts"] = verified.verify_process_artifacts(
+            Path::new(&args[10]),
+            &args[11],
+            &args[12],
+            &args[13],
+        )?;
     }
     println!("{output}");
     Ok(())

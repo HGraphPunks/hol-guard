@@ -138,7 +138,9 @@ pub(crate) fn serve(
                 peer.authenticate(&stream, matches!(request, NativeSdkRequest::Execute { .. }))?;
             let observation = identity.observation();
             let index = requests.len();
-            requests.push(json!({"sequence":accepted,"request_sha256":format!("{:x}",Sha256::digest(&raw)),
+            requests.push(json!({"schema":"hol-gauntlet-native-sdk-request-capture.v2",
+                "sequence":accepted,"request_sha256":format!("{:x}",Sha256::digest(&raw)),
+                "request_wire_utf8":std::str::from_utf8(&raw).map_err(|_|"SDK retained request UTF-8")?,
                 "request":serde_json::from_slice::<Value>(&raw).map_err(|_|"SDK retained request JSON")?,
                 "peer":observation,"peer_rechecked_before_response":false,"product_claims_authenticated":false}));
             let response = match router.handle(&request, plane) {
@@ -153,6 +155,8 @@ pub(crate) fn serve(
                 .map_err(|e| e.to_string())?;
             write_native_sdk_line(&mut stream, &response, deadline, cancel)?;
             requests[index]["response_sha256"] = json!(format!("{:x}", Sha256::digest(&response)));
+            requests[index]["response_wire_utf8"] =
+                json!(std::str::from_utf8(&response).map_err(|_| "SDK retained response UTF-8")?);
             requests[index]["response"] = serde_json::from_slice::<Value>(&response)
                 .map_err(|_| "SDK retained response JSON")?;
             requests[index]["peer_rechecked_before_response"] = json!(true);
