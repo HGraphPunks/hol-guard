@@ -69,11 +69,29 @@ fn gone(fixture: &Fixture) {
     }
 }
 
+fn selected(stage: &Path, recorder: &NativeProcessEvents) {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        recorder.check().unwrap();
+        if io_rows(stage)
+            .iter()
+            .any(|row| row["kind"] == "stdio-selected")
+        {
+            return;
+        }
+        assert!(Instant::now() < deadline, "owned stdio exec not selected");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+}
+
 #[test]
 fn scalar_and_vectored_snapshots_match_both_actual_parent_pipe_streams() {
     for mode in ["stdio-scalar", "stdio-vector"] {
         let (stage, mut fixture, mut recorder) = start(mode, false);
         fixture.release();
+        // The driver's buffered stdin must consume only its gate byte. Wait
+        // for the observed exec before sending any leaf payload.
+        selected(&stage, &recorder);
         fixture
             .child
             .stdin

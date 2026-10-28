@@ -119,6 +119,18 @@ Mac/ARM warnings-denied Clippy. The full workspace log
 Live fixture execution and independent v2 process/I/O readback remain pending
 at this source checkpoint; the existing v1 reader refuses v2 checkpoints.
 
+The first live producer attempt at `f137c1b0` retains six fixture-start permission
+failures: the unprivileged executable was beneath a Root-only input directory.
+Only the pinned fixture ELF was then copied to a new Root-owned 0555 public
+location; private input/proof directories remain 0700. The second attempt
+retains four passing cases and two failures. The synthetic driver's buffered
+gate could consume payload before exec, and scalar/linger output lacked a
+flush before direct exit or a blocking read. The follow-up waits for the
+observed leaf exec before sending payload and explicitly flushes that fixture
+output. Byte-comparison and refusal assertions are unchanged. The revised
+fixture passes Mac/ARM Clippy and the macOS rootfs tests; its new live run is
+pending. Both original attempts remain immutable in the owned VM.
+
 [`process_vm_readv`](https://man7.org/linux/man-pages/man2/process_vm_readv.2.html)
 does not promise atomic transfers. The producer explicitly records
 `concurrent_tracees_frozen=false` and `atomic_kernel_pipe_bytes_verified=false`.

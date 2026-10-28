@@ -12,6 +12,7 @@ pub fn run(mode: &str) -> ! {
             assert_eq!(input, FRAME);
             std::io::stdout().write_all(&input[..2]).unwrap();
             std::io::stdout().write_all(&input[2..]).unwrap();
+            std::io::stdout().flush().unwrap();
         }
         "stdio-vector-leaf" => {
             let mut first = [0u8; 3];
@@ -74,6 +75,7 @@ pub fn run(mode: &str) -> ! {
         }
         "stdio-linger-leaf" => {
             std::io::stdout().write_all(FRAME).unwrap();
+            std::io::stdout().flush().unwrap();
             let mut byte = 0u8;
             let _ = unsafe { libc::read(0, (&mut byte as *mut u8).cast(), 1) };
         }
