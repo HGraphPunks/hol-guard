@@ -176,6 +176,25 @@ fn watch_records_a_would_be_block_over_an_earlier_warning() {
 }
 
 #[test]
+fn watch_identifies_the_finding_without_lowering_workspace_containment() {
+    let found = finding("22.1.0", json!([rule("CVE-1", "critical", "22.5.0")])).unwrap();
+    let mut contained = result("sandbox-required");
+    contained.reason_code = "native_workspace_containment_required".into();
+    let observed = raise(contained.clone(), &found, "block", true);
+    validate_pre_tool_result_matrix(&observed).unwrap();
+    assert_eq!(observed.minimum_action, "sandbox-required");
+    assert_eq!(observed.policy_action, "sandbox-required");
+    assert_eq!(observed.decision, "deny");
+    assert_eq!(observed.reason_code, OBSERVED);
+    assert!(observed.reason.contains("would have required block"));
+    assert!(observed.reason.ends_with("Also: native test"));
+    assert_eq!(raise(contained.clone(), &found, "warn", true), contained);
+    let enforced = raise(contained, &found, "block", false);
+    assert_eq!(enforced.minimum_action, "block");
+    assert_eq!(enforced.reason_code, FINDING);
+}
+
+#[test]
 fn watch_records_the_finding_behind_a_stronger_intrinsic_review() {
     let found = finding("22.1.0", json!([rule("CVE-1", "critical", "22.5.0")])).unwrap();
     let observed = raise(result("review"), &found, "block", true);

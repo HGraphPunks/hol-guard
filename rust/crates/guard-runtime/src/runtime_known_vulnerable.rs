@@ -388,6 +388,14 @@ pub(crate) fn raise(
         // code and action. The text still records what this finding would
         // have required, so watch does not lose it behind that review.
         if observe && configured > ActionFloor::Warn {
+            // Watch renders workspace containment as an observed warning.
+            // Keep its floor, but identify the stronger runtime finding in
+            // that response; its text also retains the containment reason.
+            if minimum == ActionFloor::SandboxRequired
+                && result.reason_code == "native_workspace_containment_required"
+            {
+                result.reason_code = OBSERVED.into();
+            }
             result.reason = if result.reason.trim().is_empty() {
                 reason
             } else {
