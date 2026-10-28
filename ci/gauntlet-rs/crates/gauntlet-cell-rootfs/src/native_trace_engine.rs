@@ -35,6 +35,7 @@ pub(super) struct Engine {
     execs: u64,
     abort: Arc<AtomicBool>,
     expected_actor: Option<Value>,
+    stdio: Option<crate::native_stdio_recorder::Recorder>,
 }
 
 impl Engine {
@@ -44,6 +45,7 @@ impl Engine {
         journal: Journal,
         abort: Arc<AtomicBool>,
         expected_actor: Option<Value>,
+        stdio: Option<crate::native_stdio_recorder::Recorder>,
     ) -> Self {
         Self {
             journal,
@@ -58,6 +60,7 @@ impl Engine {
             execs: 0,
             abort,
             expected_actor,
+            stdio,
         }
     }
 
@@ -66,7 +69,12 @@ impl Engine {
     }
 
     fn resume(&mut self, tid: u32, signal: u8) -> Result<()> {
-        if !sys::resume(tid, signal)? {
+        let resumed = if self.stdio.as_ref().is_some_and(|v| v.stepping(tid)) {
+            sys::resume_syscall(tid, signal)?
+        } else {
+            sys::resume(tid, signal)?
+        };
+        if !resumed {
             self.append(
                 "resume-stop-lost",
                 json!({"tid":tid,"signal":signal,"death_observed":false}),
@@ -75,15 +83,33 @@ impl Engine {
         Ok(())
     }
 
+    fn wait(&self) -> Result<sys::WaitResult> {
+        if self.stdio.is_some() {
+            sys::wait_stdio()
+        } else {
+            sys::wait()
+        }
+    }
+
+    pub(super) fn fail_stdio(&mut self, error: &str) {
+        if let Some(stdio) = &mut self.stdio {
+            stdio.fail(error);
+        }
+    }
+
     pub(super) fn run(&mut self, ready: &SyncSender<Result<u32>>) -> Result<Value> {
         let tid = *self.active.keys().next().ok_or("initial actor required")?;
-        sys::seize(tid)?;
+        if self.stdio.is_some() {
+            sys::seize_stdio(tid)?;
+        } else {
+            sys::seize(tid)?;
+        }
         let deadline = Instant::now() + Duration::from_secs(5);
         loop {
             if self.abort.load(Ordering::Acquire) || Instant::now() >= deadline {
                 return Err("initial recorder stop deadline or abort".into());
             }
-            match sys::wait()? {
+            match self.wait()? {
                 sys::WaitResult::Event(
                     actual,
                     Wait::Event {
@@ -112,12 +138,18 @@ impl Engine {
                 }
             }
         }
-        self.append(
-            "trace-start",
-            json!({"id":0,"actor":image,"cgroup":self.cgroup,
+        let mut start = json!({"id":0,"actor":image,"cgroup":self.cgroup,
             "options":["exit-kill","fork","vfork","clone","exec","exit","vfork-done"],
-            "memory_or_register_mutation":false,"execution_eligible":false}),
-        )?;
+            "memory_or_register_mutation":false,"execution_eligible":false});
+        if let Some(stdio) = &mut self.stdio {
+            stdio.start(&image)?;
+            start["options"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!("syscall-good"));
+            start["native_stdio"] = stdio.declaration();
+        }
+        self.append("trace-start", start)?;
         self.resume(tid, 0)?;
         ready
             .send(Ok(sys::thread_id()?))
@@ -126,7 +158,7 @@ impl Engine {
             if self.abort.load(Ordering::Acquire) {
                 return Err("owned process recorder aborted; no complete history".into());
             }
-            match sys::wait()? {
+            match self.wait()? {
                 sys::WaitResult::Event(tid, event) => self.event(tid, event)?,
                 sys::WaitResult::Idle => std::thread::sleep(Duration::from_millis(1)),
                 sys::WaitResult::Empty => {
@@ -148,11 +180,14 @@ impl Engine {
             "exec_retirements":self.exec_retirements,"execs":self.execs,"active_tasks":0,
             "pending_births":0,"pending_stops":0,"execution_eligible":false}),
         )?;
-        Ok(
-            json!({"schema":"hol-gauntlet-native-process-events.v1","complete":true,
+        let mut checkpoint = json!({"schema":"hol-gauntlet-native-process-events.v1","complete":true,
             "created_tasks":self.next,"final_waits":self.final_waits,"exec_retirements":self.exec_retirements,
-            "execs":self.execs,"journal":self.journal.binding()?,"execution_eligible":false}),
-        )
+            "execs":self.execs,"journal":self.journal.binding()?,"execution_eligible":false});
+        if let Some(stdio) = &mut self.stdio {
+            checkpoint["schema"] = json!("hol-gauntlet-native-process-events.v2");
+            checkpoint["native_stdio"] = stdio.finish()?;
+        }
+        Ok(checkpoint)
     }
 
     fn register(&mut self, tid: u32, event: Wait) -> Result<()> {
@@ -213,7 +248,22 @@ impl Engine {
         }
         let id = self.active[&tid].id;
         match event {
+            Wait::Syscall => {
+                let entry = &self.active[&tid];
+                self.stdio
+                    .as_mut()
+                    .ok_or("undeclared Native syscall stop")?
+                    .observe(
+                        &entry.task,
+                        &self.cgroup,
+                        crate::native_stdio_syscall::stopped_native_syscall_info(tid)?,
+                    )?;
+                self.resume(tid, 0)
+            }
             Wait::Exited(_) | Wait::Killed { .. } => {
+                if let Some(stdio) = &mut self.stdio {
+                    stdio.end(tid, "final-wait")?;
+                }
                 let task = self.active.remove(&tid).ok_or("final task disappeared")?;
                 self.final_waits += 1;
                 self.append("task-final-wait",json!({"id":id,"tid":tid,"tgid":task.task.tgid,
@@ -340,6 +390,9 @@ impl Engine {
             .collect::<Vec<_>>();
         let mut retired = Vec::new();
         for other in group {
+            if let Some(stdio) = &mut self.stdio {
+                stdio.end(other, "exec-replacement")?;
+            }
             let entry = self.active.remove(&other).ok_or("exec group changed")?;
             if entry.id != id {
                 retired.push(
@@ -358,6 +411,9 @@ impl Engine {
             json!({"id":id,"old_tid":old,"old_start_ticks":old_start,
             "retired":retired,"image":image}),
         )?;
+        if let Some(stdio) = &mut self.stdio {
+            stdio.consider(&task, &image, id, self.journal.events() - 1)?;
+        }
         self.active.insert(tid, Entry { id, task });
         self.execs += 1;
         self.resume(tid, 0)

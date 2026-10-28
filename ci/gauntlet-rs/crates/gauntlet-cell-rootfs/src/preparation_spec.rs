@@ -105,12 +105,22 @@ impl CellPreparation {
         ];
         if matches!(
             launch["schema"].as_str(),
-            Some("hol-gauntlet-cell-supervisor.v2" | "hol-gauntlet-cell-supervisor.v3")
+            Some(
+                "hol-gauntlet-cell-supervisor.v2"
+                    | "hol-gauntlet-cell-supervisor.v3"
+                    | "hol-gauntlet-cell-supervisor.v4"
+            )
         ) {
             fields.extend(["image_interpreter_sha256", "outside_observer_sha256"]);
         }
-        if launch["schema"] == "hol-gauntlet-cell-supervisor.v3" {
+        if matches!(
+            launch["schema"].as_str(),
+            Some("hol-gauntlet-cell-supervisor.v3" | "hol-gauntlet-cell-supervisor.v4")
+        ) {
             fields.push("process_events");
+        }
+        if launch["schema"] == "hol-gauntlet-cell-supervisor.v4" {
+            fields.extend(["native_stdio", "native_runtime_sha256"]);
         }
         if launch
             .as_object()

@@ -15,13 +15,18 @@ impl NativeCell {
             .actor
             .as_ref()
             .ok_or("held filtered actor required before recorder startup")?;
-        let recorder = NativeProcessEvents::start(actor, &self.inputs.spec.stage)?;
+        let recorder = if let Some(native) = &self.spec.native_stdio_sha256 {
+            NativeProcessEvents::start_with_stdio(actor, &self.inputs.spec.stage, native)?
+        } else {
+            NativeProcessEvents::start(actor, &self.inputs.spec.stage)?
+        };
         let tracer = recorder.tracer_tid();
         self.process_events = Some(recorder);
         let actor = self.actor.as_mut().unwrap();
         actor.adopt_trace_owner(tracer)?;
-        self.journal.append("process-events-started",json!({"schema":"hol-gauntlet-native-process-recorder-started.v1",
-            "mode":"outside-root-ptrace.v1","tracer_tid":tracer,"actor":actor.observation(),"execution_eligible":false}))
+        let stdio = self.spec.native_stdio_sha256.is_some();
+        self.journal.append("process-events-started",json!({"schema":if stdio {"hol-gauntlet-native-process-recorder-started.v2"}else{"hol-gauntlet-native-process-recorder-started.v1"},
+            "mode":if stdio {"outside-root-ptrace.v2"}else{"outside-root-ptrace.v1"},"tracer_tid":tracer,"actor":actor.observation(),"execution_eligible":false}))
     }
 
     pub(crate) fn recorder_health(&self) -> Result<()> {
@@ -66,15 +71,20 @@ impl NativeCell {
         if !self.spec.process_events {
             return None;
         }
+        let schema = if self.spec.native_stdio_sha256.is_some() {
+            "hol-gauntlet-native-process-recorder.v2"
+        } else {
+            "hol-gauntlet-native-process-recorder.v1"
+        };
         Some(match &self.process_events_result {
             Some(Ok(checkpoint)) => {
-                json!({"schema":"hol-gauntlet-native-process-recorder.v1","available":true,"checkpoint":checkpoint})
+                json!({"schema":schema,"available":true,"checkpoint":checkpoint})
             }
             Some(Err(error)) => {
-                json!({"schema":"hol-gauntlet-native-process-recorder.v1","available":false,"error":error})
+                json!({"schema":schema,"available":false,"error":error})
             }
             None => {
-                json!({"schema":"hol-gauntlet-native-process-recorder.v1","available":false,"error":"recorder not closed"})
+                json!({"schema":schema,"available":false,"error":"recorder not closed"})
             }
         })
     }

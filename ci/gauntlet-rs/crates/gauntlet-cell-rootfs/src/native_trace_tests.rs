@@ -1,4 +1,6 @@
 //! These opt-in tests require Root in the owned VM and an outside-pinned ELF.
+#[path = "native_stdio_live_tests.rs"]
+mod stdio;
 use crate::native_trace::NativeProcessEvents;
 use crate::Result;
 use serde_json::Value;

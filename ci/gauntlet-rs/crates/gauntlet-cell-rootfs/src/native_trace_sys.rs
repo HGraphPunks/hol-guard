@@ -41,13 +41,24 @@ fn call(request: Request, tid: u32, data: usize) -> Result<bool> {
 }
 
 pub(super) fn seize(tid: u32) -> Result<()> {
-    let options = libc::PTRACE_O_EXITKILL
+    seize_mode(tid, false)
+}
+
+pub(super) fn seize_stdio(tid: u32) -> Result<()> {
+    seize_mode(tid, true)
+}
+
+fn seize_mode(tid: u32, stdio: bool) -> Result<()> {
+    let mut options = libc::PTRACE_O_EXITKILL
         | libc::PTRACE_O_TRACEFORK
         | libc::PTRACE_O_TRACEVFORK
         | libc::PTRACE_O_TRACECLONE
         | libc::PTRACE_O_TRACEEXEC
         | libc::PTRACE_O_TRACEEXIT
         | libc::PTRACE_O_TRACEVFORKDONE;
+    if stdio {
+        options |= libc::PTRACE_O_TRACESYSGOOD;
+    }
     if !call(libc::PTRACE_SEIZE, tid, options as usize)? {
         return Err("owned actor disappeared before seize".into());
     }
@@ -62,6 +73,13 @@ pub(super) fn resume(tid: u32, signal: u8) -> Result<bool> {
         return Err("invalid trace signal".into());
     }
     call(libc::PTRACE_CONT, tid, signal as usize)
+}
+
+pub(super) fn resume_syscall(tid: u32, signal: u8) -> Result<bool> {
+    if signal > 64 {
+        return Err("invalid trace signal".into());
+    }
+    call(libc::PTRACE_SYSCALL, tid, signal as usize)
 }
 
 pub(super) fn listen(tid: u32) -> Result<bool> {
@@ -98,6 +116,14 @@ pub(super) enum WaitResult {
 }
 
 pub(super) fn wait() -> Result<WaitResult> {
+    wait_mode(false)
+}
+
+pub(super) fn wait_stdio() -> Result<WaitResult> {
+    wait_mode(true)
+}
+
+fn wait_mode(stdio: bool) -> Result<WaitResult> {
     let mut raw = 0;
     let pid = unsafe {
         libc::waitpid(
@@ -107,7 +133,12 @@ pub(super) fn wait() -> Result<WaitResult> {
         )
     };
     if pid > 0 {
-        return Ok(WaitResult::Event(pid as u32, decode(raw)?));
+        let event = if stdio {
+            crate::native_trace_wait::decode_stdio(raw)?
+        } else {
+            decode(raw)?
+        };
+        return Ok(WaitResult::Event(pid as u32, event));
     }
     if pid == 0 {
         return Ok(WaitResult::Idle);

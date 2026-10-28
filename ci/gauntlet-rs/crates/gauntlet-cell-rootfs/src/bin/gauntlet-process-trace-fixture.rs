@@ -1,5 +1,7 @@
 //! Trusted fixture only: creates its own UID10004 graph after a pipe gate.
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_stdio_fixture;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod fixture {
     use std::io::{Read, Write};
 
@@ -44,11 +46,22 @@ mod fixture {
         }
         let args = std::env::args().collect::<Vec<_>>();
         assert_eq!(args.len(), 2);
+        if args[1].starts_with("stdio-") && args[1].ends_with("-leaf") {
+            super::native_stdio_fixture::run(&args[1]);
+        }
         if args[1] == "leaf" {
             exit(0);
         }
         gate();
         match args[1].as_str() {
+            "stdio-scalar" | "stdio-vector" | "stdio-partial" | "stdio-rebind" | "stdio-linger"
+            | "stdio-oversize" => {
+                use std::os::unix::process::CommandExt;
+                let error = std::process::Command::new("/proc/self/exe")
+                    .arg(format!("{}-leaf", args[1]))
+                    .exec();
+                panic!("owned stdio fixture exec: {error}");
+            }
             "fork-tree" => {
                 if child() {
                     assert!(unsafe { libc::setsid() } > 0);

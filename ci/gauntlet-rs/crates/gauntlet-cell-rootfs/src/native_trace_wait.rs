@@ -15,10 +15,20 @@ pub(crate) enum Event {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Wait {
+    Syscall,
     Exited(u8),
     Killed { signal: u8, core_dumped: bool },
     Delivery(u8),
     Event { event: Event, signal: u8 },
+}
+
+/// Only the declared v2 recorder accepts syscall stops. Legacy decoding still
+/// rejects signal 133, and a real SIGTRAP remains a delivery stop.
+pub(crate) fn decode_stdio(raw: i32) -> Result<Wait> {
+    if raw == (133 << 8 | 0x7f) {
+        return Ok(Wait::Syscall);
+    }
+    decode(raw)
 }
 
 pub(crate) fn decode(raw: i32) -> Result<Wait> {
@@ -90,6 +100,15 @@ mod tests {
                 core_dumped: true
             }
         );
+    }
+
+    #[test]
+    fn only_stdio_mode_accepts_syscall_stops_and_preserves_real_traps() {
+        let raw = 133 << 8 | 0x7f;
+        assert!(decode(raw).is_err());
+        assert_eq!(decode_stdio(raw).unwrap(), Wait::Syscall);
+        assert_eq!(decode_stdio(5 << 8 | 0x7f).unwrap(), Wait::Delivery(5));
+        assert!(decode_stdio(raw | 1 << 16).is_err());
     }
 
     #[test]

@@ -42,6 +42,32 @@ fn number(fields: &BTreeMap<String, String>, key: &str) -> Result<u32> {
 }
 
 impl Task {
+    /// O_PATH retains only the pipe object; it adds no reader or writer and
+    /// therefore cannot suppress the real transport's EOF or SIGPIPE.
+    pub(super) fn stdio_pipe(&self, descriptor: u8) -> Result<OwnedFd> {
+        if descriptor > 1 {
+            return Err("only selected Native stdin/stdout descriptors permitted".into());
+        }
+        let name = format!("fd/{descriptor}");
+        let fd = openat(
+            &self.proc,
+            &name,
+            OFlags::PATH | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| e.to_string())?;
+        let info = fstat(&fd).map_err(|e| e.to_string())?;
+        let link =
+            rustix::fs::readlinkat(&self.proc, &name, Vec::new()).map_err(|e| e.to_string())?;
+        if rustix::fs::FileType::from_raw_mode(info.st_mode) != rustix::fs::FileType::Fifo
+            || info.st_ino == 0
+            || link.as_bytes() != format!("pipe:[{}]", info.st_ino).as_bytes()
+        {
+            return Err("anonymous Native transport pipe required".into());
+        }
+        Ok(fd)
+    }
+
     pub(super) fn open(tid: u32, cgroup: &str) -> Result<Self> {
         let pid = i32::try_from(tid)
             .ok()

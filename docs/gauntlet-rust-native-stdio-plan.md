@@ -1,9 +1,12 @@
 # Outside Native client pipe capture
 
-Status: bounded syscall metadata and transfer accounting are implemented after
+Status: syscall metadata, transfer accounting and the initial outside pipe
+snapshot producer are implemented after
 verifier checkpoint `98a544f3` and published evidence checkpoint `5ddb5d52`.
-The live ARM syscall ABI fixture passes in the owned VM. The actual
-pipe-memory observer, signed capture and frame verifier remain unimplemented.
+The live ARM syscall ABI fixture passes in the owned VM. The new producer and
+closed launch-v4 contract pass macOS tests and Mac/ARM Clippy; live pipe fixtures
+are compiled and await execution. Independent capture/frame verification and
+fresh Native product controls remain open.
 The existing image-lineage proof
 does not observe internal Native request bytes. All parent exits remain 24/62.
 The latest owned-VM worker baseline is the unchanged 326-record set,
@@ -83,6 +86,47 @@ lost-recorder history. The readback output SHA-256 is
 `c72343d13378655bb98f60ad8c9ee6787e6d4f53228f0c9469e257eab3815f56`.
 This establishes the live metadata ABI; actual pipe bytes and all qualification,
 custody, Native semantics and effect-writer claims remain unverified.
+
+## Initial pipe snapshot producer
+
+The opt-in launch-v4 contract requires `outside-root-ptrace.v2`, the fixed
+`outside-root-native-stdio.v1` mode and an exact Native executable digest. Its
+process checkpoint is v2 and its signed Native plane is v3. Older launch
+contracts reject these fields; their tracing options and behavior are unchanged.
+The product pin must agree with the launch digest before hook-plane startup.
+
+Only the selected Native stream leaders use syscall stepping. The recorder
+retains task lifetime/tracer ownership, actor namespaces/label, privilege floors,
+exact command shape and distinct anonymous fd0/fd1 pipe identities. Each relevant
+snapshot re-hashes the full executable and rechecks the held/current pipe
+objects. `O_PATH` references add no pipe reader or writer. The private memory
+backend reads only the selected scalar buffers or bounded iovec table/data.
+It rejects partial memory copies. Read snapshots use completed byte counts;
+write snapshots retain submitted bytes and credit only a successful returned
+prefix. Failed/interrupted calls never invent bytes or EOF.
+
+Bounds are 16 active streams, 1,024 stream lifetimes, 8,192 pipe calls, one million
+syscall stops, 16 MiB of pending submitted writes and 32 MiB of captured bytes,
+in addition to the existing per-transfer/vector and private-journal bounds.
+Separate fixtures exercise actual scalar/vector parent pipe bytes, a nonblocking
+short write, wrong ELF pin, descriptor replacement, oversized submission and
+death during a pending read. Fixture selection exists only in the owned-test
+build and declares its separate scope. The initial producer passes all 607
+locked/offline macOS workspace tests (zero failures/ignored), formatting and
+Mac/ARM warnings-denied Clippy. The full workspace log
+`native-stdio-capture-working-workspace-tests-002.log` has SHA-256
+`2c8599a3fb9d3b2d4a0792d90abd1f218a12d20a47d070c2e4f314826aab6f4f`.
+Live fixture execution and independent v2 process/I/O readback remain pending
+at this source checkpoint; the existing v1 reader refuses v2 checkpoints.
+
+[`process_vm_readv`](https://man7.org/linux/man-pages/man2/process_vm_readv.2.html)
+does not promise atomic transfers. The producer explicitly records
+`concurrent_tracees_frozen=false` and `atomic_kernel_pipe_bytes_verified=false`.
+Other threads can run between stops, and an entry/exit snapshot does not itself
+attest the kernel's copied payload. Its read-only observations can support frame
+comparison after independent replay; full wire qualification still requires
+resolving that concurrency obligation. No parent exit, admission, approval
+behavior or effect-writer claim advances from the initial producer.
 
 ## Kernel contracts and separate effect work
 

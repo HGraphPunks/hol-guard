@@ -26,6 +26,14 @@ pub struct NativeProcessEvents {
 
 impl NativeProcessEvents {
     pub fn start(actor: &HeldCellProcess, stage: &Path) -> Result<Self> {
+        Self::start_mode(actor, stage, None)
+    }
+
+    pub fn start_with_stdio(actor: &HeldCellProcess, stage: &Path, native: &str) -> Result<Self> {
+        Self::start_mode(actor, stage, Some(native))
+    }
+
+    fn start_mode(actor: &HeldCellProcess, stage: &Path, native: Option<&str>) -> Result<Self> {
         actor.recheck()?;
         let expected = actor.observation().clone();
         if expected["argv"] != serde_json::json!(["/public/gauntlet-product-cell", "actor"]) {
@@ -44,7 +52,10 @@ impl NativeProcessEvents {
             .as_str()
             .ok_or("held actor cgroup required")?
             .to_owned();
-        Self::launch(pid, start, cgroup, stage, Some(expected))
+        let stdio = native
+            .map(|pin| crate::native_stdio_recorder::Recorder::create(stage, pin))
+            .transpose()?;
+        Self::launch(pid, start, cgroup, stage, Some(expected), stdio)
     }
 
     fn launch(
@@ -53,6 +64,7 @@ impl NativeProcessEvents {
         cgroup: String,
         stage: &Path,
         expected: Option<Value>,
+        stdio: Option<crate::native_stdio_recorder::Recorder>,
     ) -> Result<Self> {
         crate::kernel_process::root_proc()?;
         let journal = Journal::create_process_events(stage)?;
@@ -66,9 +78,10 @@ impl NativeProcessEvents {
                 let task=Task::open(pid,&cgroup)?;
                 if task.start!=start {return Err("actor generation changed before trace attachment".into());}
                 if expected.is_some() {task.initial_actor(start,&cgroup)?;}
-                let mut engine=Engine::new(task,cgroup,journal,thread_abort,expected);
+                let mut engine=Engine::new(task,cgroup,journal,thread_abort,expected,stdio);
                 let outcome=engine.run(&sender);
                 if let Err(error)=&outcome {
+                    engine.fail_stdio(error);
                     let _=engine.journal.append("trace-failed",serde_json::json!({"error":error,"complete":false,"execution_eligible":false}));
                 }
                 outcome
@@ -158,7 +171,19 @@ impl NativeProcessEvents {
     #[cfg(all(test, feature = "owned-process-trace-fixture"))]
     pub(crate) fn start_fixture(pid: u32, cgroup: String, stage: &Path) -> Result<Self> {
         let task = Task::open(pid, &cgroup)?;
-        Self::launch(pid, task.start, cgroup, stage, None)
+        Self::launch(pid, task.start, cgroup, stage, None, None)
+    }
+
+    #[cfg(all(test, feature = "owned-process-trace-fixture"))]
+    pub(crate) fn start_stdio_fixture(
+        pid: u32,
+        cgroup: String,
+        stage: &Path,
+        native: &str,
+    ) -> Result<Self> {
+        let task = Task::open(pid, &cgroup)?;
+        let stdio = crate::native_stdio_recorder::Recorder::create_fixture(stage, native)?;
+        Self::launch(pid, task.start, cgroup, stage, None, Some(stdio))
     }
 }
 

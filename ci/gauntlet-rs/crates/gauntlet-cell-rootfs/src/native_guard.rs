@@ -51,6 +51,14 @@ impl NativeHookPlane {
             return Err("bounded fixed Native controller session required".into());
         }
         NativeGuardPins::parse(&pins.to_json())?;
+        if cell
+            .spec
+            .native_stdio_sha256
+            .as_ref()
+            .is_some_and(|pin| pin != &pins.native_sha256)
+        {
+            return Err("Native stdio launch digest differs from the actual product pin".into());
+        }
         Ok(Self {
             cell,
             pins,
@@ -371,7 +379,13 @@ impl NativeHookPlane {
             "readiness_adapter_sha256":hash(crate::native_guard_probe::READINESS.as_bytes()),
             "sdk_exercised":false,"product_claims_authenticated":false,"guard_causality_verified":false,"execution_eligible":false,"model_requests":0});
         if let Some(events) = self.cell.process_events_observation() {
-            observation["schema"] = json!("hol-gauntlet-native-hook-plane.v2");
+            observation["schema"] = json!(if events["schema"]
+                == "hol-gauntlet-native-process-recorder.v2"
+            {
+                "hol-gauntlet-native-hook-plane.v3"
+            } else {
+                "hol-gauntlet-native-hook-plane.v2"
+            });
             observation["process_events"] = events;
         }
         observation

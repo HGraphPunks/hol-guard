@@ -33,6 +33,16 @@ impl Journal {
         Ok(journal)
     }
 
+    pub(crate) fn create_native_stdio(stage: &std::path::Path) -> Result<Self> {
+        let mut journal = Self::create_file(stage, "native-stdio-events.v1.jsonl")?;
+        journal.maximum_events = 65536;
+        Ok(journal)
+    }
+
+    pub(crate) fn events(&self) -> u64 {
+        self.count
+    }
+
     pub(crate) fn create_recovery(stage: &std::path::Path) -> Result<Self> {
         Self::create_file(
             stage,

@@ -24,6 +24,7 @@ pub struct SupervisorSpec {
     pub image_interpreter_sha256: Option<String>,
     pub outside_observer_sha256: Option<String>,
     pub process_events: bool,
+    pub native_stdio_sha256: Option<String>,
 }
 
 pub const HOST_HELPERS: &[&str] = &[
@@ -60,13 +61,31 @@ impl SupervisorSpec {
         pinned_fields.extend(["image_interpreter_sha256", "outside_observer_sha256"]);
         let mut traced_fields = pinned_fields.clone();
         traced_fields.push("process_events");
+        let mut stdio_fields = traced_fields.clone();
+        stdio_fields.extend(["native_stdio", "native_runtime_sha256"]);
         let value = object(raw, 8192, &fields, "hol-gauntlet-cell-supervisor.v1")
             .or_else(|_| object(raw, 8192, &pinned_fields, "hol-gauntlet-cell-supervisor.v2"))
-            .or_else(|_| object(raw, 8192, &traced_fields, "hol-gauntlet-cell-supervisor.v3"))?;
-        let process_events = value["schema"] == "hol-gauntlet-cell-supervisor.v3";
-        if process_events && value["process_events"] != "outside-root-ptrace.v1" {
+            .or_else(|_| object(raw, 8192, &traced_fields, "hol-gauntlet-cell-supervisor.v3"))
+            .or_else(|_| object(raw, 8192, &stdio_fields, "hol-gauntlet-cell-supervisor.v4"))?;
+        let stdio = value["schema"] == "hol-gauntlet-cell-supervisor.v4";
+        let process_events = stdio || value["schema"] == "hol-gauntlet-cell-supervisor.v3";
+        let process_mode = if stdio {
+            "outside-root-ptrace.v2"
+        } else {
+            "outside-root-ptrace.v1"
+        };
+        if process_events && value["process_events"] != process_mode {
             return Err("fixed outside Root process-event recorder required".into());
         }
+        let native_stdio_sha256 = if stdio {
+            let pin = text(&value, "native_runtime_sha256")?;
+            if value["native_stdio"] != "outside-root-native-stdio.v1" || !hex(pin, 64) {
+                return Err("fixed Native stdio mode and exact ELF digest required".into());
+            }
+            Some(pin.to_owned())
+        } else {
+            None
+        };
         let (image_interpreter_sha256, outside_observer_sha256) =
             if value["schema"] != "hol-gauntlet-cell-supervisor.v1" {
                 let interpreter = text(&value, "image_interpreter_sha256")?;
@@ -139,6 +158,7 @@ impl SupervisorSpec {
             image_interpreter_sha256,
             outside_observer_sha256,
             process_events,
+            native_stdio_sha256,
         })
     }
 
@@ -287,6 +307,45 @@ mod tests {
         ] {
             let mut changed = value.clone();
             changed.as_object_mut().unwrap().remove(field);
+            assert!(parse(&changed).is_err());
+        }
+    }
+
+    #[test]
+    fn stdio_requires_closed_v4_and_cannot_upgrade_older_launches() {
+        let mut value = fixture();
+        value["image_interpreter_sha256"] = json!("a".repeat(64));
+        value["outside_observer_sha256"] = json!("b".repeat(64));
+        value["process_events"] = json!("outside-root-ptrace.v2");
+        value["native_stdio"] = json!("outside-root-native-stdio.v1");
+        value["native_runtime_sha256"] = json!("c".repeat(64));
+        for schema in [
+            "hol-gauntlet-cell-supervisor.v1",
+            "hol-gauntlet-cell-supervisor.v2",
+            "hol-gauntlet-cell-supervisor.v3",
+        ] {
+            value["schema"] = json!(schema);
+            assert!(parse(&value).is_err());
+        }
+        value["schema"] = json!("hol-gauntlet-cell-supervisor.v4");
+        let parsed = parse(&value).unwrap();
+        assert!(parsed.process_events);
+        assert_eq!(
+            parsed.native_stdio_sha256.as_deref(),
+            Some("c".repeat(64).as_str())
+        );
+        for (key, bad) in [
+            ("process_events", json!("outside-root-ptrace.v1")),
+            ("native_stdio", json!(true)),
+            ("native_runtime_sha256", json!("latest")),
+        ] {
+            let mut changed = value.clone();
+            changed[key] = bad;
+            assert!(parse(&changed).is_err());
+        }
+        for key in ["native_stdio", "native_runtime_sha256", "process_events"] {
+            let mut changed = value.clone();
+            changed.as_object_mut().unwrap().remove(key);
             assert!(parse(&changed).is_err());
         }
     }
