@@ -4,14 +4,15 @@ Updated: 2026-10-28. Execution model: GPT-6.1 Sol, Max reasoning.
 Status: active implementation; the Rust replacement is not qualified.
 
 Current R3 work: [outside Rust process-event recording](gauntlet-rust-native-process-event-plan.md)
-is implemented behind an explicit API. Ten focused native ARM cases pass,
-including the six actual graph/isolation fixtures, with all 298 retained
-worker records unchanged. Six reader units and 30 actual/restart/refusal cases
-pass on Mac and ARM; all 571 workspace tests and Mac/ARM warnings-denied
-Clippy pass. Closed launch v3 now wires startup/drain and signed checkpoint
-joins; its focused tests pass, with fresh Native execution and full slice
-validation pending. Complete Native grading remains open. The 24/62
-parent-exit count is unchanged.
+is integrated in closed launch v3, with signed checkpoint and gate joins.
+At `cc3ce245`, all 579 Mac workspace tests, Mac/ARM warnings-denied Clippy,
+27 focused Root ARM cases and 32 byte-identical legacy controls pass. Fresh
+zero-model control `e2c701baf1475403` retains a complete 559-task/559-final-wait
+history, independently replayed by Rust, but fails when Native output rendering
+is unavailable; the SDK withholds output. The outside sampler separately
+exhausts its observation bound. Both failures remain open, all 298 prior
+worker records survive, and the current baseline contains 305 records.
+Complete Native grading remains open. The 24/62 parent-exit count is unchanged.
 
 ## Goal and completion contract
 

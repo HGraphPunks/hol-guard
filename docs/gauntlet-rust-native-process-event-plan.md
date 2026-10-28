@@ -154,11 +154,55 @@ The consuming reader requires the signed main journal, exact file generation,
 early actor/start ordering and one matching stopped exec for every held gate.
 The old launch and plane versions retain their output shape.
 
-Working-source validation passes 48 Mac rootfs tests, four trace/lifecycle join
-tests, three launch-provenance tests and Mac/ARM affected-crate warnings-denied
-Clippy. The initial Clippy owned-string comparison failure remains retained;
-the correction parses the string-typed kernel tracer ID without changing its
-meaning. Fresh exact-source Native execution, full workspace validation and
-legacy-output regressions remain pending for this launch slice. The earlier
-fixture/readback proof above remains tied to its recorded sources. Complete
-Native image/effect grading, outside admission and all parent exits stay open.
+At launch source `cc3ce245`, all 579 Mac migration workspace tests pass, with
+zero failures or ignores. Mac and ARM all-target/all-feature warnings-denied
+Clippy and Rustfmt pass. All 27 focused Root ARM cases pass, including real
+process graphs and the signed trace/lifecycle joins. The new verifier also
+reproduces all 32 historical control-mode outputs byte for byte. The initial
+Clippy owned-string comparison failure remains retained; the correction
+parses the string-typed kernel tracer ID without changing its meaning.
+
+Fresh zero-model Native control `e2c701baf1475403` uses that Rust worker and
+launch v3 with the explicitly older product image `9f42d9dd` (3.58.0). Its
+contained unittest exits zero, but the SDK correctly withholds output when
+the Native Post response reports `native_hook_render_unavailable`. The
+authenticated controller record reports `failed`; the worker terminal stays
+`invalid-evidence`. The independent Python sampler also fails at its existing
+128-observation bound, retaining 129 observations and its assertion. Neither
+failure is waived. Native `serve-managed` groups abort with SIGABRT and restart;
+the pressure record peaks at 121 tasks and reports zero pids-controller limit
+events. This run does not establish why Native aborts or rendering fails.
+
+The Rust recorder itself closes a complete 2678-event, 1191173-byte journal:
+559 created tasks, 559 actual final waits, 152 execs and zero exec retirements.
+Frozen reader `a0439880` independently accepts that actual Native history and
+its byte-identical restart, and refuses a wrong outside pin, truncation and
+a false final-wait count. The export's Root file-generation metadata matches
+the signed-plane checkpoint and its main-journal close record. This replay
+does not admit process custody, an outside observer or complete Native image
+grading. Every qualification and Guard-causality flag remains false.
+
+All 298 prior worker records remain unchanged under both leases. The final
+305-record baseline is retained at
+`/var/lib/hol-gauntlet-rust/native-process-launch-proof-20261028-001-success/final-worker-hashes.json`,
+SHA-256 `0eeba1d487fefbaf1e97ddc427e7be92e597e70347d7b4bcb2165663a9288414`.
+Future mutating couriers must preserve this set. The public export is
+`native-process-launch-vm-results-001-success.tar`, 3891200 bytes, 157 members,
+SHA-256 `dca33128e9b01e9edacca87cf509442f3c6de620f3ff99f314b1e543e290a0dc`.
+Its full member index is checked by the inert
+[`verify_native_process_launch_trace_20261028.py`](../ci/gauntlet-rs/proofs/verify_native_process_launch_trace_20261028.py)
+courier. Its five-case proof is
+`native-process-launch-trace-readback-proof-001.json`, SHA-256
+`203214ce04a9ec572bf475d2d8807edcce168418fcea3d7085e3202b8d9d54d0`.
+The 32-case legacy proof is `native-process-launch-legacy-proof-001.json`,
+SHA-256 `ad00068a4a7e8cc500b2e7671ce528250bb153831070bf3b1d545642da3d681c`.
+
+The 579-test, Mac Clippy and ARM Clippy log SHA-256 values are respectively
+`5f8ae11720248158721fb029b2f61ea8c1a176dd87b958784fffcb4b1ce0d985`,
+`b2c7712601065e5d5b0d85ae12a72507e300dc4d15497096135df2171448fc9a`
+and `9be2ef24b0da8c8168cc81f9ac665e9038df1e6d72570b9496e8431b576c3dba`.
+Successful Rustfmt has the empty-log SHA-256 recorded above. The earlier
+fixture/readback proof remains tied to its recorded sources. Complete Native
+image/effect grading, outside admission, a successful source-matched Native
+control and all parent exits stay open. No resource ceiling, output safety
+criterion or inference quota changes.
