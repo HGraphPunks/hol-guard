@@ -3,6 +3,7 @@ use crate::native_trace::NativeProcessEvents;
 use crate::Result;
 use serde_json::Value;
 use std::io::{BufRead, BufReader, Write};
+use std::os::fd::OwnedFd;
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
@@ -12,6 +13,7 @@ use std::time::{Duration, Instant};
 struct Fixture {
     child: Child,
     reader: BufReader<std::process::ChildStdout>,
+    pidfd: OwnedFd,
 }
 impl Fixture {
     fn start(mode: &str) -> Self {
@@ -56,11 +58,20 @@ impl Fixture {
             });
         }
         let mut child = command.spawn().unwrap();
+        let pidfd = rustix::process::pidfd_open(
+            rustix::process::Pid::from_raw(child.id() as i32).unwrap(),
+            rustix::process::PidfdFlags::empty(),
+        )
+        .unwrap();
         let mut reader = BufReader::new(child.stdout.take().unwrap());
         let mut line = String::new();
         reader.read_line(&mut line).unwrap();
         assert_eq!(line, "trace-fixture-ready\n");
-        Self { child, reader }
+        Self {
+            child,
+            reader,
+            pidfd,
+        }
     }
     fn cgroup(&self) -> String {
         let raw = std::fs::read_to_string(format!("/proc/{}/cgroup", self.child.id())).unwrap();
@@ -69,12 +80,29 @@ impl Fixture {
     fn release(&mut self) {
         self.child.stdin.as_mut().unwrap().write_all(b"G").unwrap();
     }
-    fn success(&mut self) {
+    fn success(&mut self, rows: &[Value]) {
+        assert!(
+            rows.iter().any(|r| r["kind"] == "task-final-wait"
+                && r["data"]["tid"] == self.child.id()
+                && r["data"]["death_observed"] == true
+                && r["data"]["status"] == serde_json::json!({"kind":"exit","code":0})),
+            "the actual anchor's final wait must prove exit zero"
+        );
         let deadline = Instant::now() + Duration::from_secs(8);
         loop {
-            if let Some(status) = self.child.try_wait().unwrap() {
-                assert!(status.success(), "{status}");
-                return;
+            match self.child.try_wait() {
+                Ok(Some(status)) => {
+                    assert!(status.success(), "{status}");
+                    return;
+                }
+                Ok(None) => {}
+                Err(error) if error.raw_os_error() == Some(libc::ECHILD) => {
+                    // Tracer and real parent are threads of this same test
+                    // process. Linux reports the final status only once.
+                    assert!(!crate::kernel_process::alive(&self.pidfd).unwrap());
+                    return;
+                }
+                Err(error) => panic!("fixture wait failed: {error}"),
             }
             assert!(Instant::now() < deadline, "owned fixture exit deadline");
             std::thread::sleep(Duration::from_millis(1));
@@ -83,7 +111,9 @@ impl Fixture {
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
-        let _ = self.child.kill();
+        if crate::kernel_process::alive(&self.pidfd).unwrap_or(false) {
+            let _ = rustix::process::pidfd_send_signal(&self.pidfd, rustix::process::Signal::KILL);
+        }
         let _ = self.child.wait();
     }
 }
@@ -115,7 +145,8 @@ fn run(mode: &str) -> (Value, Vec<Value>) {
         NativeProcessEvents::start_fixture(fixture.child.id(), fixture.cgroup(), &stage).unwrap();
     fixture.release();
     let report = recorder.finish(Duration::from_secs(8)).unwrap();
-    fixture.success();
+    let rows = records(&stage);
+    fixture.success(&rows);
     assert_eq!(report["complete"], true);
     assert_eq!(report["execution_eligible"], false);
     let mut file = std::fs::OpenOptions::new()
@@ -130,7 +161,7 @@ fn run(mode: &str) -> (Value, Vec<Value>) {
         report["created_tasks"].as_u64().unwrap(),
         report["final_waits"].as_u64().unwrap() + report["exec_retirements"].as_u64().unwrap()
     );
-    (report, records(&stage))
+    (report, rows)
 }
 
 #[test]

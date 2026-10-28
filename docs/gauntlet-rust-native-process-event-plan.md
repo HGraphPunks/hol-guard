@@ -57,3 +57,15 @@ progress with no new coverage credit. Internal Native request bytes,
 effect-writer attribution, observer/key admission and the intermittent 128-task
 failure remain separate open requirements. No resource ceiling or product
 syscall restriction is relaxed by this work.
+
+The first owned ARM VM attempt at `51b59ff2` retains all 298 worker records
+under both leases. Four parser/identity tests and the lost-recorder and foreign
+cgroup cases pass. The other four fixture cases fail on a duplicate parent
+wait: Linux supplies the final status only once when tracer and parent share
+the same process. Their journals remain retained, including the distinct
+non-leader exec replacement. The fixture correction requires the actual
+anchor's recorded final exit-zero status and dead held pidfd before accepting
+`ECHILD`; cleanup signals use that pidfd. No recorder event criteria change.
+The native rerun is pending. The failed public export is
+`native-trace-vm-results-001.tar`, 163840 bytes, SHA-256
+`c0e683cb0624d0a0658a6776a6a573214b337aa975064f4d62a63b2a8cd46cb9`.
