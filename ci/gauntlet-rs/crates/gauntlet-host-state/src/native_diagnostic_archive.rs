@@ -22,13 +22,14 @@ enum ArtifactSubset {
     Mcp,
     Process,
     Hooks,
+    Controls,
 }
 impl ArtifactSubset {
     fn role(self) -> Option<&'static str> {
         match self {
             Self::InputBinding => Some("input-binding"),
             Self::Boundary => Some("boundary"),
-            Self::Mcp | Self::Process | Self::Hooks => None,
+            Self::Mcp | Self::Process | Self::Hooks | Self::Controls => None,
         }
     }
     fn schema(self) -> &'static str {
@@ -38,6 +39,7 @@ impl ArtifactSubset {
             Self::Mcp => "hol-gauntlet-host-native-mcp-artifact-readback.v1",
             Self::Process => "hol-gauntlet-host-native-process-artifact-readback.v1",
             Self::Hooks => "hol-gauntlet-host-native-hook-artifact-readback.v1",
+            Self::Controls => "hol-gauntlet-host-native-control-artifact-readback.v1",
         }
     }
 }
@@ -222,6 +224,22 @@ impl HostNativeControlReadback {
             Some((interpreter_sha256, observer_sha256)),
         )
     }
+    /// Compose the six fixed roles, actual streams, Native launches and held
+    /// lifecycle/effect relations. Observer admission remains separate.
+    pub fn verify_control_artifacts(
+        &self,
+        path: &Path,
+        expected_sha256: &str,
+        interpreter_sha256: &str,
+        observer_sha256: &str,
+    ) -> Result<Value> {
+        self.verify_artifact_subset(
+            path,
+            expected_sha256,
+            ArtifactSubset::Controls,
+            Some((interpreter_sha256, observer_sha256)),
+        )
+    }
     fn verify_artifact_subset(
         &self,
         path: &Path,
@@ -264,7 +282,10 @@ impl HostNativeControlReadback {
         )?;
         if matches!(
             subset,
-            ArtifactSubset::Mcp | ArtifactSubset::Process | ArtifactSubset::Hooks
+            ArtifactSubset::Mcp
+                | ArtifactSubset::Process
+                | ArtifactSubset::Hooks
+                | ArtifactSubset::Controls
         ) {
             require(
                 declaration["guard"] == self.diagnostic()["guard_pins"]
@@ -301,6 +322,17 @@ impl HostNativeControlReadback {
                 let (interpreter, observer) =
                     process_pins.ok_or("explicit hook process readback pins missing")?;
                 gauntlet_evidence::verify_native_hook_diagnostic(
+                    self.diagnostic(),
+                    &preparation,
+                    &files,
+                    interpreter,
+                    observer,
+                )
+            }
+            ArtifactSubset::Controls => {
+                let (interpreter, observer) =
+                    process_pins.ok_or("explicit control process readback pins missing")?;
+                gauntlet_evidence::verify_native_control_diagnostic(
                     self.diagnostic(),
                     &preparation,
                     &files,

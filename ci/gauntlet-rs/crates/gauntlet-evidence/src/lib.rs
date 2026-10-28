@@ -39,17 +39,23 @@ mod native_actor_elf;
 mod native_binding_diagnostic;
 mod native_boundary_diagnostic;
 mod native_capture_input;
+mod native_capture_stream;
+mod native_control_diagnostic;
 mod native_control_envelope;
 mod native_diagnostic_artifacts;
 mod native_forbidden_diagnostic;
 mod native_hook_diagnostic;
 mod native_hook_response;
+mod native_lifecycle_diagnostic;
+mod native_lifecycle_fixture;
 mod native_mcp_diagnostic;
 mod native_mcp_inputs;
 mod native_process_diagnostic;
 mod native_process_kernel;
 mod native_process_public;
+mod native_product_kernel;
 mod native_review_summary;
+mod native_runtime_kernel;
 mod native_transport_relations;
 mod native_world_database;
 mod native_world_diagnostic;
@@ -148,6 +154,7 @@ pub use native_actor_elf::verify_native_actor_elf;
 pub use native_binding_diagnostic::verify_native_binding_diagnostic;
 pub use native_boundary_diagnostic::verify_native_boundary_diagnostic;
 pub use native_capture_input::verify_native_capture_input;
+pub use native_control_diagnostic::verify_native_control_diagnostic;
 pub use native_control_envelope::{
     native_control_signing_record, verify_native_control_envelope,
     AuthenticatedNativeControlReport, NativeControlReportPins, NATIVE_CONTROL_ENVELOPE_LIMIT,

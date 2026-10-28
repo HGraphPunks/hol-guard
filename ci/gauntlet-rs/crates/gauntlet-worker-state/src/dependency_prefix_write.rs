@@ -224,6 +224,14 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let base = temp.path().canonicalize().unwrap();
         std::fs::set_permissions(&base, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let test_root = rustix::fs::open(
+            &base,
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .unwrap();
+        // macOS temporary directories can inherit a different parent GID.
+        rustix::fs::fchown(&test_root, None, Some(getegid())).unwrap();
         let source = base.join("site");
         std::fs::create_dir(&source).unwrap();
         std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o700)).unwrap();

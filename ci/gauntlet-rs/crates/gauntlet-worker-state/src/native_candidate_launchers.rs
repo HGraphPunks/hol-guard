@@ -165,6 +165,14 @@ mod tests {
     #[test]
     fn writer_preserves_all_alias_bytes_on_replay_and_refuses_foreign_metadata() {
         let tmp = tempfile::tempdir().unwrap();
+        let test_root = rustix::fs::open(
+            tmp.path(),
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .unwrap();
+        // Match the synthetic root's declared caller group before children inherit it.
+        rustix::fs::fchown(&test_root, None, Some(getegid())).unwrap();
         let stage = tmp.path().join("stage");
         let prefix = tmp.path().join("prefix");
         let info = stage.join("hol_guard-3.57.0.dist-info");

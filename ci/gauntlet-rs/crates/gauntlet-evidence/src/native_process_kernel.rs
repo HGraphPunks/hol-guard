@@ -5,7 +5,7 @@ use crate::native_diagnostic_artifacts::{require, text};
 use crate::{EvidenceError, Result};
 use serde_json::{json, Value};
 
-const NAMESPACES: [&str; 7] = ["cgroup", "ipc", "mnt", "net", "pid", "user", "uts"];
+pub(crate) const NAMESPACES: [&str; 7] = ["cgroup", "ipc", "mnt", "net", "pid", "user", "uts"];
 pub(crate) fn hex(value: &str, length: usize) -> bool {
     value.len() == length
         && value
@@ -24,13 +24,18 @@ pub(crate) fn list(value: &Value, maximum: usize) -> Result<&Vec<Value>> {
         .filter(|v| v.len() <= maximum)
         .ok_or(EvidenceError::Invalid("bounded kernel list required"))
 }
-fn decimal(value: &str) -> Result<u64> {
+pub(crate) fn decimal(value: &str) -> Result<u64> {
     require(!value.is_empty() && value.len() <= 20 && value.bytes().all(|b| b.is_ascii_digit()))?;
     value
         .parse::<u64>()
         .map_err(|_| EvidenceError::Invalid("kernel integer overflow"))
 }
-fn status(value: &Value, pid: u64, uid: &str, namespace_pids: Option<&Value>) -> Result<()> {
+pub(crate) fn status(
+    value: &Value,
+    pid: u64,
+    uid: &str,
+    namespace_pids: Option<&Value>,
+) -> Result<()> {
     for name in ["Uid", "Gid"] {
         require(
             text(value, name)?

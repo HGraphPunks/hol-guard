@@ -234,6 +234,15 @@ mod tests {
     use super::*;
     use rustix::fs::open;
     use std::os::unix::fs::{symlink, PermissionsExt};
+    fn owned_home() -> tempfile::TempDir {
+        let home = tempfile::tempdir().unwrap();
+        std::fs::set_permissions(home.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let directory = open(home.path(), DIRECTORY, Mode::empty()).unwrap();
+        // macOS inherits the parent's group even when its caller has another
+        // primary GID. Give the synthetic home its declared test ownership.
+        fchown(&directory, None, Some(rustix::process::getgid())).unwrap();
+        home
+    }
     fn request(root: &std::path::Path, nonce: &str, raw: &[u8]) -> Result<NativeRequest> {
         let home = open(root, DIRECTORY, Mode::empty()).unwrap();
         NativeRequest::create(
@@ -249,8 +258,7 @@ mod tests {
     }
     #[test]
     fn data_readback_replay_refusal_and_both_retirement_paths_are_descriptor_bound() {
-        let home = tempfile::tempdir().unwrap();
-        std::fs::set_permissions(home.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let home = owned_home();
         let nonce = "a".repeat(32);
         let mut value = request(home.path(), &nonce, b"inert snapshot").unwrap();
         assert_eq!(value.sha256(), hash(b"inert snapshot"));
@@ -284,8 +292,7 @@ mod tests {
     #[test]
     fn replacements_renames_links_and_changed_bytes_retain_uncertainty() {
         for kind in ["rename", "symlink", "hardlink", "bytes"] {
-            let home = tempfile::tempdir().unwrap();
-            std::fs::set_permissions(home.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+            let home = owned_home();
             let mut value = request(home.path(), &"d".repeat(32), b"original").unwrap();
             let directory_name = value.name.clone();
             let dir = home.path().join(&value.name);
