@@ -788,6 +788,21 @@ approval ceremony for routine work already authorized by this request.
   worker files survive both jobs, with 298 records retained afterward. See
   [prelaunch pins](gauntlet-rust-native-prelaunch-interpreter-pins.md).
   No parent exit closes and no model request runs.
+- 2026-10-27: merge 35 upstream commits through `785b6aaf` without conflicts,
+  review all seven Gauntlet file changes and refresh the exact 432-file source
+  map to 70 changed and 12 added entries. The actual Python selector and Rust
+  agree on 401 files, 412 entries and new controller digest `5a135a5a…`.
+  At `c6c35510`, all 561 migration tests, Mac/ARM warnings-denied Clippy,
+  matching Native compilation, three output, seven Mac image-hardening and
+  all five program/directory stages pass. A broader regression exposes the
+  watch-mode runtime finding's hidden reason identifier; Rust fix `564a7a47`
+  preserves the intrinsic containment action floor and passes 13 runtime
+  finding tests, runtime Clippy and 638 Native/Gauntlet cases. One explicit
+  Linux-Bun bridge skip retains its historical VM proof; four real Mac Bun
+  observer cases pass. Initial inventory/test failures and generated public
+  output bytes remain retained. See
+  [upstream synchronization](gauntlet-rust-upstream-sync-785b6aaf.md).
+  No parent exit closes; user-owned CI and fresh full-source conformance stay open.
 - Next: resolve intermittent product task pressure without relaxing the
   resource/fixture contract, finish independent deterministic role scoring,
   Native descendant/effect custody and outside key admission,
