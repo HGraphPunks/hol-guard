@@ -1,4 +1,5 @@
 //! One dedicated tracer thread owns every wait and the private event journal.
+use crate::native_trace_image::Images;
 use crate::native_trace_sys as sys;
 use crate::native_trace_task::Task;
 use crate::native_trace_wait::{Event, Wait};
@@ -35,6 +36,7 @@ pub(super) struct Engine {
     execs: u64,
     abort: Arc<AtomicBool>,
     expected_actor: Option<Value>,
+    images: Images,
 }
 
 impl Engine {
@@ -58,6 +60,7 @@ impl Engine {
             execs: 0,
             abort,
             expected_actor,
+            images: Images::default(),
         }
     }
 
@@ -95,7 +98,9 @@ impl Engine {
                 _ => return Err("expected the held actor's initial seize stop".into()),
             }
         }
-        let image = self.active[&tid].task.exec_image(&self.cgroup)?;
+        let image = self.active[&tid]
+            .task
+            .exec_image(&self.cgroup, &mut self.images)?;
         if image["task"]["status"]["Threads"] != "1" {
             return Err("single-threaded actor required at the initial trace stop".into());
         }
@@ -331,7 +336,7 @@ impl Engine {
         if task.tgid != tid {
             return Err("exec did not leave a single group leader".into());
         }
-        let image = task.exec_image(&self.cgroup)?;
+        let image = task.exec_image(&self.cgroup, &mut self.images)?;
         let group = self
             .active
             .iter()

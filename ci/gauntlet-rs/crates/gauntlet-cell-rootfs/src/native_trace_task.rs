@@ -5,12 +5,8 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use rustix::fs::{fstat, openat, Mode, OFlags};
 use rustix::process::{pidfd_open, Pid, PidfdFlags};
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
-use std::fs::File;
-use std::io::Read;
 use std::os::fd::OwnedFd;
-use std::time::{Duration, Instant};
 
 pub(super) struct Task {
     pub(super) tid: u32,
@@ -155,7 +151,11 @@ impl Task {
         self.recheck(cgroup)
     }
 
-    pub(super) fn exec_image(&self, cgroup: &str) -> Result<Value> {
+    pub(super) fn exec_image(
+        &self,
+        cgroup: &str,
+        images: &mut crate::native_trace_image::Images,
+    ) -> Result<Value> {
         self.recheck(cgroup)?;
         // Follow only the kernel's executable link of this ptrace-stopped task.
         let fd = openat(
@@ -165,36 +165,8 @@ impl Task {
             Mode::empty(),
         )
         .map_err(|e| e.to_string())?;
-        let before = fstat(&fd).map_err(|e| e.to_string())?;
-        if rustix::fs::FileType::from_raw_mode(before.st_mode) != rustix::fs::FileType::RegularFile
-            || before.st_size <= 0
-            || before.st_size as u64 > 128 * 1024 * 1024
-        {
-            return Err("bounded regular traced executable required".into());
-        }
-        let mut stream = File::from(fd);
-        let mut digest = Sha256::new();
-        let mut total = 0u64;
-        let mut buffer = [0u8; 65536];
-        let deadline = Instant::now() + Duration::from_secs(5);
-        loop {
-            if Instant::now() >= deadline {
-                return Err("traced executable read deadline".into());
-            }
-            let count = stream.read(&mut buffer).map_err(|e| e.to_string())?;
-            if count == 0 {
-                break;
-            }
-            total += count as u64;
-            if total > 128 * 1024 * 1024 {
-                return Err("traced executable exceeds bound".into());
-            }
-            digest.update(&buffer[..count]);
-        }
-        let after = fstat(&stream).map_err(|e| e.to_string())?;
-        if !crate::fs_input::same(&before, &after) || total != before.st_size as u64 {
-            return Err("traced executable changed while hashing".into());
-        }
+        let image = images.measure(fd)?;
+        let before = &image.metadata;
         let argv = read_at(&self.proc, "cmdline", 65536)?;
         if argv.is_empty() || !argv.ends_with(b"\0") {
             return Err("traced exec argv unavailable".into());
@@ -217,7 +189,7 @@ impl Task {
         self.recheck(cgroup)?;
         Ok(
             json!({"task":self.anchor(cgroup)?,"argv_base64":STANDARD.encode(&argv),"argv_sha256":hash(&argv),
-            "executable":{"device":before.st_dev,"inode":before.st_ino,"uid":before.st_uid,"gid":before.st_gid,"mode":before.st_mode&0o7777,"links":before.st_nlink,"bytes":total,"sha256":format!("{:x}",digest.finalize())},
+            "executable":{"device":before.st_dev,"inode":before.st_ino,"uid":before.st_uid,"gid":before.st_gid,"mode":before.st_mode&0o7777,"links":before.st_nlink,"bytes":image.bytes,"sha256":image.sha256},
             "lsm_label":std::str::from_utf8(&label).map_err(|_|"traced label UTF-8")?.trim(),"namespaces":namespaces}),
         )
     }

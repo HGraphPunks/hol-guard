@@ -206,3 +206,16 @@ fixture/readback proof remains tied to its recorded sources. Complete Native
 image/effect grading, outside admission, a successful source-matched Native
 control and all parent exits stay open. No resource ceiling, output safety
 criterion or inference quota changes.
+
+The first live history measured 3283186512 executable bytes across 152 execs.
+To reduce repeated measurement work, the recorder now retains at most 64
+read-only, close-on-exec file descriptors for bounded regular images owned by
+Root, with one link and no group/world write permission. Reuse requires the
+new kernel executable descriptor and retained descriptor to match the entire
+device/inode/owner/mode/link/size/mtime/ctime generation used for the original
+hash. Changed, writable and unprivileged images are hashed again; a full cache
+also hashes new images. Image output, event protocol, hash/read bounds and
+grading criteria stay the same. All 52 Mac rootfs tests and Mac/ARM rootfs
+warnings-denied Clippy pass. The explicit Root mutation/replacement/descriptor
+bound tests and a new Native control are pending; no live performance or
+failure-resolution claim is made yet.
