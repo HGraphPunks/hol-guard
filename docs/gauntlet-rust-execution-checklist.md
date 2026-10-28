@@ -5,6 +5,16 @@ The active execution contract is the
 Historical proof and parent-exit counts remain unchanged until new validation
 actually closes an exit.
 
+Current merged source `dc3b9336` includes the CPU-aware Native worker budget
+and upstream `73b48265`. Its fresh runtime publication, all 36 inert operation
+cases, two passed Node/npm controls at the unchanged 128-task limit, complete
+Root traces and Rust artifact readback are recorded in the
+[2026-10-28 runtime proof](gauntlet-rust-native-pressure-runtime-proof-20261028.md).
+Both controls peak at 108 with no PID-limit rejection. The first polling-sampler
+assertion remains unresolved; the second records 70 samples without errors.
+Full deterministic grading and conformance remain open, with 326 worker
+records retained. These bounded results close no parent exit.
+
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
 ```

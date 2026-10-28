@@ -5,23 +5,23 @@ Status: active implementation; the Rust replacement is not qualified.
 
 Current R3 work: [outside Rust process-event recording](gauntlet-rust-native-process-event-plan.md)
 is integrated in closed launch v3, with signed checkpoint and gate joins.
-At `8adf90cc`, all 585 Mac workspace tests, Mac/ARM warnings-denied Clippy,
-41 focused Root ARM cases and 32 byte-identical legacy controls pass. The
-corrected recorder hashes every exec; a failed metadata-cache attempt remains
-retained. Fresh zero-model control `e2c701baf1475404` retains a complete
-460-task/460-final-wait history, independently replayed by Rust. The new v2
-sampler records 88 observations without errors and the SDK receives exact
-Native-reviewed output, but `npm --version` aborts when the product reaches
-its 128-task ceiling; the kernel confirms a fork rejection. This failure and
-the earlier render/sampler failures remain retained. All 305 prior worker
-records survive, and the current baseline contains 312 records.
-Complete Native grading remains open. The 24/62 parent-exit count is unchanged.
+The [Native worker budget](gauntlet-rust-native-task-pressure.md) is implemented
+and preserved through merged upstream `73b48265` at source `dc3b9336`.
+All 585 Mac workspace tests, Mac/ARM warnings-denied Clippy, 30 focused Native
+tests, 637 Python regressions with one explicit Linux-Bun skip, 41 focused
+Root ARM cases and 32 byte-identical legacy controls pass.
 
-The next R3 correction is [Native worker sizing](gauntlet-rust-native-task-pressure.md):
-keep the resource ceiling, both active launches, reserved metadata and
-interactive capacity while reducing fixed pools on known small CPU allocations.
-Focused concurrency tests and a new source-matched product build/control are
-required before claiming the task-pressure issue is resolved.
+The [fresh runtime and source-matched controls](gauntlet-rust-native-pressure-runtime-proof-20261028.md)
+pass the original Node/npm fixture at the unchanged 128-task limit. Both new
+controls peak at 108 tasks with no PID-limit rejections. The first retains a
+polling-sampler assertion; the second has 70 samples without errors and all
+392 tasks close with actual final waits. Rust authenticates the host record
+and recomputes process/MCP/hook/control artifacts, exact SDK input/output,
+physical fixture relations and all nine gated launches. Internal Native wire
+bytes, effect-writer attribution, full descendant grading and outside admission
+remain open. The first sampler failure and every historical failed attempt
+remain retained. The current worker baseline contains 326 records.
+Complete Native grading remains open. The 24/62 parent-exit count is unchanged.
 
 ## Goal and completion contract
 
@@ -823,8 +823,23 @@ approval ceremony for routine work already authorized by this request.
   output bytes remain retained. See
   [upstream synchronization](gauntlet-rust-upstream-sync-785b6aaf.md).
   No parent exit closes; user-owned CI and fresh full-source conformance stay open.
-- Next: resolve intermittent product task pressure without relaxing the
-  resource/fixture contract, finish independent deterministic role scoring,
+- 2026-10-28: preserve the CPU-aware Native worker budget through 15 upstream
+  commits ending at `73b48265`, merge head `dc3b9336`. The source map and
+  immutable Python baseline remain byte-identical. All 585 Mac migration tests,
+  Mac/ARM and Native warnings-denied Clippy, 30 focused Native tests, matching
+  Native compiler/runtime builds, 637 Python regressions with one explicit
+  Linux-Bun skip, 41 Root ARM cases and 32 unchanged legacy readbacks pass.
+  Fresh build `5501` passes 187 contained contracts; dependency run `5503`,
+  complete wheel/dependency/tree reconstruction and all 36 inert staging/
+  composition/publication cases pass. Two fresh source-matched benign controls
+  pass Node/npm with peak 108 and no PID-limit rejection. The first outside
+  sampler assertion is retained; the second has 70 error-free samples and a
+  complete 392-task trace. Nine Rust artifact/restart/refusal checks pass.
+  All 312 prior records survive, with 326 records now retained. See
+  [merged-source runtime proof](gauntlet-rust-native-pressure-runtime-proof-20261028.md).
+  These are diagnostic controls; no conformance or parent exit is claimed.
+- Next: retain and diagnose the intermittent polling-sampler failure while
+  finishing independent deterministic role scoring,
   Native descendant/effect custody and outside key admission,
   then twelve fresh source-matched staging/installed roles and conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)

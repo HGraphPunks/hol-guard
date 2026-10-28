@@ -32,7 +32,7 @@ prior worker records survive; the current 312-record baseline has SHA-256
 See [the process-event proof](gauntlet-rust-native-process-event-plan.md) for
 the exact sources, pins, failed attempts and all qualification limits.
 
-## Worker sizing change in progress
+## Worker sizing implementation
 
 Rust now derives the resident worker counts from known available CPU capacity.
 The evaluation floor consists of one reserved metadata worker, the unchanged
@@ -65,8 +65,28 @@ and `a7c8a57bacb92ed24fe268d6915f47e1162a42c4a60e0b49c37a536418c00c38`.
 The successful format log is empty. The working-source file pins are retained
 in `native-worker-budget-working-source-002.json` beside those logs.
 
-A new exact-source product build/publication and a fresh traced
-control are required before claiming task-pressure resolution. The retained
-`9f42d9dd` prefix stays immutable and cannot stand in for that new build.
-Outside admission, complete Native grading and all final-source controls
-remain open. Parent exits stay at 24/62. No model request or quota reset occurs.
+The implementation is committed as `dad35522` and preserved through upstream
+merge `dc3b9336`. The [fresh runtime proof](gauntlet-rust-native-pressure-runtime-proof-20261028.md)
+records its exact-source ARM build, locked dependencies, immutable publication
+and two traced controls against that actual Native ELF. Both controls pass
+the real Node/npm fixture, peak at 108 tasks and record `pids.events: max 0`,
+with the original single-CPU/1-GiB/128-task limits. This is evidence that the
+new budget improves the reproduced pressure case; it does not establish that
+every historical abort had that cause or that wider workload pressure is solved.
+
+The first control's polling sampler records an assertion after 57 observations;
+its failed observation stays retained. The second retains every assertion,
+adds bounded error tracebacks and completes 70 observations without errors.
+The failure did not recur and its precise cause remains unknown. Pressure
+sampling separately completes 200 and 213 snapshots without errors. Root
+tracing closes 393/393 and 392/392 actual tasks/final waits respectively.
+The second control's complete Rust artifact reader passes, including all nine
+launches, four observed Native clients, three acknowledged hook inputs, three
+raw SDK frames and eight reconstructed output captures.
+
+The old `9f42d9dd` prefix, npm failures, first sampler failure and all prior
+records remain immutable. The new 326-record worker baseline hashes to
+`16b21c170df5494738bc40b188694f186c87a2f9caca75d1f50d05459d4aa9be`.
+The pressure checklist stays open for broader complete-role conformance.
+Outside admission, complete Native grading and all final-source roles remain
+open. Parent exits stay at 24/62. No model request or quota reset occurs.

@@ -293,13 +293,48 @@ proof `native-kernel-v2-trace-readback-proof-001.json` has SHA-256
 This is still an authenticated failure, with an `invalid-evidence` terminal;
 neither complete Native grading nor outside admission is claimed.
 
-The current 312-record baseline is
+The 312-record baseline at this stage is
 `/var/lib/hol-gauntlet-rust/native-kernel-v2-proof-20261028-001-success/final-worker-hashes.json`,
 SHA-256 `5530c850da1b4dd4d43052c3189e568dd26a14dc4ddff8db148e3f2d2a7b5383`.
-Future mutating couriers must preserve this set. The full Mac test, Mac Clippy
+Later mutating couriers must preserve these records. The full Mac test, Mac Clippy
 and ARM Clippy log SHA-256 values are
 `49b46619c7dd636ca23ea4172f67ccc973bef7350814c428009bbc5a9e60b3b3`,
 `dd9a139f74f661dbfa80cf4ed87873aaefed7061d05ab924635ed777f6263229`
 and `b651659ed3550dcb9e6fa92f305c03c9384f8b23a3482cde324e74e9ca55d6e5`.
 All parent exits, final-source controls, task-pressure resolution and admission
 remain open. No model request, quota reset or production-gate change occurs.
+
+## Merged product and traced controls, 2026-10-28
+
+The [merged-source runtime proof](gauntlet-rust-native-pressure-runtime-proof-20261028.md)
+records the CPU-aware Native worker budget, exact product/tool source
+`dc3b9336`, upstream `73b48265`, fresh 187-test build, locked dependencies,
+all 36 inert publication cases and independent complete-prefix reconstruction.
+The old product prefix and every failed control remain immutable.
+
+Fresh benign controls `e2c701baf1475601` and `e2c701baf1475602` both pass
+the unchanged real Node/npm fixture. Their product task peaks are 108 with
+no PID-limit rejections under the original single-CPU/1-GiB/128-task limits.
+Root traces close 393/393 and 392/392 created tasks/actual final waits.
+The first polling sampler records an assertion after 57 observations; the
+failure remains unresolved and receives no complete-observation credit.
+The second adds bounded error tracebacks while retaining all assertions,
+and completes 70 observations without errors. It does not reproduce the
+first failure or establish its cause.
+
+Rust accepts actual/restart trace replay and refuses three corruptions for
+each control. The second also passes all nine signature/MCP/process/hook/
+control/restart/refusal cases. It joins all nine gates, four actual Native
+clients, three acknowledged hook inputs, three raw SDK frames and eight
+complete output captures. Both negative probes are independently observed.
+The second full artifact output and repeat match byte-for-byte. Internal
+Native request bytes, effect-writer attribution, complete descendant grading,
+outside observer/key admission and all twelve final-source roles remain open.
+
+The latest 326-record baseline is
+`/var/lib/hol-gauntlet-rust/native-pressure-control-proof-20261028-002-success/final-worker-hashes.json`,
+SHA-256 `16b21c170df5494738bc40b188694f186c87a2f9caca75d1f50d05459d4aa9be`.
+Future mutating couriers must require this exact set until a new owned job
+adds records, while preserving every historical record. Cleanup readback
+finds no remaining UID-10004 process or thread. Complete Native qualification
+and all parent exits remain open; no inference or production change occurs.
