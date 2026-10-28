@@ -5,15 +5,16 @@ Status: active implementation; the Rust replacement is not qualified.
 
 Current R3 work: [outside Rust process-event recording](gauntlet-rust-native-process-event-plan.md)
 is integrated in closed launch v3, with signed checkpoint and gate joins.
-At `e98f4887`, all 583 Mac workspace tests, Mac/ARM warnings-denied Clippy and
-36 focused Root ARM cases pass. The corrected recorder hashes every exec;
-a failed metadata-cache attempt remains retained. At prior `cc3ce245`, all
-32 legacy controls reproduce their outputs byte for byte. Fresh
-zero-model control `e2c701baf1475403` retains a complete 559-task/559-final-wait
-history, independently replayed by Rust, but fails when Native output rendering
-is unavailable; the SDK withholds output. The outside sampler separately
-exhausts its observation bound. Both failures remain open, all 298 prior
-worker records survive, and the current baseline contains 305 records.
+At `8adf90cc`, all 585 Mac workspace tests, Mac/ARM warnings-denied Clippy,
+41 focused Root ARM cases and 32 byte-identical legacy controls pass. The
+corrected recorder hashes every exec; a failed metadata-cache attempt remains
+retained. Fresh zero-model control `e2c701baf1475404` retains a complete
+460-task/460-final-wait history, independently replayed by Rust. The new v2
+sampler records 88 observations without errors and the SDK receives exact
+Native-reviewed output, but `npm --version` aborts when the product reaches
+its 128-task ceiling; the kernel confirms a fork rejection. This failure and
+the earlier render/sampler failures remain retained. All 305 prior worker
+records survive, and the current baseline contains 312 records.
 Complete Native grading remains open. The 24/62 parent-exit count is unchanged.
 
 ## Goal and completion contract

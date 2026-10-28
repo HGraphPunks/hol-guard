@@ -258,3 +258,48 @@ covered by focused Rust tests. Native rerun and full-slice validation are pendin
 All 111 Mac evidence tests and Mac/ARM evidence warnings-denied Clippy pass.
 The first compile attempt exposed two remaining legacy callers of the private
 parser; both now use the launch-aware entry point, preserving v1 behavior.
+
+At v2 source `8adf90cc`, all 585 Mac workspace tests, Mac/ARM all-target/all-feature
+warnings-denied Clippy and Rustfmt pass. All 41 focused Root ARM cases pass,
+including the five sampler-version/capacity cases. The current Mac verifier
+reproduces all 32 historical outputs byte for byte; that proof is
+`native-kernel-v2-legacy-proof-001.json`, SHA-256
+`a93013f83bb247be1f1cf7d3961083059139c40363a1191ab58da8c9f3c095d6`.
+
+Fresh zero-model control `e2c701baf1475404` uses this worker, full executable
+hashing, the new outside observer pin and the explicitly older `9f42d9dd`
+product image. The sampler retains 88 observations with no errors, and the
+SDK receives the exact Native-reviewed original output. The control still
+fails: its contained unittest observes `npm --version` aborting with SIGABRT.
+Outside pressure records a peak of 128 tasks and one pids-limit event; a
+separate bounded kernel read confirms a fork rejection in this exact product
+cgroup. The Python daemon reaches 61 threads and a Native resident uses 29.
+This supplies evidence for reviewing fixed worker-pool sizing; neither the
+resource ceiling nor the benign fixture is weakened. After cleanup, no UID
+10004 process remains anywhere in the owned VM. Both leases and all 305
+previous worker records remain intact.
+
+The Rust recorder closes 2333 events, 1022376 bytes, 460 tasks, 460 actual
+final waits and 138 execs. Frozen reader `a0439880` accepts this actual history
+and unchanged restart and refuses three changed inputs. The public export is
+`native-kernel-v2-vm-results-001-success.tar`, 3297280 bytes, 158 members,
+SHA-256 `222e982e883e3d0dbbf94db486699a9b73dc4ccaec9ea024b7d5fff9a23406fd`.
+The inert
+[`verify_native_kernel_v2_trace_20261028.py`](../ci/gauntlet-rs/proofs/verify_native_kernel_v2_trace_20261028.py)
+courier checks every archive member, Root checkpoint metadata, declared sampler
+limits, retained failed status and exact reviewed output digest. Its five-case
+proof `native-kernel-v2-trace-readback-proof-001.json` has SHA-256
+`ce8b586890e6f160176bf540acf45ef17fdca5017dbba7f2aae46d9422b1faa9`.
+This is still an authenticated failure, with an `invalid-evidence` terminal;
+neither complete Native grading nor outside admission is claimed.
+
+The current 312-record baseline is
+`/var/lib/hol-gauntlet-rust/native-kernel-v2-proof-20261028-001-success/final-worker-hashes.json`,
+SHA-256 `5530c850da1b4dd4d43052c3189e568dd26a14dc4ddff8db148e3f2d2a7b5383`.
+Future mutating couriers must preserve this set. The full Mac test, Mac Clippy
+and ARM Clippy log SHA-256 values are
+`49b46619c7dd636ca23ea4172f67ccc973bef7350814c428009bbc5a9e60b3b3`,
+`dd9a139f74f661dbfa80cf4ed87873aaefed7061d05ab924635ed777f6263229`
+and `b651659ed3550dcb9e6fa92f305c03c9384f8b23a3482cde324e74e9ca55d6e5`.
+All parent exits, final-source controls, task-pressure resolution and admission
+remain open. No model request, quota reset or production-gate change occurs.
