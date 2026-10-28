@@ -6,8 +6,10 @@ Status: active implementation; the Rust replacement is not qualified.
 Current R3 work: [outside Rust process-event recording](gauntlet-rust-native-process-event-plan.md)
 is implemented behind an explicit API. Ten focused native ARM cases pass,
 including the six actual graph/isolation fixtures, with all 298 retained
-worker records unchanged. Launch wiring and exported-journal Rust readback
-remain pending. The 24/62 parent-exit count is unchanged.
+worker records unchanged. Six reader units and 30 actual/restart/refusal cases
+pass on Mac and ARM; all 571 workspace tests and Mac/ARM warnings-denied
+Clippy pass. Normal Native launch wiring and grading remain pending. The
+24/62 parent-exit count is unchanged.
 
 ## Goal and completion contract
 
