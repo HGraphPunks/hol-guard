@@ -17,56 +17,6 @@ pub(crate) struct Journal {
     poisoned: bool,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn root_journal_binding_tracks_committed_events_and_refuses_changed_visible_inode() {
-        assert_eq!(
-            rustix::process::geteuid().as_raw(),
-            0,
-            "Root journal tests require the owned Root VM"
-        );
-        let temp = tempfile::tempdir().unwrap();
-        let mut journal = Journal::create(temp.path()).unwrap();
-        journal.append("test", json!({"value":1})).unwrap();
-        let binding = journal.binding().unwrap();
-        assert_eq!(binding["events"], 1);
-        assert_eq!(binding["available"], true);
-        let raw = std::fs::read(&journal.path).unwrap();
-        assert_eq!(binding["bytes"], raw.len());
-        assert_eq!(binding["tail_sha256"], hash(&raw[..raw.len() - 1]));
-        std::fs::rename(&journal.path, temp.path().join("original-events.jsonl")).unwrap();
-        let mut replacement = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(&journal.path)
-            .unwrap();
-        replacement.write_all(&raw).unwrap();
-        replacement.sync_all().unwrap();
-        assert!(journal.binding().is_err());
-    }
-    #[test]
-    fn root_journal_partial_append_and_poison_cannot_receive_a_binding() {
-        assert_eq!(
-            rustix::process::geteuid().as_raw(),
-            0,
-            "Root journal tests require the owned Root VM"
-        );
-        let temp = tempfile::tempdir().unwrap();
-        let mut journal = Journal::create(temp.path()).unwrap();
-        journal.append("committed", json!({})).unwrap();
-        journal.poisoned = true;
-        assert!(journal.binding().is_err());
-        journal.poisoned = false;
-        let mut external = OpenOptions::new().append(true).open(&journal.path).unwrap();
-        external.write_all(b"partial").unwrap();
-        external.sync_all().unwrap();
-        assert!(journal.binding().is_err());
-    }
-}
-
 impl Journal {
     pub(crate) fn create(stage: &std::path::Path) -> Result<Self> {
         Self::create_file(stage, "native-supervisor-events.v1.jsonl")
@@ -211,5 +161,55 @@ impl Journal {
             .and_then(|f| f.sync_all())
             .map_err(|_| "capture evidence directory commit uncertain")?;
         self.append("capture-terminal",json!({"argv_sha256":hash(argv.join("\0").as_bytes()),"files":files,"returncode":returncode,"error":error}))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn root_journal_binding_tracks_committed_events_and_refuses_changed_visible_inode() {
+        assert_eq!(
+            rustix::process::geteuid().as_raw(),
+            0,
+            "Root journal tests require the owned Root VM"
+        );
+        let temp = tempfile::tempdir().unwrap();
+        let mut journal = Journal::create(temp.path()).unwrap();
+        journal.append("test", json!({"value":1})).unwrap();
+        let binding = journal.binding().unwrap();
+        assert_eq!(binding["events"], 1);
+        assert_eq!(binding["available"], true);
+        let raw = std::fs::read(&journal.path).unwrap();
+        assert_eq!(binding["bytes"], raw.len());
+        assert_eq!(binding["tail_sha256"], hash(&raw[..raw.len() - 1]));
+        std::fs::rename(&journal.path, temp.path().join("original-events.jsonl")).unwrap();
+        let mut replacement = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&journal.path)
+            .unwrap();
+        replacement.write_all(&raw).unwrap();
+        replacement.sync_all().unwrap();
+        assert!(journal.binding().is_err());
+    }
+    #[test]
+    fn root_journal_partial_append_and_poison_cannot_receive_a_binding() {
+        assert_eq!(
+            rustix::process::geteuid().as_raw(),
+            0,
+            "Root journal tests require the owned Root VM"
+        );
+        let temp = tempfile::tempdir().unwrap();
+        let mut journal = Journal::create(temp.path()).unwrap();
+        journal.append("committed", json!({})).unwrap();
+        journal.poisoned = true;
+        assert!(journal.binding().is_err());
+        journal.poisoned = false;
+        let mut external = OpenOptions::new().append(true).open(&journal.path).unwrap();
+        external.write_all(b"partial").unwrap();
+        external.sync_all().unwrap();
+        assert!(journal.binding().is_err());
     }
 }
