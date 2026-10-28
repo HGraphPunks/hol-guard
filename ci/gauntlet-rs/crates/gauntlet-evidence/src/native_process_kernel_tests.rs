@@ -90,3 +90,73 @@ fn contradictory_matching_sample_errors_and_wrong_observer_pin_refuse() {
     let (_, observed, _) = fixture();
     assert!(KernelSamples::new(&observed, &"e".repeat(64)).is_err());
 }
+
+fn v2_fixture() -> Value {
+    let (_, mut observed, _) = fixture();
+    observed["schema"] = json!("hol-gauntlet-outside-native-mcp-kernel.v2");
+    observed["collection_limits"] = json!({
+        "observations":2048,"argv_bytes":32768,"executable_bytes":134217728,
+    });
+    observed
+}
+
+#[test]
+fn v2_collection_keeps_every_row_through_2048_and_refuses_overflow() {
+    let mut observed = v2_fixture();
+    let row = observed["observations"][0].clone();
+    observed["observations"] = Value::Array(
+        (0..2048)
+            .map(|index| {
+                let mut row = row.clone();
+                row["pid"] = json!(42 + index);
+                row["start_ticks"] = json!(500 + index);
+                row
+            })
+            .collect(),
+    );
+    let samples = KernelSamples::new(&observed, &"d".repeat(64)).unwrap();
+    assert_eq!(samples.rows.len(), 2048);
+    observed["observations"].as_array_mut().unwrap().push(row);
+    assert!(KernelSamples::new(&observed, &"d".repeat(64)).is_err());
+    let mut observed = v2_fixture();
+    observed["errors"] = json!(["kernel observation limit 2048 exhausted"]);
+    assert!(KernelSamples::new(&observed, &"d".repeat(64)).is_err());
+}
+
+#[test]
+fn v2_limits_are_closed_pinned_and_available_only_to_traced_launch_v3() {
+    let observed = v2_fixture();
+    let traced = json!({"schema":"hol-gauntlet-cell-supervisor.v3", "process_events":"outside-root-ptrace.v1"});
+    assert!(KernelSamples::for_launch(&observed, &"d".repeat(64), &traced).is_ok());
+    for launch in [
+        json!({"schema":"hol-gauntlet-cell-supervisor.v1"}),
+        json!({"schema":"hol-gauntlet-cell-supervisor.v2"}),
+        json!({"schema":"hol-gauntlet-cell-supervisor.v3"}),
+        json!({"schema":"hol-gauntlet-cell-supervisor.v3", "process_events":"other"}),
+    ] {
+        assert!(KernelSamples::for_launch(&observed, &"d".repeat(64), &launch).is_err());
+    }
+    for (pointer, value) in [
+        ("/collection_limits/observations", json!(2049)),
+        ("/collection_limits/argv_bytes", json!(65536)),
+        ("/collection_limits/executable_bytes", json!(true)),
+        ("/collection_limits", json!(null)),
+        ("/observer_sha256", json!("e".repeat(64))),
+        (
+            "/schema",
+            json!("hol-gauntlet-outside-native-mcp-kernel.v3"),
+        ),
+    ] {
+        let mut changed = observed.clone();
+        *changed.pointer_mut(pointer).unwrap() = value;
+        assert!(
+            KernelSamples::for_launch(&changed, &"d".repeat(64), &traced).is_err(),
+            "{pointer}"
+        );
+    }
+    let mut changed = observed;
+    changed["ignored_overflow"] = json!(true);
+    assert!(KernelSamples::for_launch(&changed, &"d".repeat(64), &traced).is_err());
+    let (_, legacy, _) = fixture();
+    assert!(KernelSamples::for_launch(&legacy, &"d".repeat(64), &json!(null)).is_ok());
+}

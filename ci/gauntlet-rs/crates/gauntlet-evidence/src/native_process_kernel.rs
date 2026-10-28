@@ -2,6 +2,7 @@
 //! These observations do not admit an observer or a controller signing key.
 use crate::crypto::sha256;
 use crate::native_diagnostic_artifacts::{require, text};
+use crate::payload::exact_keys;
 use crate::{EvidenceError, Result};
 use serde_json::{json, Value};
 
@@ -106,17 +107,59 @@ pub(crate) struct KernelSamples<'a> {
     pub(crate) rows: &'a Vec<Value>,
 }
 impl<'a> KernelSamples<'a> {
-    pub(crate) fn new(observed: &'a Value, observer_sha256: &str) -> Result<Self> {
+    pub(crate) fn for_launch(
+        observed: &'a Value,
+        observer_sha256: &str,
+        launch: &Value,
+    ) -> Result<Self> {
+        if observed["schema"] == "hol-gauntlet-outside-native-mcp-kernel.v2" {
+            require(
+                launch["schema"] == "hol-gauntlet-cell-supervisor.v3"
+                    && launch["process_events"] == "outside-root-ptrace.v1",
+            )?;
+        }
+        Self::new(observed, observer_sha256)
+    }
+
+    fn new(observed: &'a Value, observer_sha256: &str) -> Result<Self> {
+        let maximum = match observed["schema"].as_str() {
+            Some("hol-gauntlet-outside-native-mcp-kernel.v1") => 10_000,
+            Some("hol-gauntlet-outside-native-mcp-kernel.v2") => {
+                require(
+                    exact_keys(
+                        observed,
+                        &[
+                            "schema",
+                            "observer_sha256",
+                            "deduplication",
+                            "observations",
+                            "errors",
+                            "execution_eligible",
+                            "guard_causality_verified",
+                            "collection_limits",
+                        ],
+                    ) && observed["collection_limits"]
+                        == json!({
+                            "observations":2048, "argv_bytes":32768, "executable_bytes":134217728,
+                        }),
+                )?;
+                2048
+            }
+            _ => {
+                return Err(EvidenceError::Invalid(
+                    "outside kernel sample version differs",
+                ))
+            }
+        };
         require(
             hex(observer_sha256, 64)
-                && observed["schema"] == "hol-gauntlet-outside-native-mcp-kernel.v1"
                 && observed["deduplication"] == "pid-start-executable-inode-and-argv-v1"
                 && observed["observer_sha256"] == observer_sha256
                 && observed["errors"] == json!([])
                 && observed["execution_eligible"] == false
                 && observed["guard_causality_verified"] == false,
         )?;
-        let rows = list(&observed["observations"], 10_000)?;
+        let rows = list(&observed["observations"], maximum)?;
         require(!rows.is_empty())?;
         for row in rows {
             for name in [

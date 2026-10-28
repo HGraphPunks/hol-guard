@@ -27,7 +27,7 @@ fn fixture() -> (Value, Value, Vec<String>) {
     (identity, observed, command)
 }
 fn accepts(identity: &Value, observed: &Value, command: &[String]) -> bool {
-    KernelSamples::new(observed, &"d".repeat(64))
+    KernelSamples::for_launch(observed, &"d".repeat(64), &json!(null))
         .and_then(|s| matching(&s, identity, command, &"a".repeat(64), JOB).map(|_| ()))
         .is_ok()
 }

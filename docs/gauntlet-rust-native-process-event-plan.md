@@ -243,3 +243,18 @@ The corrected 583-test, Mac Clippy and ARM Clippy log SHA-256 values are
 and `741b199a472939a09e01883c12737185a8d3e8ea1eb814371082400e8ff3c713`.
 A new Native control is pending; no live performance or failure-resolution
 claim is made yet. No parent exit closes.
+
+The outside proof sampler now has an explicit v2 declaration with a
+2048-observation limit, 32768-byte argv limit and unchanged 128-MiB executable
+limit. It fails before dropping a new observation when full and retains the
+error. The Rust consumer requires those exact limits, the outside source pin,
+an empty error list and closed v2 fields. Only traced launch v3 can consume v2;
+historical v1/v2 launches retain their old sampler contract. The v1 sampler and
+its failed 129-observation history remain unchanged. This is still an inert
+Python VM proof collector, with no runtime, verdict or admission authority;
+outside observer/key admission remains open. Capacity, overflow, changed
+limits, unknown fields/versions, wrong pins and launch-version refusals are
+covered by focused Rust tests. Native rerun and full-slice validation are pending.
+All 111 Mac evidence tests and Mac/ARM evidence warnings-denied Clippy pass.
+The first compile attempt exposed two remaining legacy callers of the private
+parser; both now use the launch-aware entry point, preserving v1 behavior.

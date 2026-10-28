@@ -102,7 +102,7 @@ pub fn verify_native_control_diagnostic(
     ledger(control)?;
     let artifacts = Artifacts::new(files)?;
     let observed = artifacts.json("proof/outside-kernel.json")?;
-    let samples = KernelSamples::new(&observed, observer)?;
+    let samples = KernelSamples::for_launch(&observed, observer, &preparation["launch"])?;
     let launches = crate::native_product_kernel::launches(
         control,
         preparation,

@@ -261,7 +261,7 @@ pub fn verify_native_process_diagnostic(
         journal_bound,
     )?;
     let observed = artifacts.json("proof/outside-kernel.json")?;
-    let samples = KernelSamples::new(&observed, observer_sha256)
+    let samples = KernelSamples::for_launch(&observed, observer_sha256, &preparation["launch"])
         .map_err(|_| EvidenceError::Invalid("outside process sample inventory differs"))?;
     let job = text(control, "job_id")?;
     checked!(hex(job, 16))?;
