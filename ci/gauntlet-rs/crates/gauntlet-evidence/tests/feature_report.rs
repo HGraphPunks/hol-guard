@@ -115,3 +115,70 @@ fn missing_xml_and_unattempted_groups_remain_invalid_evidence() {
     report["status"] = json!("passed");
     assert!(!verify(&spec, &report, &files));
 }
+
+#[test]
+fn public_readback_rechecks_pins_artifacts_and_no_symlink_ancestry() {
+    use gauntlet_evidence::verify_feature_report_files_v2;
+    use std::os::unix::fs::symlink;
+    let (spec, report, files) = fixture();
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    let artifacts = root.join("artifacts");
+    std::fs::create_dir(&artifacts).unwrap();
+    for (name, raw) in files {
+        std::fs::write(artifacts.join(name), raw).unwrap();
+    }
+    let spec_path = root.join("spec.json");
+    let report_path = root.join("report.json");
+    let raw = report.to_string().into_bytes();
+    std::fs::write(&spec_path, spec.canonical_bytes()).unwrap();
+    std::fs::write(&report_path, &raw).unwrap();
+    let verify = |spec_pin: &str, report_pin: &str, artifacts: &std::path::Path| {
+        verify_feature_report_files_v2(&spec_path, spec_pin, &report_path, report_pin, artifacts)
+    };
+    assert_eq!(
+        verify(&spec.digest(), &sha(&raw), &artifacts).unwrap()["status"],
+        "passed"
+    );
+    assert!(verify(&"0".repeat(64), &sha(&raw), &artifacts).is_err());
+    assert!(verify(&spec.digest(), &"0".repeat(64), &artifacts).is_err());
+    let link = root.join("artifact-link");
+    symlink(&artifacts, &link).unwrap();
+    assert!(verify(&spec.digest(), &sha(&raw), &link).is_err());
+    std::fs::write(artifacts.join("native_runtime.log"), b"changed").unwrap();
+    assert!(verify(&spec.digest(), &sha(&raw), &artifacts).is_err());
+}
+
+#[test]
+fn public_readback_refuses_linked_artifacts_and_nonregular_inputs() {
+    use gauntlet_evidence::verify_feature_report_files_v2;
+    use std::os::unix::fs::symlink;
+    let (spec, report, files) = fixture();
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    for (name, raw) in files {
+        std::fs::write(root.join(name), raw).unwrap();
+    }
+    let spec_path = root.join("spec.json");
+    let report_path = root.join("report.json");
+    let raw = report.to_string().into_bytes();
+    std::fs::write(&spec_path, spec.canonical_bytes()).unwrap();
+    std::fs::write(&report_path, &raw).unwrap();
+    let verify = || {
+        verify_feature_report_files_v2(&spec_path, &spec.digest(), &report_path, &sha(&raw), &root)
+    };
+    assert!(verify().is_ok());
+    std::fs::hard_link(root.join("native_runtime.xml"), root.join("hardlink")).unwrap();
+    assert!(verify().is_err());
+    std::fs::remove_file(root.join("hardlink")).unwrap();
+    std::fs::remove_file(root.join("native_runtime.xml")).unwrap();
+    symlink(
+        root.join("contained_completion.xml"),
+        root.join("native_runtime.xml"),
+    )
+    .unwrap();
+    assert!(verify().is_err());
+    std::fs::remove_file(&spec_path).unwrap();
+    std::fs::create_dir(&spec_path).unwrap();
+    assert!(verify().is_err());
+}

@@ -63,13 +63,16 @@ Independent R4 work now implements the fixed
 [Rust feature executor and v2 report reader](gauntlet-rust-feature-audit.md):
 all 28 groups and 52 pytest selectors, exact source/installed contexts,
 bounded unprivileged setup and subprocess ownership, actual JUnit counts and
-complete per-group artifact verification. Nine new focused tests, the
-632-test Mac workspace, Mac/ARM Clippy and eight live ARM tests pass. The
-fresh development-container audit has passed setup and both same-UID owner
-access refusals; its complete 28-group result and cleanup remain pending.
-The Root development launcher still needs Rust durable worker integration.
-The first missing-Node-path setup attempt remains retained. Parent exits stay
-24/62, and CI remains user-owned and pending.
+complete per-group artifact verification. The fresh development-container
+audit attempts all 28 groups: 26 pass, one fails an installed Codex safe-Git
+hook assertion and one retains a pre-existing Pi expected failure. All 1,289
+case outcomes, 60 outside observations and final cleanup are independently
+verified, with all 333 prior worker records unchanged. The full Mac workspace
+passes 634 tests, and eight new ARM reader tests, five ARM artifact outcomes,
+six fresh Mac outcomes and exact Python baseline counts agree. The Root
+development launcher still needs Rust durable worker integration; the failed
+product assertion remains unresolved. Setup/pack/bootstrap failures remain
+retained. Parent exits stay 24/62, and CI remains user-owned and pending.
 
 ## Goal and completion contract
 
@@ -123,7 +126,7 @@ intact until its reviewed bytes have a separate retained checkpoint.
 | R1 Complete behavioral inventory | Map all three CLIs, command/profile/exit contracts, schema versions, assets, journals and state transitions to owners and tests; reconcile Python/Rust refusal classes, races and old evidence readers | Phases 0 and 1 | Partial |
 | R2 Native product apparatus | Complete the Root Rust rootfs/namespace/mount constructor and supervisor around the existing unprivileged Rust actor/gate; preserve idmaps, proc masks, AppArmor, seccomp, networking and resource limits; prove actual success, timeout, cancellation and descendant cleanup | Phase 2 worker and isolation | Complete zero-model Rust apparatus worker and recovery cases pass; qualified benchmark admission remains open |
 | R3 Deterministic authority | Capture authenticated Native requests/decisions and physical effects independently; bind exact request, product identity, file generation and cleanup; recompute each role's verdict; run six fresh staging plus six installed roles and construct fresh conformance | Phase 1 outcome verification and Phase 2 conformance | Diagnostics remain ineligible |
-| R4 Build and deployment | Rust-owned source/archive custody, bounded unprivileged build, inert wheel/prefix staging, source-matched immutable deployments and feature-audit invocation; preserve failed/uncertain receipts | Phase 2 provenance, staging and failure matrix | Current 3.58.0 runtime published; feature audit, broader recovery and admission remain open |
+| R4 Build and deployment | Rust-owned source/archive custody, bounded unprivileged build, inert wheel/prefix staging, source-matched immutable deployments and feature-audit invocation; preserve failed/uncertain receipts | Phase 2 provenance, staging and failure matrix | Current 3.58.0 runtime published; feature executor/readback verified, durable audit worker integration, broader recovery and admission remain open |
 | R5 Operational lifecycle | Connect the passive Rust observer to the qualified worker, exact-tag queue and bounded progress transport; implement reconciliation/repair, history import, stale data and unknown-job blocking; prove interruption, restart and single ownership | Phase 3 | Passive native observer exists on preparation |
 | R6 Workflow execution | Rust campaign freeze, exclusive journals, serial shards/attempts, authenticated OMP bridge, service/oracle ownership and complete reserve/settle/halt accounting; then fresh two-cell and twelve-cell real-inference profiles and contracted wider schedules | Phase 4 | Pure readers/reducers and bridge components exist |
 | R7 Legacy and compatibility | Preserve the pinned legacy catalog and actual harness behavior, installed/repeat/aged-home acceptance, old/new bundle verification and trusted-base publication separation; test stale heads and forged producer claims | Phase 5 and remaining Phase 1 readers | Open |

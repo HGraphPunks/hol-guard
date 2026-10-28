@@ -29,6 +29,8 @@ mod deterministic_signed_injection;
 mod episode_score;
 mod feature_junit;
 mod feature_report;
+mod feature_report_files;
+pub use feature_report_files::verify_feature_report_files_v2;
 mod host_calls;
 mod io;
 #[cfg(target_os = "linux")]

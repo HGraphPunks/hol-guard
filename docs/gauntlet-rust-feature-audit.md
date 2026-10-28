@@ -1,8 +1,9 @@
 # Rust feature audit
 
-Updated 2026-10-28. The fixed unprivileged executor is implemented; its first
-full audit is in progress. Rust worker admission, durable audit ownership,
-interruption recovery and final readback remain open. This work closes no
+Updated 2026-10-28. The fixed unprivileged executor has completed its first
+source-matched diagnostic audit: 26 groups passed, one failed and one was
+incomplete. Independent Mac/ARM readback is verified. Rust worker admission,
+durable audit ownership and interruption recovery remain open. This work closes no
 parent migration milestone: progress stays 24/62, or 39%.
 
 ## Fixed schedule and execution
@@ -117,15 +118,84 @@ Fresh audit `e2c701baf1475802` uses separate input/proof directories ending
 `20261028-002`, the exact successful build's source and candidate archives,
 and immutable builder image
 `383e9cf215d3b8481c2b9fb67d32816ef322b7f40abc17e5a1f9a72dd728fc8a`.
-Both worker locks are held. The development Root adapter checks actual
+Both worker locks were held. The development Root adapter checked actual
 executor ELF, UID/GID, capability/privilege/syscall floors, enforcing profile,
-namespace PID and effective resource limits. It retains bounded stdout,
-stderr and observations, then removes only its exact labeled container and
-profile. The Rust executor has passed setup and is building the exact-source
-compiler. No 28-group result or final cleanup is claimed yet.
+namespace PID and effective resource limits. It retained bounded stdout,
+stderr and observations, then removed only its exact labeled container and
+profile. The Rust executor completes setup, the exact-source compiler and all
+28 groups. The 60 retained outside observations match the executor ELF,
+namespace PID and effective resource limits. Exact-container, cgroup and
+profile cleanup is confirmed, with all 333 prior worker records unchanged.
 
 The Root launcher for this first proof is a development Python adapter.
 Porting its durable admission, process/cgroup ownership, restart handling,
 outside result binding and operator invocation into Rust remains required.
-Required cloud CI is still user-owned and pending. Neither a successful
-diagnostic audit nor these tests satisfy final migration readiness.
+Required cloud CI is still user-owned and pending. These diagnostic results
+and tests do not satisfy final migration readiness.
+
+## Completed audit and independent readback
+
+Audit `e2c701baf1475802` reports 1,289 testcases: 1,287 passed, one failed and
+one expected failure. All groups were attempted. Its overall status is
+`failed`, and the executor exits 1 with empty stderr.
+
+- The installed `codex_claude` group fails
+  `test_native_pretool_keeps_ordinary_safe_command_prompt_free`: the actual
+  Native hook answers `deny` for `git status --short`, where the test requires
+  `allow`. The original assertion, failed report and log remain unchanged.
+- The `grok_pi_zcode_devin` group remains `incomplete` because
+  `test_pi_post_tool_use_allows_medium_matches_from_external_source_search`
+  is an existing expected failure. Its reason says the live hook reviews
+  this shape and only the retired Python composition allowed it. The Rust
+  verifier retains the skipped/expected-failure count; it grants no pass.
+
+The source compiler hashes to
+`f379f3347d9b527330cb216da0067a8b586ad1b3033f2d780c9c301c8da0b1c5`.
+The exact canonical report hashes to
+`c3af621accac096ee61cdc77c95a0ac156fb117ed4ec4565c1b1b84525b123e0`.
+
+The standalone `gauntlet-feature-report-verify` reopens the outside-pinned
+specification/report and every fixed XML/log artifact through no-symlink
+ancestry and stable single-link descriptors. It returns exit 1 for this valid
+non-passing report and exit 2 for unavailable or inconsistent evidence.
+Changed pins, hardlinks, symlinks, directory inputs and changed artifacts
+are covered by meaningful file-custody tests.
+
+The current reader source map is
+`94276f2ab2cb823065fd22fe5f9aac58c355f94ea63beba60b5dcfa0af6106ad`.
+The full Mac workspace passes 634 tests, with no failures or skips; its log
+hash is `d9e391a3c1d1848b338cfd4f188a059b9d1570f444e3af74664926af6a28ef94`.
+Mac/ARM warnings-denied Clippy, Rustfmt and the fixed host proof's Ruff checks
+also pass on this generation.
+Eight reader tests also pass natively on ARM. Five ARM artifact readbacks
+and six fresh Mac outcomes check the actual report, identical restart,
+wrong pins, symlink ancestry and a forged report hiding the real failure.
+The Mac and ARM actual/restart stdout bytes agree, hashing to
+`8e0d02d00b8d48f53287f51d3a4975eb3f95873a67c3f843d461d9885a6caa86`.
+
+| Retained public export | Bytes / members | SHA-256 |
+| --- | --- | --- |
+| `native-feature-executor-vm-results-002.tar` | 10,455,040 / 104 | `aba4afcb915915ce4fe95408183501d2cefba1cd9267eec186def1aa2fb3f8aa` |
+| `native-feature-readback-vm-results-001.tar` | 30,720 / 16 | `c019759cea2aa9b4d80abadb9ff75ef2a3f0685a61a6a1e26dbafd868c776ec3` |
+
+The [fixed-generation host proof](../ci/gauntlet-rs/proofs/verify_feature_executor_20261028.py)
+checks both exports, all 706 producer source-map Git blobs at `1711967d`,
+the executable and producer program, every artifact digest, all 1,289 actual
+case outcomes, 60 resource observations, ARM fixtures and six fresh Mac
+outcomes. The immutable Python baseline's actual `junit()` function agrees
+on all 28 groups. No new product or model job runs during readback.
+
+Its four local inputs are the two exports above, the frozen
+`native-feature-readback-mac-reader-001` executable and this checkout's Git
+history. It creates an exclusive `native-feature-executor-host-readback-001`
+directory and `native-feature-executor-fixed-host-proof-001.json` in the
+supplied evidence directory. Reproduce in a fresh copy of those public inputs:
+
+```sh
+python ci/gauntlet-rs/proofs/verify_feature_executor_20261028.py /path/to/public-evidence
+```
+
+The metadata pack's duplicate-path error and two prewrite ARM bootstrap
+errors remain retained. The corrected bounded read helper was tested locally
+with both string and Path inputs before the successful ARM run. No failed
+attempt was overwritten or represented as completed execution.
