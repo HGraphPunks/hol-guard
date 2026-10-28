@@ -97,6 +97,30 @@ mod dependency_repair;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod dependency_run;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_assets;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_capture;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_container;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod feature_files;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod feature_journal;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_preflight;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_repair;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_run;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_state;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use feature_assets::capture_native_feature_asset;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use feature_repair::{read_native_feature_result, repair_native_features};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use feature_run::{receive_native_feature_intent, run_native_features};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod dependency_state;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use dependency_repair::repair_native_dependencies;

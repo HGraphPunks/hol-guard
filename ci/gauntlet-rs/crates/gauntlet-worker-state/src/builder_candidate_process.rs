@@ -21,7 +21,6 @@ use std::time::{Duration, Instant};
 
 const MIN_REMAIN_FREE: u64 = 8 * 1024 * 1024 * 1024;
 const MAX_LOG_BYTES: u64 = 16 * 1024 * 1024;
-const RUN_WAIT: Duration = Duration::from_secs(2100);
 const INSPECT_WAIT: Duration = Duration::from_secs(30);
 const POLL: Duration = Duration::from_millis(200);
 
@@ -139,6 +138,7 @@ fn record_stream(
     mut file: File,
     exceeded: Arc<AtomicBool>,
     channel: mpsc::Sender<(u8, Result<String, CandidateProcessError>)>,
+    limit: u64,
 ) {
     thread::spawn(move || {
         let mut hash = Sha256::new();
@@ -152,7 +152,7 @@ fn record_stream(
                 if count == 0 {
                     break;
                 }
-                let available = MAX_LOG_BYTES.saturating_sub(total) as usize;
+                let available = limit.saturating_sub(total) as usize;
                 let kept = count.min(available);
                 if kept > 0 {
                     file.write_all(&buffer[..kept])
@@ -192,7 +192,14 @@ pub(crate) fn run_candidate_process(
     job: &OwnedFd,
     still_owned: &impl Fn() -> Result<(), CandidateProcessError>,
 ) -> Result<CandidateProcessObservation, CandidateProcessError> {
-    run_process(plan, job, still_owned, false, &|| Ok(()), &|_, _| Ok(()))
+    run_process(
+        plan,
+        job,
+        still_owned,
+        RunKind::Candidate,
+        &|| Ok(()),
+        &|_, _| Ok(()),
+    )
 }
 
 pub(crate) fn run_precreated_dependency_process(
@@ -206,42 +213,76 @@ pub(crate) fn run_precreated_dependency_process(
         plan,
         job,
         still_owned,
-        true,
+        RunKind::Dependency,
         drain_container,
         record_running,
     )
+}
+
+pub(crate) fn run_precreated_feature_process(
+    plan: &BuilderRunPlan,
+    job: &OwnedFd,
+    still_owned: &impl Fn() -> Result<(), CandidateProcessError>,
+    drain_container: &impl Fn() -> Result<(), CandidateProcessError>,
+    record_running: &impl Fn(crate::ProcessIdentity, &str) -> Result<(), CandidateProcessError>,
+) -> Result<CandidateProcessObservation, CandidateProcessError> {
+    run_process(
+        plan,
+        job,
+        still_owned,
+        RunKind::Feature,
+        drain_container,
+        record_running,
+    )
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RunKind {
+    Candidate,
+    Dependency,
+    Feature,
+}
+impl RunKind {
+    fn log_names(self) -> (&'static str, &'static str) {
+        match self {
+            Self::Candidate => ("candidate-run.stdout.log", "candidate-run.stderr.log"),
+            Self::Dependency => ("dependency-run.stdout.log", "dependency-run.stderr.log"),
+            Self::Feature => ("feature-run.stdout.log", "feature-run.stderr.log"),
+        }
+    }
+    fn deadline(self) -> Duration {
+        Duration::from_secs(if self == Self::Feature { 14400 } else { 2100 })
+    }
+    fn log_limit(self) -> u64 {
+        if self == Self::Feature {
+            128 * 1024
+        } else {
+            MAX_LOG_BYTES
+        }
+    }
 }
 
 fn run_process(
     plan: &BuilderRunPlan,
     job: &OwnedFd,
     still_owned: &impl Fn() -> Result<(), CandidateProcessError>,
-    precreated_dependency: bool,
+    kind: RunKind,
     drain_container: &impl Fn() -> Result<(), CandidateProcessError>,
     record_running: &impl Fn(crate::ProcessIdentity, &str) -> Result<(), CandidateProcessError>,
 ) -> Result<CandidateProcessObservation, CandidateProcessError> {
-    if !precreated_dependency && !container_absent(&plan.job_id)? {
+    if kind == RunKind::Candidate && !container_absent(&plan.job_id)? {
         return Err(CandidateProcessError::ExistingContainer);
     }
-    let stdout = create_log(
-        job,
-        if precreated_dependency {
-            "dependency-run.stdout.log"
-        } else {
-            "candidate-run.stdout.log"
-        },
-    )?;
-    let stderr = create_log(
-        job,
-        if precreated_dependency {
-            "dependency-run.stderr.log"
-        } else {
-            "candidate-run.stderr.log"
-        },
-    )?;
+    let (out_name, err_name) = kind.log_names();
+    let stdout = create_log(job, out_name)?;
+    let stderr = create_log(job, err_name)?;
     fsync(job).map_err(|_| CandidateProcessError::LogUnavailable)?;
-    let mut group = OwnedCandidateCgroup::create(&plan.job_id)
-        .map_err(|_| CandidateProcessError::CgroupUnavailable)?;
+    let mut group = (if kind == RunKind::Feature {
+        OwnedCandidateCgroup::create_feature(&plan.job_id)
+    } else {
+        OwnedCandidateCgroup::create(&plan.job_id)
+    })
+    .map_err(|_| CandidateProcessError::CgroupUnavailable)?;
     let mut command = podman_command();
     command.args(&plan.argv[1..]);
     command
@@ -302,8 +343,22 @@ fn run_process(
     };
     let (sender, receiver) = mpsc::channel();
     let exceeded = Arc::new(AtomicBool::new(false));
-    record_stream(0, child_stdout, stdout, exceeded.clone(), sender.clone());
-    record_stream(1, child_stderr, stderr, exceeded.clone(), sender);
+    record_stream(
+        0,
+        child_stdout,
+        stdout,
+        exceeded.clone(),
+        sender.clone(),
+        kind.log_limit(),
+    );
+    record_stream(
+        1,
+        child_stderr,
+        stderr,
+        exceeded.clone(),
+        sender,
+        kind.log_limit(),
+    );
     let started = Instant::now();
     let mut last_disk = Instant::now();
     let outcome = loop {
@@ -326,7 +381,7 @@ fn run_process(
                     .or_else(|| status.signal().map(|signal| 128 + signal))
                     .ok_or(CandidateProcessError::ProcessMismatch)
             }
-            Ok(None) if started.elapsed() < RUN_WAIT => thread::sleep(POLL),
+            Ok(None) if started.elapsed() < kind.deadline() => thread::sleep(POLL),
             Ok(None) => break Err(CandidateProcessError::TimedOut),
             Err(_) => break Err(CandidateProcessError::CleanupUncertain),
         }

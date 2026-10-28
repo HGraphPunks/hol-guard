@@ -13,6 +13,7 @@ use std::path::Path;
 pub(crate) const STATE: &str = "/var/lib/hol-gauntlet-rust/dependency-state";
 
 pub(crate) fn require_idle() -> Result<(), String> {
+    crate::feature_state::require_idle()?;
     let base = open_root_owned_public_directory(Path::new("/var/lib/hol-gauntlet-rust"))
         .map_err(|e| e.to_string())?;
     match statat(&base, "dependency-state", AtFlags::SYMLINK_NOFOLLOW) {

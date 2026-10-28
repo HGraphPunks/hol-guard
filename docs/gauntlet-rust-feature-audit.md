@@ -3,8 +3,10 @@
 Updated 2026-10-28. The latest source-matched diagnostic audit has 27 passed
 groups, zero failed groups and one incomplete group. Its 1,289 cases contain
 1,288 passes and one existing expected failure. Independent Mac/ARM readback
-is verified. Rust worker admission,
-durable audit ownership and interruption recovery remain open. This work closes no
+is verified. A [Rust Root worker](gauntlet-rust-feature-worker.md) now implements
+durable ownership and a fixed host caller, with 645 Mac tests and Mac/ARM
+Clippy passing. Its live admission and interruption recovery proofs remain open.
+This work closes no
 parent migration milestone: progress stays 24/62, or 39%.
 
 ## Fixed schedule and execution

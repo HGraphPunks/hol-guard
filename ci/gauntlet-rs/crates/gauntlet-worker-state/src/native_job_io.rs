@@ -33,6 +33,7 @@ pub(crate) fn load(
 }
 
 pub(crate) fn require_no_unknown_jobs(journal: &RunReservationJournal) -> Result<(), String> {
+    crate::feature_state::require_idle()?;
     let mut jobs = std::collections::BTreeSet::new();
     let mut started = std::collections::BTreeMap::new();
     let mut count = 0usize;

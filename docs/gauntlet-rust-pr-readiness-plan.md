@@ -73,9 +73,13 @@ failure, retaining aggregate `incomplete`. Ten ARM tests, 70 outside
 observations, exact cleanup, all 708 executor Git blobs, Python counts and
 identical Mac/ARM readback verify, with all 333 old worker records unchanged.
 The original failure and all setup/pack/bootstrap failures remain retained.
-The full Mac workspace passes 634 tests. The Root development launcher still
-needs Rust durable worker integration. Parent exits stay 24/62, and CI remains
-user-owned and pending.
+The corrected executor checkpoint passes 634 Mac tests. A new
+[Rust Root feature worker and host caller](gauntlet-rust-feature-worker.md)
+now implement complete one-use intents, durable dispatch/reservation, exact
+container custody, Root artifact capture, cross-job admission and quiescent
+recovery. All 645 Mac tests and Mac/ARM Clippy pass. Fresh owned-VM worker
+execution, live recovery and final operator wiring remain open. Parent exits
+stay 24/62, and CI remains user-owned and pending.
 
 The [upstream synchronization through 931cafb2](gauntlet-rust-upstream-sync-931cafb2.md)
 imports 30 commits without conflict, preserving both migration runtime modules

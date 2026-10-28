@@ -60,11 +60,13 @@ pub use controller_key_pins::{
 pub use native_control_readback::{HostNativeControlReadback, NativeControlReadbackError};
 mod candidate_build_pins;
 mod dependency_intent;
+mod feature_intent;
 pub use candidate_build_pins::{
     HostCandidateBuildPinError, HostCandidateBuildPinJournal, HostCandidateBuildPinRecord,
     HostCandidateBuildPins,
 };
 pub use dependency_intent::{read_dependency_run_pins, DependencyIntentJournal};
+pub use feature_intent::{read_feature_run_pins, FeatureIntentJournal};
 mod private_jobs;
 pub use private_jobs::{
     read_private_jobs, read_private_jobs_if_idle, read_private_operations, PrivateJobError,

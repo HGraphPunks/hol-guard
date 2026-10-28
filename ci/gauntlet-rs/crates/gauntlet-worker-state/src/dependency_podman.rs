@@ -23,7 +23,7 @@ fn drain(fd: &OwnedFd, bytes: &mut Vec<u8>) -> Result<bool, String> {
     }
 }
 
-fn run(pin: &str, args: &[String]) -> Result<Vec<u8>, String> {
+pub(crate) fn run(pin: &str, args: &[String]) -> Result<Vec<u8>, String> {
     verify_file("/usr/bin/podman", pin, true, 64 * 1024 * 1024).map_err(|e| e.to_string())?;
     let mut child = Command::new("/usr/bin/podman")
         .args(args)

@@ -112,10 +112,19 @@ pub fn initialize_native_worker(generation: &str) -> Result<Vec<u8>, String> {
         "cell-image-leases",
         "native-initialization",
         "dependency-state",
+        "feature-state",
+        "feature-jobs",
     ] {
         directory(Path::new(BASE), name, 0o700, true)?;
     }
     lock_file(&Path::new(BASE).join("dependency-state"), "active.lock")?;
+    lock_file(&Path::new(BASE).join("feature-state"), "active.lock")?;
+    directory(
+        Path::new("/opt/hol-gauntlet"),
+        "feature-assets",
+        0o700,
+        true,
+    )?;
     directory(
         Path::new("/opt/hol-gauntlet"),
         "native-deployments",
@@ -124,8 +133,8 @@ pub fn initialize_native_worker(generation: &str) -> Result<Vec<u8>, String> {
     )?;
     directory(Path::new("/var/lib"), "hol-gauntlet", 0o755, false)?;
     directory(Path::new("/var/lib/hol-gauntlet"), "builds", 0o700, true)?;
-    let body = serde_json::json!({"schema":"hol-gauntlet-native-initialization.v3","worker_generation":generation,
-        "layout":"native-worker-layout-v3","job_dispatched":false,"execution_eligible":false,"model_requests":0});
+    let body = serde_json::json!({"schema":"hol-gauntlet-native-initialization.v4","worker_generation":generation,
+        "layout":"native-worker-layout-v4","job_dispatched":false,"execution_eligible":false,"model_requests":0});
     let raw =
         gauntlet_contracts::canonicalize(body.to_string().as_bytes()).map_err(|e| e.to_string())?;
     let root = open_root_owned_public_directory(&Path::new(BASE).join("native-initialization"))
