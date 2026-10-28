@@ -15,6 +15,25 @@ use std::{
 };
 
 const LIMIT: usize = 128 * 1024 * 1024;
+#[derive(Clone, Copy)]
+enum ArtifactSubset {
+    InputBinding,
+    Boundary,
+}
+impl ArtifactSubset {
+    fn role(self) -> &'static str {
+        match self {
+            Self::InputBinding => "input-binding",
+            Self::Boundary => "boundary",
+        }
+    }
+    fn schema(self) -> &'static str {
+        match self {
+            Self::InputBinding => "hol-gauntlet-host-native-binding-artifact-readback.v1",
+            Self::Boundary => "hol-gauntlet-host-native-boundary-artifact-readback.v1",
+        }
+    }
+}
 type Result<T> = std::result::Result<T, String>;
 fn require(ok: bool) -> Result<()> {
     if ok {
@@ -152,7 +171,20 @@ impl HostNativeControlReadback {
         path: &Path,
         expected_sha256: &str,
     ) -> Result<Value> {
-        require(self.diagnostic()["control_role"] == "input-binding")?;
+        self.verify_artifact_subset(path, expected_sha256, ArtifactSubset::InputBinding)
+    }
+    /// Recompute the three synthetic canaries and eight reported refusals.
+    /// Kernel/process custody and Guard intervention remain separate checks.
+    pub fn verify_boundary_artifacts(&self, path: &Path, expected_sha256: &str) -> Result<Value> {
+        self.verify_artifact_subset(path, expected_sha256, ArtifactSubset::Boundary)
+    }
+    fn verify_artifact_subset(
+        &self,
+        path: &Path,
+        expected_sha256: &str,
+        subset: ArtifactSubset,
+    ) -> Result<Value> {
+        require(self.diagnostic()["control_role"] == subset.role())?;
         let raw = read_stable(path, expected_sha256)?;
         let files = members(&raw)?;
         let get = |name: &str| {
@@ -180,20 +212,25 @@ impl HostNativeControlReadback {
                             .ok_or("missing pinned Native source")?
                     ),
         )?;
-        let relations = gauntlet_evidence::verify_native_binding_diagnostic(
-            self.diagnostic(),
-            &preparation,
-            &files,
-        )
+        let relations = match subset {
+            ArtifactSubset::InputBinding => gauntlet_evidence::verify_native_binding_diagnostic(
+                self.diagnostic(),
+                &preparation,
+                &files,
+            ),
+            ArtifactSubset::Boundary => gauntlet_evidence::verify_native_boundary_diagnostic(
+                self.diagnostic(),
+                &preparation,
+                &files,
+            ),
+        }
         .map_err(|e| e.to_string())?;
-        Ok(
-            json!({"schema":"hol-gauntlet-host-native-binding-artifact-readback.v1",
+        Ok(json!({"schema":subset.schema(),
             "archive_sha256":expected_sha256,"archive_bytes":raw.len(),"archive_members":files.len(),
             "host_pin_sha256":observation["host_pin_sha256"],"report_sha256":observation["report_sha256"],
             "source_sha":observation["source_sha"],"job_id":observation["job_id"],
             "authenticated_report_matches_public_archive":true,"relations":relations,
-            "qualified_role_complete":false,"execution_eligible":false,"guard_causality_verified":false,"model_requests":0}),
-        )
+            "qualified_role_complete":false,"execution_eligible":false,"guard_causality_verified":false,"model_requests":0}))
     }
 }
 

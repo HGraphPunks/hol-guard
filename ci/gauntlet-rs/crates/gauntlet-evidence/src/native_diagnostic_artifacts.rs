@@ -206,6 +206,26 @@ impl<'a> Artifacts<'a> {
     pub(crate) fn json(&self, name: &str) -> Result<Value> {
         parse(self.raw(name)?)
     }
+    pub(crate) fn unique_process_capture(
+        &self,
+        prefix: &str,
+        out_pin: &str,
+        err_pin: &str,
+    ) -> Result<(&'a [u8], &'a [u8])> {
+        let mut matches = self.files.iter().filter(|(name, raw)| {
+            name.starts_with(prefix) && name.ends_with(".stdout") && sha256(raw) == out_pin
+        });
+        let first = matches
+            .next()
+            .ok_or(EvidenceError::Invalid("public process capture missing"))?;
+        require(matches.next().is_none())?;
+        let stderr = self.raw(&format!(
+            "{}.stderr",
+            first.0.strip_suffix(".stdout").unwrap()
+        ))?;
+        require(sha256(stderr) == err_pin)?;
+        Ok((first.1, stderr))
+    }
     pub(crate) fn metadata(&self, name: &str) -> Result<&Value> {
         self.index["filesystem"]
             .get(name)

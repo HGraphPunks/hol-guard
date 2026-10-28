@@ -37,6 +37,7 @@ mod model_budget;
 mod model_endpoint;
 mod native_actor_elf;
 mod native_binding_diagnostic;
+mod native_boundary_diagnostic;
 mod native_control_envelope;
 mod native_diagnostic_artifacts;
 mod native_forbidden_diagnostic;
@@ -136,6 +137,7 @@ pub use model_endpoint::{
 };
 pub use native_actor_elf::verify_native_actor_elf;
 pub use native_binding_diagnostic::verify_native_binding_diagnostic;
+pub use native_boundary_diagnostic::verify_native_boundary_diagnostic;
 pub use native_control_envelope::{
     native_control_signing_record, verify_native_control_envelope,
     AuthenticatedNativeControlReport, NativeControlReportPins, NATIVE_CONTROL_ENVELOPE_LIMIT,
