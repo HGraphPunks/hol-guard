@@ -52,6 +52,9 @@ mod native_lifecycle_fixture;
 mod native_mcp_diagnostic;
 mod native_mcp_inputs;
 mod native_process_diagnostic;
+mod native_process_event_files;
+mod native_process_event_identity;
+mod native_process_events;
 mod native_process_kernel;
 mod native_process_public;
 mod native_product_kernel;
@@ -164,6 +167,8 @@ pub use native_hook_diagnostic::verify_native_hook_diagnostic;
 pub use native_hook_response::normalize_native_hook_response;
 pub use native_mcp_diagnostic::verify_native_mcp_diagnostic;
 pub use native_process_diagnostic::verify_native_process_diagnostic;
+pub use native_process_event_files::verify_native_process_event_files;
+pub use native_process_events::verify_native_process_events;
 pub use native_review_summary::{
     native_review_completed, recompute_native_review_summary, verify_native_review_summary,
 };

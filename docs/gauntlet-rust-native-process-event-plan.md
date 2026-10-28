@@ -69,3 +69,21 @@ anchor's recorded final exit-zero status and dead held pidfd before accepting
 The native rerun is pending. The failed public export is
 `native-trace-vm-results-001.tar`, 163840 bytes, SHA-256
 `c0e683cb0624d0a0658a6776a6a573214b337aa975064f4d62a63b2a8cd46cb9`.
+
+Attempt 002 at `0259fa90` passes all six native recorder cases plus four wait
+and stopped-identity tests. Fork/vfork, detached grandchildren, genuine
+SIGTRAP delivery, group stop/continue, 64 immediate children and non-leader
+exec retain their actual final-status distinctions. Dropping the recorder
+kills its owned descendant, leaves the unrelated fixture alive and refuses a
+complete history. Both leases and all 298 worker records remain intact. The
+19-member public export is `native-trace-vm-results-002.tar`, 163840 bytes,
+SHA-256 `bdf0ae50e8875c1367c3623e4f7a7c3fdc14da3ff25955cf38d6141a312cb64e`.
+
+The consuming Rust reader now replays creation parents, task IDs and start
+generations, non-leader exec retirement, signal/early-exit/final status and
+complete counts against the exact canonical hash chain and checkpoint. Six
+unit tests include rechained impossible histories and changed kernel/image
+fields; all pass, along with Mac and ARM warnings-denied evidence Clippy.
+Actual exported-journal CLI readback and normal Native launch wiring are the
+next steps. The reader explicitly keeps custody, descendant admission,
+qualification and Guard causality false.

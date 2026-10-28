@@ -4,9 +4,10 @@ Updated: 2026-10-27. Execution model: GPT-6.1 Sol, Max reasoning.
 Status: active implementation; the Rust replacement is not qualified.
 
 Current R3 work: [outside Rust process-event recording](gauntlet-rust-native-process-event-plan.md)
-is implemented behind an explicit API with opt-in owned-VM fixtures. Launch
-wiring, native fixture execution and consuming journal verification remain
-pending. The 24/62 parent-exit count is unchanged.
+is implemented behind an explicit API. Ten focused native ARM cases pass,
+including the six actual graph/isolation fixtures, with all 298 retained
+worker records unchanged. Launch wiring and exported-journal Rust readback
+remain pending. The 24/62 parent-exit count is unchanged.
 
 ## Goal and completion contract
 
