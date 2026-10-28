@@ -105,5 +105,8 @@ pub(crate) fn verify(
     if let Some(images) = crate::native_runtime_trace::verify(control, preparation, artifacts)? {
         result["process_event_images"] = images;
     }
+    if let Some(stdio) = crate::native_stdio_diagnostic::verify(control, preparation, artifacts)? {
+        result["native_stdio_snapshots"] = stdio;
+    }
     Ok(result)
 }

@@ -2,6 +2,96 @@ use super::*;
 use crate::canonical_value;
 use crate::native_process_events::tests::{image_value, pack, task_value};
 use std::collections::BTreeMap;
+fn stdio_fixture() -> Fixture {
+    let mut fixture = Fixture::new();
+    let declaration = json!({"mode":"outside-root-native-stdio.v1","native_runtime_sha256":"b".repeat(64),
+        "scope":"owned-product-native-stream","memory_or_register_mutation":false,
+        "atomic_kernel_pipe_bytes_verified":false,"concurrent_tracees_frozen":false,"execution_eligible":false});
+    let trace = fixture
+        .trace
+        .split(|b| *b == b'\n')
+        .filter(|v| !v.is_empty())
+        .map(|v| parse(v).unwrap())
+        .collect::<Vec<_>>();
+    let mut rows = trace
+        .iter()
+        .map(|r| (r["kind"].as_str().unwrap(), r["data"].clone()))
+        .collect::<Vec<_>>();
+    rows[0].1["native_stdio"] = declaration.clone();
+    rows[0].1["options"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!("syscall-good"));
+    let (raw, mut checkpoint) = pack(&rows);
+    let counts = json!({"streams":0,"closed_streams":0,"calls":0,"syscall_stops":0,"bytes":0});
+    let (_, io_pin) = pack(&[
+        ("stdio-start", json!({})),
+        ("stdio-complete", counts.clone()),
+    ]);
+    checkpoint["schema"] = json!("hol-gauntlet-native-process-events.v2");
+    checkpoint["native_stdio"] = json!({"schema":"hol-gauntlet-native-stdio.v1","complete":true,
+        "declaration":declaration,"counts":counts,"journal":io_pin["journal"],"execution_eligible":false});
+    fixture.trace = raw;
+    fixture.preparation["launch"] = json!({"schema":"hol-gauntlet-cell-supervisor.v4",
+        "process_events":"outside-root-ptrace.v2","native_stdio":"outside-root-native-stdio.v1",
+        "native_runtime_sha256":"b".repeat(64)});
+    fixture.plane["schema"] = json!("hol-gauntlet-native-hook-plane.v3");
+    fixture.plane["process_events"] = json!({"schema":"hol-gauntlet-native-process-recorder.v2","available":true,"checkpoint":checkpoint});
+    fixture.data("process-events-started")["schema"] =
+        json!("hol-gauntlet-native-process-recorder-started.v2");
+    fixture.data("process-events-started")["mode"] = json!("outside-root-ptrace.v2");
+    *fixture.data("process-events-closed") = fixture.plane["process_events"].clone();
+    fixture
+}
+
+#[test]
+fn v4_binds_the_declared_stdio_checkpoint_but_process_replay_never_claims_io_bytes() {
+    let fixture = stdio_fixture();
+    let result = fixture.check(true).unwrap().unwrap();
+    assert_eq!(
+        result["task_history"]["schema"],
+        "hol-gauntlet-native-process-event-readback.v2"
+    );
+    assert_eq!(
+        result["task_history"]["native_stdio_capture_declared"],
+        true
+    );
+    assert_eq!(result["task_history"]["native_stdio_bytes_verified"], false);
+    assert_eq!(result["execution_eligible"], false);
+}
+
+#[test]
+fn v4_scope_launch_pin_mode_and_old_plane_cannot_borrow_the_stdio_declaration() {
+    for (pointer, value) in [
+        ("/schema", json!("hol-gauntlet-native-hook-plane.v2")),
+        (
+            "/process_events/schema",
+            json!("hol-gauntlet-native-process-recorder.v1"),
+        ),
+        (
+            "/process_events/checkpoint/native_stdio/declaration/scope",
+            json!("owned-process-fixture"),
+        ),
+        (
+            "/process_events/checkpoint/native_stdio/declaration/native_runtime_sha256",
+            json!("c".repeat(64)),
+        ),
+    ] {
+        let mut fixture = stdio_fixture();
+        *fixture.plane.pointer_mut(pointer).unwrap() = value;
+        *fixture.data("process-events-closed") = fixture.plane["process_events"].clone();
+        assert!(fixture.check(true).is_err(), "{pointer}");
+    }
+    for schema in [
+        "hol-gauntlet-cell-supervisor.v1",
+        "hol-gauntlet-cell-supervisor.v2",
+        "hol-gauntlet-cell-supervisor.v3",
+    ] {
+        let mut fixture = stdio_fixture();
+        fixture.preparation["launch"]["schema"] = json!(schema);
+        assert!(fixture.check(true).is_err());
+    }
+}
 
 struct Fixture {
     preparation: Value,

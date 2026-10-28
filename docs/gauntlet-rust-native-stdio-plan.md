@@ -3,10 +3,10 @@
 Status: syscall metadata, transfer accounting and the initial outside pipe
 snapshot producer are implemented after
 verifier checkpoint `98a544f3` and published evidence checkpoint `5ddb5d52`.
-The live ARM syscall ABI fixture passes in the owned VM. The new producer and
-closed launch-v4 contract pass macOS tests and Mac/ARM Clippy; live pipe fixtures
-are compiled and await execution. Independent capture/frame verification and
-fresh Native product controls remain open.
+The live ARM syscall ABI and pipe fixtures pass in the owned VM. Independent
+Rust snapshot replay, framing and signed launch-v4 integration are implemented
+and pass 615 macOS workspace tests and Mac/ARM Clippy. Fresh Native product
+controls, atomic wire observation and request semantics remain open.
 The existing image-lineage proof
 does not observe internal Native request bytes. All parent exits remain 24/62.
 The latest owned-VM worker baseline is the unchanged 326-record set,
@@ -116,8 +116,8 @@ locked/offline macOS workspace tests (zero failures/ignored), formatting and
 Mac/ARM warnings-denied Clippy. The full workspace log
 `native-stdio-capture-working-workspace-tests-002.log` has SHA-256
 `2c8599a3fb9d3b2d4a0792d90abd1f218a12d20a47d070c2e4f314826aab6f4f`.
-Live fixture execution and independent v2 process/I/O readback remain pending
-at this source checkpoint; the existing v1 reader refuses v2 checkpoints.
+Live fixture execution and independent v2 process/I/O readback were pending
+at producer source `f137c1b0`; the frozen v1 reader refuses v2 checkpoints.
 
 The first live producer attempt at `f137c1b0` retains six fixture-start permission
 failures: the unprivileged executable was beneath a Root-only input directory.
@@ -128,8 +128,33 @@ gate could consume payload before exec, and scalar/linger output lacked a
 flush before direct exit or a blocking read. The follow-up waits for the
 observed leaf exec before sending payload and explicitly flushes that fixture
 output. Byte-comparison and refusal assertions are unchanged. The revised
-fixture passes Mac/ARM Clippy and the macOS rootfs tests; its new live run is
-pending. Both original attempts remain immutable in the owned VM.
+fixture passes Mac/ARM Clippy and the macOS rootfs tests. Both original attempts
+remain immutable in the owned VM.
+
+Corrected fixture source `018890172c5a0976f9cad606bf55433d8be8a027` passes
+22 owned ARM tests: nine syscall decoder cases, six pipe cases and seven legacy
+process fixtures. Four complete pipe histories match actual parent input/output,
+including the 4,096-byte nonblocking write prefix and an interrupted pending
+read with no credited input or inferred EOF. Three expected refusals occur
+before buffer copy. The histories contain 4,161 captured bytes. Both worker
+leases remain held and all 326 worker records remain byte-identical.
+The public export retains all three attempts: 82 members, 655,360 bytes, SHA-256
+`e29a91ec9f5f356f76c0a74828a3124220fe2822e52a493d31280d737856c780`.
+
+The independent Rust reader binds each stream to its actual exec and kernel
+ending, validates closed event ordering and completed counts, and reconstructs
+framed stdin/stdout separately. It retains partial headers/payloads, malformed
+lengths and invalid JSON as explicit diagnostic results. Native request and
+response bounds are six and two MiB, matching the pinned product source.
+Four actual complete fixture histories verify; three incomplete/refused histories,
+three wrong caller pins and re-hashed altered captured bytes refuse. The current
+working reader's independent summary is SHA-256
+`98bdc64fdec720d8eaf6b519f5853897c7d3605951c465a8ee3b9e9d89092d90`;
+source hashes are retained before committing this verifier. All 615 macOS
+workspace tests pass with zero failures/ignored, with log SHA-256
+`e559ee8b21fa4880cb272516bb2b9d19267413ca197e0dd9c3c88b5b9dcb4fd8`.
+Formatting and Mac/ARM warnings-denied Clippy pass. Exact committed reader
+builds, ARM replay and the legacy control corpus remain the next checks.
 
 [`process_vm_readv`](https://man7.org/linux/man-pages/man2/process_vm_readv.2.html)
 does not promise atomic transfers. The producer explicitly records

@@ -35,31 +35,35 @@ struct Replay {
 }
 
 impl Replay {
-    fn start(data: &Value) -> Result<Self> {
+    fn start(data: &Value, stdio: Option<&Value>) -> Result<Self> {
+        let mut fields = vec![
+            "id",
+            "actor",
+            "cgroup",
+            "options",
+            "memory_or_register_mutation",
+            "execution_eligible",
+        ];
+        let mut options = json!([
+            "exit-kill",
+            "fork",
+            "vfork",
+            "clone",
+            "exec",
+            "exit",
+            "vfork-done"
+        ]);
+        if let Some(declaration) = stdio {
+            fields.push("native_stdio");
+            options.as_array_mut().unwrap().push(json!("syscall-good"));
+            require(data["native_stdio"] == *declaration)?;
+        }
         require(
-            exact_keys(
-                data,
-                &[
-                    "id",
-                    "actor",
-                    "cgroup",
-                    "options",
-                    "memory_or_register_mutation",
-                    "execution_eligible",
-                ],
-            ) && data["id"].as_u64() == Some(0)
+            exact_keys(data, &fields)
+                && data["id"].as_u64() == Some(0)
                 && data["memory_or_register_mutation"] == false
                 && data["execution_eligible"] == false
-                && data["options"]
-                    == json!([
-                        "exit-kill",
-                        "fork",
-                        "vfork",
-                        "clone",
-                        "exec",
-                        "exit",
-                        "vfork-done"
-                    ]),
+                && data["options"] == options,
         )?;
         let cgroup = text(data, "cgroup")?.to_owned();
         require(
@@ -359,24 +363,36 @@ impl Replay {
 /// Verify already bounded public bytes and a caller-bound complete checkpoint.
 /// Callers must independently authenticate the checkpoint's source/custody.
 pub fn verify_native_process_events(raw: &[u8], checkpoint: &Value) -> Result<Value> {
+    let stdio = match checkpoint["schema"].as_str() {
+        Some("hol-gauntlet-native-process-events.v1") => None,
+        Some("hol-gauntlet-native-process-events.v2") => {
+            crate::native_stdio_contract::checkpoint(&checkpoint["native_stdio"])?;
+            Some(&checkpoint["native_stdio"]["declaration"])
+        }
+        _ => {
+            return Err(EvidenceError::Invalid(
+                "closed Native process checkpoint version required",
+            ))
+        }
+    };
+    let mut fields = vec![
+        "schema",
+        "complete",
+        "created_tasks",
+        "final_waits",
+        "exec_retirements",
+        "execs",
+        "journal",
+        "execution_eligible",
+    ];
+    if stdio.is_some() {
+        fields.push("native_stdio");
+    }
     require(
         !raw.is_empty()
             && raw.len() <= 64 * 1024 * 1024
             && raw.ends_with(b"\n")
-            && exact_keys(
-                checkpoint,
-                &[
-                    "schema",
-                    "complete",
-                    "created_tasks",
-                    "final_waits",
-                    "exec_retirements",
-                    "execs",
-                    "journal",
-                    "execution_eligible",
-                ],
-            )
-            && checkpoint["schema"] == "hol-gauntlet-native-process-events.v1"
+            && exact_keys(checkpoint, &fields)
             && checkpoint["complete"] == true
             && checkpoint["execution_eligible"] == false,
     )?;
@@ -426,7 +442,7 @@ pub fn verify_native_process_events(raw: &[u8], checkpoint: &Value) -> Result<Va
         let kind = text(&row, "kind")?;
         if sequence == 0 {
             require(kind == "trace-start")?;
-            replay = Some(Replay::start(&row["data"])?);
+            replay = Some(Replay::start(&row["data"], stdio)?);
         } else {
             replay.as_mut().unwrap().event(kind, &row["data"])?;
         }
@@ -442,12 +458,16 @@ pub fn verify_native_process_events(raw: &[u8], checkpoint: &Value) -> Result<Va
             && checkpoint["exec_retirements"].as_u64() == Some(replay.replacements)
             && checkpoint["execs"].as_u64() == Some(replay.execs),
     )?;
-    Ok(
-        json!({"schema":"hol-gauntlet-native-process-event-readback.v1","complete_task_relation_verified":true,
+    let mut result = json!({"schema":"hol-gauntlet-native-process-event-readback.v1","complete_task_relation_verified":true,
         "journal_sha256":sha256(raw),"journal_events":count,"created_tasks":replay.next,"final_waits":replay.finals,
         "exec_retirements":replay.replacements,"execs":replay.execs,"process_custody_authenticated":false,
-        "all_native_descendants_verified":false,"execution_eligible":false,"guard_causality_verified":false,"model_requests":0}),
-    )
+        "all_native_descendants_verified":false,"execution_eligible":false,"guard_causality_verified":false,"model_requests":0});
+    if stdio.is_some() {
+        result["schema"] = json!("hol-gauntlet-native-process-event-readback.v2");
+        result["native_stdio_capture_declared"] = json!(true);
+        result["native_stdio_bytes_verified"] = json!(false);
+    }
+    Ok(result)
 }
 
 #[cfg(test)]

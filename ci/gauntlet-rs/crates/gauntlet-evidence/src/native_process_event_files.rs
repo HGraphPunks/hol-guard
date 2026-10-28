@@ -7,7 +7,7 @@ use crate::{verify_native_process_events, EvidenceError, Result};
 use serde_json::Value;
 use std::path::Path;
 
-fn read(path: &Path, pin: &str, limit: usize) -> Result<Vec<u8>> {
+pub(crate) fn read(path: &Path, pin: &str, limit: usize) -> Result<Vec<u8>> {
     require(hex(pin, 64))?;
     let parent = path.parent().ok_or(EvidenceError::Invalid(
         "public process event parent missing",

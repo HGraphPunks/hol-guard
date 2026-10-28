@@ -62,6 +62,12 @@ mod native_product_kernel;
 mod native_review_summary;
 mod native_runtime_kernel;
 mod native_runtime_trace;
+mod native_stdio_contract;
+mod native_stdio_diagnostic;
+mod native_stdio_events;
+mod native_stdio_files;
+mod native_stdio_frames;
+mod native_stdio_process;
 mod native_transport_relations;
 mod native_world_database;
 mod native_world_diagnostic;
@@ -174,6 +180,8 @@ pub use native_process_events::verify_native_process_events;
 pub use native_review_summary::{
     native_review_completed, recompute_native_review_summary, verify_native_review_summary,
 };
+pub use native_stdio_events::verify_native_stdio_events;
+pub use native_stdio_files::verify_native_stdio_files;
 pub use native_transport_relations::verify_native_transport_relations;
 pub use native_world_database::verify_native_world_database;
 pub use native_world_diagnostic::verify_native_world_diagnostic;

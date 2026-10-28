@@ -241,7 +241,11 @@ pub fn verify_native_process_diagnostic(
     let artifacts = Artifacts::new(files)?;
     let journal_bound = if matches!(
         preparation["launch"]["schema"].as_str(),
-        Some("hol-gauntlet-cell-supervisor.v2" | "hol-gauntlet-cell-supervisor.v3")
+        Some(
+            "hol-gauntlet-cell-supervisor.v2"
+                | "hol-gauntlet-cell-supervisor.v3"
+                | "hol-gauntlet-cell-supervisor.v4"
+        )
     ) {
         crate::native_capture_input::journal_binding(&control["plane"], &artifacts)?
     } else {

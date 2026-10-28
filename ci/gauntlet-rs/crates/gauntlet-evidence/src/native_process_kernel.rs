@@ -114,8 +114,10 @@ impl<'a> KernelSamples<'a> {
     ) -> Result<Self> {
         if observed["schema"] == "hol-gauntlet-outside-native-mcp-kernel.v2" {
             require(
-                launch["schema"] == "hol-gauntlet-cell-supervisor.v3"
-                    && launch["process_events"] == "outside-root-ptrace.v1",
+                (launch["schema"] == "hol-gauntlet-cell-supervisor.v3"
+                    && launch["process_events"] == "outside-root-ptrace.v1")
+                    || (launch["schema"] == "hol-gauntlet-cell-supervisor.v4"
+                        && launch["process_events"] == "outside-root-ptrace.v2"),
             )?;
         }
         Self::new(observed, observer_sha256)

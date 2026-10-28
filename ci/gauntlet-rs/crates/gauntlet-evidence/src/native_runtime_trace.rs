@@ -197,7 +197,10 @@ pub(crate) fn verify(
     preparation: &Value,
     artifacts: &Artifacts<'_>,
 ) -> Result<Option<Value>> {
-    if preparation["launch"]["schema"] != "hol-gauntlet-cell-supervisor.v3" {
+    if !matches!(
+        preparation["launch"]["schema"].as_str(),
+        Some("hol-gauntlet-cell-supervisor.v3" | "hol-gauntlet-cell-supervisor.v4")
+    ) {
         return Ok(None);
     }
     let bound = crate::native_capture_input::journal_binding(&control["plane"], artifacts)?;

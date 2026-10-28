@@ -29,9 +29,20 @@ pub(crate) fn verify(
     require(
         matches!(
             launch["schema"].as_str(),
-            Some("hol-gauntlet-cell-supervisor.v2" | "hol-gauntlet-cell-supervisor.v3")
+            Some(
+                "hol-gauntlet-cell-supervisor.v2"
+                    | "hol-gauntlet-cell-supervisor.v3"
+                    | "hol-gauntlet-cell-supervisor.v4"
+            )
         ) && (launch["schema"] != "hol-gauntlet-cell-supervisor.v3"
             || launch["process_events"] == "outside-root-ptrace.v1")
+            && (launch["schema"] != "hol-gauntlet-cell-supervisor.v4"
+                || (launch["process_events"] == "outside-root-ptrace.v2"
+                    && launch["native_stdio"] == "outside-root-native-stdio.v1"
+                    && hex(
+                        crate::native_diagnostic_artifacts::text(launch, "native_runtime_sha256")?,
+                        64,
+                    )))
             && journal_bound
             && hex(interpreter, 64)
             && hex(observer, 64)

@@ -56,7 +56,11 @@ pub(crate) fn verify(
     artifacts: &Artifacts<'_>,
     journal_bound: bool,
 ) -> Result<Option<Value>> {
-    let traced = preparation["launch"]["schema"] == "hol-gauntlet-cell-supervisor.v3";
+    let stdio = preparation["launch"]["schema"] == "hol-gauntlet-cell-supervisor.v4";
+    let traced = stdio || preparation["launch"]["schema"] == "hol-gauntlet-cell-supervisor.v3";
+    if !stdio {
+        require(!artifacts.contains("combined/cell/native-stdio-events.v1.jsonl"))?;
+    }
     if !traced {
         require(
             plane.get("process_events").is_none()
@@ -72,17 +76,49 @@ pub(crate) fn verify(
     }
     require(
         journal_bound
-            && preparation["launch"]["process_events"] == "outside-root-ptrace.v1"
-            && plane["schema"] == "hol-gauntlet-native-hook-plane.v2"
+            && preparation["launch"]["process_events"]
+                == (if stdio {
+                    "outside-root-ptrace.v2"
+                } else {
+                    "outside-root-ptrace.v1"
+                })
+            && plane["schema"]
+                == (if stdio {
+                    "hol-gauntlet-native-hook-plane.v3"
+                } else {
+                    "hol-gauntlet-native-hook-plane.v2"
+                })
             && plane["cleanup_complete"] == true,
     )?;
     let observation = &plane["process_events"];
     require(
         exact_keys(observation, &["schema", "available", "checkpoint"])
-            && observation["schema"] == "hol-gauntlet-native-process-recorder.v1"
+            && observation["schema"]
+                == (if stdio {
+                    "hol-gauntlet-native-process-recorder.v2"
+                } else {
+                    "hol-gauntlet-native-process-recorder.v1"
+                })
             && observation["available"] == true,
     )?;
     let checkpoint = &observation["checkpoint"];
+    require(
+        checkpoint["schema"]
+            == (if stdio {
+                "hol-gauntlet-native-process-events.v2"
+            } else {
+                "hol-gauntlet-native-process-events.v1"
+            }),
+    )?;
+    if stdio {
+        require(
+            preparation["launch"]["native_stdio"] == "outside-root-native-stdio.v1"
+                && checkpoint["native_stdio"]["declaration"]["scope"]
+                    == "owned-product-native-stream"
+                && checkpoint["native_stdio"]["declaration"]["native_runtime_sha256"]
+                    == preparation["launch"]["native_runtime_sha256"],
+        )?;
+    }
     let raw = artifacts.raw(FILE)?;
     let readback = verify_native_process_events(raw, checkpoint)?;
     let metadata = artifacts.metadata(FILE)?;
@@ -111,8 +147,18 @@ pub(crate) fn verify(
                     "execution_eligible",
                 ],
             )
-            && start["schema"] == "hol-gauntlet-native-process-recorder-started.v1"
-            && start["mode"] == "outside-root-ptrace.v1"
+            && start["schema"]
+                == (if stdio {
+                    "hol-gauntlet-native-process-recorder-started.v2"
+                } else {
+                    "hol-gauntlet-native-process-recorder-started.v1"
+                })
+            && start["mode"]
+                == (if stdio {
+                    "outside-root-ptrace.v2"
+                } else {
+                    "outside-root-ptrace.v1"
+                })
             && start["execution_eligible"] == false
             && start["actor"] == *actor
             && close == observation
