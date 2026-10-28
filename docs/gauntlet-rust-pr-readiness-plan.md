@@ -32,6 +32,11 @@ ordering regression and count-parser failure remain retained. This is offline
 verifier proof against product `dc3b9336`; it supplies no new product execution,
 request semantics, writer attribution or custody admission.
 
+Next implementation: [outside Native client pipe capture](gauntlet-rust-native-stdio-plan.md),
+with a separately versioned syscall observer, closed launch declaration and
+Root journal. Native stream bytes and physical effect writers remain separate
+obligations. Kernel close notifications do not supply missing write causality.
+
 ## Goal and completion contract
 
 Finish the Gauntlet migration on a tested branch in `HGraphPunks/hol-guard`,

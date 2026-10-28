@@ -272,3 +272,139 @@ fn wrong_cgroup_cannot_attach_or_change_an_unrelated_fixture() {
     let status = std::fs::read_to_string(format!("/proc/{}/status", sentinel.child.id())).unwrap();
     assert!(status.lines().any(|line| line == "TracerPid:\t0"));
 }
+
+#[test]
+fn actual_kernel_syscall_entry_exit_records_match_the_closed_aarch64_decoder() {
+    use crate::native_stdio_syscall::{stopped_native_syscall_info, NativeSyscallStop};
+    use crate::native_trace_sys as sys;
+    // The unchanged pinned fixture gates every non-leaf mode, then exits 97
+    // for this unknown mode. Observe that explicit refusal, never a product
+    // success. No candidate code or target memory is read by this ABI test.
+    let mut fixture = Fixture::start("syscall-metadata-only");
+    let tid = fixture.child.id();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let wait = || loop {
+        let mut status = 0;
+        // SAFETY: wait only on this owned, still-held child's PID.
+        let found = unsafe {
+            libc::waitpid(
+                tid as i32,
+                &mut status,
+                libc::__WALL | libc::__WNOTHREAD | libc::WNOHANG,
+            )
+        };
+        if found == tid as i32 {
+            break status;
+        }
+        if found < 0 {
+            assert_eq!(
+                std::io::Error::last_os_error().raw_os_error(),
+                Some(libc::EINTR)
+            );
+        }
+        assert!(
+            Instant::now() < deadline,
+            "owned syscall ABI fixture deadline"
+        );
+        std::thread::sleep(Duration::from_millis(1));
+    };
+    sys::seize(tid).unwrap();
+    assert_eq!(wait(), 128 << 16 | libc::SIGTRAP << 8 | 0x7f);
+    let options = libc::PTRACE_O_EXITKILL
+        | libc::PTRACE_O_TRACEFORK
+        | libc::PTRACE_O_TRACEVFORK
+        | libc::PTRACE_O_TRACECLONE
+        | libc::PTRACE_O_TRACEEXEC
+        | libc::PTRACE_O_TRACEEXIT
+        | libc::PTRACE_O_TRACEVFORKDONE
+        | libc::PTRACE_O_TRACESYSGOOD;
+    // SAFETY: this thread owns the stopped child. Only tracing options change.
+    assert_eq!(
+        unsafe {
+            libc::ptrace(
+                libc::PTRACE_SETOPTIONS,
+                tid as i32,
+                std::ptr::null_mut::<libc::c_void>(),
+                options as usize as *mut libc::c_void,
+            )
+        },
+        0
+    );
+    let resume = |signal: i32| {
+        // SAFETY: no target memory, register or syscall argument is changed.
+        assert_eq!(
+            unsafe {
+                libc::ptrace(
+                    libc::PTRACE_SYSCALL,
+                    tid as i32,
+                    std::ptr::null_mut::<libc::c_void>(),
+                    signal as usize as *mut libc::c_void,
+                )
+            },
+            0
+        );
+    };
+    fixture.release();
+    resume(0);
+    let mut entries = Vec::new();
+    let mut exits = Vec::new();
+    let mut early_exit_seen = false;
+    loop {
+        let raw = wait();
+        if libc::WIFEXITED(raw) {
+            assert_eq!(libc::WEXITSTATUS(raw), 97);
+            break;
+        }
+        assert!(
+            libc::WIFSTOPPED(raw),
+            "unexpected owned syscall fixture status {raw}"
+        );
+        let signal = libc::WSTOPSIG(raw);
+        let event = (raw as u32) >> 16;
+        if event == 0 && signal == (libc::SIGTRAP | 0x80) {
+            match stopped_native_syscall_info(tid).unwrap() {
+                NativeSyscallStop::Entry(entry) => entries.push(entry),
+                NativeSyscallStop::Exit { result, is_error } => exits.push((result, is_error)),
+            }
+            assert!(
+                entries.len() + exits.len() <= 256,
+                "owned syscall fixture stop bound"
+            );
+            resume(0);
+        } else if event == libc::PTRACE_EVENT_EXIT as u32 && signal == libc::SIGTRAP {
+            assert!(!early_exit_seen);
+            early_exit_seen = true;
+            assert_eq!(sys::message(tid).unwrap(), 97 << 8);
+            resume(0);
+        } else {
+            assert_eq!(event, 0, "unexpected owned fixture ptrace event");
+            assert!((1..=64).contains(&signal));
+            resume(signal);
+        }
+    }
+    assert!(early_exit_seen);
+    assert!(!crate::kernel_process::alive(&fixture.pidfd).unwrap());
+    assert!(entries
+        .iter()
+        .any(|e| e.number == libc::SYS_exit_group as u64 && e.arguments[0] == 97));
+    assert!(
+        exits
+            .iter()
+            .any(|(result, is_error)| *result == 1 && !is_error),
+        "the released one-byte pipe read must have a real successful syscall exit"
+    );
+    let report = serde_json::json!({"schema":"hol-gauntlet-native-syscall-abi-fixture.v1",
+        "actual_syscall_entries":entries.len(),"actual_syscall_exits":exits.len(),
+        "actual_final_exit_code":97,"early_exit_seen":true,"entry_and_exit_abi_checked":true,
+        "target_memory_read":false,"candidate_executed":false,"execution_eligible":false,
+        "guard_causality_verified":false,"model_requests":0});
+    let stage = stage("native-syscall-abi");
+    let mut output = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(stage.join("result.json"))
+        .unwrap();
+    output.write_all(report.to_string().as_bytes()).unwrap();
+    output.sync_all().unwrap();
+}
