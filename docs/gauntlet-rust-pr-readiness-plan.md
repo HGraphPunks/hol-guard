@@ -744,6 +744,19 @@ approval ceremony for routine work already authorized by this request.
   Native hook/Bash/lifecycle grader remain pending; old absent input receipts stay unverified. See
   [input receipts](gauntlet-rust-native-capture-input-receipts.md).
   No parent exit closes; all qualification/causality flags remain false.
+- 2026-10-27: hook verifier `72f49ab8` recomputes 19 actual Native captures
+  and five contained-result/SDK/Post joins across all six historical roles.
+  New captures require complete acknowledged input receipts and the signed
+  Root journal checkpoint. Old missing receipts stay unverified; invented
+  historical events, changed captures and wrong identity pins refuse.
+  Forty-three artifact/restart/regression/refusal cases and 547 Mac workspace
+  tests pass. Mac/ARM warnings-denied Clippy and eleven focused Root ARM tests
+  pass; independent host readback verifies source/ELF/log/metadata pins, both
+  leases and all 284 unchanged worker records. Failed lease-fixture, Clippy
+  and writable-ancestor test attempts remain retained. See
+  [hook artifact proof](gauntlet-rust-native-hook-artifact-verifier.md).
+  Native process/effect/lifecycle grading, fresh capture execution and outside
+  admission remain open. No parent exit closes; CI remains user-owned/pending.
 - Next: finish independent deterministic role scoring and outside key custody,
   then twelve fresh source-matched staging/installed roles and conformance.
   The [SDK evidence](gauntlet-rust-native-sdk-transport.md)

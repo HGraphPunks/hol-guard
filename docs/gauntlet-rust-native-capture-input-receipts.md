@@ -17,7 +17,11 @@ This closes an instrumentation gap for future Native hook grading: a reader
 can hash the exact canonical hook payload plus its newline and join it to the
 process handle, argv, input receipt and captured output. Historical capture
 journals lack these receipts; they must remain unverified for input delivery.
-The Native hook/Bash/lifecycle grader and fresh actual execution remain pending.
+The [hook artifact reader](gauntlet-rust-native-hook-artifact-verifier.md) now
+consumes these receipts and requires a matching Root journal checkpoint signed
+in the Native plane. It checks count, bytes, tail digest and physical custody;
+old signed reports cannot gain credit from invented receipt events. Full
+Native process/Bash/lifecycle grading and fresh actual execution remain pending.
 This instrumentation supplies no Guard causality or qualification by itself.
 
 The affected Mac rootfs library passes all 36 tests, including three new input
@@ -34,7 +38,8 @@ All three new state tests also pass natively under Root on the owned ARM VM
 at source `052cbabd00a889d5b862205c22f58a5b695140d8`. Both worker leases
 remain held, all 284 prior worker files retain their hashes and owned product
 cgroups remain absent. These are focused unit tests; fresh actual Native
-capture execution and the consuming grader remain pending.
+capture execution remains pending. Later hook-reader and journal-custody tests
+are recorded in the linked hook artifact proof.
 
 The executable was compiled before the implementation commit; the courier
 checks every changed source file against that exact committed Git object.
