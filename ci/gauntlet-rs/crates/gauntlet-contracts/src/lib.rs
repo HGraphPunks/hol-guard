@@ -13,6 +13,8 @@ mod dependency_run;
 mod effect_file_handle;
 pub use dependency_run::{DependencyRunIntent, DependencyRunPins, DEPENDENCY_INTENT_LIMIT};
 mod effect_writer_image;
+mod feature_catalog;
+mod feature_spec;
 mod identity;
 mod policy;
 mod prelaunch_handoff;
@@ -24,6 +26,13 @@ pub use effect_file_handle::{EffectFileHandle, MAX_EFFECT_HANDLE_BYTES};
 pub use effect_writer_image::{
     validate_effect_writer_images, EFFECT_IMAGE_JOURNAL_SCHEMA, EFFECT_IMAGE_RECEIPT_SCHEMA,
     MAX_EFFECT_WRITER_IMAGES,
+};
+pub use feature_catalog::{
+    fixed_feature_catalog, fixed_feature_schedule, FeatureCatalogError, FeatureGroup,
+    FEATURE_CATALOG_SHA256,
+};
+pub use feature_spec::{
+    FeatureExecutorSpec, FeatureSpecError, FEATURE_NODE_SHA256, FEATURE_SPEC_LIMIT,
 };
 pub use identity::{is_git_sha, validate_source_identity, IdentityError};
 pub use policy::{bind_gate_policy, GatePolicyError};

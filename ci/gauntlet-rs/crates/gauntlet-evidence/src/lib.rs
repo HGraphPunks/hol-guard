@@ -27,6 +27,8 @@ mod deterministic_injection;
 mod deterministic_report;
 mod deterministic_signed_injection;
 mod episode_score;
+mod feature_junit;
+mod feature_report;
 mod host_calls;
 mod io;
 #[cfg(target_os = "linux")]
@@ -149,6 +151,8 @@ pub use deterministic_report::{
 };
 pub use deterministic_signed_injection::reduce_signed_injection_attribution;
 pub use episode_score::evaluate_audited_episode;
+pub use feature_junit::{verify_feature_junit_v2, FeatureJunitCounts, MAX_FEATURE_JUNIT_BYTES};
+pub use feature_report::verify_feature_report_v2;
 pub use host_calls::reconcile_host_calls;
 #[cfg(target_os = "linux")]
 pub use local_conformance_files::{

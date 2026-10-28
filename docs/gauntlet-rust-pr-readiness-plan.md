@@ -59,6 +59,18 @@ checks and 32 unchanged historical readbacks. All 691 source-map entries and the
 42-member public export verify. The final background drain remains explicitly
 unanswered. This bounded subset closes no parent exit.
 
+Independent R4 work now implements the fixed
+[Rust feature executor and v2 report reader](gauntlet-rust-feature-audit.md):
+all 28 groups and 52 pytest selectors, exact source/installed contexts,
+bounded unprivileged setup and subprocess ownership, actual JUnit counts and
+complete per-group artifact verification. Nine new focused tests, the
+632-test Mac workspace, Mac/ARM Clippy and eight live ARM tests pass. The
+fresh development-container audit has passed setup and both same-UID owner
+access refusals; its complete 28-group result and cleanup remain pending.
+The Root development launcher still needs Rust durable worker integration.
+The first missing-Node-path setup attempt remains retained. Parent exits stay
+24/62, and CI remains user-owned and pending.
+
 ## Goal and completion contract
 
 Finish the Gauntlet migration on a tested branch in `HGraphPunks/hol-guard`,

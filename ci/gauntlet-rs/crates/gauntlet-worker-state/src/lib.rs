@@ -141,6 +141,18 @@ mod builder_run_plan;
 mod builder_source_capture;
 mod candidate_archive;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_executor;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_executor_files;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_executor_prepare;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_executor_process;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_executor_scope;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use feature_executor::run_fixed_feature_executor;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_build_ready;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_capture;
