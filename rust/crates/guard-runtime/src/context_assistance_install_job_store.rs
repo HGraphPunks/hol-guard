@@ -179,14 +179,24 @@ pub(super) fn private_read<T: serde::de::DeserializeOwned>(
                 continue;
             }
             Ok(None) => return Ok(None),
-            Err(cause)
-                if (cause.ends_with("_stat_failed") || cause.ends_with("_read_failed"))
-                    && replacement_candidate(path) =>
+            Err(_cause)
+                if replacement_candidate(path)
+                    && fs::symlink_metadata(path).is_ok_and(|meta| meta.len() <= limit) =>
             {
+                // A stable malformed payload is corruption, not a rename race.
+                if guard_secure_fs::read_stable(path, limit as usize, false)
+                    .is_ok_and(|current| crate::strict_json_value(&current.bytes).is_err())
+                {
+                    return Err(error("install_metadata_invalid"));
+                }
                 std::thread::yield_now();
                 continue;
             }
-            Err(_) => return Err(error("install_metadata_invalid")),
+            Err(_cause) => {
+                #[cfg(test)]
+                eprintln!("private_read first read rejected: {_cause}");
+                return Err(error("install_metadata_invalid"));
+            }
         };
         let stable = match guard_secure_fs::read_stable(path, limit as usize, false) {
             Ok(stable) => stable,
@@ -194,12 +204,20 @@ pub(super) fn private_read<T: serde::de::DeserializeOwned>(
                 std::thread::yield_now();
                 continue;
             }
-            Err(_) => return Err(error("install_metadata_invalid")),
+            Err(_cause) => {
+                #[cfg(test)]
+                eprintln!("private_read stable read rejected: {_cause:?}");
+                return Err(error("install_metadata_invalid"));
+            }
         };
         if stable.bytes == bytes {
             return crate::strict_json::from_value(value)
                 .map(Some)
-                .map_err(|_| error("install_metadata_invalid"));
+                .map_err(|_| {
+                    #[cfg(test)]
+                    eprintln!("private_read typed decode rejected");
+                    error("install_metadata_invalid")
+                });
         }
     }
     Err(error("install_metadata_changed"))
@@ -212,14 +230,14 @@ fn atomic_replacement(path: &Path, cause: &guard_secure_fs::SecureReadError) -> 
     ) {
         return true;
     }
-    // A rename can invalidate the path walk or unlink an open old inode.
-    // Retry only if the current named leaf is private and single-linked.
+    // A rename can invalidate any stage of the descriptor walk. Retry other
+    // read errors only if the current named leaf is private and single-linked.
+    if matches!(cause, SecureReadError::TooLarge) {
+        return false;
+    }
     #[cfg(unix)]
-    if matches!(
-        cause,
-        SecureReadError::HardLinkedFile | SecureReadError::ReadFailed
-    ) {
-        return replacement_candidate(path);
+    if replacement_candidate(path) {
+        return true;
     }
     let _ = path;
     false
