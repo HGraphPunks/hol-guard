@@ -5,14 +5,15 @@ use serde_json::{json, Map, Value};
 use super::{Delegated, METHOD};
 use crate::guard_store_db::StoreError;
 
-const CONNECTOR_HASH: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+pub(super) const CONNECTOR_HASH: &str =
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 /// A call with no admitted snapshot, as the unit tests have none.
-fn delegate(args: &Map<String, Value>) -> Result<Delegated, StoreError> {
+pub(super) fn delegate(args: &Map<String, Value>) -> Result<Delegated, StoreError> {
     super::delegate(args, None, 10_000)
 }
 
-fn query(payload: Value) -> Value {
+pub(super) fn query(payload: Value) -> Value {
     json!({
         "envelope": {
             "harness": "claude-code",
@@ -37,7 +38,7 @@ fn query(payload: Value) -> Value {
     })
 }
 
-fn shell() -> Value {
+pub(super) fn shell() -> Value {
     json!({
         "session_id": "sess-1",
         "tool_name": "Bash",
@@ -46,7 +47,7 @@ fn shell() -> Value {
     })
 }
 
-fn args(extra: Value) -> Map<String, Value> {
+pub(super) fn args(extra: Value) -> Map<String, Value> {
     let mut args = json!({
         "review": query(shell()),
         "hint": null,
@@ -60,7 +61,7 @@ fn args(extra: Value) -> Map<String, Value> {
     args.as_object().unwrap().clone()
 }
 
-fn invalid(result: Result<Delegated, StoreError>) -> bool {
+pub(super) fn invalid(result: Result<Delegated, StoreError>) -> bool {
     matches!(
         result,
         Err(StoreError::Invalid(
@@ -263,4 +264,114 @@ fn malformed_calls_are_refused() {
             "native_guard_store_review_request_refused"
         ))
     ));
+}
+
+/// A Guard home with no daemon token: the link is left unsigned.
+const NO_TOKEN_HOME: &str = "/nonexistent/hol-guard";
+
+fn stored_reply() -> Value {
+    json!({
+        "request_id": "req1",
+        "row": {"request_id": "req1", "approval_url": "http://127.0.0.1:4781/requests/req1"},
+    })
+}
+
+#[test]
+fn a_paused_review_is_rendered_with_its_stored_row() {
+    let delegated = delegate(&args(json!({
+        "respond": {"paused_review": {"reason": "Set up `lanectl` first."}},
+    })))
+    .unwrap();
+    let reply = delegated.with_response(stored_reply(), NO_TOKEN_HOME);
+    assert_eq!(reply["row"], stored_reply()["row"]);
+    let response = reply["response"].as_object().expect("response");
+    // The setup text replaces the verdict's reason for the agent only.
+    let text = Value::Object(response.clone()).to_string();
+    assert!(text.contains("Set up `lanectl` first."), "{text}");
+    assert!(!text.contains("Deletes files."), "{text}");
+    let unchanged = delegate(&args(
+        json!({"respond": {"paused_review": {"reason": null}}}),
+    ))
+    .unwrap()
+    .with_response(stored_reply(), NO_TOKEN_HOME);
+    assert!(unchanged["response"].to_string().contains("Deletes files."));
+}
+
+#[test]
+fn a_silent_block_is_rendered_with_its_stored_row() {
+    let delegated = delegate(&args(json!({
+        "silent": true,
+        "respond": {"silent_review_block": {
+            "setup_reason": null,
+            "ask": false,
+            "retry_reuses_approval": true,
+            "exact_action_allowable": false,
+            "connector_is_local": false,
+            "home_dir": "/home/u",
+        }},
+    })))
+    .unwrap();
+    let reply = delegated.with_response(stored_reply(), NO_TOKEN_HOME);
+    let response = &reply["response"];
+    assert_eq!(response["prompted"], false);
+    assert_eq!(response["blocked_request_mode"], "safe-alternative");
+}
+
+#[test]
+fn a_response_that_would_not_fit_the_reply_frame_is_left_to_the_hook() {
+    let mut reply = stored_reply();
+    // The row alone fits; with the rendered response it would not.
+    reply["row"]["raw_command_text"] = json!("y".repeat(super::REPLY_BUDGET_BYTES - 200));
+    let delegated = delegate(&args(json!({
+        "respond": {"paused_review": {"reason": null}},
+    })))
+    .unwrap();
+    assert_eq!(delegated.with_response(reply.clone(), NO_TOKEN_HOME), reply);
+}
+
+#[test]
+fn a_reply_without_its_row_or_a_respond_carries_no_response() {
+    let read_back = json!({"request_id": "req1", "row_error": "native_guard_store_invalid"});
+    let delegated = delegate(&args(json!({
+        "respond": {"paused_review": {"reason": null}},
+    })))
+    .unwrap();
+    assert_eq!(
+        delegated.with_response(read_back.clone(), NO_TOKEN_HOME),
+        read_back
+    );
+    let plain = delegate(&args(json!({}))).unwrap();
+    assert_eq!(
+        plain.with_response(stored_reply(), NO_TOKEN_HOME),
+        stored_reply()
+    );
+}
+
+#[test]
+fn a_respond_that_does_not_match_the_call_is_refused() {
+    let silent_facts = json!({
+        "setup_reason": null,
+        "ask": false,
+        "retry_reuses_approval": false,
+        "exact_action_allowable": false,
+        "connector_is_local": false,
+        "home_dir": "/home/u",
+    });
+    assert!(invalid(delegate(&args(
+        json!({"respond": "paused_review"})
+    ))));
+    assert!(invalid(delegate(&args(json!({
+        "respond": {"paused_review": {"reason": null, "extra": 1}},
+    })))));
+    assert!(invalid(delegate(&args(json!({
+        "respond": {"approval_card": {}},
+    })))));
+    // A silent block answers only a silent queue, and a paused review only a prompted one.
+    assert!(invalid(delegate(&args(json!({
+        "respond": {"silent_review_block": silent_facts},
+    })))));
+    assert!(invalid(delegate(&args(json!({
+        "silent": true,
+        "respond": {"paused_review": {"reason": null}},
+    })))));
 }
