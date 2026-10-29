@@ -171,10 +171,22 @@ pub(super) fn private_read<T: serde::de::DeserializeOwned>(
     kind: &str,
 ) -> Result<Option<T>, String> {
     for _ in 0..4 {
-        let Some((value, bytes)) = read_private_json(path, limit, kind, home)
-            .map_err(|_| error("install_metadata_invalid"))?
-        else {
-            return Ok(None);
+        // A rename can race the first path stat/open; malformed bytes still fail.
+        let (value, bytes) = match read_private_json(path, limit, kind, home) {
+            Ok(Some(snapshot)) => snapshot,
+            Ok(None) if replacement_candidate(path) => {
+                std::thread::yield_now();
+                continue;
+            }
+            Ok(None) => return Ok(None),
+            Err(cause)
+                if (cause.ends_with("_stat_failed") || cause.ends_with("_read_failed"))
+                    && replacement_candidate(path) =>
+            {
+                std::thread::yield_now();
+                continue;
+            }
+            Err(_) => return Err(error("install_metadata_invalid")),
         };
         let stable = match guard_secure_fs::read_stable(path, limit as usize, false) {
             Ok(stable) => stable,
@@ -200,18 +212,42 @@ fn atomic_replacement(path: &Path, cause: &guard_secure_fs::SecureReadError) -> 
     ) {
         return true;
     }
-    // A reader can briefly hold the just-unlinked old inode after an atomic
-    // rename. Retry only if the current named leaf is a single regular file;
-    // persistent hardlinks, symlinks and private-mode failures remain invalid.
+    // A rename can invalidate the path walk or unlink an open old inode.
+    // Retry only if the current named leaf is private and single-linked.
     #[cfg(unix)]
-    if matches!(cause, SecureReadError::HardLinkedFile) {
-        use std::os::unix::fs::MetadataExt;
-        return fs::symlink_metadata(path).is_ok_and(|meta| {
-            meta.is_file() && !meta.file_type().is_symlink() && meta.nlink() == 1
-        });
+    if matches!(
+        cause,
+        SecureReadError::HardLinkedFile | SecureReadError::ReadFailed
+    ) {
+        return replacement_candidate(path);
     }
     let _ = path;
     false
+}
+fn replacement_candidate(path: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let Some(parent) = path
+            .parent()
+            .and_then(|parent| fs::symlink_metadata(parent).ok())
+        else {
+            return false;
+        };
+        fs::symlink_metadata(path).is_ok_and(|meta| {
+            parent.is_dir()
+                && meta.is_file()
+                && meta.nlink() == 1
+                && meta.uid() == parent.uid()
+                && meta.permissions().mode() & 0o077 == 0
+                && meta.permissions().mode() & 0o400 != 0
+        })
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        false
+    }
 }
 pub(super) fn temporary_name(name: &str) -> bool {
     let Some(name) = name
