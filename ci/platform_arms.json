@@ -1116,6 +1116,14 @@
   },
   {
    "verdict": "windows-unsupported",
+   "note": "Windows lacks the Unix uid, mode and link-count proof for this retry. Returning false keeps uncertain reads fail-closed before any job view is exposed; Windows native-runtime CI compiles this arm.",
+   "file": "rust/crates/guard-runtime/src/context_assistance_install_job_store.rs",
+   "item": "fn replacement_candidate -- non-Unix block",
+   "cfg": "not(unix)",
+   "body": "5c14a37d30fd"
+  },
+  {
+   "verdict": "windows-unsupported",
    "note": "Install job leasing requires the private POSIX job store; this arm reports platform unqualified.",
    "file": "rust/crates/guard-runtime/src/context_assistance_install_job_store.rs",
    "item": "fn lease -- non-Unix block",
