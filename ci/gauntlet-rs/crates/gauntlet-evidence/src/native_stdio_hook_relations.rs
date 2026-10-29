@@ -82,6 +82,8 @@ pub(crate) fn verify(
     let mut requests = 0;
     let mut responses = 0;
     let mut reauthorizations = 0;
+    let mut operation_reply_digests = 0;
+    let mut operation_replies_without_digest = 0;
     for stream in &snapshots.streams {
         let candidates = native_images
             .iter()
@@ -122,6 +124,13 @@ pub(crate) fn verify(
                             .all(|b| b.is_ascii_lowercase() || b == b'_'),
                 )?;
                 *operations.entry(operation.into()).or_default() += 1;
+                if let Some(response) = response_frames.get(index) {
+                    if crate::native_stdio_operation_identity::verify(request, response)? {
+                        operation_reply_digests += 1;
+                    } else {
+                        operation_replies_without_digest += 1;
+                    }
+                }
                 if index >= response_frames.len() {
                     unanswered.push(json!({"stream":stream.stream,"frame_index":index,"operation":operation,
                         "request_sha256":digest(request)?,"response_observed":false,"disposition_inferred":false}));
@@ -182,6 +191,9 @@ pub(crate) fn verify(
         "copied_hook_pairs_checked":pairs.len(),"outer_hooks_joined":checked_outer.len(),
         "contained_reauthorizations_checked":reauthorizations,"pairs":pairs,
         "operation_requests_observed":operations,"operation_request_semantics_verified":false,
+        "operation_reply_digests_checked":operation_reply_digests,
+        "operation_replies_without_digest":operation_replies_without_digest,
+        "command_capability_digest_excludes_signing_key":true,
         "unanswered_requests":unanswered,"fifo_correspondence_uses_pinned_serial_client_loop":true,
         "all_request_semantics_verified":false,"atomic_kernel_pipe_bytes_verified":false,
         "concurrent_memory_authenticated":false,"physical_effect_writers_verified":false,

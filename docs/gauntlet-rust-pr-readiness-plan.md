@@ -1,7 +1,15 @@
 # Gauntlet Rust migration: execution and PR readiness
 
-Updated: 2026-10-28. Execution model: GPT-6.1 Sol, Max reasoning.
+Updated: 2026-10-29. Execution model: GPT-6.1 Sol, Max reasoning.
 Status: active implementation; the Rust replacement is not qualified.
+
+The latest local [resident-operation reply binding](gauntlet-rust-native-operation-reply-bindings.md)
+replays the retained launch-v4 control with 97 matching request ID/schema/digest
+responses, 146 completed replies without a digest and one unanswered drain.
+All 134 evidence-library tests and Mac/ARM warnings-denied Clippy pass. No new
+product/VM execution, operation-semantic verdict or parent exit is claimed.
+Fresh Root feature-worker validation is held by stale Lima PID/socket files
+outside this session's writable roots; the owned VM remains stopped.
 
 Current R3 work: [outside Rust process-event recording](gauntlet-rust-native-process-event-plan.md)
 is integrated in closed launch v3, with signed checkpoint and gate joins.

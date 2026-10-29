@@ -44,6 +44,11 @@ and 623 complete Mac tests, fourteen Root ARM tests, nine identical Mac/ARM
 artifact outcomes, five fresh fixed-host checks and 32 unchanged historical
 readbacks. All 691 source-map entries and 42 public export members verify.
 This subset grants no full request-semantics or parent-exit credit.
+The [resident-operation reply binding](gauntlet-rust-native-operation-reply-bindings.md)
+now recomputes 97 request ID/schema/digest relations in the same retained
+control. Another 146 completed replies have no digest, and the final drain is
+unanswered. The complete 134-test evidence library and affected Mac/ARM Clippy
+pass. Operation effects, atomic wire bytes and all parent exits stay open.
 
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
