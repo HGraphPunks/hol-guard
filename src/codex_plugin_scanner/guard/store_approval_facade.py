@@ -18,8 +18,8 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class StoreApprovalsMixin:
-    def matching_native_review_block(self, **identity: object) -> bool:
-        return self._native_store_call("matching_native_review_block", identity) is True
+    def settle_native_review_reuse(self, **identity: object) -> object:
+        return self._native_store_call("settle_native_review_reuse", identity)
 
     def consume_native_review_approval(
         self,
