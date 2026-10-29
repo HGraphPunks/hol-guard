@@ -129,15 +129,15 @@ measured parity gate, not the detection itself.
 - [ ] NRH-T106 keep healthy safe operations silent and approval scope consistent across surfaces;
 - [ ] NRH-T107 add local and managed native kill switches plus rollback playbook — nothing of this exists today and the shape of it is a product decision, not an implementation detail: a kill switch that re-enables a Python evaluator is forbidden by this document's own invariant, so the only switch that could be built disables supported review altogether. The retired `off` value is not that switch;
 - [x] NRH-T108 generate static import/call graph and runtime import coverage for migration candidates;
-- [ ] NRH-T109 delete dead duplicate Python implementations plus their tests, imports, dependencies, package entries, flags, and shims — the selector T112 names is gone, and the wave continues on `main`: `python-capability-ownership.v1.json` now records 122 retired modules and 34 retired test paths with no deletion candidate left outstanding, the dead grant containment route took `daemon/hook_contained_grant.py` with it, and retiring the unused sensitive file read and write request clients removed most of `runtime/secret_file_request_services`. What remains is the replaced source T113 and T114 name;
+- [ ] NRH-T109 delete dead duplicate Python implementations plus their tests, imports, dependencies, package entries, flags, and shims — the selector T112 names is gone, and the wave continues on `main`: `python-capability-ownership.v1.json` now records 122 retired modules and 34 retired test paths with no deletion candidate left outstanding, the dead grant containment route took `daemon/hook_contained_grant.py` with it, and retiring the unused sensitive file read and write request clients removed most of `runtime/secret_file_request_services`. What remains is the command parsing and catastrophic-risk source T114 names;
 - [x] NRH-T110 move reusable cases to language-neutral fixtures and add package-content/import-removal tests;
 - [x] NRH-T111 publish Python LOC/dependency delta and require every retained reference backend to run in named CI.
 - [x] NRH-T112 delete `choose_post_tool_response` after repository-wide static and dynamic caller proof;
-- [ ] NRH-T113 delete replaced PostToolUse traversal, scanning, secure-read, hashing, and path-validation Python implementations in the same authority-cutover wave;
+- [x] NRH-T113 delete replaced PostToolUse traversal, scanning, secure-read, hashing, and path-validation Python implementations in the same authority-cutover wave — `runtime/hook_content_scanner.py`, `runtime/hook_source_read.py`, `runtime/hook_review_engine.py`, `runtime/hook_output_text.py`, `runtime/workspace_path_guard.py`, `runtime/source_paths.py` and `runtime/skill_paths.py` are absent from `src/` and recorded among `python-capability-ownership.v1.json`'s retired modules, and `scripts/ci/python_runtime_retirement.py` reddens CI if any of those paths, their tests, their bodies or their symbols reappear. The traversal and hashing still in Python belong to the plugin scanner and the release/evidence tooling, not the PostToolUse path;
 - [ ] NRH-T114 delete replaced command parsing and catastrophic-risk Python implementations only after cross-shell native authority gates pass;
 - [ ] NRH-T115 remove dependencies and build/package metadata used only by deleted implementations;
 - [x] NRH-T116 add installed-wheel tests proving removed private modules are absent and intentionally non-importable;
-- [ ] NRH-T117 audit dynamic imports, entry points, plugin references, and string-based module loading before every deletion;
+- [ ] NRH-T117 audit dynamic imports, entry points, plugin references, and string-based module loading before every deletion — `scripts/ci/python_capability_cleanup_static.py` follows importlib destinations and rejects unbounded provenance, and `python_runtime_retirement.py` now screens every `[project.scripts]` and `[project.entry-points]` target against the retired modules and against the named attribute's definition, resolving the module only under the packages the wheel actually ships and walking a dotted attribute through the class that holds it, so a deletion that strands a console script reddens CI instead of shipping a command that fails at launch; plugin references and the remaining string-based loaders are open;
 - [ ] NRH-T118 treat every unreachable or untested fallback as dead code rather than dormant rollback — the native-mode half is done: `HOL_GUARD_NATIVE=off` and `=shadow` are accepted, warned about once and ignored, `tests/test_native_legacy_modes.py` pins that, and the PRD, ADR 0006, ADR 0010 and `native-hook-data-plane-ownership.md` no longer describe either one as a disablement or a diagnostic mode. The vector recorders under `rust/crates/guard-runtime/testdata/` ask for `auto`, the value `off` already resolved to, instead of a setting that reads as a kill switch. They still drop `HOL_GUARD_NATIVE_BINARY`, though in `auto` that override is read by nothing: what leaves native unavailable in a recorder run is the absence of a bundled runtime beside the imported package. Fallbacks elsewhere in the tree are open;
 - [x] NRH-T119 prove dead-code package exclusion preserves the named pure-Python unsupported-platform and rollback configurations.
 
@@ -160,10 +160,11 @@ NHD-091–095 completed the ownership/graph/package proof for the cleanup
 surface. Every module it recorded as a deletion candidate is gone:
 `python-capability-ownership.v1.json` carries an empty `deletion_candidates`
 list, an empty `package_excluded_candidates` list and `retained_source: false`,
-so no replaced Python implementation is held back as dormant rollback. T109,
-T113, T114, T115, T117, and T118 remain open until a separate authorized
-deletion wave removes the remaining replaced source and any newly proven-dead
-implementation dependencies.
+so no replaced Python implementation is held back as dormant rollback. T113
+closed with the PostToolUse traversal, scanning, secure-read, hashing and
+path-validation modules. T109, T114, T115, T117, and T118 remain open until a
+separate authorized deletion wave removes the remaining replaced source and any
+newly proven-dead implementation dependencies.
 
 - [ ] all transport, overload, fallback, supervision, daemon-failure, privacy, cross-platform, catastrophic-risk, safe-autonomy, performance, fuzz, chaos, soak, artifact, review, and rollback gates pass;
 - [ ] dead replaced Python code is removed and retained Python ownership is explicit;
