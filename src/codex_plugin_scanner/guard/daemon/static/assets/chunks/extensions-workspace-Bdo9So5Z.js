@@ -3428,27 +3428,50 @@ function loadCommandsNeedsPath(item) {
   const suffix = dot > 0 ? item.name.slice(dot).toLowerCase() : "";
   return item.kind !== "executable" || !BARE_PROGRAM_NAME.test(item.name) || SCRIPT_SUFFIXES.has(suffix);
 }
+const ABSOLUTE_PATH = /^(?:\/|~\/|[A-Za-z]:[\\/])/;
+function recordedToolPath(item) {
+  const recorded2 = item.source_path ?? "";
+  return ABSOLUTE_PATH.test(recorded2) ? recorded2 : "";
+}
+function enteredToolPath(raw) {
+  const trimmed = raw.trim();
+  const quoted = /^(['"])(.*)\1$/.exec(trimmed);
+  return (quoted ? quoted[2] : trimmed).trim();
+}
 function LocalCliLoadCommands(props) {
   const { item, onLoaded } = props;
   const pathId = reactExports.useId();
+  const pathHintId = reactExports.useId();
   const [busy, setBusy] = reactExports.useState(false);
   const [error, setError] = reactExports.useState(null);
   const [loaded, setLoaded] = reactExports.useState(false);
   const [askPath, setAskPath] = reactExports.useState(() => loadCommandsNeedsPath(item));
-  const [path, setPath] = reactExports.useState("");
+  const [path, setPath] = reactExports.useState(() => recordedToolPath(item));
+  const [pathMissing, setPathMissing] = reactExports.useState(false);
+  const pathRef = reactExports.useRef(null);
   const controllerRef = reactExports.useRef(null);
   reactExports.useEffect(() => () => controllerRef.current?.abort(), []);
   const load = reactExports.useCallback(async () => {
+    const entered = enteredToolPath(path);
+    if (askPath && entered === "") {
+      setPathMissing(true);
+      setLoaded(false);
+      setError(`Enter the full path to ${item.name} first.`);
+      pathRef.current?.focus();
+      return;
+    }
     const controller = new AbortController();
     controllerRef.current = controller;
     setBusy(true);
     setError(null);
+    setPathMissing(false);
     setLoaded(false);
     try {
-      await loadLocalCliCommands(item.cli_id, controller.signal, askPath ? path.trim() : void 0);
+      await loadLocalCliCommands(item.cli_id, controller.signal, askPath ? entered : void 0);
       if (controller.signal.aborted) return;
-      await onLoaded();
-      setLoaded(true);
+      const refreshed = await onLoaded();
+      if (controller.signal.aborted) return;
+      setLoaded(refreshed);
     } catch (caught) {
       if (controller.signal.aborted) return;
       if (caught instanceof LocalCliApiError && PATH_ENTRY_CODES.has(caught.code)) setAskPath(true);
@@ -3457,8 +3480,9 @@ function LocalCliLoadCommands(props) {
       setBusy(false);
       if (controllerRef.current === controller) controllerRef.current = null;
     }
-  }, [askPath, item.cli_id, onLoaded, path]);
-  const hasCommands = item.commands.some((command) => command.command_id !== "root" && command.command_id !== "other");
+  }, [askPath, item.cli_id, item.name, onLoaded, path]);
+  const listedCount = item.commands.filter((command) => command.command_id !== "root" && command.command_id !== "other").length;
+  const hasCommands = listedCount > 0;
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-3 max-w-2xl", "aria-busy": busy, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-sm leading-6 text-brand-dark/75", children: [
       askPath ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
@@ -3466,12 +3490,12 @@ function LocalCliLoadCommands(props) {
         item.name,
         " is saved. Enter its full path, and Guard runs it with",
         " ",
-        /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-brand-dark", children: "--help" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-brand-dark", children: "--help" }),
         " ",
         "from an empty temporary folder, then the same for each command it lists. It runs the file only if it is the one Guard recorded. A script that ignores --help may do its normal work instead, so load commands only for scripts you trust."
       ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         "Guard runs ",
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { className: "rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-brand-dark", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { className: "whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-brand-dark", children: [
           item.name,
           " --help"
         ] }),
@@ -3489,17 +3513,26 @@ function LocalCliLoadCommands(props) {
         "input",
         {
           id: pathId,
+          ref: pathRef,
           value: path,
-          onChange: (event) => setPath(event.target.value),
-          onKeyDown: (event) => {
-            if (event.key === "Enter" && path.trim() !== "" && !busy && !props.disabled) void load();
+          onChange: (event) => {
+            setPath(event.target.value);
+            if (pathMissing) {
+              setPathMissing(false);
+              setError(null);
+            }
           },
+          onKeyDown: (event) => {
+            if (event.key === "Enter" && !busy && !props.disabled) void load();
+          },
+          "aria-invalid": pathMissing || void 0,
+          "aria-describedby": pathMissing ? pathHintId : void 0,
           disabled: busy,
           spellCheck: false,
           autoComplete: "off",
           maxLength: 4096,
           placeholder: `/path/to/${item.name}`,
-          className: "mt-2 min-h-11 w-full max-w-xl rounded-xl border border-slate-300 bg-white px-3 font-mono text-sm text-brand-dark placeholder:text-brand-dark/70 focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+          className: "mt-2 min-h-11 w-full max-w-xl rounded-xl border border-slate-300 aria-[invalid=true]:border-red-600 bg-white px-3 font-mono text-sm text-brand-dark placeholder:text-brand-dark/70 focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
         }
       )
     ] }) : null,
@@ -3509,8 +3542,8 @@ function LocalCliLoadCommands(props) {
         {
           type: "button",
           onClick: () => void load(),
-          disabled: props.disabled || busy || askPath && path.trim() === "",
-          className: "inline-flex min-h-11 items-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-brand-dark disabled:cursor-wait disabled:opacity-50",
+          disabled: props.disabled || busy,
+          className: `inline-flex min-h-11 items-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-brand-dark disabled:opacity-50 ${busy ? "cursor-wait" : "disabled:cursor-not-allowed"}`,
           children: busy ? "Loading commands…" : hasCommands ? "Check for new commands" : "Load commands"
         }
       ),
@@ -3524,11 +3557,8 @@ function LocalCliLoadCommands(props) {
         }
       ) : null
     ] }),
-    error ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { role: "alert", className: "mt-3 text-sm leading-6 text-red-700", children: error }) : null,
-    loaded && !hasCommands ? /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { role: "status", className: "mt-3 text-sm leading-6 text-brand-dark/75", children: [
-      item.name,
-      " --help did not list any commands. Guard keeps reviewing it as one tool."
-    ] }) : null
+    error ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { id: pathMissing ? pathHintId : void 0, role: "alert", className: "mt-3 text-sm leading-6 text-red-700", children: error }) : null,
+    loaded ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { role: "status", className: "mt-3 text-sm leading-6 text-brand-dark/75", children: hasCommands ? `${item.name} lists ${listedCount} ${listedCount === 1 ? "command" : "commands"}. Choose Allow or Block for each below.` : `${item.name} --help did not list any commands, so Guard treats it as one tool. Choose Allow or Block for it below.` }) : null
   ] });
 }
 async function forgetLocalCli(item) {
@@ -4841,6 +4871,26 @@ function AddCustomExtensionWorkspace(props) {
     }
   );
 }
+function createListingSequence() {
+  let generation = 0;
+  let latest = Promise.resolve(true);
+  return {
+    /**
+     * Starts a request. `applied` says whether its result put a listing on
+     * screen; `listed` resolves once the newest request has settled, with
+     * whether that one did.
+     */
+    start(request2, applied) {
+      generation += 1;
+      const mine = generation;
+      const isCurrent = () => generation === mine;
+      const result = request2(isCurrent);
+      const listed = result.then((value) => isCurrent() ? applied(value) : latest);
+      latest = listed;
+      return { result, isCurrent, listed };
+    }
+  };
+}
 async function fetchLocalCliDiscover() {
   const response = await fetchLocalCliApi("/v1/local-clis/discover", {
     method: "POST",
@@ -4875,49 +4925,55 @@ function useLocalCliCatalog() {
   const [discoveryNotice, setDiscoveryNotice] = reactExports.useState(null);
   const [discovering, setDiscovering] = reactExports.useState(false);
   const [catalogReady, setCatalogReady] = reactExports.useState(false);
-  const loadGeneration = reactExports.useRef(0);
+  const sequence = reactExports.useRef(createListingSequence());
   const publicationPoll = reactExports.useRef({ revision: -1, attempts: 0 });
-  const load = reactExports.useCallback(async (preserveDiscoveryNotice = false) => {
-    const generation = loadGeneration.current + 1;
-    loadGeneration.current = generation;
-    try {
-      const next = await fetchLocalCliList();
-      if (loadGeneration.current !== generation) return;
-      setData(next);
-      setError(null);
-      if (!preserveDiscoveryNotice) setDiscoveryNotice(null);
-    } catch (caught) {
-      if (loadGeneration.current !== generation) return;
-      setError(caught instanceof Error ? caught.message : "Guard could not load custom extensions.");
-    }
-  }, []);
-  const discover = reactExports.useCallback(async () => {
-    const generation = loadGeneration.current + 1;
-    loadGeneration.current = generation;
-    setDiscovering(true);
-    setCatalogReady(false);
-    try {
-      const next = await fetchLocalCliDiscover();
-      if (loadGeneration.current !== generation) return "superseded";
-      setData(next);
-      setError(null);
-      setDiscoveryNotice(discoveryIssueMessage(next.discovery_issue));
-      return next.discovery_issue ? "partial" : "refreshed";
-    } catch (error2) {
+  const load = reactExports.useCallback((preserveDiscoveryNotice = false) => {
+    const { listed } = sequence.current.start(async (isCurrent) => {
       try {
         const next = await fetchLocalCliList();
-        if (loadGeneration.current !== generation) return "superseded";
+        if (!isCurrent()) return false;
         setData(next);
         setError(null);
-        setDiscoveryNotice(error2 instanceof Error ? error2.message : "Guard could not refresh custom extensions.");
-        return "partial";
+        if (!preserveDiscoveryNotice) setDiscoveryNotice(null);
+        return true;
       } catch (caught) {
-        if (loadGeneration.current !== generation) return "superseded";
+        if (!isCurrent()) return false;
         setError(caught instanceof Error ? caught.message : "Guard could not load custom extensions.");
-        return "partial";
+        return false;
       }
+    }, (applied) => applied);
+    return listed;
+  }, []);
+  const discover = reactExports.useCallback(async () => {
+    setDiscovering(true);
+    setCatalogReady(false);
+    const { result, isCurrent } = sequence.current.start(async (isCurrent2) => {
+      try {
+        const next = await fetchLocalCliDiscover();
+        if (!isCurrent2()) return { outcome: "superseded", applied: false };
+        setData(next);
+        setError(null);
+        setDiscoveryNotice(discoveryIssueMessage(next.discovery_issue));
+        return { outcome: next.discovery_issue ? "partial" : "refreshed", applied: true };
+      } catch (error2) {
+        try {
+          const next = await fetchLocalCliList();
+          if (!isCurrent2()) return { outcome: "superseded", applied: false };
+          setData(next);
+          setError(null);
+          setDiscoveryNotice(error2 instanceof Error ? error2.message : "Guard could not refresh custom extensions.");
+          return { outcome: "partial", applied: true };
+        } catch (caught) {
+          if (!isCurrent2()) return { outcome: "superseded", applied: false };
+          setError(caught instanceof Error ? caught.message : "Guard could not load custom extensions.");
+          return { outcome: "partial", applied: false };
+        }
+      }
+    }, ({ applied }) => applied);
+    try {
+      return (await result).outcome;
     } finally {
-      if (loadGeneration.current === generation) {
+      if (isCurrent()) {
         setDiscovering(false);
         setCatalogReady(true);
       }
