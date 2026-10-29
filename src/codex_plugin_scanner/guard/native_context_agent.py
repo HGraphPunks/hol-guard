@@ -25,8 +25,13 @@ _OPERATION = ResidentOperation(
 )
 _SLOTS = BoundedSemaphore(2)
 CONTEXT_TOOLS = (
-    "get_context_status", "get_guard_context", "explain_guard_context", "explain_guard_action",
-    "propose_guard_context_note", "get_guard_context_proposal_status", "forget_guard_context_proposal",
+    "get_context_status",
+    "get_guard_context",
+    "explain_guard_context",
+    "explain_guard_action",
+    "propose_guard_context_note",
+    "get_guard_context_proposal_status",
+    "forget_guard_context_proposal",
 )
 
 
@@ -94,9 +99,21 @@ class NativeContextAgent:
                 return ()
 
     def call(self, name: str, arguments: dict[str, object]) -> dict[str, Any]:
-        actions = dict(zip(CONTEXT_TOOLS, (
-            "status", "compile", "explain", "review_action", "propose_note", "proposal_status", "forget_proposal",
-        ), strict=True))
+        actions = dict(
+            zip(
+                CONTEXT_TOOLS,
+                (
+                    "status",
+                    "compile",
+                    "explain",
+                    "review_action",
+                    "propose_note",
+                    "proposal_status",
+                    "forget_proposal",
+                ),
+                strict=True,
+            )
+        )
         with self._lock:
             self._ensure()
             # Rust validates the entire nested argument object. Caller fields

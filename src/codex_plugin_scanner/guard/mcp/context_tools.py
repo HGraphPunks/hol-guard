@@ -40,18 +40,24 @@ def definitions() -> list[Any]:
             "This never grants command approval."
         ),
         "Read the outcome of this connection's shared-note proposal using its request_key.",
-        ("Forget this connection's proposal record and free its quota. "
-         "Already admitted evidence remains until the operator clears it."),
+        (
+            "Forget this connection's proposal record and free its quota. "
+            "Already admitted evidence remains until the operator clears it."
+        ),
     )
     properties = (
         {},
         {"query": {"type": "string", "maxLength": 4096}},
         {"snapshot_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"}},
-        {"decision_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-         "snapshot_id": {"anyOf": [{"type": "string", "pattern": "^[a-f0-9]{64}$"}, {"type": "null"}]}},
-        {"snapshot_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-         "request_key": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_.:-]+$"},
-         "text": {"type": "string", "minLength": 1, "maxLength": 4096}},
+        {
+            "decision_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+            "snapshot_id": {"anyOf": [{"type": "string", "pattern": "^[a-f0-9]{64}$"}, {"type": "null"}]},
+        },
+        {
+            "snapshot_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+            "request_key": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_.:-]+$"},
+            "text": {"type": "string", "minLength": 1, "maxLength": 4096},
+        },
         {"request_key": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_.:-]+$"}},
         {"request_key": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_.:-]+$"}},
     )
@@ -65,10 +71,13 @@ def definitions() -> list[Any]:
                 "required": ["decision_id"] if name == "explain_guard_action" else list(fields),
                 "additionalProperties": False,
             },
-            annotations=(ToolAnnotations(read_only=False, destructive=False, idempotent=True, open_world=False)
-                         if name == "propose_guard_context_note" else
-                         ToolAnnotations(read_only=False, destructive=True, idempotent=False, open_world=False)
-                         if name == "forget_guard_context_proposal" else _READ_ONLY_ANNOTATIONS),
+            annotations=(
+                ToolAnnotations(read_only=False, destructive=False, idempotent=True, open_world=False)
+                if name == "propose_guard_context_note"
+                else ToolAnnotations(read_only=False, destructive=True, idempotent=False, open_world=False)
+                if name == "forget_guard_context_proposal"
+                else _READ_ONLY_ANNOTATIONS
+            ),
             handler=execute,
         )
         for name, description, fields in zip(CONTEXT_TOOLS, descriptions, properties, strict=True)

@@ -214,10 +214,14 @@ _NATIVE_LOADED_FIELDS = frozenset(field.name for field in fields(GuardConfig)) -
     }
 )
 
-_OPTIONAL_ASSISTANCE_FIELDS = frozenset({
-    "context_assistance", "context_assistance_diagnostic", "context_assistance_export",
-    "context_assistance_requested",
-})
+_OPTIONAL_ASSISTANCE_FIELDS = frozenset(
+    {
+        "context_assistance",
+        "context_assistance_diagnostic",
+        "context_assistance_export",
+        "context_assistance_requested",
+    }
+)
 
 
 def resolve_guard_home(override: str | None = None) -> Path:
@@ -347,7 +351,8 @@ def editable_guard_settings(config: GuardConfig) -> dict[str, object]:
         "billing": config.billing,
         "approval_gate": public_config(config.guard_home).to_dict(),
         "context_assistance": config.context_assistance_requested
-        if config.context_assistance_requested_available else config.context_assistance,
+        if config.context_assistance_requested_available
+        else config.context_assistance,
         "context_assistance_diagnostic": config.context_assistance_diagnostic,
         "managed_policy_status": config.managed_policy_status,
         "managed_policy_hash": config.managed_policy_hash,
