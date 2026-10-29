@@ -16,7 +16,12 @@ fn main() {
                 if intent.digest()?!=args[3] {return Err("outside feature intent digest differs".into());}
                 journal.execute_once(&intent)
             },
-            _=>Err("usage: gauntlet-host-feature-audit record PRIVATE_JOURNAL PRIVATE_PINS VM | run PRIVATE_JOURNAL AUDIT_ID INTENT_SHA256".into()),
+            Some("read") if args.len()==4=>{
+                let intent=journal.read(&args[2])?;
+                if intent.digest()?!=args[3] {return Err("outside feature intent digest differs".into());}
+                journal.read_retained(&intent)
+            },
+            _=>Err("usage: gauntlet-host-feature-audit record PRIVATE_JOURNAL PRIVATE_PINS VM | run|read PRIVATE_JOURNAL AUDIT_ID INTENT_SHA256".into()),
         }
     })();
     match result {

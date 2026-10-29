@@ -67,6 +67,20 @@ uncertain transport consumes the attempt. A second invocation refuses instead
 of replaying the work. Restart opens the retained guest result using the
 audit ID and original complete intent digest.
 
+The Mac host caller now exposes an explicit `read` action for that restart
+path. It requires the exact durable intent and dispatch bytes before invoking
+the pinned Root worker's `--read` action. It sends no run intent, checks the
+canonical completed result against the original outside pins, and commits or
+compares a private host copy. A missing or changed dispatch, substituted
+intent digest, changed result and attempted repeated `run` refuse. The fake
+Lima process test covers these cases; all 31 host library tests and Mac/ARM
+warnings-denied Clippy pass. This is local process validation only. It has
+not read a real guest result, and the host still lacks an explicit repair
+command for the guest's quiescent aborted receipt. Exact source and built
+host-binary digests are retained in workspace evidence
+`gauntlet-rust-pr-ready-evidence-20261026/feature-host-read-proof-001.json`
+against base commit `a47b133b`.
+
 Quiescent recovery appends a separate `aborted` receipt with an unknown exit.
 It requires the original client identity to be gone, the exact container and
 cgroups absent, and the profile removed. It never signals a historical or

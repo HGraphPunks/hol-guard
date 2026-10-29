@@ -1,12 +1,13 @@
 //! Host feature intents and one-use dispatch. An uncertain transport consumes
 //! the attempt; restart reads/recovery use retained guest state, never a retry.
-use crate::fixed_process::run_fixed_intent;
+use crate::fixed_process::{run_fixed, run_fixed_intent};
 use crate::private_jobs::{read_regular_bytes, state_root};
 use gauntlet_contracts::{
     canonicalize, verify_feature_run_result, FeatureRunIntent, FeatureRunPins,
 };
 use ring::rand::{SecureRandom, SystemRandom};
-use rustix::fs::{fchmod, fstat, fsync, openat, Mode, OFlags};
+use rustix::fs::{fchmod, fstat, fsync, openat, statat, AtFlags, Mode, OFlags};
+use rustix::io::Errno;
 use rustix::process::geteuid;
 use serde_json::{json, Value};
 use std::fs::File;
@@ -116,19 +117,39 @@ impl FeatureIntentJournal {
         }
         Ok(intent)
     }
-    fn dispatch(&self, intent: &FeatureRunIntent) -> Result<(), String> {
-        if self.read(intent.pins().audit_id())? != *intent {
-            return Err("feature host intent changed before dispatch".into());
-        }
-        let raw = canonicalize(
+    fn dispatch_bytes(intent: &FeatureRunIntent) -> Result<Vec<u8>, String> {
+        canonicalize(
             json!({"schema":"hol-gauntlet-host-feature-dispatch.v1",
             "audit_id":intent.pins().audit_id(),"intent_sha256":intent.digest()?,
             "retry_allowed":false})
             .to_string()
             .as_bytes(),
         )
+        .map_err(|e| e.to_string())
+    }
+    fn require_dispatch(&self, intent: &FeatureRunIntent) -> Result<(), String> {
+        if self.read(intent.pins().audit_id())? != *intent {
+            return Err("feature host intent changed after dispatch".into());
+        }
+        let raw = read_regular_bytes(
+            &self.root,
+            &Self::name(intent.pins().audit_id(), "dispatch")?,
+            self.owner,
+        )
         .map_err(|e| e.to_string())?;
-        self.write(&Self::name(intent.pins().audit_id(), "dispatch")?, &raw)
+        if raw != Self::dispatch_bytes(intent)? {
+            return Err("feature host dispatch differs from intent".into());
+        }
+        self.stable()
+    }
+    fn dispatch(&self, intent: &FeatureRunIntent) -> Result<(), String> {
+        if self.read(intent.pins().audit_id())? != *intent {
+            return Err("feature host intent changed before dispatch".into());
+        }
+        self.write(
+            &Self::name(intent.pins().audit_id(), "dispatch")?,
+            &Self::dispatch_bytes(intent)?,
+        )
     }
     pub fn execute_once(&self, intent: &FeatureRunIntent) -> Result<Value, String> {
         self.dispatch(intent)?;
@@ -162,10 +183,52 @@ impl FeatureIntentJournal {
         }
         let value: Value = serde_json::from_slice(frame).map_err(|e| e.to_string())?;
         verify_feature_run_result(intent, &value)?;
-        if self.read(intent.pins().audit_id())? != *intent {
-            return Err("feature host intent changed during execution".into());
-        }
+        self.require_dispatch(intent)?;
         self.write(&Self::name(intent.pins().audit_id(), "result")?, frame)?;
+        Ok(value)
+    }
+    /// Reopen a completed guest result after a consumed dispatch. This never
+    /// resends the run intent or grants artifact/qualification admission.
+    pub fn read_retained(&self, intent: &FeatureRunIntent) -> Result<Value, String> {
+        self.require_dispatch(intent)?;
+        let generation = intent.pins().text("runner_binary_sha256");
+        let argv = vec![
+            intent.limactl().into(),
+            "shell".into(),
+            intent.vm().into(),
+            "--".into(),
+            "sudo".into(),
+            "-n".into(),
+            format!("/opt/hol-gauntlet/rust-feature-worker-{generation}"),
+            "--read".into(),
+            intent.pins().audit_id().into(),
+            intent.digest()?,
+            generation.into(),
+        ];
+        let raw = run_fixed(&argv, Duration::from_secs(90), 16384, 8192, &[])
+            .map_err(|e| format!("feature VM read unavailable; reconcile without retry: {e:?}"))?;
+        let frame = raw
+            .strip_suffix(b"\n")
+            .ok_or("canonical feature response line required")?;
+        if canonicalize(frame).map_err(|e| e.to_string())? != frame {
+            return Err("ambiguous feature response".into());
+        }
+        let value: Value = serde_json::from_slice(frame).map_err(|e| e.to_string())?;
+        verify_feature_run_result(intent, &value)?;
+        self.require_dispatch(intent)?;
+        let name = Self::name(intent.pins().audit_id(), "result")?;
+        match statat(&self.root, name.as_str(), AtFlags::SYMLINK_NOFOLLOW) {
+            Err(Errno::NOENT) => self.write(&name, frame)?,
+            Err(e) => return Err(e.to_string()),
+            Ok(_) => {
+                if read_regular_bytes(&self.root, &name, self.owner).map_err(|e| e.to_string())?
+                    != frame
+                {
+                    return Err("retained feature host result differs".into());
+                }
+            }
+        }
+        self.stable()?;
         Ok(value)
     }
 }
@@ -261,6 +324,67 @@ mod tests {
             .unwrap_err()
             .contains("consumed"));
         assert_eq!(std::fs::read(dispatch).unwrap(), original);
+    }
+    #[test]
+    fn read_reconciles_only_a_completed_result_after_consumed_dispatch() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().canonicalize().unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let transport = path.join("limactl");
+        std::fs::write(
+            &transport,
+            b"#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$0.args\"\ncat \"$0.reply\"\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&transport, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let mut ops = crate::public_vm_operations(Some("owned-vm")).unwrap();
+        ops["limactl"] = json!(transport.to_str().unwrap());
+        let journal = FeatureIntentJournal::open(&path).unwrap();
+        let intent = journal.record(pins("0123456789abcdef"), &ops).unwrap();
+        assert!(journal.read_retained(&intent).is_err());
+        assert!(!path.join("limactl.args").exists());
+        journal.dispatch(&intent).unwrap();
+        let dispatch = path.join("0123456789abcdef.feature-dispatch.json");
+        let original_dispatch = std::fs::read(&dispatch).unwrap();
+        std::fs::write(&dispatch, b"{}").unwrap();
+        assert!(journal.read_retained(&intent).is_err());
+        assert!(!path.join("limactl.args").exists());
+        std::fs::write(&dispatch, original_dispatch).unwrap();
+        let result = json!({"schema":"hol-gauntlet-native-feature-result.v1",
+            "audit_id":intent.pins().audit_id(),"source_sha":intent.pins().spec().text("source_sha"),
+            "intent_sha256":intent.digest().unwrap(),"worker_generation":intent.pins().text("runner_binary_sha256"),
+            "container_id":"a".repeat(64),"client_pid":123,"client_start_ticks":1,
+            "exit_code":1,"execution_error":"synthetic-check","audit_status":"invalid-evidence",
+            "feature_report_sha256":null,"feature_readback_sha256":null,
+            "stdout_sha256":"b".repeat(64),"stderr_sha256":"c".repeat(64),
+            "feature_artifacts_verified":false,"container_absent":true,
+            "container_cgroup_absent":true,"client_cgroup_drained":true,
+            "build_profile_removed":true,"status":"invalid-evidence","rust_root_supervised":true,
+            "artifact_admitted":false,"execution_eligible":false,"qualification_eligible":false,
+            "guard_causality_verified":false,"model_requests":0,"model_tokens":0});
+        let reply = path.join("limactl.reply");
+        let mut wrong = result.clone();
+        wrong["intent_sha256"] = json!("d".repeat(64));
+        let mut raw = canonicalize(wrong.to_string().as_bytes()).unwrap();
+        raw.push(b'\n');
+        std::fs::write(&reply, raw).unwrap();
+        assert!(journal.read_retained(&intent).is_err());
+        assert!(!path.join("0123456789abcdef.feature-result.json").exists());
+        let expected = canonicalize(result.to_string().as_bytes()).unwrap();
+        let mut raw = expected.clone();
+        raw.push(b'\n');
+        std::fs::write(&reply, raw).unwrap();
+        assert_eq!(journal.read_retained(&intent).unwrap(), result);
+        assert_eq!(
+            std::fs::read(path.join("0123456789abcdef.feature-result.json")).unwrap(),
+            expected
+        );
+        assert_eq!(journal.read_retained(&intent).unwrap(), result);
+        let argv = std::fs::read_to_string(path.join("limactl.args")).unwrap();
+        assert!(argv.contains("\n--read\n0123456789abcdef\n"));
+        assert!(!argv.contains("--run"));
+        std::fs::write(path.join("0123456789abcdef.feature-result.json"), b"{}").unwrap();
+        assert!(journal.read_retained(&intent).is_err());
     }
     #[test]
     fn linked_or_changed_host_state_blocks_before_any_dispatch() {

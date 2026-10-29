@@ -87,7 +87,10 @@ The corrected executor checkpoint passes 634 Mac tests. A new
 now implement complete one-use intents, durable dispatch/reservation, exact
 container custody, Root artifact capture, cross-job admission and quiescent
 recovery. All 645 Mac tests and Mac/ARM Clippy pass. Fresh owned-VM worker
-execution, live recovery and final operator wiring remain open. Parent exits
+execution, live recovery and final operator wiring remain open. The host now
+has a local-tested read-only restart action for a consumed dispatch: all 31
+host library tests and Mac/ARM warnings-denied Clippy pass, but no guest
+result has been opened through it. Parent exits
 stay 24/62, and CI remains user-owned and pending.
 
 The [upstream synchronization through 931cafb2](gauntlet-rust-upstream-sync-931cafb2.md)
