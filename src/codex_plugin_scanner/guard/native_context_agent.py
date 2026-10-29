@@ -99,7 +99,7 @@ class NativeContextAgent:
                 return ()
 
     def call(self, name: str, arguments: dict[str, object]) -> dict[str, Any]:
-        actions = dict(
+        actions: dict[str, str] = dict(
             zip(
                 CONTEXT_TOOLS,
                 (

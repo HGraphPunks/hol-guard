@@ -99,7 +99,9 @@ class HeaderWatchdog:
                             reader.recv(4096)
                         return self._stop.is_set()
                     request = key.fileobj
-                    if self._owner._buffered_request_headers_complete(request, pending=True):
+                    if isinstance(request, socket.socket) and self._owner._buffered_request_headers_complete(
+                        request, pending=True
+                    ):
                         return self._stop.is_set()
                     # Level-triggered readiness would repeatedly report this
                     # unchanged partial prefix. Revisit it on the old timer.
