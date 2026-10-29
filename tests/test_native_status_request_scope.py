@@ -64,6 +64,7 @@ def status_probe(
     binary.chmod(0o700)
     calls: list[Path] = []
     monkeypatch.setenv("HOL_GUARD_NATIVE", "force")
+    monkeypatch.setenv("HOL_GUARD_NATIVE_BINARY", str(binary))
 
     def validate(candidate: Path) -> native_runtime_module.NativeRuntimeIdentity:
         calls.append(candidate)
@@ -492,6 +493,7 @@ def test_status_for_a_fallback_candidate_is_not_shared(
     binary, calls = status_probe
     preferred = tmp_path / "preferred-runtime"
     preferred.write_bytes(b"preferred-runtime")
+    monkeypatch.setenv("HOL_GUARD_NATIVE_BINARY", str(preferred))
     monkeypatch.setattr(native_runtime_module, "_runtime_candidates", lambda: (preferred, binary))
     fallback = _verified_status(binary)
     with native_status_request_scope():
