@@ -84,6 +84,7 @@ pub(crate) fn verify(
     let mut reauthorizations = 0;
     let mut operation_reply_digests = 0;
     let mut operation_replies_without_digest = 0;
+    let mut policy_snapshot_acks_matching_request = 0;
     for stream in &snapshots.streams {
         let candidates = native_images
             .iter()
@@ -125,10 +126,17 @@ pub(crate) fn verify(
                 )?;
                 *operations.entry(operation.into()).or_default() += 1;
                 if let Some(response) = response_frames.get(index) {
-                    if crate::native_stdio_operation_identity::verify(request, response)? {
-                        operation_reply_digests += 1;
-                    } else {
-                        operation_replies_without_digest += 1;
+                    match crate::native_stdio_operation_identity::verify(request, response)? {
+                        crate::native_stdio_operation_identity::ReplyBinding::Digest => {
+                            operation_reply_digests += 1;
+                        }
+                        crate::native_stdio_operation_identity::ReplyBinding::SnapshotEcho => {
+                            operation_replies_without_digest += 1;
+                            policy_snapshot_acks_matching_request += 1;
+                        }
+                        crate::native_stdio_operation_identity::ReplyBinding::Structural => {
+                            operation_replies_without_digest += 1;
+                        }
                     }
                 }
                 if index >= response_frames.len() {
@@ -193,6 +201,7 @@ pub(crate) fn verify(
         "operation_requests_observed":operations,"operation_request_semantics_verified":false,
         "operation_reply_digests_checked":operation_reply_digests,
         "operation_replies_without_digest":operation_replies_without_digest,
+        "policy_snapshot_acks_matching_request":policy_snapshot_acks_matching_request,
         "command_capability_digest_excludes_signing_key":true,
         "unanswered_requests":unanswered,"fifo_correspondence_uses_pinned_serial_client_loop":true,
         "all_request_semantics_verified":false,"atomic_kernel_pipe_bytes_verified":false,

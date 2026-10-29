@@ -35,9 +35,8 @@ Its outcome remains unknown.
 
 The verifier now refuses an unknown operation with a completed reply instead
 of silently counting it as metadata. It also rejects changed IDs, digests,
-request bodies and schemas
-for the 15 digest-bearing dialects. The two other dialects receive structural
-checks only. The product's response payloads and operation effects remain
+request bodies and schemas for the 15 digest-bearing dialects. The drain
+dialect receives structural checks only. The product's response payloads and operation effects remain
 unverified; `operation_request_semantics_verified`,
 `all_request_semantics_verified`, `atomic_kernel_pipe_bytes_verified` and
 `execution_eligible` remain false.
@@ -58,3 +57,26 @@ that directory is outside its writable roots. Fresh Root feature-worker
 execution and restart/recovery proof remain pending until the owned VM is
 available. Full metadata semantics, atomic observation, physical effect
 writers, role grading, outside admission and required CI remain separate work.
+
+## Snapshot ACK follow-up
+
+A second offline source generation checks the ten completed
+`policy_snapshot_push` acknowledgements against the requested snapshot's
+generation and policy digest. It also requires the exact five-field ACK shape.
+The ACK's `idempotent` and `resident_generation` fields are type-checked, but
+neither the applied policy nor its cryptographic authority is independently
+proved. No request digest exists in this dialect, so these ten remain in the
+146 `operation_replies_without_digest` count.
+
+The retained follow-up replay is
+`gauntlet-rust-pr-ready-evidence-20261026/native-operation-reply-replay-002.json`:
+199,810 bytes, SHA-256
+`78b707e7ee15d4714c7dd356378e9976078215912a951ebc2aabf029443f92d1`.
+It reports 97 digest matches, ten snapshot ACK echoes, 136 drain replies with
+only structural checks, and the same one unanswered final drain. The prior
+replay and proof manifest remain unchanged. The source and binary digests for
+this follow-up are in
+`gauntlet-rust-pr-ready-evidence-20261026/native-operation-reply-proof-002.json`.
+The full evidence library passes **135 tests**; Mac/ARM warnings-denied Clippy
+and Rustfmt pass. This remains local replay with zero fresh product or VM jobs,
+and it closes no parent exit.

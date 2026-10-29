@@ -46,8 +46,9 @@ readbacks. All 691 source-map entries and 42 public export members verify.
 This subset grants no full request-semantics or parent-exit credit.
 The [resident-operation reply binding](gauntlet-rust-native-operation-reply-bindings.md)
 now recomputes 97 request ID/schema/digest relations in the same retained
-control. Another 146 completed replies have no digest, and the final drain is
-unanswered. The complete 134-test evidence library and affected Mac/ARM Clippy
+control. Ten more ACKs echo the requested policy generation/digest; 136 drain
+replies have only structural checks, and the final drain is unanswered. The
+complete 135-test evidence library and affected Mac/ARM Clippy
 pass. Operation effects, atomic wire bytes and all parent exits stay open.
 
 ```text

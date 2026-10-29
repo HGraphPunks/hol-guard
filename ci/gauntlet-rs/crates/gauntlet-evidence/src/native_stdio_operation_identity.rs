@@ -66,9 +66,16 @@ fn schemas(operation: &str) -> Option<(&'static str, &'static str)> {
     })
 }
 
-/// Returns true only when the dialect exposes an independently recomputable
-/// reply digest. Command capability intentionally excludes its signing key.
-pub(super) fn verify(request: &Value, response: &Value) -> Result<bool> {
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum ReplyBinding {
+    Digest,
+    SnapshotEcho,
+    Structural,
+}
+
+/// Command capability's digest intentionally excludes its signing key. The
+/// snapshot ACK echoes an unverified product claim, not a request digest.
+pub(super) fn verify(request: &Value, response: &Value) -> Result<ReplyBinding> {
     let row = request
         .as_object()
         .ok_or(EvidenceError::Invalid("resident operation object required"))?;
@@ -95,21 +102,46 @@ pub(super) fn verify(request: &Value, response: &Value) -> Result<bool> {
                     && response["counters"].is_object()
                     && response["remaining"].as_u64().is_some(),
             )?;
-            return Ok(false);
+            return Ok(ReplyBinding::Structural);
         }
         "policy_snapshot_push" => {
+            let snapshot = &body["snapshot"];
             require(
-                body["schema"] == "guard-policy-snapshot-push.v1"
-                    && body["snapshot"].is_object()
+                body.len() >= 2
+                    && body.len() <= 3
+                    && body
+                        .keys()
+                        .all(|key| matches!(key.as_str(), "schema" | "snapshot" | "direct_lane"))
+                    && body["schema"] == "guard-policy-snapshot-push.v1"
+                    && snapshot.is_object()
+                    && response.as_object().is_some_and(|row| {
+                        row.len() == 5
+                            && [
+                                "status",
+                                "generation",
+                                "policy_digest",
+                                "idempotent",
+                                "resident_generation",
+                            ]
+                            .iter()
+                            .all(|key| row.contains_key(*key))
+                    })
                     && response["status"] == "accepted"
-                    && response["generation"].as_u64().is_some_and(|n| n > 0)
+                    && snapshot["generation"].as_u64().is_some_and(|n| n > 0)
+                    && response["generation"] == snapshot["generation"]
                     && response["resident_generation"]
                         .as_u64()
                         .is_some_and(|n| n > 0)
-                    && response["policy_digest"].is_string()
+                    && response["policy_digest"] == snapshot["policy_digest"]
+                    && response["policy_digest"].as_str().is_some_and(|digest| {
+                        digest.len() == 64
+                            && digest
+                                .bytes()
+                                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+                    })
                     && response["idempotent"].is_boolean(),
             )?;
-            return Ok(false);
+            return Ok(ReplyBinding::SnapshotEcho);
         }
         _ => {}
     }
@@ -136,7 +168,7 @@ pub(super) fn verify(request: &Value, response: &Value) -> Result<bool> {
     }
     let expected = format!("sha256:{}", sha256(&canonical_value(&material)?));
     require(response["request_sha256"] == expected)?;
-    Ok(true)
+    Ok(ReplyBinding::Digest)
 }
 
 #[cfg(test)]

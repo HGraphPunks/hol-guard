@@ -19,7 +19,7 @@ fn resident_reply_digest_binds_request_and_refuses_substitution() {
         "guard-daemon-route-request.v1",
         "guard-daemon-route-result.v1",
     );
-    assert_eq!(verify(&request, &response).unwrap(), true);
+    assert_eq!(verify(&request, &response).unwrap(), ReplyBinding::Digest);
     let mut changed = request.clone();
     changed["request"]["query"] = json!("other");
     assert!(verify(&changed, &response).is_err());
@@ -48,9 +48,9 @@ fn command_capability_digest_excludes_only_the_signing_key() {
         "sha256:{}",
         sha256(&canonical_value(&material).unwrap())
     ));
-    assert!(verify(&request, &response).unwrap());
+    assert_eq!(verify(&request, &response).unwrap(), ReplyBinding::Digest);
     request["request"]["integrity_key_b64"] = json!("synthetic-key-b");
-    assert!(verify(&request, &response).unwrap());
+    assert_eq!(verify(&request, &response).unwrap(), ReplyBinding::Digest);
     request["request"]["query"] = json!("other");
     assert!(verify(&request, &response).is_err());
 }
@@ -61,8 +61,30 @@ fn dialects_without_reply_digest_cannot_claim_identity_verification() {
         "request":{"guard_home":"/product/guard"}});
     let answer = json!({"schema":"guard-hook-direct-evidence.v1","records":[],
         "counters":{},"remaining":0});
-    assert_eq!(verify(&drain, &answer).unwrap(), false);
+    assert_eq!(verify(&drain, &answer).unwrap(), ReplyBinding::Structural);
     let mut changed = answer.clone();
     changed["schema"] = json!("other");
     assert!(verify(&drain, &changed).is_err());
+}
+
+#[test]
+fn accepted_policy_ack_echoes_the_requested_snapshot_without_claiming_admission() {
+    let request = json!({"operation":"policy_snapshot_push","deadline_budget_ms":9000,
+        "request":{"schema":"guard-policy-snapshot-push.v1",
+        "snapshot":{"generation":4,"policy_digest":"a".repeat(64)}}});
+    let answer = json!({"status":"accepted","generation":4,
+        "policy_digest":"a".repeat(64),"idempotent":false,"resident_generation":7});
+    assert_eq!(
+        verify(&request, &answer).unwrap(),
+        ReplyBinding::SnapshotEcho
+    );
+    let mut changed = answer.clone();
+    changed["generation"] = json!(3);
+    assert!(verify(&request, &changed).is_err());
+    let mut changed = answer.clone();
+    changed["policy_digest"] = json!("b".repeat(64));
+    assert!(verify(&request, &changed).is_err());
+    let mut changed = answer.clone();
+    changed["status"] = json!("accepted-without-policy");
+    assert!(verify(&request, &changed).is_err());
 }

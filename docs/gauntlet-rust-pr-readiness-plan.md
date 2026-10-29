@@ -5,8 +5,9 @@ Status: active implementation; the Rust replacement is not qualified.
 
 The latest local [resident-operation reply binding](gauntlet-rust-native-operation-reply-bindings.md)
 replays the retained launch-v4 control with 97 matching request ID/schema/digest
-responses, 146 completed replies without a digest and one unanswered drain.
-All 134 evidence-library tests and Mac/ARM warnings-denied Clippy pass. No new
+responses, ten matching policy snapshot ACK echoes, 136 structurally checked
+drain replies and one unanswered drain. All 135 evidence-library tests and
+Mac/ARM warnings-denied Clippy pass. No new
 product/VM execution, operation-semantic verdict or parent exit is claimed.
 Fresh Root feature-worker validation is held by stale Lima PID/socket files
 outside this session's writable roots; the owned VM remains stopped.
