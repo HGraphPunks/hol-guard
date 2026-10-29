@@ -94,13 +94,58 @@ pub(super) fn verify(request: &Value, response: &Value) -> Result<ReplyBinding> 
         .ok_or(EvidenceError::Invalid("resident operation body required"))?;
     match operation {
         "hook_direct_evidence_drain" => {
+            let limit = body
+                .get("max_records")
+                .and_then(Value::as_u64)
+                .unwrap_or(256)
+                .clamp(1, 256) as usize;
+            let records = response["records"].as_array();
             require(
-                body.len() == 1
-                    && body.get("guard_home").is_some_and(Value::is_string)
+                (1..=4).contains(&body.len())
+                    && body.keys().all(|key| {
+                        matches!(
+                            key.as_str(),
+                            "guard_home" | "max_records" | "ack_through" | "ack_epoch"
+                        )
+                    })
+                    && body
+                        .get("guard_home")
+                        .and_then(Value::as_str)
+                        .is_some_and(|v| !v.is_empty())
+                    && body
+                        .get("max_records")
+                        .is_none_or(|v| v.is_null() || v.as_u64().is_some())
+                    && body
+                        .get("ack_through")
+                        .is_none_or(|v| v.is_null() || v.as_u64().is_some())
+                    && body
+                        .get("ack_epoch")
+                        .is_none_or(|v| v.is_null() || v.is_string())
+                    && response.as_object().is_some_and(|row| {
+                        row.len() == 6
+                            && [
+                                "schema",
+                                "epoch",
+                                "records",
+                                "remaining",
+                                "through",
+                                "counters",
+                            ]
+                            .iter()
+                            .all(|key| row.contains_key(*key))
+                    })
                     && response["schema"] == "guard-hook-direct-evidence.v1"
-                    && response["records"].is_array()
+                    && response["epoch"]
+                        .as_str()
+                        .is_some_and(|s| !s.is_empty() && s.len() <= 128)
+                    && records.is_some_and(|rows| rows.len() <= limit)
                     && response["counters"].is_object()
-                    && response["remaining"].as_u64().is_some(),
+                    && response["remaining"].as_u64().is_some_and(|n| n <= 1024)
+                    && match records {
+                        Some(rows) if rows.is_empty() => response["through"].is_null(),
+                        Some(_) => response["through"].as_u64().is_some_and(|n| n > 0),
+                        None => false,
+                    },
             )?;
             return Ok(ReplyBinding::Structural);
         }

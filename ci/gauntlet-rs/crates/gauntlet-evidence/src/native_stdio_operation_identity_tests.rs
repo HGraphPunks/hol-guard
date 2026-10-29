@@ -60,11 +60,21 @@ fn dialects_without_reply_digest_cannot_claim_identity_verification() {
     let drain = json!({"operation":"hook_direct_evidence_drain","deadline_budget_ms":2000,
         "request":{"guard_home":"/product/guard"}});
     let answer = json!({"schema":"guard-hook-direct-evidence.v1","records":[],
-        "counters":{},"remaining":0});
+        "counters":{},"remaining":0,"through":null,"epoch":"synthetic-1"});
     assert_eq!(verify(&drain, &answer).unwrap(), ReplyBinding::Structural);
     let mut changed = answer.clone();
     changed["schema"] = json!("other");
     assert!(verify(&drain, &changed).is_err());
+    let mut paged = drain.clone();
+    paged["request"]["max_records"] = json!(1);
+    paged["request"]["ack_through"] = json!(7);
+    paged["request"]["ack_epoch"] = json!("synthetic-1");
+    let mut page = answer.clone();
+    page["records"] = json!([{"seq":8}]);
+    page["through"] = json!(8);
+    assert_eq!(verify(&paged, &page).unwrap(), ReplyBinding::Structural);
+    page["records"] = json!([{"seq":8},{"seq":9}]);
+    assert!(verify(&paged, &page).is_err());
 }
 
 #[test]

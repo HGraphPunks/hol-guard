@@ -80,3 +80,26 @@ this follow-up are in
 The full evidence library passes **135 tests**; Mac/ARM warnings-denied Clippy
 and Rustfmt pass. This remains local replay with zero fresh product or VM jobs,
 and it closes no parent exit.
+
+## Drain paging follow-up
+
+The drain request reader now accepts the product's optional `max_records`,
+`ack_through` and `ack_epoch` fields. It checks their types and the exact
+six-field response shape, requires a page no larger than the requested limit
+(clamped to 1–256), and bounds `remaining` by the product's 1,024-record queue.
+An empty page must have a null `through`; a nonempty page must have a positive
+cursor. This is still a structural check: the reply carries no request digest,
+and the reader cannot establish that an ACK removed records or that a record
+was written. All 136 completed drains in the retained control are empty, so
+the nonempty-page check has only a synthetic local test.
+
+The final-source replay is
+`gauntlet-rust-pr-ready-evidence-20261026/native-operation-reply-replay-004.json`:
+199,810 bytes, SHA-256
+`78b707e7ee15d4714c7dd356378e9976078215912a951ebc2aabf029443f92d1`.
+It is byte-identical to replay 002 and retains the same 97 digest matches,
+ten snapshot ACK echoes, 146 digestless replies and one unanswered drain.
+`gauntlet-rust-pr-ready-evidence-20261026/native-operation-reply-proof-004.json`
+records the final source and reader binary digests. The evidence library's
+135 tests, Rustfmt and Mac/ARM warnings-denied Clippy pass. No fresh product
+or VM job ran, and no parent exit closes.
