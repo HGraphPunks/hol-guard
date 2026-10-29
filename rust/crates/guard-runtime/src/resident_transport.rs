@@ -504,7 +504,12 @@ fn dispatch_authenticated(
         // retryable overload instead.
         Err(TrySendError::Full(returned)) if returned.payload_prefix.len() == returned.length => {
             drop(charge);
-            handle_pending_request(returned, policy_store.cloned(), Some(control_sender), Some(context_lane));
+            handle_pending_request(
+                returned,
+                policy_store.cloned(),
+                Some(control_sender),
+                Some(context_lane),
+            );
         }
         Err(TrySendError::Full(mut returned)) => {
             drop(charge);

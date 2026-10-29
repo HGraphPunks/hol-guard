@@ -62,12 +62,17 @@ impl SourceRoot {
     pub fn revalidate(&self) -> Result<(), RuntimeError> {
         let observed = Self::inspect(&self.path)?;
         #[cfg(unix)]
-        if self.identity != observed.identity {
-            return Err(RuntimeError::ContextStale);
+        {
+            if self.identity != observed.identity {
+                return Err(RuntimeError::ContextStale);
+            }
+            Ok(())
         }
         #[cfg(not(unix))]
-        let _ = observed;
-        Ok(())
+        {
+            let _ = observed;
+            Err(RuntimeError::PlatformUnqualified)
+        }
     }
 
     /// No globbing, recursion, locator dereference, external path or symlink.

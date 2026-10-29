@@ -14,6 +14,7 @@ from scripts import cigar_slo_activity as activity_module
 from scripts import native_slo_benchmark_stages as stages
 from scripts import native_slo_session as session_module
 from scripts.native_slo_adapter import Observation
+from scripts.native_resident_stop_bound import RESIDENT_STOP_TIMEOUT_SECONDS
 
 
 @pytest.mark.parametrize("stage", ["cold", "recovery"])
@@ -211,10 +212,10 @@ def test_stop_process_failure_distinguishes_timeout_from_signal_without_echoing_
     calls = []
 
     def run(command, **kwargs):
-        assert kwargs["timeout"] == 2
+        assert kwargs["timeout"] == RESIDENT_STOP_TIMEOUT_SECONDS
         calls.append(command)
         if failure == "timeout":
-            raise subprocess.TimeoutExpired(command, 2, stderr=b"private-output-must-not-render")
+            raise subprocess.TimeoutExpired(command, RESIDENT_STOP_TIMEOUT_SECONDS, stderr=b"private-output-must-not-render")
         return subprocess.CompletedProcess(command, -6, b"", b"private-output-must-not-render")
 
     monkeypatch.setattr(session_module.subprocess, "run", run)
@@ -234,12 +235,16 @@ def test_final_containment_is_recorded_without_erasing_an_earlier_cleanup_timeou
     monkeypatch.setattr(activity_module.AdapterSession, "close", close)
     activity = activity_module.CigarSloActivity(Path("/native"), enabled=True, sampler=Sampler())
     session = object.__new__(activity_module._ObservedSession)
-    session._on_cleanup = lambda final, prior, recovery: activity.contained("session_1", final, prior, recovery)
+    session.daemon_stop_contained = True
+    session._on_cleanup = lambda final, prior, recovery, *, daemon_stop_contained: activity.contained(
+        "session_1", final, prior, recovery, daemon_stop_contained=daemon_stop_contained
+    )
     session.close()
     assert activity.cleanups == [
         {
             "fixture": "session_1",
             "final_contained": True,
+            "daemon_stop_contained": True,
             "earlier_stop_failed": True,
             "earlier_process_outcome": "timed_out",
         }

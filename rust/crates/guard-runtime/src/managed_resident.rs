@@ -191,12 +191,7 @@ pub(crate) fn stop_managed(state_base: &Path, retire_clients: bool) -> Result<()
     if retire_clients {
         lease::retire_clients_for_update(state_base, &digest, deadline)?;
     }
-    let stopped = if cfg!(unix) && !retire_clients {
-        stop_snapshot::capture(&scope, &digest, &state)?
-    } else {
-        Vec::new()
-    };
-    let process_ids = containment::state_process_identities(std::slice::from_ref(&state));
+    let stopped = stop_snapshot::capture_for_stop(&scope, &digest, &state, retire_clients)?;
     let token = token_from_state(&state)?;
     let identity = crate::resident_client::ExpectedProcessIdentity {
         process_id: state.process_id,
@@ -213,11 +208,7 @@ pub(crate) fn stop_managed(state_base: &Path, retire_clients: bool) -> Result<()
     )
     .is_ok()
     {
-        if cfg!(unix) && !retire_clients {
-            stop_snapshot::wait(&scope, &digest, deadline, &stopped)?;
-        } else {
-            containment::wait_for_stop_containment(&scope, &digest, deadline, &process_ids)?;
-        }
+        stop_snapshot::wait_for_stop(&scope, &digest, deadline, &stopped, &state, retire_clients)?;
         // The children are gone; clear the budget only under the startup
         // lock, since a start that got there first has already charged it.
         let startup =

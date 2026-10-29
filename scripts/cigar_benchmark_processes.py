@@ -19,7 +19,12 @@ from scripts.native_slo_process_tree import _system_ps_path
 
 
 def kernel_image(pid: int) -> Path | None:
-    """macOS framework comm is not an executable identity; ask the kernel."""
+    """Ask the kernel for the executable identity where supported."""
+    if sys.platform.startswith("linux"):
+        try:
+            return Path(os.readlink(f"/proc/{pid}/exe")).resolve()
+        except OSError:
+            return None
     if sys.platform != "darwin":
         return None
     library = ctypes.CDLL("/usr/lib/libproc.dylib", use_errno=True)

@@ -363,6 +363,7 @@ fn cleanup_preserves_every_registered_alias_even_when_it_is_not_selected() {
     assert_eq!(fs::read(payload).unwrap(), b"operator-owned SDK bytes");
 }
 
+#[cfg(unix)]
 #[test]
 fn later_python_patch_requirement_refuses_before_any_job_download_or_sdk() {
     let fixture = Fixture::new();

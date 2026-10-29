@@ -24,6 +24,19 @@ pub(super) fn capture(
     Ok(stopped)
 }
 
+pub(super) fn capture_for_stop(
+    scope: &Path,
+    digest: &str,
+    selected: &ResidentState,
+    retire_clients: bool,
+) -> Result<Vec<ResidentState>, String> {
+    if cfg!(unix) && !retire_clients {
+        capture(scope, digest, selected)
+    } else {
+        Ok(Vec::new())
+    }
+}
+
 pub(super) fn wait(
     scope: &Path,
     digest: &str,
@@ -40,6 +53,22 @@ pub(super) fn wait(
         &known,
         |state| includes(stopped, state),
     )
+}
+
+pub(super) fn wait_for_stop(
+    scope: &Path,
+    digest: &str,
+    deadline: Instant,
+    stopped: &[ResidentState],
+    selected: &ResidentState,
+    retire_clients: bool,
+) -> Result<(), String> {
+    if cfg!(unix) && !retire_clients {
+        wait(scope, digest, deadline, stopped)
+    } else {
+        let known = super::containment::state_process_identities(std::slice::from_ref(selected));
+        super::containment::wait_for_stop_containment(scope, digest, deadline, &known)
+    }
 }
 
 #[cfg(all(test, unix))]

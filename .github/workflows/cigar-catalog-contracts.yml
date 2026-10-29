@@ -47,6 +47,7 @@ jobs:
           cache-key: cigar-catalog-contracts
       - name: Validate native bundled catalog and release/installer contracts
         run: cargo test --manifest-path rust/Cargo.toml --locked -p guard-cigar-release -p guard-cigar-install --lib
+      - uses: ./.github/actions/stage-command-projections
       - name: Check maintainer drafts and synthetic next-bump identities
         env:
           PYTHONDONTWRITEBYTECODE: "1"

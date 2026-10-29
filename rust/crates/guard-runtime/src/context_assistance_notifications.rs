@@ -1,7 +1,7 @@
 //! Optional native-only notification mailbox. Neither producer waits for the
 //! SDK, reads sources, takes evidence acknowledgements or changes a decision.
 use guard_context_assistance::{ContextDocument, RuntimeError};
-use guard_contracts::NativeHookDecisionReceiptV1;
+use guard_contracts::{GuardHookEnvelopeV2, NativeHookDecisionReceiptV1};
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, VecDeque};
 use std::path::{Component, Path, PathBuf};
@@ -311,6 +311,18 @@ fn observer(home: &Path) -> Option<Arc<Notifications>> {
     let observer = registry.get(home).and_then(Weak::upgrade);
     drop(registry);
     observer
+}
+pub(crate) fn notify_hook(
+    envelope: &GuardHookEnvelopeV2,
+    receipt: &NativeHookDecisionReceiptV1,
+    result: &Value,
+) {
+    native_origin(
+        Path::new(&envelope.source.guard_home),
+        envelope.source.cwd.as_deref(),
+        receipt,
+        result,
+    );
 }
 pub(crate) fn native_origin(
     home: &Path,

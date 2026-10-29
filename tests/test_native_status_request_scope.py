@@ -142,8 +142,10 @@ def test_scope_does_not_cache_unavailable_statuses(
         return None
 
     monkeypatch.setenv("HOL_GUARD_NATIVE", "force")
+    monkeypatch.setenv("HOL_GUARD_NATIVE_BINARY", str(missing))
     monkeypatch.setattr(native_runtime_module, "_runtime_candidates", lambda: (missing,))
     monkeypatch.setattr(native_runtime_module, "_validate_binary", validate)
+    native_runtime_module._clear_capabilities_probe_state()
     with native_status_request_scope() as scope:
         assert native_runtime_status().reason == "native_unavailable"
         assert native_runtime_status().reason == "native_unavailable"
