@@ -38,6 +38,9 @@ mod warm;
 #[path = "context_assistance_service_upgrade_worker.rs"]
 mod worker;
 
+#[cfg(test)]
+type RestoreReadyHook = Box<dyn FnOnce(&Arc<RuntimeActor<Engine>>) + Send>;
+
 pub(super) struct Signal {
     pub(super) request: SwitchRequest,
     source_disabled: bool,
@@ -58,7 +61,7 @@ pub(super) struct Signal {
     #[cfg(test)]
     prepared_actor: Mutex<Weak<RuntimeActor<Engine>>>,
     #[cfg(test)]
-    restore_ready_hook: Mutex<Option<Box<dyn FnOnce(&Arc<RuntimeActor<Engine>>) + Send>>>,
+    restore_ready_hook: Mutex<Option<RestoreReadyHook>>,
     #[cfg(test)]
     source_closed_hook: Mutex<Option<Box<dyn FnOnce() + Send>>>,
     #[cfg(test)]

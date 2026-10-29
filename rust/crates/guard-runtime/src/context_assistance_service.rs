@@ -268,7 +268,9 @@ impl Service {
                         &home,
                         &settings.effective.runtime_id,
                     )?;
-                    let mut runtime = verification::runtime(&installation, &home, &settings.effective, Arc::clone(&cancel))?;
+                    let runtime = verification::runtime(&installation, &home, &settings.effective, Arc::clone(&cancel))?;
+                    #[cfg(target_os = "macos")]
+                    let mut runtime = runtime;
                     #[cfg(target_os = "macos")]
                     let execution_lane = if runtime.status().execution_handoff_verified {
                         Engine::prewarm_execution(&mut runtime, &settings.effective).ok()

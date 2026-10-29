@@ -261,6 +261,7 @@ impl Engine {
     }
     /// Ordinary compilation may update SDK/manifest timestamps and history.
     /// Only a real scope, policy, source or reviewed-note change makes this fail.
+    #[cfg(all(test, target_os = "macos"))]
     pub(crate) fn upgrade_semantic_sha256(
         &mut self,
         runtime: &mut VerifiedRuntime,
@@ -280,6 +281,7 @@ impl Engine {
         fingerprint(&scopes, config, producer)
     }
 }
+#[cfg(all(test, target_os = "macos"))]
 impl UpgradeCapture {
     pub(crate) fn describe(&self) -> Value {
         json!({"schema":"guard-cigar-engine-preparation.v1", "scopes":self.scopes.len(),

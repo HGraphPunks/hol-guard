@@ -199,7 +199,7 @@ fn actual_private_python_setup_installs_sdk_and_recovers_without_replaying_proce
     let work = fixture
         .home
         .join("context-assistance/python-work")
-        .join(&build.build().binding().unwrap().slot_id().unwrap());
+        .join(build.build().binding().unwrap().slot_id().unwrap());
     fs::remove_file(work.join("installation-owner.json")).unwrap();
     fs::remove_dir(&work).unwrap();
     let mut lost = python_store::get(&fixture.home, &request.job_id)

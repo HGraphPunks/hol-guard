@@ -166,12 +166,12 @@ impl Scope {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos"))]
 #[path = "context_assistance_engine_cleanup_test.rs"]
 mod cleanup_test;
 
 pub(crate) struct Engine {
-    #[cfg(test)]
+    #[cfg(all(test, target_os = "macos"))]
     pub(crate) cleanup_test: cleanup_test::Hook,
     home: PathBuf,
     runtime_id: String,
@@ -234,7 +234,7 @@ impl Engine {
         notifications: Option<Arc<Notifications>>,
     ) -> Self {
         Self {
-            #[cfg(test)]
+            #[cfg(all(test, target_os = "macos"))]
             cleanup_test: Default::default(),
             home,
             runtime_id: config.runtime_id.clone(),

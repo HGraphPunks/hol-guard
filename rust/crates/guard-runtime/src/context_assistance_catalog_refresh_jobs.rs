@@ -4,7 +4,7 @@ use super::*;
 #[path = "context_assistance_catalog_refresh_tests.rs"]
 mod tests;
 impl Jobs {
-    #[cfg(test)]
+    #[cfg(all(test, target_os = "macos"))]
     pub(crate) fn refresh_test_catalog(
         &self,
         home: &Path,

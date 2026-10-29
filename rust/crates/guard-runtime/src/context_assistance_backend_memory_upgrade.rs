@@ -76,7 +76,7 @@ impl Backend {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos"))]
 impl Backend {
     /// Empty memory domains intentionally have no transferable review object.
     /// Verify their actual SDK revision/digest instead of inventing a transfer.

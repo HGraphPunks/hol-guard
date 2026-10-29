@@ -92,6 +92,8 @@ fn writable(parent: &File, expected: &[u8]) -> Result<(), Failure> {
     }
     Ok(())
 }
+// libc::dev_t differs across Unix targets; the inode comparison uses MetadataExt's u64.
+#[allow(clippy::unnecessary_cast)]
 pub(super) fn replace(
     lock: &WriteLock,
     expected: &CatalogPair,

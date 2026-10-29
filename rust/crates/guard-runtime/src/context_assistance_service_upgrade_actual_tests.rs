@@ -379,7 +379,7 @@ fn actual_service_roundtrip(memory_only: bool) {
             &f,
             &store,
             &scope,
-            &secondary,
+            secondary,
             memory_before.as_ref().unwrap(),
         );
     }

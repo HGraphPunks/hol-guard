@@ -138,8 +138,10 @@ fn requested_feature_qualification_is_checked_before_any_sdk_artifact_access() {
     let record = modern(&fixture);
     fixture.write(&record);
     let loaded = load(&fixture.0, &record.runtime_id).unwrap();
-    let mut config = guard_context_assistance::ContextAssistanceConfig::default();
-    config.enabled = true;
+    let mut config = guard_context_assistance::ContextAssistanceConfig {
+        enabled: true,
+        ..Default::default()
+    };
     config.features.agent_context = true;
     config.features.shared_agents = true;
     let result = loaded.start_cancellable(

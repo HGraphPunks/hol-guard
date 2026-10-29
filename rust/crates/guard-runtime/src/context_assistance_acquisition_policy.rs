@@ -34,13 +34,13 @@ mod tests {
     #[test]
     fn configured_proxy_or_custom_ca_is_never_silently_bypassed() {
         let mut network = ManagedNetworkPolicy::unmanaged_default();
-        assert_eq!(check(&network, false).unwrap(), true);
+        assert!(check(&network, false).unwrap());
         assert_eq!(
             check(&network, true),
             Err(error("install_proxy_requires_offline_import"))
         );
         network.allow_public_registries = false;
-        assert_eq!(check(&network, false).unwrap(), false);
+        assert!(!check(&network, false).unwrap());
         network.ca_bundle_path = Some("/admin/ca.pem".into());
         assert_eq!(
             check(&network, false),

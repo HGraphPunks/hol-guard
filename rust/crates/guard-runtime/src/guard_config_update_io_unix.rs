@@ -163,6 +163,8 @@ impl WriteLock {
     }
     /// Unknown outcome after rename is surfaced; callers must inspect current
     /// protected bytes, never replay the write or overwrite a concurrent edit.
+    // libc::dev_t differs across Unix targets; the inode comparison uses MetadataExt's u64.
+    #[allow(clippy::unnecessary_cast)]
     pub(crate) fn publish(&self, expected: Option<&str>, text: &str) -> Result<(), Failure> {
         self.check()?;
         if text.len() > MAX_CONFIG_BYTES || read_home_config(&self.home)?.as_deref() != expected {

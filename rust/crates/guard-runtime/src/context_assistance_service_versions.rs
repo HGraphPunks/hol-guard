@@ -141,6 +141,7 @@ impl Service {
 
 #[cfg(test)]
 impl Service {
+    #[cfg(target_os = "macos")]
     pub(crate) fn refresh_test_catalog(
         &self,
         home: &std::path::Path,

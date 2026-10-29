@@ -160,6 +160,8 @@ impl WriteLock {
         }
         Ok(Some(bytes))
     }
+    // libc::dev_t differs across Unix targets; the inode comparison uses MetadataExt's u64.
+    #[allow(clippy::unnecessary_cast)]
     pub(crate) fn publish_lifecycle(
         &self,
         kind: LifecycleFile,
