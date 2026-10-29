@@ -164,7 +164,27 @@ pub(super) fn consume_for_spawn(
         }
         Err(_) => return Err("native_policy_verifier_key_stat_failed".to_owned()),
     }
-    consume_before(scope, Some(deadline))
+    let charged = consume_before(scope, Some(deadline));
+    // Recorded after the charge, so the journal's lock is never held inside
+    // this module's own. A start the budget refused is the one event a
+    // one-shot client would otherwise leave no trace of at all, and the only
+    // one that makes the journal read `critical`, so this waits briefly for a
+    // contended lock rather than dropping it. The wait costs this caller
+    // nothing a spawn needs: it has already been refused and returns an error
+    // the moment this returns. The contended case is exactly the one worth
+    // waiting through, because a supervisor recording an exit holds the lock
+    // while the circuit it just opened is refusing clients.
+    //
+    // A charge is not a start: the caller still has to mint a generation, a
+    // token and a process, and any of those can fail. The started event is
+    // recorded by the spawn path once there is something running, so a failed
+    // spawn never reads back as a healthy one.
+    if let Err(reason) = &charged {
+        if reason.as_str() == "native_resident_restart_circuit_open" {
+            super::lifecycle_journal::record(scope, super::lifecycle_journal::Event::StartRefused);
+        }
+    }
+    charged
 }
 
 #[cfg(test)]

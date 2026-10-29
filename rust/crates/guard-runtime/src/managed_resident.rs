@@ -40,12 +40,15 @@ mod prewarm_lane;
 pub(crate) use owner_lock::ManagedOwnerLock;
 #[path = "managed_resident_exit.rs"]
 mod exit_record;
+#[path = "resident_lifecycle_journal.rs"]
+mod lifecycle_journal;
 #[path = "resident_private_file.rs"]
 mod private_file;
 #[path = "resident_requested_stop.rs"]
 mod requested_stop;
 #[path = "resident_failure_log.rs"]
 mod resident_failure_log;
+pub(crate) use lifecycle_journal::lifecycle_health;
 #[path = "resident_state_retirement.rs"]
 mod resident_state_retirement;
 #[path = "resident_restart_budget.rs"]
