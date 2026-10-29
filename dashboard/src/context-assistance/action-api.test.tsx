@@ -68,7 +68,7 @@ try {
   const rendered = renderToStaticMarkup(<ContextBriefView brief={{ ...native.brief, excerpts: [{ text: "<script>untrusted source</script>", citations: [] }] }} scope={scope} />);
   assert.match(rendered, /Authenticated native decision facts/);
   assert.match(rendered, /&lt;script&gt;/);
-  assert.doesNotMatch(rendered, /<script>/);
+  assert.equal(rendered.includes("<script>"), false);
 } finally {
   globalThis.fetch = originalFetch;
   if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
