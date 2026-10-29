@@ -3,7 +3,7 @@ import { ab, ac } from "../guard-dashboard.js";
 import { H as HomeProtectionModule } from "./home-protection-module-Y32xp2_E.js";
 import { B as BrandHero, a as BrandHeroFacts, b as BrandHeroBadge, u as useReducedMotion, c as brandMarkSvg } from "./brand-hero-COty1p6U.js";
 import { A as ABOUT_LOCAL_SECTION_TITLE, a as ABOUT_LOCAL_SECTION_BODY } from "./about-content-Dr9zFg1V.js";
-import { S as SUPPORTED_APPS_FULL } from "./app-catalog-CnXCIjw0.js";
+import { S as SUPPORTED_APPS_FULL } from "./app-catalog-Ca_M7GbC.js";
 import "./supply-chain-protection-stats-CF7SVvMV.js";
 const button = "min-h-11 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-brand-dark disabled:cursor-not-allowed disabled:opacity-50";
 function ContextHomeStatusView(props) {
