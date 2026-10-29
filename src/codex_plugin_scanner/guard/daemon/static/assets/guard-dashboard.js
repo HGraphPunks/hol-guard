@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/chunks/home-dashboard-iXz8u6N9.js","assets/chunks/home-protection-module-Y32xp2_E.js","assets/chunks/supply-chain-protection-stats-CF7SVvMV.js","assets/chunks/brand-hero-COty1p6U.js","assets/chunks/about-content-Dr9zFg1V.js","assets/chunks/app-catalog-Ca_M7GbC.js","assets/chunks/fleet-workspace-DqojteNo.js","assets/chunks/harness-version-label-BjtKEA_B.js","assets/chunks/connect-guard-cloud-button-DtM-rmur.js","assets/chunks/settings-save-proof-modal-D6WLu1uM.js","assets/chunks/settings-workspace-ViE6xGDq.js","assets/chunks/confirm-dialog-CPN0cVtQ.js","assets/chunks/extensions-workspace-DISXAm3b.js","assets/chunks/app-detail-workspace-CDJcxboB.js","assets/chunks/policy-workspace-page-PLSYiJ6E.js","assets/chunks/about-workspace-Cr4X4Ueu.js","assets/about-workspace.css"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/chunks/home-dashboard-BDZwrTBd.js","assets/chunks/home-protection-module-D5_hG3QH.js","assets/chunks/supply-chain-protection-stats-fPS2dg9t.js","assets/chunks/brand-hero-COty1p6U.js","assets/chunks/about-content-Dr9zFg1V.js","assets/chunks/app-catalog-Ca_M7GbC.js","assets/chunks/fleet-workspace-Au8qkrQu.js","assets/chunks/harness-version-label-BNKf9mmo.js","assets/chunks/connect-guard-cloud-button-CjnpnUTg.js","assets/chunks/settings-save-proof-modal-CJfd7bMi.js","assets/chunks/settings-workspace-EATcOtZR.js","assets/chunks/confirm-dialog-NIjTMm3y.js","assets/chunks/extensions-workspace-DuWvCy2e.js","assets/chunks/app-detail-workspace-SQy3r0dU.js","assets/chunks/policy-workspace-page-B8GrOyNn.js","assets/chunks/about-workspace-BO9K8980.js","assets/about-workspace.css"])))=>i.map(i=>d[i]);
 (function polyfill() {
   const relList = document.createElement("link").relList;
   if (relList && relList.supports && relList.supports("modulepreload")) return;
@@ -12792,6 +12792,9 @@ function HiMiniSparkles(props) {
 function HiMiniSignal(props) {
   return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "d": "M16.364 3.636a.75.75 0 0 0-1.06 1.06 7.5 7.5 0 0 1 0 10.607.75.75 0 0 0 1.06 1.061 9 9 0 0 0 0-12.728ZM4.697 4.697a.75.75 0 0 0-1.061-1.061 9 9 0 0 0 0 12.728.75.75 0 1 0 1.06-1.06 7.5 7.5 0 0 1 0-10.607Z" }, "child": [] }, { "tag": "path", "attr": { "d": "M12.475 6.464a.75.75 0 0 1 1.06 0 5 5 0 0 1 0 7.072.75.75 0 0 1-1.06-1.061 3.5 3.5 0 0 0 0-4.95.75.75 0 0 1 0-1.06ZM7.525 6.464a.75.75 0 0 1 0 1.061 3.5 3.5 0 0 0 0 4.95.75.75 0 0 1-1.06 1.06 5 5 0 0 1 0-7.07.75.75 0 0 1 1.06 0ZM11 10a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z" }, "child": [] }] })(props);
 }
+function HiMiniShieldExclamation(props) {
+  return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "M10.339 2.237a.531.531 0 0 0-.678 0 11.947 11.947 0 0 1-7.078 2.75.5.5 0 0 0-.479.425A12.11 12.11 0 0 0 2 7c0 5.163 3.26 9.564 7.834 11.257a.48.48 0 0 0 .332 0C14.74 16.564 18 12.163 18 7c0-.538-.035-1.069-.104-1.589a.5.5 0 0 0-.48-.425 11.947 11.947 0 0 1-7.077-2.75ZM10 6a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 6Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z", "clipRule": "evenodd" }, "child": [] }] })(props);
+}
 function HiMiniShieldCheck(props) {
   return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "M9.661 2.237a.531.531 0 0 1 .678 0 11.947 11.947 0 0 0 7.078 2.749.5.5 0 0 1 .479.425c.069.52.104 1.05.104 1.59 0 5.162-3.26 9.563-7.834 11.256a.48.48 0 0 1-.332 0C5.26 16.564 2 12.163 2 7c0-.538.035-1.069.104-1.589a.5.5 0 0 1 .48-.425 11.947 11.947 0 0 0 7.077-2.75Zm4.196 5.954a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z", "clipRule": "evenodd" }, "child": [] }] })(props);
 }
@@ -15700,11 +15703,11 @@ function computePeriodComparison(receipts, days, now2) {
 function nonNegativeNumber(value) {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
 }
-function isRecord$a(value) {
+function isRecord$b(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function normalizeOperatorHealth(raw) {
-  if (!isRecord$a(raw)) {
+  if (!isRecord$b(raw)) {
     return void 0;
   }
   const state = raw["state"];
@@ -15814,7 +15817,7 @@ const PROTECTION_CHECK_IDS = [
 ];
 const CORE_CHECK_IDS = PROTECTION_CHECK_IDS.filter((checkId) => checkId !== "decision_stream");
 const STABLE_ID$1 = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
-function isRecord$9(value) {
+function isRecord$a(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function copyForState(state) {
@@ -15847,7 +15850,7 @@ function deriveState(checks) {
   return byId.get("decision_stream")?.status === "pass" ? "protected" : "partial";
 }
 function normalizeCheck(value) {
-  if (!isRecord$9(value)) return null;
+  if (!isRecord$a(value)) return null;
   const checkId = value.check_id;
   const status = value.status;
   const reasonCode = value.reason_code;
@@ -15938,7 +15941,7 @@ function useProtectionPresentationState(health) {
   });
 }
 function normalizeApp(value) {
-  if (!isRecord$9(value)) return null;
+  if (!isRecord$a(value)) return null;
   const harness = value.harness;
   if (typeof harness !== "string" || harness.length > 64 || !STABLE_ID$1.test(harness)) return null;
   const checks = normalizeChecks(value.checks);
@@ -15946,7 +15949,7 @@ function normalizeApp(value) {
   return { harness, ...healthFromChecks(checks) };
 }
 function normalizeProtectionHealth(value) {
-  if (!isRecord$9(value) || value.schema_version !== "guard.protection-health.v1") {
+  if (!isRecord$a(value) || value.schema_version !== "guard.protection-health.v1") {
     return unavailableProtectionHealth();
   }
   const checks = normalizeChecks(value.checks);
@@ -16044,12 +16047,12 @@ function remainingProtectionRepairMessage(health, displayName) {
     message: `${remaining} Open the repair details below for the exact check.`
   };
 }
-function isRecord$8(value) {
+function isRecord$9(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 const REASON_CODE_ID = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 function checkReasonMapValue(value) {
-  if (!isRecord$8(value)) return {};
+  if (!isRecord$9(value)) return {};
   const reasons2 = {};
   for (const [checkId, reason] of Object.entries(value)) {
     if (!REASON_CODE_ID.test(checkId) || checkId.length > 96) continue;
@@ -16058,7 +16061,7 @@ function checkReasonMapValue(value) {
   }
   return reasons2;
 }
-function isRecord$7(value) {
+function isRecord$8(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function stringValue$2(value) {
@@ -16085,7 +16088,7 @@ function normalizeSupplyChainRepairResult(result) {
   const failures = [];
   if (Array.isArray(result.failed_steps)) {
     for (const candidate of result.failed_steps) {
-      if (!isRecord$7(candidate)) continue;
+      if (!isRecord$8(candidate)) continue;
       const parsed = failedStep(candidate);
       if (parsed !== null) failures.push(parsed);
     }
@@ -16093,7 +16096,7 @@ function normalizeSupplyChainRepairResult(result) {
   const remaining = [];
   if (Array.isArray(result.remaining_steps)) {
     for (const candidate of result.remaining_steps) {
-      if (!isRecord$7(candidate)) continue;
+      if (!isRecord$8(candidate)) continue;
       const parsed = remainingStep(candidate);
       if (parsed !== null) remaining.push(parsed);
     }
@@ -16262,7 +16265,7 @@ const MAX_SEGMENT_INDEX = 255;
 const CATALOG_ID$1 = /^command\.[A-Za-z0-9._-]{1,248}$/;
 const DIGEST$4 = /^[0-9a-f]{64}$/;
 const EXECUTABLE = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/;
-function isRecord$6(value) {
+function isRecord$7(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function boundedText$1(value, limit) {
@@ -16274,7 +16277,7 @@ function catalogId$1(value) {
   return typeof value === "string" && CATALOG_ID$1.test(value) ? value : null;
 }
 function normalizeExtension(raw) {
-  if (!isRecord$6(raw)) return null;
+  if (!isRecord$7(raw)) return null;
   const extensionId = catalogId$1(raw.extension_id);
   const name = boundedText$1(raw.name, 120);
   if (extensionId === null || name === null) return null;
@@ -16283,7 +16286,7 @@ function normalizeExtension(raw) {
   return { extension_id: extensionId, name, focus_rule_id: focus };
 }
 function normalizeRule(raw) {
-  if (!isRecord$6(raw)) return null;
+  if (!isRecord$7(raw)) return null;
   const ruleId = catalogId$1(raw.rule_id);
   const title = boundedText$1(raw.title, 120);
   const severity = boundedText$1(raw.severity, 32);
@@ -16291,7 +16294,7 @@ function normalizeRule(raw) {
   return { rule_id: ruleId, title, severity };
 }
 function normalizePermission$1(raw) {
-  if (!isRecord$6(raw)) return null;
+  if (!isRecord$7(raw)) return null;
   const permissionId = catalogId$1(raw.permission_id);
   const label = boundedText$1(raw.label, 120);
   if (permissionId === null || label === null || typeof raw.configurable !== "boolean") return null;
@@ -16304,7 +16307,7 @@ function normalizeList(raw, normalize) {
   return items.slice(0, MAX_PER_SEGMENT);
 }
 function normalizeSegment(raw) {
-  if (!isRecord$6(raw)) return null;
+  if (!isRecord$7(raw)) return null;
   const { index } = raw;
   if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index > MAX_SEGMENT_INDEX) return null;
   const executable = raw.executable === null || raw.executable === void 0 ? null : typeof raw.executable === "string" && EXECUTABLE.test(raw.executable) ? raw.executable : void 0;
@@ -16316,7 +16319,7 @@ function normalizeSegment(raw) {
   return { index, executable, extensions, rules, permissions };
 }
 function normalizeApprovalExtensionCoverage(raw) {
-  if (!isRecord$6(raw) || raw.schema !== APPROVAL_EXTENSION_COVERAGE_SCHEMA) return null;
+  if (!isRecord$7(raw) || raw.schema !== APPROVAL_EXTENSION_COVERAGE_SCHEMA) return null;
   if (typeof raw.catalog_digest !== "string" || !DIGEST$4.test(raw.catalog_digest)) return null;
   if (typeof raw.compound !== "boolean" || !Array.isArray(raw.segments)) return null;
   if (raw.segments.length === 0) return null;
@@ -16367,7 +16370,7 @@ const MAX_PERMISSIONS$1 = 3;
 const CATALOG_ID = /^command\.[A-Za-z0-9._-]{1,248}$/;
 const DIGEST$3 = /^[0-9a-f]{64}$/;
 const CAUTION_REASONS = /* @__PURE__ */ new Set(["critical", "destructive", "sensitive"]);
-function isRecord$5(value) {
+function isRecord$6(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function boundedText(value, limit) {
@@ -16379,7 +16382,7 @@ function catalogId(value) {
   return typeof value === "string" && CATALOG_ID.test(value) ? value : null;
 }
 function normalizePermission(raw) {
-  if (!isRecord$5(raw)) return null;
+  if (!isRecord$6(raw)) return null;
   const permissionId = catalogId(raw.permission_id);
   const extensionId = catalogId(raw.extension_id);
   const label = boundedText(raw.label, 120);
@@ -16406,7 +16409,7 @@ function normalizePermission(raw) {
   };
 }
 function normalizeApprovalExtensionRecommendation(raw) {
-  if (!isRecord$5(raw) || raw.schema !== RECOMMENDATION_SCHEMA) return null;
+  if (!isRecord$6(raw) || raw.schema !== RECOMMENDATION_SCHEMA) return null;
   if (raw.status !== "available" && raw.status !== "authority_unavailable") return null;
   if (!Array.isArray(raw.permissions) || raw.permissions.length === 0 || raw.permissions.length > MAX_PERMISSIONS$1) {
     return null;
@@ -16722,7 +16725,7 @@ function loadCurrentDashboardBuild(href) {
   }
   return true;
 }
-function isRecord$4(value) {
+function isRecord$5(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function readString$1(value) {
@@ -16733,18 +16736,18 @@ function readString$1(value) {
   return trimmed.length > 0 ? trimmed : null;
 }
 function isSupplyChainAuditIncomplete(detail) {
-  if (!isRecord$4(detail)) {
+  if (!isRecord$5(detail)) {
     return false;
   }
   return readString$1(detail.audit_status) === "incomplete";
 }
 function resolveSupplyChainAuditFailure(detail) {
-  if (!isRecord$4(detail) || !isSupplyChainAuditIncomplete(detail)) {
+  if (!isRecord$5(detail) || !isSupplyChainAuditIncomplete(detail)) {
     return null;
   }
   const outcome = readString$1(detail.audit_outcome);
   const message = readString$1(detail.message);
-  const supplyChain = isRecord$4(detail.supply_chain) ? detail.supply_chain : null;
+  const supplyChain = isRecord$5(detail.supply_chain) ? detail.supply_chain : null;
   const supplyStatus = readString$1(supplyChain?.status);
   if (outcome === "sync_required" || supplyStatus === "sync_required") {
     return message ?? "Guard supply-chain intel is not synced on this device. Run Sync, then audit again.";
@@ -16812,7 +16815,7 @@ function fetchLocalProtectionJson(input, init, timeoutMs, message) {
 async function requestErrorMessage(response, fallback) {
   try {
     const payload = await response.clone().json();
-    if (!isRecord$3(payload)) {
+    if (!isRecord$4(payload)) {
       return fallback;
     }
     const message = payload["message"];
@@ -16969,7 +16972,7 @@ async function probeGuardDaemonHealth(origin) {
     if (!response.ok) {
       return false;
     }
-    if (!isRecord$3(payload)) {
+    if (!isRecord$4(payload)) {
       return false;
     }
     return payload.ok === true && payload.compatibility_version === 2;
@@ -17075,7 +17078,7 @@ function constantTimeHexEqual(left, right) {
   return difference === 0;
 }
 function parseReconnectAuthorization(payload) {
-  if (!isRecord$3(payload)) {
+  if (!isRecord$4(payload)) {
     return null;
   }
   if (payload["protocol_version"] !== GUARD_DAEMON_RECONNECT_PROTOCOL_VERSION || payload["surface"] !== "dashboard" || !isHexDigest(payload["reconnect_id"]) || !isHexDigest(payload["verifier"]) || !isHexDigest(payload["installation_id"]) || !isHexDigest(payload["guard_home_id"]) || typeof payload["issued_at_ms"] !== "number" || typeof payload["expires_at_ms"] !== "number" || payload["expires_at_ms"] <= payload["issued_at_ms"]) {
@@ -17097,7 +17100,7 @@ function parseReconnectAuthorization(payload) {
   };
 }
 function parseReconnectChallenge(payload, authorization, candidateOrigin, clientNonce) {
-  if (!isRecord$3(payload)) {
+  if (!isRecord$4(payload)) {
     return null;
   }
   const stringFields = ["state_id"];
@@ -17233,7 +17236,7 @@ async function authenticateGuardDaemonCandidate(origin, authorization) {
       guardDaemonReconnectDiagnostic = "dashboard_reconnect_client_proof_rejected";
       return false;
     }
-    if (!isRecord$3(verificationPayload) || verificationPayload["verified"] !== true) {
+    if (!isRecord$4(verificationPayload) || verificationPayload["verified"] !== true) {
       guardDaemonReconnectDiagnostic = "dashboard_reconnect_client_proof_rejected";
       return false;
     }
@@ -17506,7 +17509,7 @@ function guardAuthHeadersForToken(guardToken) {
   return guardToken ? { "X-Guard-Dashboard-Session": guardToken } : {};
 }
 function parseDashboardSessionToken(payload) {
-  if (!isRecord$3(payload)) {
+  if (!isRecord$4(payload)) {
     return null;
   }
   const dashboardSessionToken = payload["dashboard_session_token"];
@@ -17556,7 +17559,7 @@ function guardAwareHref(href) {
   }
   return `${url.pathname}${url.search}${url.hash}`;
 }
-function isRecord$3(value) {
+function isRecord$4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function isGuardActionType(value) {
@@ -17578,7 +17581,7 @@ function isNonEmptyString(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
 function isGuardHarnessActionErrorPayload(value) {
-  return isRecord$3(value) && isNonEmptyString(value["error"]);
+  return isRecord$4(value) && isNonEmptyString(value["error"]);
 }
 function isApprovalPageStatus(value) {
   return value === "pending" || value === "resolved" || value === "all";
@@ -17592,7 +17595,7 @@ function matchingAliasedField(raw, snakeKey, camelKey) {
   return { matches: true, value: hasSnake ? raw[snakeKey] : raw[camelKey] };
 }
 function parseActionEnvelope(raw) {
-  if (!isRecord$3(raw)) {
+  if (!isRecord$4(raw)) {
     return null;
   }
   const allowedActionFields = /* @__PURE__ */ new Set([
@@ -17652,7 +17655,7 @@ function parseActionEnvelope(raw) {
   if (!isStringArray(targetPaths) || !isStringArray(networkHosts) || packageTargets !== void 0 && !isStringArray(packageTargets)) {
     return null;
   }
-  if (!isRecord$3(rawPayloadRedacted)) {
+  if (!isRecord$4(rawPayloadRedacted)) {
     return null;
   }
   const nativeOrigin = parseNativeDecisionSelector(raw["native_origin_receipt"], harness, eventName);
@@ -17704,14 +17707,14 @@ function isRiskSignalV2Array(value) {
     return false;
   }
   return value.every((item) => {
-    if (!isRecord$3(item)) {
+    if (!isRecord$4(item)) {
       return false;
     }
     return isNonEmptyString(item["signal_id"]) && isRiskSignalV2Category(item["category"]) && isRiskSignalV2Severity(item["severity"]) && isDecisionV2Confidence(item["confidence"]) && isNonEmptyString(item["detector"]) && isNonEmptyString(item["title"]) && isNonEmptyString(item["plain_reason"]) && isStringOrNull(item["technical_detail"]) && isStringOrNull(item["evidence_ref"]) && isRiskSignalV2RedactionLevel(item["redaction_level"]) && isStringOrNull(item["false_positive_hint"]) && isStringOrNull(item["advisory_id"]);
   });
 }
 function parseDecisionV2(raw) {
-  if (!isRecord$3(raw)) {
+  if (!isRecord$4(raw)) {
     return null;
   }
   const allowedActionFields = /* @__PURE__ */ new Set(["guard_action", "action"]);
@@ -17747,7 +17750,7 @@ function parseDecisionV2(raw) {
   };
 }
 function parseLegacyPackageActionMetadata(raw) {
-  if (!isRecord$3(raw) || raw["schema_version"] !== void 0 || !("policy_action" in raw) || typeof raw["package_manager"] !== "string" || !isStringArray(raw["package_targets"]) || typeof raw["redacted_command"] !== "string") {
+  if (!isRecord$4(raw) || raw["schema_version"] !== void 0 || !("policy_action" in raw) || typeof raw["package_manager"] !== "string" || !isStringArray(raw["package_targets"]) || typeof raw["redacted_command"] !== "string") {
     return { recognized: false, action: null };
   }
   if (Object.keys(raw).some((key) => isActionBearingKey(key) && key !== "policy_action")) {
@@ -17819,9 +17822,9 @@ function normalizeApprovalRequest(item) {
   const scopeContractVersion = parseOptionalString(item.scope_contract_version);
   const scopeContractDigest = parseOptionalString(item.scope_contract_digest);
   const hasCompleteScopeContract = scopeContractVersion !== null && scopeContractDigest !== null;
-  const rawAllowedByAction = isRecord$3(item.allowed_scopes_by_action) ? item.allowed_scopes_by_action : {};
-  const rawRecommendedByAction = isRecord$3(item.recommended_scope_by_action) ? item.recommended_scope_by_action : {};
-  const rawTaskEligibility = isRecord$3(item.task_capability_eligibility) ? item.task_capability_eligibility : null;
+  const rawAllowedByAction = isRecord$4(item.allowed_scopes_by_action) ? item.allowed_scopes_by_action : {};
+  const rawRecommendedByAction = isRecord$4(item.recommended_scope_by_action) ? item.recommended_scope_by_action : {};
+  const rawTaskEligibility = isRecord$4(item.task_capability_eligibility) ? item.task_capability_eligibility : null;
   const taskReasonCodes = parseStringList(rawTaskEligibility?.reason_codes);
   const taskCapabilityEligibility = typeof rawTaskEligibility?.eligible === "boolean" && taskReasonCodes !== null ? {
     eligible: rawTaskEligibility.eligible,
@@ -17861,7 +17864,7 @@ function normalizeApprovalRequests(items) {
   return items.map(normalizeApprovalRequest);
 }
 function normalizeOptionalApprovalRequest(item) {
-  return isRecord$3(item) ? normalizeApprovalRequest(item) : null;
+  return isRecord$4(item) ? normalizeApprovalRequest(item) : null;
 }
 function normalizeApprovalPage(payload, statusFallback = "pending") {
   recordBusinessQueueReadResult(payload);
@@ -17874,7 +17877,7 @@ function normalizeApprovalPage(payload, statusFallback = "pending") {
   };
 }
 function normalizeQueueSummary(raw, pendingCount) {
-  if (!isRecord$3(raw)) {
+  if (!isRecord$4(raw)) {
     return {
       active_request_id: null,
       next_request_id: null,
@@ -17900,7 +17903,7 @@ function normalizeProcessPathStatus(value) {
   return "missing";
 }
 function normalizePackageManagerProtection(raw) {
-  if (!isRecord$3(raw)) {
+  if (!isRecord$4(raw)) {
     return void 0;
   }
   const pathStatus = raw["path_status"] === "in_path" ? "in_path" : raw["path_status"] === "restart_required" ? "restart_required" : "missing_from_path";
@@ -17925,7 +17928,7 @@ function normalizePackageManagerProtection(raw) {
   };
 }
 function normalizeSupplyChainSnapshot(raw) {
-  if (!isRecord$3(raw)) {
+  if (!isRecord$4(raw)) {
     return void 0;
   }
   const packageManagerProtection = normalizePackageManagerProtection(raw["package_manager_protection"]);
@@ -17937,7 +17940,7 @@ function normalizeSupplyChainSnapshot(raw) {
   };
 }
 function normalizeManagedInstall(raw) {
-  if (!isRecord$3(raw)) {
+  if (!isRecord$4(raw)) {
     return void 0;
   }
   const harness = raw["harness"];
@@ -17946,7 +17949,7 @@ function normalizeManagedInstall(raw) {
   }
   const active = raw["active"] === true;
   const workspace = isStringOrNull(raw["workspace"]) ? raw["workspace"] : null;
-  const manifest = isRecord$3(raw["manifest"]) ? raw["manifest"] : {};
+  const manifest = isRecord$4(raw["manifest"]) ? raw["manifest"] : {};
   const updatedAt = typeof raw["updated_at"] === "string" ? raw["updated_at"] : "";
   return {
     harness,
@@ -17970,11 +17973,11 @@ function normalizeManagedInstalls(raw) {
   return result;
 }
 function normalizeCloudCommandCapability(raw) {
-  if (!isRecord$3(raw)) {
+  if (!isRecord$4(raw)) {
     return void 0;
   }
   const pending = Array.isArray(raw["pending_commands"]) ? raw["pending_commands"].flatMap((item) => {
-    if (!isRecord$3(item)) return [];
+    if (!isRecord$4(item)) return [];
     const id2 = item["id"];
     const operation = item["operation"];
     const issuer = item["issuer"];
@@ -18025,7 +18028,7 @@ function normalizeRuntimeSnapshot(snapshot) {
   };
 }
 function normalizeRuntimeState(raw) {
-  if (!isRecord$3(raw)) {
+  if (!isRecord$4(raw)) {
     return null;
   }
   const sessionId = raw["session_id"];
@@ -18074,7 +18077,7 @@ function isMatchingRuntimeUrl(value, daemonHost, daemonPort) {
   }
 }
 function normalizeQueueCopy(raw) {
-  if (!isRecord$3(raw)) {
+  if (!isRecord$4(raw)) {
     return null;
   }
   const title = raw["title"];
@@ -18088,7 +18091,7 @@ function isCodexResumeStatus(value) {
   return typeof value === "string" && CODEX_RESUME_STATUSES.some((s) => s === value);
 }
 function normalizeCodexResume(raw) {
-  if (!isRecord$3(raw)) {
+  if (!isRecord$4(raw)) {
     return null;
   }
   const status = raw["status"];
@@ -18586,7 +18589,7 @@ async function fetchReceipts() {
   return normalizeReceipts(payload.items);
 }
 function normalizeReceiptAnalyticsBucket(raw) {
-  if (!isRecord$3(raw)) return null;
+  if (!isRecord$4(raw)) return null;
   const dateKey = raw["date_key"];
   const label = raw["label"];
   if (typeof dateKey !== "string" || typeof label !== "string") return null;
@@ -18599,13 +18602,13 @@ function normalizeReceiptAnalyticsBucket(raw) {
   };
 }
 function normalizeReceiptAnalytics(raw) {
-  if (!isRecord$3(raw)) return null;
+  if (!isRecord$4(raw)) return null;
   const dailyRaw = raw["daily_activity"];
   const trendRaw = raw["trend_buckets"];
   const harnessRaw = raw["by_harness"];
   const artifactRaw = raw["top_artifacts"];
   const daily_activity = Array.isArray(dailyRaw) ? dailyRaw.map((entry) => {
-    if (!isRecord$3(entry) || typeof entry["date_key"] !== "string") return null;
+    if (!isRecord$4(entry) || typeof entry["date_key"] !== "string") return null;
     return {
       date_key: entry["date_key"],
       total: isNonNegativeNumber(entry["total"]) ? entry["total"] : 0
@@ -18613,7 +18616,7 @@ function normalizeReceiptAnalytics(raw) {
   }).filter((entry) => entry !== null) : [];
   const trend_buckets = Array.isArray(trendRaw) ? trendRaw.map(normalizeReceiptAnalyticsBucket).filter((entry) => entry !== null) : [];
   const by_harness = Array.isArray(harnessRaw) ? harnessRaw.map((entry) => {
-    if (!isRecord$3(entry) || typeof entry["harness"] !== "string") return null;
+    if (!isRecord$4(entry) || typeof entry["harness"] !== "string") return null;
     return {
       harness: entry["harness"],
       total: isNonNegativeNumber(entry["total"]) ? entry["total"] : 0,
@@ -18622,7 +18625,7 @@ function normalizeReceiptAnalytics(raw) {
     };
   }).filter((entry) => entry !== null) : [];
   const top_artifacts = Array.isArray(artifactRaw) ? artifactRaw.map((entry) => {
-    if (!isRecord$3(entry) || typeof entry["name"] !== "string") return null;
+    if (!isRecord$4(entry) || typeof entry["name"] !== "string") return null;
     return {
       name: entry["name"],
       total: isNonNegativeNumber(entry["total"]) ? entry["total"] : 0,
@@ -18746,7 +18749,7 @@ async function publishInsightsShare(input) {
   throw new Error("Invalid insights share response");
 }
 function normalizeGuardCloudConnectStatus(value) {
-  if (!isRecord$3(value)) {
+  if (!isRecord$4(value)) {
     return { connect_required: false, connect_flow: null };
   }
   return {
@@ -19074,7 +19077,7 @@ async function resolveRequestWithQueueResult(input) {
     let payload2 = null;
     try {
       const candidate = await response.clone().json();
-      payload2 = isRecord$3(candidate) ? candidate : null;
+      payload2 = isRecord$4(candidate) ? candidate : null;
     } catch {
       payload2 = null;
     }
@@ -19184,9 +19187,9 @@ async function repairProtectionCheck(checkId) {
   });
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new GuardProtectionRepairError(response.status, isRecord$3(payload) ? payload : null);
+    throw new GuardProtectionRepairError(response.status, isRecord$4(payload) ? payload : null);
   }
-  if (!isRecord$3(payload) || payload.repaired !== true || payload.repair_scope !== "local_integrity" || !Array.isArray(payload.check_ids)) {
+  if (!isRecord$4(payload) || payload.repaired !== true || payload.repair_scope !== "local_integrity" || !Array.isArray(payload.check_ids)) {
     throw new Error("Guard returned an invalid protection repair result.");
   }
   return {
@@ -19197,7 +19200,7 @@ async function repairProtectionCheck(checkId) {
   };
 }
 function normalizeGuardUpdateVersionCheck(raw) {
-  const value = isRecord$3(raw) ? raw : {};
+  const value = isRecord$4(raw) ? raw : {};
   return {
     source: stringValue$1(value.source) ?? "pypi",
     status: stringValue$1(value.status) ?? "unavailable",
@@ -19207,7 +19210,7 @@ function normalizeGuardUpdateVersionCheck(raw) {
   };
 }
 function normalizeGuardUpdateStatus(raw, fallbackReleaseChannel = null) {
-  const value = isRecord$3(raw) ? raw : {};
+  const value = isRecord$4(raw) ? raw : {};
   const versionCheck = normalizeGuardUpdateVersionCheck(value.version_check);
   const currentVersion = stringValue$1(value.current_version) ?? versionCheck.current_version ?? "unknown";
   const latestVersion = stringValue$1(value.latest_version) ?? versionCheck.latest_version;
@@ -19247,7 +19250,7 @@ async function fetchGuardUpdateStatus() {
     });
   }
   const payload = await readJson$1("/v1/update/status", { cache: "no-store" });
-  const declaredChannel = isRecord$3(payload) && isGuardUpdateChannel(payload.release_channel) ? payload.release_channel : null;
+  const declaredChannel = isRecord$4(payload) && isGuardUpdateChannel(payload.release_channel) ? payload.release_channel : null;
   const status = normalizeGuardUpdateStatus(payload, readRememberedGuardUpdateChannel());
   if (declaredChannel) {
     rememberGuardUpdateChannel(declaredChannel);
@@ -19320,10 +19323,10 @@ async function setGuardUpdateChannel(channel, proof) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const value = isRecord$3(payload) ? payload : {};
+    const value = isRecord$4(payload) ? payload : {};
     throw new Error(stringValue$1(value.message) ?? `Update channel failed with ${response.status}`);
   }
-  const declaredChannel = isRecord$3(payload) && isGuardUpdateChannel(payload.release_channel) ? payload.release_channel : channel;
+  const declaredChannel = isRecord$4(payload) && isGuardUpdateChannel(payload.release_channel) ? payload.release_channel : channel;
   rememberGuardUpdateChannel(declaredChannel);
   return normalizeGuardUpdateStatus(payload, declaredChannel);
 }
@@ -19376,7 +19379,7 @@ function numberValue(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 function normalizePackageFirewallEntitlement(value) {
-  const record2 = isRecord$3(value) ? value : {};
+  const record2 = isRecord$4(value) ? value : {};
   return {
     allowed: booleanValue$1(record2.allowed),
     reason: stringValue$1(record2.reason) ?? "unknown",
@@ -19386,7 +19389,7 @@ function normalizePackageFirewallEntitlement(value) {
   };
 }
 function normalizePackageFirewallReceipt(value) {
-  if (!isRecord$3(value)) {
+  if (!isRecord$4(value)) {
     return null;
   }
   const id2 = stringValue$1(value.id);
@@ -19399,7 +19402,7 @@ function normalizePackageFirewallReceipt(value) {
   return { id: id2, operation, status, timestamp: timestamp2 };
 }
 function normalizePackageFirewallActions(value) {
-  if (!isRecord$3(value)) {
+  if (!isRecord$4(value)) {
     return {};
   }
   const allowedStates = /* @__PURE__ */ new Set([
@@ -19416,7 +19419,7 @@ function normalizePackageFirewallActions(value) {
   return Object.fromEntries(entries);
 }
 function normalizePackageFirewallCliFallback(value) {
-  if (!isRecord$3(value)) {
+  if (!isRecord$4(value)) {
     return null;
   }
   const fallback = {};
@@ -19439,7 +19442,7 @@ function normalizePackageFirewallCliFallback(value) {
   return Object.keys(fallback).length > 0 ? fallback : null;
 }
 function normalizePackageFirewallConnectFlow(value) {
-  if (!isRecord$3(value)) {
+  if (!isRecord$4(value)) {
     return null;
   }
   const state = value.state;
@@ -19496,7 +19499,7 @@ function readLastInterceptProofAtByManager(status) {
     readPackageShimField(status, "last_test_at", "lastTestAt")
   ];
   for (const source of sources) {
-    if (!isRecord$3(source)) {
+    if (!isRecord$4(source)) {
       continue;
     }
     for (const [manager, timestamp2] of Object.entries(source)) {
@@ -19544,9 +19547,9 @@ function normalizePackageShimEntry(manager, detail, pathStatus, coverage) {
   };
 }
 function normalizePackageShimEntries(value, supportedManagers, pathStatus) {
-  const status = isRecord$3(value) ? value : {};
+  const status = isRecord$4(value) ? value : {};
   const managerDetailsValue = readPackageShimField(status, "manager_details", "managerDetails");
-  const detailRows = Array.isArray(managerDetailsValue) ? managerDetailsValue.filter(isRecord$3) : [];
+  const detailRows = Array.isArray(managerDetailsValue) ? managerDetailsValue.filter(isRecord$4) : [];
   const detailByManager = /* @__PURE__ */ new Map();
   for (const detail of detailRows) {
     const manager = stringValue$1(detail.manager);
@@ -19563,7 +19566,7 @@ function normalizePackageShimEntries(value, supportedManagers, pathStatus) {
   const bypassesValue = readPackageShimField(status, "bypasses", "bypasses");
   if (Array.isArray(bypassesValue)) {
     for (const entry of bypassesValue) {
-      if (!isRecord$3(entry)) {
+      if (!isRecord$4(entry)) {
         continue;
       }
       const manager = stringValue$1(entry.manager);
@@ -19606,9 +19609,9 @@ function actionResultSummary(operation, detail) {
   return `${operation} completed.`;
 }
 function normalizePackageFirewallStatus(value) {
-  const record2 = isRecord$3(value) ? value : {};
+  const record2 = isRecord$4(value) ? value : {};
   const supportedManagers = normalizeStringArray(record2.supported_managers);
-  const shimStatus = isRecord$3(record2.package_shims) ? record2.package_shims : {};
+  const shimStatus = isRecord$4(record2.package_shims) ? record2.package_shims : {};
   const installedManagers = readPackageShimStringArray(shimStatus, "installed_managers", "installedManagers");
   const activeManagers = readPackageShimStringArray(shimStatus, "active_managers", "activeManagers");
   const missingManagers = readPackageShimStringArray(shimStatus, "missing_managers", "missingManagers");
@@ -19660,8 +19663,8 @@ function normalizePackageFirewallStatus(value) {
   };
 }
 function normalizePackageFirewallAction(value) {
-  const record2 = isRecord$3(value) ? value : {};
-  const result = isRecord$3(record2.result) ? record2.result : {};
+  const record2 = isRecord$4(value) ? value : {};
+  const result = isRecord$4(record2.result) ? record2.result : {};
   const operation = stringValue$1(record2.operation) ?? "unknown";
   return {
     entitlement: normalizePackageFirewallEntitlement(record2.entitlement),
@@ -19744,7 +19747,7 @@ async function activatePackageFirewallRuntime() {
   if (response.ok) {
     return;
   }
-  if (isRecord$3(payloadBody) && typeof payloadBody.message === "string" && payloadBody.message.trim()) {
+  if (isRecord$4(payloadBody) && typeof payloadBody.message === "string" && payloadBody.message.trim()) {
     throw new Error(payloadBody.message);
   }
   throw new Error("Unable to activate package protection.");
@@ -19889,7 +19892,7 @@ async function repairSupplyChainProtection(credentials) {
       isGuardHarnessActionErrorPayload(payloadBody) ? payloadBody : null
     );
   }
-  if (!isRecord$3(payloadBody) || !isRecord$3(payloadBody.result)) {
+  if (!isRecord$4(payloadBody) || !isRecord$4(payloadBody.result)) {
     throw new Error("Guard returned an invalid supply-chain repair result.");
   }
   const result = payloadBody.result;
@@ -19909,7 +19912,7 @@ function normalizeMcpPolicyStatus(value) {
   return "pending";
 }
 function normalizeMcpPolicyApplyResult(value) {
-  const record2 = isRecord$3(value) ? value : {};
+  const record2 = isRecord$4(value) ? value : {};
   const inserted = record2["inserted"];
   const replaced = record2["replaced"];
   return {
@@ -19921,7 +19924,7 @@ function asStringList(value) {
   return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
 }
 function normalizeMcpPolicyWritePlan(value) {
-  const record2 = isRecord$3(value) ? value : {};
+  const record2 = isRecord$4(value) ? value : {};
   return {
     additions: asStringList(record2["additions"]),
     replacements: asStringList(record2["replacements"]),
@@ -19929,7 +19932,7 @@ function normalizeMcpPolicyWritePlan(value) {
   };
 }
 function normalizeMcpPolicySemanticDiff(value) {
-  const record2 = isRecord$3(value) ? value : {};
+  const record2 = isRecord$4(value) ? value : {};
   const additionCount = record2["additionCount"];
   const replacementCount = record2["replacementCount"];
   const removalCount = record2["removalCount"];
@@ -19940,7 +19943,7 @@ function normalizeMcpPolicySemanticDiff(value) {
   };
 }
 function normalizeMcpPolicyRequest(raw) {
-  const record2 = isRecord$3(raw) ? raw : {};
+  const record2 = isRecord$4(raw) ? raw : {};
   const expectedPolicyGeneration = record2["expectedPolicyGeneration"];
   return {
     requestId: typeof record2["requestId"] === "string" ? record2["requestId"] : "",
@@ -19995,7 +19998,7 @@ async function resolveMcpPolicyRequest(input) {
       isGuardHarnessActionErrorPayload(payloadBody) ? payloadBody : null
     );
   }
-  const record2 = isRecord$3(payloadBody) ? payloadBody : {};
+  const record2 = isRecord$4(payloadBody) ? payloadBody : {};
   return {
     resolved: record2["resolved"] === true,
     requestId: typeof record2["requestId"] === "string" ? record2["requestId"] : "",
@@ -20264,11 +20267,11 @@ class CloudRequestTimeoutError extends Error {
     this.name = "CloudRequestTimeoutError";
   }
 }
-function isRecord$2(value) {
+function isRecord$3(value) {
   return typeof value === "object" && value !== null;
 }
 function connectFlowFromPayload(value) {
-  if (!isRecord$2(value)) return null;
+  if (!isRecord$3(value)) return null;
   const connectUrl = typeof value.connect_url === "string" ? safeCloudConnectUrl(value.connect_url) : null;
   if (!connectUrl) return null;
   return {
@@ -20284,7 +20287,7 @@ function connectFlowFromPayload(value) {
   };
 }
 function parseGuardCloudConnectHttp(status, payload) {
-  const record2 = isRecord$2(payload) ? payload : {};
+  const record2 = isRecord$3(payload) ? payload : {};
   const dashboardUrl = typeof record2.dashboard_url === "string" ? safeCloudConnectUrl(record2.dashboard_url) : null;
   if (status === 409 && record2.error === "guard_cloud_connect_not_required") {
     return {
@@ -24957,7 +24960,7 @@ function HomeInsightsMetrics({ analytics }) {
   const items = buildInsightMetrics(analytics, "compact");
   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "grid grid-cols-2 gap-px border-t border-slate-100 bg-slate-100 sm:grid-cols-4", children: items.map((item, index) => renderInsightMetric(item, index, true)) });
 }
-function isRecord$1(value) {
+function isRecord$2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function readString(value) {
@@ -24995,13 +24998,13 @@ function parseAuditActionResult(result) {
       tone: "warning"
     };
   }
-  const evaluation = isRecord$1(result.evaluation) ? result.evaluation : null;
+  const evaluation = isRecord$2(result.evaluation) ? result.evaluation : null;
   const decision = readString(evaluation?.decision) ?? readString(result.decision) ?? "monitor";
   const manifestPaths = readStringArray(result.manifest_paths);
   const lockfilePaths = readStringArray(result.lockfile_paths);
-  const inventory = isRecord$1(result.inventory) ? result.inventory : null;
+  const inventory = isRecord$2(result.inventory) ? result.inventory : null;
   const packageCount = typeof inventory?.packages === "number" ? inventory.packages : null;
-  const lockfileWarnings = Array.isArray(result.lockfile_warnings) ? result.lockfile_warnings.filter(isRecord$1) : [];
+  const lockfileWarnings = Array.isArray(result.lockfile_warnings) ? result.lockfile_warnings.filter(isRecord$2) : [];
   const lines = [];
   if (manifestPaths.length > 0) {
     lines.push(`Manifests scanned: ${manifestPaths.join(", ")}.`);
@@ -25055,7 +25058,7 @@ function parseTestActionResult(result) {
   const interceptProved = result.intercept_proved === true;
   const testedManagers = readStringArray(result.tested_managers);
   const pathRepairRequired = readStringArray(result.path_repair_required);
-  const managerResults = Array.isArray(result.manager_results) ? result.manager_results.filter(isRecord$1) : [];
+  const managerResults = Array.isArray(result.manager_results) ? result.manager_results.filter(isRecord$2) : [];
   const lines = [];
   for (const entry of managerResults) {
     const manager = readString(entry.manager) ?? "manager";
@@ -25089,18 +25092,18 @@ function parseTestActionResult(result) {
   };
 }
 function parsePackageFirewallActionResult(op, body) {
-  if (!isRecord$1(body)) {
+  if (!isRecord$2(body)) {
     return null;
   }
   let result;
-  if (isRecord$1(body.result)) {
+  if (isRecord$2(body.result)) {
     result = body.result;
-  } else if (isRecord$1(body.result_detail)) {
+  } else if (isRecord$2(body.result_detail)) {
     result = body.result_detail;
   } else {
     result = body;
   }
-  if (!isRecord$1(result)) {
+  if (!isRecord$2(result)) {
     return null;
   }
   if (op === "audit") {
@@ -25109,7 +25112,7 @@ function parsePackageFirewallActionResult(op, body) {
   if (op === "repair") {
     const pathRepairRequired = readStringArray(result.path_repair_required);
     if (pathRepairRequired.length > 0) {
-      const profile = isRecord$1(result.profile) ? result.profile : null;
+      const profile = isRecord$2(result.profile) ? result.profile : null;
       const manualPathRequired = profile?.manual_path_required === true;
       return {
         emptyState: false,
@@ -25131,13 +25134,13 @@ function parsePackageFirewallActionResult(op, body) {
   return null;
 }
 function readActionResultRecord(body) {
-  if (!isRecord$1(body)) {
+  if (!isRecord$2(body)) {
     return null;
   }
-  if (isRecord$1(body.result_detail)) {
+  if (isRecord$2(body.result_detail)) {
     return body.result_detail;
   }
-  if (isRecord$1(body.result)) {
+  if (isRecord$2(body.result)) {
     return body.result;
   }
   return body;
@@ -25166,7 +25169,7 @@ function parseInterceptProofSnapshot(body) {
   if (result === null) {
     return null;
   }
-  const managerResultsRaw = Array.isArray(result.manager_results) ? result.manager_results.filter(isRecord$1) : [];
+  const managerResultsRaw = Array.isArray(result.manager_results) ? result.manager_results.filter(isRecord$2) : [];
   const testedManagers = readStringArray(result.tested_managers);
   const pathRepairRequired = readStringArray(result.path_repair_required);
   const interceptProved = result.intercept_proved === true;
@@ -25175,7 +25178,7 @@ function parseInterceptProofSnapshot(body) {
   if (!hasProofContext && result.intercept_proved === void 0) {
     return null;
   }
-  const receipt = isRecord$1(body) && isRecord$1(body.receipt) ? body.receipt : null;
+  const receipt = isRecord$2(body) && isRecord$2(body.receipt) ? body.receipt : null;
   const receiptId = receipt !== null ? readString(receipt.id) : null;
   const timestamp2 = receipt !== null ? readString(receipt.timestamp) : null;
   const summary = interceptProved ? "Intercept test proved Guard blocked the package manager call." : "Intercept test finished without full proof. Review manager details below.";
@@ -35349,7 +35352,7 @@ function discoveryFailureMessage(error, fallback) {
 }
 const CLI_ID_PATTERN = /^local-cli\.[a-z0-9]+(?:-[a-z0-9]+){0,8}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
-function isRecord(value) {
+function isRecord$1(value) {
   return typeof value === "object" && value !== null;
 }
 function requiredString(value, field) {
@@ -35422,7 +35425,7 @@ function discoveryPollDelay(poll) {
 }
 async function waitForDiscoveryJob(cliId, initialJob, signal, readJson2) {
   const normalize = (body) => {
-    if (!isRecord(body) || typeof body.job_id !== "string" || !/^[a-f0-9]{32}$/.test(body.job_id) || body.cli_id !== cliId || !["running", "cancelling", "complete", "cancelled", "failed"].includes(String(body.state))) {
+    if (!isRecord$1(body) || typeof body.job_id !== "string" || !/^[a-f0-9]{32}$/.test(body.job_id) || body.cli_id !== cliId || !["running", "cancelling", "complete", "cancelled", "failed"].includes(String(body.state))) {
       throw new DiscoveryFailure("discovery_progress_invalid", "Guard could not read this discovery's progress. Reload this page, then try again.");
     }
     return body;
@@ -35583,7 +35586,7 @@ function normalizeCapabilityFields(value) {
   return result;
 }
 function normalizeMcpClassification(value) {
-  if (!isRecord(value) || value.schema_version !== "guard.mcp-classification.v1" || value.advisory_only !== true || !["reviewed-mapping", "limited"].includes(String(value.confidence))) return void 0;
+  if (!isRecord$1(value) || value.schema_version !== "guard.mcp-classification.v1" || value.advisory_only !== true || !["reviewed-mapping", "limited"].includes(String(value.confidence))) return void 0;
   const labels = [value.effect, value.data, value.destination, value.reversibility];
   if (!labels.every((label) => typeof label === "string" && /^[a-z-]{1,40}$/.test(label))) return void 0;
   const codes = (list) => Array.isArray(list) && list.length <= 16 && list.every((code) => typeof code === "string" && /^[a-z0-9:-]{1,80}$/.test(code));
@@ -35599,7 +35602,7 @@ function normalizeMcpClassification(value) {
   };
 }
 function normalizeLocalCliItem(value) {
-  if (!isRecord(value)) throw new Error("Invalid local CLI item");
+  if (!isRecord$1(value)) throw new Error("Invalid local CLI item");
   const cliId = requiredString(value.cli_id, "id");
   if (!isLocalCliId(cliId)) throw new Error("Invalid local CLI id");
   const identityHash = requiredString(value.identity_hash, "identity");
@@ -35642,7 +35645,7 @@ function normalizeLocalCliItem(value) {
   };
 }
 function normalizeMcpCatalog(value) {
-  if (!isRecord(value) || typeof value.complete !== "boolean" || typeof value.stale !== "boolean") return null;
+  if (!isRecord$1(value) || typeof value.complete !== "boolean" || typeof value.stale !== "boolean") return null;
   const count2 = (candidate) => typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate >= 0 && candidate <= 1e4;
   if (!count2(value.pages) || !count2(value.listed_count) || !count2(value.known_count)) return null;
   if (value.listed_count > value.known_count) return null;
@@ -35652,7 +35655,7 @@ function normalizeMcpCatalog(value) {
   if (value.complete && reason !== null) return null;
   const changes = normalizeMcpCatalogChanges(value.changes);
   const skills = value.skills_catalog;
-  const skillsCatalog = isRecord(skills) && typeof skills.declared === "boolean" && typeof skills.complete === "boolean" && typeof skills.stale === "boolean" && count2(skills.known_count) && skills.known_count <= 1e3 && skills.activation_supported === false ? {
+  const skillsCatalog = isRecord$1(skills) && typeof skills.declared === "boolean" && typeof skills.complete === "boolean" && typeof skills.stale === "boolean" && count2(skills.known_count) && skills.known_count <= 1e3 && skills.activation_supported === false ? {
     declared: skills.declared,
     complete: skills.complete,
     stale: skills.stale,
@@ -35677,7 +35680,7 @@ function normalizeMcpCatalog(value) {
   };
 }
 function normalizeProviderCatalog(value) {
-  if (!isRecord(value) || value.provider !== "composio" || value.coverage !== "discovery-subset" || value.account_binding !== "unverified" || typeof value.known_count !== "number" || !Number.isSafeInteger(value.known_count) || value.known_count < 1 || value.known_count > 1e4 || typeof value.full_schema_count !== "number" || !Number.isSafeInteger(value.full_schema_count) || value.full_schema_count < 0 || value.full_schema_count > value.known_count || typeof value.updated_at !== "string" || !Number.isFinite(Date.parse(value.updated_at))) return void 0;
+  if (!isRecord$1(value) || value.provider !== "composio" || value.coverage !== "discovery-subset" || value.account_binding !== "unverified" || typeof value.known_count !== "number" || !Number.isSafeInteger(value.known_count) || value.known_count < 1 || value.known_count > 1e4 || typeof value.full_schema_count !== "number" || !Number.isSafeInteger(value.full_schema_count) || value.full_schema_count < 0 || value.full_schema_count > value.known_count || typeof value.updated_at !== "string" || !Number.isFinite(Date.parse(value.updated_at))) return void 0;
   return {
     provider: "composio",
     known_count: value.known_count,
@@ -35688,7 +35691,7 @@ function normalizeProviderCatalog(value) {
   };
 }
 function normalizeMcpCatalogChanges(value) {
-  if (!isRecord(value)) return void 0;
+  if (!isRecord$1(value)) return void 0;
   const result = { added: [], changed: [], removed: [], stale: [] };
   for (const key of ["added", "changed", "removed", "stale"]) {
     const names = value[key];
@@ -35700,7 +35703,7 @@ function normalizeMcpCatalogChanges(value) {
   return result;
 }
 function normalizeContinuity(value) {
-  if (!isRecord(value)) return null;
+  if (!isRecord$1(value)) return null;
   const status = value.status;
   if (status !== "applied" && status !== "pending_observation" && status !== "changed_identity" && status !== "locally_overridden" && status !== "removed" && status !== "stale") return null;
   return {
@@ -35737,7 +35740,7 @@ function optionalSourceLabel(value) {
   return value.trim().slice(0, 120) || null;
 }
 function normalizeLocalCliCommand(value) {
-  if (!isRecord(value)) throw new Error("Invalid local CLI command");
+  if (!isRecord$1(value)) throw new Error("Invalid local CLI command");
   const state = value.state;
   if (state !== "inherit" && state !== "allow" && state !== "review" && state !== "block") {
     throw new Error("Invalid local CLI command state");
@@ -35758,8 +35761,8 @@ function normalizeLocalCliCommand(value) {
   };
 }
 function normalizeLocalCliList(value) {
-  if (!isRecord(value)) throw new Error("Invalid local CLI list");
-  const cloud = isRecord(value.cloud) ? value.cloud : {};
+  if (!isRecord$1(value)) throw new Error("Invalid local CLI list");
+  const cloud = isRecord$1(value.cloud) ? value.cloud : {};
   const items = Array.isArray(value.items) ? value.items.flatMap((entry) => {
     try {
       return [normalizeLocalCliItem(entry)];
@@ -35779,9 +35782,9 @@ function normalizeLocalCliList(value) {
   const discoveryIssue = value.discovery_issue;
   const hostInventory = normalizeCodexHostInventory(value.host_inventory);
   let nativePublication;
-  if (isRecord(publication) && publication.revision === revision2 && (publication.state === "pending" || publication.state === "failed" || publication.state === "unavailable")) {
+  if (isRecord$1(publication) && publication.revision === revision2 && (publication.state === "pending" || publication.state === "failed" || publication.state === "unavailable")) {
     nativePublication = { state: publication.state, revision: revision2 };
-  } else if (isRecord(publication) && publication.state === "acknowledged" && publication.revision === revision2 && typeof publication.generation === "number" && Number.isSafeInteger(publication.generation) && publication.generation > 0 && typeof publication.policy_digest === "string" && /^[a-f0-9]{64}$/.test(publication.policy_digest)) {
+  } else if (isRecord$1(publication) && publication.state === "acknowledged" && publication.revision === revision2 && typeof publication.generation === "number" && Number.isSafeInteger(publication.generation) && publication.generation > 0 && typeof publication.policy_digest === "string" && /^[a-f0-9]{64}$/.test(publication.policy_digest)) {
     nativePublication = { state: "acknowledged", revision: revision2, generation: publication.generation };
   }
   return {
@@ -35982,7 +35985,7 @@ function suggestionMatchesQuery(item, needle) {
 async function readJson(response) {
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    const record2 = isRecord(payload) ? payload : {};
+    const record2 = isRecord$1(payload) ? payload : {};
     const code = typeof record2.error === "string" ? record2.error : "local_cli_request_failed";
     const message = typeof record2.message === "string" && record2.message.trim() ? record2.message : response.status === 401 ? "Guard could not confirm this dashboard session. Reload this page, then try again." : "Guard could not update this custom extension.";
     throw new LocalCliApiError(code, message);
@@ -36001,7 +36004,7 @@ async function previewLocalCliMutation(payload) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   }));
-  if (!isRecord(body)) throw new Error("Invalid local CLI preview");
+  if (!isRecord$1(body)) throw new Error("Invalid local CLI preview");
   return { summary: requiredString(body.summary, "summary") };
 }
 async function recognizeLocalCli(command, options) {
@@ -36014,7 +36017,7 @@ async function recognizeLocalCli(command, options) {
       ...options?.refresh ? { refresh: true } : {}
     })
   }));
-  if (!isRecord(body)) throw new Error("Invalid local CLI recognition");
+  if (!isRecord$1(body)) throw new Error("Invalid local CLI recognition");
   const item = normalizeLocalCliItem(body.item);
   return {
     item,
@@ -36096,9 +36099,9 @@ async function fetchMcpProviderActions(cliId, options) {
       ...options.catalogToken ? { catalog_token: options.catalogToken } : {}
     })
   }));
-  if (!isRecord(body) || body.cli_id !== cliId || body.coverage !== "discovery-subset" || !Array.isArray(body.actions) || body.actions.length > 50 || typeof body.catalog_token !== "string" || !SHA256_PATTERN.test(body.catalog_token)) throw new Error("Invalid provider action inventory");
+  if (!isRecord$1(body) || body.cli_id !== cliId || body.coverage !== "discovery-subset" || !Array.isArray(body.actions) || body.actions.length > 50 || typeof body.catalog_token !== "string" || !SHA256_PATTERN.test(body.catalog_token)) throw new Error("Invalid provider action inventory");
   const actions = body.actions.map((entry) => {
-    if (!isRecord(entry) || typeof entry.tool_slug !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(entry.tool_slug) || typeof entry.toolkit !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(entry.toolkit) || typeof entry.description !== "string" || entry.description.length > 2e3 || typeof entry.full_schema !== "boolean" || !["review", "block"].includes(String(entry.permission_state)) || entry.allow_supported !== false || entry.account_binding !== "unverified" || typeof entry.revision !== "number" || !Number.isSafeInteger(entry.revision) || entry.revision < 1 || typeof entry.updated_at !== "string" || !Number.isFinite(Date.parse(entry.updated_at))) {
+    if (!isRecord$1(entry) || typeof entry.tool_slug !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(entry.tool_slug) || typeof entry.toolkit !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(entry.toolkit) || typeof entry.description !== "string" || entry.description.length > 2e3 || typeof entry.full_schema !== "boolean" || !["review", "block"].includes(String(entry.permission_state)) || entry.allow_supported !== false || entry.account_binding !== "unverified" || typeof entry.revision !== "number" || !Number.isSafeInteger(entry.revision) || entry.revision < 1 || typeof entry.updated_at !== "string" || !Number.isFinite(Date.parse(entry.updated_at))) {
       throw new Error("Invalid provider action evidence");
     }
     return {
@@ -37601,7 +37604,7 @@ function turnProtectionOnUpdate(snapshot) {
 }
 const McpPolicyRequestPanel = lazyWorkspace(
   "mcp-policy-request-panel",
-  () => __vitePreload(() => import("./chunks/mcp-policy-request-panel-BbppUzYZ.js"), true ? [] : void 0).then((m) => ({ default: m.McpPolicyRequestPanel }))
+  () => __vitePreload(() => import("./chunks/mcp-policy-request-panel-BjSV4UAw.js"), true ? [] : void 0).then((m) => ({ default: m.McpPolicyRequestPanel }))
 );
 function InboxWatchBanner(props) {
   const { snapshot } = props;
@@ -38021,12 +38024,194 @@ function useRouteFocus(view, mainSelector = "main#main-content") {
     }
   }, [view, mainSelector]);
 }
+const SERVICE_RECOVERY_PROTOCOL = "hol-guard-recovery.v1";
+const SERVICE_RECOVERY_BRIDGE_SCHEMA = "hol-guard-dashboard-recovery.v1";
+const SERVICE_RECOVERY_BRIDGE_CAPABILITY = "open_recovery";
+const RECOVERY_CAPABILITY_NAMES = /* @__PURE__ */ new Set([
+  SERVICE_RECOVERY_BRIDGE_CAPABILITY,
+  "recovery_view",
+  "desktop_recovery_view"
+]);
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function hasOwn(value, key) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+const RECOVERY_BRIDGE_GLOBAL_NAMES = [
+  "__HOL_GUARD_RECOVERY_BRIDGE__"
+];
+function hostInjectedRecoveryBridge() {
+  try {
+    if (typeof window === "undefined") return null;
+    const globals = window;
+    for (const name of RECOVERY_BRIDGE_GLOBAL_NAMES) {
+      const descriptor = Object.getOwnPropertyDescriptor(globals, name);
+      if (!descriptor || descriptor.configurable || descriptor.writable || !("value" in descriptor) || !Object.isFrozen(descriptor.value)) {
+        continue;
+      }
+      const bridge = readRecoveryBridge(descriptor.value);
+      if (bridge) return bridge;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+function normalizeRecoveryInstallMode(value) {
+  if (typeof value !== "string") return "unknown";
+  const normalized = value.trim().toLowerCase();
+  if (["desktop-bundled", "bundled", "desktop", "appimage"].includes(normalized)) {
+    return "desktop-bundled";
+  }
+  if (["desktop-external", "external", "desktop-cli"].includes(normalized)) {
+    return "desktop-external";
+  }
+  if (["cli", "local-cli", "standalone-cli"].includes(normalized)) return "cli";
+  if (["browser", "browser-only", "web"].includes(normalized)) return "browser-only";
+  return "unknown";
+}
+function defaultInstallMode() {
+  try {
+    return dashboardEmbedsInDesktop() ? "desktop-bundled" : "browser-only";
+  } catch {
+    return "browser-only";
+  }
+}
+function bridgeInstallMode(value) {
+  const explicit = normalizeRecoveryInstallMode(value.installMode ?? value.install_mode);
+  return explicit === "unknown" ? defaultInstallMode() : explicit;
+}
+function bridgeSchemaSupported(value) {
+  return value.schema === SERVICE_RECOVERY_BRIDGE_SCHEMA && value.protocol === SERVICE_RECOVERY_PROTOCOL;
+}
+function bridgeHasRecoveryCapability(value) {
+  return Array.isArray(value.capabilities) && value.capabilities.some((entry) => typeof entry === "string" && RECOVERY_CAPABILITY_NAMES.has(entry));
+}
+function readRecoveryBridge(source) {
+  const candidate = source;
+  if (!isRecord(candidate)) return null;
+  if (!bridgeSchemaSupported(candidate) || !bridgeHasRecoveryCapability(candidate)) return null;
+  if (typeof candidate.openRecovery !== "function") return null;
+  const capabilities = candidate.capabilities;
+  if (!Array.isArray(capabilities)) return null;
+  return {
+    schema: SERVICE_RECOVERY_BRIDGE_SCHEMA,
+    protocol: SERVICE_RECOVERY_PROTOCOL,
+    capabilities: capabilities.filter((entry) => typeof entry === "string"),
+    installMode: bridgeInstallMode(candidate),
+    openRecovery: candidate.openRecovery
+  };
+}
+function getRecoveryCapabilities(options) {
+  const optionRecord = isRecord(options) && (hasOwn(options, "bridge") || hasOwn(options, "installMode")) ? options : null;
+  const candidate = optionRecord ? optionRecord.bridge : options;
+  const rawCandidate = candidate;
+  const bridge = readRecoveryBridge(rawCandidate) ?? (rawCandidate === void 0 ? hostInjectedRecoveryBridge() : null);
+  const installMode = normalizeRecoveryInstallMode(
+    optionRecord?.installMode ?? (isRecord(rawCandidate) ? rawCandidate.installMode : void 0)
+  );
+  const resolvedInstallMode = installMode === "unknown" ? bridge?.installMode ?? defaultInstallMode() : installMode;
+  if (bridge) {
+    return {
+      kind: "native",
+      installMode: resolvedInstallMode,
+      bridge: { ...bridge, installMode: resolvedInstallMode }
+    };
+  }
+  let reason = "bridge_missing";
+  if (rawCandidate !== void 0 && rawCandidate !== null) {
+    reason = isRecord(rawCandidate) && !bridgeSchemaSupported(rawCandidate) ? "unsupported_protocol" : "invalid_bridge";
+  }
+  return { kind: "fallback", installMode: resolvedInstallMode, reason };
+}
+function resolveRecoveryInstructions(installMode) {
+  switch (installMode) {
+    case "cli":
+      return {
+        installMode,
+        title: "Use the installed Guard CLI",
+        body: "A browser tab cannot restart a local service through its unavailable HTTP connection.",
+        steps: [
+          "Open a terminal on the same device where Guard is installed.",
+          "Run the recovery command shipped with that Guard installation.",
+          "Return here and choose Retry connection after the command finishes."
+        ],
+        command: "hol-guard daemon recovery restart"
+      };
+    case "desktop-bundled":
+      return {
+        installMode,
+        title: "Open Guard Desktop",
+        body: "This browser tab cannot restart a bundled Desktop service. Use the trusted Desktop recovery screen instead.",
+        steps: [
+          "Open HOL Guard Desktop from the installed application.",
+          "Choose Troubleshoot Guard.",
+          "Choose Restart Guard in the native recovery screen, then return here and retry the connection."
+        ],
+        command: null
+      };
+    case "desktop-external":
+      return {
+        installMode,
+        title: "Open the installed Guard Desktop",
+        body: "The browser cannot control the local service. Use the installed Desktop recovery screen for this device.",
+        steps: [
+          "Open the installed HOL Guard Desktop application.",
+          "Choose Troubleshoot Guard, then Restart Guard.",
+          "Return here and choose Retry connection after recovery completes."
+        ],
+        command: null
+      };
+    case "browser-only":
+      return {
+        installMode,
+        title: "Use a local recovery path",
+        body: "A browser tab cannot restart Guard through a service that is not responding.",
+        steps: [
+          "Open HOL Guard Desktop on this device if it is installed, then choose Troubleshoot Guard.",
+          "If this device uses the Guard CLI, use the command shipped with that installation rather than a different runtime.",
+          "Return here and choose Retry connection after the local recovery finishes."
+        ],
+        command: null
+      };
+    case "unknown":
+    default:
+      return {
+        installMode: "unknown",
+        title: "Use the supported local recovery path",
+        body: "This browser tab cannot safely identify an installed local recovery path.",
+        steps: [
+          "Open the Guard Desktop or Guard CLI installation that owns this device.",
+          "Use its supported Troubleshoot Guard or recovery action.",
+          "Return here and choose Retry connection after recovery completes."
+        ],
+        command: null
+      };
+  }
+}
+async function openRecoveryView(options) {
+  const capability = getRecoveryCapabilities(options);
+  if (capability.kind !== "native") {
+    return { kind: "fallback", capability };
+  }
+  try {
+    await capability.bridge.openRecovery();
+    return { kind: "opened" };
+  } catch {
+    return {
+      kind: "failed",
+      capability,
+      message: "The trusted Recovery view could not be opened. Use the local recovery steps below."
+    };
+  }
+}
 function buildDaemonErrorCopy() {
   return {
-    title: "Guard is not responding",
-    body: "The local Guard service is not reachable. Retry the connection, or open Settings if you need to repair protection.",
-    primaryCta: "Retry",
-    secondaryCta: "Go to Settings"
+    title: "We can't connect to Guard.",
+    body: "Retry the connection, or troubleshoot the local service without changing your protection settings.",
+    primaryCta: "Retry connection",
+    secondaryCta: "Troubleshoot"
   };
 }
 function buildHomeRuntimeErrorCopy(message) {
@@ -38079,34 +38264,34 @@ function RuntimeGate(props) {
   );
 }
 const HOME_QUEUE_PREVIEW_LIMIT = 50;
-const HomeWorkspace = lazyWorkspace("home-dashboard", () => __vitePreload(() => import("./chunks/home-dashboard-iXz8u6N9.js"), true ? __vite__mapDeps([0,1,2,3,4,5]) : void 0).then((m) => ({ default: m.HomeWorkspace })));
-const FleetWorkspace = lazyWorkspace("fleet-workspace", () => __vitePreload(() => import("./chunks/fleet-workspace-DqojteNo.js"), true ? __vite__mapDeps([6,7,8,5,9]) : void 0).then((m) => ({ default: m.FleetWorkspace })));
-const SettingsWorkspace = lazyWorkspace("settings-workspace", () => __vitePreload(() => import("./chunks/settings-workspace-ViE6xGDq.js"), true ? __vite__mapDeps([10,9,5,11,8]) : void 0).then((m) => ({ default: m.SettingsWorkspace })));
+const HomeWorkspace = lazyWorkspace("home-dashboard", () => __vitePreload(() => import("./chunks/home-dashboard-BDZwrTBd.js"), true ? __vite__mapDeps([0,1,2,3,4,5]) : void 0).then((m) => ({ default: m.HomeWorkspace })));
+const FleetWorkspace = lazyWorkspace("fleet-workspace", () => __vitePreload(() => import("./chunks/fleet-workspace-Au8qkrQu.js"), true ? __vite__mapDeps([6,7,8,5,9]) : void 0).then((m) => ({ default: m.FleetWorkspace })));
+const SettingsWorkspace = lazyWorkspace("settings-workspace", () => __vitePreload(() => import("./chunks/settings-workspace-EATcOtZR.js"), true ? __vite__mapDeps([10,9,5,11,8]) : void 0).then((m) => ({ default: m.SettingsWorkspace })));
 const ExtensionsWorkspace = lazyWorkspace(
   "extensions-workspace",
-  () => __vitePreload(() => import("./chunks/extensions-workspace-DISXAm3b.js"), true ? __vite__mapDeps([12,11]) : void 0).then((module) => ({ default: module.ExtensionsWorkspace }))
+  () => __vitePreload(() => import("./chunks/extensions-workspace-DuWvCy2e.js"), true ? __vite__mapDeps([12,11]) : void 0).then((module) => ({ default: module.ExtensionsWorkspace }))
 );
-const AppDetailWorkspace = lazyWorkspace("app-detail-workspace", () => __vitePreload(() => import("./chunks/app-detail-workspace-CDJcxboB.js"), true ? __vite__mapDeps([13,7]) : void 0).then((m) => ({ default: m.AppDetailWorkspace })));
-const HelpModal = lazyWorkspace("help-modal", () => __vitePreload(() => import("./chunks/help-modal-DV7Ufsi6.js"), true ? [] : void 0).then((m) => ({ default: m.HelpModal })));
+const AppDetailWorkspace = lazyWorkspace("app-detail-workspace", () => __vitePreload(() => import("./chunks/app-detail-workspace-SQy3r0dU.js"), true ? __vite__mapDeps([13,7]) : void 0).then((m) => ({ default: m.AppDetailWorkspace })));
+const HelpModal = lazyWorkspace("help-modal", () => __vitePreload(() => import("./chunks/help-modal-a48S1S1l.js"), true ? [] : void 0).then((m) => ({ default: m.HelpModal })));
 const SupplyChainHubWorkspace = lazyWorkspace(
   "supply-chain-hub-workspace",
-  () => __vitePreload(() => import("./chunks/supply-chain-hub-workspace-DxTYvvN_.js").then((n) => n.d), true ? [] : void 0).then((m) => ({ default: m.SupplyChainHubWorkspace }))
+  () => __vitePreload(() => import("./chunks/supply-chain-hub-workspace-BlbTNCTo.js").then((n) => n.d), true ? [] : void 0).then((m) => ({ default: m.SupplyChainHubWorkspace }))
 );
 const PolicyWorkspacePage = lazyWorkspace(
   "policy-workspace-page",
-  () => __vitePreload(() => import("./chunks/policy-workspace-page-PLSYiJ6E.js"), true ? __vite__mapDeps([14,8]) : void 0).then((m) => ({ default: m.PolicyWorkspacePage }))
+  () => __vitePreload(() => import("./chunks/policy-workspace-page-B8GrOyNn.js"), true ? __vite__mapDeps([14,8]) : void 0).then((m) => ({ default: m.PolicyWorkspacePage }))
 );
 const AboutWorkspace = lazyWorkspace(
   "about-workspace",
-  () => __vitePreload(() => import("./chunks/about-workspace-Cr4X4Ueu.js"), true ? __vite__mapDeps([15,3,4,16]) : void 0).then((m) => ({ default: m.AboutWorkspace }))
+  () => __vitePreload(() => import("./chunks/about-workspace-BO9K8980.js"), true ? __vite__mapDeps([15,3,4,16]) : void 0).then((m) => ({ default: m.AboutWorkspace }))
 );
 const ReleasesWorkspace = lazyWorkspace(
   "releases-workspace",
-  () => __vitePreload(() => import("./chunks/releases-workspace-DChYCZZr.js"), true ? [] : void 0).then((m) => ({ default: m.ReleasesWorkspace }))
+  () => __vitePreload(() => import("./chunks/releases-workspace-D9-6feom.js"), true ? [] : void 0).then((m) => ({ default: m.ReleasesWorkspace }))
 );
 const ProtectionRepairPage = lazyWorkspace(
   "protection-repair-page",
-  () => __vitePreload(() => import("./chunks/protection-repair-page-81boQgrk.js"), true ? [] : void 0).then((m) => ({ default: m.ProtectionRepairPage }))
+  () => __vitePreload(() => import("./chunks/protection-repair-page-BKNYPKvI.js"), true ? [] : void 0).then((m) => ({ default: m.ProtectionRepairPage }))
 );
 function LazyFallback() {
   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex min-h-[200px] items-center justify-center", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "guard-skeleton h-8 w-48" }) });
@@ -38510,6 +38695,7 @@ function App() {
   const handleOpenInsights = reactExports.useCallback(() => navigate("/evidence?view=insights"), [navigate]);
   const handleOpenCommands = reactExports.useCallback(() => navigate("/evidence?view=commands"), [navigate]);
   const handleOpenSettings = reactExports.useCallback(() => navigate("/settings"), []);
+  const handleOpenRecovery = reactExports.useCallback(() => openRecoveryView(), []);
   const handleOpenSupplyChain = reactExports.useCallback(() => navigate("/supply-chain"), []);
   reactExports.useCallback(() => navigate("/policy"), []);
   const handleOpenHelp = reactExports.useCallback(() => setHelpOpen(true), []);
@@ -38933,6 +39119,7 @@ function App() {
               await refreshStateAfterAction();
             },
             onReconnectSession: handleReconnectSession,
+            onOpenRecovery: handleOpenRecovery,
             onOpenSupplyChain: handleOpenSupplyChain,
             onClearPolicies: handleClearPolicies,
             onOpenAppDetail: handleOpenAppDetail,
@@ -39036,7 +39223,7 @@ clientExports.createRoot(container).render(
   /* @__PURE__ */ jsxRuntimeExports.jsx(reactExports.StrictMode, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(App, {}) })
 );
 export {
-  HiMiniSparkles as $,
+  OperatorHealthCard as $,
   ActionButton as A,
   HomeInsightsMetrics as B,
   EvidenceActivityHeatmapMini as C,
@@ -39046,353 +39233,357 @@ export {
   GuardStatMetric as G,
   HiMiniChevronRight as H,
   fetchCommandActivityApi as I,
-  useReceiptAnalytics as J,
-  updateSettings as K,
-  turnProtectionOnUpdate as L,
-  useProtectionPresentationState as M,
-  protectionHealthFor as N,
-  unavailableProtectionHealth as O,
-  watchBannerModel as P,
-  EvidenceInsightsShareModal as Q,
-  RuntimeErrorState as R,
+  getRecoveryCapabilities as J,
+  resolveRecoveryInstructions as K,
+  HiMiniShieldExclamation as L,
+  HiMiniClipboardDocument as M,
+  openRecoveryView as N,
+  useReceiptAnalytics as O,
+  updateSettings as P,
+  turnProtectionOnUpdate as Q,
+  useProtectionPresentationState as R,
   SectionLabel as S,
   Tag as T,
-  OperatorHealthCard as U,
-  HiMiniShieldCheck as V,
-  WatchProtectionBanner as W,
-  DeviceProofCard as X,
-  guardActionDisposition as Y,
-  approvalLeftActionStopped as Z,
-  guardActionActivityCopy as _,
+  protectionHealthFor as U,
+  unavailableProtectionHealth as V,
+  buildHomeRuntimeErrorCopy as W,
+  RuntimeErrorState as X,
+  watchBannerModel as Y,
+  WatchProtectionBanner as Z,
+  EvidenceInsightsShareModal as _,
   controlContextAssistance as a,
-  revokeContextAgentSession as a$,
-  HiMiniXMark as a0,
-  EmptyState as a1,
-  resolveCloudIntelCopy as a2,
-  HiMiniCloud as a3,
-  HiMiniQuestionMarkCircle as a4,
-  useFocusTrap as a5,
-  approvalProofRequiresPassword as a6,
-  HiMiniExclamationTriangle as a7,
-  HiMiniBolt as a8,
-  Badge as a9,
-  PROTECTION_POSTURE_COPY as aA,
-  harnessPostureOptions as aB,
-  globalPosture as aC,
-  harnessRowStatus as aD,
-  HiMiniEye as aE,
-  HiMiniXCircle as aF,
-  GuardHero as aG,
-  ProofStrip as aH,
-  HiMiniClipboardDocumentCheck as aI,
-  HiMiniClipboard as aJ,
-  fetchResolvedApprovalGate as aK,
-  ApprovalProofModal as aL,
-  POSTURE_OUTCOME_COLUMNS as aM,
-  getDefaultExportFromCjs as aN,
-  React as aO,
-  HiMiniSquares2X2 as aP,
-  HiMiniBellAlert as aQ,
-  HiMiniAdjustmentsHorizontal as aR,
-  HiMiniCircleStack as aS,
-  TabBar as aT,
-  fetchCloudReviewSettings as aU,
-  ApprovalProofFieldInputs as aV,
-  isApprovalProofSubmitDisabled as aW,
-  buildApprovalProofCredentials as aX,
-  changeCloudReviewSettings as aY,
-  shellHref as aZ,
-  listContextAgentSessions as a_,
-  HiMiniMinusCircle as aa,
-  buildDaemonErrorCopy as ab,
-  buildHomeRuntimeErrorCopy as ac,
-  isUnsupportedPlatformCheck as ad,
-  RECHECK_UNAVAILABLE_SIGNATURE as ae,
-  protectionReasonText as af,
-  HiMiniExclamationCircle as ag,
-  hasRepairableProtectionGap as ah,
-  remainingProtectionRepairParts as ai,
-  protectionGapSignature as aj,
-  repairOutcomeIsStalled as ak,
-  ProtectionRepairFlowError as al,
-  nextProtectionRepairOutcome as am,
-  waitForAuthorizeUrl as an,
-  startOrRecoverCloudConnect as ao,
-  safeCloudConnectUrl as ap,
-  openPackageFirewallAuthorizeFallback as aq,
-  waitForCloudConnection as ar,
-  activeFailedHarnesses as as,
-  resetRepairOutcomeTracker as at,
-  HiMiniWrenchScrewdriver as au,
-  fetchSettings as av,
-  harnessPostureRows as aw,
-  selectHarnessPosture as ax,
-  harnessPosturePatch as ay,
-  harnessRowTone as az,
+  isApprovalProofSubmitDisabled as a$,
+  HiMiniShieldCheck as a0,
+  DeviceProofCard as a1,
+  guardActionDisposition as a2,
+  approvalLeftActionStopped as a3,
+  guardActionActivityCopy as a4,
+  HiMiniSparkles as a5,
+  HiMiniXMark as a6,
+  EmptyState as a7,
+  resolveCloudIntelCopy as a8,
+  HiMiniCloud as a9,
+  fetchSettings as aA,
+  harnessPostureRows as aB,
+  selectHarnessPosture as aC,
+  harnessPosturePatch as aD,
+  harnessRowTone as aE,
+  PROTECTION_POSTURE_COPY as aF,
+  harnessPostureOptions as aG,
+  globalPosture as aH,
+  harnessRowStatus as aI,
+  HiMiniEye as aJ,
+  HiMiniXCircle as aK,
+  GuardHero as aL,
+  ProofStrip as aM,
+  HiMiniClipboardDocumentCheck as aN,
+  HiMiniClipboard as aO,
+  fetchResolvedApprovalGate as aP,
+  ApprovalProofModal as aQ,
+  POSTURE_OUTCOME_COLUMNS as aR,
+  getDefaultExportFromCjs as aS,
+  React as aT,
+  HiMiniSquares2X2 as aU,
+  HiMiniBellAlert as aV,
+  HiMiniAdjustmentsHorizontal as aW,
+  HiMiniCircleStack as aX,
+  TabBar as aY,
+  fetchCloudReviewSettings as aZ,
+  ApprovalProofFieldInputs as a_,
+  HiMiniQuestionMarkCircle as aa,
+  useFocusTrap as ab,
+  approvalProofRequiresPassword as ac,
+  HiMiniExclamationTriangle as ad,
+  HiMiniBolt as ae,
+  Badge as af,
+  HiMiniMinusCircle as ag,
+  buildDaemonErrorCopy as ah,
+  isUnsupportedPlatformCheck as ai,
+  RECHECK_UNAVAILABLE_SIGNATURE as aj,
+  protectionReasonText as ak,
+  HiMiniExclamationCircle as al,
+  hasRepairableProtectionGap as am,
+  remainingProtectionRepairParts as an,
+  protectionGapSignature as ao,
+  repairOutcomeIsStalled as ap,
+  ProtectionRepairFlowError as aq,
+  nextProtectionRepairOutcome as ar,
+  waitForAuthorizeUrl as as,
+  startOrRecoverCloudConnect as at,
+  safeCloudConnectUrl as au,
+  openPackageFirewallAuthorizeFallback as av,
+  waitForCloudConnection as aw,
+  activeFailedHarnesses as ax,
+  resetRepairOutcomeTracker as ay,
+  HiMiniWrenchScrewdriver as az,
   formatRelativeTime as b,
-  HiMiniKey as b$,
-  authorizeContextAgentSession as b0,
-  ContextAssistanceApiError as b1,
-  ask as b2,
-  parseContextScope as b3,
-  validContextBrokerRevision as b4,
-  listContextWorkspaces as b5,
-  manageContextWorkspace as b6,
-  grantContextWorkspace as b7,
-  compileWorkspaceContext as b8,
-  HiMiniDocumentMagnifyingGlass as b9,
-  revokeApprovalGateCooldown as bA,
-  disableApprovalGateTotp as bB,
-  importSettings as bC,
-  resetSettings as bD,
-  enrollApprovalGateTotp as bE,
-  verifyApprovalGateTotp as bF,
-  clearEvidence as bG,
-  exportDiagnostics as bH,
-  repairApprovalCenter as bI,
-  exportSettings as bJ,
-  setupDesktopNotifications as bK,
-  settingsWatchBannerModel as bL,
-  WorkspacePageHeader as bM,
-  navigateFromAnchor as bN,
-  humanizeList as bO,
-  isProtectionPosture as bP,
-  deriveProtectionPosture as bQ,
-  normalizeHarnessPostures as bR,
-  approvalGateCooldownLabel as bS,
-  isRecord$4 as bT,
-  overrideRows as bU,
-  harnessPostureSummary as bV,
-  joinNames as bW,
-  sortHarnessRows as bX,
-  restartHarnessWatch as bY,
-  harnessWatchPrompt as bZ,
-  canRestartHarnessWatch as b_,
-  HiMiniLink as ba,
-  HiMiniClipboardDocument as bb,
-  HiMiniArrowLeft as bc,
-  HiMiniAcademicCap as bd,
-  subscribeDashboardLocation as be,
-  HiMiniCpuChip as bf,
-  isGuardDemoMode as bg,
-  fetchWithGuardAuth as bh,
-  parseContextAssistanceStatus as bi,
-  isCigarBuildIdentity as bj,
-  isCigarProducerVersion as bk,
-  isCigarCoreLabel as bl,
-  fetchContextInstallations as bm,
-  commitDashboardLocation as bn,
-  savedEvidenceCopy as bo,
-  downloadBlob as bp,
-  guardAwareHref as bq,
-  fetchContextData as br,
-  forgetContextHistory as bs,
-  forgetSavedEvidence as bt,
-  resolveProtectionLevelCopy as bu,
-  fetchRuntimeSnapshot as bv,
-  clearHarnessWatchOverrides as bw,
-  withHarnessPosturePatch as bx,
-  clearPolicy as by,
-  clearReviewQueue as bz,
+  sortHarnessRows as b$,
+  buildApprovalProofCredentials as b0,
+  changeCloudReviewSettings as b1,
+  shellHref as b2,
+  listContextAgentSessions as b3,
+  revokeContextAgentSession as b4,
+  authorizeContextAgentSession as b5,
+  ContextAssistanceApiError as b6,
+  ask as b7,
+  parseContextScope as b8,
+  validContextBrokerRevision as b9,
+  clearHarnessWatchOverrides as bA,
+  withHarnessPosturePatch as bB,
+  clearPolicy as bC,
+  clearReviewQueue as bD,
+  revokeApprovalGateCooldown as bE,
+  disableApprovalGateTotp as bF,
+  importSettings as bG,
+  resetSettings as bH,
+  enrollApprovalGateTotp as bI,
+  verifyApprovalGateTotp as bJ,
+  clearEvidence as bK,
+  exportDiagnostics as bL,
+  repairApprovalCenter as bM,
+  exportSettings as bN,
+  setupDesktopNotifications as bO,
+  settingsWatchBannerModel as bP,
+  WorkspacePageHeader as bQ,
+  navigateFromAnchor as bR,
+  humanizeList as bS,
+  isProtectionPosture as bT,
+  deriveProtectionPosture as bU,
+  normalizeHarnessPostures as bV,
+  approvalGateCooldownLabel as bW,
+  isRecord$5 as bX,
+  overrideRows as bY,
+  harnessPostureSummary as bZ,
+  joinNames as b_,
+  listContextWorkspaces as ba,
+  manageContextWorkspace as bb,
+  grantContextWorkspace as bc,
+  compileWorkspaceContext as bd,
+  HiMiniDocumentMagnifyingGlass as be,
+  HiMiniLink as bf,
+  HiMiniArrowLeft as bg,
+  HiMiniAcademicCap as bh,
+  subscribeDashboardLocation as bi,
+  HiMiniCpuChip as bj,
+  isGuardDemoMode as bk,
+  fetchWithGuardAuth as bl,
+  parseContextAssistanceStatus as bm,
+  isCigarBuildIdentity as bn,
+  isCigarProducerVersion as bo,
+  isCigarCoreLabel as bp,
+  fetchContextInstallations as bq,
+  commitDashboardLocation as br,
+  savedEvidenceCopy as bs,
+  downloadBlob as bt,
+  guardAwareHref as bu,
+  fetchContextData as bv,
+  forgetContextHistory as bw,
+  forgetSavedEvidence as bx,
+  resolveProtectionLevelCopy as by,
+  fetchRuntimeSnapshot as bz,
   contextStatusCopy as c,
-  refreshMcpInventory as c$,
-  fetchExtensionCatalog as c0,
-  ExtensionControlApiError as c1,
-  normalizeExtensionCatalogSummary as c2,
-  normalizeExtensionPermission as c3,
-  ExtensionControlProtocolError as c4,
-  normalizeExtensionCatalogItem as c5,
-  guardApiCacheScope as c6,
-  fetchExtensionCatalogV2Api as c7,
-  localPermissionDraftState as c8,
-  setLocalPermissionDraftState as c9,
-  previewLocalCliMutation as cA,
-  applyLocalCliMutation as cB,
-  LOCAL_CLI_CAPABILITIES as cC,
-  loadLocalCliCommands as cD,
-  DiscoveryFailure as cE,
-  readJson as cF,
-  enrollablePackageScriptCommands as cG,
-  seenSuggestionMeta as cH,
-  HiMiniPlus as cI,
-  looksLikeProjectRelocatePaste as cJ,
-  packageScriptFilterNeedle as cK,
-  initialAddCommand as cL,
-  suggestedPackageScriptExtensions as cM,
-  filterExtensionSuggestions as cN,
-  suggestedHarnessExtensions as cO,
-  suggestedSeenExtensions as cP,
-  keepsPackageScriptCatalog as cQ,
-  prefillSuggestedStates as cR,
-  recognizeLocalCli as cS,
-  preferredPackageScriptExtension as cT,
-  looksLikePackageScriptPaste as cU,
-  enrollmentCommandStates as cV,
-  isBulkApproveGateReady as cW,
-  fetchLocalCliList as cX,
-  normalizeLocalCliList as cY,
-  unreviewedToolChangeCount as cZ,
-  connectorSetupMatch as c_,
-  extensionPolicyAuthorityUnchanged as ca,
-  newExtensionPolicyDraftIdentity as cb,
-  extensionPolicyDraftIsDirty as cc,
-  setLocalPermissionDraftStates as cd,
-  buildExtensionPolicyDraftMutation as ce,
-  fetchEffectiveExtensionControls as cf,
-  previewExtensionMutation as cg,
-  isCurrentExtensionPolicyDraft as ch,
-  applyExtensionMutation as ci,
-  fetchExtensionControlHistory as cj,
-  managedPermissionState as ck,
-  controlProvenance as cl,
-  treatmentLabel as cm,
-  useResolvedApprovalGate as cn,
-  groupPermissionsByFamily as co,
-  HiMiniInformationCircle as cp,
-  LocalCliApiError as cq,
-  hasSuggestedRules as cr,
-  approvalProofRecentlySatisfied as cs,
-  bulkCommandState as ct,
-  fetchLocalCliApi as cu,
-  ExtensionBrandMark as cv,
-  fetchMcpProviderActions as cw,
-  connectorSetupReady as cx,
-  shortIdentity as cy,
-  customExtensionDisplayName as cz,
+  isBulkApproveGateReady as c$,
+  restartHarnessWatch as c0,
+  harnessWatchPrompt as c1,
+  canRestartHarnessWatch as c2,
+  HiMiniKey as c3,
+  fetchExtensionCatalog as c4,
+  ExtensionControlApiError as c5,
+  normalizeExtensionCatalogSummary as c6,
+  normalizeExtensionPermission as c7,
+  ExtensionControlProtocolError as c8,
+  normalizeExtensionCatalogItem as c9,
+  ExtensionBrandMark as cA,
+  fetchMcpProviderActions as cB,
+  connectorSetupReady as cC,
+  shortIdentity as cD,
+  customExtensionDisplayName as cE,
+  previewLocalCliMutation as cF,
+  applyLocalCliMutation as cG,
+  LOCAL_CLI_CAPABILITIES as cH,
+  loadLocalCliCommands as cI,
+  DiscoveryFailure as cJ,
+  readJson as cK,
+  enrollablePackageScriptCommands as cL,
+  seenSuggestionMeta as cM,
+  HiMiniPlus as cN,
+  looksLikeProjectRelocatePaste as cO,
+  packageScriptFilterNeedle as cP,
+  initialAddCommand as cQ,
+  suggestedPackageScriptExtensions as cR,
+  filterExtensionSuggestions as cS,
+  suggestedHarnessExtensions as cT,
+  suggestedSeenExtensions as cU,
+  keepsPackageScriptCatalog as cV,
+  prefillSuggestedStates as cW,
+  recognizeLocalCli as cX,
+  preferredPackageScriptExtension as cY,
+  looksLikePackageScriptPaste as cZ,
+  enrollmentCommandStates as c_,
+  guardApiCacheScope as ca,
+  fetchExtensionCatalogV2Api as cb,
+  localPermissionDraftState as cc,
+  setLocalPermissionDraftState as cd,
+  extensionPolicyAuthorityUnchanged as ce,
+  newExtensionPolicyDraftIdentity as cf,
+  extensionPolicyDraftIsDirty as cg,
+  setLocalPermissionDraftStates as ch,
+  buildExtensionPolicyDraftMutation as ci,
+  fetchEffectiveExtensionControls as cj,
+  previewExtensionMutation as ck,
+  isCurrentExtensionPolicyDraft as cl,
+  applyExtensionMutation as cm,
+  fetchExtensionControlHistory as cn,
+  managedPermissionState as co,
+  controlProvenance as cp,
+  treatmentLabel as cq,
+  useResolvedApprovalGate as cr,
+  groupPermissionsByFamily as cs,
+  HiMiniInformationCircle as ct,
+  LocalCliApiError as cu,
+  hasSuggestedRules as cv,
+  approvalProofRecentlySatisfied as cw,
+  StyledSelect as cx,
+  bulkCommandState as cy,
+  fetchLocalCliApi as cz,
   formatNumber as d,
-  policyIdentityKey as d$,
-  connectorGroupOutcome as d0,
-  allowedEarlierVersion as d1,
-  startGuardCloudConnect as d2,
-  extensionEffectiveState as d3,
-  permissionEffectiveState as d4,
-  HiMiniArrowTopRightOnSquare as d5,
-  fetchExtensionControlApi as d6,
-  permissionForRule as d7,
-  refreshEffectiveExtensionControls as d8,
-  fetchExtensionDiscoveryApi as d9,
-  acknowledgeDegradedExtensionControlAuthority as dA,
-  recoverExtensionControlAuthority as dB,
-  connectorSetupLinkFromSearch as dC,
-  readExtensionDetailUrlState as dD,
-  parseProtectionRoute as dE,
-  addCustomExtensionHref as dF,
-  GuardModalLayer as dG,
-  runHarnessAction as dH,
-  GuardHarnessActionError as dI,
-  HiMiniRocketLaunch as dJ,
-  HiMiniTrash as dK,
-  fetchGuardApi as dL,
-  formatHarnessCommand as dM,
-  fetchApprovalPage as dN,
-  fetchPolicy as dO,
-  HiMiniHome as dP,
-  appSetupTarget as dQ,
-  guardActionPresentation as dR,
-  DEFAULT_FILTER_STATE as dS,
-  filterEvidence as dT,
-  sortEvidence as dU,
-  computeMetrics as dV,
-  CommandActivityWorkspace as dW,
-  EvidenceFilterBar as dX,
-  EvidenceInsightStrip as dY,
-  EvidenceActionList as dZ,
-  EvidenceActionDetail as d_,
-  HiMiniClock as da,
-  startCancelableDiscoveryJob as db,
-  waitForMcpDiscoveryJob as dc,
-  isLocalCliId as dd,
-  localCliHref as de,
-  fetchPluginUpdatesApi as df,
-  filterCodexHostApps as dg,
-  connectorWorkspaceItems as dh,
-  customExtensionNeedsReview as di,
-  profileSetupCommand as dj,
-  customExtensionBadge as dk,
-  extensionDisplayName as dl,
-  catalogRowSecondLine as dm,
-  extensionStateLabel as dn,
-  HiMiniGlobeAlt as dp,
-  HiMiniFunnel as dq,
-  discoveryFailureMessage as dr,
-  refreshCodexHostInventory as ds,
-  CODEX_HOST_FALLBACK as dt,
-  CONFIGURED_CONNECTIONS_FALLBACK as du,
-  loadCurrentDashboardBuild as dv,
-  canonicalExtensionId as dw,
-  extensionDetailHref as dx,
-  DEFAULT_EXTENSION_DETAIL_URL_STATE as dy,
-  addCustomExtensionPrefillHref as dz,
+  CommandActivityWorkspace as d$,
+  fetchLocalCliList as d0,
+  normalizeLocalCliList as d1,
+  unreviewedToolChangeCount as d2,
+  connectorSetupMatch as d3,
+  refreshMcpInventory as d4,
+  connectorGroupOutcome as d5,
+  allowedEarlierVersion as d6,
+  startGuardCloudConnect as d7,
+  extensionEffectiveState as d8,
+  permissionEffectiveState as d9,
+  loadCurrentDashboardBuild as dA,
+  canonicalExtensionId as dB,
+  extensionDetailHref as dC,
+  DEFAULT_EXTENSION_DETAIL_URL_STATE as dD,
+  addCustomExtensionPrefillHref as dE,
+  acknowledgeDegradedExtensionControlAuthority as dF,
+  recoverExtensionControlAuthority as dG,
+  connectorSetupLinkFromSearch as dH,
+  readExtensionDetailUrlState as dI,
+  parseProtectionRoute as dJ,
+  addCustomExtensionHref as dK,
+  GuardModalLayer as dL,
+  runHarnessAction as dM,
+  GuardHarnessActionError as dN,
+  HiMiniRocketLaunch as dO,
+  HiMiniTrash as dP,
+  fetchGuardApi as dQ,
+  formatHarnessCommand as dR,
+  fetchApprovalPage as dS,
+  fetchPolicy as dT,
+  HiMiniHome as dU,
+  appSetupTarget as dV,
+  guardActionPresentation as dW,
+  DEFAULT_FILTER_STATE as dX,
+  filterEvidence as dY,
+  sortEvidence as dZ,
+  computeMetrics as d_,
+  HiMiniArrowTopRightOnSquare as da,
+  fetchExtensionControlApi as db,
+  permissionForRule as dc,
+  refreshEffectiveExtensionControls as dd,
+  fetchExtensionDiscoveryApi as de,
+  HiMiniClock as df,
+  startCancelableDiscoveryJob as dg,
+  waitForMcpDiscoveryJob as dh,
+  isLocalCliId as di,
+  localCliHref as dj,
+  fetchPluginUpdatesApi as dk,
+  filterCodexHostApps as dl,
+  connectorWorkspaceItems as dm,
+  customExtensionNeedsReview as dn,
+  profileSetupCommand as dp,
+  customExtensionBadge as dq,
+  extensionDisplayName as dr,
+  catalogRowSecondLine as ds,
+  extensionStateLabel as dt,
+  HiMiniGlobeAlt as du,
+  HiMiniFunnel as dv,
+  discoveryFailureMessage as dw,
+  refreshCodexHostInventory as dx,
+  CODEX_HOST_FALLBACK as dy,
+  CONFIGURED_CONNECTIONS_FALLBACK as dz,
   HiMiniChevronUp as e,
-  runAuditRemediation as e$,
-  clearLabelForScope as e0,
-  HiMiniChartBar as e1,
-  HiMiniCheckBadge as e2,
-  isSupplyChainAuditIncomplete as e3,
-  isSupplyChainAuditEvidence as e4,
-  readString$1 as e5,
-  IconActionButton as e6,
-  HiMiniBeaker as e7,
-  HiMiniBugAnt as e8,
-  ActivationSummary as e9,
-  HiMiniUsers as eA,
-  HiMiniFolder as eB,
-  HiMiniIdentification as eC,
-  StyledSelect as eD,
-  policyActionLabel as eE,
-  createCloudExceptionRequest as eF,
-  HiMiniPuzzlePiece as eG,
-  fetchCloudExceptions as eH,
-  fetchCloudExceptionRequests as eI,
-  PaginationControls as eJ,
-  PolicyStatField as eK,
-  HiMiniArrowDownTray as eL,
-  HiMiniInbox as eM,
-  HiMiniQueueList as eN,
-  Surface as eO,
-  HiMiniEllipsisHorizontal as eP,
-  HiMiniMinus as eQ,
-  HiMiniWrench as eR,
-  HiMiniArrowLongRight as eS,
-  HiMiniArrowUpCircle as eT,
-  fetchReleaseFeedApi as eU,
-  fetchMcpPolicyRequest as eV,
-  resolveMcpPolicyRequest as eW,
-  HiMiniDocumentPlus as eX,
-  HiMiniChevronLeft as eY,
-  HiMiniArrowDown as eZ,
-  HiMiniArrowUp as e_,
-  ActionResultPanel as ea,
-  fetchSupplyChainBundle as eb,
-  closeOnEscape as ec,
-  ConnectFlowCard as ed,
-  ApprovalProofInline as ee,
-  HiMiniCloudArrowDown as ef,
-  SUPPLY_CHAIN_SYNC_TIMEOUT_MS as eg,
-  fetchPackageFirewallStatus as eh,
-  runPackageAudit as ei,
-  resolveSupplyChainAuditFailure as ej,
-  runPackageSync as ek,
-  GuardOperationTimeoutError as el,
-  startPackageFirewallConnect as em,
-  PACKAGE_FIREWALL_CONNECT_POPUP_BLOCKED_MESSAGE as en,
-  repairSupplyChainProtection as eo,
-  runPackageFirewallAction as ep,
-  parseInterceptProofSnapshot as eq,
-  activatePackageFirewallRuntime as er,
-  EntitlementNotice as es,
-  chooseSupplyChainAuditFolder as et,
-  fetchReceipts as eu,
-  lazyWorkspace as ev,
-  __vitePreload as ew,
-  scopeLabel as ex,
-  HiMiniCloudArrowUp as ey,
-  HiMiniCodeBracket as ez,
+  HiMiniDocumentPlus as e$,
+  EvidenceFilterBar as e0,
+  EvidenceInsightStrip as e1,
+  EvidenceActionList as e2,
+  EvidenceActionDetail as e3,
+  policyIdentityKey as e4,
+  clearLabelForScope as e5,
+  HiMiniChartBar as e6,
+  HiMiniCheckBadge as e7,
+  isSupplyChainAuditIncomplete as e8,
+  isSupplyChainAuditEvidence as e9,
+  lazyWorkspace as eA,
+  __vitePreload as eB,
+  scopeLabel as eC,
+  HiMiniCloudArrowUp as eD,
+  HiMiniCodeBracket as eE,
+  HiMiniUsers as eF,
+  HiMiniFolder as eG,
+  HiMiniIdentification as eH,
+  policyActionLabel as eI,
+  createCloudExceptionRequest as eJ,
+  HiMiniPuzzlePiece as eK,
+  fetchCloudExceptions as eL,
+  fetchCloudExceptionRequests as eM,
+  PaginationControls as eN,
+  PolicyStatField as eO,
+  HiMiniArrowDownTray as eP,
+  HiMiniInbox as eQ,
+  HiMiniQueueList as eR,
+  Surface as eS,
+  HiMiniEllipsisHorizontal as eT,
+  HiMiniMinus as eU,
+  HiMiniWrench as eV,
+  HiMiniArrowLongRight as eW,
+  HiMiniArrowUpCircle as eX,
+  fetchReleaseFeedApi as eY,
+  fetchMcpPolicyRequest as eZ,
+  resolveMcpPolicyRequest as e_,
+  readString$1 as ea,
+  IconActionButton as eb,
+  HiMiniBeaker as ec,
+  HiMiniBugAnt as ed,
+  ActivationSummary as ee,
+  ActionResultPanel as ef,
+  fetchSupplyChainBundle as eg,
+  closeOnEscape as eh,
+  ConnectFlowCard as ei,
+  ApprovalProofInline as ej,
+  HiMiniCloudArrowDown as ek,
+  SUPPLY_CHAIN_SYNC_TIMEOUT_MS as el,
+  fetchPackageFirewallStatus as em,
+  runPackageAudit as en,
+  resolveSupplyChainAuditFailure as eo,
+  runPackageSync as ep,
+  GuardOperationTimeoutError as eq,
+  startPackageFirewallConnect as er,
+  PACKAGE_FIREWALL_CONNECT_POPUP_BLOCKED_MESSAGE as es,
+  repairSupplyChainProtection as et,
+  runPackageFirewallAction as eu,
+  parseInterceptProofSnapshot as ev,
+  activatePackageFirewallRuntime as ew,
+  EntitlementNotice as ex,
+  chooseSupplyChainAuditFolder as ey,
+  fetchReceipts as ez,
   fetchContextAssistance as f,
-  isBlockedGuardAction as f0,
-  isSupplyChainScannerEvidence as f1,
-  HiMiniFolderOpen as f2,
-  HiMiniSignal as f3,
+  HiMiniChevronLeft as f0,
+  HiMiniArrowDown as f1,
+  HiMiniArrowUp as f2,
+  runAuditRemediation as f3,
+  isBlockedGuardAction as f4,
+  isSupplyChainScannerEvidence as f5,
+  HiMiniFolderOpen as f6,
+  HiMiniSignal as f7,
   HiMiniChevronDown as g,
   harnessDisplayName as h,
   HiMiniArrowPath as i,
