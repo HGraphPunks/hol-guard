@@ -294,6 +294,7 @@ pub(super) fn exact_safe_segment_with_context(
                 && super::kubectl_reads::trusted_kubeconfig_prefix(segment, context)))
         || (executable.contains(['/', '\\'])
             && !super::postgres_reads::trusted_pg_ctl_path(executable, context)
+            && !super::guard_diagnostics::guard_install_executable(executable, context)
             && !super::venv_program_path::environment_program(executable, context))
     {
         return false;
@@ -445,7 +446,17 @@ pub(super) fn exact_safe_segment_with_context(
                 && super::npm_reads::safe_npm_read(&segment.arguments, context)
         }
         "pip" | "pip3" => super::pip_reads::safe_pip_segment(model, segment, context),
-        "hol-guard" => super::guard_diagnostics::safe_hol_guard_segment(
+        // Windows spells the same launcher with its program suffix, and the
+        // install screen above already strips one before it decides, so the
+        // two spellings have to reach the same proof. `hol-guard.cmd`, the
+        // desktop PATH shim, is deliberately absent: a batch target is run
+        // through `cmd.exe /c`, which reads the arguments a second time, and
+        // the text `command test` carries exists to hold the operators that
+        // reading would act on. The spelling is handed on, because on Windows
+        // the one without a suffix reaches that same shim through `PATHEXT`
+        // and the proof has to read its arguments as the shim would.
+        "hol-guard" | "hol-guard.exe" => super::guard_diagnostics::safe_hol_guard_segment(
+            basename,
             &segment.arguments,
             context.cwd,
             segment.pipeline_index,
