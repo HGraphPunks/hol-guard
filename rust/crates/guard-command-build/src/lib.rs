@@ -75,8 +75,14 @@ mod command_structured_matchers;
 mod command_tokens;
 #[path = "../../guard-command/src/contained_argv.rs"]
 pub mod contained_argv;
+#[path = "../../guard-command/src/contained_node_tool.rs"]
+mod contained_node_tool;
+#[path = "../../guard-command/src/contained_package_test.rs"]
+pub mod contained_package_test;
 #[path = "../../guard-command/src/contained_prefix.rs"]
 mod contained_prefix;
+#[path = "../../guard-command/src/contained_run_prefix.rs"]
+mod contained_run_prefix;
 #[cfg(unix)]
 #[path = "../../guard-command/src/contained_runner/mod.rs"]
 pub mod contained_runner;
@@ -172,6 +178,8 @@ pub mod native_command_controls;
 pub mod native_command_program;
 #[path = "../../guard-command/src/network_url.rs"]
 pub mod network_url;
+#[path = "../../guard-command/src/node_build_output.rs"]
+pub mod node_build_output;
 #[path = "../../guard-command/src/npm_source_spec.rs"]
 pub mod npm_source_spec;
 #[path = "../../guard-command/src/ordered_json.rs"]
@@ -339,6 +347,8 @@ pub mod supply_chain_package_eval;
 pub mod target_identities;
 #[path = "../../guard-command/src/typescript_launch_evidence.rs"]
 pub mod typescript_launch_evidence;
+#[path = "../../guard-command/src/vite_output.rs"]
+pub mod vite_output;
 #[path = "../../guard-command/src/workspace_inventory.rs"]
 pub mod workspace_inventory;
 #[cfg(unix)]

@@ -153,6 +153,7 @@ mod codex_hooks;
 #[cfg(test)]
 mod codex_hooks_parity_tests;
 mod codex_identity;
+mod codex_live_operation;
 mod codex_live_wait_build;
 mod codex_proxy;
 mod codex_request_resume_busy;
@@ -163,6 +164,7 @@ mod codex_thread_continue_op;
 mod codex_value;
 #[cfg(all(test, unix))]
 mod codex_vectors_tests;
+mod command_capability_issue_op;
 mod command_capability_op;
 mod command_effect;
 mod command_envelope_op;
@@ -344,6 +346,7 @@ mod guard_store_approval_row;
 mod guard_store_approval_sweep;
 mod guard_store_approval_write;
 mod guard_store_args;
+mod guard_store_claimed_native_allow;
 mod guard_store_claude_review;
 mod guard_store_clients;
 mod guard_store_cmd_activity;
@@ -358,6 +361,8 @@ mod guard_store_cmd_rollups;
 #[cfg(test)]
 mod guard_store_cmd_vectors_tests;
 mod guard_store_cmd_wire;
+mod guard_store_codex_live_authority;
+mod guard_store_codex_live_completion;
 mod guard_store_composio_catalog;
 #[cfg(test)]
 mod guard_store_composio_catalog_tests;
@@ -368,6 +373,7 @@ mod guard_store_connect_vectors_tests;
 mod guard_store_connector_context;
 mod guard_store_db;
 mod guard_store_exact_cloud_apply;
+mod guard_store_exact_cloud_peek;
 mod guard_store_guard_event;
 #[cfg(test)]
 mod guard_store_guard_event_tests;
@@ -499,6 +505,8 @@ mod hook_artifact_facts_op;
 mod hook_authority_state_op;
 mod hook_bridge_daemon_start;
 mod hook_bridge_fallback;
+#[cfg(unix)]
+mod hook_bridge_successor;
 mod hook_cli_claude_text;
 mod hook_cli_emit;
 mod hook_cli_emit_redaction;

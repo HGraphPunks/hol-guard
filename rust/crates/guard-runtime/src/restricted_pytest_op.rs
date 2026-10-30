@@ -23,6 +23,16 @@ pub(crate) fn evaluate(
         budget.check()?;
         return Ok(result);
     }
+    // The grant reading lives with the workspace sink, which is contained on
+    // Unix only. Where there is no sink the operation falls through to the
+    // platform's own answer below, which reports no enforceable backend
+    // rather than a grant nothing can hold.
+    #[cfg(unix)]
+    if operation == "workspace_grant_script_roots" {
+        let result = crate::contained_workspace_grant_plan::evaluate(input);
+        budget.check()?;
+        return Ok(result);
+    }
     if operation == "process_ceiling" {
         let result = crate::restricted_process_ceiling::evaluate(budget.deadline());
         budget.check()?;
@@ -35,7 +45,10 @@ pub(crate) fn evaluate(
         budget.deadline(),
     );
     #[cfg(not(unix))]
-    let result = if let Some(result) = guard_command::contained_argv::evaluate(operation, input) {
+    let result = if let Some(result) = guard_command::contained_argv::evaluate(operation, input)
+        .or_else(|| guard_command::vite_output::evaluate(operation, input))
+        .or_else(|| guard_command::node_build_output::evaluate(operation, input))
+    {
         result
     } else if operation == "normalized_command" {
         guard_command::restricted_command::evaluate_normalized(input)

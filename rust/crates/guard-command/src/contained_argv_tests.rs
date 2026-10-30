@@ -342,3 +342,152 @@ fn a_lookalike_entry_still_names_no_runner() {
         assert_eq!(kind["value"]["vitest"], false, "{argument} {kind}");
     }
 }
+
+#[test]
+fn a_manifest_script_reads_the_way_the_route_that_admits_it_reads_it() {
+    // `package_script_route` reads a named script's words with this lexer, so
+    // the sink that runs the script asks for that reading rather than making
+    // its own.
+    assert_eq!(
+        evaluate(
+            "script_words",
+            &json!({ "script": "eslint src --max-warnings 0" })
+        )
+        .unwrap()["value"],
+        json!(["eslint", "src", "--max-warnings", "0"])
+    );
+    // This lexer leaves a backslash alone where the platform spells paths with
+    // it; Python's `shlex`, which the sink used to split the script with,
+    // escapes on every platform.
+    assert_eq!(
+        evaluate("script_words", &json!({ "script": "eslint .\\src" })).unwrap()["value"],
+        if cfg!(windows) {
+            json!(["eslint", ".\\src"])
+        } else {
+            json!(["eslint", ".src"])
+        }
+    );
+    // An unterminated quote is not a reading of the script, so the run is
+    // refused rather than started on whatever a partial parse leaves.
+    assert_eq!(
+        evaluate("script_words", &json!({ "script": "eslint 'src" })).unwrap()["reason_code"],
+        json!("node_tool_invalid_command")
+    );
+    // A manifest entry that is not text names nothing to run.
+    assert_eq!(
+        evaluate("script_words", &json!({ "script": 7 })).unwrap()["reason_code"],
+        json!("node_tool_invalid_command")
+    );
+}
+
+#[test]
+fn the_grant_a_workspace_plan_carries_is_read_against_the_words_the_command_spells() {
+    // A script outside the workspace earns a read root only when the command
+    // names it, and `;` ends the word that names it even with no space in
+    // front.
+    assert_eq!(
+        evaluate(
+            "command_absolute_words",
+            &json!({ "command_text": "python3 /tmp/run/good.py;echo ok" })
+        )
+        .unwrap()["value"],
+        json!(["/tmp/run/good.py"])
+    );
+    // `>` and `|` end a word the same way, and the file a redirect writes is
+    // relative, so it names no grant.
+    assert_eq!(
+        evaluate(
+            "command_absolute_words",
+            &json!({ "command_text": "python3 /tmp/run/good.py>out.log|head" })
+        )
+        .unwrap()["value"],
+        json!(["/tmp/run/good.py"])
+    );
+    // `#` is an ordinary character here, so a directory spelled with one is
+    // read whole and a command that writes one onto a path names a different
+    // file than the plan's grant.
+    assert_eq!(
+        evaluate(
+            "command_absolute_words",
+            &json!({ "command_text": "python3 /tmp/run#2/good.py" })
+        )
+        .unwrap()["value"],
+        json!(["/tmp/run#2/good.py"])
+    );
+    assert_eq!(
+        evaluate(
+            "command_absolute_words",
+            &json!({ "command_text": "python3 /tmp/run/good.py#x" })
+        )
+        .unwrap()["value"],
+        json!(["/tmp/run/good.py#x"])
+    );
+    // A relative word names no file the plan could have granted.
+    assert_eq!(
+        evaluate(
+            "command_absolute_words",
+            &json!({ "command_text": "python3 run/good.py" })
+        )
+        .unwrap()["value"],
+        json!([])
+    );
+    // An unterminated quote is not a reading of the command, so no grant is
+    // admitted against a partial parse.
+    assert_eq!(
+        evaluate(
+            "command_absolute_words",
+            &json!({ "command_text": "python3 '/tmp/run" })
+        )
+        .unwrap()["reason_code"],
+        json!("pytest_restricted_invalid_command")
+    );
+    // A request without the text names nothing to read.
+    assert_eq!(
+        evaluate("command_absolute_words", &json!({ "command": ["python3"] })).unwrap()
+            ["reason_code"],
+        json!("pytest_restricted_invalid_command")
+    );
+}
+
+#[test]
+fn a_hook_command_reads_the_way_the_screen_that_admitted_it_read_it() {
+    // `pretool` lexes the hook's command text with this lexer when it decides
+    // the run is contained, so the sink asks for that same reading rather than
+    // splitting the text again on its way to a receipt.
+    assert_eq!(
+        evaluate(
+            "command_words",
+            &json!({ "command_text": "CI=1 pytest -q tests/test_a.py" })
+        )
+        .unwrap()["value"],
+        json!(["CI=1", "pytest", "-q", "tests/test_a.py"])
+    );
+    // The two readings part on a backslash: this lexer leaves it alone where
+    // the platform spells paths with it, and Python's `shlex`, which the sink
+    // used, escapes on every platform. A receipt drawn over the escaped words
+    // would not name the run that executes.
+    assert_eq!(
+        evaluate(
+            "command_words",
+            &json!({ "command_text": "pytest tests\\a.py" })
+        )
+        .unwrap()["value"],
+        if cfg!(windows) {
+            json!(["pytest", "tests\\a.py"])
+        } else {
+            json!(["pytest", "testsa.py"])
+        }
+    );
+    // An unterminated quote is not a reading of the command, so no receipt is
+    // drawn over a partial parse.
+    assert_eq!(
+        evaluate("command_words", &json!({ "command_text": "pytest 'tests" })).unwrap()
+            ["reason_code"],
+        json!("pytest_restricted_invalid_command")
+    );
+    // A request without the text names nothing to run.
+    assert_eq!(
+        evaluate("command_words", &json!({ "command": ["pytest"] })).unwrap()["reason_code"],
+        json!("pytest_restricted_invalid_command")
+    );
+}

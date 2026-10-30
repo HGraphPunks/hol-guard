@@ -56,6 +56,8 @@ mod pure_eval;
 mod read_note;
 #[path = "redirect_projection.rs"]
 mod redirect_projection;
+#[path = "redirect_tee.rs"]
+mod redirect_tee;
 #[path = "generic_result.rs"]
 mod result;
 #[path = "venv_activation_projection.rs"]
@@ -726,6 +728,50 @@ fn evaluate_envelope(
         }
     }
 
+    // `cmd | tee PATH` writes the same file `cmd > PATH` writes, but the
+    // stage keeps its path operand inside the pipeline, where the redirect
+    // projection never looks at it. The command then carries an unmodelled
+    // write and falls through to review, while the redirect spelling of the
+    // same work is modelled and bounded. Evaluating that spelling puts both
+    // forms on the same target checks.
+    // An extension that watches `tee` evaluates the stage itself, and the
+    // rewrite deletes the program it would match on. Leaving such a command
+    // on the existing path keeps that evaluation. The question is asked only
+    // of a command the rewrite actually read a stage out of, because
+    // answering it walks every active extension's rules.
+    if let Some(rewritten) = signals
+        .command
+        .as_deref()
+        .filter(|_| project_redirects && !search_scope_proven && !apply_patch_proven)
+        .and_then(redirect_tee::as_redirects)
+        .filter(|_| !controls.is_some_and(|controls| controls.watches_executable("tee")))
+    {
+        let rewritten_payload = payload_with_command(
+            payload,
+            signals.command.as_deref().unwrap_or_default(),
+            &rewritten,
+        );
+        let rewritten_result = evaluate_envelope(
+            harness,
+            event,
+            &rewritten_payload,
+            controls,
+            deadline,
+            context,
+            execution_environment,
+            project_redirects,
+        );
+        // Only a settled redirect spelling answers for the pipeline. When the
+        // projection cannot bound the target it leaves the redirect in the
+        // text, where the shell parser models no segments at all, so the
+        // rewritten review would drop the evidence the pipeline's own
+        // segments carry. The original text keeps that evidence, and it
+        // already fails closed on a write the parser cannot bound.
+        if rewritten_result.minimum_action == "allow" && rewritten_result.decision == "allow" {
+            return rewritten_result;
+        }
+    }
+
     if let Some(projection) = signals
         .command
         .as_deref()
@@ -1159,6 +1205,9 @@ fn evaluate_envelope(
         deadline,
         execution_environment,
     );
+    // A cluster listing that names only inventory columns runs directly; the
+    // rule that reviews it covers the whole `databases` group.
+    super::doctl_reads::settle(&mut result, command_model, controls);
     super::workspace_contained::convert(
         &mut result,
         &pre_floor,

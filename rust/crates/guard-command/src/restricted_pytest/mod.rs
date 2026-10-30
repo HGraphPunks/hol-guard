@@ -1,6 +1,5 @@
 //! Restricted execution admission, environment filtering and runtime read grants.
 
-use std::collections::HashSet;
 use std::env;
 use std::ffi::OsStr;
 use std::fs;
@@ -27,11 +26,9 @@ pub const PYTEST_EXTERNAL_PYTHONPATH_REASON_CODE: &str = "pytest_restricted_exte
 /// `RestrictedPytestBackend` (:37).
 pub type RestrictedPytestBackend = &'static str;
 
-static PYTEST_EXECUTABLE_NAMES: LazyLock<HashSet<&'static str>> =
-    LazyLock::new(|| HashSet::from(["pytest", "py.test", "pytest.exe", "py.test.exe"]));
-
-static PYTHON_EXECUTABLE_PATTERN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)^(?:python|pythonw)(?:\d+(?:\.\d+)*)?(?:\.exe)?$").unwrap());
+// The launcher names this module admits are the ones `pytest_argv` reads a
+// whole command with, so both answer the same question from one declaration.
+pub(crate) use crate::pytest_argv::{PYTEST_EXECUTABLE_NAMES, PYTHON_EXECUTABLE_PATTERN};
 
 const PROJECT_WORKSPACE_MARKERS: &[&str] = &[
     ".git",
@@ -246,6 +243,10 @@ pub use mapping::evidence as mapping_evidence;
 pub use validation::python_args_target_pytest;
 pub use workspace::workspace_script_reads;
 pub(crate) use workspace_linux::available as linux_workspace_sandbox_available;
+/// The runtime's own contained sink makes an overlay's layers and removes
+/// them, so it removes them the way the Linux backend's own probe does
+/// rather than keeping a second copy of the kernel's work-directory rule.
+pub use workspace_linux::remove_overlay_root as remove_workspace_overlay_root;
 #[cfg(test)]
 mod parity_tests;
 use executables::*;

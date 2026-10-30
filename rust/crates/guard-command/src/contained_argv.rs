@@ -2,7 +2,9 @@
 #[cfg(test)]
 #[path = "contained_argv_tests.rs"]
 mod tests;
+use crate::contained_node_tool::local_package_entry;
 use crate::restricted_command::{normalized_command, RestrictedPytestError};
+use crate::sfrs_shlex::{split_with, PLAIN_LEXER, STRICT_LEXER};
 use regex::Regex;
 use serde_json::{json, Value};
 use std::path::Path;
@@ -10,14 +12,6 @@ use std::sync::LazyLock;
 
 const NODE_INVALID: &str = "node_test_restricted_invalid_command";
 const VITEST_INVALID: &str = "vitest_restricted_invalid_command";
-
-/// `node_modules/<entry>`, `./node_modules/<entry>`, or `<dir>/node_modules/<entry>`.
-fn local_package_entry(argument: &str, package_entry: &str) -> bool {
-    argument
-        .strip_suffix(package_entry)
-        .and_then(|prefix| prefix.strip_suffix("node_modules/"))
-        .is_some_and(|prefix| prefix.is_empty() || prefix.ends_with('/'))
-}
 
 /// Vitest's installed entry points. `vitest.mjs` is the package's declared
 /// `bin` shim and `dist/cli.js` is the module that shim imports, so both
@@ -27,15 +21,15 @@ pub(crate) fn local_vitest_entry(argument: &str) -> bool {
         || local_package_entry(argument, "vitest/dist/cli.js")
 }
 
-/// The program name; on Windows without `.exe`, as the pre-tool parser reads
-/// it, so `node.exe` and a resolved `C:\...\python.exe` plan like `node` and
-/// `python`.
-fn basename(command: &[String]) -> &str {
-    let name = command
-        .first()
-        .and_then(|v| Path::new(v).file_name())
+/// The program a word names; on Windows without `.exe`, as the pre-tool parser
+/// reads it, so `node.exe` and a resolved `C:\...\python.exe` name `node` and
+/// `python`. Every reading of a program name goes through here, so a
+/// Windows-spelled tool names the same program wherever it is read.
+pub(crate) fn program_name(value: &str) -> &str {
+    let name = Path::new(value)
+        .file_name()
         .and_then(|v| v.to_str())
-        .unwrap_or("");
+        .unwrap_or(value);
     match name.len().checked_sub(4) {
         Some(stem)
             if cfg!(windows)
@@ -47,6 +41,11 @@ fn basename(command: &[String]) -> &str {
         }
         _ => name,
     }
+}
+
+/// The program the command runs, as [`program_name`] reads its first word.
+fn basename(command: &[String]) -> &str {
+    command.first().map(|v| program_name(v)).unwrap_or("")
 }
 
 pub fn node_runtime_args(command: &[String]) -> Result<Vec<String>, RestrictedPytestError> {
@@ -519,9 +518,110 @@ fn contained_target(input: &Value) -> Value {
     crate::pretool::generic::contained_target(text, context).map_or(Value::Null, Value::String)
 }
 
+/// The words a manifest script spells, read with the lexer that reads it in
+/// `package_script_route`.
+///
+/// Splitting a script into the words a run will execute is a reading of a
+/// command, so it belongs here rather than in the sink. The route already
+/// reads the manifest's `lint` script with `PLAIN_LEXER` to admit `npm run
+/// lint`; the sink read the same text a second time with Python's `shlex`.
+/// Two readings of one script can part — this lexer leaves a backslash alone
+/// where the platform spells paths with it, `shlex` always escapes — and the
+/// words a run executes have to be the words that were read.
+fn script_words(input: &Value) -> Result<Vec<String>, RestrictedPytestError> {
+    let script = input.get("script").and_then(Value::as_str).ok_or_else(|| {
+        RestrictedPytestError::new(
+            "node_tool_invalid_command",
+            "The requested local script is unavailable.",
+        )
+    })?;
+    split_with(PLAIN_LEXER, script).map_err(|_| {
+        RestrictedPytestError::new(
+            "node_tool_invalid_command",
+            "The local script could not be parsed.",
+        )
+    })
+}
+
+/// The words a contained command spells, read with the lexer that read it
+/// when the command was admitted.
+///
+/// `pretool` lexes the hook's command text with `PLAIN_LEXER` to decide the
+/// run is contained; the sink then read that same text a second time with
+/// Python's `shlex` to find the prefix it peels and the program it plans.
+/// Two readings of one command can part — this lexer leaves a backslash alone
+/// where the platform spells paths with it, `shlex` always escapes — so the
+/// receipt the sink draws has to be drawn over the words authority read.
+fn command_words(input: &Value) -> Result<Vec<String>, RestrictedPytestError> {
+    let text = input
+        .get("command_text")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            RestrictedPytestError::new(
+                "pytest_restricted_invalid_command",
+                "Invalid restricted execution request.",
+            )
+        })?;
+    split_with(PLAIN_LEXER, text).map_err(|_| {
+        RestrictedPytestError::new(
+            "pytest_restricted_invalid_command",
+            "Invalid restricted execution request.",
+        )
+    })
+}
+
+/// The absolute words a command spells, read with the lexer that knows where
+/// one command in the text ends and the next begins.
+///
+/// A workspace plan may carry a read root for a script that lives outside the
+/// workspace, and that grant is admitted only when the command names the file.
+/// Deciding whether it does is a reading of the same text this runtime
+/// admitted: `python3 /tmp/a.py;echo ok` names `/tmp/a.py`, while `python3
+/// /tmp/a.py#x` names a file of its own and no grant. Reading it a second time
+/// in Python is a second grammar over a command authority has already read.
+fn command_absolute_words(input: &Value) -> Result<Vec<String>, RestrictedPytestError> {
+    let text = input
+        .get("command_text")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            RestrictedPytestError::new(
+                "pytest_restricted_invalid_command",
+                "Invalid restricted execution request.",
+            )
+        })?;
+    let words = split_with(STRICT_LEXER, text).map_err(|_| {
+        RestrictedPytestError::new(
+            "pytest_restricted_invalid_command",
+            "Invalid restricted execution request.",
+        )
+    })?;
+    Ok(words
+        .into_iter()
+        .filter(|word| word.starts_with('/'))
+        .collect())
+}
+
 pub fn evaluate(operation: &str, input: &Value) -> Option<Value> {
     if operation == "contained_target" {
         return Some(json!({ "value": contained_target(input) }));
+    }
+    if operation == "command_absolute_words" {
+        return Some(match command_absolute_words(input) {
+            Ok(words) => json!({ "value": words }),
+            Err(error) => crate::restricted_command::error_reply(error),
+        });
+    }
+    if operation == "command_words" {
+        return Some(match command_words(input) {
+            Ok(words) => json!({ "value": words }),
+            Err(error) => crate::restricted_command::error_reply(error),
+        });
+    }
+    if operation == "script_words" {
+        return Some(match script_words(input) {
+            Ok(words) => json!({ "value": words }),
+            Err(error) => crate::restricted_command::error_reply(error),
+        });
     }
     if !matches!(
         operation,
@@ -536,6 +636,10 @@ pub fn evaluate(operation: &str, input: &Value) -> Option<Value> {
             | "launcher_program"
             | "transparent_prefix"
             | "command_prefix_split"
+            | "run_prefix_peel"
+            | "node_tool_route"
+            | "pytest_command"
+            | "package_test_resolve"
     ) {
         return None;
     }
@@ -564,6 +668,17 @@ pub fn evaluate(operation: &str, input: &Value) -> Option<Value> {
         "transparent_prefix" => {
             let prefix = crate::parser_wrappers::transparent_prefix(&command, 0);
             Ok(json!(prefix.map(|(index, _)| index)))
+        }
+        "node_tool_route" => crate::contained_node_tool::route_request(input, &command),
+        "pytest_command" => Ok(json!(crate::pytest_argv::command_targets_pytest(&command))),
+        "package_test_resolve" => crate::contained_package_test::resolve(
+            &command,
+            input.get("scripts").and_then(Value::as_object),
+        )
+        .map(|value| json!(value)),
+        "run_prefix_peel" => {
+            let (core, seconds) = crate::contained_run_prefix::run_prefix_peel(&command);
+            Ok(json!({ "core": core, "seconds": seconds }))
         }
         "command_prefix_split" => {
             let drop_data = input
@@ -635,7 +750,15 @@ fn contained_kind(command: &[String]) -> Result<Value, RestrictedPytestError> {
                     .iter()
                     .any(|entry| local_package_entry(v, entry))
                 })));
-    Ok(
-        json!({"inline_eval":inline,"node_test":node_test,"vitest":vitest,"git":name=="git","node_tool":node_tool}),
-    )
+    // The package-test alias travels with the other kinds so the sink reads
+    // every route a command can take in one answer, and an ordinary contained
+    // run never pays for a second reading to learn it is not an alias.
+    Ok(json!({
+        "inline_eval": inline,
+        "node_test": node_test,
+        "vitest": vitest,
+        "git": name == "git",
+        "node_tool": node_tool,
+        "package_test": crate::contained_package_test::is_package_test(command),
+    }))
 }
