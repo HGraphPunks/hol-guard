@@ -51,6 +51,7 @@ use crate::guard_store_composio_catalog as composio_catalog;
 use crate::guard_store_connect as connect;
 use crate::guard_store_connector_context as connector_context;
 use crate::guard_store_db::{exec, query_all, query_one, text, StoreError, StoreResult};
+use crate::guard_store_devices as devices;
 use crate::guard_store_evidence as evidence;
 use crate::guard_store_inventory as inventory;
 use crate::guard_store_local_cli as local_cli;
@@ -524,6 +525,8 @@ fn method_kind(method: &str) -> Option<Kind> {
         | "receipt_summary_between"
         | "receipt_analytics"
         | "reconcile_receipt_events"
+        | "set_device_label"
+        | "rotate_installation_id"
         | "add_event"
         | "add_guard_event_v1"
         | "list_guard_events_v1"
@@ -833,6 +836,8 @@ fn dispatch(
         "receipt_analytics" => receipt_reads::analytics(connection, args),
         "receipt_decision_counts" => receipt_reads::decision_counts(connection, args),
         "reconcile_receipt_events" => receipt_reads::reconcile_events(connection, args),
+        "set_device_label" => devices::set_label(connection, args),
+        "rotate_installation_id" => devices::rotate(connection, args),
         "add_event" => cloud_events::add_event(connection, args),
         "add_guard_event_v1" => cloud_events::add(connection, args),
         "list_guard_events_v1" => cloud_events::list(connection, args),
