@@ -86,9 +86,8 @@ pub(crate) fn request_identity(envelope: &GuardHookEnvelopeV2) -> Result<(String
     Ok((request_id, digest))
 }
 
-/// The full source material of a request. `execution_intent_digest` carries a
-/// deliberately narrower source, so anything bound to the guard home, the home
-/// directory or the external source-ref flag builds its commitment from this.
+/// Full request source. `execution_intent_digest` is narrower, so commitments
+/// to the guard home, home directory, or source-ref flag use this instead.
 fn request_source(envelope: &GuardHookEnvelopeV2, error: &str) -> Result<Value, String> {
     let mut source = serde_json::json!({
         "cwd": envelope.source.cwd,
