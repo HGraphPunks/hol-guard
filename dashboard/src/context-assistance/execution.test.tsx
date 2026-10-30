@@ -6,7 +6,7 @@ import { isContextExecutionObservation } from "./execution-observation";
 import { ContextExecutionPanel } from "./execution-panel";
 import { parseContextAssistanceStatus } from "./status";
 
-const receipt = JSON.parse(readFileSync(new URL("../../../docs/guard/cigar-integration/evidence/intent-state-verification.json", import.meta.url), "utf8"));
+const receipt = JSON.parse(readFileSync(new URL("./fixtures/intent-state.json", import.meta.url), "utf8"));
 const ready = parseContextAssistanceStatus(receipt.native_test.ready_observation);
 // These new fields are projection fixtures. Native/SDK and executor proof is
 // established by the separate actual candidate tests, never by this renderer.

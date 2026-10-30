@@ -1,0 +1,215 @@
+{
+  "schema": "guard-cigar-evidence-log-hashes.v1",
+  "logs": [
+    {
+      "name": "upgrades-catalog-atomic-20261028.log",
+      "sha256": "6547e1876a00dd16c176197d6e5d1e009dd8f8514a7754ecefc4d7c8940a4be0",
+      "bytes": 667641
+    },
+    {
+      "name": "upgrades-catalog-distribution-20261028.log",
+      "sha256": "bf513992d74d124d5baa1e59e6b835a969a933a348fc05df9c54d5c60b8f23e0",
+      "bytes": 700102
+    },
+    {
+      "name": "upgrades-catalog-refresh-20261028.log",
+      "sha256": "6c519c22b72a38a7d5395129fd8f6697e88743086b1f6d2424db186133023042",
+      "bytes": 691071
+    },
+    {
+      "name": "upgrades-cleanup-ownership-20261027.log",
+      "sha256": "af2a21067a5daac9c4b2c969dad7692a21bd38c36fc650f5069c99fa78f12925",
+      "bytes": 757811
+    },
+    {
+      "name": "upgrades-cold-data-20261028.log",
+      "sha256": "3ba81a63c6e181f17534a33bf913e5965994a53d8caa00ce6b7a38af168d230d",
+      "bytes": 854008
+    },
+    {
+      "name": "upgrades-disabled-recovery-20261028.log",
+      "sha256": "9cfec645efd59e6493eb6ac63362bf893ff2cf2415db9e9eb2d5b51c1744e3ac",
+      "bytes": 759832
+    },
+    {
+      "name": "upgrades-dynamic-scope-20261028.log",
+      "sha256": "02cd0ca7b7d4cf6f15c98a7d82cd88894f3f552a0ff7f1e814a80ba4b7721bc6",
+      "bytes": 9972
+    },
+    {
+      "name": "upgrades-engine-preparation-20261027.log",
+      "sha256": "430df594ff4c29d7faaac5e21882fa85bc125aa501de60752216f61366b63218",
+      "bytes": 667217
+    },
+    {
+      "name": "upgrades-evidence-preparation-20261027.log",
+      "sha256": "0271ed33ee2bedbe578fa74f1a6510a81c86208d63ad9bd0a2a8fb6c4da9b1c4",
+      "bytes": 182925
+    },
+    {
+      "name": "upgrades-full-erasure-20261027.log",
+      "sha256": "ddec90e9950d65e3bf9a53c597008605f6381460ab8c3291f7ebd55572e8cd49",
+      "bytes": 781840
+    },
+    {
+      "name": "upgrades-initial-recovery-20261028.log",
+      "sha256": "174d9e045cc80f7e2e436bd47c6e59e65b0db9144ecdf950b973eade7e9328f0",
+      "bytes": 1680855
+    },
+    {
+      "name": "upgrades-initial-selection-20261028.log",
+      "sha256": "bbaa550efec0781d53447c4f73187f6ec41b73cb073004a3fd0dd330759213ab",
+      "bytes": 778640
+    },
+    {
+      "name": "upgrades-interpreter-catalog-native-20261026.log",
+      "sha256": "cb95723541c71c4e25d952aa97d79eb20b9bec1c7afcbb5c952b00145a125a9d",
+      "bytes": 11474
+    },
+    {
+      "name": "upgrades-legacy-producer-config-20261027.log",
+      "sha256": "f815429278bcc7ab75b2be69dbc09cc66099ce9a246f66516fbfbb37696e30c8",
+      "bytes": 654827
+    },
+    {
+      "name": "upgrades-live-rollback-20261027.log",
+      "sha256": "b61fce9e1a807dd117f5771031d97902594a5ac777439bddf2554010ce06b71b",
+      "bytes": 205575
+    },
+    {
+      "name": "upgrades-live-service-switch-20261027.log",
+      "sha256": "540050e5c0c8d6e39b2b4274a422ca6cdc14e9ebdbd83dd923433d45794dbe21",
+      "bytes": 250074
+    },
+    {
+      "name": "upgrades-managed-python-20261026.log",
+      "sha256": "bc3203b11a8152f358bf9e9c10497245e37600ddc0d851b5282f4da6c00a6d53",
+      "bytes": 14228
+    },
+    {
+      "name": "upgrades-managed-python-timing-20261026.log",
+      "sha256": "61995a4059a04631d963a13ac59a3613012834ec03c46baec4a352407b2c7c26",
+      "bytes": 2359
+    },
+    {
+      "name": "upgrades-memory-service-switch-20261027.log",
+      "sha256": "4ad9f47bc1f713cd20e8f62d11faa333d92be74a43d6dbd11b03421f33053d7b",
+      "bytes": 235719
+    },
+    {
+      "name": "upgrades-native-acquisition-20261026.log",
+      "sha256": "5f963b40dd243849b52a3b9e3539a5663434e3aee70b3752ed2e94e0d4d551e3",
+      "bytes": 9897
+    },
+    {
+      "name": "upgrades-native-install-jobs-20261026.log",
+      "sha256": "355305986adf8fd43e3b007118b7ce1f8fdb80264c9a6738324c4248929e0663",
+      "bytes": 8630
+    },
+    {
+      "name": "upgrades-native-selection-20261027.log",
+      "sha256": "ba5f2712be85d2dcb78cb065ad047ca92cf0560fda7e667fce88e0d63dc5873b",
+      "bytes": 723139
+    },
+    {
+      "name": "upgrades-off-state-selection-20261028.log",
+      "sha256": "51a2aa1ba6b74ba6b9b82191b41247afb06de03b065c900f732d5c6ae2133e5c",
+      "bytes": 840933
+    },
+    {
+      "name": "upgrades-operator-controls-20261028.log",
+      "sha256": "cb227000cb13af8d658c209c9e2e06035afb047e46499e7a35144593a228376d",
+      "bytes": 639721
+    },
+    {
+      "name": "upgrades-prepared-recovery-20261027.log",
+      "sha256": "c87e5c9cb2e68a0d2592f6f549ecee5f6a1c5e4793a8ac62bba810a48a510c50",
+      "bytes": 800852
+    },
+    {
+      "name": "upgrades-private-python-20261026.log",
+      "sha256": "b7f284a6ffcd3eac52c150ad7245020034de2ce804b7bd0823a352b44ad6ef0c",
+      "bytes": 4143
+    },
+    {
+      "name": "upgrades-python-compatibility-20261026.log",
+      "sha256": "a16b5a7bd401f5889fc60aaf441f7f2f7ac61de0f6e49554a655de0f5fbfeeba",
+      "bytes": 10677
+    },
+    {
+      "name": "upgrades-python-compatibility-development-failure-20261026.log",
+      "sha256": "5c9b651387069b236ce53efd2382356b91597b9ed643808a7ab90c12c7cc8412",
+      "bytes": 12468
+    },
+    {
+      "name": "upgrades-requalification-20261026.log",
+      "sha256": "ad4f9eee24391849c4b4aec77e3faa850a63a326d2b543b40a509874bcdabef7",
+      "bytes": 16201
+    },
+    {
+      "name": "upgrades-requalification-checks-20261026.log",
+      "sha256": "57753f6f94f587b6607e2371a5bcf9021a08c30a5016e926b4bc77ea6c436e04",
+      "bytes": 52215
+    },
+    {
+      "name": "upgrades-requalification-development-native-requalification-all-v2-test-output.log",
+      "sha256": "134dfd0fc92b130b5281d72153ecfead4f2a11f0ede96976d701192fdedbf48c",
+      "bytes": 17085
+    },
+    {
+      "name": "upgrades-requalification-development-requalification-final-context-clippy.log",
+      "sha256": "71527a1fa7f78c85a0618eef5bd7505a90f4029de986d45a4ba7165bb1c5a4a2",
+      "bytes": 3037
+    },
+    {
+      "name": "upgrades-scope-erasure-primitives-20261027.log",
+      "sha256": "86feff7c8b5ab2cd66b32042b69ab5433acc088227f4a418e803eec44b0acc91",
+      "bytes": 811303
+    },
+    {
+      "name": "upgrades-scoped-deletion-20261028.log",
+      "sha256": "ef8fbf26df025e5266aeda7e32ea896d5991ee609f9ccf8abcfcf78ed14c3a12",
+      "bytes": 1437209
+    },
+    {
+      "name": "upgrades-settings-opt-in-20261028.log",
+      "sha256": "35b964b3b59d4f61b73b6153ba4e1a128bf1b0bafcc64ea7f15599223d96693f",
+      "bytes": 1160393
+    },
+    {
+      "name": "upgrades-settings-selection-20261028.log",
+      "sha256": "a2bc5980a7e396faba48e6c79578fed9cf389643a7fd9b98d92df1865db46a6d",
+      "bytes": 1139277
+    },
+    {
+      "name": "upgrades-source-restoration-20261027.log",
+      "sha256": "2a8cc371281c7e7a8f9b4c4c7df7e9e06b46592f297ce7cd433569367ee66715",
+      "bytes": 784195
+    },
+    {
+      "name": "upgrades-stop-recovery-20261028.log",
+      "sha256": "3746ca69925d9486c14601cc812ae04734c698d4e16b9d8c04618626b277dbe6",
+      "bytes": 799138
+    },
+    {
+      "name": "upgrades-update-preferences-20261028.log",
+      "sha256": "6a3b2d0e9c2263f6a4a3554517240677f4736cb95512af1c5bc9101d6ac54f1f",
+      "bytes": 720500
+    },
+    {
+      "name": "upgrades-versions-client-20261028.log",
+      "sha256": "15602d357897828c023d91c85aa14f9c30ba3f69b3b624dad7bcd022ab1bdbf2",
+      "bytes": 73857
+    },
+    {
+      "name": "upgrades-versions-routing-20261028.log",
+      "sha256": "451cdf2474ca511675fcdbae93e91d3eb454be9fcb76aca2b0e97f33bc0a32ff",
+      "bytes": 28614
+    },
+    {
+      "name": "upgrades-versions-ui-20261028.log",
+      "sha256": "06ce81ca19cc001d374c2b7062153600af699d667a3619aa3830fc0877aa1b1a",
+      "bytes": 178703
+    }
+  ]
+}

@@ -4,7 +4,7 @@ import { isCigarCoreLabel, isCigarProducerVersion, isCigarReleaseBinding } from 
 import { parseContextHistoryEntry } from "./history-api";
 import { parseContextAssistanceStatus } from "./status";
 
-const history = JSON.parse(readFileSync(new URL("../../../docs/guard/cigar-integration/evidence/history-development-verification.json", import.meta.url), "utf8")).native_test.observation.history_observation.entries[0];
+const history = JSON.parse(readFileSync(new URL("./fixtures/history-development.json", import.meta.url), "utf8")).native_test.observation.history_observation.entries[0];
 for (const version of ["0.14.0", "0.14.1", "0.15.2", "0.15.0rc1", "1!0.14.1.post2", "0.15.0.dev1+build.2"]) {
   assert.ok(isCigarProducerVersion(version));
   assert.equal(parseContextHistoryEntry({ ...history, sdk_version: version }).sdk_version, version,
@@ -19,7 +19,7 @@ const binding = { identity: { build_id: "synthetic-build", sdk_version: "0.15.2"
   source_revision: "a".repeat(40), manifest_sha256: "b".repeat(64) }, profile_id: "cigar-sdk-v1",
   adapter_id: "guard-cigar-python-sdk-v1", adapter_revision: 1, profile_sha256: "c".repeat(64), platform: "darwin-arm64" };
 assert.ok(isCigarReleaseBinding(binding));
-const ready = JSON.parse(readFileSync(new URL("../../../docs/guard/cigar-integration/evidence/intent-state-verification.json", import.meta.url), "utf8")).native_test.ready_observation;
+const ready = JSON.parse(readFileSync(new URL("./fixtures/intent-state.json", import.meta.url), "utf8")).native_test.ready_observation;
 const upgraded = { ...ready, qualification: "guard_qualified", runtime: { ...ready.runtime, package_version: "0.15.2", core_version: "0.15.1",
   adapter_id: binding.adapter_id, adapter_revision: 1, release: binding } };
 assert.equal(parseContextAssistanceStatus(upgraded).runtime!.package_version, "0.15.2");

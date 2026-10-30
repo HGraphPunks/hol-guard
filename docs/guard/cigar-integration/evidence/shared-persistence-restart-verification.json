@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-shared-persistence-restart-evidence.v1",
+  "captured_record_sha256": "57de4a24555d9310f3a714ba8424e811c20c18f6ee8db4e17d7d1439d6c22699",
+  "captured_record_bytes": 4431,
   "status": "passed",
   "qualification": "actual_installed_local_darwin_arm64_daemon_resident_and_two_MCP_restart",
   "test_source_sha": "d3d53e8561fc96db3ae347c97d6cadf2595d3fa9",
@@ -32,11 +34,17 @@
     "seconds": 109.969,
     "total_elapsed_seconds": 112.069,
     "junit": {
-      "private_path": "/private/tmp/hol-guard-cigar-persistence-product-checkpoint/installed-shared-restart-first.xml",
+      "private_path": {
+        "redacted": "local-path",
+        "sha256": "dc817349039277c26384d3da5aa5f43525eab3dc75b007c7a0be427bfcb16d89"
+      },
       "sha256": "e0b23f7e4d1ee5c4c86a7e9248e947ffcba18ec5cb1d84f6cae36303a8648d55"
     },
     "console": {
-      "private_path": "/private/tmp/hol-guard-cigar-persistence-product-checkpoint/installed-shared-restart-first.log",
+      "private_path": {
+        "redacted": "local-path",
+        "sha256": "b005f09b60dbb13dba573c5619ec4c62520e0f3c254a49c3b2d01651397fc82d"
+      },
       "sha256": "f7a1bbbfedb554a870762e54267c399c1f793b5c7341614c029fba665edde343"
     }
   },
@@ -74,7 +82,10 @@
       189
     ],
     "authority": {
-      "private_path": "/private/tmp/hol-guard-cigar-persistence-product-checkpoint/authority-shared-restart-after-commit.log",
+      "private_path": {
+        "redacted": "local-path",
+        "sha256": "325c94b005c46c07e77ac5c3c75d9ea3dd3561e57e2a7629c32ab6a22c4e7924"
+      },
       "sha256": "18e87f268437979bc40190667dd115e0c4f7e1621dbd899e0eef3438a6fe93e1",
       "status": "passed",
       "base_ref": "35180b995cb27fdc9f92e1f68307a756c785f154",

@@ -1,5 +1,7 @@
 {
   "schema": "hol-guard.cigar-runtime-development-evidence.v1",
+  "captured_record_sha256": "ff6261d310b6c8249d18eb0c1d4111547c064c5a3a88a007296ccb5d5f158bda",
+  "captured_record_bytes": 4416,
   "date": "2026-10-23",
   "guard_base": "35180b995cb27fdc9f92e1f68307a756c785f154",
   "cigar_source_commit": "b47380e5a5cbeaaad5a61cab3372e9e67368732f",

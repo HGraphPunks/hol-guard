@@ -17,7 +17,7 @@ assert.ok(existsSync(executable), "Supply an installed browser executable; this 
 const output = process.argv[3] || await mkdtemp(path.join(os.tmpdir(), "cigar-versions-browser-"));
 if (process.argv[3]) await mkdir(output);
 const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), "cigar-versions-fixture-"));
-const receipt = JSON.parse(await readFile(path.join(repository, "docs/guard/cigar-integration/evidence/intent-state-verification.json"), "utf8"));
+const receipt = JSON.parse(await readFile(path.join(dashboard, "src/context-assistance/fixtures/intent-state.json"), "utf8"));
 const document = JSON.parse(await readFile(path.join(repository, "integrations/cigar/release-catalog.v1.json"), "utf8"));
 const initialState = { ...receipt.native_test.ready_observation, generation: "9007199254740993" };
 const installed = (runtime_id, build_id) => ({ runtime_id, build_id, qualification: "guard_qualified", sdk_version: "0.14.1", core_version: "0.14.1",

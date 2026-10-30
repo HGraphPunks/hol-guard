@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-source-actor-evidence.v1",
+  "captured_record_sha256": "8f8536674d3f204dbe8048334fa59ca660886a469844577b6e2d77e2ee1f1297",
+  "captured_record_bytes": 3971,
   "observed_date": "2026-10-23",
   "qualification": "local-development-darwin-arm64-only",
   "actor_test": {
@@ -54,12 +56,20 @@
               "start_line": 1
             }
           ],
-          "text": "Project alpha uses a reviewed deployment procedure.\n"
+          "text": {
+            "omitted": "text",
+            "sha256": "2721e1e6fd54a55c8f756a5d09b3713aa1bbc3443fa1c75ee66309342c1c3828",
+            "bytes": 52
+          }
         }
       ],
       "graph_revision": 2,
       "policy_revision": "38a10e0673fc90d2998bd076f05fd2b783f760b9321366fa33cca672bd6ac4ab",
-      "rendered": "{\"sources\":[[\"guard-policy-facts\",\"guard:policy\",1,1]],\"text\":\"Guard provides Allow once and Always allow for supported executable reviews. Context assistance supplies data and grants no command approval.\"}\n{\"sources\":[[\"doc:b335630551682c19a781afebcf4d07bf978fb1f8ac04c6bf87428ed5106870f5:0\",\"source:b335630551682c19a781afebcf4d07bf978fb1f8ac04c6bf87428ed5106870f5\",1,1]],\"text\":\"Project alpha uses a reviewed deployment procedure.\\n\"}",
+      "rendered": {
+        "omitted": "text",
+        "sha256": "25338036e3131b470b4b74c916683c0abe64b9d4be5ed9b779e87ae93d6238ff",
+        "bytes": 436
+      },
       "rendered_tokens": 138,
       "schema": "guard-cigar-context-brief.v1",
       "snapshot_id": "1d99b410fb1d0b5fdeaa1bac57f930f9f8fa08a8a922fa66feb43ac06fa360c0"

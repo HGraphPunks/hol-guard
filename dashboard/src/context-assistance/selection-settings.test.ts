@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import type { GuardSettings } from "../guard-types";
 import { parseContextAssistanceStatus } from "./status";
 import { sameCigarPreferences, withCigarSelection } from "./selection-settings";
-const fixture = JSON.parse(readFileSync(new URL("../../../docs/guard/cigar-integration/evidence/intent-state-verification.json", import.meta.url), "utf8"));
+const fixture = JSON.parse(readFileSync(new URL("./fixtures/intent-state.json", import.meta.url), "utf8"));
 const previous = parseContextAssistanceStatus(fixture.native_test.ready_observation).preferences;
 const native = { ...previous, runtime_id: "cigar:new" };
 const settings = { mode: "enforce", telemetry: false, context_assistance: previous,

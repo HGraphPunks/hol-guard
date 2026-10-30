@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { controlContextAssistance, fetchContextAssistance, fetchContextInstallations, ContextAssistanceApiError } from "./api";
 import { authorizeContextAgentSession, compileWorkspaceContext, listContextAgentSessions, revokeContextAgentSession } from "./workspaces-api";
 
-const native = JSON.parse(readFileSync(new URL("../../../docs/guard/cigar-integration/evidence/intent-state-verification.json", import.meta.url), "utf8")).native_test.ready_observation;
+const native = JSON.parse(readFileSync(new URL("./fixtures/intent-state.json", import.meta.url), "utf8")).native_test.ready_observation;
 const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
 const originalFetch = globalThis.fetch;
 const storage = new Map<string, string>();
@@ -38,7 +38,7 @@ try {
   assert.equal(calls.length, count);
   payload = { enabled: true, python_version: "3.14", ready: true };
   await assert.rejects(fetchContextAssistance(), /incompatible status/);
-  const observed = JSON.parse(readFileSync(new URL("../../../docs/guard/cigar-integration/evidence/source-actor-verification.json", import.meta.url), "utf8")).source_test.brief_observation;
+  const observed = JSON.parse(readFileSync(new URL("./fixtures/source-actor.json", import.meta.url), "utf8")).source_test.brief_observation;
   const scope = { scope_id: "scope:granted", workspace: "/workspace", app: "dashboard", policy_revision: "a".repeat(64),
     sources: [], retained_contexts: 1, revoked: false, native_policy_facts: true,
     receipt_window: { enabled: true, retained: 1, dropped: "0", coverage: "bounded_recent_native_receipts" } };

@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-late-execution-lease-verification.v1",
+  "captured_record_sha256": "d4bfe7470dda0a1f51eade3c8ae98eaa80c103cc278bb6e0894e0a79a52f09a3",
+  "captured_record_bytes": 2462,
   "status": "passed",
   "source_commit": "f55e119e0f79adba17bb7bf5fb59de9de402f99a",
   "product": {
@@ -24,7 +26,10 @@
   },
   "qualification": "installed macOS/OMP captured native Bash owning-sink fixture; saved Always allow; real 310-second interval",
   "report": {
-    "path": "/private/tmp/hol-guard-cigar-late-lease-20261024/results.xml",
+    "path": {
+      "redacted": "local-path",
+      "sha256": "bacd809ec37932b342d2b3e79fa2bcdf94c01abee40c2da9b7fa89dfc5e69888"
+    },
     "sha256": "cdb7e5b55d08c40f778e893e37639f817a402c0673518f4d668c14f18f5250be",
     "tests": 1,
     "failures": 0,

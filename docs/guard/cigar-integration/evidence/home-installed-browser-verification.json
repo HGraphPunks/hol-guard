@@ -1,10 +1,15 @@
 {
   "schema": "guard-cigar-home-installed-browser-verification.v1",
+  "captured_record_sha256": "5379549ef79d22c8a588390fb9cebc8d8f2009180036cc547243a5a5ce36d920",
+  "captured_record_bytes": 4848,
   "status": "passed",
   "qualification": "local-development-darwin-arm64-only",
   "implementation_commit": "74b169ca93a82472a8772b00684dec5875ac5a58",
   "native_artifact": {
-    "path": "/private/tmp/hol-guard-cigar-package-build/receipt-checkpoint/hol-guard-runtime",
+    "path": {
+      "redacted": "local-path",
+      "sha256": "a72745fb68e9066fc1d62f6d2e36d0c68f8e155ee6302a2b57e4b87af1af24ad"
+    },
     "sha256": "c08b2c11ccd64ce193fc4b6da714fb0ec0b6eed1e36bfad05d7144f5cd9b019a",
     "bytes": 110367952,
     "package_version": "3.55.1",
@@ -16,7 +21,10 @@
     "runtime_file_size_cap_bytes": 134217728
   },
   "native_wheel": {
-    "wheel": "/private/tmp/hol-guard-cigar-package-build/receipt-checkpoint/native-wheels/hol_guard-3.55.1-py3-none-macosx_11_0_arm64.whl",
+    "wheel": {
+      "redacted": "local-path",
+      "sha256": "917705b03e93cbe52d3dc7a5f45142451521a24f9adc80c62f95bad8a36a011e"
+    },
     "wheel_sha256": "70cd4e736c72e9f1d9bdcf0bd8066a76167aea0c5405fbe9cd67623b37d773bc",
     "wheel_bytes": 40153689,
     "installed_binary_sha256": "c08b2c11ccd64ce193fc4b6da714fb0ec0b6eed1e36bfad05d7144f5cd9b019a",

@@ -17,7 +17,7 @@ const hub = renderToStaticMarkup(<CigarTutorials progress={progress} onBegin={()
 assert.match(hub, new RegExp(CIGAR_FULL_NAME));
 assert.match(hub, /Resume walkthrough/);
 assert.match(hub, /you choose every setting, start, and access grant/);
-const receipt = JSON.parse(readFileSync(new URL("../../../docs/guard/cigar-integration/evidence/intent-state-verification.json", import.meta.url), "utf8"));
+const receipt = JSON.parse(readFileSync(new URL("./fixtures/intent-state.json", import.meta.url), "utf8"));
 const ready = parseContextAssistanceStatus(receipt.native_test.ready_observation);
 const tutorial = cigarTutorial("first-brief");
 const render = (status: typeof ready | null, step = 3) => renderToStaticMarkup(<CigarWalkthrough tutorial={tutorial} step={step}

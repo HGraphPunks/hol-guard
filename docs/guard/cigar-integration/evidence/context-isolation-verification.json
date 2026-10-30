@@ -1,19 +1,45 @@
 {
   "schema": "guard-cigar-context-isolation-verification.v1",
+  "captured_record_sha256": "8b1aa0b1dbe01800f4ddcaae32f5bc5c122c5d1bb3bffaf725a4d275dfe31005",
+  "captured_record_bytes": 5419,
   "status": "passed",
   "observed_at": "2026-10-23T22:21:48Z",
   "qualification": "native-source-and-transport-contracts-only",
   "source_parent_commit": "904e3818dc365efe563f8977de5c3c840ac3ea8d",
   "implementation_commit": "0ee90934c438ef596f48973b75109488aa544791",
   "source_files": [
-    {"path": "rust/crates/guard-runtime/src/resident_context_dispatch.rs", "sha256": "aeb74f7b5a65ca8daccc3db3710ef09e519e0654004070ceb120b7faa229f2b5"},
-    {"path": "rust/crates/guard-runtime/src/resident_transport.rs", "sha256": "2dc39278d974449ee34eed51623eec43fb9183cc571893f5340fd696b66a3416"},
-    {"path": "rust/crates/guard-runtime/src/context_assistance_service_lifecycle.rs", "sha256": "2fb98e1ec47f4d16665c363e983f9137c9674e81f622d10dfdca492526e69f45"},
-    {"path": "rust/crates/guard-runtime/src/context_assistance_op.rs", "sha256": "fdfaa4053739c30efb1e17f7b0d9aaad5a32c5bd98ac39529291d77810c4b20e"},
-    {"path": "rust/crates/guard-runtime/src/context_assistance_agent_op.rs", "sha256": "93531cfbeefbf8db157a9ee58c81b85635b16d0bce48cf54e59e400c95712296"},
-    {"path": "src/codex_plugin_scanner/guard/native_resident_decision.py", "sha256": "8fa5967b1b3f55181efa9cb52a338e5acfc19dfe63fbd3afc5cd7d499e73993d"},
-    {"path": "src/codex_plugin_scanner/guard/native_context_assistance.py", "sha256": "339fae1308a8bb546133d452189ef4aad6a07f28e06dc7423cd38309d111e18d"},
-    {"path": "src/codex_plugin_scanner/guard/native_context_agent.py", "sha256": "63ebd56bc7b8f816192f9a1192a62d8e1746b57e53b250d81b31c5cff8a1850e"}
+    {
+      "path": "rust/crates/guard-runtime/src/resident_context_dispatch.rs",
+      "sha256": "aeb74f7b5a65ca8daccc3db3710ef09e519e0654004070ceb120b7faa229f2b5"
+    },
+    {
+      "path": "rust/crates/guard-runtime/src/resident_transport.rs",
+      "sha256": "2dc39278d974449ee34eed51623eec43fb9183cc571893f5340fd696b66a3416"
+    },
+    {
+      "path": "rust/crates/guard-runtime/src/context_assistance_service_lifecycle.rs",
+      "sha256": "2fb98e1ec47f4d16665c363e983f9137c9674e81f622d10dfdca492526e69f45"
+    },
+    {
+      "path": "rust/crates/guard-runtime/src/context_assistance_op.rs",
+      "sha256": "fdfaa4053739c30efb1e17f7b0d9aaad5a32c5bd98ac39529291d77810c4b20e"
+    },
+    {
+      "path": "rust/crates/guard-runtime/src/context_assistance_agent_op.rs",
+      "sha256": "93531cfbeefbf8db157a9ee58c81b85635b16d0bce48cf54e59e400c95712296"
+    },
+    {
+      "path": "src/codex_plugin_scanner/guard/native_resident_decision.py",
+      "sha256": "8fa5967b1b3f55181efa9cb52a338e5acfc19dfe63fbd3afc5cd7d499e73993d"
+    },
+    {
+      "path": "src/codex_plugin_scanner/guard/native_context_assistance.py",
+      "sha256": "339fae1308a8bb546133d452189ef4aad6a07f28e06dc7423cd38309d111e18d"
+    },
+    {
+      "path": "src/codex_plugin_scanner/guard/native_context_agent.py",
+      "sha256": "63ebd56bc7b8f816192f9a1192a62d8e1746b57e53b250d81b31c5cff8a1850e"
+    }
   ],
   "native_transport": {
     "command_filter": "cargo test -p hol-guard-runtime --lib resident_transport --locked --offline -- --test-threads=1 --nocapture",
@@ -55,7 +81,13 @@
     ]
   },
   "python_transport_selection": {
-    "files": ["tests/test_context_agent_mcp.py", "tests/test_native_context_assistance.py", "tests/test_native_daemon_route.py", "tests/test_guard_protect_resident_failure.py", "tests/test_native_runtime_resilience.py"],
+    "files": [
+      "tests/test_context_agent_mcp.py",
+      "tests/test_native_context_assistance.py",
+      "tests/test_native_daemon_route.py",
+      "tests/test_guard_protect_resident_failure.py",
+      "tests/test_native_runtime_resilience.py"
+    ],
     "passed": 60,
     "failed": 0,
     "duration_seconds": 13.68,

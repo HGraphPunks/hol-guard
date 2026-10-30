@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-intent-state-evidence.v1",
+  "captured_record_sha256": "cedfc2366b8eff8f5af0ec9b28bf3e794dcb186c000a4f56e2c40bc49e2a8eca",
+  "captured_record_bytes": 7182,
   "observed_date": "2026-10-23",
   "qualification": "local-development-darwin-arm64-only",
   "native_test": {

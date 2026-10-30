@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-activation-ux-verification.v1",
+  "captured_record_sha256": "051808aa825acf9c137c12ef275bfc31cc567132298c2e62ccbb4a0a632c3faf",
+  "captured_record_bytes": 3052,
   "recorded_at": "2026-10-25T21:41:38.373808+00:00",
   "root_cause": {
     "diagnostic": "runtime_not_verified",
@@ -48,7 +50,10 @@
     "static_files_matching_source": 33
   },
   "live_preview": {
-    "root": "/private/tmp/hol-guard-cigar-start-ui-xq84f18j",
+    "root": {
+      "redacted": "local-path",
+      "sha256": "4dc6644a99e784d41d15d28accfd6315f35fa14d3fdadf1347311768b12976df"
+    },
     "url": "http://127.0.0.1:5041/cigar?section=access",
     "native_discovery": "automatic with unchanged qualified native core",
     "runtime": {

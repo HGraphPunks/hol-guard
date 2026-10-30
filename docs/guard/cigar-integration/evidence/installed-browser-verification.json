@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-installed-browser-verification.v1",
+  "captured_record_sha256": "f96849df09a3f79d05e94599934bcf4e6339cb9104dcc6f205b1a3639ecdb70d",
+  "captured_record_bytes": 2061,
   "observed_date": "2026-10-23",
   "status": "passed",
   "qualification": "local-development-darwin-arm64-only",

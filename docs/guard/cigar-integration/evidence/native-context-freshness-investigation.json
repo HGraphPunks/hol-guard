@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-native-context-freshness-investigation.v1",
+  "captured_record_sha256": "7d5d044dfee595703f1b555cdce4c192726624bccccfd833a126b01740641442",
+  "captured_record_bytes": 6233,
   "source_sha": "e537c82ae11566f492e46dd9e7206dce43150ea6",
   "qualification": "native_revocation_primitives_and_disproved_mutable_source_witness",
   "source_hashes": {
@@ -16,28 +18,40 @@
   },
   "tests": {
     "full_actual_library": {
-      "private_path": "/private/tmp/hol-guard-cigar-persistence-product-checkpoint/native-epoch-core-actual.log",
+      "private_path": {
+        "redacted": "local-path",
+        "sha256": "6f772acc7bd7477014e83f2130f5b71165f1446bd6a2998ac4aca019b4e7ba43"
+      },
       "sha256": "91fd9e7d865222dd9f8949607acf6983be205b98dc70a871cfcd163640ac4bb6",
       "passed": 48,
       "seconds": 42.58,
       "failed": 0
     },
     "native_service": {
-      "private_path": "/private/tmp/hol-guard-cigar-persistence-product-checkpoint/native-epoch-service-qualified.log",
+      "private_path": {
+        "redacted": "local-path",
+        "sha256": "606ffee50bddfe7aebcb4e1aa7a736db18a5ceb876266b88303ac2dcfdc0e843"
+      },
       "sha256": "74271441d7241f9e5dbb9a18ec31bc4548c074bbddc3a62e9cc1dbc3361950b6",
       "passed": 8,
       "seconds": 0.02,
       "failed": 0
     },
     "clippy_all_targets": {
-      "private_path": "/private/tmp/hol-guard-cigar-persistence-product-checkpoint/clippy-native-epoch-final.log",
+      "private_path": {
+        "redacted": "local-path",
+        "sha256": "46d707f9509c6ab6affbcff583accdedaf0c8d8cb5904f0be46363e25c611592"
+      },
       "sha256": "2eccd40b5be382ff00bff1abc57b13ca54251531390751e0d96a29786f663b08",
       "passed": null,
       "seconds": 29.99,
       "failed": 0
     },
     "rejected_witness_test": {
-      "private_path": "/private/tmp/hol-guard-cigar-persistence-product-checkpoint/native-source-witness-first.log",
+      "private_path": {
+        "redacted": "local-path",
+        "sha256": "c2dec6a74e4673ab3c0e22c9ac762f5d0702317b28d2baa019a883f15fbc2677"
+      },
       "sha256": "8813680c00b326b959d5559e0486e61fb7f4dc67124289b3b176aaec620ab583",
       "passed": 5,
       "seconds": 0.05,
@@ -48,41 +62,59 @@
     {
       "name": "python_hook_semantic_callgraph_gate",
       "status": "passed",
-      "private_path": "/private/tmp/hol-guard-cigar-persistence-product-checkpoint/python_hook_semantic_callgraph_gate-epoch.log",
+      "private_path": {
+        "redacted": "local-path",
+        "sha256": "c13f513a6a99a7529bbfc640be279b13e663941e8993d25ab7d84f6028246d03"
+      },
       "sha256": "8e3101056186cd4d641add66f9eed89b0289db4e105bdb5885821ae3f0484e46",
       "changed_files_checked": null
     },
     {
       "name": "python_capability_cleanup_gate",
       "status": "passed",
-      "private_path": "/private/tmp/hol-guard-cigar-persistence-product-checkpoint/python_capability_cleanup_gate-epoch.log",
+      "private_path": {
+        "redacted": "local-path",
+        "sha256": "c535e4acc3e64de3a972fba1eef79af435a5c28ff905379670c5bdfcac145a49"
+      },
       "sha256": "d975dee5fe67bdb3f901777eaa0e7a95a5e8ce9e5f310467754474d61c80dc74",
       "changed_files_checked": null
     },
     {
       "name": "rust_io_ownership_gate",
       "status": "passed",
-      "private_path": "/private/tmp/hol-guard-cigar-persistence-product-checkpoint/rust_io_ownership_gate-epoch.log",
+      "private_path": {
+        "redacted": "local-path",
+        "sha256": "4911f2af404dc4525b5ee13f7fdbdf90f92afb6b43027a9eb278b1b8dd7f1714"
+      },
       "sha256": "bcf901a1c39ebf936483fa5aebdcdb005372d016d67e41b8e46adc6fcbd68472",
       "changed_files_checked": null
     },
     {
       "name": "rust_io_privacy_gate",
       "status": "passed",
-      "private_path": "/private/tmp/hol-guard-cigar-persistence-product-checkpoint/rust_io_privacy_gate-epoch.log",
+      "private_path": {
+        "redacted": "local-path",
+        "sha256": "ed381379f24dfbbe1ebcc19ec1140a95bfaf5aef8d52f97df942be9ed52dee0f"
+      },
       "sha256": "3f99732114cd01afda57fec9bae91e307310125980da63e8859c1941fbb96b14",
       "changed_files_checked": null
     },
     {
       "name": "rust_authority_ownership_gate",
       "status": "passed",
-      "private_path": "/private/tmp/hol-guard-cigar-persistence-product-checkpoint/rust_authority_ownership_gate-epoch.log",
+      "private_path": {
+        "redacted": "local-path",
+        "sha256": "7a05a0bf40deb284ad0ad4bbd57f16e9878572f2735c6c01c00dafa3f1a87a61"
+      },
       "sha256": "96a35665d87da2080fd753e602bc5df5fc6e9afc91977ee2b7a21a2eba5a94d5",
       "changed_files_checked": 283
     }
   ],
   "probe": {
-    "private_path": "/private/tmp/hol-guard-cigar-source-currentness-proof/result.json",
+    "private_path": {
+      "redacted": "local-path",
+      "sha256": "b88e182a2efb0c25a71aa27eb181201ca5dc8877ddcc318ba8f96bb9a9b503c8"
+    },
     "sha256": "a664baa95de3b9575520cf6fd31a9165f034029fae6baf3aa0a065dd22266060",
     "observations": {
       "schema": "guard-cigar-source-currentness-probe.v1",

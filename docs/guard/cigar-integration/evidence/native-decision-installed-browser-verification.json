@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-native-decision-installed-browser-evidence.v1",
+  "captured_record_sha256": "7cabae1725bca5cccc512b2638b4d0e529352114bffd4b6a900770fbcf9693e2",
+  "captured_record_bytes": 5681,
   "status": "passed",
   "qualification": "local_candidate_macos_arm64_only",
   "source_commit": "3517c20dc20e99b5fc03d3912551cc56098c4e88",
@@ -31,13 +33,19 @@
       "new_feature": true
     },
     "wheel": {
-      "path": "/private/tmp/hol-guard-cigar-package-build/native-decision-projection-checkpoint/native-wheels/hol_guard-3.55.1-py3-none-macosx_11_0_arm64.whl",
+      "path": {
+        "redacted": "local-path",
+        "sha256": "4f6fa26b18f20d5d31b9ec2fcf26eeb1ba266115e74c82d4a3fc603a0bb44304"
+      },
       "bytes": 40344618,
       "sha256": "62753e3aad9fb8855b762c693b45db8778524525d3be17966e25504ed154f452"
     },
     "browser": {
       "report": {
-        "path": "/private/tmp/hol-guard-cigar-native-decision-browser-proof-v3/results.json",
+        "path": {
+          "redacted": "local-path",
+          "sha256": "ee1d3459edc6f7253da8c7434c0abf2b9d6f7339b9bcf73c86543e5b15fb7838"
+        },
         "bytes": 4198,
         "sha256": "79cd91d1771fe04265fe18bc599c67c276fe5f8d973d491a5acd2af189a3e7c4"
       },
@@ -58,7 +66,10 @@
     },
     "installed_tests": {
       "report": {
-        "path": "/private/tmp/hol-guard-cigar-native-decision-installed-results.xml",
+        "path": {
+          "redacted": "local-path",
+          "sha256": "0239e23d76523b35e74cf5fcade497e5dfb732e0c3dba9be48ec99fbc9b13bc3"
+        },
         "bytes": 6982,
         "sha256": "9d3904eb5c5b6bfface8b1148ecde22ce32eb698513269fd6f23e20cb4a14b98"
       },
@@ -105,13 +116,19 @@
   ],
   "previous_attempts": [
     {
-      "report": "/private/tmp/hol-guard-cigar-native-decision-browser-proof-v1/results.json",
+      "report": {
+        "redacted": "local-path",
+        "sha256": "94277abf3fc737877f85eb722b7b0600b48be72dd716e263a906e1f0acd20531"
+      },
       "sha256": "c63d52aceb2597be2497cbb79a08299f7d173cd895f9d8e3b41c704f848d74ce",
       "status": "failed",
       "reason": "Review normalizer omitted native receipt selector; fixed in source 3517c20d."
     },
     {
-      "report": "/private/tmp/hol-guard-cigar-native-decision-browser-proof-v2/results.json",
+      "report": {
+        "redacted": "local-path",
+        "sha256": "270fa1a82bc8e692a38499917305b0058ae07314613285e34bb5741f345fe628"
+      },
       "sha256": "903abd7717a2bac11f36f7b8d7a2d5cf3674ccf7145d3f784ee224f15811b5aa",
       "status": "failed",
       "reason": "Acceptance locator expected Allow once instead of the existing Allow just this once label; product controls were present."

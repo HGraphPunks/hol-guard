@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-native-receipt-regressions.v1",
+  "captured_record_sha256": "4d18203576ca1cc737bd5313eab646bca4faf683f1282f410d4444b092804e8d",
+  "captured_record_bytes": 10188,
   "status": "partial",
   "context_flow_status": "passed",
   "qualification": "local-development-darwin-arm64-only",
@@ -66,7 +68,11 @@
       ],
       "graph_revision": 2,
       "policy_revision": "38a10e0673fc90d2998bd076f05fd2b783f760b9321366fa33cca672bd6ac4ab",
-      "rendered": "{\"sources\":[[\"guard-policy-facts\",\"guard:policy\",1,1]],\"text\":\"Guard provides Allow once and Always allow for supported executable reviews. Context assistance supplies data and grants no command approval.\"}\n{\"sources\":[[\"receipt:dc4d70bfd051d32bd35f12df225770d1439df346d27176e7af02ba69ea760bec\",\"guard:receipts\",1,1]],\"text\":\"Guard recorded decision 'allow' for PreToolUse in codex at policy generation 1. Recorded policy action: warn; observed policy action: not recorded; observe mode: false. Native receipt dc4d70bfd051d32bd35f12df225770d1439df346d27176e7af02ba69ea760bec. This is a recorded decision, not execution confirmation or an approval grant.\"}",
+      "rendered": {
+        "omitted": "text",
+        "sha256": "51f745a7bc322a67219bc89c6819834b2b3e7891e50d41fc04742af163031368",
+        "bytes": 655
+      },
       "rendered_tokens": 181,
       "schema": "guard-cigar-context-brief.v1",
       "snapshot_id": "3f2df0cbd58fbbac324ae431a82a7d25b8a94c4fd9e1e01ae51a5f23995e5644"
@@ -168,7 +174,10 @@
   ],
   "baseline_reproduction": {
     "source_commit": "e71cb3e7",
-    "source_archive": "/private/tmp/hol-guard-cigar-core-baseline.tar",
+    "source_archive": {
+      "redacted": "local-path",
+      "sha256": "b10cc27ed6071c4fecd208cf5e63f02361b6ab21895c39f6fec95f3806a20bd2"
+    },
     "command": [
       "cargo",
       "test",

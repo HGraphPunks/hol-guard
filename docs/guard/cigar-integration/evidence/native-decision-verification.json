@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-native-decision-evidence.v1",
+  "captured_record_sha256": "e8a743a56b8a4d799557dc1fe96712901ef39087f494250c60f5dd022898fa8b",
+  "captured_record_bytes": 7115,
   "implementation_base": "29a15ebe",
   "qualification": "development_native_library_with_actual_candidate_worker",
   "native_test": {
@@ -60,7 +62,11 @@
                 "start_line": 1
               }
             ],
-            "text": "Authenticated native Guard decision 3ef464c2bc1b715322ff0e25133bad6dbb16d83b12f84a8ebd28413d4244a849 for codex: action type \"command\", operation \"execute\", decision allow, policy action warn, policy generation 1. Observed policy action: not recorded; observe mode: false. Bounded action: true; sensitive target: false. These are native evaluation facts. They do not confirm execution, prove current executable bytes, or grant approval."
+            "text": {
+              "omitted": "text",
+              "sha256": "c481032b01993900be7868e35d5448e88322ad58af83d5045ab5e6f81157add3",
+              "bytes": 435
+            }
           },
           {
             "citations": [
@@ -84,12 +90,20 @@
                 "start_line": 1
               }
             ],
-            "text": "Project guidance for command execute review policy: deployment always follows the approved project procedure.\n"
+            "text": {
+              "omitted": "text",
+              "sha256": "07081c6e70ed050644d34fe115d2429d2e8e5ace725a55b92899ce091317e9d4",
+              "bytes": 110
+            }
           }
         ],
         "graph_revision": 3,
         "policy_revision": "d403c4a1167b5cba8dc4e7ee325c9cbf5bef2cf2b2c0f7c7e8825108c0e028b9",
-        "rendered": "{\"sources\":[[\"guard-action-facts\",\"guard:action\",1,1]],\"text\":\"Authenticated native Guard decision 3ef464c2bc1b715322ff0e25133bad6dbb16d83b12f84a8ebd28413d4244a849 for codex: action type \\\"command\\\", operation \\\"execute\\\", decision allow, policy action warn, policy generation 1. Observed policy action: not recorded; observe mode: false. Bounded action: true; sensitive target: false. These are native evaluation facts. They do not confirm execution, prove current executable bytes, or grant approval.\"}\n{\"sources\":[[\"guard-policy-facts\",\"guard:policy\",1,1]],\"text\":\"Guard provides Allow once and Always allow for supported executable reviews. Context assistance supplies data and grants no command approval.\"}\n{\"sources\":[[\"doc:b335630551682c19a781afebcf4d07bf978fb1f8ac04c6bf87428ed5106870f5:0\",\"source:b335630551682c19a781afebcf4d07bf978fb1f8ac04c6bf87428ed5106870f5\",1,1]],\"text\":\"Project guidance for command execute review policy: deployment always follows the approved project procedure.\\n\"}",
+        "rendered": {
+          "omitted": "text",
+          "sha256": "501add71461f17de03017521e4ce136ca6e8e6f5f42e49d8ae2ba717f4e96ef4",
+          "bytes": 999
+        },
         "rendered_tokens": 279,
         "schema": "guard-cigar-context-brief.v1",
         "snapshot_id": "d291abae925294aeeb1e11ed423de4066152a5c1fcb36f09518d53365b0461f1"

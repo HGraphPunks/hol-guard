@@ -8,7 +8,7 @@ import { CigarOverview } from "./workspace-overview";
 import { CIGAR_TABS, canStartCigar, cigarRuntimeSummary, cigarSetupSteps, cigarTabFromSearch } from "./workspace-model";
 import type { ContextInstallation } from "./types";
 
-const receipt = JSON.parse(readFileSync(new URL("../../../docs/guard/cigar-integration/evidence/intent-state-verification.json", import.meta.url), "utf8"));
+const receipt = JSON.parse(readFileSync(new URL("./fixtures/intent-state.json", import.meta.url), "utf8"));
 const ready = parseContextAssistanceStatus(receipt.native_test.ready_observation);
 const registered: ContextInstallation[] = [{
   runtime_id: ready.preferences.runtime_id,

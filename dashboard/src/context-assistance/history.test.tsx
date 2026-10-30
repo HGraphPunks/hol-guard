@@ -8,7 +8,7 @@ import { ContextHistoryPanel } from "./history-panel";
 import { ContextDataRepairPanel, contextDiagnostics } from "./data-repair-panel";
 import { parseSavedEvidence, savedEvidenceCopy } from "./saved-evidence";
 
-const observed = JSON.parse(readFileSync(new URL("../../../docs/guard/cigar-integration/evidence/history-development-verification.json", import.meta.url), "utf8")).native_test.observation;
+const observed = JSON.parse(readFileSync(new URL("./fixtures/history-development.json", import.meta.url), "utf8")).native_test.observation;
 const history = observed.history_observation;
 const nativeDetail = observed.detail_observation;
 const scope = parseContextScope(history.scope);
@@ -55,7 +55,7 @@ for (const malformed of [
 ]) assert.throws(() => parseSavedEvidence(malformed), /incompatible saved-data status/);
 assert.throws(() => parseContextDataSummary({ ...durable, saved_evidence: undefined }), /incompatible saved-data status/);
 assert.throws(() => parseContextDataSummary({ ...durable, cleared_saved: undefined }), /incompatible context history/);
-const ready = parseContextAssistanceStatus(JSON.parse(readFileSync(new URL("../../../docs/guard/cigar-integration/evidence/intent-state-verification.json", import.meta.url), "utf8")).native_test.ready_observation);
+const ready = parseContextAssistanceStatus(JSON.parse(readFileSync(new URL("./fixtures/intent-state.json", import.meta.url), "utf8")).native_test.ready_observation);
 const privateStatus = { ...ready, diagnostic: "/private/diagnostic-must-not-export", restriction: "private organization",
   preferences: { ...ready.preferences, runtime_id: "private-runtime-reference" },
   runtime: { ...ready.runtime!, private_token: "private-token-must-not-export", interpreter: { ...ready.runtime!.interpreter, executable: "/private/python-must-not-export" } } };

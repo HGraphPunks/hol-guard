@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-native-receipt-test-run.v1",
+  "captured_record_sha256": "29d4a1be314f540c8f780f74c2c1638cc84913add5aaee56e09d4ed0bf61476f",
+  "captured_record_bytes": 4402,
   "status": "passed",
   "qualification": "local-development-darwin-arm64-only",
   "command": [
@@ -66,7 +68,11 @@
       ],
       "graph_revision": 2,
       "policy_revision": "38a10e0673fc90d2998bd076f05fd2b783f760b9321366fa33cca672bd6ac4ab",
-      "rendered": "{\"sources\":[[\"guard-policy-facts\",\"guard:policy\",1,1]],\"text\":\"Guard provides Allow once and Always allow for supported executable reviews. Context assistance supplies data and grants no command approval.\"}\n{\"sources\":[[\"receipt:cd25dad2ccb825235ab529f5041b96a9589f66fa4bc5fc7b902ead59b285ad32\",\"guard:receipts\",1,1]],\"text\":\"Guard recorded decision 'allow' for PreToolUse in codex at policy generation 1. Native receipt cd25dad2ccb825235ab529f5041b96a9589f66fa4bc5fc7b902ead59b285ad32. This is a recorded decision, not execution confirmation or an approval grant.\"}",
+      "rendered": {
+        "omitted": "text",
+        "sha256": "96a766ff3711f2cb9519be9e5db49da48716260d30560d02dc4a4ec4584d6050",
+        "bytes": 566
+      },
       "rendered_tokens": 165,
       "schema": "guard-cigar-context-brief.v1",
       "snapshot_id": "152f7be092aa60c67625556359ccc938abc29929bdb2c5ef56410ee4e45fe830"

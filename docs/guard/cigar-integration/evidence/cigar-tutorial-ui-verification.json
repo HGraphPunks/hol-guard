@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-tutorial-ui-verification.v1",
+  "captured_record_sha256": "c260149182e91d2660e5059872f652de8ab24bc9ca01e0ca327565bb4ad2924b",
+  "captured_record_bytes": 4155,
   "recorded_at": "2026-10-26T00:00:31.087729+00:00",
   "product_name": "Context Intelligence Graph Agentic Runtime",
   "learning": {
@@ -76,7 +78,10 @@
     }
   },
   "preview": {
-    "root": "/private/tmp/hol-guard-cigar-tutorial-ui-25jv63oz",
+    "root": {
+      "redacted": "local-path",
+      "sha256": "e190bc5c7196e93bd3cfa1614d78b60726f8693adcb86eec4bce54d3982e19db"
+    },
     "url": "http://127.0.0.1:5041/cigar?section=tutorials",
     "native_source_commit": "ed5011acbba43cb19c093064b34ffe47bf3f2616",
     "native_sha256": "57305baefafd1869ffc6e210ac8db1f36205a86ea97a5071f9ea5088c7a9cf2a",

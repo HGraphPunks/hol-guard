@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ContextHomeStatusView } from "./home-status";
 import { parseContextAssistanceStatus } from "./status";
 
-const native = JSON.parse(readFileSync(new URL("../../../docs/guard/cigar-integration/evidence/intent-state-verification.json", import.meta.url), "utf8")).native_test;
+const native = JSON.parse(readFileSync(new URL("./fixtures/intent-state.json", import.meta.url), "utf8")).native_test;
 const ready = parseContextAssistanceStatus(native.ready_observation);
 const off = parseContextAssistanceStatus({ ...ready, availability: "off", requested_enabled: false, effective_enabled: false,
   preferences: { ...ready.preferences, enabled: false }, effective_preferences: { ...ready.effective_preferences, enabled: false },

@@ -5,7 +5,7 @@ import { withContextProfile, settingsWithContextOff } from "./settings-model";
 import type { GuardSettings } from "../guard-types";
 
 // An actual native candidate observation, rather than a second handwritten DTO.
-const receipt = JSON.parse(readFileSync(new URL("../../../docs/guard/cigar-integration/evidence/intent-state-verification.json", import.meta.url), "utf8"));
+const receipt = JSON.parse(readFileSync(new URL("./fixtures/intent-state.json", import.meta.url), "utf8"));
 const ready = parseContextAssistanceStatus(receipt.native_test.ready_observation);
 assert.equal(ready.effective_enabled, true);
 assert.equal(contextStatusCopy(ready).label, "Ready");

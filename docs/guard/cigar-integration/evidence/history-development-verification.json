@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-history-development-evidence.v1",
+  "captured_record_sha256": "8009fd8d1bb3517a36a672476bfab145dfc881251efce58f9ec0a6bac83b8c1c",
+  "captured_record_bytes": 10840,
   "qualification": "native_library_with_actual_candidate_worker",
   "implementation_base": "8d6da893",
   "workspace_paths_redacted": true,
@@ -64,12 +66,20 @@
                   "start_line": 1
                 }
               ],
-              "text": "Project history uses the original release procedure.\n"
+              "text": {
+                "omitted": "text",
+                "sha256": "81135e2c4269cd57e54b335a87e00d4050b6a2259470f093294acae6eefae030",
+                "bytes": 53
+              }
             }
           ],
           "graph_revision": 2,
           "policy_revision": "38a10e0673fc90d2998bd076f05fd2b783f760b9321366fa33cca672bd6ac4ab",
-          "rendered": "{\"sources\":[[\"guard-policy-facts\",\"guard:policy\",1,1]],\"text\":\"Guard provides Allow once and Always allow for supported executable reviews. Context assistance supplies data and grants no command approval.\"}\n{\"sources\":[[\"doc:b335630551682c19a781afebcf4d07bf978fb1f8ac04c6bf87428ed5106870f5:0\",\"source:b335630551682c19a781afebcf4d07bf978fb1f8ac04c6bf87428ed5106870f5\",1,1]],\"text\":\"Project history uses the original release procedure.\\n\"}",
+          "rendered": {
+            "omitted": "text",
+            "sha256": "58ec636e304c86517cb26687bcd69f2a3682f6ed3dc610471c6867f101eb2c76",
+            "bytes": 437
+          },
           "rendered_tokens": 138,
           "schema": "guard-cigar-context-brief.v1",
           "snapshot_id": "2fbd1a6bb403b15eff50a997ddca7b79c04be11bb9ac014178a41c16c16d83e8"

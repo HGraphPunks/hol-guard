@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-paired-mcp-verification.v1",
+  "captured_record_sha256": "f0b3e620503bf73c601fca823dc2ef2329e6c18a09163f0fde5244bc4ed3f776",
+  "captured_record_bytes": 5126,
   "status": "passed",
   "qualification": "darwin-arm64-source-development-native-resident-and-installed-cigar-only",
   "native": {
@@ -27,7 +29,10 @@
     "native_log_sha256": "c1371614d79ade54f2386e9182a8d410e5cad819d3be59554fe31c6fb82dc7c9",
     "python_reports": [
       {
-        "path": "/private/tmp/hol-guard-cigar-agent-process-results.xml",
+        "path": {
+          "redacted": "local-path",
+          "sha256": "83736d1fd2ad1fc4d415b705a260dde13326d845eef4df1c1e9792ff6f70a1ba"
+        },
         "suites": [
           {
             "name": "pytest",
@@ -43,7 +48,10 @@
         "sha256": "c9e8179c171ba3605ca39b99fab8665c758646965e6ff7e82f6275524d962d3d"
       },
       {
-        "path": "/private/tmp/hol-guard-cigar-agent-process-v2-results.xml",
+        "path": {
+          "redacted": "local-path",
+          "sha256": "944702678ec1254c6d2d07d82e2bdf989df9733f5fee111668545e63ee901d7a"
+        },
         "suites": [
           {
             "name": "pytest",
@@ -67,7 +75,10 @@
     "version": "3.55.1",
     "rule_digest": "623ead303f4fc53ed83b38d5104366d1c786728fdec50c8693beae6c6367fac9"
   },
-  "artifact_path": "/private/tmp/hol-guard-cigar-agent-native-validation/hol-guard-runtime",
+  "artifact_path": {
+    "redacted": "local-path",
+    "sha256": "4a05ad32b06eaaefaed523845cd2b796de924c21c2eb629265f2681ec8d0bc01"
+  },
   "signature": "codesign --verify --strict passed",
   "native_size_cap_unchanged": true,
   "guard_host_python": "3.12.13",

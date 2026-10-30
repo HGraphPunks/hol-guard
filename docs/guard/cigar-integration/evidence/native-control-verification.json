@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-native-control-evidence.v1",
+  "captured_record_sha256": "0a4cf8255e1dd174deadbdd2ad54152afc7feeef396a4304c4b9328799c53982",
+  "captured_record_bytes": 6301,
   "observed_date": "2026-10-23",
   "scope": "local-development-darwin-arm64",
   "source_revision": "b47380e5a5cbeaaad5a61cab3372e9e67368732f",

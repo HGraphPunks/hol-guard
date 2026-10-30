@@ -1,5 +1,7 @@
 {
   "schema": "hol-guard.cigar-worker-development-build.v1",
+  "captured_record_sha256": "66c83e5fec5dd014ba41716cb58d47e4c14814dcdd19ceedd39106e5176c1b2d",
+  "captured_record_bytes": 1084,
   "created_at_utc": "2026-10-23T14:44:43+00:00",
   "source_revision": "b47380e5a5cbeaaad5a61cab3372e9e67368732f",
   "source_worktree_clean_after_build": true,

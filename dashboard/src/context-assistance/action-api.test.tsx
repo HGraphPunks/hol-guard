@@ -8,7 +8,7 @@ import { ContextBriefView } from "./brief-view";
 import { ContextReviewPanel } from "./review-panel";
 import type { ContextWorkspaceScope } from "./workspaces-api";
 
-const native = JSON.parse(readFileSync(new URL("../../../docs/guard/cigar-integration/evidence/native-decision-verification.json", import.meta.url), "utf8")).native_test.observation;
+const native = JSON.parse(readFileSync(new URL("./fixtures/native-decision.json", import.meta.url), "utf8")).native_test.observation;
 const scope: ContextWorkspaceScope = { scope_id: "scope:fixture", workspace: "/workspace", app: "dashboard",
   policy_revision: native.brief.policy_revision, retained_contexts: 1, revoked: false, native_policy_facts: true,
   sources: native.brief.citations.filter((citation: { source: string }) => citation.source.startsWith("source:"))

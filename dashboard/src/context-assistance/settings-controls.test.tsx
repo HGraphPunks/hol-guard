@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ContextSettingsControls, type ContextSettingsControlsProps } from "./settings-controls";
 import { parseContextAssistanceStatus } from "./status";
 
-const receipt = JSON.parse(readFileSync(new URL("../../../docs/guard/cigar-integration/evidence/intent-state-verification.json", import.meta.url), "utf8"));
+const receipt = JSON.parse(readFileSync(new URL("./fixtures/intent-state.json", import.meta.url), "utf8"));
 const ready = parseContextAssistanceStatus(receipt.native_test.ready_observation);
 const base: ContextSettingsControlsProps = {
   value: ready.preferences, status: ready, installations: null,

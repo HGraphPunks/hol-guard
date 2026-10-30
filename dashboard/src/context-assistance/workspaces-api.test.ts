@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { parseContextBrief, parseContextScope } from "./workspaces-api";
 
-const observed = JSON.parse(readFileSync(new URL("../../../docs/guard/cigar-integration/evidence/source-actor-verification.json", import.meta.url), "utf8")).source_test.brief_observation;
+const observed = JSON.parse(readFileSync(new URL("./fixtures/source-actor.json", import.meta.url), "utf8")).source_test.brief_observation;
 const brief = parseContextBrief(observed);
 assert.equal(brief.data_role, true);
 assert.equal(brief.excerpts.length, 2);

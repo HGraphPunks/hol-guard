@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-isolated-installed-browser-verification.v1",
+  "captured_record_sha256": "572bded3a7068bb6c220a6bb1b1fd9a46bfc82ee313a5c0d446fb468ecaa15cd",
+  "captured_record_bytes": 7496,
   "status": "passed",
   "qualification": "private-development-package-darwin-arm64-with-locked-runtime-dependencies",
   "source_commit": "bcbc5a32328217ccd083d6467acd697c9b4b0cad",
@@ -21,7 +23,10 @@
     "bytes": 40301773,
     "sha256": "ca6d0bb59037b1c3f9979ba7462005ae25168a01b62124f52f40578c04eb048f",
     "build": "maintained Hatchling projections and native wheel assembler",
-    "installed_root": "/private/tmp/hol-guard-cigar-package-build/bounded-isolation-checkpoint/installed",
+    "installed_root": {
+      "redacted": "local-path",
+      "sha256": "9195d118d8753e5bc3ce3bda0b1d399dd7ef18edea9f47ac830191e1f65e5112"
+    },
     "publicly_published": false
   },
   "binary_size_comparison": {
@@ -39,7 +44,10 @@
     "manager": "uv 0.12.3",
     "flow": "uv sync --frozen --no-dev --no-install-project",
     "lock_sha256": "1eaa8ab681a9e52dd16aa4573ca7d1d0eb8a35a2e352553863eeff261ca7c1ef",
-    "private_environment": "/private/tmp/hol-guard-cigar-locked-runtime",
+    "private_environment": {
+      "redacted": "local-path",
+      "sha256": "4d203ff4d32cb30a70432b3f090c65ffccac7d58283bc4a5950683f389b240c3"
+    },
     "python": "3.12.13",
     "runtime_packages_installed": 60,
     "applicable_guard_base_requirements_checked": 13,
@@ -72,7 +80,10 @@
     "skipped": 0,
     "test_duration_ms": 31539,
     "total_duration_ms": 54948.488,
-    "private_report": "/private/tmp/hol-guard-cigar-isolation-browser-locked-proof-v1/results.json",
+    "private_report": {
+      "redacted": "local-path",
+      "sha256": "2190828350d643a41504116f7fd733928b3f3410d484141edd12c9280f339bf6"
+    },
     "report_sha256": "3b75524eafa03656448af4b3e11df97de75eae4488c34d8bff7d77e53644cb3b",
     "checks": [
       "keyboard_opt_in_and_proof_backed_save",

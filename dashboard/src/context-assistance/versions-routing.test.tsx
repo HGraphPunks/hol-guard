@@ -8,7 +8,7 @@ import { cigarTutorial } from "./tutorial-content";
 import { parseTutorialProgress } from "./tutorial-progress";
 import { CigarTutorials, CigarWalkthrough } from "./tutorials";
 import { CigarGuide } from "./workspace-guide";
-const fixture = JSON.parse(readFileSync(new URL("../../../docs/guard/cigar-integration/evidence/intent-state-verification.json", import.meta.url), "utf8"));
+const fixture = JSON.parse(readFileSync(new URL("./fixtures/intent-state.json", import.meta.url), "utf8"));
 const state = parseContextAssistanceStatus(fixture.native_test.ready_observation);
 const target = { runtime_id: "cigar:other", qualification: "local_candidate" as const, python_version: [3, 14, 7] as [number, number, number],
   platform: "darwin-arm64", worker_fingerprint: "a".repeat(64) };

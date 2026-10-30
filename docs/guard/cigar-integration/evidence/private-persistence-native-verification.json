@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-private-persistence-native-evidence.v1",
+  "captured_record_sha256": "f12b514bef49b289737767e7813f1b23c6572e5eaaf3a7e2915f564fa1d8ade8",
+  "captured_record_bytes": 5455,
   "status": "passed",
   "source_sha": "501f08f114e677612393802aa1c2594d99c33796",
   "qualification": "native_library_actual_sdk_sqlite_only",

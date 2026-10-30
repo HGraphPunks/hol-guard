@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-pi-sdk-execution-context-verification.v1",
+  "captured_record_sha256": "49e239ca8633bdad5fe99c51c06c1a2020829f47c8d9757825d37f60eeca63a5",
+  "captured_record_bytes": 8997,
   "test_source_sha": "b5b9f0e2d94c06dbcb39fd5790560c8aceaa32ec",
   "product_build_sha": "75c78563ed4e3c949c01285133fff9e15aa24193",
   "product_native_sha256": "0348ad3a05c61c365ea14a84190b2e958966e4e40cf57489e28b10b090b6087f",
@@ -10,12 +12,18 @@
   "qualified_selected_CIGAR_python": "final CPython 3.14.7",
   "native_qualification_and_product_bytes": {
     "runtime_manifest": {
-      "path": "/private/tmp/hol-guard-cigar-package-build/native-execution-context-final/installed/codex_plugin_scanner/_native/runtime-manifest.json",
+      "path": {
+        "redacted": "local-path",
+        "sha256": "e3c63643fc6d228bc240f60973a4a4b1132ddf5516c96c9673d1d49df2fbbc84"
+      },
       "bytes": 798,
       "sha256": "c6fe867f64453f8696203c4edb288bc65ecea83ff994ab166920a7530c62cc53"
     },
     "CIGAR_worker": {
-      "path": "/private/tmp/hol-guard-cigar-sdk-target/debug/cigar-context-worker",
+      "path": {
+        "redacted": "local-path",
+        "sha256": "096fe094ae30fa63bb4a1e7804d9953b788c2c9c21b5340f8f9c86ffee829734"
+      },
       "bytes": 22708072,
       "sha256": "7aa51c67e42829b64b6c2dd9e98695e05ebbcc09c9bea155f163347a08e1d112"
     }
@@ -25,7 +33,10 @@
       "version": "0.87.1",
       "integrity": "sha512-m8ArJUtVcQMSe1lLE/Ei7vX/JV7O39sWmWBsXV2NOU70F0qCp8GubA24pT3LnwTmM6LL2xV80/h6sQg85n69ew==",
       "metadata": {
-        "path": "/private/tmp/hol-guard-cigar-pi-sdk/node_modules/@earendil-works/pi-coding-agent/package.json",
+        "path": {
+          "redacted": "local-path",
+          "sha256": "5a70bb2d48d4d2d9d228e20b5eb8c6e3d2555d4b42418eb020e88c42bd8df086"
+        },
         "bytes": 4041,
         "sha256": "627631b613ba4ca29eba8df793f5280fd20b19f01d73826e9ffda14c15def5dc"
       }
@@ -34,19 +45,28 @@
       "version": "18.11.3",
       "integrity": "sha512-7MdQBaj/zGHG7uV0mJSrYGHsjX3xthYgXUxTxLeJeFFL15UAnyE99kAfDE66c8LdXU0dN34eTyw6lfM7K5ouCg==",
       "metadata": {
-        "path": "/private/tmp/hol-guard-cigar-pi-sdk/node_modules/@oh-my-pi/pi-coding-agent/package.json",
+        "path": {
+          "redacted": "local-path",
+          "sha256": "7f7a4faac0eb717ea7ada305dcdd8f18689e5965cfd87628e812558b6ab3b3d6"
+        },
         "bytes": 17127,
         "sha256": "bafe2fbdf1990390a693172d4b5c0b87c2c095d893971712ef09b807db7b28a0"
       }
     }
   },
   "SDK_manifest": {
-    "path": "/private/tmp/hol-guard-cigar-pi-sdk/package.json",
+    "path": {
+      "redacted": "local-path",
+      "sha256": "291f1750e41e5fc0908515dbec7ce26c9d7a15ab1771407ba768780b32cfbc1e"
+    },
     "bytes": 421,
     "sha256": "5636c7a2493dce67637755889354bf27719b870ceee4bb1bfb55a1b3ab0284fb"
   },
   "SDK_lock": {
-    "path": "/private/tmp/hol-guard-cigar-pi-sdk/package-lock.json",
+    "path": {
+      "redacted": "local-path",
+      "sha256": "7fa00e83ac0754a2ed6e361169b06d0cd47cd998368489943963a8293df9fd68"
+    },
     "bytes": 160007,
     "sha256": "59b789ccc715926de701889186e382506d37ecd1b50722d2052129c522698d9c"
   },
@@ -61,18 +81,27 @@
     "CI_expected_npm": "12.0.0",
     "Bun_registry_package": "@oven/bun-darwin-aarch64@1.3.14",
     "Bun_lock": {
-      "path": "/private/tmp/hol-guard-cigar-pi-sdk/bun-runtime/package-lock.json",
+      "path": {
+        "redacted": "local-path",
+        "sha256": "54898e66cad57085967e3605e85d0986dba22c0f160e79c8c708e479a444277a"
+      },
       "bytes": 662,
       "sha256": "bb14e2d070ea7b16ec2e09bc193813421e9891c58438ba01c3b819d3364b1097"
     },
     "Bun_binary": {
-      "path": "/private/tmp/hol-guard-cigar-pi-sdk/bun-runtime/node_modules/@oven/bun-darwin-aarch64/bin/bun",
+      "path": {
+        "redacted": "local-path",
+        "sha256": "dd7391a5aeea841a501a08ab0c8ebbc0add1155b7ef84e7850596d0abbc7cade"
+      },
       "bytes": 63096576,
       "sha256": "e0c90ec15d33363e6b70713d56bc3b2c7585c17f40a0fe0f8fd9305901d4e233"
     }
   },
   "CIGAR_on_SDK_tests": {
-    "path": "/private/tmp/hol-guard-cigar-pi-sdk-results/first-results.xml",
+    "path": {
+      "redacted": "local-path",
+      "sha256": "ab6010f6ddf4e9abc716927eb52334a5b710707568dbe04cda8e6c071d4f102e"
+    },
     "bytes": 955,
     "sha256": "e7887acefb4ece2ab95ec11e969480444ed24764fbf7cf629b3698cefeb1f265",
     "tests": "4",
@@ -88,7 +117,10 @@
     ]
   },
   "CIGAR_off_SDK_regressions": {
-    "path": "/private/tmp/hol-guard-cigar-pi-sdk-results/off-results.xml",
+    "path": {
+      "redacted": "local-path",
+      "sha256": "cb4791a1ec4a1ad5b6cd34816499bbb24fb9ddb71e605b60c372318d2dea2d10"
+    },
     "bytes": 574,
     "sha256": "6540bd144ab909e97f5ad5f82d127baab999ec846bb343784b74217b64f43286",
     "tests": "2",
@@ -107,27 +139,42 @@
   },
   "sources": [
     {
-      "path": "/Users/construct/Documents/projects/cigar-project/CIGAR/hol-guard-cigar-integration/tests/context_pi_sdk_support.py",
+      "path": {
+        "redacted": "local-path",
+        "sha256": "9a198c26bce967bda9230df86849b8fe1d1db9b08f246d87d2b887b137864caa"
+      },
       "bytes": 4509,
       "sha256": "c20df0bb90652cbfddde7880b8a79bb6b3379d60140a5e0dd1d51730c71d7979"
     },
     {
-      "path": "/Users/construct/Documents/projects/cigar-project/CIGAR/hol-guard-cigar-integration/tests/test_context_pi_sdk_installed.py",
+      "path": {
+        "redacted": "local-path",
+        "sha256": "4c62a00fed2a82b1babe564488a19c48700b03281c1bed5ef258e15e855ad6b8"
+      },
       "bytes": 1276,
       "sha256": "a58b9cd7463eb41efb87958bf7f71e1b031a903b935551510be33f1bdb030170"
     },
     {
-      "path": "/Users/construct/Documents/projects/cigar-project/CIGAR/hol-guard-cigar-integration/tests/test_omp_bound_bash_sdk.py",
+      "path": {
+        "redacted": "local-path",
+        "sha256": "9a797b29783ee56399f01320887ac72398943bffc0511c78d0274ee743cbdad1"
+      },
       "bytes": 23292,
       "sha256": "019e26ce728666e76c679307ebaae0d0016a4d2a4e77ffcb64538a7683d56e6a"
     },
     {
-      "path": "/Users/construct/Documents/projects/cigar-project/CIGAR/hol-guard-cigar-integration/tests/fixtures/script_approvals/pi_family_bound_bash_sdk.ts",
+      "path": {
+        "redacted": "local-path",
+        "sha256": "295e3773857ad401ab30f617a8c84504ba3953d9676e0aafee73689976d94e84"
+      },
       "bytes": 5950,
       "sha256": "6f44be68a6ec672c9b75e7c4adbae92835707e1d573fbb978c8878850662fea9"
     },
     {
-      "path": "/Users/construct/Documents/projects/cigar-project/CIGAR/hol-guard-cigar-integration/tests/omp_bound_bash_sdk_source.py",
+      "path": {
+        "redacted": "local-path",
+        "sha256": "840da565d6c518e0c0eed0f6a31720deeb70d4d603874aaff07714d4bc44c15f"
+      },
       "bytes": 7028,
       "sha256": "dc0ca36b0e291e0909ebf82c0f5eeb01483c62c58ed50e49f50c6e9a97bec9ab"
     }
@@ -158,32 +205,47 @@
   ],
   "ownership_gates": {
     "semantic": {
-      "path": "/private/tmp/hol-guard-cigar-pi-sdk-results/semantic.json",
+      "path": {
+        "redacted": "local-path",
+        "sha256": "b8e86a8ae83be1380364c0bf3d15995740ccbafcc13b8b2cb490be6a3cce2b02"
+      },
       "bytes": 99,
       "sha256": "8e3101056186cd4d641add66f9eed89b0289db4e105bdb5885821ae3f0484e46",
       "status": "passed"
     },
     "capability": {
-      "path": "/private/tmp/hol-guard-cigar-pi-sdk-results/capability.json",
+      "path": {
+        "redacted": "local-path",
+        "sha256": "a4f18f9752c5a274344dda1ba5711558106226081a08bb3cf6899f354b1be950"
+      },
       "bytes": 38592,
       "sha256": "d975dee5fe67bdb3f901777eaa0e7a95a5e8ce9e5f310467754474d61c80dc74",
       "status": "passed"
     },
     "authority": {
-      "path": "/private/tmp/hol-guard-cigar-pi-sdk-results/authority.json",
+      "path": {
+        "redacted": "local-path",
+        "sha256": "f83a7bdcb903983b882cbdca47cb0f8ee2ac0cc19a5959dc68c89727d905d2ac"
+      },
       "bytes": 61953,
       "sha256": "5089445073e84fa072f7557398571b79d5fe2e7543721de2974f8a5ba1cb3e1e",
       "status": "passed",
       "changed_files_checked": 317
     },
     "io": {
-      "path": "/private/tmp/hol-guard-cigar-pi-sdk-results/io.json",
+      "path": {
+        "redacted": "local-path",
+        "sha256": "25e2d9aa682019fb9716b3e2d1d57e40888fdfd46af943da800abeac2e55688c"
+      },
       "bytes": 78222,
       "sha256": "bcf901a1c39ebf936483fa5aebdcdb005372d016d67e41b8e46adc6fcbd68472",
       "status": "passed"
     },
     "privacy": {
-      "path": "/private/tmp/hol-guard-cigar-pi-sdk-results/privacy.json",
+      "path": {
+        "redacted": "local-path",
+        "sha256": "2d211a5b9c33345b436faa30e691640afc6296f685344d6a41e9edbb2187c616"
+      },
       "bytes": 620,
       "sha256": "3f99732114cd01afda57fec9bae91e307310125980da63e8859c1941fbb96b14",
       "status": "passed"

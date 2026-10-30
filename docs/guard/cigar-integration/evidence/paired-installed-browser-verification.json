@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-paired-installed-browser-verification.v1",
+  "captured_record_sha256": "b9644d0708df6285bca924631bc587c3d44fbd679ac17238421064116fadb38f",
+  "captured_record_bytes": 4614,
   "status": "passed",
   "observed_at": "2026-10-23T22:01:38Z",
   "qualification": "private-development-package-darwin-arm64-only",
@@ -40,7 +42,10 @@
     "skipped": 0,
     "test_duration_ms": 43151,
     "total_duration_ms": 73888.605,
-    "private_report": "/private/tmp/hol-guard-cigar-agent-browser-proof-v3/results.json",
+    "private_report": {
+      "redacted": "local-path",
+      "sha256": "590ec357cdf2b39754e148760007acb8eea7c0be3633a04f00e46b4cb3a6de64"
+    },
     "private_report_sha256": "126fba0cb894da4ffa07c0da2980dc934a1483f998cadeed06067e4a772f615d",
     "checks": [
       "keyboard_opt_in_with_native_save_proof",

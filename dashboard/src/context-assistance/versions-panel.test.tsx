@@ -12,7 +12,7 @@ import { CigarVersionBuildsPanel } from "./versions-builds-panel";
 import { CigarVersionJobsPanel } from "./versions-jobs-panel";
 import { CigarVersionsPanel } from "./versions-panel";
 import { CigarUpdatePreferencesPanel } from "./versions-preferences-panel";
-const fixture = JSON.parse(readFileSync(new URL("../../../docs/guard/cigar-integration/evidence/intent-state-verification.json", import.meta.url), "utf8"));
+const fixture = JSON.parse(readFileSync(new URL("./fixtures/intent-state.json", import.meta.url), "utf8"));
 const state = { ...parseContextAssistanceStatus(fixture.native_test.ready_observation), generation: "9007199254740993" };
 const document = JSON.parse(readFileSync(new URL("../../../integrations/cigar/release-catalog.v1.json", import.meta.url), "utf8"));
 const catalog = parseCigarCatalog({ schema: "guard-cigar-releases.v1", host_platform: "darwin-arm64", builds: document.builds, interpreter_builds: document.interpreters,

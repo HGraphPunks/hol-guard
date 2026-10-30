@@ -1,11 +1,16 @@
 {
   "schema": "guard-cigar-cli-development-evidence.v1",
+  "captured_record_sha256": "4edbfae6fdf2d9d24d79cf5069bca602ae08043ad60898579862b8956ef36304",
+  "captured_record_bytes": 3751,
   "observed_date": "2026-10-23",
   "status": "partial_with_failed_process_qualification",
   "ui_commit": "81e714ec",
   "native_control_commit": "4a350799",
   "native_artifact": {
-    "path": "/private/tmp/hol-guard-cigar-native-validation/hol-guard-runtime",
+    "path": {
+      "redacted": "local-path",
+      "sha256": "187e40b4be077638cfa487e355db30e702f97c32e6f15e6095622af6a314f10f"
+    },
     "sha256": "fafc1e55499fd1b022731537ae3a60f42163a1404ef62417c9ae10b343f90c65",
     "bytes": 109464032,
     "toolchain": "1.88.0",
@@ -34,7 +39,7 @@
     "final_focused_selection": {
       "passed": 26,
       "failed": 0,
-      "seconds": 1.60
+      "seconds": 1.6
     },
     "focused_cli_parser_and_rendering": {
       "passed": 18,
@@ -52,7 +57,10 @@
       "failed": 12,
       "seconds": 121.913,
       "reason": "native approval authority unavailable",
-      "report": "/private/tmp/hol-guard-cigar-cli-qualified-results.xml"
+      "report": {
+        "redacted": "local-path",
+        "sha256": "debd91bee49762a655d51923c2ffc0ddac5119a31f561190c50892a1ebb52d7c"
+      }
     },
     "public_cli_candidate": {
       "passed": 0,
@@ -63,12 +71,21 @@
       "cli_code": "native_context_assistance_unavailable",
       "resident_code": "native_client_timed_out",
       "phase": "response_wait",
-      "report": "/private/tmp/hol-guard-cigar-cli-qualified-installed-results.xml"
+      "report": {
+        "redacted": "local-path",
+        "sha256": "f3d9e3af036c794b89fe35eb876b56bf133b53219606e217083b317f4e0fed66"
+      }
     },
     "unchanged_native_baseline": {
       "source_commit": "e71cb3e7",
-      "archive": "/private/tmp/hol-guard-cigar-core-baseline.tar",
-      "artifact": "/private/tmp/hol-guard-cigar-core-baseline-validation/hol-guard-runtime",
+      "archive": {
+        "redacted": "local-path",
+        "sha256": "b10cc27ed6071c4fecd208cf5e63f02361b6ab21895c39f6fec95f3806a20bd2"
+      },
+      "artifact": {
+        "redacted": "local-path",
+        "sha256": "1d442800c8930f631af86e50d1ba1d10784f8d77ac9dbb0704a89e178e50edd1"
+      },
       "bytes": 108732112,
       "sha256": "09c6e07ce9bbd1f417e37fb423994e592fe97e0f5e30a3e3e2d50879b0f94241",
       "source_modified": false,
@@ -79,7 +96,10 @@
       "failed": 1,
       "seconds": 20.7,
       "observed_failure": "same native approval unavailability and resident response_wait timeout",
-      "report": "/private/tmp/hol-guard-cigar-cli-baseline-results.xml"
+      "report": {
+        "redacted": "local-path",
+        "sha256": "525392891dd2d32f1234460a470bceef7d9bf3a964c0a0bc39211054be169954"
+      }
     }
   },
   "limits": [

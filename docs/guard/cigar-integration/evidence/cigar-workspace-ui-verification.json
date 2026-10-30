@@ -1,5 +1,7 @@
 {
   "schema": "guard-cigar-workspace-ui-verification.v1",
+  "captured_record_sha256": "bc67ca37520aeb269d63678e14b8b47e7749897b5f2c53d322e59f83dbe93adb",
+  "captured_record_bytes": 3276,
   "recorded_at": "2026-10-25T21:16:33.681702+00:00",
   "source": {
     "branch": "feature/integrate-cigar-0.14.1",
@@ -52,12 +54,18 @@
     "typescript_scope": "existing non-context diagnostics; no CIGAR production diagnostics"
   },
   "preview": {
-    "root": "/private/tmp/hol-guard-cigar-ui-i0e1xy36",
+    "root": {
+      "redacted": "local-path",
+      "sha256": "bd8ad8e4d44e046de4140587026d63a501260bc977c8a867586858100517ec64"
+    },
     "url": "http://127.0.0.1:5041/cigar",
     "native_sha256": "57305baefafd1869ffc6e210ac8db1f36205a86ea97a5071f9ea5088c7a9cf2a",
     "native_source_commit": "ed5011acbba43cb19c093064b34ffe47bf3f2616",
     "native_discovery": "auto; native_ready",
-    "verification": "/private/tmp/hol-guard-cigar-ui-i0e1xy36/running-dashboard-verification.json",
+    "verification": {
+      "redacted": "local-path",
+      "sha256": "0c81a0dd76f12a57feedbc16e1064dd3ea2d154a8a0226e652f3dd9c20ec7dc6"
+    },
     "profile_runtime": {
       "availability": "off",
       "requested_enabled": false,
