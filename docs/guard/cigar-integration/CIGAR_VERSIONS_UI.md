@@ -1,6 +1,6 @@
 # CIGAR Versions & updates UI checkpoint
 
-Status: locally implemented and fixture-browser checked on 2026-10-28. This is partial P8, with no installed HTTP/SDK-process or cross-platform qualification implied. See [the plan](CIGAR_UPGRADE_PLAN.md) and [receipt](evidence/upgrades-versions-ui-20261028.json).
+Status: locally implemented and fixture-browser checked on 2026-10-28. This is partial P8, with no installed HTTP/SDK-process or cross-platform qualification implied. See [the plan](CIGAR_UPGRADE_PLAN.md) and [receipt](evidence/receipts.json).
 
 ## User workflow
 

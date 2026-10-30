@@ -29,7 +29,7 @@ The audit covers Rust crates, Python source/tooling, dashboard source/scripts an
 
 Six real final 0.14.1 SDK workflows pass on native image `b6486445abe6e50955556388accf6c6de51752106cde9b698bbc5563f0f12322`, using task-private profiles and approved CPython 3.14.7/3.14.10 on local macOS ARM64. Two synthetic future-version client modules pass. Native checks pass 148 lifecycle, 22 service, 59 configuration, 3 snapshot-control and 10 off-data tests, with their explicitly gated SDK/helper cases retained. Rust 1.88, formatting and authority/I/O/privacy gates pass. Broad Clippy and wired TypeScript remain at their 36/13 pre-existing errors in unchanged files, with zero new errors; neither broad check is represented as globally green.
 
-[Stop/recovery evidence](evidence/upgrades-stop-recovery-20261028.json) and [the version/scope audit](evidence/upgrades-dynamic-scope-20261028.json) bind exact sources, inputs and results. All seven approved SDK inputs are rehashed. Original dirty workspace/tutorial content and original acceptance are preserved. Changes are local; no live Guard/hooks/preview, system Python, upstream SDK, Git staging/history or publication changed.
+[Stop/recovery evidence](evidence/receipts.json) and [the version/scope audit](evidence/receipts.json) bind exact sources, inputs and results. All seven approved SDK inputs are rehashed. Original dirty workspace/tutorial content and original acceptance are preserved. Changes are local; no live Guard/hooks/preview, system Python, upstream SDK, Git staging/history or publication changed.
 
 ## Remaining release work
 

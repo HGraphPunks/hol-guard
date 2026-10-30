@@ -1,8 +1,0 @@
-{
-  "schema": "guard-cigar-pairing-preparation-installed-verification.v1",
-  "captured_record_sha256": "16b191bf43c3e1daaee08810e036e4739933065eb92ceea3115e81bc54ff4091",
-  "captured_record_bytes": 43885,
-  "status": "checkpoint_passed_full_goal_incomplete",
-  "omitted_fields_sha256": "70b47c24cc03472c1d957b83b2c761fafcc6ce2742851097568ca8d0a18917c4",
-  "omitted_bytes": 31020
-}

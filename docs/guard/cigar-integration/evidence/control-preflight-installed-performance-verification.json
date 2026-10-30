@@ -1,8 +1,0 @@
-{
-  "schema": "guard-cigar-control-preflight-installed-performance.v1",
-  "captured_record_sha256": "5b15524e88e5861fa693a0f3f5481a38e766c0c3d9b37f0d2f110ced7cef1ac7",
-  "captured_record_bytes": 199220,
-  "product_source_commit": "1e341429b8006beec74c31cf8c0d230793c0be7f",
-  "omitted_fields_sha256": "f571a3f0f6d3181cfa9e2c66ae9238043468682d645efae9718127d9ae33857f",
-  "omitted_bytes": 111605
-}

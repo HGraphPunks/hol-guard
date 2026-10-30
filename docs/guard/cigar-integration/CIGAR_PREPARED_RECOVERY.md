@@ -22,4 +22,4 @@ The updated memory test preserves the complete reviewed vector/original times wi
 
 Finish every process-loss/unknown-write/Stop/cleanup boundary, durable interrupted erasure and per-scope retained/prepared-copy deletion, inactive data/lineage/capacity, accepted feature/data differences and loaded-workspace timing. Complete P7/P8 native/CLI/HTTP/catalog/policy/UI and P9/P10 final qualification. The full unbudgeted P0–P10 goal remains active and incomplete.
 
-[Evidence](evidence/upgrades-prepared-recovery-20261027.json) binds passing/failing logs, exact images, current source identities and qualification limits. Original acceptance/log, live profile/hooks/preview, upstream SDK source, system Python, Guard approvals and Git staging/history remain unchanged.
+[Evidence](evidence/receipts.json) binds passing/failing logs, exact images, current source identities and qualification limits. Original acceptance/log, live profile/hooks/preview, upstream SDK source, system Python, Guard approvals and Git staging/history remain unchanged.

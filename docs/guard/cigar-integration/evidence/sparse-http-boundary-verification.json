@@ -1,9 +1,0 @@
-{
-  "schema": "guard-cigar-sparse-http-boundary-verification.v1",
-  "captured_record_sha256": "5715228ce79ef5ffb584cfb0fa273a6538689bfd9b1026abe26f7a3d878fadef",
-  "captured_record_bytes": 17469,
-  "diagnostic_only": true,
-  "product_source_commit": "6f821077fad88d83ce4f3c85f3f9c2281142fa4f",
-  "omitted_fields_sha256": "cb12247c4024c5bbb353013136e1899f4287dc4b4d29b446f228e4bc5eb2278d",
-  "omitted_bytes": 13185
-}

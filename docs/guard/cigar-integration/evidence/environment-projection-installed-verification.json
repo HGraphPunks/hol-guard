@@ -1,7 +1,0 @@
-{
-  "schema": "guard-cigar-environment-projection-installed-verification.v1",
-  "captured_record_sha256": "cc6df2ed958864c688638e4ee1df9323d8c9fe30c7820f2c0bb4cb9559d475b1",
-  "captured_record_bytes": 229232,
-  "omitted_fields_sha256": "fed67ee78528a8811926cf6b5fb8f913898ac0f70cb37e41654bbe1c344ac08e",
-  "omitted_bytes": 134691
-}

@@ -1,7 +1,0 @@
-{
-  "schema": "guard-cigar-evidence-batch-installed-verification.v1",
-  "captured_record_sha256": "6c132e4a7ceb9def5ad55d9c2c4a157aab39a90ac0e1189779743ff4d011ac33",
-  "captured_record_bytes": 229442,
-  "omitted_fields_sha256": "1a324cff3ee3ffc95e2a8ad7531bb5ce2dc1a65de627ac1e3222c64a2d2cab18",
-  "omitted_bytes": 134414
-}

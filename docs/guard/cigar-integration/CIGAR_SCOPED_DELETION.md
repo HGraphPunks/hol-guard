@@ -26,4 +26,4 @@ Earlier failures remain in the evidence: an incorrect new test error label, a mi
 
 Complete the remaining P6 process-loss/unknown-write/Stop/cleanup matrix, inactive-data readmission, lineage/capacity and explicit feature/data choices. Finish P7/P8 policy, catalog, CLI/HTTP/Versions UI controls and walkthroughs, then P9/P10 real release, installed/frozen/platform, approval, transport/load and performance qualification. Production trust/hosting and genuine approved newer bytes remain prerequisites. The full P0–P10 goal remains active and incomplete.
 
-[Evidence](evidence/upgrades-scoped-deletion-20261028.json) binds final source/image/log identities and retained failures. Original user work, acceptance/log, live profile/hooks/preview, upstream SDK source, system Python, Guard approvals and Git staging/history are unchanged.
+[Evidence](evidence/receipts.json) binds final source/image/log identities and retained failures. Original user work, acceptance/log, live profile/hooks/preview, upstream SDK source, system Python, Guard approvals and Git staging/history are unchanged.

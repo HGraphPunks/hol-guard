@@ -1,9 +1,0 @@
-{
-  "schema": "guard-cigar-browser-stop-ordering-diagnostics.v1",
-  "captured_record_sha256": "0bce4c7f9ce4312e92c0a02e251098e64002f606e0cf312622840302d5555c07",
-  "captured_record_bytes": 67603,
-  "product_source_commit": "1e341429b8006beec74c31cf8c0d230793c0be7f",
-  "diagnostic_only": true,
-  "omitted_fields_sha256": "ff408587956a5231eaa1ac1df6bb8e425034c391f3fad556a97cccb42f3992b6",
-  "omitted_bytes": 62003
-}

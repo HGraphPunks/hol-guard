@@ -1,8 +1,0 @@
-{
-  "schema": "guard-cigar-stop-generation-installed-verification.v1",
-  "captured_record_sha256": "a1e349926595cface27d5982042203c771a8c4dc1cdf9a3bbdef27e217f3e4ab",
-  "captured_record_bytes": 114233,
-  "status": "Local installed native Stop correction qualified by unchanged complete off/on SLO and approval/execution regression suite. Full integration goal remains active.",
-  "omitted_fields_sha256": "3538f2179655fa482dc060c74e309e32d191ff0f6067f4d9d2e087ab931f89b9",
-  "omitted_bytes": 70397
-}

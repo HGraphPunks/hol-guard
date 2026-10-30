@@ -1,8 +1,0 @@
-{
-  "schema": "guard-cigar-local-integration-acceptance.v1",
-  "captured_record_sha256": "fbcd9444cb9d8e77d9a05bfec9a9244d854acefc2f9a840fed7eff8b8906f5bb",
-  "captured_record_bytes": 13460,
-  "product_source_commit": "ed5011acbba43cb19c093064b34ffe47bf3f2616",
-  "omitted_fields_sha256": "ba30a769c437cb40807c390d5875e04706fb5142f883f0d1f64337f1897145a7",
-  "omitted_bytes": 11124
-}

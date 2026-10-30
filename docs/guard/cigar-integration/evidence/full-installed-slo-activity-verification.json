@@ -1,9 +1,0 @@
-{
-  "schema": "guard-cigar-full-installed-slo-activity-verification.v1",
-  "captured_record_sha256": "e245ab145b2772dbe49dcf74e19c18819db20eb582987c64bd152870888c18f0",
-  "captured_record_bytes": 327391,
-  "status": "qualification_failed_full_goal_active",
-  "product_source_commit": "95657b30f277604bcd12582e9bbf5d6602c4c433",
-  "omitted_fields_sha256": "ffb51a767da6b1e06b75bef9fadb30b333174a118c8e4f8379df6983df4d1c21",
-  "omitted_bytes": 177269
-}

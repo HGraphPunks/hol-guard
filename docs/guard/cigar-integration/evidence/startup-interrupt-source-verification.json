@@ -1,7 +1,0 @@
-{
-  "schema": "guard-cigar-startup-interrupt-source-verification.v1",
-  "captured_record_sha256": "6aaee708947e87ae0e076f16661c40bec1cccd433cd99907ad04bc86fee04207",
-  "captured_record_bytes": 217038,
-  "omitted_fields_sha256": "30ee254d8d6e9a9963bd38ac05dc1a634dc6faec971bbb861c41f8b257bdb773",
-  "omitted_bytes": 157739
-}

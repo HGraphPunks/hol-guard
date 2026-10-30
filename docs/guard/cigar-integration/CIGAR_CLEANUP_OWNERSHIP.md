@@ -30,4 +30,4 @@ The destructor gates, weak candidate inspection and post-construction hook exist
 
 These are local same-SDK ownership/data tests, not b47380/newer-SDK, managed-interpreter end-to-end, installed/frozen, all-platform or complete process-loss acceptance. Finish the remaining crash/unknown-write/Stop matrix, retained-generation source reconstruction, durable interrupted erasure and per-scope retained/prepared-copy deletion, inactive data/lineage/capacity and accepted feature/data transitions. P7/P8 controls/catalog/update-policy/UI and P9/P10 final qualification remain required. The full unbudgeted P0–P10 goal remains active.
 
-[Evidence](evidence/upgrades-cleanup-ownership-20261027.json) binds exact source/image/log state and qualification limits. Original acceptance/log, live profile/hooks/preview, upstream SDK source, system Python, Guard approvals and Git staging/history remain unchanged.
+[Evidence](evidence/receipts.json) binds exact source/image/log state and qualification limits. Original acceptance/log, live profile/hooks/preview, upstream SDK source, system Python, Guard approvals and Git staging/history remain unchanged.

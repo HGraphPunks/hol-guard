@@ -79,7 +79,7 @@ source content and older snapshots, preserves historical producer labels, and
 requires fresh SDK authority. A deterministic queued-request race verifies the
 barrier, safe pre-stop resume and irreversible shutdown. A fixture-only settings
 transition exercises the resulting engine; it does not prove an atomic native
-switch or the original b47380 candidate. [Evidence](evidence/upgrades-engine-preparation-20261027.json)
+switch or the original b47380 candidate. [Evidence](evidence/receipts.json)
 records the exact image and limits.
 
 Still required: central live Service switch jobs, final native epoch/observation

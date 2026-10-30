@@ -1,8 +1,0 @@
-{
-  "schema": "guard-cigar-managed-python-evidence.v1",
-  "captured_record_sha256": "32b681cbd65e58d6b700c45b7a0388601328371934fe70ae5f1a2487f62994ec",
-  "captured_record_bytes": 30799,
-  "recorded_at_utc": "2026-10-27T05:04:36.496856+00:00",
-  "omitted_fields_sha256": "ed2bde71f0ccbf0bdcac229b6569b2e2ae72f4a786a9e7954ace60c169e4e060",
-  "omitted_bytes": 26744
-}

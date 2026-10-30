@@ -1,8 +1,0 @@
-{
-  "schema": "guard-cigar-matched-contention-verification.v1",
-  "captured_record_sha256": "75f63365d56760089410e53e5adb23d6d17f90f2532f66d5118643f59c710157",
-  "captured_record_bytes": 124712,
-  "status": "Complete five-pair cohort; relative HTTP criterion failed. No speedup or full performance qualification.",
-  "omitted_fields_sha256": "91c6e080dfb0ff263cd36f4ca6d9f145e63a222769a68e41e8065311648c47d7",
-  "omitted_bytes": 72358
-}

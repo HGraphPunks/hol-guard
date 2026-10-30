@@ -1,9 +1,0 @@
-{
-  "schema": "guard-cigar-native-selection-evidence.v1",
-  "captured_record_sha256": "1e776372c5378f9fb42b893747fe48c4a37eacd2ab769052208ab9fdda4e624e",
-  "captured_record_bytes": 75235,
-  "recorded_at_utc": "2026-10-27T18:03:14.278889+00:00",
-  "combined_log_sha256": "ba5f2712be85d2dcb78cb065ad047ca92cf0560fda7e667fce88e0d63dc5873b",
-  "omitted_fields_sha256": "0821b215f296d063a20ffe4ff41bd88b10240d288059d41633c0d993b27943da",
-  "omitted_bytes": 64463
-}

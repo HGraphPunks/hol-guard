@@ -1,8 +1,0 @@
-{
-  "schema": "guard-cigar-requalification-evidence.v1",
-  "captured_record_sha256": "b04320900ed5dbcbed966d002ec2e0d81676d62ec7a3cab5d88f43f330d2b2ba",
-  "captured_record_bytes": 35002,
-  "recorded_at_utc": "2026-10-27T06:12:40.558679+00:00",
-  "omitted_fields_sha256": "8df6498a61874d4e677c05d5200785c40d0d07e8b806d055e91c46ad96140c68",
-  "omitted_bytes": 30703
-}

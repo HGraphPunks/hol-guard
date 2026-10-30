@@ -1,9 +1,0 @@
-{
-  "schema": "guard-cigar-header-readiness-verification.v1",
-  "captured_record_sha256": "234a2c7ec6e476c7954c21dbe5f52d4ea65556c6eb509de55bc1ac2998714bb7",
-  "captured_record_bytes": 499030,
-  "source_baseline_commit": "3b3a5fc8",
-  "status": "HTTP polling delay diagnosed; readiness correction verified in source only. New installed artifact qualification remains required. Full integration goal active.",
-  "omitted_fields_sha256": "101178398dc895272dd4548693c83bc9e0811d766de5a12e725ac0dd810512b7",
-  "omitted_bytes": 233960
-}

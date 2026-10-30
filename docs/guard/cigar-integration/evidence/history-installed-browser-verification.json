@@ -1,8 +1,0 @@
-{
-  "schema": "guard-cigar-history-installed-browser-evidence.v1",
-  "captured_record_sha256": "fa304fd50c841a5ba3b7ef1ef0aaebff1545163bc72f0145c502dcc8b3c07239",
-  "captured_record_bytes": 10527,
-  "qualification": "local_candidate_macos_arm64_installed_guard_and_actual_sdk_worker",
-  "omitted_fields_sha256": "1272292ec51f02d16a49dbef7e998185ed22dbd748c4d22af1a0faace38f52e3",
-  "omitted_bytes": 8920
-}

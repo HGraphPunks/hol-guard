@@ -53,7 +53,7 @@ a recovery conflict and is preserved. Recovery does not replay SDK probes.
 
 ## Verification and remaining scope
 
-[Recorded evidence](evidence/upgrades-requalification-20261026.json) covers the
+[Recorded evidence](evidence/receipts.json) covers the
 exact published 0.14.1 SDK and its locked protobuf wheel in disposable native
 macOS arm64 profiles, including historical IDs, cancellation, old-SDK responses,
 unchanged package inode/mode/mtime inventory and lost-reply reconciliation.

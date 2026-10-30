@@ -1,6 +1,6 @@
 # CIGAR recovery preserves a later Stop and current settings
 
-Status: locally implemented and verified 2026-10-28; partial P6/P7/P8/P9. [Evidence](evidence/upgrades-stop-recovery-20261028.json) binds current sources and checks. The full P0–P10 goal remains unfinished.
+Status: locally implemented and verified 2026-10-28; partial P6/P7/P8/P9. [Evidence](evidence/receipts.json) binds current sources and checks. The full P0–P10 goal remains unfinished.
 
 ## Current disabled intent wins
 

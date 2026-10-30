@@ -13,7 +13,7 @@ fn qualified_catalog() -> TrustedCatalog {
         .document()
         .clone();
     let receipt = fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join(
-        "../../../docs/guard/cigar-integration/evidence/upgrades-private-python-20261026.json",
+        "../../../docs/guard/cigar-integration/evidence/receipts.json",
     ))
     .unwrap();
     doc.interpreters[0].qualification = Qualification::GuardQualified;

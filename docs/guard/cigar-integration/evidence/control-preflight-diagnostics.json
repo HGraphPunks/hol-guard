@@ -1,9 +1,0 @@
-{
-  "schema": "guard-cigar-control-preflight-diagnostics.v1",
-  "captured_record_sha256": "806f48ad0941a09092db1442c4df22a2e92f7f5701b34b6639fab32701c920d9",
-  "captured_record_bytes": 69629,
-  "product_source_commit": "d780af20d775564298c72e0e78616f7afd76e69a",
-  "diagnostic_only": true,
-  "omitted_fields_sha256": "8059ba8b59f3d2e42acd3f89b087e604b2476ec6a0b783f3e809368dd5cb6dcb",
-  "omitted_bytes": 57109
-}

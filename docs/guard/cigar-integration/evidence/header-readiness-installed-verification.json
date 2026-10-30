@@ -1,8 +1,0 @@
-{
-  "schema": "guard-cigar-header-readiness-installed-verification.v1",
-  "captured_record_sha256": "e10b4de47fab5ac0966245a69a8bfa118ba6543be7868aa9a080c2166534a771",
-  "captured_record_bytes": 179428,
-  "status": "Fresh readiness correction passes complete installed off/on absolute SLO and installed transport cases. Repeated relative cohort fails observed native cleanup in its third run and is incomplete/unqualified. Full goal remains active.",
-  "omitted_fields_sha256": "cac27fe2fc4a9de0ac6ff96d03e9be49c305903a86ea495674fdab2504b5158d",
-  "omitted_bytes": 108875
-}

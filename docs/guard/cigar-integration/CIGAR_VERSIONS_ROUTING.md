@@ -1,6 +1,6 @@
 # CIGAR runtime selection routing and update walkthrough
 
-Status: locally implemented and fixture-browser checked 2026-10-28; partial P8. See [the Versions UI checkpoint](CIGAR_VERSIONS_UI.md) and [receipt](evidence/upgrades-versions-routing-20261028.json). Native initial/reset/clearing APIs and the full P6/P7/P9/P10 matrix remain unfinished.
+Status: locally implemented and fixture-browser checked 2026-10-28; partial P8. See [the Versions UI checkpoint](CIGAR_VERSIONS_UI.md) and [receipt](evidence/receipts.json). Native initial/reset/clearing APIs and the full P6/P7/P9/P10 matrix remain unfinished.
 
 ## Selection stays with its owner
 

@@ -1,9 +1,0 @@
-{
-  "schema": "guard-cigar-legacy-producer-config-evidence.v1",
-  "captured_record_sha256": "df18a2e6a23daad434c9a21ce3c90c8210520fcd2561cd8d2d992c37a10a438b",
-  "captured_record_bytes": 60329,
-  "recorded_at_utc": "2026-10-27T15:23:59.402974+00:00",
-  "combined_log_sha256": "f815429278bcc7ab75b2be69dbc09cc66099ce9a246f66516fbfbb37696e30c8",
-  "omitted_fields_sha256": "05abf95aa53dd7307cd21c1cfb1efabc117d6e97f50dc98cea9d8f15174081ab",
-  "omitted_bytes": 51215
-}

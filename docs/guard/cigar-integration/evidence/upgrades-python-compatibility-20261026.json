@@ -1,9 +1,0 @@
-{
-  "schema": "guard-cigar-native-python-compatibility-evidence.v1",
-  "captured_record_sha256": "30c8f0af93ff6c3a8ad40081a67604b9025fdf700d453a4a9ba4a4184014f1fd",
-  "captured_record_bytes": 18100,
-  "recorded_at_utc": "2026-10-27T02:29:37.372612+00:00",
-  "previous_acquisition_evidence_sha256": "cc72001fe1917c63c49ad535babf8d88c1b5aab5f4775b6e09d5f2777c91dca8",
-  "omitted_fields_sha256": "696d7897d4c204804050c276471c7da28d7755f58b06e0088faab4d0eb0c0299",
-  "omitted_bytes": 16100
-}

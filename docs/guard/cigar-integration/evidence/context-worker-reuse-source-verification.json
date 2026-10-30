@@ -1,7 +1,0 @@
-{
-  "schema": "guard-cigar-context-worker-reuse-source-verification.v1",
-  "captured_record_sha256": "b8f68231fe90007daba426b5d9601ad105ffeb5264b3d8fa56cb996e7afd22f9",
-  "captured_record_bytes": 313456,
-  "omitted_fields_sha256": "462a3fcb004ac31590440c684da794dc08e3469d3b87697b6d8c79bbdbf6ef7b",
-  "omitted_bytes": 239763
-}

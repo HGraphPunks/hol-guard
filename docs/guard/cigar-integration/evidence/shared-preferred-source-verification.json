@@ -1,9 +1,0 @@
-{
-  "schema": "guard-cigar-shared-preferred-source-verification.v1",
-  "captured_record_sha256": "c878b5eeb15e733f9d1812f4e2a2a0a30edb2ef38ec1882f868551d2b709cc45",
-  "captured_record_bytes": 430337,
-  "relative_HTTP_qualified": false,
-  "frozen_targeted_test_sha256": "1f9d891fee1284a3ae7285a1456f252c07a5e5db6be26738b586704f0886f178",
-  "omitted_fields_sha256": "bdc4bd88efc9426b6ea08a418f3d3f6346d24a4c98cf0f90ee96cc6e12bbd040",
-  "omitted_bytes": 356762
-}

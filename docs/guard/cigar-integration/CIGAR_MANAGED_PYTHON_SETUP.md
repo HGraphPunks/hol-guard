@@ -38,7 +38,7 @@ The maintainer `check_python` example measures these checks without launching Py
 
 ## Evidence and limits
 
-[Managed interpreter evidence](evidence/upgrades-managed-python-20261026.json) records exact executable/source identities and tests. The real macOS arm64 workflow prepares CPython 3.14.10, installs the exact published CIGAR 0.14.1/protobuf wheels, checks graph/sharing/persistence/execution support, starts and stops the verified runtime, reuses the installation, and recovers a lost publication reply without a probe. It refuses a modified standard library while preserving its unchanged executable and user preferences.
+[Managed interpreter evidence](evidence/receipts.json) records exact executable/source identities and tests. The real macOS arm64 workflow prepares CPython 3.14.10, installs the exact published CIGAR 0.14.1/protobuf wheels, checks graph/sharing/persistence/execution support, starts and stops the verified runtime, reuses the installation, and recovers a lost publication reply without a probe. It refuses a modified standard library while preserving its unchanged executable and user preferences.
 
 The earlier CPython 3.14.7 installation and current-runtime cancellation tests remain covered. The current-runtime fixture uses explicitly enrolled final 0.14.1 bytes; it does not substitute for the missing original b47380 candidate or prove a newer CIGAR release upgrade.
 

@@ -1,9 +1,0 @@
-{
-  "schema": "guard-cigar-sharing-installed-browser-evidence.v1",
-  "captured_record_sha256": "2fb0b7048420d4d8c543cff67abf465ce1285b5962e4f3624633732fd9323526",
-  "captured_record_bytes": 18965,
-  "status": "passed",
-  "qualification": "local_candidate_macos_arm64_installed_guard_actual_sdk_worker_and_two_mcp_clients",
-  "omitted_fields_sha256": "65142e8720683956061a21673b8a55acd94c42b5e435ebf0970ce59efe3395a3",
-  "omitted_bytes": 16902
-}

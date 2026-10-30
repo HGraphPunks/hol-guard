@@ -1,9 +1,0 @@
-{
-  "schema": "guard-cigar-native-executor-installed-verification.v1",
-  "captured_record_sha256": "66821e0e4bf0e962a8e2317e89b7321019945a83ba5875e7c68edeb9d46dcedc",
-  "captured_record_bytes": 15632,
-  "status": "passed",
-  "qualification": "local_darwin_arm64_installed_owning_executor_and_real_browser_consent_with_actual_SDK",
-  "omitted_fields_sha256": "77c42f86fa1d9c27aa78144579c877ebc49cd3551db35cd1999afa597b86b899",
-  "omitted_bytes": 13266
-}

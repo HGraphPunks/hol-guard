@@ -1,7 +1,0 @@
-{
-  "schema": "guard-cigar-allocation-and-response-loss-installed-verification.v1",
-  "captured_record_sha256": "27df9ae892002ca9c5e1d046e2bb9136fa8c361f353714abb8090b22552c1b67",
-  "captured_record_bytes": 175411,
-  "omitted_fields_sha256": "f1ffd915200b5ce373f422fb00a7ec7f22427e073132acb24f0066b32fdcfce7",
-  "omitted_bytes": 97395
-}

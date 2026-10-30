@@ -1,9 +1,0 @@
-{
-  "schema": "guard-cigar-native-executor-verification.v1",
-  "captured_record_sha256": "64d5e3ccb5eebb5327c72b5972495a6c46f1ccaebb63ba24406e1ce9a26d3675",
-  "captured_record_bytes": 17963,
-  "status": "passed",
-  "qualification": "local_native_owning_executor_and_actual_SDK_only",
-  "omitted_fields_sha256": "c2771a02cb8b42f831b2423dffd773feddf9bb39533749b7588e9e0175830e3e",
-  "omitted_bytes": 16076
-}

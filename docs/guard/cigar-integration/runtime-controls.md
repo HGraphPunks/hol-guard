@@ -42,7 +42,7 @@ Current installed development evidence covers darwin-arm64 only. Windows activat
 
 ## Local candidate enrollment
 
-Public package installation and its product setup experience remain pending. Development tests use the explicitly staged, independently approved local candidate described in the [runtime receipt](evidence/runtime-development-verification.json). No system Python or live Guard installation is changed by those tests.
+Public package installation and its product setup experience remain pending. Development tests use the explicitly staged, independently approved local candidate described in the [runtime receipt](evidence/receipts.json). No system Python or live Guard installation is changed by those tests.
 
 The native operator command is `context-assistance-enroll-local --stdin` on the matching `hol-guard-runtime` binary. Its JSON request has these fields:
 
@@ -72,7 +72,7 @@ The advanced [native execution context](native-execution-context.md) preference 
 
 `npm run test:context-assistance` covers the new UI contracts and authenticated transport. Native library and resident protocol tests exercise the real installed candidate separately. `tests/test_context_assistance_cli_installed.py` is an opt-in process test requiring the exact native binary plus the recorded selection/approval. It has passed explicitly, as has the installed dashboard/source flow; historical failed attempts remain in the execution log. A default skipped run is not qualification. Those receipts qualify their recorded commits and artifacts, not later changes automatically.
 
-The [initial installed browser receipt](evidence/installed-browser-verification.json) covers opt-in, source admission, citations, stale refusal, refresh/comparison, withdrawal/revocation and opt-out. The [execution log](EXECUTION_LOG.md) records subsequent Home, review/history, scoped MCP, sharing, persistence and native executor/browser checks against their exact packages. Desktop, actual external harness delivery, remaining executor boundaries and performance qualification remain required by the [full goal](EXECUTION_GOAL.md).
+The [initial installed browser receipt](evidence/receipts.json) covers opt-in, source admission, citations, stale refusal, refresh/comparison, withdrawal/revocation and opt-out. The [execution log](EXECUTION_LOG.md) records subsequent Home, review/history, scoped MCP, sharing, persistence and native executor/browser checks against their exact packages. Desktop, actual external harness delivery, remaining executor boundaries and performance qualification remain required by the [full goal](EXECUTION_GOAL.md).
 
 ## Native receipt facts
 

@@ -1,9 +1,0 @@
-{
-  "schema": "guard-cigar-evidence-shutdown-verification.v1",
-  "captured_record_sha256": "fd7039dc432d45f0ffcc9e451c4b5d3a6539fecd835d8dce8db5d9a6a9a6b4ac",
-  "captured_record_bytes": 268673,
-  "source_baseline_commit": "e3d5e4038c0f406a35de1d6c8c373d1a5918ea5e",
-  "status": "Ordered shared evidence shutdown and direct-drain ownership verified in source. A fresh matching installed artifact, complete SLO and matched cohort remain required. Full goal active.",
-  "omitted_fields_sha256": "0ba919d8767bac27086a9376edbdeb6955f567e22af7515750b29c423c4f017b",
-  "omitted_bytes": 265791
-}

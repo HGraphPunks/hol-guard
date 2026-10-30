@@ -16,4 +16,4 @@ The actual final CIGAR0.14.1 test performs a saved-mode upgrade, proves a legacy
 
 This qualifies one local macOS ARM64 case with external CPython3.14.7/3.14.10 and a test-qualified target. It does not qualify original b47380, genuinely newer SDK bytes, managed-interpreter end-to-end, installed/frozen packages or other platforms. Other process-loss/unknown-write boundaries remain to be exercised. Per-scope withdrawal/note deletion across retained/prepared copies is separate unfinished work, alongside inactive-data readmission, lineage/capacity, public controls and final P9/P10 qualification. The full P0–P10 goal stays active and incomplete.
 
-[Evidence](evidence/upgrades-full-erasure-20261027.json) binds exact source/image/check identities and logs. Original acceptance/log, live profile/hooks/preview, upstream SDK source, system Python, Guard approvals and Git staging/history are unchanged.
+[Evidence](evidence/receipts.json) binds exact source/image/check identities and logs. Original acceptance/log, live profile/hooks/preview, upstream SDK source, system Python, Guard approvals and Git staging/history are unchanged.

@@ -1,9 +1,0 @@
-{
-  "schema": "guard-cigar-engine-preparation-evidence.v1",
-  "captured_record_sha256": "4b62114c82e561187de1ee0b8153170b22fc5babb793e9e80746c191c89873d5",
-  "captured_record_bytes": 59041,
-  "recorded_at_utc": "2026-10-27T16:55:34.194155+00:00",
-  "combined_log_sha256": "430df594ff4c29d7faaac5e21882fa85bc125aa501de60752216f61366b63218",
-  "omitted_fields_sha256": "97e121cb2556f9407dd5e2c44eaf254bb2cd9fbb080c3909a3775b67f51d5869",
-  "omitted_bytes": 50564
-}

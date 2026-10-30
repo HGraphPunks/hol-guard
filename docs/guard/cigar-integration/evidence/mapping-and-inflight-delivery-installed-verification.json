@@ -1,8 +1,0 @@
-{
-  "schema": "guard-cigar-mapping-and-inflight-delivery-installed-verification.v1",
-  "captured_record_sha256": "4f9c647f3239575c88b86f406a286aec7e1ecd29c12dcc051afcf272b94457d2",
-  "captured_record_bytes": 214241,
-  "goal_status": "active",
-  "omitted_fields_sha256": "5d13f61837b78dab1f944f69467efd3db76e249807ea84d22419e1b5e9009c8b",
-  "omitted_bytes": 173021
-}

@@ -1,8 +1,0 @@
-{
-  "schema": "guard-cigar-control-preflight-onefile-context-verification.v1",
-  "captured_record_sha256": "7795370668db6a162dafa0deac2987c4d95a99a9d64522b7e7de2c980eea255b",
-  "captured_record_bytes": 224520,
-  "product_source_commit": "1e341429b8006beec74c31cf8c0d230793c0be7f",
-  "omitted_fields_sha256": "ef615b5c4ed263533fa108d21fe0ba4cf56aab771bb31ce0a8544bf3a48df736",
-  "omitted_bytes": 180789
-}

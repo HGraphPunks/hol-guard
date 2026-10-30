@@ -1,8 +1,0 @@
-{
-  "schema": "guard-cigar-distribution-profile-installed-performance.v1",
-  "captured_record_sha256": "7b544eb0e8bc951ed7935faf93bf1fa257df010f5de1346715fea8bd1a021f75",
-  "captured_record_bytes": 198451,
-  "product_source_commit": "6f821077fad88d83ce4f3c85f3f9c2281142fa4f",
-  "omitted_fields_sha256": "0259b9adca90e8637ff7048f66565fd2978167ba4c7a58d26278964b84cffb36",
-  "omitted_bytes": 110825
-}

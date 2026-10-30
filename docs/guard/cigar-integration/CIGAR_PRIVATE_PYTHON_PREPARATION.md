@@ -32,7 +32,7 @@ The preparer and SDK session have separate cancellation scopes. SDK close perman
 
 ## Real evidence
 
-[The saved receipt](evidence/upgrades-private-python-20261026.json) binds 71 current source fingerprints to both executing images, artifact identities and logs. Both logs are recorded by SHA-256 in [log-hashes.json](evidence/log-hashes.json).
+[The saved receipt](evidence/receipts.json) binds 71 current source fingerprints to both executing images, artifact identities and logs. Both logs are recorded by SHA-256 in [receipts.json](evidence/receipts.json).
 
 | Identity | Exact value |
 | --- | --- |

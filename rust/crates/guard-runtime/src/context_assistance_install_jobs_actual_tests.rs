@@ -11,7 +11,7 @@ fn approved_catalog() -> TrustedCatalog {
 pub(super) fn approved_catalog_requirement(requirement: Option<&str>) -> TrustedCatalog {
     let mut document = TrustedCatalog::bundled().unwrap().document().clone();
     let receipt = fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
-        "../../../docs/guard/cigar-integration/evidence/upgrades-final-0.14.1-native-20261026.json",
+        "../../../docs/guard/cigar-integration/evidence/receipts.json",
     ))
     .unwrap();
     let platform = &mut document.builds[0].platforms[0];

@@ -1,8 +1,0 @@
-{
-  "schema": "guard-cigar-process-failure-eviction-installed-verification.v1",
-  "captured_record_sha256": "456795ff72b02a5728b238095ba41e3c5c4b06b6951aef594993220d96b6c275",
-  "captured_record_bytes": 24005,
-  "status": "Local installed fault containment, native approval fallback and bounded selection/source/graph/idle lifecycle qualified; full integration goal remains active.",
-  "omitted_fields_sha256": "ad05b790831d7ce9730a664d1a66caa709681c857f8edae1a9dbd1933e5b4baf",
-  "omitted_bytes": 17690
-}

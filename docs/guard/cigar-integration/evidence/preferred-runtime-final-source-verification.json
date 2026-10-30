@@ -1,7 +1,0 @@
-{
-  "schema": "guard-cigar-preferred-runtime-final-source-verification.v1",
-  "captured_record_sha256": "9f9a3332ba3dc4d679b5bc27b756e8474f433f13f46e29eeea959cef8e0bc0a9",
-  "captured_record_bytes": 257557,
-  "omitted_fields_sha256": "bb10e84477d31a62b9e9c3587331c62a773df39522f461ecd31bdb2bef727700",
-  "omitted_bytes": 198283
-}

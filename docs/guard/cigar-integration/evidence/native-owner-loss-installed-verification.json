@@ -1,7 +1,0 @@
-{
-  "schema": "guard-cigar-native-owner-loss-installed-verification.v1",
-  "captured_record_sha256": "dcb2ad03b7a199e7287c629ec4aca194e4c38640b0ff1c924da1113f705e8294",
-  "captured_record_bytes": 23174,
-  "omitted_fields_sha256": "432b87599ebc4c167b01cb31136ab89770a0c114dc7c3468216e9e06d962cd8b",
-  "omitted_bytes": 18388
-}

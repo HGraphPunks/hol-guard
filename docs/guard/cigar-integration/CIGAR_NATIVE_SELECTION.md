@@ -100,4 +100,4 @@ entry-point warnings honestly identify the unconnected switch construction path.
 
 See [engine preparation](CIGAR_ENGINE_PREPARATION.md),
 [settings lane](CIGAR_CONFIG_COMMIT_LANE.md), and the exact
-[selection evidence](evidence/upgrades-native-selection-20261027.json).
+[selection evidence](evidence/receipts.json).

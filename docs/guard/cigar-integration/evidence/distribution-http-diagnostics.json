@@ -1,9 +1,0 @@
-{
-  "schema": "guard-cigar-distribution-http-diagnostics.v1",
-  "captured_record_sha256": "99f25284ef0bad408465e0e33ad50113d342fde9e78d3b296b99bae8904946f6",
-  "captured_record_bytes": 130664,
-  "diagnostic_only": true,
-  "product_source_commit": "6f821077fad88d83ce4f3c85f3f9c2281142fa4f",
-  "omitted_fields_sha256": "741818fe6a4f38cc8c09c3800ceeb337e2ea01030047f309b3ed25e50dc7fe6f",
-  "omitted_bytes": 75470
-}

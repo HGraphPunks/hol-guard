@@ -1,8 +1,0 @@
-{
-  "schema": "guard-cigar-foreground-onefile-failed-verification.v1",
-  "captured_record_sha256": "90b5f936699b4d4d61e2cec0e98e8ded1b7abc075b3a45f0f82d9a215434b671",
-  "captured_record_bytes": 46099,
-  "product_source_commit": "baf311e468ee1df575ef5eee90e564e16eeaf6f1",
-  "omitted_fields_sha256": "151b1d46fc574988ed7cf0b782b3eaa6a11f24425acd4f579bcd2849ec776ba5",
-  "omitted_bytes": 42733
-}

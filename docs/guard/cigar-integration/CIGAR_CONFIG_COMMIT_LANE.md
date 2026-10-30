@@ -45,7 +45,7 @@ and rollback effects and public controls remain P6–P8 work. External editors
 do not participate in the writer protocol; observed changes refuse, and final
 policy/settings checks remain necessary around a cutover.
 
-See [evidence](evidence/upgrades-legacy-producer-config-20261027.json) for the
+See [evidence](evidence/receipts.json) for the
 enrolled/catalog data tests and settings commit regressions, and
 [prepared evidence](CIGAR_PREPARED_EVIDENCE.md) for the data contract.
 

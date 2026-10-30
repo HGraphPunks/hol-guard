@@ -1,9 +1,0 @@
-{
-  "schema": "guard-cigar-native-cleanup-order-verification.v1",
-  "captured_record_sha256": "3759a78b284c0c5a25ead49929fcfd67e507be128263e7062772b950c6352def",
-  "captured_record_bytes": 316895,
-  "source_baseline_commit": "4b7f567e",
-  "status": "Evidence-producer shutdown ordering corrected in benchmark fixtures with stricter confirmation. Installed diagnostics reveal separate concurrent product cleanup owners and unfinished evidence shutdown; relative and complete shutdown qualification remain open. Full goal active.",
-  "omitted_fields_sha256": "72520e2e24d3794b576eb5e8e398efd5ac4fa6091a373cfdd231647137032855",
-  "omitted_bytes": 198859
-}

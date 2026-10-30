@@ -28,4 +28,4 @@ Executing native image c7b054f122dd5a7169303334de865a3e46c4cdb7f5fce9137b74a1bfd
 
 These are same-SDK data/controller round trips, not original-b47380 or genuine newer-SDK, managed-interpreter end-to-end, installed/frozen or all-platform acceptance. Finish every process-loss/cleanup/Stop boundary, retained-generation source restoration, durable erasure and retained-copy privacy, inactive-data/lineage/capacity and feature/data transitions. Complete P7/P8 controls/catalog/policy/UI and P9/P10 qualification before claiming the full objective. The unbudgeted P0–P10 goal remains active.
 
-[Evidence](evidence/upgrades-live-rollback-20261027.json) binds source hashes, exact images and raw logs. Original acceptance/log, live profile/hooks/preview, upstream SDK sources, system Python, Guard approvals and Git staging/history remain untouched.
+[Evidence](evidence/receipts.json) binds source hashes, exact images and raw logs. Original acceptance/log, live profile/hooks/preview, upstream SDK sources, system Python, Guard approvals and Git staging/history remain untouched.

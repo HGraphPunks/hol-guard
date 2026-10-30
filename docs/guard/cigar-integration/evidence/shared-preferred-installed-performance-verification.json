@@ -1,8 +1,0 @@
-{
-  "schema": "guard-cigar-shared-preferred-installed-performance.v1",
-  "captured_record_sha256": "6596bea5cb32592528e08459346ad408628691a4f6764dc26f09bc07e7d30fa2",
-  "captured_record_bytes": 201663,
-  "product_source_commit": "ed5011acbba43cb19c093064b34ffe47bf3f2616",
-  "omitted_fields_sha256": "98d432c3d74f0452b6d0bc1254bdd161d3881a19fe2c1830a1d3cee2394d394d",
-  "omitted_bytes": 113438
-}

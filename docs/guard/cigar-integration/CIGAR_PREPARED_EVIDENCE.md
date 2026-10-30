@@ -65,7 +65,7 @@ and surviving SQLite-owner checks still protect live or unrelated files.
 
 ## Current proof and remaining work
 
-[Evidence](evidence/upgrades-evidence-preparation-20261027.json) covers final
+[Evidence](evidence/receipts.json) covers final
 CIGAR 0.14.1 on local macOS arm64, moving notes from CPython 3.14.7 to 3.14.10,
 durable reload, source-content refusal, interrupted native acknowledgement and
 recovery without replay. A new reviewed replacement is then prepared back to

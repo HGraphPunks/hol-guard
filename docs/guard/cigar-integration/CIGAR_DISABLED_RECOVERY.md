@@ -1,6 +1,6 @@
 # CIGAR committed disabled-selection recovery
 
-Status: locally implemented and checked 2026-10-28; partial P6/P7/P9. [Evidence](evidence/upgrades-disabled-recovery-20261028.json) binds the current sources and native test image. The complete P0–P10 objective remains unfinished.
+Status: locally implemented and checked 2026-10-28; partial P6/P7/P9. [Evidence](evidence/receipts.json) binds the current sources and native test image. The complete P0–P10 objective remains unfinished.
 
 The exact-settings limitation for Committed/Healthy targets below is superseded by [Stop-aware recovery](CIGAR_STOP_RECOVERY.md), which also supports previously live targets after Stop. CommitIntent and initial-selection requirements remain strict. The earlier receipt retains its original source/image scope.
 

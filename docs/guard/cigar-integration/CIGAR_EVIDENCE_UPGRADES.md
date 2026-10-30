@@ -68,7 +68,7 @@ settings/generation conflicts, active-writer quiescence, retained last-good data
 crash recovery and user-visible recovery choices. No current runtime selection,
 enablement, source/app scope or approval decision is changed by this module.
 
-See [evidence](evidence/upgrades-requalification-20261026.json) for native
+See [evidence](evidence/receipts.json) for native
 metadata-only fixtures. The recorded same-SDK cross-Python data round trip includes a target edit and
 removal. A real newer SDK transition, committed runtime rollback, and
 installed/frozen/platform validation remain unverified.

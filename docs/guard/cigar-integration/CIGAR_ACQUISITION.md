@@ -44,7 +44,7 @@ Existing persisted installation paths are not rewritten by this change. Archived
 
 ## Recorded evidence
 
-[The native acquisition receipt](evidence/upgrades-native-acquisition-20261026.json) binds the executing test image and 55 source fingerprints to the raw test log recorded by SHA-256 in [log-hashes.json](evidence/log-hashes.json). The recorded run passes all 32 registry/job/acquisition tests with zero failed or ignored.
+[The native acquisition receipt](evidence/receipts.json) binds the executing test image and 55 source fingerprints to the raw test log recorded by SHA-256 in [receipts.json](evidence/receipts.json). The recorded run passes all 32 registry/job/acquisition tests with zero failed or ignored.
 
 The public acquisition test downloads the exact final 0.14.1 SDK wheel and protobuf 7.36.2 wheel into a disposable private profile, reconstructs 124 files / 11,454,530 bytes, and verifies tree `5ebfc715f581c40c9fce73209271479a1926d5044543a46c720ba0049c35e1f4`. It takes 2,557 ms in this run, reuses the verified cache on retry and starts zero SDK processes. Source-build installation and active install-only continuity tests also pass against the same exact locks, using separate disposable profiles and test-only catalog qualification. They do not demonstrate a shipped/frozen end-to-end download-and-switch workflow.
 
