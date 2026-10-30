@@ -9,7 +9,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-from .cloud_exceptions import lift_cloud_excepted_policy_bundle_identities
 from .managed_controls_policy_bundle import (
     MANAGED_CONTROLS_ACTIVE_STATE_KEY,
     MANAGED_CONTROLS_LAST_GOOD_STATE_KEY,
@@ -49,7 +48,6 @@ if TYPE_CHECKING:
 # ruff: noqa: F403,F405
 from .native_approval_proof import approval_reuse_claim_disposition as native_claim_disposition
 from .native_execution import _resident_request
-from .native_hook_artifact_compose import native_hook_compose
 from .native_memory_pattern import memory_pattern_verdict
 from .native_policy_snapshot_constants import NATIVE_POLICY_VERIFIER_KEY_NAME, NativePolicySnapshotError
 from .native_policy_snapshot_windows_key import provision_native_policy_verifier_key
@@ -95,9 +93,6 @@ class PolicyLookupEvidence:
     local_once_integrity_key_b64: str | None = None
     local_once_integrity_key_id: str | None = None
     policy_bundle_decision_identities: list[list[Any]] | None = None
-    # The workspace id and Cloud exceptions of the bundle those identities came
-    # from, so each lookup lifts Cloud rules only against that same bundle.
-    policy_bundle_cloud_exceptions: dict[str, Any] | None = None
     # The store-resident sources this evidence was gathered against, named
     # before it was derived. Only a lookup that may claim ships one.
     evidence_binding: dict[str, Any] | None = None
@@ -119,18 +114,6 @@ def _degraded_lookup_evidence(
         integrity_state=integrity_state,
         degraded_trust_status=TrustStatus.from_policy_integrity_state(integrity_state).to_dict(),
         has_saved_rows=has_saved_rows,
-    )
-
-
-def _remembered_rules_disabled(lookup: PolicyDecisionLookupResult) -> bool:
-    """Whether the lookup is the empty answer of a home that serves no authority."""
-
-    trust = lookup.get("trust_status")
-    return (
-        lookup["decision"] is None
-        and lookup["authority_revision"] == _DEGRADED_AUTHORITY_REVISION
-        and isinstance(trust, dict)
-        and trust.get("remembered_rules") == "disabled_degraded"
     )
 
 
@@ -158,39 +141,6 @@ def memory_lookup_candidates(
         guard_home=guard_home,
     )
     return verdict.exact_artifact_ids, verdict.memory_artifact_id
-
-
-def _most_restrictive_policy_lookup(
-    lookups: Sequence[PolicyDecisionLookupResult],
-    *,
-    guard_home: Path | None,
-) -> PolicyDecisionLookupResult:
-    """Compose non-consuming direct, exact-command, and memory matches.
-
-    The resident selects, with the selector the MCP tool lane already uses: it
-    reads the action lattice, so a lookup whose saved action it cannot read is
-    the most restrictive one, not a weaker one. An unavailable resident raises,
-    which the caller's fail-closed handling turns into an availability response
-    rather than a locally recomposed verdict.
-    """
-
-    if not lookups:
-        raise ValueError("at least one policy lookup is required")
-    if len(lookups) == 1 and lookups[0]["decision"] is None:
-        # One lookup that matched nothing is already the answer: there is no
-        # saved decision to rank, no second revision to reconcile, and the
-        # selector would hand back the same row.  The hook path reaches this
-        # on every request without a saved approval, so it must not spend a
-        # resident round trip to be told so.
-        return lookups[0]
-    composed = native_hook_compose(
-        "policy_lookup_select",
-        {"lookups": [dict(lookup) for lookup in lookups]},
-        guard_home=guard_home,
-    )
-    # The resident owns the selection; this only reads its row back under the
-    # name the callers use, so the cast goes through ``object``.
-    return cast("PolicyDecisionLookupResult", cast("object", composed))
 
 
 def _approval_authority_revision(connection: sqlite3.Connection) -> int:
@@ -910,86 +860,6 @@ class StorePolicyMixin:
             rows,
         )
 
-    def resolve_policy_decision_lookup_with_memory_pattern(
-        self,
-        harness: str,
-        artifact_id: str | None,
-        artifact_hash: str | None = None,
-        workspace: str | None = None,
-        publisher: str | None = None,
-        now: str | None = None,
-        runtime_exact_match_context: str | None = None,
-        *,
-        memory_command: str | None = None,
-        memory_artifact_type: str | None = None,
-        memory_artifact_name: str | None = None,
-        consume_one_shot: bool = True,
-    ) -> PolicyDecisionLookupResult:
-        direct_lookup = self.resolve_policy_decision_lookup(
-            harness,
-            artifact_id,
-            artifact_hash=artifact_hash,
-            workspace=workspace,
-            publisher=publisher,
-            now=now,
-            runtime_exact_match_context=runtime_exact_match_context,
-            consume_one_shot=consume_one_shot,
-        )
-        candidate_lookups = [direct_lookup]
-        # A degraded store honors no saved decision, so the remembered-decision
-        # probes cannot change the answer and need no resident fingerprint.
-        if _remembered_rules_disabled(direct_lookup):
-            return direct_lookup
-        if consume_one_shot and (
-            direct_lookup["decision"] is not None or direct_lookup.get("ignored_local_integrity") is not None
-        ):
-            return direct_lookup
-        exact_command_artifact_ids, memory_artifact_id = memory_lookup_candidates(
-            harness,
-            artifact_id,
-            memory_command=memory_command,
-            memory_artifact_type=memory_artifact_type,
-            memory_artifact_name=memory_artifact_name,
-            guard_home=Path(self.guard_home),
-        )
-        for exact_command_artifact_id in exact_command_artifact_ids:
-            exact_command_lookup = self.resolve_policy_decision_lookup(
-                harness,
-                exact_command_artifact_id,
-                artifact_hash=artifact_hash,
-                workspace=workspace,
-                publisher=publisher,
-                now=now,
-                runtime_exact_match_context=runtime_exact_match_context,
-                consume_one_shot=consume_one_shot,
-            )
-            candidate_lookups.append(exact_command_lookup)
-            if consume_one_shot and (
-                exact_command_lookup["decision"] is not None
-                or exact_command_lookup.get("ignored_local_integrity") is not None
-            ):
-                return exact_command_lookup
-        if memory_artifact_id is None:
-            return _most_restrictive_policy_lookup(candidate_lookups, guard_home=Path(self.guard_home))
-        memory_lookup = self.resolve_policy_decision_lookup(
-            harness,
-            memory_artifact_id,
-            artifact_hash=artifact_hash,
-            workspace=workspace,
-            publisher=publisher,
-            now=now,
-            runtime_exact_match_context=runtime_exact_match_context,
-            consume_one_shot=consume_one_shot,
-        )
-        candidate_lookups.append(memory_lookup)
-        if consume_one_shot:
-            return (
-                memory_lookup
-                if (memory_lookup["decision"] is not None or memory_lookup.get("ignored_local_integrity") is not None)
-                else direct_lookup
-            )
-        return _most_restrictive_policy_lookup(candidate_lookups, guard_home=Path(self.guard_home))
-
     def peek_local_once_approval(
         self,
         *,
@@ -1103,17 +973,10 @@ class StorePolicyMixin:
             "local_once_integrity_key_b64": evidence.local_once_integrity_key_b64,
             "local_once_integrity_key_id": evidence.local_once_integrity_key_id,
         }
-        identities = lift_cloud_excepted_policy_bundle_identities(
-            evidence.policy_bundle_decision_identities,
-            evidence.policy_bundle_cloud_exceptions,
-            harness=harness,
-            artifact_id=artifact_id,
-            publisher=publisher,
-            workspace=workspace,
-            now=evidence.now,
-        )
-        if identities:
-            request["policy_bundle_decision_identities"] = identities
+        # The resident lifts the bundle's rules for each target an approved
+        # Cloud exception in the stored bundle covers, so the full set ships.
+        if evidence.policy_bundle_decision_identities:
+            request["policy_bundle_decision_identities"] = evidence.policy_bundle_decision_identities
         if portable_workspace is not None:
             request["portable_workspace"] = portable_workspace
             # Unset options are omitted, never sent as null: the resident
@@ -1290,7 +1153,7 @@ class StorePolicyMixin:
             # ignored_local_integrity evidence.
             return _degraded_lookup_evidence(current_time, integrity_state, has_saved_rows=has_saved_rows)
 
-        bundle_identities, bundle_cloud_exceptions = self._lookup_bundle_identities(current_time)
+        bundle_identities = self._lookup_bundle_identities(current_time)
         return PolicyLookupEvidence(
             now=current_time,
             integrity_state=integrity_state,
@@ -1307,18 +1170,17 @@ class StorePolicyMixin:
             ),
             local_once_integrity_key_id=local_once_key_id,
             policy_bundle_decision_identities=bundle_identities,
-            policy_bundle_cloud_exceptions=bundle_cloud_exceptions,
             evidence_binding=evidence_binding,
             has_saved_rows=has_saved_rows,
         )
 
-    def _lookup_bundle_identities(self, current_time: str) -> tuple[list[list[Any]] | None, dict[str, Any] | None]:
-        identities, cloud_exceptions = self._cached_policy_bundle_authority(
+    def _lookup_bundle_identities(self, current_time: str) -> list[list[Any]] | None:
+        identities = self._cached_policy_bundle_decision_identities(
             now=_parse_utc_timestamp(current_time).timestamp(),
         )
         if not identities:
-            return None, None
-        return [[field for field in identity] for identity in identities], cloud_exceptions
+            return None
+        return [[field for field in identity] for identity in identities]
 
     def resolve_policy_decision(
         self,
