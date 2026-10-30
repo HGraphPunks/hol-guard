@@ -63,6 +63,8 @@ pub mod command_model;
 mod command_operand_matchers;
 #[path = "../../guard-command/src/command_option_parsing.rs"]
 pub mod command_option_parsing;
+#[path = "../../guard-command/src/command_reviewed_literal.rs"]
+mod command_reviewed_literal;
 #[path = "../../guard-command/src/command_segment_parsing.rs"]
 mod command_segment_parsing;
 #[path = "../../guard-command/src/command_specialized_matchers.rs"]
@@ -75,6 +77,8 @@ mod command_structured_matchers;
 mod command_tokens;
 #[path = "../../guard-command/src/contained_argv.rs"]
 pub mod contained_argv;
+#[path = "../../guard-command/src/contained_git.rs"]
+mod contained_git;
 #[path = "../../guard-command/src/contained_node_tool.rs"]
 mod contained_node_tool;
 #[path = "../../guard-command/src/contained_package_test.rs"]

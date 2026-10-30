@@ -90,6 +90,7 @@ pub mod command_native_factors;
 mod command_operand_matchers;
 pub mod command_option_parsing;
 mod command_parse_surface;
+mod command_reviewed_literal;
 mod command_segment_parsing;
 pub mod command_shadow;
 #[cfg(test)]
@@ -464,6 +465,7 @@ pub mod composition_rules;
 pub mod contained_argv;
 #[cfg(unix)]
 pub mod contained_execution;
+mod contained_git;
 mod contained_node_tool;
 mod contained_package_test;
 mod contained_prefix;
