@@ -3,8 +3,9 @@
 
 use gauntlet_contracts::canonicalize;
 use gauntlet_host_state::{
-    HostCandidateBuildPinError, HostCandidateBuildPinJournal, HostCandidateBuildPins,
-    VmCandidateBuildError, VmCandidateBuildPlan,
+    public_vm_operations, HostCandidateBuildPinError, HostCandidateBuildPinJournal,
+    HostCandidateBuildPins, VmCandidateBuildError, VmCandidateBuildPlan,
+    VmHostBoundCandidateResultError, VmHostBoundCandidateResultPlan,
 };
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -13,6 +14,59 @@ use std::os::unix::fs::PermissionsExt;
 use tempfile::tempdir;
 
 const JOB: &str = "c04e7f93a2b15d68";
+
+#[test]
+fn new_launch_pins_transport_and_vm_and_reconciliation_refuses_other_targets() {
+    let dir = tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
+    let journal = HostCandidateBuildPinJournal::open(&root).unwrap();
+    let vm = "hol-gauntlet-rust-build-20261026-001";
+    let config = public_vm_operations(Some(vm)).unwrap();
+    let plan = VmCandidateBuildPlan::new(&config, pins()).unwrap();
+    assert_eq!(plan.preflight_plan(&"e".repeat(64)).unwrap().argv()[2], vm);
+    let invocation = plan.record_before_launch(&journal).unwrap();
+    assert_eq!(invocation.argv()[2], vm);
+    let record = journal.read(JOB).unwrap();
+    assert_eq!(record.schema, "hol-gauntlet-host-candidate-build-pin.v4");
+    assert_eq!(
+        record.vm_target,
+        Some(("/opt/homebrew/bin/limactl".into(), vm.into()))
+    );
+    assert_eq!(record.to_json()["vm"], vm);
+    assert!(invocation
+        .parse_terminal_claim(&terminal_bytes(&invocation))
+        .is_ok());
+    let result = VmHostBoundCandidateResultPlan::new(
+        &config,
+        &journal,
+        JOB,
+        &"a".repeat(64),
+        &"b".repeat(64),
+    )
+    .unwrap();
+    assert_eq!(result.argv()[2], vm);
+    for wrong in [operations(), {
+        let mut c = config.clone();
+        c["limactl"] = json!("/tmp/different-limactl");
+        c
+    }] {
+        assert_eq!(
+            VmHostBoundCandidateResultPlan::new(
+                &wrong,
+                &journal,
+                JOB,
+                &"a".repeat(64),
+                &"b".repeat(64)
+            ),
+            Err(VmHostBoundCandidateResultError::InvalidConfig)
+        );
+    }
+    for invalid in ["--other", "../vm", "vm name", "vm\nname", ""] {
+        assert!(public_vm_operations(Some(invalid)).is_err());
+    }
+    assert_eq!(public_vm_operations(None).unwrap(), operations());
+}
 
 fn pins() -> HostCandidateBuildPins {
     HostCandidateBuildPins {

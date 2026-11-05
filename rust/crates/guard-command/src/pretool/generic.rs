@@ -8,6 +8,10 @@ pub(crate) mod chain_literals;
 mod command_rewrite;
 #[path = "contained_publish.rs"]
 pub(crate) mod contained_publish;
+#[path = "generic_cursor_compaction_writes.rs"]
+mod cursor_compaction_writes;
+#[path = "generic_cursor_project_reads.rs"]
+mod cursor_project_reads;
 #[path = "env_prefix_projection.rs"]
 mod env_prefix_projection;
 pub use env_prefix_projection::bindable_setting;
@@ -19,6 +23,8 @@ mod extract;
 mod omp;
 #[path = "generic_omp_bash_cwd.rs"]
 mod omp_bash_cwd;
+#[path = "generic_read_decisions.rs"]
+mod read_decisions;
 
 /// Resolve the host's tool-level directory for an execution-owner preview.
 /// This is path observation only; the owner must still judge current policy.
@@ -42,6 +48,8 @@ pub fn omp_bash_execution_directory(
 mod omp_bash_cwd_tests;
 #[path = "open_quote.rs"]
 mod open_quote;
+#[path = "process_substitution.rs"]
+mod process_substitution;
 #[path = "generic_pure_eval.rs"]
 mod pure_eval;
 #[path = "generic_read_note.rs"]
@@ -74,6 +82,21 @@ use std::time::Instant;
 /// somewhere which plans the call again has to plan the same text.
 pub fn venv_activation_target(command: &str, context: super::PathContext<'_>) -> Option<String> {
     venv_activation_projection::project(command, context)
+}
+
+/// The command the pre-tool pass answered for, when it read through the
+/// call's own wrapping, or `None` when the call is its own answer. A trailing
+/// subshell or brace group runs exactly the command list inside it and is
+/// decided as that list, and an activation hands its verdict to the command
+/// after it. A sink that plans the call again from its snapshot plans this
+/// text: the group's own text models no command, so `(.venv/bin/pytest -q)`
+/// reached the pytest planner with its parenthesis still attached. A group
+/// whose flattened list would run more than the group does, such as
+/// `false && (a; b)`, keeps its own text: the sink executes what it plans.
+pub fn contained_target(command: &str, context: super::PathContext<'_>) -> Option<String> {
+    let ungrouped = super::runnable_ungrouped_command_list(command);
+    let text = ungrouped.as_deref().unwrap_or(command);
+    venv_activation_target(text, context).or(ungrouped)
 }
 
 /// Bounded caller-supplied context, never authenticated provider facts.
@@ -210,6 +233,7 @@ pub fn evaluate_pre_tool_envelope_with_context(
             shell_home_matches: false,
             ripgrep_config_absent: false,
             psql_environment: Default::default(),
+            creates_nothing: false,
         },
         None,
     )
@@ -362,7 +386,7 @@ fn omp_bash_cwd_missing(harness: &str, event: &str) -> PreToolResultV1 {
             false,
         ),
         "block",
-        evaluate::MISSING_PATH,
+        read_decisions::MISSING_PATH,
         "HOL Guard did not run this command because its working directory does not exist. Check the directory, for example by listing its parent, and try again with the correct one.",
     )
 }
@@ -388,20 +412,29 @@ fn evaluate_envelope(
         Ok(value) => value,
         Err(error) => return generic_error_result(harness, event, error),
     };
+    signals.mirrored_input_unproven = harness == "grok"
+        && !payload
+            .as_object()
+            .is_some_and(super::search_scope::mirrored_input_matches);
     signals.github_read_only = harness == "omp"
         && event == "PreToolUse"
         && omp::strict_tool_input(payload)
             .is_some_and(|input| github::read_only_call(input, signals.tool_name.as_deref()));
-    // A search pattern is data, not a command: a proven Claude `Grep` scope
-    // skips the command authority but still passes the command controls below.
+    // A search pattern is data, not a command: a proven Claude or Grok `Grep`
+    // scope skips the command authority but still passes the command controls
+    // below.
     let search_scope_proven = event == "PreToolUse"
-        && harness == "claude-code"
         && signals.url_values.is_empty()
-        && match signals.tool_name.as_deref() {
-            Some("Grep") => {
+        && match (harness, signals.tool_name.as_deref()) {
+            ("claude-code", Some("Grep")) => {
                 super::search_scope::claude_grep_directory_scope_proven(payload, home_dir, cwd)
             }
-            Some("Glob") => super::search_scope::claude_glob_scope_proven(payload, home_dir, cwd),
+            ("claude-code", Some("Glob")) => {
+                super::search_scope::claude_glob_scope_proven(payload, home_dir, cwd)
+            }
+            ("grok", Some("Grep")) => {
+                super::search_scope::grok_grep_directory_scope_proven(payload, home_dir, cwd)
+            }
             _ => false,
         };
     // Codex sends an edit as `apply_patch` with the patch body in `command`.
@@ -614,13 +647,53 @@ fn evaluate_envelope(
                     &reviewed.command,
                     context,
                     execution_environment,
-                    harness,
-                    event,
+                    super::workspace_contained::host_eligible(harness, event, payload),
                 )
             {
                 return projected;
             }
             return env_prefix_projection::join_reviewed(projected, raw, &reviewed);
+        }
+    }
+
+    // `diff <(sort a.txt) b.txt` hands `diff` a pipe to read. Prove the inner
+    // commands and the command around them separately, and keep the projected
+    // answer only when every one of them settles on its own.
+    if let Some(substitution) = signals
+        .command
+        .as_deref()
+        .filter(|_| project_redirects && !search_scope_proven && !apply_patch_proven)
+        .and_then(process_substitution::project)
+    {
+        let raw_text = signals.command.as_deref().unwrap_or_default();
+        let inner_reads = substitution.inner.iter().all(|inner| {
+            let inner_payload = payload_with_command(payload, raw_text, inner);
+            process_substitution::reads_only(&evaluate_envelope(
+                harness,
+                event,
+                &inner_payload,
+                controls,
+                deadline,
+                context,
+                execution_environment,
+                project_redirects,
+            ))
+        });
+        if inner_reads {
+            let projected_payload = payload_with_command(payload, raw_text, &substitution.command);
+            let projected = evaluate_envelope(
+                harness,
+                event,
+                &projected_payload,
+                controls,
+                deadline,
+                context,
+                execution_environment,
+                project_redirects,
+            );
+            if process_substitution::reads_only(&projected) {
+                return projected;
+            }
         }
     }
 
@@ -763,8 +836,8 @@ fn evaluate_envelope(
             // The edit cannot apply, so stopping it costs nothing. Saying why
             // lets the agent fix the path instead of waiting on an approval.
             super::omp_hashline_writes::HashlineEdit::MissingTarget(path) => {
-                let mut result = generic_result(action, "block", evaluate::MISSING_PATH, "");
-                result.reason = evaluate::missing_path_reason(
+                let mut result = generic_result(action, "block", read_decisions::MISSING_PATH, "");
+                result.reason = read_decisions::missing_path_reason(
                     "HOL Guard did not run this edit because a file it names does not exist. Check the path, for example by listing its parent directory, and try again with the correct one.",
                     "edit",
                     Some(&path),
@@ -794,6 +867,14 @@ fn evaluate_envelope(
         omp_result
     } else if let Some(pure_result) = pure_eval::evaluate(harness, event, payload, &signals) {
         pure_result
+    } else if let Some(cursor_read) =
+        cursor_project_reads::evaluate(harness, event, payload, &signals, home_dir, cwd)
+    {
+        cursor_read
+    } else if let Some(cursor_note) =
+        cursor_compaction_writes::evaluate(harness, event, payload, &signals, home_dir, cwd)
+    {
+        cursor_note
     } else if task_metadata {
         generic_result(
             generic_action(harness, event, PreToolActionTypeV1::Harness,
@@ -904,6 +985,14 @@ fn evaluate_envelope(
             result.minimum_action.as_str(),
             "allow" | "warn" | "review"
         )
+        && !git_read_order_settled_by_allow(
+            controls,
+            command_model,
+            &result,
+            floor_context,
+            deadline,
+            execution_environment,
+        )
     {
         result.minimum_action = "require-reapproval".into();
         result.policy_action = "require-reapproval".into();
@@ -948,10 +1037,10 @@ fn evaluate_envelope(
         ) && matches!(harness, "claude-code" | "codex" | "omp" | "oh-my-pi" | "pi");
     if (cfg!(target_os = "macos") || (cfg!(windows) && windows_contained))
         && event == "PreToolUse"
-        && matches!(
+        && (matches!(
             harness,
             "omp" | "oh-my-pi" | "pi" | "zcode" | "claude-code" | "codex"
-        )
+        ) || super::workspace_contained::cursor_shell_route(harness, payload))
         && cwd.is_some()
         && (result.action.action_type == PreToolActionTypeV1::Command
             || (matches!(
@@ -1033,6 +1122,7 @@ fn evaluate_envelope(
     super::git_remote_ops::settle_fast_forward(
         &mut result,
         command_model,
+        controls,
         super::PathContext {
             home_dir,
             cwd,
@@ -1054,6 +1144,7 @@ fn evaluate_envelope(
         execution_environment,
         harness,
         event,
+        payload,
         signals.command.as_deref(),
     );
     super::git_local_writes::settle(
@@ -1092,6 +1183,59 @@ fn extension_rule_matched(result: &PreToolResultV1) -> bool {
             .iter()
             .any(|row| !row.effective_segment_indexes.is_empty())
     })
+}
+
+/// Whether the user's extension permissions settle a Git floor that rests on
+/// the order of the command's steps alone.
+///
+/// That floor has two meanings. A Git read whose own configuration names a
+/// pager, diff driver or textconv helper, or whose configuration could not be
+/// read, has a program Guard cannot see waiting for it, and keeps its review
+/// however much the user allowed. The other meaning is narrower: every Git
+/// read in the command was proven helper-free against the configuration Guard
+/// read for it, and what is unproven is only that an earlier step leaves that
+/// configuration as the read found it. That is a judgment of the command's
+/// shape, which a user who allowed each of its steps has already settled, the
+/// same way an explicit Allow settles the shape judgments the controls
+/// themselves raise.
+///
+/// The floor is raised after the controls run, so it cannot read the Allow off
+/// the result's reason and asks the controls instead. `minimum_action` must
+/// still be plain allow: anything the controls or an earlier Rust proof raised
+/// — unsettled extension uncertainty among it — means the Allow did not carry
+/// the command, and the floor stands.
+fn git_read_order_settled_by_allow(
+    controls: Option<&CompiledNativeCommandControls>,
+    command_model: Option<&crate::CanonicalCommandV1>,
+    result: &PreToolResultV1,
+    context: super::PathContext<'_>,
+    deadline: Option<Instant>,
+    execution_environment: Option<&guard_contracts::GuardExecutionEnvironmentV1>,
+) -> bool {
+    let (Some(controls), Some(model), Some(observations)) =
+        (controls, command_model, result.command_extensions.as_ref())
+    else {
+        return false;
+    };
+    if result.minimum_action != "allow" || !result.action.bounded || result.action.sensitive_target
+    {
+        return false;
+    }
+    super::git_read_floor::unsettled_steps_before_reads(
+        model,
+        context,
+        deadline,
+        execution_environment,
+    )
+    .is_some_and(|steps| {
+        super::git_read_after_allow::allow_settles_read_order(
+            model,
+            &steps,
+            context,
+            deadline,
+            execution_environment,
+        )
+    }) && controls.explicit_allow_covers_command(model, observations, context)
 }
 
 /// The Git floor's reason when every Git read was proven helper-free on its

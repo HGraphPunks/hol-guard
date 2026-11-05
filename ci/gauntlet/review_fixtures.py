@@ -10,6 +10,8 @@ from typing import Any
 from .realism_fixtures import write_windows_launcher
 
 GITHUB_REVIEW_CASE = "github-review-work-enabled-permissions"
+# A repository named after Guard reaches `gh api` as `repos/{owner}/hol-guard/...`.
+GITHUB_GUARD_NAMED_REPOSITORY_CASE = "github-api-guard-named-repository-enabled-permissions"
 GITHUB_DELETE_CASE = "explicit-disabled-github-delete-permission"
 # The Oh My Pi `github` tool runs `gh api` underneath, so its lookups reach the same stand-in.
 GITHUB_LOOKUP_CASE = "omp-native-github-search-prs"
@@ -18,8 +20,17 @@ GITHUB_LOOKUP_QUERY = "is:pr metrics OR analytics"
 GITHUB_METADATA_CASE = "github-metadata-command-reads"
 GITHUB_METADATA_CONTROL = "github-metadata-mutation-control"
 GITHUB_STUB_CASES = frozenset(
-    {GITHUB_REVIEW_CASE, GITHUB_DELETE_CASE, GITHUB_LOOKUP_CASE, GITHUB_METADATA_CASE, GITHUB_METADATA_CONTROL}
+    {
+        GITHUB_REVIEW_CASE,
+        GITHUB_GUARD_NAMED_REPOSITORY_CASE,
+        GITHUB_DELETE_CASE,
+        GITHUB_LOOKUP_CASE,
+        GITHUB_METADATA_CASE,
+        GITHUB_METADATA_CONTROL,
+    }
 )
+# Cases that run with the GitHub extension and every one of its permissions enabled.
+GITHUB_ENABLED_CASES = frozenset({GITHUB_REVIEW_CASE, GITHUB_GUARD_NAMED_REPOSITORY_CASE})
 METADATA_CALLS = (
     ("cache", "list", "--limit", "5"),
     ("label", "list", "--json", "name"),
@@ -80,6 +91,16 @@ EXPECTED_GH_CALLS = (
     ("api", "graphql", "-f", f"query={_RESOLVE_COMPOUND}"),
 )
 DELETE_COMMAND = "gh repo delete example-org/example-repo --yes"
+_GUARD_NAMED_RUN = "repos/example-org/hol-guard/actions/runs/123/approve"
+_GUARD_NAMED_NEXT_RUN = "repos/example-org/hol-guard/actions/runs/124/approve"
+GUARD_NAMED_REPOSITORY_COMMANDS = (
+    f"gh api --method POST {_GUARD_NAMED_RUN}",
+    f"gh --hostname github.com api --method POST {_GUARD_NAMED_NEXT_RUN}",
+)
+GUARD_NAMED_REPOSITORY_CALLS = (
+    ("api", "--method", "POST", _GUARD_NAMED_RUN),
+    ("--hostname", "github.com", "api", "--method", "POST", _GUARD_NAMED_NEXT_RUN),
+)
 
 
 def gh_stub_script(log: Path) -> str:
@@ -90,7 +111,9 @@ def gh_stub_script(log: Path) -> str:
         'case "$*" in\n'
         '*graphql*) printf \'%s\\n\' \'{"data":{"resolveReviewThread":{"thread":{"isResolved":true}}}}\' ;;\n'
         '*/replies*) printf \'%s\\n\' \'{"id":456,"body":"reply recorded"}\' ;;\n'
-        '*search/issues*) printf \'%s\n\' \'{"total_count":1,"incomplete_results":false,"items":[{"number":12,"title":"Add metrics","state":"open","html_url":"https://github.com/example-org/example-repo/pull/12","pull_request":{}}]}\' ;;\n'
+        '*search/issues*) printf \'%s\n\' \'{"total_count":1,"incomplete_results":false,'
+        '"items":[{"number":12,"title":"Add metrics","state":"open",'
+        '"html_url":"https://github.com/example-org/example-repo/pull/12","pull_request":{}}]}\' ;;\n'
         '*) printf \'%s\\n\' \'[{"id":123,"user":{"login":"reviewer"},"body":"Please rename the helper"}]\' ;;\n'
         "esac\n"
         "exit 0\n"
@@ -106,13 +129,13 @@ def gh_stub_python(log: Path) -> str:
         "    log.write(''.join(arg + '\\x1f' for arg in args) + '\\n')\n"
         "joined = ' '.join(args)\n"
         "if 'graphql' in joined:\n"
-        "    out = '{\"data\":{\"resolveReviewThread\":{\"thread\":{\"isResolved\":true}}}}'\n"
+        '    out = \'{"data":{"resolveReviewThread":{"thread":{"isResolved":true}}}}\'\n'
         "elif '/replies' in joined:\n"
-        "    out = '{\"id\":456,\"body\":\"reply recorded\"}'\n"
+        '    out = \'{"id":456,"body":"reply recorded"}\'\n'
         "elif 'search/issues' in joined:\n"
-        "    out = '{\"total_count\":1,\"incomplete_results\":false,\"items\":[{\"number\":12,\"title\":\"Add metrics\",\"state\":\"open\",\"html_url\":\"https://github.com/example-org/example-repo/pull/12\",\"pull_request\":{}}]}'\n"
+        '    out = \'{"total_count":1,"incomplete_results":false,"items":[{"number":12,"title":"Add metrics","state":"open","html_url":"https://github.com/example-org/example-repo/pull/12","pull_request":{}}]}\'\n'
         "else:\n"
-        "    out = '[{\"id\":123,\"user\":{\"login\":\"reviewer\"},\"body\":\"Please rename the helper\"}]'\n"
+        '    out = \'[{"id":123,"user":{"login":"reviewer"},"body":"Please rename the helper"}]\'\n'
         "sys.stdout.buffer.write(out.encode() + b'\\n')\n"
     )
 
@@ -152,6 +175,9 @@ def github_checks(workspace: Path, scenario_id: str) -> dict[str, bool]:
         return {"github-metadata-control-not-executed": recorded_gh_calls(workspace) is None}
     if scenario_id == GITHUB_REVIEW_CASE:
         return {"github-stub-calls-exact": recorded_gh_calls(workspace) == list(EXPECTED_GH_CALLS)}
+    if scenario_id == GITHUB_GUARD_NAMED_REPOSITORY_CASE:
+        calls = recorded_gh_calls(workspace)
+        return {"github-guard-named-repository-call-exact": calls == list(GUARD_NAMED_REPOSITORY_CALLS)}
     if scenario_id == GITHUB_LOOKUP_CASE:
         calls = recorded_gh_calls(workspace)
         return {"github-lookup-ran-once": calls is not None and len(calls) == 1 and _is_lookup_call(calls[0])}
@@ -192,11 +218,14 @@ def worktree_checks(fixture_home: Path, workspace: Path, scenario_id: str, befor
 
 def configure_github_review_controls(daemon: Any, guard_home: Path) -> dict[str, Any]:
     """Sign the GitHub extension and every one of its permissions as enabled."""
-    from codex_plugin_scanner.guard.runtime.github_capability_contract import github_capability_contracts
+    from codex_plugin_scanner.guard.runtime.command_extensions import BUILT_IN_COMMAND_EXTENSION_REGISTRY
 
     from .extension_adapters import configure_extension_controls
 
-    permissions = [contract.permission_id for contract in github_capability_contracts()]
+    extension = BUILT_IN_COMMAND_EXTENSION_REGISTRY.get(GITHUB_EXTENSION_ID)
+    if extension is None:
+        raise RuntimeError(f"built-in command extension is missing: {GITHUB_EXTENSION_ID}")
+    permissions = [permission.permission_id for permission in extension.permissions]
     revision = configure_extension_controls(daemon, guard_home, GITHUB_EXTENSION_ID, enabled_permissions=permissions)
     return {
         "extension_id": GITHUB_EXTENSION_ID,

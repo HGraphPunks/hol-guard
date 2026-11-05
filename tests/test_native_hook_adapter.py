@@ -14,6 +14,7 @@ import pytest
 
 from codex_plugin_scanner.guard import native_hook_adapter as adapter
 from codex_plugin_scanner.guard.runtime.actions import normalize_harness_payload
+from tests.cursor_hook_payload_support import native_prepare_payload
 
 
 def _resident_returning(monkeypatch: pytest.MonkeyPatch, reply) -> None:
@@ -39,57 +40,11 @@ def _good(request: dict[str, object], **overrides: object) -> dict[str, object]:
     return reply
 
 
-def test_bound_answer_is_returned(monkeypatch: pytest.MonkeyPatch) -> None:
-    _resident_returning(monkeypatch, lambda request: _good(request))
-    assert adapter.native_command_detail("echo hi", home_dir=None) == "echo hi"
-
-
-@pytest.mark.parametrize(
-    "overrides",
-    [
-        {"request_sha256": "sha256:" + "0" * 64},
-        {"request_id": "someone-else"},
-        {"schema": "wrong"},
-    ],
-)
-def test_unbound_answers_fail_closed(monkeypatch: pytest.MonkeyPatch, overrides: dict[str, object]) -> None:
-    _resident_returning(monkeypatch, lambda request: _good(request, **overrides))
-    with pytest.raises(adapter.NativeHookAdapterError) as error:
-        adapter.native_command_detail("echo hi", home_dir=None)
-    assert error.value.code == "native_hook_adapter_unavailable"
-
-
-@pytest.mark.parametrize(
-    "overrides",
-    [
-        {"status": "ok", "code": "other"},
-        {"payload": None},
-        {"payload": {"text": 1}},
-        {"payload": {"text": "x", "extra": 1}},
-        {"status": "error", "code": "arbitrary text", "payload": None},
-    ],
-)
-def test_malformed_answers_raise(monkeypatch: pytest.MonkeyPatch, overrides: dict[str, object]) -> None:
-    _resident_returning(monkeypatch, lambda request: _good(request, **overrides))
-    with pytest.raises(adapter.NativeHookAdapterError):
-        adapter.native_command_detail("echo hi", home_dir=None)
-
-
-def test_missing_resident_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
-    _resident_returning(monkeypatch, lambda request: None)
-    with pytest.raises(adapter.NativeHookAdapterError) as error:
-        adapter.native_command_detail("echo hi", home_dir=None)
-    assert error.value.code == "native_hook_adapter_unavailable"
-    monkeypatch.setattr(adapter, "ensure_resident_prerequisite", lambda _home: False)
-    with pytest.raises(adapter.NativeHookAdapterError):
-        adapter.native_command_detail("echo hi", home_dir=None)
-
-
 def test_cline_rejection_maps_to_cline_payload_error(monkeypatch: pytest.MonkeyPatch) -> None:
     reply = {"status": "error", "code": "native_hook_adapter_cline_payload", "payload": {"message": "no hook"}}
     _resident_returning(monkeypatch, lambda request: _good(request, **reply))
     with pytest.raises(adapter.ClinePayloadError, match="no hook"):
-        adapter.native_prepare_payload("cline", {"x": 1})
+        native_prepare_payload("cline", {"x": 1})
 
 
 def test_unsupported_harness_maps_to_value_error(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -133,10 +88,10 @@ def test_hook_action_envelope_skips_a_harness_the_adapter_does_not_know(
 def test_unrepresentable_payload_fails_before_the_resident(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(adapter, "_resident_request", lambda **_kwargs: pytest.fail("must not reach the resident"))
     with pytest.raises(adapter.NativeHookAdapterError) as error:
-        adapter.native_prepare_payload("codex", {"value": float("nan")})
+        native_prepare_payload("codex", {"value": float("nan")})
     assert error.value.code == "native_hook_adapter_request_invalid"
     with pytest.raises(adapter.NativeHookAdapterError):
-        adapter.native_prepare_payload("codex", {1: "non-string key"})  # type: ignore[dict-item]
+        native_prepare_payload("codex", {1: "non-string key"})  # type: ignore[dict-item]
 
 
 def test_expired_deadline_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -161,7 +116,7 @@ def test_resident_round_trip_preserves_key_order_and_redacts(native_approval_reu
         "tool_input": {"command": "echo hi", "zeta": 1, "alpha": 2},
         "tool_response": {"stdout": "secret output"},
     }
-    prepared = adapter.native_prepare_payload("codex", payload, guard_home=native_approval_reuse_runtime)
+    prepared = native_prepare_payload("codex", payload, guard_home=native_approval_reuse_runtime)
     assert list(prepared["tool_input"]) == ["command", "zeta", "alpha"]  # type: ignore[call-overload]
     envelope = normalize_harness_payload(
         "claude-code",
@@ -255,16 +210,7 @@ def test_shapes_the_resident_cannot_parse_fail_with_the_size_code(
     monkeypatch.setattr(adapter, "_resolve_digest_home", lambda _home: Path("/tmp/hook-adapter-home"))
     monkeypatch.setattr(adapter, "ensure_resident_prerequisite", lambda _home: True)
     with pytest.raises(adapter.NativeHookAdapterError) as error:
-        adapter.native_prepare_payload("codex", payload)
-    assert error.value.code == "native_hook_adapter_request_too_large"
-
-
-def test_plain_text_over_the_string_slot_fails_with_the_size_code(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(adapter, "_resident_request", lambda **_kwargs: pytest.fail("must not reach the resident"))
-    monkeypatch.setattr(adapter, "_resolve_digest_home", lambda _home: Path("/tmp/hook-adapter-home"))
-    monkeypatch.setattr(adapter, "ensure_resident_prerequisite", lambda _home: True)
-    with pytest.raises(adapter.NativeHookAdapterError) as error:
-        adapter.native_command_detail("x" * (1024 * 1024 + 1), home_dir=None)
+        native_prepare_payload("codex", payload)
     assert error.value.code == "native_hook_adapter_request_too_large"
 
 
@@ -274,7 +220,7 @@ def test_oversize_policy_input_fails_closed_with_an_explicit_code(monkeypatch: p
     monkeypatch.setattr(adapter, "ensure_resident_prerequisite", lambda _home: True)
     huge = {"command": "x" * (4 * 1024 * 1024 + 1)}
     for call in (
-        lambda: adapter.native_prepare_payload("codex", {"tool_input": huge}),
+        lambda: native_prepare_payload("codex", {"tool_input": huge}),
         lambda: adapter.native_command_text("Bash", huge),
         lambda: adapter.native_apply_patch_paths({"input": huge["command"]}),
         lambda: adapter.native_action_envelope(
@@ -318,14 +264,14 @@ def test_digest_references_resolve_against_the_request(monkeypatch: pytest.Monke
     big = "r" * 100_000
     digest = hashlib.sha256(big.encode()).hexdigest()
     _recording_resident(monkeypatch, lambda request: _good(request, payload=["d", "blob", ["r", digest]]))
-    assert adapter.native_prepare_payload("codex", {"blob": big}) == {"blob": big}
+    assert native_prepare_payload("codex", {"blob": big}) == {"blob": big}
 
 
 @pytest.mark.parametrize("answer", [["d", "blob", ["r", "0" * 64]], ["d", "blob", ["r"]], ["x", 1]])
 def test_unknown_references_and_tags_fail_closed(monkeypatch: pytest.MonkeyPatch, answer: list[object]) -> None:
     _recording_resident(monkeypatch, lambda request: _good(request, payload=answer))
     with pytest.raises(adapter.NativeHookAdapterError):
-        adapter.native_prepare_payload("codex", {"blob": "r" * 100_000})
+        native_prepare_payload("codex", {"blob": "r" * 100_000})
 
 
 def test_late_answers_are_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -410,30 +356,3 @@ def test_hook_scope_binds_the_hook_guard_home_for_ambient_calls(
         assert native_context._BOUND_GUARD_HOME.get() is None
     finally:
         native_context._BOUND_GUARD_HOME.reset(baseline)
-
-
-def test_one_dropped_round_trip_is_retried(monkeypatch: pytest.MonkeyPatch) -> None:
-    replies = iter([None])
-    seen: list[str] = []
-
-    def reply(request: dict[str, object]) -> dict[str, object] | None:
-        seen.append(str(request["request_id"]))
-        return next(replies, _good(request))
-
-    _resident_returning(monkeypatch, reply)
-    assert adapter.native_command_detail("echo hi", home_dir=None) == "echo hi"
-    assert len(seen) == 2 and seen[0] != seen[1]
-
-
-def test_timed_out_round_trip_is_not_retried(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[int] = []
-
-    def reply(_request: dict[str, object]) -> None:
-        calls.append(1)
-        adapter.record_native_resident_client_failure_code("native_client_timed_out")
-
-    _resident_returning(monkeypatch, reply)
-    with pytest.raises(adapter.NativeHookAdapterError) as error:
-        adapter.native_command_detail("echo hi", home_dir=None)
-    assert error.value.code == "native_hook_adapter_unavailable"
-    assert calls == [1]

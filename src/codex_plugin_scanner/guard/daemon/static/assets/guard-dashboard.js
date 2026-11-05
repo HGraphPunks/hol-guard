@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/chunks/home-dashboard-Wxa6VirA.js","assets/chunks/home-protection-module-Du65PsUR.js","assets/chunks/about-content-BwtrHEyh.js","assets/chunks/app-catalog-BU3dzTBu.js","assets/chunks/fleet-workspace-CkMTJ0-Z.js","assets/chunks/harness-version-label-0p6P70WE.js","assets/chunks/connect-guard-cloud-button-COC8NKLs.js","assets/chunks/settings-save-proof-modal-DSJONzDi.js","assets/chunks/settings-workspace-DdhT0dGq.js","assets/chunks/confirm-dialog-DoiBaaXB.js","assets/chunks/extensions-workspace-BPzLUHdQ.js","assets/chunks/app-detail-workspace-B9rlD0o5.js","assets/chunks/policy-workspace-page-B-AqWrAu.js","assets/chunks/about-workspace-C1-uAYDr.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/chunks/home-dashboard-CgoWDyH8.js","assets/chunks/home-protection-module-Cx-hi3jU.js","assets/chunks/supply-chain-protection-stats-D4Avk7Wd.js","assets/chunks/brand-hero-COty1p6U.js","assets/chunks/about-content-Dr9zFg1V.js","assets/chunks/app-catalog-By01oDVd.js","assets/chunks/fleet-workspace-DNJ-lCVP.js","assets/chunks/harness-version-label-Db5IZIv9.js","assets/chunks/connect-guard-cloud-button-olSoWn4O.js","assets/chunks/settings-save-proof-modal-CZZvxWFO.js","assets/chunks/settings-workspace-CSWClh0B.js","assets/chunks/confirm-dialog-QOlb635L.js","assets/chunks/extensions-workspace-BPyPqCVn.js","assets/chunks/app-detail-workspace-Cmxl-5FP.js","assets/chunks/policy-workspace-page-Dfk5voWa.js","assets/chunks/about-workspace-C2hkwjW-.js","assets/about-workspace.css"])))=>i.map(i=>d[i]);
 (function polyfill() {
   const relList = document.createElement("link").relList;
   if (relList && relList.supports && relList.supports("modulepreload")) return;
@@ -12752,6 +12752,9 @@ function HiMiniXMark(props) {
 function HiMiniXCircle(props) {
   return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM8.28 7.22a.75.75 0 0 0-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 1 0 1.06 1.06L10 11.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L11.06 10l1.72-1.72a.75.75 0 0 0-1.06-1.06L10 8.94 8.28 7.22Z", "clipRule": "evenodd" }, "child": [] }] })(props);
 }
+function HiMiniWrench(props) {
+  return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "M19 5.5a4.5 4.5 0 0 1-4.791 4.49c-.873-.055-1.808.128-2.368.8l-6.024 7.23a2.724 2.724 0 1 1-3.837-3.837L9.21 8.16c.672-.56.855-1.495.8-2.368a4.5 4.5 0 0 1 5.873-4.575c.324.105.39.51.15.752L13.34 4.66a.455.455 0 0 0-.11.494 3.01 3.01 0 0 0 1.617 1.617c.17.07.363.02.493-.111l2.692-2.692c.241-.241.647-.174.752.15.14.435.216.9.216 1.382ZM4 17a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z", "clipRule": "evenodd" }, "child": [] }] })(props);
+}
 function HiMiniWrenchScrewdriver(props) {
   return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "M14.5 10a4.5 4.5 0 0 0 4.284-5.882c-.105-.324-.51-.391-.752-.15L15.34 6.66a.454.454 0 0 1-.493.11 3.01 3.01 0 0 1-1.618-1.616.455.455 0 0 1 .11-.494l2.694-2.692c.24-.241.174-.647-.15-.752a4.5 4.5 0 0 0-5.873 4.575c.055.873-.128 1.808-.8 2.368l-7.23 6.024a2.724 2.724 0 1 0 3.837 3.837l6.024-7.23c.56-.672 1.495-.855 2.368-.8.096.007.193.01.291.01ZM5 16a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z", "clipRule": "evenodd" }, "child": [] }, { "tag": "path", "attr": { "d": "M14.5 11.5c.173 0 .345-.007.514-.022l3.754 3.754a2.5 2.5 0 0 1-3.536 3.536l-4.41-4.41 2.172-2.607c.052-.063.147-.138.342-.196.202-.06.469-.087.777-.067.128.008.257.012.387.012ZM6 4.586l2.33 2.33a.452.452 0 0 1-.08.09L6.8 8.214 4.586 6H3.309a.5.5 0 0 1-.447-.276l-1.7-3.402a.5.5 0 0 1 .093-.577l.49-.49a.5.5 0 0 1 .577-.094l3.402 1.7A.5.5 0 0 1 6 3.31v1.277Z" }, "child": [] }] })(props);
 }
@@ -12772,9 +12775,6 @@ function HiMiniSparkles(props) {
 }
 function HiMiniSignal(props) {
   return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "d": "M16.364 3.636a.75.75 0 0 0-1.06 1.06 7.5 7.5 0 0 1 0 10.607.75.75 0 0 0 1.06 1.061 9 9 0 0 0 0-12.728ZM4.697 4.697a.75.75 0 0 0-1.061-1.061 9 9 0 0 0 0 12.728.75.75 0 1 0 1.06-1.06 7.5 7.5 0 0 1 0-10.607Z" }, "child": [] }, { "tag": "path", "attr": { "d": "M12.475 6.464a.75.75 0 0 1 1.06 0 5 5 0 0 1 0 7.072.75.75 0 0 1-1.06-1.061 3.5 3.5 0 0 0 0-4.95.75.75 0 0 1 0-1.06ZM7.525 6.464a.75.75 0 0 1 0 1.061 3.5 3.5 0 0 0 0 4.95.75.75 0 0 1-1.06 1.06 5 5 0 0 1 0-7.07.75.75 0 0 1 1.06 0ZM11 10a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z" }, "child": [] }] })(props);
-}
-function HiMiniShieldExclamation(props) {
-  return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "M10.339 2.237a.531.531 0 0 0-.678 0 11.947 11.947 0 0 1-7.078 2.75.5.5 0 0 0-.479.425A12.11 12.11 0 0 0 2 7c0 5.163 3.26 9.564 7.834 11.257a.48.48 0 0 0 .332 0C14.74 16.564 18 12.163 18 7c0-.538-.035-1.069-.104-1.589a.5.5 0 0 0-.48-.425 11.947 11.947 0 0 1-7.077-2.75ZM10 6a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 6Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z", "clipRule": "evenodd" }, "child": [] }] })(props);
 }
 function HiMiniShieldCheck(props) {
   return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "M9.661 2.237a.531.531 0 0 1 .678 0 11.947 11.947 0 0 0 7.078 2.749.5.5 0 0 1 .479.425c.069.52.104 1.05.104 1.59 0 5.162-3.26 9.563-7.834 11.256a.48.48 0 0 1-.332 0C5.26 16.564 2 12.163 2 7c0-.538.035-1.069.104-1.589a.5.5 0 0 1 .48-.425 11.947 11.947 0 0 0 7.077-2.75Zm4.196 5.954a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z", "clipRule": "evenodd" }, "child": [] }] })(props);
@@ -12802,6 +12802,9 @@ function HiMiniPencilSquare(props) {
 }
 function HiMiniNoSymbol(props) {
   return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "m5.965 4.904 9.131 9.131a6.5 6.5 0 0 0-9.131-9.131Zm8.07 10.192L4.904 5.965a6.5 6.5 0 0 0 9.131 9.131ZM4.343 4.343a8 8 0 1 1 11.314 11.314A8 8 0 0 1 4.343 4.343Z", "clipRule": "evenodd" }, "child": [] }] })(props);
+}
+function HiMiniMinus(props) {
+  return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "M4 10a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H4.75A.75.75 0 0 1 4 10Z", "clipRule": "evenodd" }, "child": [] }] })(props);
 }
 function HiMiniMinusCircle(props) {
   return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM6.75 9.25a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Z", "clipRule": "evenodd" }, "child": [] }] })(props);
@@ -12839,6 +12842,9 @@ function HiMiniFunnel(props) {
 function HiMiniFolder(props) {
   return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "d": "M3.75 3A1.75 1.75 0 0 0 2 4.75v3.26a3.235 3.235 0 0 1 1.75-.51h12.5c.644 0 1.245.188 1.75.51V6.75A1.75 1.75 0 0 0 16.25 5h-4.836a.25.25 0 0 1-.177-.073L9.823 3.513A1.75 1.75 0 0 0 8.586 3H3.75ZM3.75 9A1.75 1.75 0 0 0 2 10.75v4.5c0 .966.784 1.75 1.75 1.75h12.5A1.75 1.75 0 0 0 18 15.25v-4.5A1.75 1.75 0 0 0 16.25 9H3.75Z" }, "child": [] }] })(props);
 }
+function HiMiniFolderOpen(props) {
+  return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "d": "M4.75 3A1.75 1.75 0 0 0 3 4.75v2.752l.104-.002h13.792c.035 0 .07 0 .104.002V6.75A1.75 1.75 0 0 0 15.25 5h-3.836a.25.25 0 0 1-.177-.073L9.823 3.513A1.75 1.75 0 0 0 8.586 3H4.75ZM3.104 9a1.75 1.75 0 0 0-1.673 2.265l1.385 4.5A1.75 1.75 0 0 0 4.488 17h11.023a1.75 1.75 0 0 0 1.673-1.235l1.384-4.5A1.75 1.75 0 0 0 16.896 9H3.104Z" }, "child": [] }] })(props);
+}
 function HiMiniEye(props) {
   return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "d": "M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" }, "child": [] }, { "tag": "path", "attr": { "fillRule": "evenodd", "d": "M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z", "clipRule": "evenodd" }, "child": [] }] })(props);
 }
@@ -12850,6 +12856,9 @@ function HiMiniExclamationTriangle(props) {
 }
 function HiMiniExclamationCircle(props) {
   return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 10 5Zm0 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z", "clipRule": "evenodd" }, "child": [] }] })(props);
+}
+function HiMiniEllipsisHorizontal(props) {
+  return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "d": "M3 10a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0ZM8.5 10a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0ZM15.5 8.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z" }, "child": [] }] })(props);
 }
 function HiMiniDocumentText(props) {
   return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.378 2H4.5Zm2.25 8.5a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Zm0 3a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Z", "clipRule": "evenodd" }, "child": [] }] })(props);
@@ -12865,9 +12874,6 @@ function HiMiniCube(props) {
 }
 function HiMiniCpuChip(props) {
   return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "d": "M14 6H6v8h8V6Z" }, "child": [] }, { "tag": "path", "attr": { "fillRule": "evenodd", "d": "M9.25 3V1.75a.75.75 0 0 1 1.5 0V3h1.5V1.75a.75.75 0 0 1 1.5 0V3h.5A2.75 2.75 0 0 1 17 5.75v.5h1.25a.75.75 0 0 1 0 1.5H17v1.5h1.25a.75.75 0 0 1 0 1.5H17v1.5h1.25a.75.75 0 0 1 0 1.5H17v.5A2.75 2.75 0 0 1 14.25 17h-.5v1.25a.75.75 0 0 1-1.5 0V17h-1.5v1.25a.75.75 0 0 1-1.5 0V17h-1.5v1.25a.75.75 0 0 1-1.5 0V17h-.5A2.75 2.75 0 0 1 3 14.25v-.5H1.75a.75.75 0 0 1 0-1.5H3v-1.5H1.75a.75.75 0 0 1 0-1.5H3v-1.5H1.75a.75.75 0 0 1 0-1.5H3v-.5A2.75 2.75 0 0 1 5.75 3h.5V1.75a.75.75 0 0 1 1.5 0V3h1.5ZM4.5 5.75c0-.69.56-1.25 1.25-1.25h8.5c.69 0 1.25.56 1.25 1.25v8.5c0 .69-.56 1.25-1.25 1.25h-8.5c-.69 0-1.25-.56-1.25-1.25v-8.5Z", "clipRule": "evenodd" }, "child": [] }] })(props);
-}
-function HiMiniComputerDesktop(props) {
-  return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "M2 4.25A2.25 2.25 0 0 1 4.25 2h11.5A2.25 2.25 0 0 1 18 4.25v8.5A2.25 2.25 0 0 1 15.75 15h-3.105a3.501 3.501 0 0 0 1.1 1.677A.75.75 0 0 1 13.26 18H6.74a.75.75 0 0 1-.484-1.323A3.501 3.501 0 0 0 7.355 15H4.25A2.25 2.25 0 0 1 2 12.75v-8.5Zm1.5 0a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 .75.75v7.5a.75.75 0 0 1-.75.75H4.25a.75.75 0 0 1-.75-.75v-7.5Z", "clipRule": "evenodd" }, "child": [] }] })(props);
 }
 function HiMiniCommandLine(props) {
   return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "M3.25 3A2.25 2.25 0 0 0 1 5.25v9.5A2.25 2.25 0 0 0 3.25 17h13.5A2.25 2.25 0 0 0 19 14.75v-9.5A2.25 2.25 0 0 0 16.75 3H3.25Zm.943 8.752a.75.75 0 0 1 .055-1.06L6.128 9l-1.88-1.693a.75.75 0 1 1 1.004-1.114l2.5 2.25a.75.75 0 0 1 0 1.114l-2.5 2.25a.75.75 0 0 1-1.06-.055ZM9.75 10.25a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z", "clipRule": "evenodd" }, "child": [] }] })(props);
@@ -12947,6 +12953,9 @@ function HiMiniArrowUp(props) {
 function HiMiniArrowUpTray(props) {
   return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "d": "M9.25 13.25a.75.75 0 0 0 1.5 0V4.636l2.955 3.129a.75.75 0 0 0 1.09-1.03l-4.25-4.5a.75.75 0 0 0-1.09 0l-4.25 4.5a.75.75 0 1 0 1.09 1.03L9.25 4.636v8.614Z" }, "child": [] }, { "tag": "path", "attr": { "d": "M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" }, "child": [] }] })(props);
 }
+function HiMiniArrowUpCircle(props) {
+  return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm-.75-4.75a.75.75 0 0 0 1.5 0V8.66l1.95 2.1a.75.75 0 1 0 1.1-1.02l-3.25-3.5a.75.75 0 0 0-1.1 0L6.2 9.74a.75.75 0 1 0 1.1 1.02l1.95-2.1v4.59Z", "clipRule": "evenodd" }, "child": [] }] })(props);
+}
 function HiMiniArrowTopRightOnSquare(props) {
   return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "M4.25 5.5a.75.75 0 0 0-.75.75v8.5c0 .414.336.75.75.75h8.5a.75.75 0 0 0 .75-.75v-4a.75.75 0 0 1 1.5 0v4A2.25 2.25 0 0 1 12.75 17h-8.5A2.25 2.25 0 0 1 2 14.75v-8.5A2.25 2.25 0 0 1 4.25 4h5a.75.75 0 0 1 0 1.5h-5Z", "clipRule": "evenodd" }, "child": [] }, { "tag": "path", "attr": { "fillRule": "evenodd", "d": "M6.194 12.753a.75.75 0 0 0 1.06.053L16.5 4.44v2.81a.75.75 0 0 0 1.5 0v-4.5a.75.75 0 0 0-.75-.75h-4.5a.75.75 0 0 0 0 1.5h2.553l-9.056 8.194a.75.75 0 0 0-.053 1.06Z", "clipRule": "evenodd" }, "child": [] }] })(props);
 }
@@ -12955,6 +12964,9 @@ function HiMiniArrowRight(props) {
 }
 function HiMiniArrowPath(props) {
   return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.989a.75.75 0 0 0-.75.75v4.242a.75.75 0 0 0 1.5 0v-2.43l.31.31a7 7 0 0 0 11.712-3.138.75.75 0 0 0-1.449-.39Zm1.23-3.723a.75.75 0 0 0 .219-.53V2.929a.75.75 0 0 0-1.5 0V5.36l-.31-.31A7 7 0 0 0 3.239 8.188a.75.75 0 1 0 1.448.389A5.5 5.5 0 0 1 13.89 6.11l.311.31h-2.432a.75.75 0 0 0 0 1.5h4.243a.75.75 0 0 0 .53-.219Z", "clipRule": "evenodd" }, "child": [] }] })(props);
+}
+function HiMiniArrowLongRight(props) {
+  return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "M2 10a.75.75 0 0 1 .75-.75h12.59l-2.1-1.95a.75.75 0 1 1 1.02-1.1l3.5 3.25a.75.75 0 0 1 0 1.1l-3.5 3.25a.75.75 0 1 1-1.02-1.1l2.1-1.95H2.75A.75.75 0 0 1 2 10Z", "clipRule": "evenodd" }, "child": [] }] })(props);
 }
 function HiMiniArrowLeft(props) {
   return GenIcon({ "attr": { "viewBox": "0 0 20 20", "fill": "currentColor", "aria-hidden": "true" }, "child": [{ "tag": "path", "attr": { "fillRule": "evenodd", "d": "M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 1 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z", "clipRule": "evenodd" }, "child": [] }] })(props);
@@ -16303,6 +16315,31 @@ function coverageStepLabel(segment) {
   const step = `Step ${segment.index + 1}`;
   return segment.executable === null ? step : `${step} · ${segment.executable}`;
 }
+function segmentDetail(segment) {
+  const titles = segment.rules.map((rule2) => rule2.title);
+  const labels = segment.permissions.filter((permission2) => permission2.configurable).map((item) => item.label);
+  const linked = new Set(segment.extensions.map((extension2) => extension2.name));
+  const parts = (titles.length > 0 ? titles : labels).filter((part) => !linked.has(part));
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+function alreadyLinked(extension2, links) {
+  return links.some(
+    (link) => link.extension_id === extension2.extension_id && // A step that names no rule of its own lands on the extension page, so any
+    // link to that extension repeats it. A step that points at one rule is a
+    // repeat only when the recommendation links that same rule: an extension
+    // can govern several steps of a compound command through different rules.
+    (extension2.focus_rule_id === null || link.rule_id === extension2.focus_rule_id)
+  );
+}
+function coverageSegmentsBeyond(coverage, links) {
+  const linkedRuleIds = new Set(links.map((link) => link.rule_id).filter((ruleId) => ruleId !== null));
+  return coverage.segments.map((segment) => ({
+    ...segment,
+    extensions: segment.extensions.filter((extension2) => !alreadyLinked(extension2, links)),
+    // The step's detail names its rules; a rule already linked above is not named again.
+    rules: segment.rules.filter((rule2) => !linkedRuleIds.has(rule2.rule_id))
+  })).filter((segment) => segment.extensions.length > 0);
+}
 const RECOMMENDATION_SCHEMA = "guard.approval-extension-recommendation.v1";
 const MAX_PERMISSIONS$1 = 3;
 const CATALOG_ID = /^command\.[A-Za-z0-9._-]{1,248}$/;
@@ -16368,7 +16405,7 @@ function normalizeApprovalExtensionRecommendation(raw) {
   };
 }
 function recommendationCommandLabel(permission2) {
-  return permission2.example_command ?? permission2.label;
+  return permission2.label;
 }
 function joinLabels(labels) {
   if (labels.length <= 1) return labels[0] ?? "";
@@ -16382,23 +16419,30 @@ const CAUTION_REASON_COPY = {
   destructive: "can destroy work or history",
   sensitive: "touches sensitive data or access"
 };
+function cautionLine(permission2) {
+  const reason = CAUTION_REASON_COPY[permission2.caution_reason ?? "sensitive"];
+  if (permission2.caution_detail) return `${permission2.label} ${reason}. ${permission2.caution_detail}`;
+  const example = permission2.example_command;
+  return example ? `${permission2.label} ${reason}, such as ${example}.` : `${permission2.label} ${reason}.`;
+}
 function approvalExtensionRecommendationCopy(recommendation) {
   const commands = recommendation.permissions.map(recommendationCommandLabel);
   const commandText = joinLabels(commands);
   const owner = extensionNames(recommendation);
-  const cautionLines = recommendation.permissions.filter((permission2) => permission2.caution).map((permission2) => {
-    const command = recommendationCommandLabel(permission2);
-    const reason = CAUTION_REASON_COPY[permission2.caution_reason ?? "sensitive"];
-    return permission2.caution_detail ? `${command} ${reason}. ${permission2.caution_detail}` : `${command} ${reason}.`;
-  });
+  const oneTap = !recommendation.caution;
+  const cautionLines = recommendation.permissions.filter((permission2) => permission2.caution).map(cautionLine);
   const firstExtension = recommendation.permissions[0]?.extension_name ?? owner;
+  const configureVerb = oneTap ? "Configure" : "Review";
   return {
     commands,
     commandText,
-    title: `${owner} covers ${commandText}`,
-    body: `${owner} asks before agents run ${commandText}. Allow it in ${owner} and future ${commandText} commands run without asking. Other protections still apply.`,
+    oneTap,
+    eyebrow: oneTap ? "Recommended setting" : "Extension rule",
+    title: `${owner} asks before ${commandText}`,
+    body: oneTap ? `Allow ${commandText} in ${owner} and agents run matching commands without asking. Other protections still apply.` : `Allowing ${commandText} would let agents run every matching command without asking, not only this one. Decide on this request below, or review the rule in ${owner}.`,
     primaryLabel: `Approve & always allow ${commandText}`,
-    configureLabel: `Configure in ${firstExtension}`,
+    configureVerb,
+    configureLabel: `${configureVerb} in ${firstExtension}`,
     confirmTitle: `Always allow ${commandText}?`,
     confirmDetail: `This approves this request and changes ${owner} so agents can run ${commandText} without asking. Other protections, secret-file rules, and blocks still apply. You can change this anytime in the extension settings.`,
     cautionLines,
@@ -17423,6 +17467,12 @@ async function fetchReleaseFeedApi(input, init) {
   const approvedPath = typeof input === "string" && /^\/v1\/releases\/(?:index|release)(?:\?[A-Za-z0-9=&_.-]*)?$/.test(input);
   if (!approvedPath) {
     throw new Error("Invalid release feed API path");
+  }
+  return fetchWithGuardAuth(input, init);
+}
+async function fetchPluginUpdatesApi(input, init) {
+  if (input !== "/v1/plugins/updates" && input !== "/v1/plugins/updates/dismiss") {
+    throw new Error("Invalid plugin updates API path");
   }
   return fetchWithGuardAuth(input, init);
 }
@@ -19757,19 +19807,24 @@ async function runPackageAudit(input) {
   }
   return normalizePackageFirewallAction(payloadBody);
 }
+const SUPPLY_CHAIN_SYNC_TIMEOUT_MS = 45e3;
 async function runPackageSync(credentials) {
-  const response = await fetchGuardApi("/v1/supply-chain/sync", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...guardAuthHeaders()
+  const { response, payload: payloadBody } = await fetchLocalProtectionJson(
+    "/v1/supply-chain/sync",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...guardAuthHeaders()
+      },
+      body: JSON.stringify({
+        ...credentials?.approval_password !== void 0 ? { approval_password: credentials.approval_password } : {},
+        ...credentials?.approval_totp_code !== void 0 ? { approval_totp_code: credentials.approval_totp_code } : {}
+      })
     },
-    body: JSON.stringify({
-      ...credentials?.approval_password !== void 0 ? { approval_password: credentials.approval_password } : {},
-      ...credentials?.approval_totp_code !== void 0 ? { approval_totp_code: credentials.approval_totp_code } : {}
-    })
-  });
-  const payloadBody = await response.json().catch(() => null);
+    SUPPLY_CHAIN_SYNC_TIMEOUT_MS,
+    "Guard Cloud did not answer the intel sync in time. Guard rechecked the feed status; try syncing again if it is still out of date."
+  );
   if (!response.ok) {
     throw new GuardHarnessActionError(
       response.status,
@@ -20571,12 +20626,12 @@ const ActionButton = reactExports.forwardRef(
   }
 );
 ActionButton.displayName = "ActionButton";
-function IconActionButton({ label, icon: icon2, variant = "outline", onClick, disabled, spinning, "aria-label": ariaLabel }) {
+function IconActionButton({ label, icon: icon2, variant = "outline", onClick, disabled, spinning, "aria-label": ariaLabel, showLabel = false }) {
   const base = "inline-flex items-center justify-center gap-1.5 rounded-lg text-sm font-semibold transition-[color,background-color,border-color,opacity] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 min-h-9 h-9 px-2.5 sm:px-3";
   const tone = variant === "primary" ? "bg-brand-blue text-white shadow-sm hover:bg-brand-blue/90" : variant === "danger" ? "bg-brand-purple text-white shadow-sm hover:bg-brand-purple/90" : variant === "ghost" ? "text-slate-600 hover:bg-slate-100" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300";
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { type: "button", onClick, disabled, "aria-label": ariaLabel ?? label, className: `${base} ${tone}`, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `h-4 w-4 ${spinning ? "animate-spin" : ""}`, "aria-hidden": "true", children: icon2 }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "hidden sm:inline", children: spinning ? "Running..." : label })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: showLabel ? "inline" : "hidden sm:inline", children: spinning ? "Running..." : label })
   ] });
 }
 function PaginationControls(props) {
@@ -20645,7 +20700,7 @@ function tagToneClass(tone) {
   if (tone === "info") return "border-transparent bg-blue-500/10 text-blue-700";
   if (tone === "default") return "border-gray-200 bg-gray-100 text-gray-500";
   if (tone === "slate") return "border-gray-200 bg-gray-100 text-gray-500";
-  if (tone === "attention") return "border-transparent bg-brand-attention-bg text-brand-attention";
+  if (tone === "attention") return "border-transparent bg-brand-attention-bg text-brand-attention-text";
   return "border-transparent bg-blue-500/10 text-blue-700";
 }
 function actionButtonClass(variant) {
@@ -21012,7 +21067,7 @@ function ApprovalProofInline(props) {
         onApprovalTotpCodeChange: props.onApprovalTotpCodeChange
       }
     ),
-    props.error !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-sm text-brand-attention", role: "alert", children: props.error }) : null,
+    props.error ?? null,
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2 sm:flex-row sm:items-center", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(ActionButton, { variant: "primary", onClick: props.onSubmit, disabled: submitDisabled, children: props.submitLabel }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(ActionButton, { variant: "outline", onClick: props.onBack, disabled: props.submitBusy, children: "Go back" })
@@ -21852,7 +21907,7 @@ const NAVIGATION_GROUPS = [
 ];
 function canonicalNavigationView(view) {
   if (view === "app-detail") return "fleet";
-  if (view === "audit" || view === "feed-health") return "supply-chain";
+  if (view === "audit" || view === "feed-health" || view === "workspaces") return "supply-chain";
   if (view === "protection-repair") return "extensions";
   return view;
 }
@@ -25085,6 +25140,13 @@ function activationHeadline(protection) {
   if (protection.path_status === "restart_required") return "Finish activation in Guard";
   return "Fix PATH to finish activation";
 }
+function activationDetail(protection) {
+  if (protection.path_status === "restart_required") {
+    return protection.shell_profile_configured ? "Guard saved your shell setup. Finish activation, then open a new shell." : "Guard installed its shims. Activation is still waiting in this Guard session.";
+  }
+  if (protection.path_status === "in_path") return "Guard's shims now check installs from your package managers.";
+  return "Installs skip Guard until its shim folder is on PATH.";
+}
 function ActivationSummary({
   activationAssistError,
   lastAuditProofAt = null,
@@ -25097,6 +25159,23 @@ function ActivationSummary({
     return null;
   }
   const copy = resolvePackageManagerProtectionCopy(protection);
+  if (protection.path_status === "in_path" && activationAssistError === null) {
+    return /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-xs leading-5 text-slate-600", children: [
+      copy.pathDetail,
+      lastAuditProofAt !== null ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        " Last audit proof ",
+        formatRelativeTime(lastAuditProofAt),
+        "."
+      ] }) : null
+    ] });
+  }
+  if (protection.path_status !== "restart_required" && activationAssistError === null) {
+    return lastAuditProofAt !== null ? /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-xs leading-5 text-slate-600", children: [
+      "Last audit proof ",
+      formatRelativeTime(lastAuditProofAt),
+      "."
+    ] }) : null;
+  }
   const Icon = protection.path_status === "in_path" ? HiMiniCheckCircle : protection.path_status === "restart_required" ? HiMiniArrowPath : HiMiniExclamationTriangle;
   const toneClass = protection.path_status === "in_path" ? "border-brand-green/20 bg-brand-green/[0.04]" : protection.path_status === "restart_required" ? "border-brand-blue/20 bg-brand-blue/[0.04]" : "border-brand-attention/20 bg-brand-attention/[0.04]";
   const iconClass = protection.path_status === "in_path" ? "text-brand-green" : protection.path_status === "restart_required" ? "text-brand-blue" : "text-brand-attention";
@@ -25105,7 +25184,7 @@ function ActivationSummary({
     /* @__PURE__ */ jsxRuntimeExports.jsx(Icon, { className: `mt-0.5 h-4 w-4 shrink-0 ${iconClass}`, "aria-hidden": "true" }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "min-w-0", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-sm font-medium text-brand-dark", children: activationHeadline(protection) }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-0.5 text-xs text-slate-600", children: copy.pathDetail }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-0.5 text-sm text-slate-600", title: protection.shim_dir, children: activationDetail(protection) }),
       lastAuditProofAt !== null && /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "mt-1 text-xs text-slate-500", children: [
         "Last audit proof ",
         formatRelativeTime(lastAuditProofAt)
@@ -25114,7 +25193,7 @@ function ActivationSummary({
         canActivateRuntime && /* @__PURE__ */ jsxRuntimeExports.jsx(ActionButton, { variant: "primary", onClick: onActivateRuntime, disabled: activatingRuntime, children: activatingRuntime ? "Finishing activation…" : "Finish activation" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(ActionButton, { variant: "outline", onClick: onRefreshStatus, disabled: activatingRuntime, children: "Refresh status" })
       ] }),
-      activationAssistError !== null && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-2 text-xs text-brand-attention", children: activationAssistError })
+      activationAssistError !== null && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-2 text-xs text-brand-attention-text", children: activationAssistError })
     ] })
   ] }) });
 }
@@ -27056,7 +27135,7 @@ function WorkspacePageHeader(props) {
   } : null;
   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "guard-page-header", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "guard-page-header__layout", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "guard-page-header__copy space-y-1", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs font-semibold uppercase tracking-[0.18em] text-slate-400", children: eyebrow }),
+      eyebrow ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs font-semibold uppercase tracking-[0.18em] text-slate-400", children: eyebrow }) : null,
       /* @__PURE__ */ jsxRuntimeExports.jsx("h1", { className: "text-2xl font-semibold tracking-tight text-brand-dark", children: title }),
       description ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-sm text-slate-500", children: description }) : null
     ] }),
@@ -29235,17 +29314,29 @@ const TIER_LABEL = {
   high: "High risk"
 };
 function QueueBulkStickyBar(props) {
-  if (!props.visible) return null;
-  const unit = props.selectedActionCount === 1 ? "action" : "actions";
+  const blockButton = reactExports.useRef(null);
+  const previousStep = reactExports.useRef(props.blockStep);
+  reactExports.useEffect(() => {
+    if (previousStep.current === "confirming" && props.blockStep === "idle") blockButton.current?.focus();
+    previousStep.current = props.blockStep;
+  }, [props.blockStep]);
+  if (!props.visible) {
+    return props.blockError ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { role: "alert", className: "mb-4 text-xs text-brand-attention", children: props.blockError }) : null;
+  }
+  const total = props.selectedRequestCount;
+  const unit = total === 1 ? "request" : "requests";
+  const approvableNote = props.selectedActionCount === total ? "approve once" : `${props.selectedActionCount} can be approved at once`;
   const ChipIcon = toneIcon(props.riskTone);
+  const confirmingBlock = props.blockStep !== "idle";
+  const blocking = props.blockStep === "blocking";
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {
       className: "sticky top-2 z-20 mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-3 shadow-md backdrop-blur",
       role: "region",
-      "aria-label": "Bulk approval selection",
+      "aria-label": "Bulk selection",
       children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        props.canApprove ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "span",
           {
             className: `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${toneChip(props.riskTone)}`,
@@ -29254,15 +29345,48 @@ function QueueBulkStickyBar(props) {
               TIER_LABEL[props.riskTier]
             ]
           }
-        ),
+        ) : null,
         /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "min-w-0 flex-1 text-sm font-medium text-brand-dark", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-mono text-base font-semibold", children: props.selectedActionCount }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-mono text-base font-semibold", children: total }),
           " ",
           unit,
-          " selected · approve once"
+          " selected",
+          props.canApprove ? ` · ${approvableNote}` : ""
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
+        confirmingBlock ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center gap-2", role: "group", "aria-label": "Confirm block", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-sm text-brand-dark", children: [
+            "Block ",
+            total,
+            " ",
+            unit,
+            " just this once? Any agent still waiting is told no."
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "button",
+            {
+              type: "button",
+              onClick: props.onConfirmBlock,
+              disabled: blocking,
+              className: "inline-flex min-h-9 items-center gap-1.5 rounded-full bg-brand-dark px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-dark/90 disabled:cursor-wait disabled:opacity-60",
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(HiMiniNoSymbol, { className: "h-4 w-4", "aria-hidden": "true" }),
+                blocking ? "Blocking…" : `Block ${total}`
+              ]
+            }
+          ),
           /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "button",
+            {
+              type: "button",
+              onClick: props.onCancelBlock,
+              disabled: blocking,
+              autoFocus: true,
+              className: "inline-flex min-h-9 items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-slate-50 hover:text-brand-dark disabled:opacity-60",
+              children: "Cancel"
+            }
+          )
+        ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
+          props.canApprove ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             "button",
             {
               type: "button",
@@ -29270,7 +29394,20 @@ function QueueBulkStickyBar(props) {
               className: "inline-flex min-h-9 items-center rounded-full bg-brand-blue px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-blue/90",
               children: "Review & approve"
             }
-          ),
+          ) : null,
+          props.blockAvailable ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "button",
+            {
+              ref: blockButton,
+              type: "button",
+              onClick: props.onRequestBlock,
+              className: "inline-flex min-h-9 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-1.5 text-sm font-semibold text-brand-dark transition-colors hover:bg-slate-50",
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(HiMiniNoSymbol, { className: "h-4 w-4", "aria-hidden": "true" }),
+                "Block selected"
+              ]
+            }
+          ) : null,
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "button",
             {
@@ -29280,7 +29417,8 @@ function QueueBulkStickyBar(props) {
               children: "Clear"
             }
           )
-        ] })
+        ] }),
+        props.blockError ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { role: "alert", className: "w-full text-xs text-brand-attention", children: props.blockError }) : null
       ]
     }
   );
@@ -29596,6 +29734,73 @@ function QueueBulkDrawer(props) {
     }
   );
 }
+class BulkBlockError extends Error {
+  failedIds;
+  constructor(message, failedIds) {
+    super(message);
+    this.name = "BulkBlockError";
+    this.failedIds = failedIds;
+  }
+}
+const MAX_REASONS$1 = 3;
+async function blockRequestsOnce(groups, lookup, resolve) {
+  let blocked = 0;
+  const failures = /* @__PURE__ */ new Map();
+  const fail = (requestId, error) => {
+    failures.set(requestId, error instanceof Error ? error.message : String(error));
+  };
+  const blockOnce = async (item) => {
+    const payload = buildDecisionPayload({ item, action: "block", scope: "artifact", reason: "blocked in bulk review" });
+    if (payload.scope !== "artifact") {
+      throw new Error("A request could not be blocked just this once. Open it to choose how to block it.");
+    }
+    return resolve(payload);
+  };
+  for (const group of groups) {
+    const settled = /* @__PURE__ */ new Set();
+    try {
+      const result = await blockOnce(group.primary);
+      for (const id2 of result.resolved_duplicate_ids) settled.add(id2);
+      blocked += 1;
+    } catch (error) {
+      fail(group.primary.request_id, error);
+    }
+    for (const duplicateId of group.duplicateIds) {
+      if (settled.has(duplicateId)) {
+        blocked += 1;
+        continue;
+      }
+      const duplicate = lookup(duplicateId);
+      try {
+        if (duplicate === void 0) throw new Error("A selected request is no longer in the queue.");
+        const result = await blockOnce(duplicate);
+        for (const id2 of result.resolved_duplicate_ids) settled.add(id2);
+        blocked += 1;
+      } catch (error) {
+        fail(duplicateId, error);
+      }
+    }
+    for (const id2 of settled) {
+      if (failures.delete(id2)) blocked += 1;
+    }
+  }
+  const reasons2 = [];
+  for (const reason of failures.values()) {
+    if (reasons2.length < MAX_REASONS$1 && !reasons2.includes(reason)) reasons2.push(reason);
+  }
+  return { blocked, failed: failures.size, reasons: reasons2, failedIds: [...failures.keys()] };
+}
+function bulkBlockSummary(outcome) {
+  const unit = outcome.blocked === 1 ? "request" : "requests";
+  return `${outcome.blocked} ${unit} blocked.`;
+}
+function bulkBlockFailureMessage(outcome) {
+  const reason = outcome.reasons.length > 0 ? ` ${outcome.reasons.join(" ")}` : "";
+  if (outcome.blocked === 0) {
+    return `Guard could not block the selected requests. Open them to block them one at a time.${reason}`;
+  }
+  return `${outcome.blocked} blocked, ${outcome.failed} failed. Open the failed requests to block them one at a time.${reason}`;
+}
 const BULK_LOW_TIER_THRESHOLD = 5;
 const BULK_HIGH_TIER_THRESHOLD = 10;
 function resolveBulkRiskTier(stats) {
@@ -29733,6 +29938,13 @@ function buildBulkRiskDisclosure(stats) {
     confirmPhrase: phrase
   };
 }
+function isBulkBlockableGroup(group) {
+  const status = group.primary.status;
+  return (status === void 0 || status === "pending") && requestResolutionBlockReason(group.primary) === null;
+}
+function bulkBlockGroups(groups, selectedIds) {
+  return groups.filter((group) => isBulkBlockableGroup(group) && selectedIds.has(group.primary.request_id));
+}
 function useQueueBulkApprove(props) {
   const [drawerOpen, setDrawerOpen] = reactExports.useState(false);
   const [drawerStep, setDrawerStep] = reactExports.useState("review");
@@ -29742,6 +29954,9 @@ function useQueueBulkApprove(props) {
   const [typedConfirm, setTypedConfirm] = reactExports.useState("");
   const [bulkApproveError, setBulkApproveError] = reactExports.useState(null);
   const [bulkCompletedActionCount, setBulkCompletedActionCount] = reactExports.useState(null);
+  const [blockStep, setBlockStep] = reactExports.useState("idle");
+  const [blockError, setBlockError] = reactExports.useState(null);
+  const blocking = reactExports.useRef(false);
   const groups = reactExports.useMemo(() => groupDuplicates(props.items), [props.items]);
   const bulkEligibleGroups = reactExports.useMemo(
     () => groups.filter((group) => isBulkApprovableGroup(group)),
@@ -29756,6 +29971,12 @@ function useQueueBulkApprove(props) {
   const hasBulkHandler = props.onBulkApprove !== void 0;
   const hasEligibleGroups = bulkEligibleGroups.length >= 1;
   const showBulkApprove = hasBulkHandler && bulkGateReady && hasEligibleGroups;
+  const hasBlockHandler = props.onBulkBlock !== void 0 && props.approvalGate?.strict_all_decisions !== true;
+  const selectableGroups = reactExports.useMemo(
+    () => hasBlockHandler ? groups.filter((group) => isBulkBlockableGroup(group)) : bulkEligibleGroups,
+    [bulkEligibleGroups, groups, hasBlockHandler]
+  );
+  const selectionMode = showBulkApprove || hasBlockHandler && selectableGroups.length > 0;
   const selectedBulkGroups = reactExports.useMemo(
     () => bulkEligibleGroups.filter((group) => selectedBulkIds.has(group.primary.request_id)),
     [bulkEligibleGroups, selectedBulkIds]
@@ -29765,6 +29986,15 @@ function useQueueBulkApprove(props) {
     [selectedBulkGroups]
   );
   const selectedGroupCount = selectedBulkGroups.length;
+  const selectedBlockGroups = reactExports.useMemo(
+    () => hasBlockHandler ? bulkBlockGroups(groups, selectedBulkIds) : [],
+    [groups, hasBlockHandler, selectedBulkIds]
+  );
+  const selectedSelectableGroups = reactExports.useMemo(
+    () => selectableGroups.filter((group) => selectedBulkIds.has(group.primary.request_id)),
+    [selectableGroups, selectedBulkIds]
+  );
+  const selectedRequestCount = bulkApproveActionCount(selectedSelectableGroups);
   const selectionStats = reactExports.useMemo(() => {
     let highActionCount = 0;
     let elevatedActionCount = 0;
@@ -29817,12 +30047,44 @@ function useQueueBulkApprove(props) {
     setTypedConfirm("");
     setBulkApproveError(null);
     setBulkCompletedActionCount(null);
+    setBlockStep("idle");
+    setBlockError(null);
   }, []);
   const handleClearSelection = reactExports.useCallback(() => {
+    if (blocking.current) return;
     setSelectedBulkIds(/* @__PURE__ */ new Set());
     setTypedConfirm("");
     setBulkApproveError(null);
+    setBlockStep("idle");
+    setBlockError(null);
   }, []);
+  const handleRequestBlock = reactExports.useCallback(() => {
+    if (selectedBlockGroups.length === 0) return;
+    setBlockStep("confirming");
+    setBlockError(null);
+  }, [selectedBlockGroups.length]);
+  const handleCancelBlock = reactExports.useCallback(() => {
+    if (blockStep === "blocking") return;
+    setBlockStep("idle");
+  }, [blockStep]);
+  const handleConfirmBlock = reactExports.useCallback(async () => {
+    if (blockStep === "blocking" || selectedBlockGroups.length === 0 || !hasBlockHandler || props.onBulkBlock === void 0) {
+      return;
+    }
+    blocking.current = true;
+    setBlockStep("blocking");
+    setBlockError(null);
+    try {
+      await props.onBulkBlock(selectedBlockGroups);
+      setSelectedBulkIds(/* @__PURE__ */ new Set());
+    } catch (error) {
+      if (error instanceof BulkBlockError) setSelectedBulkIds(new Set(error.failedIds));
+      setBlockError(error instanceof Error ? error.message : "Blocking the selected requests failed.");
+    } finally {
+      blocking.current = false;
+      setBlockStep("idle");
+    }
+  }, [blockStep, hasBlockHandler, props.onBulkBlock, selectedBlockGroups]);
   const handleStartReview = reactExports.useCallback(() => {
     if (selectedBulkGroups.length === 0) {
       return;
@@ -29845,6 +30107,7 @@ function useQueueBulkApprove(props) {
     setBulkApproveTotpCode("");
   }, [drawerStep, resetBulkFlow]);
   const handleBulkToggleSelect = reactExports.useCallback((requestId) => {
+    if (blocking.current) return;
     setSelectedBulkIds((current) => {
       const next = new Set(current);
       if (next.has(requestId)) {
@@ -29856,18 +30119,21 @@ function useQueueBulkApprove(props) {
     });
     setTypedConfirm("");
     setBulkApproveError(null);
+    setBlockStep("idle");
+    setBlockError(null);
   }, []);
   const handleBulkToggleMany = reactExports.useCallback(
     (items, selectAll) => {
+      if (blocking.current) return;
       setSelectedBulkIds(() => {
         if (!selectAll) return /* @__PURE__ */ new Set();
-        const eligibleIds = new Set(bulkApprovePrimaryIds(bulkEligibleGroups));
+        const eligibleIds = new Set(bulkApprovePrimaryIds(selectableGroups));
         const targetIds = /* @__PURE__ */ new Set();
         for (const item of items) {
           if (eligibleIds.has(item.request_id)) {
             targetIds.add(item.request_id);
           } else {
-            for (const group of bulkEligibleGroups) {
+            for (const group of selectableGroups) {
               if (group.duplicateIds.includes(item.request_id)) {
                 targetIds.add(group.primary.request_id);
                 break;
@@ -29879,8 +30145,10 @@ function useQueueBulkApprove(props) {
       });
       setTypedConfirm("");
       setBulkApproveError(null);
+      setBlockStep("idle");
+      setBlockError(null);
     },
-    [bulkEligibleGroups]
+    [selectableGroups]
   );
   const handleBulkApprovePasswordChange = reactExports.useCallback((event) => {
     setBulkApprovePassword(event.target.value);
@@ -29945,14 +30213,14 @@ function useQueueBulkApprove(props) {
   const bulkSelectableMap = reactExports.useMemo(() => {
     const map = /* @__PURE__ */ new Map();
     for (const group of groups) {
-      const isApprovable = isBulkApprovableGroup(group);
-      map.set(group.primary.request_id, isApprovable);
+      const selectable = hasBlockHandler ? isBulkBlockableGroup(group) : isBulkApprovableGroup(group);
+      map.set(group.primary.request_id, selectable);
       for (const id2 of group.duplicateIds) {
-        map.set(id2, isApprovable);
+        map.set(id2, selectable);
       }
     }
     return map;
-  }, [groups]);
+  }, [groups, hasBlockHandler]);
   const groupIdMap = reactExports.useMemo(() => {
     const map = /* @__PURE__ */ new Map();
     for (const group of groups) {
@@ -29964,8 +30232,8 @@ function useQueueBulkApprove(props) {
     return map;
   }, [groups]);
   const isSelectable = reactExports.useCallback(
-    (item) => bulkSelectableMap.get(item.request_id) ?? isBulkApprovableGroup({ primary: item }),
-    [bulkSelectableMap]
+    (item) => bulkSelectableMap.get(item.request_id) ?? (hasBlockHandler ? isBulkBlockableGroup({ primary: item }) : isBulkApprovableGroup({ primary: item })),
+    [bulkSelectableMap, hasBlockHandler]
   );
   const isSelected = reactExports.useCallback(
     (item) => selectedBulkIds.has(groupIdMap.get(item.request_id) ?? item.request_id),
@@ -29987,7 +30255,8 @@ function useQueueBulkApprove(props) {
     },
     [groupIdMap, handleBulkToggleMany]
   );
-  const stickyBarVisible = showBulkApprove && selectedGroupCount > 0 && drawerStep !== "completed";
+  const canApprove = showBulkApprove && selectedGroupCount > 0;
+  const stickyBarVisible = (canApprove || selectedBlockGroups.length > 0) && drawerStep !== "completed";
   const gatePromptVisible = hasBulkHandler && hasEligibleGroups && !bulkGateReady;
   const eligibleActionCount = reactExports.useMemo(
     () => bulkApproveActionCount(bulkEligibleGroups),
@@ -29997,22 +30266,30 @@ function useQueueBulkApprove(props) {
     groups,
     showBulkApprove,
     bulkSelection: {
-      selectionMode: showBulkApprove,
+      selectionMode,
       isSelectable,
       isSelected,
       onToggle,
       onToggleMany,
-      selectedActionCount,
-      selectedGroupCount
+      selectedActionCount: hasBlockHandler ? selectedRequestCount : selectedActionCount,
+      selectedGroupCount: hasBlockHandler ? selectedSelectableGroups.length : selectedGroupCount
     },
     stickyBar: {
       visible: stickyBarVisible,
       selectedGroupCount,
       selectedActionCount,
+      selectedRequestCount: hasBlockHandler ? selectedRequestCount : selectedActionCount,
+      canApprove,
       riskTier: riskDisclosure.tier,
       riskTone: riskDisclosure.tone,
       gateReady: bulkGateReady,
+      blockAvailable: hasBlockHandler,
+      blockStep,
+      blockError,
       onStartReview: handleStartReview,
+      onRequestBlock: handleRequestBlock,
+      onConfirmBlock: handleConfirmBlock,
+      onCancelBlock: handleCancelBlock,
       onClearSelection: handleClearSelection
     },
     drawer: {
@@ -30935,18 +31212,15 @@ function BusinessReviewSummaryPanel({ requestId }) {
   ] });
   return state.summary ? /* @__PURE__ */ jsxRuntimeExports.jsx(BusinessReviewSummaryDetails, { summary: state.summary }) : null;
 }
-function segmentDetail(segment) {
-  const titles = segment.rules.map((rule2) => rule2.title);
-  const labels = segment.permissions.filter((permission2) => permission2.configurable).map((item) => item.label);
-  const parts = titles.length > 0 ? titles : labels;
-  return parts.length > 0 ? parts.join(" · ") : null;
-}
 function ApprovalExtensionCoverageCard(props) {
-  const { coverage, hasRecommendation } = props;
+  const { coverage, linkedPatterns } = props;
+  const hasRecommendation = linkedPatterns.length > 0;
   const open = reactExports.useCallback((extensionId, ruleId) => {
     commitDashboardLocation(extensionPatternHref(extensionId, ruleId));
   }, []);
   if (!coverage) return null;
+  const segments = coverageSegmentsBeyond(coverage, linkedPatterns);
+  if (segments.length === 0) return null;
   const scopeLine = coverageScopeLine(coverage);
   return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "section",
@@ -30960,7 +31234,7 @@ function ApprovalExtensionCoverageCard(props) {
           /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs font-semibold uppercase tracking-wide text-slate-500", children: "Set this up in advance" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { id: "approval-extension-coverage-title", className: "mt-1 text-sm font-semibold text-brand-dark", children: hasRecommendation ? "Where this command is configured" : "Extensions cover this command" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-1 text-sm leading-relaxed text-brand-dark/80", children: "Decide ahead of time how commands like these are handled, so the ones you trust stop coming here." }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: "mt-3 space-y-2", "aria-label": "Steps an extension covers", children: coverage.segments.map((segment) => {
+          /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: "mt-3 space-y-2", "aria-label": "Steps an extension covers", children: segments.map((segment) => {
             const detail = segmentDetail(segment);
             return /* @__PURE__ */ jsxRuntimeExports.jsxs("li", { className: "flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-mono text-xs text-slate-500", children: coverageStepLabel(segment) }),
@@ -31311,7 +31585,7 @@ function extension(value, label) {
     required: bool$1(item.required, `${label}.required`),
     trust_class: item.trust_class === void 0 ? "first-party" : enumValue(item.trust_class, `${label}.trust_class`, ["first-party", "trusted-library", "external"]),
     activation: item.activation === void 0 ? "default-on" : enumValue(item.activation, `${label}.activation`, ["default-on", "opt-in"]),
-    publisher: item.publisher === void 0 ? { id: "hol", displayName: "Hashgraph Online" } : publisher(item.publisher, `${label}.publisher`),
+    publisher: item.publisher === void 0 ? { id: "hol", displayName: "HOL" } : publisher(item.publisher, `${label}.publisher`),
     icon: icon(item.icon, `${label}.icon`),
     source: enumValue(item.source, `${label}.source`, ["built-in", "local-admin", "signed-cloud"]),
     version: version(item.version, `${label}.version`),
@@ -32001,6 +32275,16 @@ function ExtensionAuthoritySetup(props) {
     /* @__PURE__ */ jsxRuntimeExports.jsx(CheckAgain, { watch, note: "" })
   ] });
 }
+function closeOnEscape(onClose) {
+  return (event) => {
+    if (event.key !== "Escape" || event.defaultPrevented) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    onClose();
+  };
+}
 function ApprovalProofModal(props) {
   const {
     title,
@@ -32041,6 +32325,11 @@ function ApprovalProofModal(props) {
       requireFreshTotp
     ));
   }, [approvalGate, confirmDisabled, onConfirm, password, requireFreshTotp, totpCode]);
+  const handleEscape = reactExports.useCallback(() => {
+    if (!busy) {
+      onCancel();
+    }
+  }, [busy, onCancel]);
   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-brand-dark/30 px-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "form",
     {
@@ -32051,6 +32340,7 @@ function ApprovalProofModal(props) {
       "aria-describedby": "approval-proof-modal-detail",
       className: "w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-xl",
       onSubmit: handleSubmit,
+      onKeyDown: closeOnEscape(handleEscape),
       children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(SectionLabel, { children: "Approval required" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { id: "approval-proof-modal-title", className: "mt-2 text-base font-semibold text-brand-dark", children: title }),
@@ -32268,8 +32558,9 @@ function ApprovalExtensionRecommendationCard(props) {
   const handleAvailable = reactExports.useCallback((next) => {
     setLiveRecommendation(next);
   }, []);
+  const oneTap = recommendation?.caution !== true;
   const watch = useExtensionAuthorityWatch({
-    active: authorityUnavailable,
+    active: authorityUnavailable && oneTap,
     requestId: item.request_id,
     approvalGate: props.approvalGate,
     onAvailable: handleAvailable
@@ -32349,24 +32640,55 @@ function ApprovalExtensionRecommendationCard(props) {
     [allowScope, approvalGate, copy, item, onApproved, onResolve, recommendation, persistExactAction]
   );
   if (!recommendation || !copy || !primary) return null;
-  const caution = recommendation.caution;
+  const reviewLinks = configurable.map((entry) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+    "button",
+    {
+      type: "button",
+      onClick: () => openPattern(entry.extensionId, entry.ruleId),
+      className: "inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-sm font-medium text-brand-blue underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-blue/20",
+      children: [
+        configurable.length === 1 ? copy.configureLabel : `${copy.configureVerb} in ${entry.extensionName}`,
+        /* @__PURE__ */ jsxRuntimeExports.jsx(HiMiniArrowTopRightOnSquare, { className: "h-3.5 w-3.5", "aria-hidden": "true" })
+      ]
+    },
+    entry.extensionId
+  ));
+  if (!copy.oneTap) {
+    return /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "section",
+      {
+        className: "mt-5 rounded-xl border border-slate-200 bg-slate-50/60 p-4",
+        "aria-labelledby": "approval-extension-recommendation-title",
+        "data-testid": "approval-extension-recommendation",
+        "data-caution": "true",
+        children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start gap-3", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(HiMiniInformationCircle, { className: "mt-0.5 h-5 w-5 shrink-0 text-slate-500", "aria-hidden": "true" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "min-w-0 flex-1", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs font-semibold uppercase tracking-wide text-slate-500", children: copy.eyebrow }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { id: "approval-extension-recommendation-title", className: "mt-1 text-sm font-semibold text-brand-dark", children: copy.title }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-1 text-sm leading-relaxed text-brand-dark/80", children: copy.body }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: "mt-2 space-y-1", "aria-label": "Why this is not offered as a one-tap setting", children: copy.cautionLines.map((line) => /* @__PURE__ */ jsxRuntimeExports.jsx("li", { className: "text-sm font-medium text-brand-attention", children: line }, line)) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-2 flex flex-wrap items-center gap-2", children: reviewLinks })
+          ] })
+        ] })
+      }
+    );
+  }
   const gateReady = isBulkApproveGateReady(approvalGate);
   const gateLocked = approvalGateIsLocked(approvalGate);
-  const tone = caution ? "border-brand-attention/30 bg-brand-attention/[0.05]" : "border-brand-blue/20 bg-brand-blue/[0.04]";
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "section",
     {
-      className: `mt-5 rounded-xl border p-4 ${tone}`,
+      className: "mt-5 rounded-xl border border-brand-blue/20 bg-brand-blue/[0.04] p-4",
       "aria-labelledby": "approval-extension-recommendation-title",
       "data-testid": "approval-extension-recommendation",
       children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start gap-3", children: [
-          caution ? /* @__PURE__ */ jsxRuntimeExports.jsx(HiMiniExclamationTriangle, { className: "mt-0.5 h-5 w-5 shrink-0 text-brand-attention", "aria-hidden": "true" }) : /* @__PURE__ */ jsxRuntimeExports.jsx(HiMiniSparkles, { className: "mt-0.5 h-5 w-5 shrink-0 text-brand-blue", "aria-hidden": "true" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(HiMiniSparkles, { className: "mt-0.5 h-5 w-5 shrink-0 text-brand-blue", "aria-hidden": "true" }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "min-w-0 flex-1", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs font-semibold uppercase tracking-wide text-slate-500", children: "Recommended setting" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs font-semibold uppercase tracking-wide text-slate-500", children: copy.eyebrow }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { id: "approval-extension-recommendation-title", className: "mt-1 text-sm font-semibold text-brand-dark", children: copy.title }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-1 text-sm leading-relaxed text-brand-dark/80", children: copy.body }),
-            copy.cautionLines.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: "mt-2 space-y-1", "aria-label": "Before you allow this", children: copy.cautionLines.map((line) => /* @__PURE__ */ jsxRuntimeExports.jsx("li", { className: "text-sm font-medium text-brand-attention", children: line }, line)) }),
             authorityUnavailable && /* @__PURE__ */ jsxRuntimeExports.jsx(ExtensionAuthoritySetup, { watch, commandText: copy.commandText }),
             justEnrolled && savedMessage === null && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-2 text-sm font-medium text-brand-green-text", role: "status", children: "This device is set up. You can now approve and always allow from here." }),
             !resolutionAvailable && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-2 text-sm text-brand-dark/80", children: "Inspect this permission in Extensions. Approving this request once is unavailable." }),
@@ -32376,26 +32698,14 @@ function ApprovalExtensionRecommendationCard(props) {
               resolutionAvailable && !authorityUnavailable && savedMessage === null && gateReady && /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ActionButton,
                 {
-                  variant: caution ? "outline" : "primary",
+                  variant: "primary",
                   onClick: openConfirm,
                   disabled: props.disabled || busy || gateLocked,
                   children: copy.primaryLabel
                 }
               ),
               resolutionAvailable && !authorityUnavailable && savedMessage === null && !gateReady && /* @__PURE__ */ jsxRuntimeExports.jsx(ActionButton, { href: "/settings?section=approval", variant: "outline", children: "Set up approval password" }),
-              configurable.map((entry) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
-                "button",
-                {
-                  type: "button",
-                  onClick: () => openPattern(entry.extensionId, entry.ruleId),
-                  className: "inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-sm font-medium text-brand-blue underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-blue/20",
-                  children: [
-                    configurable.length === 1 ? copy.configureLabel : `Configure in ${entry.extensionName}`,
-                    /* @__PURE__ */ jsxRuntimeExports.jsx(HiMiniArrowTopRightOnSquare, { className: "h-3.5 w-3.5", "aria-hidden": "true" })
-                  ]
-                },
-                entry.extensionId
-              ))
+              reviewLinks
             ] }),
             gateReady && gateLocked && !authorityUnavailable && /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "mt-2 text-xs text-slate-500", children: [
               "Approval gate is temporarily locked. Try again in ",
@@ -32409,7 +32719,7 @@ function ApprovalExtensionRecommendationCard(props) {
           ApprovalProofModal,
           {
             title: copy.confirmTitle,
-            detail: caution ? `${copy.confirmDetail} ${copy.cautionLines.join(" ")}` : copy.confirmDetail,
+            detail: copy.confirmDetail,
             confirmLabel: copy.primaryLabel,
             approvalGate,
             busy,
@@ -33051,7 +33361,10 @@ function ReviewDecisionCard(props) {
         ApprovalExtensionCoverageCard,
         {
           coverage: item.extension_coverage,
-          hasRecommendation: item.extension_recommendation !== void 0
+          linkedPatterns: item.extension_recommendation?.permissions.map((permission2) => ({
+            extension_id: permission2.extension_id,
+            rule_id: permission2.rule_id
+          })) ?? []
         }
       ),
       resolutionBlockReason === null && resolved === null && /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -33727,7 +34040,7 @@ function QueueItemRow({ item, active, readState, index, onOpenRequest, selection
     },
     [item, onToggleSelect, canSelect]
   );
-  const checkboxLabel = canSelect ? `Select ${preview} for bulk approval` : `Not eligible for bulk approval: ${category.shortLabel.toLowerCase()}`;
+  const checkboxLabel = canSelect ? `Select ${preview}` : `Not eligible for bulk approval: ${category.shortLabel.toLowerCase()}`;
   const rowClassName = (() => {
     if (selected) return "border border-brand-blue/60 bg-brand-blue/[0.08] ring-1 ring-brand-blue/20";
     if (active) return "border border-brand-blue bg-brand-blue/[0.06]";
@@ -34349,6 +34662,10 @@ function stageFailure(code) {
       return new DiscoveryFailure("codex_host_unavailable", "Guard could not reach the Codex app. Open or reopen the Codex app, then choose Check for connectors again. Known connections were kept.");
     case "observed_provider_scan_failed":
       return new DiscoveryFailure("observed_provider_scan_failed", "Guard could not merge observed provider tools. Known tools and choices were kept; choose Check for connectors again.");
+    case "cli_help_unreadable":
+      return new DiscoveryFailure("cli_help_unreadable", "Guard could not read this tool's --help output. Known commands and choices were kept.");
+    case "cli_identity_changed":
+      return new DiscoveryFailure("cli_identity_changed", "This tool was found again as a different program while Guard read its --help, so nothing was saved. Load commands again to read the new one.");
     case "catalog_limit_reached":
       return new DiscoveryFailure("catalog_limit_reached", "This connector has more tools than Guard can catalog safely. Existing choices were kept; remove tools you do not use in the host app, then check again.");
     case "discovery_failed":
@@ -34767,6 +35084,10 @@ class LocalCliApiError extends Error {
     this.code = code;
   }
 }
+function unreviewedToolChangeCount(item) {
+  const changes = item.mcp_catalog?.changes;
+  return (changes?.added.length ?? 0) + (changes?.changed.length ?? 0);
+}
 function customExtensionNeedsReview(item) {
   return item.stale || item.state === "unset" || item.mcp_catalog?.stale || item.mcp_catalog?.complete === false || Boolean(item.mcp_catalog?.changes?.added.length) || Boolean(item.mcp_catalog?.changes?.changed.length);
 }
@@ -35028,7 +35349,7 @@ async function fetchMcpProviderActions(cliId, options) {
     };
   });
   const nextOffset = body.next_offset;
-  if (nextOffset !== null && (typeof nextOffset !== "number" || !Number.isSafeInteger(nextOffset) || nextOffset !== options.offset + 50 || nextOffset > 1e4)) throw new Error("Invalid provider inventory page");
+  if (nextOffset !== null && (typeof nextOffset !== "number" || !Number.isSafeInteger(nextOffset) || nextOffset <= options.offset || nextOffset > options.offset + 50 || nextOffset > 1e4)) throw new Error("Invalid provider inventory page");
   return { actions, nextOffset, catalogToken: body.catalog_token };
 }
 const EXTENSION_ID_PATTERN = /^command\.[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
@@ -35335,8 +35656,11 @@ function triedCatalogCommands(items, cli) {
   }
   return [...tried].sort();
 }
-function connectorSetupHref(cli) {
-  return cli === null ? PROTECT_LIST_HREF : localCliHref(cli.cli_id);
+function connectorSetupHref(cli, held) {
+  if (cli === null) return PROTECT_LIST_HREF;
+  const href = localCliHref(cli.cli_id);
+  if (held === void 0) return href;
+  return `${href}?${new URLSearchParams({ setup: held.request_id, identity: cli.identity_hash })}`;
 }
 function buildConnectorSetupGroups(items, localClis = []) {
   const byKey = /* @__PURE__ */ new Map();
@@ -35365,7 +35689,7 @@ function buildConnectorSetupGroups(items, localClis = []) {
       caution: cautionCount > 0,
       cautionCount,
       cli,
-      setupHref: connectorSetupHref(cli),
+      setupHref: connectorSetupHref(cli, sorted[0]),
       triedCommands: triedCatalogCommands(sorted, cli)
     });
   }
@@ -35379,6 +35703,71 @@ function connectorSetupIdentityKey(items) {
     if (key !== null) hashes.add(key.slice(CONNECTOR_GROUP_PREFIX.length));
   }
   return [...hashes].sort().join(",");
+}
+const PROFILE_SETUP_COMMANDS = { wrangler: "npx wrangler" };
+const PROFILE_COMMAND_PARAM = "command";
+function profileSetupCommand(item) {
+  return item.profile_id ? PROFILE_SETUP_COMMANDS[item.profile_id] ?? null : null;
+}
+function customExtensionDisplayName(item) {
+  return item.display_name ?? item.name;
+}
+function customExtensionBadge(item) {
+  if (item.seeded === true) return "Set up";
+  if (item.surface === "cli" && item.state === "unset" && item.suggestable) return "Detected";
+  return null;
+}
+function hasSuggestedRules(item) {
+  return item.commands.some((command) => command.suggested_state !== void 0);
+}
+function prefillSuggestedStates(item) {
+  if (item.state !== "unset") return item.commands;
+  return item.commands.map((command) => command.state === "inherit" && command.suggested_state !== void 0 && command.suggested_state !== "inherit" ? { ...command, state: command.suggested_state } : command);
+}
+function addCustomExtensionPrefillHref(base, command) {
+  if (!command || !Object.values(PROFILE_SETUP_COMMANDS).includes(command)) return base;
+  return `${base}?${PROFILE_COMMAND_PARAM}=${encodeURIComponent(command)}`;
+}
+function initialAddCommand(search) {
+  const value = new URLSearchParams(search).get(PROFILE_COMMAND_PARAM);
+  return value !== null && Object.values(PROFILE_SETUP_COMMANDS).includes(value) ? value : "";
+}
+const SETUP_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
+const SETUP_IDENTITY = /^[0-9a-f]{64}$/;
+function connectorSetupLinkFromSearch(search) {
+  const params = new URLSearchParams(search);
+  const requestId = params.get("setup");
+  const identityHash = params.get("identity");
+  if (requestId === null || identityHash === null) return null;
+  if (!SETUP_REQUEST_ID.test(requestId) || !SETUP_IDENTITY.test(identityHash)) return null;
+  return { requestId, identityHash };
+}
+function connectorSetupMatch(item, link) {
+  if (item.identity_hash !== link.identityHash) return "identity_changed";
+  if (item.state === "unset") return "ready";
+  return allowedEarlierVersion(item) ? "reallow" : "decided";
+}
+function allowedEarlierVersion(item) {
+  return item.surface === "cli" && item.state === "allowed" && item.stale === true;
+}
+function connectorSetupReady(match) {
+  return match === "ready" || match === "reallow";
+}
+function shortIdentity(identityHash) {
+  return identityHash.slice(0, 12);
+}
+function connectorGroupOutcome(body) {
+  if (typeof body !== "object" || body === null) return null;
+  const group = body.connector_group;
+  if (typeof group !== "object" || group === null) return null;
+  const record2 = group;
+  const continuation = record2.continuation;
+  const retryHint = typeof continuation === "object" && continuation !== null ? continuation.retry_hint : null;
+  return {
+    status: typeof record2.status === "string" ? record2.status : "failed",
+    resolvedCount: typeof record2.resolved_count === "number" ? record2.resolved_count : 0,
+    retryHint: typeof retryHint === "string" && retryHint.trim() ? retryHint.trim() : null
+  };
 }
 const SETUP_COPY = GUARD_REVIEW_INTENT_COPY.setup;
 const CLI_LIST_RETRY_DELAYS_MS = [2e3, 1e4];
@@ -35443,6 +35832,7 @@ function ConnectorSetupCard(props) {
   const name = connectorName(group);
   const surface = connectorSurfaceLabel(group.cli?.surface ?? null);
   const gateReady = isBulkApproveGateReady(props.approvalGate);
+  const changed = group.cli !== null && allowedEarlierVersion(group.cli);
   const doing = group.latest.trigger_summary ?? group.latest.why_now ?? null;
   const titleId = `connector-setup-${group.identityHash}`;
   const tone = group.caution ? "border-brand-attention/30 bg-brand-attention/[0.04]" : "border-brand-blue/20 bg-brand-blue/[0.04]";
@@ -35468,9 +35858,8 @@ function ConnectorSetupCard(props) {
             /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs font-medium text-muted-foreground", children: callCountCopy(group.callCount) })
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-sm leading-relaxed text-brand-dark/80", children: [
-            "Guard does not recognise this ",
-            surface.toLowerCase(),
-            " and it is not set up on this device, so its calls are paused. ",
+            changed ? `You allowed an earlier version of this ${surface.toLowerCase()}. Its file has changed since, so its calls are paused until you allow this version.` : `Guard does not recognise this ${surface.toLowerCase()} and it is not set up on this device, so its calls are paused.`,
+            " ",
             SETUP_COPY.scope
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("dl", { className: "grid gap-3 sm:grid-cols-2", children: [
@@ -35501,7 +35890,7 @@ function ConnectorSetupCard(props) {
             ] })
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center gap-2", children: [
-            gateReady ? /* @__PURE__ */ jsxRuntimeExports.jsx(ActionButton, { href: group.setupHref, variant: group.caution ? "outline" : "primary", children: "Set up" }) : /* @__PURE__ */ jsxRuntimeExports.jsx(ActionButton, { href: "/settings?section=approval", variant: "outline", children: "Set up approval password" }),
+            gateReady ? /* @__PURE__ */ jsxRuntimeExports.jsx(ActionButton, { href: group.setupHref, variant: group.caution ? "outline" : "primary", children: changed ? "Review this version" : "Set up" }) : /* @__PURE__ */ jsxRuntimeExports.jsx(ActionButton, { href: "/settings?section=approval", variant: "outline", children: "Set up approval password" }),
             gateReady && /* @__PURE__ */ jsxRuntimeExports.jsx(ActionButton, { href: group.setupHref, variant: "quiet", children: "Block on this device" })
           ] }),
           !gateReady && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-500", children: "Setting up a tool needs an approval password so agents cannot change protection on their own." }),
@@ -35658,6 +36047,7 @@ function ReviewWorkspace(props) {
     items: filteredRequests,
     approvalGate: props.approvalGate ?? null,
     onBulkApprove: props.onBulkApprove,
+    onBulkBlock: props.onBulkBlock,
     settingsHref: guardAwareHref("/settings")
   });
   reactExports.useEffect(() => {
@@ -35740,7 +36130,7 @@ function ReviewWorkspace(props) {
       bulkApprove.bulkSelection.selectedActionCount,
       " of ",
       filteredRequests.length,
-      " reads selected for bulk approval."
+      " requests selected."
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(QueueBulkDrawer, { ...bulkApprove.drawer }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -36445,7 +36835,7 @@ function turnProtectionOnUpdate(snapshot) {
 }
 const McpPolicyRequestPanel = lazyWorkspace(
   "mcp-policy-request-panel",
-  () => __vitePreload(() => import("./chunks/mcp-policy-request-panel-CVKNSTkg.js"), true ? [] : void 0).then((m) => ({ default: m.McpPolicyRequestPanel }))
+  () => __vitePreload(() => import("./chunks/mcp-policy-request-panel-B31L6WeK.js"), true ? [] : void 0).then((m) => ({ default: m.McpPolicyRequestPanel }))
 );
 function InboxWatchBanner(props) {
   const { snapshot } = props;
@@ -36518,7 +36908,8 @@ function renderInboxContent(props) {
       onResolve: props.onResolve,
       onGoHome: props.onGoHome,
       onRetryResume: props.onRetryResume,
-      onBulkApprove: props.onBulkApprove
+      onBulkApprove: props.onBulkApprove,
+      onBulkBlock: props.onBulkBlock
     }
   );
 }
@@ -36561,7 +36952,7 @@ function renderViewContent(props) {
   if (props.view === "policy") {
     return props.policyContent ?? null;
   }
-  if (props.view === "supply-chain" || props.view === "audit" || props.view === "feed-health") {
+  if (props.view === "supply-chain" || props.view === "audit" || props.view === "feed-health" || props.view === "workspaces") {
     return props.supplyChainHubContent ?? null;
   }
   if (props.view === "inbox") {
@@ -36865,34 +37256,34 @@ function useRouteFocus(view, mainSelector = "main#main-content") {
   }, [view, mainSelector]);
 }
 const HOME_QUEUE_PREVIEW_LIMIT = 50;
-const HomeWorkspace = lazyWorkspace("home-dashboard", () => __vitePreload(() => import("./chunks/home-dashboard-Wxa6VirA.js"), true ? __vite__mapDeps([0,1,2,3]) : void 0).then((m) => ({ default: m.HomeWorkspace })));
-const FleetWorkspace = lazyWorkspace("fleet-workspace", () => __vitePreload(() => import("./chunks/fleet-workspace-CkMTJ0-Z.js"), true ? __vite__mapDeps([4,3,5,6,7]) : void 0).then((m) => ({ default: m.FleetWorkspace })));
-const SettingsWorkspace = lazyWorkspace("settings-workspace", () => __vitePreload(() => import("./chunks/settings-workspace-DdhT0dGq.js"), true ? __vite__mapDeps([8,7,3,9,6]) : void 0).then((m) => ({ default: m.SettingsWorkspace })));
+const HomeWorkspace = lazyWorkspace("home-dashboard", () => __vitePreload(() => import("./chunks/home-dashboard-CgoWDyH8.js"), true ? __vite__mapDeps([0,1,2,3,4,5]) : void 0).then((m) => ({ default: m.HomeWorkspace })));
+const FleetWorkspace = lazyWorkspace("fleet-workspace", () => __vitePreload(() => import("./chunks/fleet-workspace-DNJ-lCVP.js"), true ? __vite__mapDeps([6,7,8,5,9]) : void 0).then((m) => ({ default: m.FleetWorkspace })));
+const SettingsWorkspace = lazyWorkspace("settings-workspace", () => __vitePreload(() => import("./chunks/settings-workspace-CSWClh0B.js"), true ? __vite__mapDeps([10,9,5,11,8]) : void 0).then((m) => ({ default: m.SettingsWorkspace })));
 const ExtensionsWorkspace = lazyWorkspace(
   "extensions-workspace",
-  () => __vitePreload(() => import("./chunks/extensions-workspace-BPzLUHdQ.js"), true ? __vite__mapDeps([10,9]) : void 0).then((module) => ({ default: module.ExtensionsWorkspace }))
+  () => __vitePreload(() => import("./chunks/extensions-workspace-BPyPqCVn.js"), true ? __vite__mapDeps([12,11]) : void 0).then((module) => ({ default: module.ExtensionsWorkspace }))
 );
-const AppDetailWorkspace = lazyWorkspace("app-detail-workspace", () => __vitePreload(() => import("./chunks/app-detail-workspace-B9rlD0o5.js"), true ? __vite__mapDeps([11,5]) : void 0).then((m) => ({ default: m.AppDetailWorkspace })));
+const AppDetailWorkspace = lazyWorkspace("app-detail-workspace", () => __vitePreload(() => import("./chunks/app-detail-workspace-Cmxl-5FP.js"), true ? __vite__mapDeps([13,7]) : void 0).then((m) => ({ default: m.AppDetailWorkspace })));
 const HelpModal = lazyWorkspace("help-modal", () => __vitePreload(() => import("./chunks/help-modal-B0TZsHE3.js"), true ? [] : void 0).then((m) => ({ default: m.HelpModal })));
 const SupplyChainHubWorkspace = lazyWorkspace(
   "supply-chain-hub-workspace",
-  () => __vitePreload(() => import("./chunks/supply-chain-hub-workspace-DgBATQaU.js").then((n) => n.d), true ? [] : void 0).then((m) => ({ default: m.SupplyChainHubWorkspace }))
+  () => __vitePreload(() => import("./chunks/supply-chain-hub-workspace-CxUzlRIO.js").then((n) => n.d), true ? [] : void 0).then((m) => ({ default: m.SupplyChainHubWorkspace }))
 );
 const PolicyWorkspacePage = lazyWorkspace(
   "policy-workspace-page",
-  () => __vitePreload(() => import("./chunks/policy-workspace-page-B-AqWrAu.js"), true ? __vite__mapDeps([12,6]) : void 0).then((m) => ({ default: m.PolicyWorkspacePage }))
+  () => __vitePreload(() => import("./chunks/policy-workspace-page-Dfk5voWa.js"), true ? __vite__mapDeps([14,8]) : void 0).then((m) => ({ default: m.PolicyWorkspacePage }))
 );
 const AboutWorkspace = lazyWorkspace(
   "about-workspace",
-  () => __vitePreload(() => import("./chunks/about-workspace-C1-uAYDr.js"), true ? __vite__mapDeps([13,2]) : void 0).then((m) => ({ default: m.AboutWorkspace }))
+  () => __vitePreload(() => import("./chunks/about-workspace-C2hkwjW-.js"), true ? __vite__mapDeps([15,3,4,16]) : void 0).then((m) => ({ default: m.AboutWorkspace }))
 );
 const ReleasesWorkspace = lazyWorkspace(
   "releases-workspace",
-  () => __vitePreload(() => import("./chunks/releases-workspace-Dy2-zJ_h.js"), true ? [] : void 0).then((m) => ({ default: m.ReleasesWorkspace }))
+  () => __vitePreload(() => import("./chunks/releases-workspace-Ujh2QiHP.js"), true ? [] : void 0).then((m) => ({ default: m.ReleasesWorkspace }))
 );
 const ProtectionRepairPage = lazyWorkspace(
   "protection-repair-page",
-  () => __vitePreload(() => import("./chunks/protection-repair-page-C7iXdeiN.js"), true ? [] : void 0).then((m) => ({ default: m.ProtectionRepairPage }))
+  () => __vitePreload(() => import("./chunks/protection-repair-page-CJAGli2Q.js"), true ? [] : void 0).then((m) => ({ default: m.ProtectionRepairPage }))
 );
 function LazyFallback() {
   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex min-h-[200px] items-center justify-center", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "guard-skeleton h-8 w-48" }) });
@@ -36932,6 +37323,7 @@ function viewTitle(view) {
   if (view === "audit") return "Audit";
   if (view === "policy") return "Rules & exceptions";
   if (view === "feed-health") return "Feed Health";
+  if (view === "workspaces") return "Workspaces";
   if (view === "about") return "About";
   if (view === "releases") return "Releases";
   if (view === "extensions") return "Extensions";
@@ -36982,6 +37374,9 @@ function resolveView(pathname) {
   }
   if (pathname === "/feed-health") {
     return "feed-health";
+  }
+  if (pathname === "/workspaces") {
+    return "workspaces";
   }
   if (pathname === "/about") {
     return "about";
@@ -37221,7 +37616,7 @@ function App() {
     };
   }, [view]);
   reactExports.useEffect(() => {
-    const needsReceipts = view === "evidence" || view === "app-detail" || view === "supply-chain" || view === "audit" || view === "feed-health";
+    const needsReceipts = view === "home" || view === "evidence" || view === "app-detail" || view === "supply-chain" || view === "audit" || view === "feed-health";
     const needsPolicies = view === "home" || view === "fleet" || view === "app-detail" || view === "supply-chain" || view === "audit" || view === "feed-health" || view === "policy";
     if (!needsReceipts && !needsPolicies) {
       return;
@@ -37540,6 +37935,26 @@ function App() {
       bulkApproveInFlight.current = false;
     }
   }, [refreshApprovalGate, refreshStateAfterAction, setResolutionMessage]);
+  const handleBulkBlock = reactExports.useCallback(async (selected) => {
+    if (bulkApproveInFlight.current || resolutionInFlight.current) {
+      throw new Error("Another decision is still being saved. Try again in a moment.");
+    }
+    bulkApproveInFlight.current = true;
+    resolutionInFlight.current = true;
+    const queued = new Map((requests.kind === "ready" ? requests.items : []).map((item) => [item.request_id, item]));
+    try {
+      const outcome = await blockRequestsOnce(selected, (id2) => queued.get(id2), resolveRequestWithQueueResult);
+      resolutionInFlight.current = false;
+      await refreshStateAfterAction();
+      if (outcome.failed > 0) {
+        throw new BulkBlockError(bulkBlockFailureMessage(outcome), outcome.failedIds);
+      }
+      setResolutionMessage(bulkBlockSummary(outcome));
+    } finally {
+      resolutionInFlight.current = false;
+      bulkApproveInFlight.current = false;
+    }
+  }, [refreshStateAfterAction, requests, setResolutionMessage]);
   const handleRetry = reactExports.useCallback(() => {
     setRuntime({ kind: "loading" });
     setRequests({ kind: "loading" });
@@ -37671,6 +38086,7 @@ function App() {
           {
             requests,
             runtime,
+            receipts: receipts.kind === "ready" ? receipts.items : void 0,
             policies,
             onOpenInbox: handleOpenInbox,
             onOpenFleet: handleOpenFleet,
@@ -37700,6 +38116,7 @@ function App() {
         onOpenRequest: handleOpenRequest,
         onResolve: handleResolve,
         onBulkApprove: handleBulkApprove,
+        onBulkBlock: handleBulkBlock,
         onRetry: handleRetry,
         onRetryDetail: () => setDetailRefreshKey((key) => key + 1),
         onRepair: handleRepair,
@@ -37747,6 +38164,7 @@ function App() {
           cloudState: runtime.snapshot.cloud_state ?? "unknown",
           cloudStateLabel: runtime.snapshot.cloud_state_label ?? "Unknown",
           syncConfigured: runtime.snapshot.sync_configured ?? false,
+          syncHealth: runtime.snapshot.cloud_sync_health?.state ?? null,
           pendingCount: runtime.snapshot.pending_count ?? 0,
           receiptCount: runtime.snapshot.receipt_count ?? 0,
           protectedAppCount: 0
@@ -37805,9 +38223,9 @@ export {
   HiMiniMinusCircle as a7,
   isUnsupportedPlatformCheck as a8,
   RECHECK_UNAVAILABLE_SIGNATURE as a9,
-  GuardHero as aA,
-  ProofStrip as aB,
-  HiMiniXCircle as aC,
+  HiMiniXCircle as aA,
+  GuardHero as aB,
+  ProofStrip as aC,
   HiMiniClipboardDocumentCheck as aD,
   HiMiniClipboard as aE,
   fetchResolvedApprovalGate as aF,
@@ -37853,13 +38271,13 @@ export {
   selectHarnessPosture as as,
   harnessPosturePatch as at,
   harnessRowTone as au,
-  harnessPostureOptions as av,
-  HiMiniEye as aw,
-  harnessRowStatus as ax,
-  PROTECTION_POSTURE_COPY as ay,
-  globalPosture as az,
+  PROTECTION_POSTURE_COPY as av,
+  harnessPostureOptions as aw,
+  globalPosture as ax,
+  harnessRowStatus as ay,
+  HiMiniEye as az,
   HiMiniChevronUp as b,
-  LOCAL_CLI_CAPABILITIES as b$,
+  shortIdentity as b$,
   importSettings as b0,
   resetSettings as b1,
   enrollApprovalGateTotp as b2,
@@ -37890,13 +38308,13 @@ export {
   groupPermissionsByFamily as bR,
   HiMiniInformationCircle as bS,
   LocalCliApiError as bT,
-  approvalProofRecentlySatisfied as bU,
-  bulkCommandState as bV,
-  fetchLocalCliApi as bW,
-  ExtensionBrandMark as bX,
-  fetchMcpProviderActions as bY,
-  previewLocalCliMutation as bZ,
-  applyLocalCliMutation as b_,
+  hasSuggestedRules as bU,
+  approvalProofRecentlySatisfied as bV,
+  bulkCommandState as bW,
+  fetchLocalCliApi as bX,
+  ExtensionBrandMark as bY,
+  fetchMcpProviderActions as bZ,
+  connectorSetupReady as b_,
   WorkspacePageHeader as ba,
   commitDashboardLocation as bb,
   guardAwareHref as bc,
@@ -37924,149 +38342,172 @@ export {
   normalizeExtensionCatalogItem as by,
   guardApiCacheScope as bz,
   HiMiniChevronDown as c,
-  HiMiniHome as c$,
-  readJson as c0,
-  enrollablePackageScriptCommands as c1,
-  seenSuggestionMeta as c2,
-  HiMiniPlus as c3,
-  looksLikeProjectRelocatePaste as c4,
-  packageScriptFilterNeedle as c5,
-  suggestedPackageScriptExtensions as c6,
-  filterExtensionSuggestions as c7,
-  suggestedHarnessExtensions as c8,
-  suggestedSeenExtensions as c9,
-  extensionDisplayName as cA,
-  catalogRowSecondLine as cB,
-  extensionStateLabel as cC,
-  HiMiniGlobeAlt as cD,
-  HiMiniFunnel as cE,
-  discoveryFailureMessage as cF,
-  refreshCodexHostInventory as cG,
-  CODEX_HOST_FALLBACK as cH,
-  CONFIGURED_CONNECTIONS_FALLBACK as cI,
-  loadCurrentDashboardBuild as cJ,
-  canonicalExtensionId as cK,
-  extensionDetailHref as cL,
-  DEFAULT_EXTENSION_DETAIL_URL_STATE as cM,
-  acknowledgeDegradedExtensionControlAuthority as cN,
-  recoverExtensionControlAuthority as cO,
-  readExtensionDetailUrlState as cP,
-  parseProtectionRoute as cQ,
-  addCustomExtensionHref as cR,
-  GuardModalLayer as cS,
-  runHarnessAction as cT,
-  GuardHarnessActionError as cU,
-  HiMiniRocketLaunch as cV,
-  HiMiniTrash as cW,
-  fetchGuardApi as cX,
-  formatHarnessCommand as cY,
-  fetchApprovalPage as cZ,
-  fetchPolicy as c_,
-  keepsPackageScriptCatalog as ca,
-  recognizeLocalCli as cb,
-  preferredPackageScriptExtension as cc,
-  looksLikePackageScriptPaste as cd,
-  enrollmentCommandStates as ce,
-  isBulkApproveGateReady as cf,
-  HiMiniArrowLeft as cg,
-  fetchLocalCliList as ch,
-  normalizeLocalCliList as ci,
-  refreshMcpInventory as cj,
-  startGuardCloudConnect as ck,
-  extensionEffectiveState as cl,
-  permissionEffectiveState as cm,
-  HiMiniArrowTopRightOnSquare as cn,
-  fetchExtensionControlApi as co,
-  permissionForRule as cp,
-  refreshEffectiveExtensionControls as cq,
-  fetchExtensionDiscoveryApi as cr,
-  HiMiniClock as cs,
-  startCancelableDiscoveryJob as ct,
-  waitForMcpDiscoveryJob as cu,
-  isLocalCliId as cv,
-  localCliHref as cw,
-  filterCodexHostApps as cx,
-  connectorWorkspaceItems as cy,
-  customExtensionNeedsReview as cz,
+  addCustomExtensionPrefillHref as c$,
+  customExtensionDisplayName as c0,
+  previewLocalCliMutation as c1,
+  applyLocalCliMutation as c2,
+  LOCAL_CLI_CAPABILITIES as c3,
+  refreshMcpInventory as c4,
+  DiscoveryFailure as c5,
+  readJson as c6,
+  enrollablePackageScriptCommands as c7,
+  seenSuggestionMeta as c8,
+  HiMiniPlus as c9,
+  permissionForRule as cA,
+  refreshEffectiveExtensionControls as cB,
+  fetchExtensionDiscoveryApi as cC,
+  HiMiniClock as cD,
+  startCancelableDiscoveryJob as cE,
+  waitForMcpDiscoveryJob as cF,
+  isLocalCliId as cG,
+  localCliHref as cH,
+  fetchPluginUpdatesApi as cI,
+  filterCodexHostApps as cJ,
+  connectorWorkspaceItems as cK,
+  customExtensionNeedsReview as cL,
+  profileSetupCommand as cM,
+  customExtensionBadge as cN,
+  extensionDisplayName as cO,
+  catalogRowSecondLine as cP,
+  extensionStateLabel as cQ,
+  HiMiniGlobeAlt as cR,
+  HiMiniFunnel as cS,
+  discoveryFailureMessage as cT,
+  refreshCodexHostInventory as cU,
+  CODEX_HOST_FALLBACK as cV,
+  CONFIGURED_CONNECTIONS_FALLBACK as cW,
+  loadCurrentDashboardBuild as cX,
+  canonicalExtensionId as cY,
+  extensionDetailHref as cZ,
+  DEFAULT_EXTENSION_DETAIL_URL_STATE as c_,
+  looksLikeProjectRelocatePaste as ca,
+  packageScriptFilterNeedle as cb,
+  initialAddCommand as cc,
+  suggestedPackageScriptExtensions as cd,
+  filterExtensionSuggestions as ce,
+  suggestedHarnessExtensions as cf,
+  suggestedSeenExtensions as cg,
+  keepsPackageScriptCatalog as ch,
+  prefillSuggestedStates as ci,
+  recognizeLocalCli as cj,
+  preferredPackageScriptExtension as ck,
+  looksLikePackageScriptPaste as cl,
+  enrollmentCommandStates as cm,
+  isBulkApproveGateReady as cn,
+  HiMiniArrowLeft as co,
+  fetchLocalCliList as cp,
+  normalizeLocalCliList as cq,
+  unreviewedToolChangeCount as cr,
+  connectorSetupMatch as cs,
+  connectorGroupOutcome as ct,
+  allowedEarlierVersion as cu,
+  startGuardCloudConnect as cv,
+  extensionEffectiveState as cw,
+  permissionEffectiveState as cx,
+  HiMiniArrowTopRightOnSquare as cy,
+  fetchExtensionControlApi as cz,
   HiMiniArrowPath as d,
-  fetchReleaseFeedApi as d$,
-  appSetupTarget as d0,
-  guardActionPresentation as d1,
-  DEFAULT_FILTER_STATE as d2,
-  filterEvidence as d3,
-  sortEvidence as d4,
-  computeMetrics as d5,
-  CommandActivityWorkspace as d6,
-  EvidenceFilterBar as d7,
-  EvidenceInsightStrip as d8,
-  EvidenceActionList as d9,
-  activatePackageFirewallRuntime as dA,
-  EntitlementNotice as dB,
-  chooseSupplyChainAuditFolder as dC,
-  fetchReceipts as dD,
-  lazyWorkspace as dE,
-  __vitePreload as dF,
-  scopeLabel as dG,
-  HiMiniCloudArrowUp as dH,
-  HiMiniCodeBracket as dI,
-  HiMiniClipboardDocument as dJ,
-  HiMiniUsers as dK,
-  HiMiniFolder as dL,
-  HiMiniIdentification as dM,
-  StyledSelect as dN,
-  policyActionLabel as dO,
-  createCloudExceptionRequest as dP,
-  HiMiniPuzzlePiece as dQ,
-  fetchCloudExceptions as dR,
-  fetchCloudExceptionRequests as dS,
-  downloadBlob as dT,
-  PaginationControls as dU,
-  PolicyStatField as dV,
-  HiMiniArrowDownTray as dW,
-  HiMiniInbox as dX,
-  HiMiniQueueList as dY,
-  subscribeDashboardLocation as dZ,
-  Surface as d_,
-  EvidenceActionDetail as da,
-  policyIdentityKey as db,
-  clearLabelForScope as dc,
-  HiMiniChartBar as dd,
-  HiMiniCheckBadge as de,
-  isSupplyChainAuditIncomplete as df,
-  isSupplyChainAuditEvidence as dg,
-  readString$1 as dh,
-  IconActionButton as di,
-  HiMiniBeaker as dj,
-  ActivationSummary as dk,
-  ActionResultPanel as dl,
-  HiMiniBugAnt as dm,
-  ConnectFlowCard as dn,
-  ApprovalProofInline as dp,
-  HiMiniCloudArrowDown as dq,
-  fetchPackageFirewallStatus as dr,
-  runPackageAudit as ds,
-  resolveSupplyChainAuditFailure as dt,
-  runPackageSync as du,
-  startPackageFirewallConnect as dv,
-  PACKAGE_FIREWALL_CONNECT_POPUP_BLOCKED_MESSAGE as dw,
-  repairSupplyChainProtection as dx,
-  runPackageFirewallAction as dy,
-  parseInterceptProofSnapshot as dz,
+  HiMiniCloudArrowUp as d$,
+  acknowledgeDegradedExtensionControlAuthority as d0,
+  recoverExtensionControlAuthority as d1,
+  connectorSetupLinkFromSearch as d2,
+  readExtensionDetailUrlState as d3,
+  parseProtectionRoute as d4,
+  addCustomExtensionHref as d5,
+  GuardModalLayer as d6,
+  runHarnessAction as d7,
+  GuardHarnessActionError as d8,
+  HiMiniRocketLaunch as d9,
+  HiMiniBeaker as dA,
+  HiMiniBugAnt as dB,
+  ActivationSummary as dC,
+  ActionResultPanel as dD,
+  fetchSupplyChainBundle as dE,
+  closeOnEscape as dF,
+  ConnectFlowCard as dG,
+  ApprovalProofInline as dH,
+  HiMiniCloudArrowDown as dI,
+  SUPPLY_CHAIN_SYNC_TIMEOUT_MS as dJ,
+  fetchPackageFirewallStatus as dK,
+  runPackageAudit as dL,
+  resolveSupplyChainAuditFailure as dM,
+  runPackageSync as dN,
+  GuardOperationTimeoutError as dO,
+  startPackageFirewallConnect as dP,
+  PACKAGE_FIREWALL_CONNECT_POPUP_BLOCKED_MESSAGE as dQ,
+  repairSupplyChainProtection as dR,
+  runPackageFirewallAction as dS,
+  parseInterceptProofSnapshot as dT,
+  activatePackageFirewallRuntime as dU,
+  EntitlementNotice as dV,
+  chooseSupplyChainAuditFolder as dW,
+  fetchReceipts as dX,
+  lazyWorkspace as dY,
+  __vitePreload as dZ,
+  scopeLabel as d_,
+  HiMiniTrash as da,
+  fetchGuardApi as db,
+  formatHarnessCommand as dc,
+  fetchApprovalPage as dd,
+  fetchPolicy as de,
+  HiMiniHome as df,
+  appSetupTarget as dg,
+  guardActionPresentation as dh,
+  DEFAULT_FILTER_STATE as di,
+  filterEvidence as dj,
+  sortEvidence as dk,
+  computeMetrics as dl,
+  CommandActivityWorkspace as dm,
+  EvidenceFilterBar as dn,
+  EvidenceInsightStrip as dp,
+  EvidenceActionList as dq,
+  EvidenceActionDetail as dr,
+  policyIdentityKey as ds,
+  clearLabelForScope as dt,
+  HiMiniChartBar as du,
+  HiMiniCheckBadge as dv,
+  isSupplyChainAuditIncomplete as dw,
+  isSupplyChainAuditEvidence as dx,
+  readString$1 as dy,
+  IconActionButton as dz,
   HiMiniCheck as e,
-  fetchMcpPolicyRequest as e0,
-  resolveMcpPolicyRequest as e1,
-  HiMiniDocumentPlus as e2,
-  HiMiniDocumentMagnifyingGlass as e3,
-  fetchSupplyChainBundle as e4,
-  isSupplyChainScannerEvidence as e5,
-  isBlockedGuardAction as e6,
-  HiMiniShieldExclamation as e7,
-  HiMiniComputerDesktop as e8,
-  HiMiniChevronLeft as e9,
-  HiMiniArrowDown as ea,
-  HiMiniArrowUp as eb,
-  runAuditRemediation as ec,
-  HiMiniSignal as ed,
+  HiMiniCodeBracket as e0,
+  HiMiniClipboardDocument as e1,
+  HiMiniUsers as e2,
+  HiMiniFolder as e3,
+  HiMiniIdentification as e4,
+  StyledSelect as e5,
+  policyActionLabel as e6,
+  createCloudExceptionRequest as e7,
+  HiMiniPuzzlePiece as e8,
+  fetchCloudExceptions as e9,
+  HiMiniSignal as eA,
+  fetchCloudExceptionRequests as ea,
+  downloadBlob as eb,
+  PaginationControls as ec,
+  PolicyStatField as ed,
+  HiMiniArrowDownTray as ee,
+  HiMiniInbox as ef,
+  HiMiniQueueList as eg,
+  subscribeDashboardLocation as eh,
+  Surface as ei,
+  HiMiniEllipsisHorizontal as ej,
+  HiMiniMinus as ek,
+  HiMiniWrench as el,
+  HiMiniArrowLongRight as em,
+  HiMiniArrowUpCircle as en,
+  fetchReleaseFeedApi as eo,
+  fetchMcpPolicyRequest as ep,
+  resolveMcpPolicyRequest as eq,
+  HiMiniDocumentPlus as er,
+  HiMiniDocumentMagnifyingGlass as es,
+  HiMiniChevronLeft as et,
+  HiMiniArrowDown as eu,
+  HiMiniArrowUp as ev,
+  runAuditRemediation as ew,
+  isBlockedGuardAction as ex,
+  isSupplyChainScannerEvidence as ey,
+  HiMiniFolderOpen as ez,
   formatRelativeTime as f,
   HiMiniNoSymbol as g,
   harnessDisplayName as h,

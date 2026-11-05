@@ -140,6 +140,13 @@ fn project_scan(raw: &str) -> Option<(String, Vec<usize>, bool)> {
     }
     let lead = out.len() - out.trim_start().len();
     let projected = out.trim();
+    // The `&` that backgrounds the whole command is read off here too.
+    // Backgrounding starts exactly the programs the foreground text names, and
+    // the sandbox runs the raw bytes either way, so the text this projection
+    // hands the classifier is the foreground one. Keeping the `&` left the
+    // projection unmodelled, which cost a redirect beside it the workspace
+    // route the same command keeps without the redirect.
+    let projected = crate::pretool::script_content::foreground_job(projected).unwrap_or(projected);
     let map = map[lead..lead + projected.len()].to_vec();
     Some((projected.to_owned(), map, names_files))
 }
@@ -217,7 +224,7 @@ pub(super) fn contained(
     context: crate::pretool::PathContext<'_>,
     execution_environment: Option<&GuardExecutionEnvironmentV1>,
 ) -> Option<PreToolResultV1> {
-    if !crate::pretool::workspace_contained::host_eligible(harness, event) {
+    if !crate::pretool::workspace_contained::host_eligible(harness, event, payload) {
         return None;
     }
     // A command the bounded-write projection takes runs directly instead: a
@@ -265,13 +272,14 @@ pub(super) fn contained(
         && !projected.action.sensitive_target
         && !runs_directly
         && stays_offline(&projected_text, single);
-    // macOS claims package and Node tool commands with narrower profiles
-    // before the workspace route runs. The redirect disqualifies those, so the
-    // workspace sandbox takes the command once it passes that route's gate.
+    // macOS claims package, Node tool and pytest commands with narrower
+    // profiles before the workspace route runs. The redirect disqualifies
+    // those, so the workspace sandbox takes the command once it passes that
+    // route's gate.
     // A trailing `2>&1` before bounded output filters is not such a redirect:
     // the narrower sink peels it itself, so that command keeps its profile.
     let home = context.home_dir.map(Path::new);
-    let narrower = super::redirect_projection::package_profile(&projected.reason_code)
+    let narrower = super::redirect_projection::redirected_profile(&projected.reason_code)
         && projected.minimum_action == "sandbox-required"
         && !projected.action.sensitive_target
         && !narrower_sink_runs(command, context)

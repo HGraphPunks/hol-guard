@@ -14,6 +14,106 @@ boundary.
 For security reviews, sales conversations, and GRC packets, see the
 [Enterprise packet](./enterprise-packet.md).
 
+## Platform support
+
+Guard needs both the Python package and its matching native runtime. A successful
+`pip install` or `hol-guard --version` does not establish that the runtime works
+or that an agent is protected. The universal `py3-none-any` wheel does not contain
+the native runtime.
+
+Stable releases provide these artifacts. Linux ARM64 wheels start with 3.58.0;
+earlier releases have none.
+
+| Python platform | Native wheel location | Installation notes |
+| --- | --- | --- |
+| macOS ARM64, macOS 11 or later | PyPI and GitHub release | Use native ARM64 Python. |
+| macOS Intel, macOS 13 or later | GitHub release | The PyPI universal wheel needs the matching native wheel from the same release. The `cryptography` dependency must build from source; see below. |
+| Linux x86_64, glibc 2.17 or later | PyPI and GitHub release | Use a compatible manylinux interpreter. |
+| Windows x64 | PyPI and GitHub release | Use x64 Python (`win-amd64`). |
+| Windows ARM64 with native ARM64 Python | GitHub release | The native runtime exists, but the Python 3.12 dependency install currently requires source builds. Use the x64 Python route below. |
+| Linux ARM64, glibc 2.17 or later | GitHub release, 3.58.0 and later | The PyPI universal wheel needs the matching native wheel from the same release. |
+
+Check the [release assets](https://github.com/hashgraph-online/hol-guard/releases)
+for your exact Guard version. Keep the Python package and native wheel versions
+matched; an artifact for another architecture is not a native installation.
+
+### macOS Intel: install the matching native wheel
+
+`cryptography` 49 and later publish no Intel macOS wheels, so `pipx install
+hol-guard` builds it from source. That build needs a Rust toolchain and OpenSSL
+headers. Without Rust the build stops with an error that it cannot find a Rust
+compiler; without the OpenSSL headers it fails with `failed to run custom build
+command for openssl-sys`. Install both (for example `brew install rust openssl@3`) before
+installing Guard.
+
+Once the install succeeds, run `hol-guard update`. On a platform whose native wheel
+is on the GitHub release only, it downloads the wheel for the installed version,
+checks it against the digest published with that release and installs it.
+
+If the updater cannot recover the native runtime, replace the universal wheel with
+the native wheel for the **same installed version** by hand before checking runtime
+readiness. On Intel macOS 13 or later:
+
+```bash
+V=$(pipx runpip hol-guard show hol-guard | awk '/^Version:/{print $2}')
+pipx runpip hol-guard install --force-reinstall --no-deps "https://github.com/hashgraph-online/hol-guard/releases/download/v$V/hol_guard-$V-py3-none-macosx_13_0_x86_64.whl"
+```
+
+Here `--no-deps` only repairs an existing installation whose full dependency install
+already succeeded; it is not a substitute for installing those dependencies. For a
+different Guard version, select that version's matching Intel wheel from the release
+assets. Then run the readiness check below before starting setup.
+
+### Linux ARM64: install the matching native wheel
+
+From 3.58.0, install Guard with pipx as usual, then run `hol-guard update` to fetch
+and verify the native wheel from the GitHub release. To do it by hand, use the same
+installed version:
+
+```bash
+V=$(pipx runpip hol-guard show hol-guard | awk '/^Version:/{print $2}')
+pipx runpip hol-guard install --force-reinstall --no-deps "https://github.com/hashgraph-online/hol-guard/releases/download/v$V/hol_guard-$V-py3-none-manylinux_2_17_aarch64.whl"
+```
+
+### Windows ARM64: select x64 Python
+
+With native ARM64 Python 3.12, the 3.56.0 dependency graph builds `cryptography` and
+`rfc3161-client` from source and can fail when OpenSSL or Perl is missing. The
+presence of Guard's ARM64 runtime wheel does not resolve those dependency builds.
+
+The full production dependency install failed in the tested native ARM64 Python
+3.12 environment. Native ARM64 onboarding and a first protected action therefore
+remain unverified. That acceptance work is tracked separately in
+[issue #5924](https://github.com/hashgraph-online/hol-guard/issues/5924); the x64
+route below does not establish native ARM64 support.
+
+Use an x64 CPython installation on Windows ARM64. Select its executable explicitly
+and verify the interpreter architecture before asking pipx to create the Guard
+environment:
+
+```powershell
+& '<path-to-x64-python.exe>' -c "import sysconfig; print(sysconfig.get_platform())"
+pipx install --python '<path-to-x64-python.exe>' hol-guard
+```
+
+The first command must print `win-amd64`, not `win-arm64`. This route uses Windows
+x64 emulation; it is not native ARM64 Python coverage. If Guard is already managed
+by pipx, inspect that environment before replacing it rather than installing a
+second copy over an existing setup.
+
+### Check runtime readiness
+
+Before starting the wizard, inspect a harmless command without executing it:
+
+```bash
+hol-guard command test 'echo guard-install-check' --json
+```
+
+An exit of zero with `no_match` is normal for this harmless command. A
+`native_unavailable` failure means the installation is not ready for setup.
+After setup, verify the actual agent integration and a benign action with a
+matching receipt; this inspection alone is not proof of active protection.
+
 ## The everyday flow
 
 1. Start the guided first-run setup:
@@ -219,6 +319,19 @@ Optional project override:
 [artifacts."codex:project:workspace_tools"]
 default_action = "block"
 ```
+
+Guard also assesses the workspaces you admit, and the ones a harness install registers, in a background
+worker that the daemon runs. To turn that worker off for the whole device, set this in the home config
+(the default is `true`):
+
+```toml
+workspace_assessment_enabled = false
+```
+
+Turning it off stops the worker from checking or queueing anything, and turning it on again resumes it; a
+running daemon notices either change within about half a minute, without a restart. It never deletes stored runs, findings, fix proposals or admissions, so turning it back on resumes where it left off. Removing
+a harness install ends the automatic admission of its workspace the same way: the worktree stops being
+checked, and its run history and fix proposals stay.
 
 Guard still reads the legacy `.ai-plugin-scanner-guard.toml` file if you already have one, but new local overrides should use `.hol-guard.toml`.
 

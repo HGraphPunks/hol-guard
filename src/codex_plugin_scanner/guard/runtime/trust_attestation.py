@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import os
+import re
 import secrets
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -10,12 +11,12 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
-from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, padding
-from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePrivateKey, EllipticCurvePublicKey
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
+from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePrivateKey
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 
+from ..native_trust_attestation import native_verify_trust_attestation
 from .evidence_hash import canonical_guard_evidence_payload, guard_evidence_hash
 
 GUARD_TRUST_ATTESTATION_PAYLOAD_VERSION_V3 = "guard-aibom-trust-attestation.v3"
@@ -642,19 +643,43 @@ _ATTESTATION_SUBJECT_BINDING_FIELDS = frozenset(
 )
 
 
+# The one timestamp spelling an attestation may carry, after a trailing ``Z``
+# becomes ``+00:00``. ``datetime.fromisoformat`` reads far more than this, and
+# what else it reads changes between the interpreters this project supports:
+# 3.10 refuses week dates and basic formats that 3.11 accepts, and only 3.14
+# reads ``24:00`` as the next midnight. The Rust port in
+# ``rust/crates/guard-command/src/attestation_timestamp.rs`` holds the same
+# shape, so every interpreter and the native runtime give one answer.
+#
+# A UTC offset carries no fraction here. Interpreters disagree about what one
+# means: the reader behind ``fromisoformat`` used to ask only whether the
+# offset's whole seconds were zero, so it read ``+00:00:00.999999`` as UTC
+# itself, and newer ones read it as a microsecond east. Neither RFC 3339 nor
+# ISO 8601 admits the spelling, so an attestation carrying one is no longer an
+# instant on either side rather than a different instant per interpreter.
+_ATTESTATION_TIMESTAMP_SHAPE = re.compile(
+    r"\d{4}-\d{2}-\d{2}[Tt ]"
+    r"(?:[01]\d|2[0-3]):\d{2}(?::\d{2}(?:\.(?:\d{6}|\d{3}))?)?"
+    r"[+-]\d{2}:\d{2}(?::\d{2})?",
+    re.ASCII,
+)
+
+
 def _parse_attestation_timestamp(value: object) -> datetime | None:
     if not isinstance(value, str) or not value.strip():
         return None
     normalized = value.strip()
     if normalized.endswith(("Z", "z")):
         normalized = f"{normalized[:-1]}+00:00"
+    if _ATTESTATION_TIMESTAMP_SHAPE.fullmatch(normalized) is None:
+        return None
     try:
         parsed = datetime.fromisoformat(normalized)
-    except ValueError:
+        # The shift to UTC can leave ``datetime``'s year range, which raises
+        # ``OverflowError`` rather than ``ValueError``.
+        return parsed.astimezone(timezone.utc) if parsed.tzinfo is not None else None
+    except (ValueError, OverflowError):
         return None
-    if parsed.tzinfo is None:
-        return None
-    return parsed.astimezone(timezone.utc)
 
 
 def _validate_attestation_payload(
@@ -753,6 +778,17 @@ def sign_trust_attestation(
     }
 
 
+def _verification_key_wire(key: GuardTrustAttestationVerificationKey) -> dict[str, object]:
+    """One trusted key under the names the verification contract reads."""
+
+    return {
+        "key_id": key.key_id,
+        "public_key_pem": key.public_key_pem,
+        "fingerprint_sha256": key.fingerprint_sha256,
+        "public_jwk_thumbprint": key.public_jwk_thumbprint,
+    }
+
+
 def verify_trust_attestation(
     *,
     payload: Mapping[str, object],
@@ -761,120 +797,36 @@ def verify_trust_attestation(
     policy: GuardTrustAttestationVerificationPolicy | None = None,
     claim: Mapping[str, object] | None = None,
 ) -> str:
-    allowed_envelope_fields = {
-        "payloadVersion",
-        "payloadHash",
-        "signature",
-        "signatureAlgorithm",
-        "signedAt",
-        "keyId",
-        "publicKeyPem",
-        "fingerprintSha256",
-        "publicJwkThumbprint",
-    }
-    unknown_envelope_fields = {str(key) for key in envelope} - allowed_envelope_fields
-    if unknown_envelope_fields:
-        raise ValueError(f"Unknown trust attestation envelope fields: {', '.join(sorted(unknown_envelope_fields))}")
-    raw_payload_hash = envelope.get("payloadHash")
-    raw_signature_algorithm = envelope.get("signatureAlgorithm")
-    raw_key_id = envelope.get("keyId")
-    raw_public_key_pem = envelope.get("publicKeyPem")
-    raw_fingerprint_sha256 = envelope.get("fingerprintSha256")
-    raw_public_jwk_thumbprint = envelope.get("publicJwkThumbprint")
-    raw_signature = envelope.get("signature")
-    raw_payload_version = envelope.get("payloadVersion")
-    if not isinstance(raw_payload_hash, str) or not raw_payload_hash:
-        raise ValueError("Trust attestation envelope is incomplete")
-    if not isinstance(raw_signature_algorithm, str) or not raw_signature_algorithm:
-        raise ValueError("Trust attestation envelope is incomplete")
-    if not isinstance(raw_key_id, str) or not raw_key_id:
-        raise ValueError("Trust attestation envelope is incomplete")
-    if not isinstance(raw_public_key_pem, str) or not raw_public_key_pem:
-        raise ValueError("Trust attestation envelope is incomplete")
-    if not isinstance(raw_fingerprint_sha256, str) or not raw_fingerprint_sha256:
-        raise ValueError("Trust attestation envelope is incomplete")
-    if not isinstance(raw_signature, str) or not raw_signature:
-        raise ValueError("Trust attestation envelope is incomplete")
-    if raw_payload_version != GUARD_TRUST_ATTESTATION_PAYLOAD_VERSION_V3:
-        raise ValueError("Unsupported trust attestation envelope version")
-    payload_hash: str = raw_payload_hash
-    signature_algorithm: str = raw_signature_algorithm
-    key_id: str = raw_key_id
-    public_key_pem: str = raw_public_key_pem
-    fingerprint_sha256: str = raw_fingerprint_sha256
-    public_jwk_thumbprint = raw_public_jwk_thumbprint if isinstance(raw_public_jwk_thumbprint, str) else None
-    signature: str = raw_signature
-    if signature_algorithm not in {
-        GUARD_TRUST_ATTESTATION_SIGNATURE_ALGORITHM,
-        GUARD_TRUST_ATTESTATION_SIGNATURE_ALGORITHM_ECDSA_P256,
-    }:
-        raise ValueError("Unsupported trust attestation signature algorithm")
-    validated_payload = _validate_attestation_payload(
-        _payload_with_signed_at(payload, envelope.get("signedAt")),
-        require_signed_at=True,
-        require_nonce=True,
-        require_subject_bindings=True,
-    )
-    if claim is not None:
-        require_layer_identity = validated_payload.get("scope") == "trust_layer"
-        if trust_claim_hash(claim, require_layer_identity=require_layer_identity) != validated_payload["claimHash"]:
-            raise ValueError("Trust attestation claim hash mismatch")
-    canonical_payload = canonical_trust_attestation_payload(validated_payload)
-    if hashlib.sha256(canonical_payload).hexdigest() != payload_hash:
-        raise ValueError("Trust attestation payload hash mismatch")
-    if _public_key_fingerprint(public_key_pem) != fingerprint_sha256:
-        raise ValueError("Trust attestation public key fingerprint mismatch")
-    if trusted_keys is not None and not any(
-        trusted_key.key_id == key_id
-        and trusted_key.fingerprint_sha256 == fingerprint_sha256
-        and _normalize_pem(trusted_key.public_key_pem) == _normalize_pem(public_key_pem)
-        and (public_jwk_thumbprint is None or trusted_key.public_jwk_thumbprint == public_jwk_thumbprint)
-        for trusted_key in trusted_keys
-    ):
-        raise ValueError("Trust attestation key is not trusted")
+    """Return the replay identity of a verified attestation, or raise.
+
+    The verifier itself is the native runtime's; this call only puts the
+    attestation and the caller's own rotation, replay and expiry state on the
+    wire. A refusal comes back as ``ValueError`` carrying the runtime's
+    wording, and a runtime that cannot answer raises as well, so nothing here
+    can read an attestation as verified.
+    """
+
     verification_policy = policy or GuardTrustAttestationVerificationPolicy(require_nonce=False)
-    if key_id in verification_policy.revoked_key_ids:
-        raise ValueError("Trust attestation key is revoked")
-    signed_at = _parse_attestation_timestamp(validated_payload.get("signedAt"))
-    captured_at = _parse_attestation_timestamp(validated_payload.get("capturedAt"))
-    if signed_at is None or captured_at is None or captured_at > signed_at:
-        raise ValueError("Trust attestation timestamp ordering is invalid")
-    key_not_before = dict(verification_policy.key_not_before).get(key_id)
-    parsed_key_not_before = _parse_attestation_timestamp(key_not_before)
-    if key_not_before is not None and (parsed_key_not_before is None or signed_at < parsed_key_not_before):
-        raise ValueError("Trust attestation predates the trusted key activation")
-    if verification_policy.now is not None:
-        current = _parse_attestation_timestamp(verification_policy.now)
-        if current is None:
-            raise ValueError("Trust attestation verification time is invalid")
-        if signed_at > current:
-            raise ValueError("Trust attestation is signed in the future")
-        expires_at = _parse_attestation_timestamp(validated_payload.get("expiresAt"))
-        if expires_at is not None and expires_at <= current:
-            raise ValueError("Trust attestation is expired")
-    sequence = validated_payload.get("sequence")
-    if verification_policy.minimum_sequence is not None and (
-        not isinstance(sequence, int) or sequence <= verification_policy.minimum_sequence
-    ):
-        raise ValueError("Trust attestation sequence is not monotonic")
-    if verification_policy.require_nonce and "nonce" not in validated_payload:
-        raise ValueError("Trust attestation nonce is required")
-    replay_key = trust_attestation_replay_key(validated_payload)
-    if replay_key in verification_policy.seen_replay_keys:
-        raise ValueError("Trust attestation replay detected")
-    public_key = serialization.load_pem_public_key(public_key_pem.encode("utf-8"))
-    if not isinstance(public_key, (RSAPublicKey, EllipticCurvePublicKey)):
-        raise ValueError("Trust attestation public key must be RSA or EC")
-    try:
-        _verify_signature(
-            public_key=public_key,
-            canonical_payload=canonical_payload,
-            signature=base64.b64decode(signature, validate=True),
-            signature_algorithm=signature_algorithm,
-        )
-    except InvalidSignature as exc:
-        raise ValueError("Trust attestation signature verification failed") from exc
-    return replay_key
+    return native_verify_trust_attestation(
+        payload=dict(payload),
+        envelope=dict(envelope),
+        claim=dict(claim) if claim is not None else None,
+        trusted_keys=([_verification_key_wire(key) for key in trusted_keys] if trusted_keys is not None else None),
+        policy={
+            "revoked_key_ids": sorted(verification_policy.revoked_key_ids),
+            "key_not_before": dict(verification_policy.key_not_before),
+            # The verifier reads the limit as digits, not as a fixed-width
+            # number: a Python integer has no width bound, and a limit it
+            # cannot decode would reach the caller as an unavailable runtime
+            # instead of the monotonic refusal the verifier owes it.
+            "minimum_sequence": (
+                None if verification_policy.minimum_sequence is None else str(verification_policy.minimum_sequence)
+            ),
+            "seen_replay_keys": sorted(verification_policy.seen_replay_keys),
+            "now": verification_policy.now,
+            "require_nonce": verification_policy.require_nonce,
+        },
+    )
 
 
 def trust_attestation_replay_key(payload: Mapping[str, object]) -> str:
@@ -943,33 +895,6 @@ def _sign_payload(
         if not isinstance(private_key.curve, ec.SECP256R1):
             raise ValueError("Trust attestation EC private key must use P-256")
         return private_key.sign(canonical_payload, ec.ECDSA(hashes.SHA256()))
-    raise ValueError("Unsupported trust attestation signature algorithm")
-
-
-def _verify_signature(
-    *,
-    public_key: RSAPublicKey | EllipticCurvePublicKey,
-    canonical_payload: bytes,
-    signature: bytes,
-    signature_algorithm: str,
-) -> None:
-    if signature_algorithm == GUARD_TRUST_ATTESTATION_SIGNATURE_ALGORITHM:
-        if not isinstance(public_key, RSAPublicKey):
-            raise ValueError("Trust attestation public key must be RSA")
-        public_key.verify(
-            signature,
-            canonical_payload,
-            padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
-            hashes.SHA256(),
-        )
-        return
-    if signature_algorithm == GUARD_TRUST_ATTESTATION_SIGNATURE_ALGORITHM_ECDSA_P256:
-        if not isinstance(public_key, EllipticCurvePublicKey):
-            raise ValueError("Trust attestation public key must be EC")
-        if not isinstance(public_key.curve, ec.SECP256R1):
-            raise ValueError("Trust attestation EC public key must use P-256")
-        public_key.verify(signature, canonical_payload, ec.ECDSA(hashes.SHA256()))
-        return
     raise ValueError("Unsupported trust attestation signature algorithm")
 
 

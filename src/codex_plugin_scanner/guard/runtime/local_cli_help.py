@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
+import signal
 import subprocess
 import tempfile
 import threading
@@ -19,15 +21,6 @@ from .local_cli_identity import UnlistedCliIdentity, identify_unlisted_cli
 HelpStatus = Literal["ok", "empty", "failed"]
 
 _COMMAND_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,40}$")
-_SECTION_HEADER = re.compile(
-    r"^(?:commands|available commands|core commands|additional commands|"
-    r"management commands|general commands|positional arguments)\s*:?\s*$",
-    re.IGNORECASE,
-)
-_ARGPARSE_SET = re.compile(r"\{([A-Za-z][A-Za-z0-9_-]*(?:\s*,\s*[A-Za-z][A-Za-z0-9_-]*)+)\}")
-_YARGS_GROUP_HEADER = re.compile(r"^[A-Z][A-Z0-9 &/-]{0,40}:?$")
-_NON_COMMAND_GROUP = re.compile(r"EXAMPLE|OPTION|FLAG|POSITIONAL|ARGUMENT|USAGE")
-_SKIP_NAMES = frozenset({"help", "completion", "completions"})
 _HELP_TIMEOUT_SECONDS = 2.5
 _HELP_OUTPUT_LIMIT = 8192
 _MAX_NESTED_PROBES = 8
@@ -39,7 +32,8 @@ def parse_cli_help_text(
     *,
     parent_id: str | None = None,
     invocation: Sequence[str] = (),
-) -> tuple[LocalCliCommand, ...]:
+    guard_home: Path | None = None,
+) -> tuple[LocalCliCommand, ...] | None:
     """Extract first-level commands from typical CLI --help output.
 
     ``invocation`` is the program and parent command path (for example
@@ -47,52 +41,43 @@ def parse_cli_help_text(
     indented row and groups commands under uppercase headings such as
     ``ACCOUNT``. Under those headings only invocation-prefixed rows count;
     prose, examples, options and positionals never do.
+
+    The reading itself is the resident's, in ``rust/.../local_cli_help.rs``.
+    Help text is whatever a third-party program printed, so nothing here parses
+    it.
+
+    Returns the commands the resident read, or ``None`` when it could not
+    answer. The two are not the same thing and the caller reports them
+    differently: a CLI whose help names no subcommands really did name none,
+    while a resident that never answered has read nothing at all, and telling
+    the operator the CLI listed no subcommands would be a guess.
     """
 
-    found: list[LocalCliCommand] = []
-    seen: set[str] = set()
-    in_section = False
-    prefixed_only = False
-    for raw_line in text.splitlines():
-        line = raw_line.rstrip()
-        stripped = line.strip()
-        if not stripped:
-            if in_section and raw_line == "":
-                in_section = False
-            continue
-        if _SECTION_HEADER.fullmatch(stripped):
-            in_section = True
-            prefixed_only = False
-            for name in _argparse_names(stripped):
-                _append_command(found, seen, name, parent_id=parent_id)
-            continue
-        if invocation and raw_line == stripped and _YARGS_GROUP_HEADER.fullmatch(stripped):
-            in_section = not _NON_COMMAND_GROUP.search(stripped)
-            prefixed_only = True
-            continue
-        if not in_section:
-            continue
-        prefixed = _strip_invocation(stripped, invocation) if raw_line[:1].isspace() else None
-        if prefixed is not None:
-            parsed = _row_command(prefixed)
-            if parsed is not None:
-                _append_command(found, seen, parsed[0], description=parsed[1], parent_id=parent_id)
-            continue
-        if prefixed_only:
-            continue
-        for name in _argparse_names(stripped):
-            _append_command(found, seen, name, parent_id=parent_id)
-        parsed = _row_command(stripped)
-        if parsed is None:
-            if stripped.endswith(":") and not stripped.startswith("-"):
-                in_section = False
-            continue
-        name, description = parsed
-        _append_command(found, seen, name, description=description, parent_id=parent_id)
-    if not found:
-        for name in _argparse_names(text):
-            _append_command(found, seen, name, parent_id=parent_id)
-    return tuple(found)
+    from ..config import resolve_guard_home
+    from ..native_local_cli_help_parse import native_local_cli_help_commands
+
+    home = guard_home if guard_home is not None else resolve_guard_home()
+    try:
+        rows = native_local_cli_help_commands(
+            guard_home=home,
+            text=text,
+            parent_id=parent_id,
+            invocation=tuple(invocation),
+        )
+    except Exception:
+        return None
+    if rows is None:
+        return None
+    return tuple(
+        LocalCliCommand(
+            command_id=str(row["command_id"]),
+            name=str(row["name"]),
+            usage=str(row["usage"]),
+            description=str(row["description"]),
+            parent_id=None if row["parent_id"] is None else str(row["parent_id"]),
+        )
+        for row in rows
+    )
 
 
 def help_invocation_for_command(
@@ -146,21 +131,29 @@ def discover_local_cli_commands(
     argv: Sequence[str],
     *,
     runner: Callable[[Sequence[str]], str] | None = None,
+    guard_home: Path | None = None,
 ) -> tuple[tuple[LocalCliCommand, ...], HelpStatus]:
-    """Run --help and merge discovered commands onto the default catalog."""
+    """Run --help and merge discovered commands onto the default catalog.
+
+    ``guard_home`` is the home whose resident reads the help text. A daemon
+    serving a non-default home must pass its own, or the parse goes to a
+    resident it does not own.
+    """
 
     probe: Callable[[Sequence[str]], str] = runner if runner is not None else run_cli_help
     output = str(probe(tuple(argv)))
-    discovered = parse_cli_help_text(output, invocation=(identity.name,))
+    empty: tuple[LocalCliCommand, ...] = ()
     if output.strip() == "":
-        status: HelpStatus = "failed"
-    elif not discovered:
-        status = "empty"
-    else:
-        status = "ok"
-        if len(discovered) <= _MAX_NESTED_PROBES:
-            discovered = _with_nested_commands(tuple(argv), discovered, probe, program=identity.name)
-    return merge_discovered_commands(identity.name, discovered), status
+        # The probe printed nothing, so there is nothing to send anywhere.
+        return merge_discovered_commands(identity.name, empty), "failed"
+    discovered = parse_cli_help_text(output, invocation=(identity.name,), guard_home=guard_home)
+    if discovered is None:
+        return merge_discovered_commands(identity.name, empty), "failed"
+    if not discovered:
+        return merge_discovered_commands(identity.name, empty), "empty"
+    if len(discovered) <= _MAX_NESTED_PROBES:
+        discovered = _with_nested_commands(tuple(argv), discovered, probe, program=identity.name, guard_home=guard_home)
+    return merge_discovered_commands(identity.name, discovered), "ok"
 
 
 def run_cli_help(argv: Sequence[str]) -> str:
@@ -195,6 +188,9 @@ def _read_help_output(argv: list[str], tmp: str) -> str:
         stderr=subprocess.STDOUT,
         stdin=subprocess.DEVNULL,
         text=True,
+        # Its own process group, so a timeout also stops whatever the
+        # program started.
+        start_new_session=os.name != "nt",
     )
     chunks: list[str] = []
     captured = 0
@@ -210,17 +206,40 @@ def _read_help_output(argv: list[str], tmp: str) -> str:
                 return
             chunks.append(piece)
             captured += len(piece)
-        process.kill()
+        _stop_probe(process)
 
     reader = threading.Thread(target=_drain, daemon=True)
     reader.start()
     reader.join(_HELP_TIMEOUT_SECONDS)
-    if reader.is_alive() or process.poll() is None:
-        process.kill()
-        reader.join(1)
-        if process.poll() is None:
-            process.wait(timeout=1)
+    try:
+        if reader.is_alive() or process.poll() is None:
+            _stop_probe(process)
+            reader.join(1)
+            if process.poll() is None:
+                process.wait(timeout=1)
+    finally:
+        # A child that let go of the output can outlive a program that exited
+        # on its own; nothing a help run started keeps running after it.
+        _stop_group(process)
     return "".join(chunks)[:_HELP_OUTPUT_LIMIT]
+
+
+def _stop_probe(process: subprocess.Popen[str]) -> None:
+    """Kill a help probe and, off Windows, every process in its group.
+
+    A program that ignores --help can start children that keep its output
+    open or keep working after it exits; killing only the direct child would
+    leave them running.
+    """
+
+    _stop_group(process)
+    process.kill()
+
+
+def _stop_group(process: subprocess.Popen[str]) -> None:
+    if os.name != "nt":
+        with contextlib.suppress(OSError):
+            os.killpg(process.pid, signal.SIGKILL)
 
 
 def _with_nested_commands(
@@ -229,6 +248,7 @@ def _with_nested_commands(
     probe: Callable[[Sequence[str]], str],
     *,
     program: str,
+    guard_home: Path | None = None,
 ) -> tuple[LocalCliCommand, ...]:
     nested: list[LocalCliCommand] = list(discovered)
     seen = {command.command_id for command in nested}
@@ -237,7 +257,15 @@ def _with_nested_commands(
         if command.parent_id is not None:
             continue
         child_output = probe((*prefix, command.name, "--help"))
-        for child in parse_cli_help_text(child_output, invocation=(program, command.name)):
+        if child_output.strip() == "":
+            continue
+        children = parse_cli_help_text(child_output, invocation=(program, command.name), guard_home=guard_home)
+        if children is None:
+            # The resident stopped answering. Every remaining child would wait
+            # out its own timeout for the same silence, so stop probing and
+            # keep what the top-level parse already found.
+            break
+        for child in children:
             child_id = f"{command.command_id}.{child.command_id}"
             if child_id in seen or not _COMMAND_NAME.fullmatch(child.command_id):
                 continue
@@ -283,61 +311,3 @@ def _safe_probe_path(path_text: str) -> bool:
         return False
     parts = [part.lower() for part in resolved.parts]
     return not (len(parts) > 1 and parts[0] == "/" and parts[1] in {"proc", "dev", "sys"})
-
-
-def _strip_invocation(line: str, invocation: Sequence[str]) -> str | None:
-    words = [word.lower() for word in invocation if word]
-    if not words:
-        return None
-    parts = line.split(maxsplit=len(words))
-    if len(parts) <= len(words) or [part.lower() for part in parts[: len(words)]] != words:
-        return None
-    return parts[len(words)]
-
-
-def _row_command(line: str) -> tuple[str, str] | None:
-    if line.startswith("-"):
-        return None
-    parts = line.split()
-    if not parts:
-        return None
-    name = parts[0]
-    if not _COMMAND_NAME.fullmatch(name) or name.lower() in _SKIP_NAMES:
-        return None
-    description = line[len(name) :].strip()
-    return name, description[:200]
-
-
-def _argparse_names(text: str) -> tuple[str, ...]:
-    names: list[str] = []
-    for match in _ARGPARSE_SET.finditer(text):
-        for raw in match.group(1).split(","):
-            name = raw.strip()
-            if _COMMAND_NAME.fullmatch(name) and name.lower() not in _SKIP_NAMES:
-                names.append(name)
-    return tuple(names)
-
-
-def _append_command(
-    found: list[LocalCliCommand],
-    seen: set[str],
-    name: str,
-    *,
-    description: str = "",
-    parent_id: str | None,
-) -> None:
-    command_id = name if parent_id is None else f"{parent_id}.{name}"
-    if command_id in seen or name.lower() in _SKIP_NAMES:
-        return
-    if parent_id is None and not _COMMAND_NAME.fullmatch(name):
-        return
-    seen.add(command_id)
-    found.append(
-        LocalCliCommand(
-            command_id=command_id,
-            name=name,
-            usage=name,
-            description=description,
-            parent_id=parent_id,
-        )
-    )

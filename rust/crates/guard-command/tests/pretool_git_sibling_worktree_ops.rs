@@ -121,8 +121,10 @@ fn sibling_worktree_add_stays_reviewed_with_repository_programs() {
     let fresh = session.home.join("app-portal-ga4").display().to_string();
     let add = format!("git -C {primary} worktree add {fresh} -b feat/ga4-goal origin/main");
     let chain = format!("git -C {primary} fetch origin main; {add}");
+    // A hooks directory is read rather than refused, so the one that keeps
+    // this checkout reviewed is one holding a hook `worktree add` would run.
     let hooks = session.home.join("hooks");
-    std::fs::create_dir_all(&hooks).unwrap();
+    executable_hook(&hooks.join("post-checkout"));
     let hooks = hooks.display().to_string();
     for (key, value) in [
         ("core.hooksPath", hooks.as_str()),
@@ -130,13 +132,17 @@ fn sibling_worktree_add_stays_reviewed_with_repository_programs() {
         ("filter.fixture.smudge", "cat"),
         ("filter.lfs.process", "git-lfs filter-process"),
         ("credential.helper", "osxkeychain"),
-        ("core.pager", "cat"),
     ] {
         session.config(&[key, value]);
         assert_reviewed(&session, &add);
         assert_reviewed(&session, &chain);
         session.config(&["--unset-all", key]);
     }
+    // A display pager names how another command prints, not anything
+    // `worktree add` runs.
+    session.config(&["core.pager", "cat"]);
+    assert_allow_at(&session, &session.org, &add, WORKTREE_ADD);
+    session.config(&["--unset-all", "core.pager"]);
     let hook = session.primary.join(".git/hooks/post-checkout");
     executable_hook(&hook);
     assert_reviewed(&session, &add);
@@ -235,9 +241,11 @@ fn git_reads_after_a_proven_worktree_add_keep_their_proof() {
             result.reason_code
         );
     }
+    // The checkout's own display pager names how `git log` prints; neither the
+    // add nor the status after it runs one.
     session.config(&["core.pager", "cat"]);
     let result = session.evaluate_at(&format!("{add} && git status --short"), &session.primary);
-    assert_ne!(result.minimum_action, "allow", "{}", result.reason_code);
+    assert_eq!(result.minimum_action, "allow", "{}", result.reason_code);
 }
 
 fn fresh_temporary_leaf(label: &str) -> std::path::PathBuf {

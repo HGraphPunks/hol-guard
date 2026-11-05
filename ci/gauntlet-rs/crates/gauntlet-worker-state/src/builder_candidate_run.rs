@@ -280,6 +280,7 @@ fn run_fixed_local_candidate_inner(
         .acquire_active_lease()
         .map_err(|_| CandidateRunError::LeaseUnavailable)?;
     let python_lock = python_worker_lock().map_err(|_| CandidateRunError::LeaseUnavailable)?;
+    crate::dependency_state::require_idle().map_err(|_| CandidateRunError::LeaseUnavailable)?;
     let context = inspect_fixed_builder_context(controller_root, tree_digest, job_id)
         .map_err(|_| CandidateRunError::ContextMismatch)?;
     let image_plan = fixed_builder_image_plan(&context, job_id, uv_id, rust_id)

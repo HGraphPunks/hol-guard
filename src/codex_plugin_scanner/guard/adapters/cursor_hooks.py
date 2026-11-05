@@ -14,14 +14,9 @@ from ..stable_guard_cli import uses_top_level_hook_command as _uses_top_level_ho
 from ._modules.cursor.cursor_hook_entries import _remove_managed_hook_entries, _render_without_managed_hook_entries
 from ._modules.cursor.cursor_hook_events import unsupported_cursor_hook_events
 from ._modules.cursor.cursor_hook_guard_cli import HOOK_SCRIPT_TEMPLATE_RESOLVER
-from ._modules.cursor.cursor_hook_payload import (
-    _validated_hol_guard_src_path,
-    cursor_hook_would_prompt_user,
-    prepare_cursor_hook_payload,
-)
 from ._modules.cursor.cursor_hook_script_template_head import HOOK_SCRIPT_TEMPLATE_HEAD
-from ._modules.cursor.cursor_hook_script_template_native_reply import HOOK_SCRIPT_TEMPLATE_NATIVE_REPLY
 from ._modules.cursor.cursor_hook_script_template_reason import HOOK_SCRIPT_TEMPLATE_REASON
+from ._modules.cursor.cursor_hook_script_template_route import HOOK_SCRIPT_TEMPLATE_ROUTE
 from ._modules.cursor.cursor_hook_script_template_tail import HOOK_SCRIPT_TEMPLATE_TAIL
 from .adapter_safe_output import write_text_at_authorized_path
 from .base import HarnessContext, PreparedHarnessInstall, _ensure_path_within_root
@@ -55,8 +50,8 @@ if TYPE_CHECKING:
 _HOOK_SCRIPT_TEMPLATE = (
     HOOK_SCRIPT_TEMPLATE_HEAD
     + HOOK_SCRIPT_TEMPLATE_REASON
-    + HOOK_SCRIPT_TEMPLATE_NATIVE_REPLY
     + HOOK_SCRIPT_TEMPLATE_RESOLVER
+    + HOOK_SCRIPT_TEMPLATE_ROUTE
     + HOOK_SCRIPT_TEMPLATE_TAIL
 )
 _INHERIT_ENV_KEYS = (
@@ -628,12 +623,9 @@ __all__ = [
     "HOOK_SCRIPT_NAME",
     "_resolve_guard_cli_command",
     "_strip_managed_hook_entries",
-    "_validated_hol_guard_src_path",
     "cursor_hook_script_source",
-    "cursor_hook_would_prompt_user",
     "cursor_hooks_path",
     "cursor_native_hook_state",
     "install_cursor_hooks",
-    "prepare_cursor_hook_payload",
     "uninstall_cursor_hooks",
 ]

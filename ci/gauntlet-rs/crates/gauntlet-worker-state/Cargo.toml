@@ -18,12 +18,18 @@ name = "gauntlet-sdk-tap-child"
 path = "src/bin/gauntlet-sdk-tap-child.rs"
 
 [dependencies]
+base64 = "=0.22.1"
+gauntlet-cell-rootfs = { path = "../gauntlet-cell-rootfs" }
 gauntlet-contracts = { path = "../gauntlet-contracts" }
 gauntlet-evidence = { path = "../gauntlet-evidence" }
+gauntlet-mcp-service = { path = "../gauntlet-mcp-service" }
+gauntlet-world = { path = "../gauntlet-world" }
 libc = "=0.2.191"
 pep508_rs = "=0.9.2"
 ring = "=0.17.14"
+rusqlite = { version = "=0.40.2", features = ["bundled"] }
 rustix = { version = "=1.1.5", features = ["event", "fs", "process", "time"] }
+serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.151", features = ["arbitrary_precision"] }
 sha2 = "=0.10.9"
 zip = { version = "=2.4.2", default-features = false, features = ["deflate"] }

@@ -17,6 +17,7 @@ use super::context_digest_json::{
     write_canonical_json, write_canonical_json_with_limit, write_json_string,
 };
 use super::context_digest_result_check::{check_result, gated, kind_name};
+pub(crate) use guard_contracts::{is_python_space, python_strip};
 use guard_contracts::{
     ContextDigestComponentsV1, ContextDigestKindV1, ContextDigestRequestV1, ContextDigestResultV1,
     PackageContextComponentV1, PackageContextEvidenceV1, APPROVAL_CONTEXT_TOKEN_PREFIX,
@@ -308,29 +309,6 @@ pub(crate) fn validate_context_tokens(saved: &Value, current: &Value) -> Option<
     None
 }
 
-/// CPython `str.strip()` whitespace set: the ASCII controls 0x09-0x0d and
-/// 0x1c-0x1f plus every Unicode code point whose `isspace` is true.
-pub(crate) fn is_python_space(ch: char) -> bool {
-    matches!(
-        ch,
-        '\u{09}'..='\u{0d}'
-            | ' '
-            | '\u{1c}'..='\u{1f}'
-            | '\u{85}'
-            | '\u{a0}'
-            | '\u{1680}'
-            | '\u{2000}'..='\u{200a}'
-            | '\u{2028}'..='\u{2029}'
-            | '\u{202f}'
-            | '\u{205f}'
-            | '\u{3000}'
-    )
-}
-
-pub(crate) fn python_strip(text: &str) -> &str {
-    text.trim_matches(|ch: char| is_python_space(ch))
-}
-
 pub(crate) fn configured_values_hash(
     values: Option<&Value>,
     configured_keys: Option<&[String]>,
@@ -518,6 +496,10 @@ fn evaluate_request(
             result.native_bash_reply_valid = Some(crate::native_bash_reply_validation::validate(
                 reply_kind, material, request,
             ));
+        }
+        ContextDigestKindV1::NativeDecisionReceiptValidation { receipt, edge } => {
+            result.native_decision_receipt_valid =
+                Some(crate::edge::standalone_receipt(receipt, edge));
         }
         ContextDigestKindV1::McpLaunchEnvironment {
             inherited,
@@ -914,6 +896,7 @@ fn evaluate_context_digest_request_inner(
         browser_mcp: None,
         mcp_redacted_value: None,
         native_bash_reply_valid: None,
+        native_decision_receipt_valid: None,
         runtime_identity: None,
         runtime_identity_match: None,
         runtime_identity_reusable: None,

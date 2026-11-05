@@ -1,0 +1,28 @@
+# Disposable native build/conformance profile. Retained VMs are never resized.
+minimumLimaVersion: 2.0.0
+vmType: vz
+arch: aarch64
+cpus: 2
+memory: 16GiB
+disk: 48GiB
+images:
+  - location: https://cloud-images.ubuntu.com/releases/noble/release-20260705/ubuntu-24.04-server-cloudimg-arm64.img
+    arch: aarch64
+    digest: sha256:7df0201546f75b8bcc1044594c806c35749421ad3c9bc1be2a3ab806cfae39cc
+mounts: []
+containerd:
+  system: false
+  user: false
+ssh:
+  forwardAgent: false
+  loadDotSSHPubKeys: false
+propagateProxyEnv: false
+portForwards:
+  - guestPortRange: [1, 65535]
+    guestIP: "0.0.0.0"
+    proto: any
+    ignore: true
+  - guestPortRange: [1, 65535]
+    guestIP: "::"
+    proto: any
+    ignore: true

@@ -131,7 +131,7 @@ fn terminal_key_fields(
     }
 }
 
-fn create_durable(
+pub(crate) fn create_durable(
     root: &std::os::fd::OwnedFd,
     name: &str,
     bytes: &[u8],
