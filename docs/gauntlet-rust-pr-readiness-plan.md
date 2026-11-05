@@ -18,21 +18,26 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
-- Preserve branch `codex/gauntlet-rust-pr-ready-20261026`, inspected clean at
-  `95b25964ec8d0e8a2576988a35db121d1ca5f02a`. Carry all accumulated work forward.
+- Execute on `codex/gauntlet-rust-finish-20261105`. Merge `1acc28a7a` preserves
+  preparation through `6ddf29cb0` and imports upstream `b2da1b2b`; never reset
+  accumulated work to the older integration tip.
 - Fork integration `codex/gauntlet-rust-integration-20261020` is at `f143f9ac`;
   PR #3 is open. Upstream PR #5402 is draft with conflicts; `main` is at
-  `b2da1b2b3cbcce01d5d936659f40d4c3693a6279`. Recheck before integrating;
-  never reset accumulated work to the older integration tip.
+  `b2da1b2b3cbcce01d5d936659f40d4c3693a6279`. The current source map has 437
+  files; Python bootstrap selection and Rust agree on 417 controller entries.
+  The merge passes 650 Mac Rust tests, 223 focused Python tests, Mac/ARM
+  warnings-denied migration Clippy and Mac/ARM Native library/CLI checks.
 - The [feature worker](gauntlet-rust-feature-worker.md) has a host `run/read`
   path, but needs live execution/recovery and complete operator wiring.
   [Native reply checks](gauntlet-rust-native-operation-reply-bindings.md) still
   leave wire authenticity, request semantics and physical effect attribution
   unverified. Existing product `dc3b9336` evidence is historical.
 - Git transport works. Owned VM
-  `hol-gauntlet-rust-build-20261026-001` is stopped (2 CPUs, 16 GiB, 48 GiB).
-  Inspect current process ownership, retained jobs and resources before normal
-  Lima recovery/start. Recheck CI; October sandbox/Actions errors are historical.
+  `hol-gauntlet-rust-build-20261026-001` is running (2 CPUs, 16 GiB, 48 GiB).
+  Inspect retained jobs, leases and resources before worker installation or
+  dispatch. On November 5, fork workflow dispatch still returns HTTP 422,
+  `Actions has been disabled for this repository`. All five checks remain a
+  merge blocker; continue independent implementation and owned-VM validation.
 
 ## Keep the implementation small
 
