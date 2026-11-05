@@ -1384,6 +1384,19 @@ pub fn python_target(
             },
         );
     }
+    if let Some((distribution, version)) = python_distribution_file(spec) {
+        // The file names the distribution it holds, but its contents are
+        // whatever is on disk. Carrying the path as the target's source keeps
+        // the parsed identity out of registry matching: a policy entry for the
+        // published `distribution==version` must not admit an archive that
+        // merely spells that name.
+        return base(
+            Some(distribution),
+            Some(version),
+            Some(spec.to_owned()),
+            extras,
+        );
+    }
     let (normalized_name, requested_specifier) = split_python_specifier(spec);
     let (mut package_name, detected_extras) = split_python_extras(&normalized_name);
     if package_name.starts_with("./")
@@ -1535,6 +1548,35 @@ pub fn homebrew_target(spec: &str, cask: bool) -> PackageIntentTarget {
         extras: Vec::new(),
         editable: false,
     }
+}
+
+/// A local distribution file names its distribution and version in the file
+/// name, not in the path that reaches it. `Path::file_name` alone turns
+/// `dist/hol_guard-3.59.0-py3-none-any.whl` into a package named after the
+/// whole artifact, which matches no policy entry and never repeats.
+fn python_distribution_file(spec: &str) -> Option<(String, String)> {
+    let file_name = Path::new(spec).file_name()?.to_string_lossy().into_owned();
+    let versioned = |distribution: &str, version: &str| {
+        (!distribution.is_empty() && version.starts_with(|c: char| c.is_ascii_digit()))
+            .then(|| (distribution.to_owned(), version.to_owned()))
+    };
+    if let Some(stem) = file_name.strip_suffix(".whl") {
+        // PEP 427: `{distribution}-{version}(-{build})?-{python}-{abi}-{platform}`,
+        // where the distribution and version escape their own `-` as `_`.
+        let fields: Vec<&str> = stem.split('-').collect();
+        if fields.len() < 5 {
+            return None;
+        }
+        return versioned(fields[0], fields[1]);
+    }
+    for suffix in [".tar.gz", ".tar.bz2", ".tar.xz", ".zip"] {
+        let Some(stem) = file_name.strip_suffix(suffix) else {
+            continue;
+        };
+        let (distribution, version) = stem.rsplit_once('-')?;
+        return versioned(distribution, version);
+    }
+    None
 }
 
 /// `split_python_specifier` (:522-531).
@@ -2178,6 +2220,156 @@ pub(crate) const BUN_VALUE_OPTIONS: &[&str] = &[
 
 /// yarn's `--cwd <dir>`, which it also accepts after the subcommand.
 pub(crate) const YARN_VALUE_OPTIONS: &[&str] = &["--cwd"];
+
+/// `pip install` options that take a value (`pip install --help`), with the
+/// general options pip also reads after the subcommand. Their value is a path,
+/// URL, platform or setting, never a package to install. `-e`/`--editable`
+/// names a package and stays out of this list.
+pub(crate) const PIP_INSTALL_VALUE_OPTIONS: &[&str] = &[
+    "--abi",
+    "--cache-dir",
+    "--cert",
+    "--client-cert",
+    "--config-settings",
+    "--exists-action",
+    "--find-links",
+    "--global-option",
+    "--implementation",
+    "--keyring-provider",
+    "--log",
+    "--no-binary",
+    "--only-binary",
+    "--platform",
+    "--progress-bar",
+    "--proxy",
+    "--python",
+    "--python-version",
+    "--report",
+    "--retries",
+    "--root",
+    "--root-user-action",
+    "--src",
+    "--target",
+    "--timeout",
+    "--trusted-host",
+    "--upgrade-strategy",
+    "--use-deprecated",
+    "--use-feature",
+    "-C",
+    "-f",
+    "-i",
+    "-t",
+];
+
+/// `uv add` options that take a value (`uv help add`, uv 0.9), with uv's
+/// global options. Their value is an interpreter, path, URL, extra, group,
+/// setting or a package the option only tunes; the packages an upgrade or
+/// reinstall option names must already be requested. `--no-binary` is a
+/// switch here, unlike `uv pip install`.
+pub(crate) const UV_ADD_VALUE_OPTIONS: &[&str] = &[
+    "--allow-insecure-host",
+    "--bounds",
+    "--branch",
+    "--cache-dir",
+    "--color",
+    "--config-file",
+    "--config-setting",
+    "--config-settings-package",
+    "--constraints",
+    "--default-index",
+    "--directory",
+    "--exclude-newer",
+    "--exclude-newer-package",
+    "--extra",
+    "--find-links",
+    "--fork-strategy",
+    "--group",
+    "--index",
+    "--index-strategy",
+    "--keyring-provider",
+    "--link-mode",
+    "--marker",
+    "--no-binary-package",
+    "--no-build-isolation-package",
+    "--no-build-package",
+    "--no-install-package",
+    "--no-sources-package",
+    "--optional",
+    "--package",
+    "--prerelease",
+    "--project",
+    "--python",
+    "--refresh-package",
+    "--reinstall-package",
+    "--requirements",
+    "--resolution",
+    "--rev",
+    "--script",
+    "--tag",
+    "--upgrade-package",
+    "-C",
+    "-P",
+    "-c",
+    "-f",
+    "-i",
+    "-m",
+    "-p",
+];
+
+/// `uv pip install` options that take a value (`uv help pip install`, uv 0.9),
+/// with uv's global options and the hidden singular aliases `--constraint`,
+/// `--override` and `--build-constraint`. `-e`/`--editable` names the package
+/// being installed and stays out of this list.
+pub(crate) const UV_PIP_INSTALL_VALUE_OPTIONS: &[&str] = &[
+    "--allow-insecure-host",
+    "--build-constraint",
+    "--build-constraints",
+    "--cache-dir",
+    "--color",
+    "--config-file",
+    "--config-setting",
+    "--config-settings-package",
+    "--constraint",
+    "--constraints",
+    "--default-index",
+    "--directory",
+    "--exclude-newer",
+    "--exclude-newer-package",
+    "--excludes",
+    "--extra",
+    "--find-links",
+    "--fork-strategy",
+    "--group",
+    "--index",
+    "--index-strategy",
+    "--keyring-provider",
+    "--link-mode",
+    "--no-binary",
+    "--no-build-isolation-package",
+    "--no-sources-package",
+    "--only-binary",
+    "--override",
+    "--overrides",
+    "--prerelease",
+    "--project",
+    "--python",
+    "--python-platform",
+    "--python-version",
+    "--refresh-package",
+    "--reinstall-package",
+    "--requirements",
+    "--resolution",
+    "--target",
+    "--torch-backend",
+    "--upgrade-package",
+    "-C",
+    "-P",
+    "-b",
+    "-c",
+    "-f",
+    "-i",
+    "-p",
+];
 
 /// Bun or Yarn `--cwd` named a directory Guard cannot evaluate inside the
 /// workspace. An intent with this note must not take the empty-material allow.

@@ -22,8 +22,7 @@ use crate::context_digest_package_scripts::invocation_is_safe;
 use crate::custom_extension_suggestion::is_common_tool_name;
 use crate::native_exact_action_op::context::{Ctx, Engines, ResidentEngines};
 use crate::native_exact_action_op::runner_bin::{
-    package_name_pattern, read_manifest, runner_local_bin, runner_target, Manifest,
-    LOCAL_BIN_RUNNERS,
+    package_name_pattern, read_manifest, runner_local_bin, runner_name, runner_target, Manifest,
 };
 
 const MAX_BUDGET_MS: u64 = 5_000;
@@ -526,18 +525,6 @@ fn executable_identity(executable: &Value, exe_name: &str) -> Outcome<Option<Unl
         .map(|identity| unlisted(identity, exe_name, "executable", source_path, source)))
 }
 
-/// `runner_name`: the package runner an executable names, if any.
-fn runner_name(executable: &str) -> Option<&'static str> {
-    let mut base = python_path_name(&executable.replace('\\', "/")).to_lowercase();
-    if base.ends_with(".cmd") || base.ends_with(".exe") {
-        base.truncate(base.len() - 4);
-    }
-    LOCAL_BIN_RUNNERS
-        .iter()
-        .copied()
-        .find(|runner| *runner == base)
-}
-
 /// `is_direct_dependency`: the nearest `package.json` declares the package.
 fn is_direct_dependency(cwd: &str, package_name: &str) -> bool {
     for directory in Path::new(cwd).ancestors().take(MAX_MANIFEST_ANCESTORS) {
@@ -603,7 +590,7 @@ fn python_suffix(path: &str) -> String {
 }
 
 /// `shlex.quote`.
-fn shlex_quote(value: &str) -> String {
+pub(crate) fn shlex_quote(value: &str) -> String {
     if value.is_empty() {
         return "''".to_owned();
     }
@@ -661,6 +648,11 @@ fn owned_executables() -> Outcome<&'static HashSet<String>> {
 mod forms;
 
 pub(crate) use forms::launch_arguments;
+
+#[path = "local_cli_identify_recognize.rs"]
+mod recognize;
+
+pub(crate) use recognize::dispatch as recognize_dispatch;
 
 #[cfg(test)]
 #[path = "local_cli_identify_tests.rs"]

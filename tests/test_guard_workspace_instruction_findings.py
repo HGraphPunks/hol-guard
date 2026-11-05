@@ -6,11 +6,9 @@ import json
 import os
 from dataclasses import replace
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
-from codex_plugin_scanner.guard import native_workspace_snapshot as native
 from codex_plugin_scanner.guard import workspace_assessment_runner as runner
 from codex_plugin_scanner.guard import workspace_assessment_store as assessments
 from codex_plugin_scanner.guard import workspace_assessment_worker as worker
@@ -20,18 +18,12 @@ from codex_plugin_scanner.guard.runtime import workspace_assessment_sync as sync
 from codex_plugin_scanner.guard.store import GuardStore
 from tests.test_guard_workspace_assessment_runner import (
     AUDIT,
-    EDITOR_TASKS_COMPLETE,
-    HOOKS_COMPLETE,
     INSTRUCTIONS_COMPLETE,
-    PLUGINS_COMPLETE,
     SCANNED,
-    SECRETS_COMPLETE,
-    SKILLS_COMPLETE,
-    SNAPSHOT,
     T0,
-    WORKFLOWS_COMPLETE,
     queued_run,
 )
+from tests.workspace_rule_support import project_rule_findings, with_rule_coverage
 
 FINDING_ID = "0123456789abcdef0123456789abcdef"
 AGENTS_PATH = "packages/app/AGENTS.md"
@@ -117,62 +109,6 @@ def test_a_worktree_without_instruction_files_has_no_inputs(tmp_path: Path, monk
     assert outcome.coverage["detectors"]["instruction_file_v1"] == "no_inputs"
 
 
-def test_older_runtime_keeps_earlier_scans_and_reports_instructions_not_run(tmp_path: Path, monkeypatch) -> None:
-    store, claimed = queued_run(tmp_path)
-    requested: list[tuple[bool, bool, bool]] = []
-
-    def snapshot(root: Path, *, secrets: bool = False, editor_tasks: bool = False, instructions: bool = False, **_):
-        requested.append((secrets, editor_tasks, instructions))
-        if instructions:
-            raise native.WorkspaceSnapshotError("workspace_snapshot_instructions_unavailable")
-        if secrets:
-            return replace(
-                SNAPSHOT,
-                secrets=SECRETS_COMPLETE,
-                skills=SKILLS_COMPLETE,
-                hooks=HOOKS_COMPLETE,
-                plugins=PLUGINS_COMPLETE,
-                workflows=WORKFLOWS_COMPLETE,
-                editor_tasks=EDITOR_TASKS_COMPLETE,
-            )
-        return SNAPSHOT
-
-    monkeypatch.setattr(runner, "workspace_snapshot", snapshot)
-    monkeypatch.setattr(runner, "_local_audit", lambda store, config, root: AUDIT)
-    outcome = runner.execute(store, None, claimed, clock=lambda: T0)
-    # Detector snapshot with instructions, again without them, then the plain recheck.
-    assert requested == [(True, True, True), (True, True, False), (False, False, False)]
-    assert outcome.state == "partial"
-    assert outcome.coverage is not None
-    assert outcome.coverage["reasons"] == ["detector_not_run:instruction_file_v1"]
-    assert outcome.coverage["detectors"]["editor_task_v1"] == "no_inputs"
-    assert outcome.coverage["detectors"]["instruction_file_v1"] == "not_run"
-
-
-def test_a_runtime_without_the_instruction_scan_is_named(monkeypatch: pytest.MonkeyPatch) -> None:
-    from codex_plugin_scanner.guard import native_runtime
-
-    features = (
-        native.WORKSPACE_SNAPSHOT_FEATURE,
-        native.WORKSPACE_SECRETS_FEATURE,
-        native.WORKSPACE_SKILLS_FEATURE,
-        native.WORKSPACE_HOOKS_FEATURE,
-        native.WORKSPACE_PLUGINS_FEATURE,
-        native.WORKSPACE_WORKFLOWS_FEATURE,
-        native.WORKSPACE_EDITOR_TASKS_FEATURE,
-    )
-    status = SimpleNamespace(
-        available=True,
-        compatible=True,
-        identity=SimpleNamespace(path=Path("/runtime/hol-guard-runtime")),
-        capabilities=SimpleNamespace(features=features),
-    )
-    monkeypatch.setattr(native_runtime, "native_runtime_status", lambda: status)
-    with pytest.raises(native.WorkspaceSnapshotError) as raised:
-        native._native_request({}, needs_editor_tasks=True, needs_instructions=True)
-    assert raised.value.code == "workspace_snapshot_instructions_unavailable"
-
-
 @pytest.mark.parametrize(
     "reason",
     [
@@ -197,8 +133,10 @@ def test_an_instruction_file_the_scan_could_not_read_leaves_the_run_partial(
 
 
 def test_an_instruction_scan_at_its_cap_marks_findings_truncated() -> None:
-    coverage = instruction_findings.with_instruction_coverage(
-        EMPTY_COVERAGE, instructions_result(native_finding(), status="incomplete", truncation_reasons=["max_findings"])
+    coverage = with_rule_coverage(
+        instruction_findings.INSTRUCTION_DETECTOR,
+        EMPTY_COVERAGE,
+        instructions_result(native_finding(), status="incomplete", truncation_reasons=["max_findings"]),
     )
     assert coverage["reasons"] == ["instruction_file_incomplete", "finding_cap"]
 
@@ -219,7 +157,7 @@ def test_an_instruction_scan_at_its_cap_marks_findings_truncated() -> None:
     ],
 )
 def test_an_unreadable_instruction_result_is_an_error(payload: dict[str, object]) -> None:
-    coverage = instruction_findings.with_instruction_coverage(EMPTY_COVERAGE, payload)
+    coverage = with_rule_coverage(instruction_findings.INSTRUCTION_DETECTOR, EMPTY_COVERAGE, payload)
     assert (coverage["status"], coverage["reasons"]) == ("partial", ["instruction_file_incomplete"])
     assert coverage["detectors"]["instruction_file_v1"] == "error"
 
@@ -255,8 +193,8 @@ def test_an_unreadable_instruction_result_is_an_error(payload: dict[str, object]
 )
 def test_a_malformed_finding_is_dropped_and_leaves_the_scan_incomplete(bad: dict[str, object]) -> None:
     result = instructions_result(native_finding(**bad))
-    assert instruction_findings.project_instruction_findings(result) == []
-    coverage = instruction_findings.with_instruction_coverage(EMPTY_COVERAGE, result)
+    assert project_rule_findings(instruction_findings.INSTRUCTION_DETECTOR, result) == []
+    coverage = with_rule_coverage(instruction_findings.INSTRUCTION_DETECTOR, EMPTY_COVERAGE, result)
     assert coverage["detectors"]["instruction_file_v1"] == "incomplete"
     assert coverage["instruction_file"]["truncation_reasons"] == ["invalid_finding"]
 
@@ -284,8 +222,8 @@ def test_every_file_the_native_scan_reads_is_accepted() -> None:
     result = instructions_result(
         *(native_finding(finding_id=f"{index:032x}", path=path) for index, path in enumerate(paths))
     )
-    assert [item["path"] for item in instruction_findings.project_instruction_findings(result)] == paths
-    coverage = instruction_findings.with_instruction_coverage(EMPTY_COVERAGE, result)
+    assert [item["path"] for item in project_rule_findings(instruction_findings.INSTRUCTION_DETECTOR, result)] == paths
+    coverage = with_rule_coverage(instruction_findings.INSTRUCTION_DETECTOR, EMPTY_COVERAGE, result)
     assert coverage["detectors"]["instruction_file_v1"] == "complete"
 
 

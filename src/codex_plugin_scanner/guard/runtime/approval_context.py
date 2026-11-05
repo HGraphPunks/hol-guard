@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections.abc import Mapping, Sequence
 from functools import lru_cache
 from pathlib import Path
@@ -31,9 +32,8 @@ def _unbound_context_digest(label: str, *, material: object) -> str:
 
     Builders degrade to this when the native digest authority is unreachable
     (``HOL_GUARD_NATIVE=off``, missing runtime, unprovisioned home).  The
-    ``guard-context-unbound:`` prefix is rejected by token parsing and by
-    ``is_unbound_context_digest`` call sites, so equality between two degraded
-    values can never mint approval reuse or an unchanged-context claim.
+    ``guard-context-unbound:`` prefix is rejected by token parsing, so
+    equality between two degraded values can never mint approval reuse or an unchanged-context claim.
     Determinism over the caller's canonical ``material`` maps identical
     degraded inputs to one sentinel, so restrictive stored rows (saved
     blocks) keyed by artifact hash stay reachable, while validation still
@@ -137,6 +137,32 @@ def build_approval_context_token(
         # restrictive rows (saved blocks) keyed by this token stay reachable
         # across identical degraded invocations.
         return _unbound_context_digest("approval-context-token", material=components)
+    return cast(str, result["token"])
+
+
+def build_consumer_approval_context_token(request: Mapping[str, object]) -> str:
+    """Build a consumer artifact's approval-context token natively.
+
+    ``request`` carries the subject (a detected artifact or a removed one's
+    stored snapshot), the launch and normalized cwd, the workspace, the
+    detector telemetry, the policy component and the sandbox analysis. The
+    runtime composes the components, builds the launch identity from the
+    ambient environment and returns the token.
+    """
+
+    fields: dict[str, object] = {
+        **request,
+        "extension_control_digest": current_extension_control_binding_digest(),
+    }
+    try:
+        result = _context_digest_result(
+            "consumer_approval_context_token",
+            {"request": {**fields, "launch_env": dict(os.environ)}},
+        )
+    except NativeContextDigestUnavailableError:
+        # The launch environment carries credentials, so it stays out of the
+        # degraded material; the unbound prefix fails every validation path.
+        return _unbound_context_digest("approval-context-token", material=fields)
     return cast(str, result["token"])
 
 

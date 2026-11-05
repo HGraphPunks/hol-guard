@@ -4,7 +4,10 @@ The mined cases name project directories (scrubbed to stand-in names) that the
 hand-built fixture never grew. Instead of listing them one by one, derive them
 from the cases: every ``${HOME}``, ``${PRIVATE_TMP}`` and ``${WORKTREE}`` path in
 a case that expects ``allow`` is created, so a listing or a search has something
-to read and the case measures its labelled class rather than a missing path.
+to read and the case measures its labelled class rather than a missing path. A
+handful of cases that expect a review are built too, where the review is about
+what the file holds: an absent name under the workspace is admitted without a
+review, so such a case measures nothing until the file is there.
 """
 
 from __future__ import annotations
@@ -128,8 +131,30 @@ def is_credential_like(relative: str) -> bool:
     return any(_CREDENTIAL_NAME.search(part) for part in relative.split("/") if part)
 
 
+# Leaf names a case reads for the number inside them. A lock directory's
+# marker is one, and ``otp`` is the file that holds a number and is not a
+# marker, which is the pair the read rule has to tell apart.
+_NUMERIC_BODIES = frozenset({"pid", "port", "generation", "otp"})
+
+
+def is_marker_file(relative: str) -> bool:
+    """Whether this path is read for the number inside it.
+
+    A ``.d`` lock directory holds the number a running process left behind,
+    never folders, and a read of that number is admitted by what the file
+    holds and what it is called, so the planter has to write a number rather
+    than a placeholder note.
+    """
+    return (
+        any(part.endswith(".d") for part in relative.split("/")[:-1])
+        or posixpath.basename(relative) in _NUMERIC_BODIES
+    )
+
+
 def is_file_like(relative: str) -> bool:
     name = posixpath.basename(relative)
+    if is_marker_file(relative):
+        return True
     if name in _KNOWN_FILES or (name.endswith("rc") and name.startswith(".")):
         return True
     # A package manager's shim directory holds executables, never folders. A
@@ -191,12 +216,19 @@ PROBES_FOR_ABSENCE = frozenset(
         "tree-recursive-absent-nested-module",
         "grep-recursive-absent-probe-fallback",
         "ls-recursive-absent-probe-fallback",
+        # The same absent roots read through ``rg``. Building them would make
+        # these ordinary recursive searches of a populated tree, which the
+        # sibling-directory cases already cover.
+        "rg-recursive-absent-plain-sibling-dir",
+        "rg-recursive-absent-probe-fallback",
+        "rg-recursive-absent-home-dir",
+        "rg-files-absent-plain-sibling-dir",
     }
 )
 
 
 def benign_path_tokens(document: dict[str, object] | None = None) -> set[tuple[str, str]]:
-    """``(root token, relative path)`` pairs named by cases that expect ``allow``."""
+    """``(root token, relative path)`` pairs named by cases whose path must exist."""
     cases = (document or json.loads(CASES_PATH.read_text(encoding="utf-8")))["cases"]
     found: set[tuple[str, str]] = set()
     created: set[tuple[str, str]] = set()
@@ -247,7 +279,8 @@ def materialise(roots: dict[str, Path], document: dict[str, object] | None = Non
             continue
         if is_file_like(relative):
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(f"# {target.name}\nSynthetic placeholder content.\n", encoding="utf-8")
+            body = "4242\n" if is_marker_file(relative) else f"# {target.name}\nSynthetic placeholder content.\n"
+            target.write_text(body, encoding="utf-8")
         else:
             target.mkdir(parents=True, exist_ok=True)
             directories.append(target)

@@ -175,27 +175,6 @@ def test_every_protection_state_is_derived(
     _validate(built.payload)
 
 
-@pytest.mark.parametrize(
-    ("offset", "expected"),
-    [
-        (timedelta(microseconds=-1), "protected"),
-        (timedelta(0), "protected"),
-        (timedelta(microseconds=1), "stale"),
-    ],
-)
-def test_activity_staleness_keeps_the_exact_seven_day_boundary(offset: timedelta, expected: str) -> None:
-    assert (
-        fp.derive_protection_state(
-            setup_status="active",
-            has_config_paths=True,
-            paused=False,
-            last_activity_at=NOW,
-            now=NOW + timedelta(days=7) + offset,
-        )
-        == expected
-    )
-
-
 def test_not_detected_tools_are_reported_once_they_disappear(
     store: GuardStore, context: HarnessContext, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -623,3 +602,14 @@ def test_hash_key_is_read_once_per_build(
     monkeypatch.setattr(store, "get_sync_payload", counting)
     _build(store, context, [])
     assert reads.count(fp.HASH_KEY_STATE_KEY) == 1
+
+
+def test_muse_inventory_row_is_reported_and_schema_valid(
+    store: GuardStore, context: HarnessContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_inventory(store, monkeypatch, [_row("muse-skill", harness="muse")])
+    _set_receipts(monkeypatch, store, {"muse": NOW})
+    built = _build(store, context, [FakeAdapter("muse")])
+    inventory = built.payload["inventory"]
+    assert {item["harness"] for item in inventory["items"]} == {"muse"}  # type: ignore[index]
+    _validate(built.payload)

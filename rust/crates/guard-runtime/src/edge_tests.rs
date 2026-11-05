@@ -43,7 +43,7 @@ fn execution_environment_binds_identity_without_rejecting_unrelated_hooks() {
         pager_disabled: false,
         xdg_config_home: None,
         git_config_no_system: false,
-        library_search_paths: Default::default(),
+        ..Default::default()
     });
     assert!(validate_envelope_shape(&request).is_ok());
     assert_ne!(original_request, request_identity(&request).unwrap().1);
@@ -130,14 +130,17 @@ pub(crate) fn envelope(event: &str, payload: Value) -> GuardHookEnvelopeV2 {
         local_cli_rules: None,
         observe_local_cli: false,
         record_receipt: false,
+        record_activity: false,
+        record_pre_tool_activity: false,
         structured_output_config: None,
+        containment_sink: None,
     }
 }
 
 pub(crate) fn evaluate_isolated(envelope: GuardHookEnvelopeV2) -> Result<Vec<u8>, String> {
     let guard_home = std::path::PathBuf::from(&envelope.source.guard_home);
     let result = validate_envelope_shape(&envelope)
-        .and_then(|_| evaluate_validated_envelope(envelope, None, None));
+        .and_then(|_| evaluate_validated_envelope(envelope, None, None, ()));
     std::fs::remove_dir_all(guard_home).expect("remove edge generation fixture");
     result
 }

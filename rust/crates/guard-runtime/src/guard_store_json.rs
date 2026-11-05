@@ -80,6 +80,14 @@ pub(crate) fn epoch_micros(text: &str) -> Option<i128> {
     Some(parsed.micros_since_epoch - i128::from(parsed.offset_seconds.unwrap_or(0)) * 1_000_000)
 }
 
+/// `datetime.fromisoformat(text)` in UTC microseconds, or `None` for a naive
+/// instant, for callers that refuse an instant without an offset.
+pub(crate) fn aware_epoch_micros(text: &str) -> Option<i128> {
+    let parsed = parse_iso(&text.replace('Z', "+00:00"))?;
+    let offset = parsed.offset_seconds?;
+    Some(parsed.micros_since_epoch - i128::from(offset) * 1_000_000)
+}
+
 /// Whole UTC days since 1970-01-01 of an ISO-8601 instant, offset applied.
 pub(crate) fn epoch_days(text: &str) -> Option<i64> {
     let micros = epoch_micros(text)?;
@@ -192,7 +200,8 @@ fn parse_iso(text: &str) -> Option<Parsed> {
                 break;
             }
         }
-        if text.as_bytes().get(at) == Some(&b'.') {
+        // CPython 3.11+ takes a comma before the fraction too.
+        if matches!(text.as_bytes().get(at), Some(b'.' | b',')) {
             let mut end = at + 1;
             while text.as_bytes().get(end).is_some_and(u8::is_ascii_digit) {
                 end += 1;
@@ -338,6 +347,20 @@ mod tests {
             dumps_sorted(&parsed).unwrap(),
             r#"{"a":0.1,"b":1e-07,"c":1.5e+300,"d":-0.0,"e":2.0,"f":1e+16,"g":1.2345678901234568e+17,"h":[0.0001,1e-05]}"#
         );
+    }
+
+    #[test]
+    fn a_comma_fraction_reads_like_a_dot() {
+        assert_eq!(
+            add_micros_aware_isoformat("2026-10-30T12:05:00,5+00:00", 0).unwrap(),
+            "2026-10-30T12:05:00.500000+00:00"
+        );
+        assert_eq!(
+            add_micros_aware_isoformat("2026-10-30T12:05:00,5+00:00", 0),
+            add_micros_aware_isoformat("2026-10-30T12:05:00.5+00:00", 0)
+        );
+        assert!(add_micros_aware_isoformat("2026-10-30T12:05:00,+00:00", 0).is_none());
+        assert!(add_micros_aware_isoformat("2026-10-30T12:05:00;5+00:00", 0).is_none());
     }
 
     #[test]

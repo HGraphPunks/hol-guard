@@ -9,10 +9,9 @@ from __future__ import annotations
 import hashlib
 import io
 import json
-from pathlib import Path
 import sys
 import tarfile
-
+from pathlib import Path
 
 WORKSPACE = Path(__file__).resolve().parents[3]
 MAP_DIR = WORKSPACE / "ci/gauntlet-rs"
@@ -69,7 +68,7 @@ def main(destination: Path) -> None:
     if destination.exists() or destination.is_symlink():
         raise ValueError("fixture destination already exists")
     files = {path: digest for path, digest in source_hashes().items() if selected(path)}
-    if len(files) != 401:
+    if len(files) != 406:
         raise ValueError("current controller selection changed")
     directories = set()
     for name in files:

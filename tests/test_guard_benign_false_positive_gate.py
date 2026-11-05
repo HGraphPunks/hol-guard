@@ -36,7 +36,7 @@ from tests.benign_fp_gate_connectors import allow_ready_cli, assert_connector_se
 from tests.benign_fp_gate_fixture import BenignFixture, build_fixture, route_codex
 from tests.benign_fp_gate_mcp import McpCase, mcp_cases, mcp_failure, replay
 from tests.benign_fp_gate_projects import host_tool_path
-from tests.gauntlet_replay import OMP_CONTAINED, cursor_hook_fields, cursor_route_probe, source_ref_payload
+from tests.gauntlet_replay import cursor_hook_fields, cursor_route_probe, omp_routes_profile, source_ref_payload
 from tests.native_gate_retry import BUDGET_MISS_REASONS, review_with_unavailable_retry
 from tests.outbound_network_guard import outbound_network_attempts
 
@@ -48,10 +48,18 @@ _CASES_PATH = Path(__file__).parent / "fixtures" / "benign_false_positive_gate.j
 _DOCUMENT = json.loads(_CASES_PATH.read_text(encoding="utf-8"))
 _PENDING_FIX: dict[str, str] = _DOCUMENT["pending_fix"]
 
-_SHELL_TOOL = {"codex": "Bash", "zcode": "Bash", "claude-code": "Bash", "omp": "bash", "cursor": "Shell"}
+_SHELL_TOOL = {
+    "codex": "Bash",
+    "zcode": "Bash",
+    "claude-code": "Bash",
+    "omp": "bash",
+    "cursor": "Shell",
+    "muse": "bash",
+    "grok": "run_terminal_command",
+}
 _READ_TOOL = {"zcode": "Read", "claude-code": "Read", "omp": "read", "cursor": "Read"}
 _GLOB_TOOL = {"claude-code": "Glob", "omp": "glob"}
-_GREP_TOOL = {"claude-code": "Grep", "omp": "grep"}
+_GREP_TOOL = {"claude-code": "Grep", "omp": "grep", "grok": "Grep"}
 _WRITE_TOOL = {"zcode": "Write", "claude-code": "Write", "omp": "write"}
 _FIXED_TOOLS = {
     "eval": "eval",
@@ -106,11 +114,20 @@ class GateCase:
     source_ref: bool = False
     # Variables the agent shell inherits, such as a user's RIPGREP_CONFIG_PATH.
     environment: tuple[tuple[str, str], ...] = ()
+    # The allow this case was written for is the contained one: the command may
+    # run only inside the workspace sandbox. Kept so the assertion can say so,
+    # rather than accepting any quiet allow.
+    requires_sandbox: bool = False
 
 
 def _expand() -> list[GateCase]:
     expanded: list[GateCase] = []
     for entry in _DOCUMENT["cases"]:
+        # A case the workspace sandbox is the only allow route for measures the
+        # host's sandbox, not Guard, where the host has none. macOS CI runs the
+        # same gate, so the case still guards the decision it was written for.
+        if entry.get("requires_sandbox") and not _SANDBOX_HOST:
+            continue
         for harness in entry["harnesses"]:
             expanded.append(
                 GateCase(
@@ -126,6 +143,7 @@ def _expand() -> list[GateCase]:
                     tool_response=entry.get("tool_response"),
                     source_ref=bool(entry.get("source_ref", False)),
                     environment=tuple(sorted(entry.get("environment", {}).items())),
+                    requires_sandbox=bool(entry.get("requires_sandbox", False)),
                 )
             )
     return expanded
@@ -183,10 +201,23 @@ def gate_environment(tmp_path_factory: pytest.TempPathFactory) -> Iterator[tuple
     # Git read case behind a review that real agents never see.
     # A developer's RIPGREP_CONFIG_PATH likewise keeps every rg case on
     # review; a case that models one sets it through its environment.
+    # NPM_CONFIG_*, NODE_*, PIP_* and CARGO_* are the same shape: a CI runner or
+    # a developer shell that exports one makes npm, pip or cargo read a
+    # redirected configuration, which keeps their probes on review no matter
+    # what the case says.
     for name in list(os.environ):
-        if name.upper().startswith(("GIT_", "LD_", "DYLD_")) or name.upper() == "RIPGREP_CONFIG_PATH":
+        upper = name.upper()
+        if (
+            upper.startswith(("GIT_", "LD_", "DYLD_", "NPM_CONFIG_", "NODE_", "PIP_", "CARGO_"))
+            or upper == "RIPGREP_CONFIG_PATH"
+        ):
             patch.delenv(name)
     patch.setenv("XDG_CONFIG_HOME", str(fixture.home / ".config"))
+    # Hosted runners and devcontainers export CARGO_HOME at the place Cargo
+    # reads anyway, so the cases meet the spelling real sessions carry; the
+    # inherited value is dropped above because it names the runner's own home,
+    # which this fixture has moved.
+    patch.setenv("CARGO_HOME", str(fixture.home / ".cargo"))
     patch.setenv("HOL_GUARD_NATIVE", "force")
     binary = os.environ.get("HOL_GUARD_NATIVE_BINARY")
     if not binary:
@@ -264,8 +295,8 @@ def _harness_route(
 
     ``review_http_payload`` already routes Z Code and Claude Code, and admits the
     sink command Cursor's probe wrote. Codex routes
-    in its hook bridge and Oh My Pi in its TypeScript extension (every profile
-    on macOS, the workspace profile on Linux). Without this the gate
+    in its hook bridge and Oh My Pi in its TypeScript extension (see
+    ``omp_routes_profile`` for the profiles each host takes). Without this the gate
     counts their contained runs as reviews although the user sees nothing.
     """
     if case.harness == "codex":
@@ -281,8 +312,7 @@ def _omp_routes(result: dict[str, object]) -> bool:
         result.get("decision") == "deny"
         and result.get("policy_action") == "sandbox-required"
         and result.get("observe_mode") is not True
-        and (profile, _reason(result)) in OMP_CONTAINED
-        and (sys.platform == "darwin" or (sys.platform == "linux" and profile == "workspace-contained-v1"))
+        and omp_routes_profile(profile, _reason(result))
     )
 
 
@@ -414,6 +444,11 @@ def test_benign_agent_work_is_allowed_and_negative_controls_are_not(
         _assert_pending(case.case_id, _PENDING_FIX[case.case_id], result, approvals, description)
     else:
         assert _quiet_allow(result, approvals), f"benign work was reviewed: {description}"
+        # An allow that only the sandbox route can give has to arrive that way.
+        # A plain uncontained allow would pass the quiet check while losing the
+        # containment the case exists to pin.
+        if case.requires_sandbox:
+            assert _contained(result), f"benign work was allowed uncontained: {description}"
     if case.case_id in _PENDING_ALWAYS:
         if gap:
             pytest.xfail(f"{_PENDING_ALWAYS[case.case_id]}: review row without Always: {description}")
@@ -550,6 +585,50 @@ def test_jvm_build_goals_run_without_an_approval_prompt(
         assert not always_gap(_ROWS[case.case_id]), f"package fetch offers no Always allow: {description}"
 
 
+def test_cargo_subcommands_that_drive_the_workspace_build_are_not_reviewed(
+    gate_environment: tuple[BenignFixture, HookWorker],
+) -> None:
+    """Running the suite under coverage is a test run, not a package fetch.
+
+    Cargo resolves a subcommand it has no verb for to a ``cargo-NAME`` program
+    the host already carries, and the ones named here drive cargo's own build
+    of the checkout: ``llvm-cov`` and ``tarpaulin`` run the test suite under
+    instrumentation, ``insta`` runs the snapshot suite, ``expand`` prints what
+    the macros produced, ``machete`` and ``udeps`` read which dependencies the
+    crate actually uses. Each reaches no further than ``cargo test``, which is
+    contained already, so each is contained with it. A name this list does not
+    carry keeps its review, because cargo would run whatever program holds it.
+    """
+    fixture, worker = gate_environment
+    commands = (
+        "cargo llvm-cov --lcov --output-path lcov.info",
+        "cargo llvm-cov nextest",
+        "cargo tarpaulin --out Xml",
+        "cargo insta test",
+        "cargo expand --lib",
+        "cargo machete",
+        "cargo udeps --workspace",
+    )
+    for index, command in enumerate(commands):
+        case = GateCase(
+            case_id=f"cargo-subcommand-{index}@claude-code",
+            base_id=f"cargo-subcommand-{index}",
+            fix_area="package",
+            harness="claude-code",
+            tool="shell",
+            tool_input={"command": command},
+            cwd="worktree",
+            expect="allow",
+        )
+        result, approvals = _review(case, fixture, worker)
+        description = _describe(case, result, approvals)
+        assert approvals == 0, f"cargo subcommand queued a review: {description}"
+        if _SANDBOX_HOST:
+            assert _contained(result), f"cargo subcommand was not contained: {description}"
+        else:
+            assert _quiet_allow(result, approvals), f"cargo subcommand was reviewed: {description}"
+
+
 @pytest.mark.parametrize("case", mcp_cases(_DOCUMENT), ids=lambda case: case.case_id)
 def test_mcp_connectors_are_set_up_before_they_are_reviewed(
     case: McpCase, gate_environment: tuple[BenignFixture, HookWorker]
@@ -566,7 +645,7 @@ def test_pending_fix_entries_name_real_benign_cases() -> None:
 
 
 def test_every_harness_and_tool_family_is_exercised() -> None:
-    assert {case.harness for case in _CASES} == {"codex", "zcode", "claude-code", "omp", "cursor"}
+    assert {case.harness for case in _CASES} == {"codex", "zcode", "claude-code", "omp", "cursor", "muse", "grok"}
     omp_tools = {_tool_name(case) for case in _CASES if case.harness == "omp"}
     assert {"bash", "read", "glob", "grep", "eval", "task", "wait"} <= omp_tools
     assert sum(case.expect == "not_allow" for case in _CASES) >= 6

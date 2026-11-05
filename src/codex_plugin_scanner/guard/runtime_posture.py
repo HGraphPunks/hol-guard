@@ -21,14 +21,10 @@ from .models import HarnessDetection
 from .runtime_identity_assessment import RuntimeIdentityAssessment, RuntimeIdentityError, assess_runtime_identity
 from .runtime_identity_candidates import RuntimeCandidates, collect_runtime_candidates
 from .runtime_identity_probe import RuntimeProbe
-from .runtime_instance_store import load_known_instances, remember_instances
 
 RUNTIME_POSTURE_SCHEMA = "guard.runtime-posture.v1"
 ADVISORIES_UNAVAILABLE = "runtime_advisories_unavailable"
-BUNDLE_UNSUPPORTED = "runtime_advisory_bundle_unsupported_by_native_runtime"
-BUNDLE_UNSUPPORTED_COVERAGE = "runtime_advisory_bundle_unsupported"
 BUNDLE_ASSESSMENT_FAILED = "runtime_advisory_bundle_assessment_failed"
-NATIVE_UNAVAILABLE = "runtime_identity_native_unavailable"
 HARNESS_CONFIG_UNREADABLE = "harness_config_unreadable"
 CANDIDATE_LIMIT_REACHED = "runtime_candidate_limit_reached"
 COVERAGE_STATEMENT = (
@@ -57,10 +53,9 @@ def build_runtime_posture(
     ``instance_home`` is the Guard home that carries running instances between
     probes; without it processes are not enumerated.
     """
-    known = load_known_instances(instance_home) if instance_home is not None else None
     try:
         candidates, probe = collect_runtime_candidates(
-            detections, environment=environment, workspace_dir=workspace_dir, known_instances=known
+            detections, environment=environment, workspace_dir=workspace_dir, instance_home=instance_home
         )
     except ValueError as error:
         # Reading server entries projects their identity through the native runtime.
@@ -70,8 +65,6 @@ def build_runtime_posture(
         # The native probe resolves the launches, so without it nothing is known about them.
         base = {**_base_payload(generated_at, None), "skipped_harnesses": list(dict.fromkeys(skipped_harnesses))}
         return {**base, "status": "unavailable", "error": error.code, "runtimes": []}
-    if instance_home is not None and known is not None:
-        remember_instances(instance_home, probe)
     base = {**_base_payload(generated_at, candidates), "skipped_harnesses": list(dict.fromkeys(skipped_harnesses))}
     # A harness whose config could not be read, or launches past the candidate
     # limit, leave the inventory incomplete, which is not the same as having no servers.
@@ -199,11 +192,7 @@ def _assess(request: dict[str, object], advisory_bundle: Mapping[str, object] | 
         failure = error.code
     # The bundle must not cost the observation: report the runtimes without it.
     assessment = assess_runtime_identity(request)
-    if failure == NATIVE_UNAVAILABLE:
-        # An older native runtime cannot verify bundled advisories.
-        source = {"state": "unsupported", "reason": BUNDLE_UNSUPPORTED, "coverage_reason": BUNDLE_UNSUPPORTED_COVERAGE}
-    else:
-        source = {"state": "invalid", "reason": failure, "coverage_reason": BUNDLE_ASSESSMENT_FAILED}
+    source = {"state": "invalid", "reason": failure, "coverage_reason": BUNDLE_ASSESSMENT_FAILED}
     return replace(assessment, advisory_source={**source, "advisories_available": False})
 
 

@@ -19,6 +19,8 @@ pub use env_prefix_projection::bindable_setting;
 mod cline_view;
 #[path = "generic_extract.rs"]
 mod extract;
+#[path = "inert_tool_settings.rs"]
+pub(crate) mod inert_tool_settings;
 #[path = "generic_omp.rs"]
 mod omp;
 #[path = "generic_omp_bash_cwd.rs"]
@@ -56,6 +58,8 @@ mod pure_eval;
 mod read_note;
 #[path = "redirect_projection.rs"]
 mod redirect_projection;
+#[path = "redirect_tee.rs"]
+mod redirect_tee;
 #[path = "generic_result.rs"]
 mod result;
 #[path = "venv_activation_projection.rs"]
@@ -96,7 +100,36 @@ pub fn venv_activation_target(command: &str, context: super::PathContext<'_>) ->
 pub fn contained_target(command: &str, context: super::PathContext<'_>) -> Option<String> {
     let ungrouped = super::runnable_ungrouped_command_list(command);
     let text = ungrouped.as_deref().unwrap_or(command);
-    venv_activation_target(text, context).or(ungrouped)
+    let projected = venv_activation_target(text, context).or(ungrouped);
+    let text = projected.as_deref().unwrap_or(command);
+    home_launcher_target(text, context).or(projected)
+}
+
+/// The launcher the pre-tool pass answered for, spelled as the path it names.
+///
+/// The sandbox seeds its own private HOME, so the `/bin/sh` it runs the text
+/// through would expand `~/<dir>/<program>` below a directory holding nothing
+/// and report the launcher missing. The pass admits that spelling only as the
+/// absolute path it expands to, from the declared home, and the sink runs the
+/// text the pass answered for.
+///
+/// The shell proof is set here, as the sink's own peel expands a leading
+/// `cd ~/<dir>` from the declared home without one: that proof was made
+/// before the call was admitted, under the environment the agent ran in, and
+/// only a command it admitted reaches a sink at all.
+fn home_launcher_target(command: &str, context: super::PathContext<'_>) -> Option<String> {
+    let model = crate::parse_command(&crate::CommandModelRequestV1 {
+        command: command.to_owned(),
+        dialect: "posix".into(),
+        transport: "shell_string".into(),
+        extraction_provenance: "pre-tool-generic".into(),
+    })
+    .ok()?;
+    let context = super::PathContext {
+        shell_home_matches: true,
+        ..context
+    };
+    Some(super::workspace_contained::home_exec::as_absolute_program(&model, context)?.text)
 }
 
 /// Bounded caller-supplied context, never authenticated provider facts.
@@ -185,7 +218,7 @@ mod github;
 mod tools;
 #[path = "generic_web_fetch.rs"]
 mod web_fetch;
-pub(in crate::pretool) use tools::is_package_tool;
+pub(in crate::pretool) use tools::executable_is_package_tool;
 pub(in crate::pretool) use web_fetch::plain_public_url;
 
 /// Evaluate the complete raw PreToolUse payload in native code. This stays
@@ -228,10 +261,13 @@ pub fn evaluate_pre_tool_envelope_with_context(
             cwd,
             cdpath_unset: false,
             rustup_override_absent: false,
+            cargo_config_inert: false,
             npm_config_inert: false,
             pip_config_inert: false,
             shell_home_matches: false,
             ripgrep_config_absent: false,
+            gem_config_absent: false,
+            http_config_absent: false,
             psql_environment: Default::default(),
             creates_nothing: false,
         },
@@ -320,19 +356,9 @@ pub fn evaluate_pre_tool_envelope_with_execution_context(
             .as_deref()
             .and_then(env_prefix_projection::code_loading_setting)
         {
-            result.reason = match command
-                .as_deref()
-                .and_then(env_prefix_projection::node_heap_only_setting)
-            {
-                // A memory size is the usual reason to set it; say how to
-                // raise the heap in a form the sandbox accepts.
-                Some(mib) => format!(
-                    "HOL Guard blocked this command because the {setting} setting can load code that the installed extension controls cannot check. To give Node more memory, pass the option to node itself and run the tool's script from node_modules, for example `node --max-old-space-size={mib} node_modules/typescript/bin/tsc --noEmit`. Guard runs that form in its read-only sandbox."
-                ),
-                None => format!(
-                    "HOL Guard blocked this command because the {setting} setting can load code that the installed extension controls cannot check. Run the command without it."
-                ),
-            };
+            result.reason = format!(
+                "HOL Guard blocked this command because the {setting} setting can load code that the installed extension controls cannot check. Run the command without it."
+            );
         } else if let Some(setting) = command
             .as_deref()
             .and_then(env_prefix_projection::substituted_setting)
@@ -412,6 +438,21 @@ fn evaluate_envelope(
         Ok(value) => value,
         Err(error) => return generic_error_result(harness, event, error),
     };
+    // Oh My Pi's `read` addresses a file by `file://` URL as well as by path.
+    // The URL is a spelling of a local path, not a wider capability, so it is
+    // reduced to the path it denotes before any screen runs: the sensitive
+    // name, workspace and read rules then all read the same path the plain
+    // spelling would give them. A URL that names no local path -- another
+    // host's authority, a form this resolver cannot reduce -- is left alone
+    // and keeps the review it has today.
+    let resolved_read_url = (harness == "omp"
+        && signals.tool_name.as_deref() == Some("read")
+        && signals.path_values.len() == 1)
+        .then(|| super::omp_file_url::local_file_url_path(&signals.path_values[0]))
+        .flatten();
+    if let Some(resolved) = resolved_read_url {
+        signals.resolve_read_url_path(resolved);
+    }
     signals.mirrored_input_unproven = harness == "grok"
         && !payload
             .as_object()
@@ -697,6 +738,50 @@ fn evaluate_envelope(
         }
     }
 
+    // `cmd | tee PATH` writes the same file `cmd > PATH` writes, but the
+    // stage keeps its path operand inside the pipeline, where the redirect
+    // projection never looks at it. The command then carries an unmodelled
+    // write and falls through to review, while the redirect spelling of the
+    // same work is modelled and bounded. Evaluating that spelling puts both
+    // forms on the same target checks.
+    // An extension that watches `tee` evaluates the stage itself, and the
+    // rewrite deletes the program it would match on. Leaving such a command
+    // on the existing path keeps that evaluation. The question is asked only
+    // of a command the rewrite actually read a stage out of, because
+    // answering it walks every active extension's rules.
+    if let Some(rewritten) = signals
+        .command
+        .as_deref()
+        .filter(|_| project_redirects && !search_scope_proven && !apply_patch_proven)
+        .and_then(redirect_tee::as_redirects)
+        .filter(|_| !controls.is_some_and(|controls| controls.watches_executable("tee")))
+    {
+        let rewritten_payload = payload_with_command(
+            payload,
+            signals.command.as_deref().unwrap_or_default(),
+            &rewritten,
+        );
+        let rewritten_result = evaluate_envelope(
+            harness,
+            event,
+            &rewritten_payload,
+            controls,
+            deadline,
+            context,
+            execution_environment,
+            project_redirects,
+        );
+        // Only a settled redirect spelling answers for the pipeline. When the
+        // projection cannot bound the target it leaves the redirect in the
+        // text, where the shell parser models no segments at all, so the
+        // rewritten review would drop the evidence the pipeline's own
+        // segments carry. The original text keeps that evidence, and it
+        // already fails closed on a write the parser cannot bound.
+        if rewritten_result.minimum_action == "allow" && rewritten_result.decision == "allow" {
+            return rewritten_result;
+        }
+    }
+
     if let Some(projection) = signals
         .command
         .as_deref()
@@ -785,9 +870,8 @@ fn evaluate_envelope(
     }) {
         signals.sensitive_target = signals.independent_sensitive_target;
     }
-    // A link to a secret file is that secret under another name.
-    signals.sensitive_target |=
-        super::secret_aliases::decision_names_secret_alias(command_decision.as_ref(), context);
+    // A tracked document named for a secret is not one; a link to a secret is.
+    signals.settle_tracked_names(command_decision.as_ref(), context);
     let hashline_edit_proven = omp_hashline_edit.is_some();
     let mut result = if search_scope_proven {
         generic_result(
@@ -1015,11 +1099,12 @@ fn evaluate_envelope(
             },
         )
     });
-    // macOS runs every credential-filtering profile. Windows runs the Python
-    // and Node evaluation profiles, the read-only pytest profile, the Vite
-    // build and the read-only Node tools (lint, typecheck and format checks)
-    // in an AppContainer, for harnesses whose shell runs a sink command
-    // written for it: Claude Code (Git Bash) and the Pi family (a bash
+    // macOS runs every credential-filtering profile, and Linux runs every
+    // read-only one under bubblewrap where the mount is available. Windows
+    // runs the Python and Node evaluation profiles, the read-only pytest
+    // profile, the Vite build and the read-only Node tools (lint, typecheck
+    // and format checks) in an AppContainer, for harnesses whose shell runs a
+    // sink command written for it: Claude Code (Git Bash) and the Pi family (a bash
     // implementation) take the POSIX-quoted one, Codex a PowerShell one. The
     // sink command names only the profile, so every profile routes the same
     // way. Only harnesses that rewrite into the contained sink get the
@@ -1035,7 +1120,30 @@ fn evaluate_envelope(
                     | "native_pytest_readonly_containment_required"
             )
         ) && matches!(harness, "claude-code" | "codex" | "omp" | "oh-my-pi" | "pi");
-    if (cfg!(target_os = "macos") || (cfg!(windows) && windows_contained))
+    // Linux runs the same read-only profiles under a bubblewrap mount, from
+    // the same POSIX sink command, so no harness is narrowed out here the way
+    // Windows narrows the shells whose quoting the sink command is written
+    // for. The mount probe is the one the workspace sandbox already asks: a
+    // host that refuses it cannot start a contained run at all, and the review
+    // this keeps there is the honest answer.
+    let linux_contained = matches!(
+        contained_test_reason,
+        Some(
+            "native_python_eval_readonly_containment_required"
+                | "native_node_eval_readonly_containment_required"
+                | "native_bun_eval_readonly_containment_required"
+                | "native_package_test_readonly_containment_required"
+                | "native_node_build_output_containment_required"
+                | "native_node_tool_readonly_containment_required"
+                | "native_git_readonly_containment_required"
+                | "native_vitest_readonly_containment_required"
+                | "native_node_test_readonly_containment_required"
+                | "native_pytest_readonly_containment_required"
+        )
+    ) && super::workspace_contained::sandbox_available();
+    if (cfg!(target_os = "macos")
+        || (cfg!(target_os = "linux") && linux_contained)
+        || (cfg!(windows) && windows_contained))
         && event == "PreToolUse"
         && (matches!(
             harness,
@@ -1048,6 +1156,7 @@ fn evaluate_envelope(
                 Some(
                     "native_vitest_readonly_containment_required"
                         | "native_package_test_readonly_containment_required"
+                        | "native_node_test_readonly_containment_required"
                         | "native_node_tool_readonly_containment_required"
                         | "native_node_build_output_containment_required"
                 )
@@ -1062,6 +1171,7 @@ fn evaluate_envelope(
                     "native_node_tool_readonly_containment_required"
                         | "native_vitest_readonly_containment_required"
                         | "native_package_test_readonly_containment_required"
+                        | "native_node_test_readonly_containment_required"
                         | "native_node_build_output_containment_required"
                 )
             ) && result.reason_code == "native_package_review"))
@@ -1131,6 +1241,9 @@ fn evaluate_envelope(
         deadline,
         execution_environment,
     );
+    // A cluster listing that names only inventory columns runs directly; the
+    // rule that reviews it covers the whole `databases` group.
+    super::doctl_reads::settle(&mut result, command_model, controls);
     super::workspace_contained::convert(
         &mut result,
         &pre_floor,
@@ -1235,7 +1348,12 @@ fn git_read_order_settled_by_allow(
             deadline,
             execution_environment,
         )
-    }) && controls.explicit_allow_covers_command(model, observations, context)
+    }) && controls.explicit_allow_covers_command(
+        model,
+        observations,
+        context,
+        execution_environment,
+    )
 }
 
 /// The Git floor's reason when every Git read was proven helper-free on its

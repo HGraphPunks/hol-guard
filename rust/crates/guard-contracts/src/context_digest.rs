@@ -443,6 +443,19 @@ pub enum ContextDigestKindV1 {
     GenericHookApprovalContext {
         inputs: Value,
     },
+    /// Compose a consumer artifact's saved-approval context (identity and
+    /// launch, content, capabilities, sandbox) for a detected or removed
+    /// artifact and return its token. The caller supplies the normalized
+    /// paths, the policy component and the detector telemetry.
+    ConsumerApprovalContextToken {
+        request: Value,
+    },
+    /// The bin a package-runner command launches (`npx wrangler` names
+    /// `wrangler`). `None` for anything that is not a runner launch, and for
+    /// every selector form that runs something other than the named bin.
+    PackageRunnerTarget {
+        tokens: Vec<String>,
+    },
 }
 
 // `deny_unknown_fields` cannot combine with `flatten` (serde rejects the
@@ -568,6 +581,10 @@ pub struct ContextDigestResultV1 {
     /// `memory_pattern` answer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub memory_pattern: Option<MemoryPatternVerdictV1>,
+    /// `package_runner_target` answer; absent when the tokens name no
+    /// package-runner launch of a plain bin.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package_runner_target: Option<String>,
 }
 
 /// A remembered decision's behavior fingerprint and lookup candidates.

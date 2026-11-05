@@ -32,9 +32,7 @@ harness launcher or managed hook
         -> Rust edge normalization and resident client/supervisor
         -> Rust output traversal, source I/O, hashing, scanning, effective-policy floors, decision
         -> Python harness response rendering
-     -> explicit off: deterministic fail-safe disablement (no semantic fallback)
-     -> explicit shadow diagnostic surface: Rust authority plus non-authoritative comparison
-     -> explicit differential-test oracle: Python reference evaluator only
+     -> retired off/shadow values: resolve to the product default, select nothing
   -> Python bounded asynchronous evidence handoff (non-authoritative)
 ```
 
@@ -56,7 +54,7 @@ Rust raw envelope
 | Harness launchers | Python transport | Minimal launcher and mechanical serialization |
 | Harness event/action normalization | Python semantic | Rust raw-envelope normalization |
 | HTTP ingress | Python transport | Authentication and byte transport only |
-| Hook request projection | Rust semantic for auto/force; fail-safe for production off/shadow | Rust raw-envelope edge |
+| Hook request projection | Rust semantic for every supported production request | Rust raw-envelope edge |
 | CLI hook evaluation | Python semantic | Presentation and orchestration only |
 | Python reference oracle | Python semantic | Differential tests only; never production authority |
 | Resident client and supervisor | Rust transport/lifecycle with a minimal Python process launcher | Rust native edge and launcher |
@@ -91,14 +89,20 @@ or encoding-invalid input is not eligible for an allow result.
 The resident worker has no production import or lazy construction path for the
 Python semantic evaluator, content scanner, or decision cache. Supported
 `PreToolUse` and `PostToolUse` requests enter the Rust edge in `auto` and
-`force`; native failure is fail-closed. `HOL_GUARD_NATIVE=off` is an explicit
-fail-safe disablement, not permission to restore Python authority. `shadow`
-comparison is permitted only when `HOL_GUARD_NATIVE_DIAGNOSTIC=1` is present
-on a declared non-production surface.
+`force`; native failure is fail-closed. `HOL_GUARD_NATIVE=off` and
+`HOL_GUARD_NATIVE=shadow` are retired values: both resolve to the product
+default and warn once, so neither disables native authority nor restores the
+Python one. `HOL_GUARD_NATIVE_DIAGNOSTIC=1` on a declared non-production
+surface adds bounded transport and timeout diagnostics; no flag runs a second
+evaluator or compares its verdict with the native one.
 
-`HOL_GUARD_PYTHON_ORACLE=1` plus the test marker `HOL_GUARD_TEST_MODE=1` is the
-only supported semantic oracle boundary. Absent, invalid, or inherited values
-never select it. The AST/call-graph gate
+`HOL_GUARD_PYTHON_ORACLE` is retired. It is listed under
+`dependency_delta.removed_runtime_flags` in
+`docs/guard/contracts/python-capability-ownership.v1.json`, whose
+`rollback_boundary` records `retained_source: false` and no packaged Python
+oracle fallback, and `scripts/ci/python_runtime_retirement.py` reddens CI if a
+source file reads it again. There is no in-process semantic oracle boundary
+left to select. The AST/call-graph gate
 `scripts/ci/python_hook_semantic_callgraph_gate.py` rejects semantic evaluator
 imports and calls reachable from production hook entrypoints; the
 always-selected ownership workflow runs this gate.
@@ -510,6 +514,81 @@ operator is offered a grant over, so a second copy of it would be a second
 answer to the same question. Python now only probes - it runs the CLI, collects
 the help text each subcommand prints, and sends the text; the resident returns
 the commands it names and their descriptions.
+
+The options a CLI takes are read there too (`local-cli-help-variations-v1`, in
+`local_cli_help_options.rs`): the option rows and usage line of a help that
+names no subcommands, and, for a script whose `--help` names nothing, the
+script's own source. A source is read only from its comments and heredoc text,
+plus the `case` arms, parser calls and `getopts` strings that compare its own
+arguments, so an option the script passes to another program never becomes
+one of its own. Python reads the verified script file, bounded, and sends it
+with `script_source`; it never runs anything to get it. The grant answer
+(`local_cli_grant_op.rs`) then decides a call by the options it passes: a
+blocked option blocks the call, and a call with options and no subcommand is
+allowed only when every option it passes is allowed.
+
+A resident that advertises `local-cli-help-source-first-v1` reads an
+interpreter script's source before Guard runs it at all
+(`local_cli_help_script*.rs`). For `.js`, `.mjs`, `.ts`, `.py`, `.rb` and
+shell scripts it names the subcommands the code compares its first argument
+against (`switch`, `match`, `case`/`when`, `if` comparisons and membership
+tests, followed through destructuring, slices, `shift` and the parameter of a
+function given the arguments), the options it checks for, the commands a
+parser library declares (Commander, yargs, argparse, Click, Typer), the
+`./`-relative modules it imports, and whether anything in it handles `--help`:
+`none`, `script` (the code checks for the flag itself) or `framework` (a parser
+library that answers `--help` for each subcommand). The
+`local_cli_script_source` kind (`local_cli_script_source.rs`) only finds and
+reads the files: the verified script, and at most four imported modules that resolve, through symlinks, to script files
+inside the script's own folder. On the answer it runs nothing for `none`, only
+the top-level `--help` for `script`, and nested `<command> --help` probes only
+for `framework`. A parser in the entry script answers only for the commands
+the script does not compare by hand, so a script that dispatches its own
+subcommands is `script` even when it also builds a parser. An imported module
+can raise `none` to `script`, never to `framework`, and a module the resident
+cannot read fails the whole discovery. Each module is opened without following
+a final symlink and read only when the open file is the one its path resolves
+to inside the script's folder. A script in a language the resident does not
+read (Perl, PHP, Lua) has `none`, so it is never run. A resident that cannot read the source leaves the CLI with no
+commands and runs nothing, and so does a runtime whose status cannot be read:
+a busy or missing resident is never taken for an older one. Only a resident
+whose capabilities list lacks the feature, or a compiled program that is not
+a script, takes the help-first path above.
+
+A pasted command is tried as a stdio MCP server before help discovery, and
+that launch passes the script its real arguments. A resident that advertises
+`local-cli-help-mcp-evidence-v1` adds `mcp_server` to the same source read:
+true when a code line, outside a trailing comment, imports the server side of
+an MCP library (`@modelcontextprotocol/sdk/server/*`,
+`@modelcontextprotocol/server`, `fastmcp` or `mcp-framework` from JavaScript,
+`mcp.server`, `fastmcp` or `FastMCP`/`Server` from `mcp` in Python, `mcp` or
+`fast_mcp` from Ruby) or dispatches on `tools/list` (a comparison, `case` or
+`when` label, or handler-table key). A client that imports the SDK or sends
+`tools/list` does not count. The same read adds `entry_point`: the module the
+script imports when every code line belongs to the console-script wrapper pip,
+uv or Poetry writes for an installed package (one `from module import function`,
+`sys.exit` of that function, and the `__main__` guard and `sys.argv[0]` fix-ups
+around them, its module a dotted name of at most 200 characters), else null.
+Python imports report `from .server import` and `from . import server` as
+`./server.py`, beside the script.
+Python (`local_mcp_source_evidence.py`) takes the
+script from the launch identity, so `bash ship.sh` reads `ship.sh`, not the
+shell, and asks the `mcp_evidence` op of `local_cli_script_source`, which
+says it serves MCP only when the script or one of its followed `./`
+modules (a sibling package's `__init__.py` included) has that fact. A selected
+server, a stored observation recorded for this same launch, a package MCP
+launcher (`npx`, `uvx` and the like), a package bin run through a runner, and
+a compiled program keep the launch without a read. An entry-point wrapper whose
+import is not a `./` module beside it is launched only when the installed
+module it names shows the fact: the same op finds that module in the
+`site-packages` of the environment holding the wrapper or its `#!` interpreter,
+reads its own file, then follows the imports of its own package (relative or
+by package name) up to 24 files, each opened under the package folder. Another
+module of the package, such as an optional MCP server beside a CLI's commands,
+does not count. A module it cannot find is not launched. A failed identity lookup, a
+script whose source or answer cannot be read, a runtime whose status cannot
+be read, or a resident that cannot answer the op, is not launched. A resident without the
+feature keeps the launch, as before.
 
 Two consequences are worth naming. Discovery fails closed: a resident that
 cannot answer leaves the CLI with no commands found, and the grant falls back

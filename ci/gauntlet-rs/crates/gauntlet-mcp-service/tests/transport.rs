@@ -111,7 +111,7 @@ fn truncated_oversized_idle_and_cancelled_streams_are_not_reusable() {
 #[test]
 fn backpressure_writes_one_complete_frame_and_embedded_frames_poison() {
     let (sender, receiver) = UnixStream::pair().unwrap();
-    let expected = vec![b'x'; 200000];
+    let expected = vec![b'x'; MAX_FRAME_BYTES];
     let read = thread::spawn(move || {
         McpStream::new(receiver)
             .unwrap()

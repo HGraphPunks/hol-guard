@@ -32,9 +32,6 @@ from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast, final
 
-from ..cli.commands_support_command_activity import (
-    record_post_hook_command_activity_best_effort,
-)
 from ..config import load_guard_config
 from ..hook_execution_environment import HOOK_EXECUTION_ENVIRONMENT_KEY
 from ..native_codex_binding_capture import CodexBindingCaptureWriter
@@ -87,7 +84,7 @@ _TRANSIENT_RESIDENT_PUBLICATION_ERRORS = TRANSIENT_PUBLICATION_ERRORS | {"native
 # Harnesses whose PermissionRequest hook gets no decision, so the harness
 # shows its own approval prompt. Each raises it only after its PreToolUse
 # hook reviewed the same call.
-_PERMISSION_PASSTHROUGH_HARNESSES = frozenset({"codex", "copilot", "devin", "zcode"})
+_PERMISSION_PASSTHROUGH_HARNESSES = frozenset({"codex", "copilot", "devin", "zcode", "muse"})
 # The Claude hook fields the resident's lifecycle answers read: the session,
 # the prompt's kind and the tool it names.
 _CLAUDE_LIFECYCLE_FIELDS = ("session_id", "notification_type", "tool_name", "message", "title")
@@ -173,6 +170,7 @@ class HookWorker(HookWorkerNativeMixin):
         observe_local_cli: bool = False,
         record_receipt: bool = False,
         structured_output_config: Mapping[str, object] | None = None,
+        containment_sink: bool = False,
     ) -> dict[str, object] | None:
         runtime_status = self._native_runtime_status()
         store_path = getattr(self.store, "path", None)
@@ -205,6 +203,7 @@ class HookWorker(HookWorkerNativeMixin):
                 else None
             ),
             structured_output_config=structured_output_config,
+            containment_sink=containment_sink,
         )
 
     def _native_runtime_status(self) -> NativeRuntimeStatus:
@@ -233,22 +232,29 @@ class HookWorker(HookWorkerNativeMixin):
         enable(True)
         self._direct_evidence_drain.start()
 
-    def _stop_direct_evidence_drain(self) -> None:
+    def _stop_direct_evidence_drain(self, *, deadline_monotonic: float | None = None) -> bool:
         drain = self._direct_evidence_drain
         if drain is None:
-            return
-        self._direct_evidence_drain = None
+            return True
         # Close the lane first, then collect what the resident already queued.
         enable = getattr(self.policy_snapshot_publisher, "enable_direct_evidence_drain", None)
         if callable(enable):
             with suppress(Exception):
                 enable(False)
-        drain.stop()
+        if deadline_monotonic is None:
+            stopped = drain.stop()
+        else:
+            stopped = drain.stop(timeout_seconds=min(1.0, max(0.0, deadline_monotonic - time.monotonic())))
+        if stopped is not True:
+            return False
+        self._direct_evidence_drain = None
+        return True
 
     def close_contained(self, *, deadline_monotonic: float | None = None) -> bool:
         """Confirm this worker's publisher has stopped before releasing ownership."""
 
-        self._stop_direct_evidence_drain()
+        if not self._stop_direct_evidence_drain(deadline_monotonic=deadline_monotonic):
+            return False
         if self._owns_policy_snapshot_publisher:
             close_contained = getattr(self.policy_snapshot_publisher, "close_contained", None)
             if callable(close_contained):
@@ -361,7 +367,8 @@ class HookWorker(HookWorkerNativeMixin):
         reads the session's pending Guard review, marks it seen and records
         the prompt. ``Stop`` drops the session's unanswered prompts, so the
         next turn reviews the call again instead of inheriting a block nobody
-        chose, and the edge still answers it. A ``PostToolUse`` that answers
+        chose, and the same call returns its answer; a runtime too old to
+        return one leaves ``Stop`` to the edge. A ``PostToolUse`` that answers
         the HOL Guard approval question saves that answer.
         """
         if event_name == "PostToolUse":
@@ -395,10 +402,8 @@ class HookWorker(HookWorkerNativeMixin):
             session_id=_optional_string(payload.get("session_id")),
             payload={name: payload[name] for name in _CLAUDE_LIFECYCLE_FIELDS if name in payload},
         )
-        if op == "claude_turn_stop":
-            return None
         answered = object_field(reply, "harness_response")
-        if answered is not None:
+        if answered is not None or op == "claude_turn_stop":
             return answered
         if op == "claude_permission_request":
             from ..adapters.claude_hook_config import CLAUDE_GUARD_PERMISSION_PASSTHROUGH_KEY
@@ -421,38 +426,32 @@ class HookWorker(HookWorkerNativeMixin):
         payload: Mapping[str, object],
         succeeded: bool,
     ) -> None:
-        if self.activity_writer is not None:
-            writer = self.activity_writer
-            discovery_writer = getattr(writer, "submit_composio_discovery", None)
-
-            # Recording what a hook decided must not change what it decided.
-            # The writer reaches the resident now, so these calls can fail
-            # where the in-process writer could not, and each costs a round
-            # trip the response the caller is waiting on should not pay for.
-            # Both go to the dispatch as one unit so the discovery is still
-            # submitted before the activity.
-            def record() -> None:
-                if callable(discovery_writer):
-                    with suppress(Exception):
-                        discovery_writer(harness=harness, payload=payload, succeeded=succeeded)
-                with suppress(Exception):
-                    _ = writer.submit_command_activity(
-                        harness=harness,
-                        event="PostToolUse",
-                        payload=payload,
-                        succeeded=succeeded,
-                    )
-
-            run_hook_evidence(self, record)
+        # A worker built without the resident writer (a qualification probe,
+        # a bound Bash sink) never answers a post-tool call it should record.
+        writer = self.activity_writer
+        if writer is None:
             return
-        _ = record_post_hook_command_activity_best_effort(
-            store=self.store,
-            guard_home=self.guard_home,
-            harness=harness,
-            event="PostToolUse",
-            payload=payload,
-            succeeded=succeeded,
-        )
+        discovery_writer = getattr(writer, "submit_composio_discovery", None)
+
+        # Recording what a hook decided must not change what it decided.
+        # The writer reaches the resident now, so these calls can fail
+        # where the in-process writer could not, and each costs a round
+        # trip the response the caller is waiting on should not pay for.
+        # Both go to the dispatch as one unit so the discovery is still
+        # submitted before the activity.
+        def record() -> None:
+            if callable(discovery_writer):
+                with suppress(Exception):
+                    discovery_writer(harness=harness, payload=payload, succeeded=succeeded)
+            with suppress(Exception):
+                _ = writer.submit_command_activity(
+                    harness=harness,
+                    event="PostToolUse",
+                    payload=payload,
+                    succeeded=succeeded,
+                )
+
+        run_hook_evidence(self, record)
 
     def _runtime_harness(self, params: Mapping[str, list[str]]) -> str | None:
         values = params.get("runtime-harness", [])

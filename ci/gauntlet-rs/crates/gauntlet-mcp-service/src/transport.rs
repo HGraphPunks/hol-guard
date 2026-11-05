@@ -46,9 +46,12 @@ impl McpStream {
         cancel: &AtomicBool,
     ) -> Result<Option<Vec<u8>>, TransportError> {
         let mut chunk = [0u8; 65536];
+        let mut scanned = 0;
         loop {
             active(deadline, cancel)?;
-            if let Some(index) = self.pending.iter().position(|b| *b == b'\n') {
+            // Earlier bytes contain no delimiter; scan each received byte once.
+            if let Some(offset) = self.pending[scanned..].iter().position(|b| *b == b'\n') {
+                let index = scanned + offset;
                 if index > MAX_FRAME_BYTES {
                     return Err(TransportError::FrameBound);
                 }
@@ -57,6 +60,7 @@ impl McpStream {
                 tail.pop();
                 return Ok(Some(tail));
             }
+            scanned = self.pending.len();
             if self.pending.len() > MAX_FRAME_BYTES {
                 return Err(TransportError::FrameBound);
             }

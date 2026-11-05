@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import re
 import time
-from collections.abc import Mapping
+import uuid
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, cast
 
@@ -27,9 +28,6 @@ _RESPONSE_FEATURE = "hook-harness-response-v1"
 # Python no longer re-checks the edge result or receipt; only a resident that
 # checks its own answer may be trusted with it.
 _SELF_CHECK_FEATURE = "edge-self-check-v1"
-# The resident records the CLI an answered PreToolUse launches, off the answer path.
-_LOCAL_CLI_OBSERVATION_FEATURE = "edge-local-cli-observation-v1"
-_RECEIPT_RECORD_FEATURE = "edge-receipt-record-v1"
 # The edge answers the Oh My Pi / Pi structured-output mediation itself when
 # the envelope carries the daemon's managed-policy view.
 STRUCTURED_OUTPUT_FEATURE = "edge-structured-output-v1"
@@ -45,6 +43,13 @@ _LOCAL_CLI_RULE_SECONDS = 5.0
 # extension-control digest.
 _REVIEW_EVIDENCE_FEATURE = "edge-review-evidence-v1"
 _REVIEW_EVIDENCE_KEYS = frozenset({"policy_binding_valid", "binding", "token", "once_only_reason"})
+# The edge rewrites a call it routes to the contained sink itself when the
+# envelope carries the argv that starts Guard's CLI: `routed` means the
+# response runs the call in the sink, `kept` that the receipt stands.
+_CONTAINMENT_REWRITES = frozenset({"routed", "kept"})
+# The resident echoes the envelope's request id verbatim and stamps the same
+# id on the receipt, so an id minted here names one request and no other.
+_REQUEST_BINDING_FEATURE = "edge-request-binding-v1"
 
 
 def _capture_deadline(deadline: float | None) -> tuple[float, int]:
@@ -73,9 +78,12 @@ def _decode_edge(payload: object) -> dict[str, Any] | None:
         "request_id",
         "harness_response",
         "containment_route",
+        "containment_rewrite",
         "local_cli_rule",
         "review_evidence",
         "receipt_recorded",
+        "activity_recorded",
+        "exact_command_block",
     }
     if not isinstance(payload, dict) or not required <= set(payload) or set(payload) - allowed:
         return None
@@ -94,10 +102,20 @@ def _decode_edge(payload: object) -> dict[str, Any] | None:
         or not isinstance(payload.get("result"), dict)
         or not isinstance(payload.get("harness_response"), dict)
         or not isinstance(payload.get("receipt_recorded", False), bool)
+        or not isinstance(payload.get("activity_recorded", False), bool)
+        or not isinstance(payload.get("exact_command_block", False), bool)
     ):
         return None
-    route = payload.get("containment_route", "none")
+    # Every resident stamps its containment route; an edge without one would
+    # skip containment, so it is refused rather than read as `none`. An older
+    # resident may still stamp `grant`, which nothing routes on any more.
+    route = payload.get("containment_route")
     if not isinstance(route, str) or route not in {"none", "sink", "grant"}:
+        return None
+    rewrite = payload.get("containment_rewrite")
+    if rewrite is not None and (
+        route != "sink" or not isinstance(rewrite, str) or rewrite not in _CONTAINMENT_REWRITES
+    ):
         return None
     receipt = payload.get("receipt")
     if not isinstance(receipt, dict) or not isinstance(receipt.get("request_id"), str):
@@ -142,6 +160,8 @@ def _encode_hook_envelope(
     observe_local_cli: bool = False,
     record_receipt: bool = False,
     structured_output_config: Mapping[str, object] | None = None,
+    containment_sink: Sequence[str] | None = None,
+    native_sink: bool = False,
 ) -> bytes | None:
     from .hook_execution_environment import HOOK_EXECUTION_ENVIRONMENT_KEY, collect_hook_execution_environment
 
@@ -178,9 +198,17 @@ def _encode_hook_envelope(
     if observe_local_cli:
         envelope["observe_local_cli"] = True
     if record_receipt:
+        # The caller that asks for its receipt also skips a tool activity the
+        # edge says it queued.
         envelope["record_receipt"] = True
+        envelope["record_activity"] = True
+        envelope["record_pre_tool_activity"] = True
     if structured_output_config is not None:
         envelope["structured_output_config"] = dict(structured_output_config)
+    if containment_sink is not None:
+        envelope["containment_sink"] = {"sink_command": list(containment_sink)}
+        if native_sink:
+            envelope["containment_sink"]["native_sink"] = True
     if execution_context_supported:
         # Direct CLI calls capture locally; daemon workers explicitly pass
         # None when caller context is unavailable instead of using daemon env.
@@ -220,6 +248,7 @@ def review_raw_hook_native(
     observe_local_cli: bool = False,
     record_receipt: bool = False,
     structured_output_config: Mapping[str, object] | None = None,
+    containment_sink: bool = False,
 ) -> dict[str, Any] | None:
     """Return a typed Rust edge result, or fail closed without reinterpretation."""
     record_native_resident_client_failure_code(None)
@@ -252,6 +281,7 @@ def review_raw_hook_native(
                 required_features.add(_LOCAL_CLI_RULE_FEATURE)
                 if local_cli_rules.get("exact_action_control_digest") is not None:
                     required_features.add(_REVIEW_EVIDENCE_FEATURE)
+    tool_call = "git-execution-context-v1" in required_features
     if _LOCAL_CLI_RULE_FEATURE not in required_features:
         # Only a tool call has a custom extension rule to settle.
         local_cli_rules = None
@@ -263,6 +293,14 @@ def review_raw_hook_native(
         or not required_features <= set(status.capabilities.features)
     ):
         return record_native_hook_result("native_fail_safe", None)
+    # Bind this call's answer to this call. Without an id of its own a review
+    # can only trust the stream it borrowed to have carried one request at a
+    # time; with one, an answer naming a different request -- or naming none --
+    # is a desynchronised stream rather than this review's verdict. The id is
+    # transport identity: nothing here reads or recomputes the verdict.
+    bound_request_id = request_id
+    if bound_request_id is None and _REQUEST_BINDING_FEATURE in status.capabilities.features:
+        bound_request_id = uuid.uuid4().hex
     deadline_monotonic, deadline_budget_ms = _capture_deadline(deadline)
     if policy_snapshot is None:
         return record_native_hook_result("native_fail_safe", None)
@@ -270,6 +308,12 @@ def review_raw_hook_native(
     generation = snapshot.get("generation")
     if isinstance(generation, bool) or not isinstance(generation, int) or generation <= 0:
         return record_native_hook_result("native_fail_safe", None)
+    sink_command: tuple[str, ...] | None = None
+    if containment_sink and tool_call and cwd is not None:
+        # Without a workspace there is no snapshot to write, and the receipt stands.
+        from .adapters.zcode_contained_tests import contained_sink_command_prefix
+
+        sink_command = contained_sink_command_prefix()
     encoded = _encode_hook_envelope(
         payload=payload,
         harness=harness,
@@ -281,12 +325,16 @@ def review_raw_hook_native(
         deadline_budget_ms=deadline_budget_ms,
         snapshot=snapshot,
         execution_context_supported="git-execution-context-v1" in status.capabilities.features,
-        request_id=request_id,
+        request_id=bound_request_id,
         recording_only=observe_mode,
         local_cli_rules=local_cli_rules,
-        observe_local_cli=observe_local_cli and _LOCAL_CLI_OBSERVATION_FEATURE in status.capabilities.features,
-        record_receipt=record_receipt and _RECEIPT_RECORD_FEATURE in status.capabilities.features,
+        observe_local_cli=observe_local_cli,
+        record_receipt=record_receipt,
         structured_output_config=structured_output_config,
+        containment_sink=sink_command,
+        # Cursor's route probe may name the runtime's own sink, which this
+        # daemon admits on `beforeShellExecution` (`cursor_shell_route`).
+        native_sink=harness == "cursor",
     )
     if encoded is None:
         return record_native_hook_result("native_fail_safe", None)
@@ -318,7 +366,10 @@ def review_raw_hook_native(
         decoded = _decode_edge(response_payload)
     except (UnicodeDecodeError, json.JSONDecodeError):
         decoded = None
-    if decoded is None or (request_id is not None and decoded["receipt"]["request_id"] != request_id):
+    if decoded is None or (
+        bound_request_id is not None
+        and (decoded.get("request_id") != bound_request_id or decoded["receipt"]["request_id"] != bound_request_id)
+    ):
         native_record_resident_failure(
             status.identity.sha256,
             guard_home,

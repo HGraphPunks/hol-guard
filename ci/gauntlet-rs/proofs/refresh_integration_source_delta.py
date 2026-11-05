@@ -23,6 +23,11 @@ NEW_FILES = {
     "ci/gauntlet/decision_coverage.py": ("port_to_rust", 5),
     "ci/gauntlet/runtime_cases.py": ("port_to_rust", 5),
     "ci/gauntlet/git_allow_fixtures.py": ("port_to_rust", 5),
+    "ci/gauntlet/approval_retry_marker.py": ("port_to_rust", 5),
+    "ci/gauntlet/branch_return_fixtures.py": ("port_to_rust", 5),
+    "ci/gauntlet/extension_catalog_fixtures.py": ("port_to_rust", 5),
+    "ci/gauntlet/plugin_manifest_fixtures.py": ("port_to_rust", 5),
+    "ci/gauntlet/workspace_runner_fixtures.py": ("port_to_rust", 5),
 }
 
 

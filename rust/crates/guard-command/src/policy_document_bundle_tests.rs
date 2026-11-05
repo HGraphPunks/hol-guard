@@ -145,3 +145,63 @@ fn a_request_that_names_no_device_is_refused_before_any_rule_is_read() {
         json!({"type": "TypeError", "message": "policy_bundle_device_identity"}),
     );
 }
+
+#[test]
+fn an_evaluate_policy_reaches_the_device_without_changing_its_decisions() {
+    let rules = json!([rule("every-device", json!({}))]);
+    let mut evaluating = request(rules.clone());
+    evaluating["bundle"]["payload"]["spec"]["defaults"]["mode"] = json!("observe");
+    assert_eq!(run(&evaluating), json!({"ok": []}));
+    let mut enforcing = request(rules);
+    enforcing["bundle"]["payload"]["spec"]["defaults"]["mode"] = json!("enforce");
+    assert_eq!(run(&enforcing)["ok"][0]["rule_id"], "every-device");
+}
+
+#[test]
+fn an_evaluate_policy_is_still_checked_before_it_is_set_aside() {
+    let mut unsupported = rule("unsupported", json!({}));
+    unsupported["effect"] = json!("quarantine");
+    let mut evaluating = request(json!([unsupported]));
+    evaluating["bundle"]["payload"]["spec"]["defaults"]["mode"] = json!("observe");
+    assert_eq!(refusal(&evaluating)["code"], "unsupported_policy_effect");
+}
+
+#[test]
+fn a_bundle_without_defaults_is_refused_rather_than_read_as_enforced() {
+    let mut input = request(json!([rule("every-device", json!({}))]));
+    input["bundle"]["payload"]["spec"]
+        .as_object_mut()
+        .unwrap()
+        .remove("defaults");
+    assert!(refusal(&input).is_object(), "{}", run(&input));
+}
+
+#[test]
+fn a_review_rule_reaches_the_device_as_a_review_decision() {
+    let mut review = rule("ask-a-person", json!({}));
+    review["effect"] = json!("review");
+    let output = run(&request(json!([review])));
+    assert_eq!(output["ok"][0]["rule_id"], "ask-a-person", "{output}");
+    assert_eq!(output["ok"][0]["decision"]["action"], "review");
+    assert_eq!(output["ok"][0]["decision"]["scope"], "global");
+}
+
+#[test]
+fn a_bundle_rule_outside_allow_block_and_review_is_still_refused() {
+    let mut warn = rule("warn-only", json!({}));
+    warn["effect"] = json!("warn");
+    assert_eq!(
+        refusal(&request(json!([warn])))["code"],
+        "unsupported_policy_effect"
+    );
+}
+
+#[test]
+fn a_review_rule_on_an_exact_command_is_refused_rather_than_left_unenforced() {
+    let mut ask = rule("ask-before-push", json!({"commands": ["git push"]}));
+    ask["effect"] = json!("review");
+    assert_eq!(
+        refusal(&request(json!([ask])))["code"],
+        "unsupported_exact_command_review"
+    );
+}

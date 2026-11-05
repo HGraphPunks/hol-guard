@@ -26,17 +26,17 @@ fn sync_state(connection: &Connection, key: &str, payload: &str) {
         .unwrap();
 }
 
+fn identities(connection: &Connection, now: &str) -> Option<Vec<Identity>> {
+    cached_bundle_authority(connection, now).map(|(identities, _bundle)| identities)
+}
+
 #[test]
 fn a_missing_or_empty_bundle_authorizes_nothing() {
     let connection = store();
-    assert_eq!(cached_bundle_identities(&connection, NOW), Some(Vec::new()));
+    assert_eq!(identities(&connection, NOW), Some(Vec::new()));
     for payload in ["{}", "[1]", "\"text\"", "null"] {
         sync_state(&connection, "policy_bundle", payload);
-        assert_eq!(
-            cached_bundle_identities(&connection, NOW),
-            Some(Vec::new()),
-            "{payload}"
-        );
+        assert_eq!(identities(&connection, NOW), Some(Vec::new()), "{payload}");
     }
 }
 
@@ -44,14 +44,11 @@ fn a_missing_or_empty_bundle_authorizes_nothing() {
 fn a_bundle_the_store_cannot_parse_defers() {
     let connection = store();
     sync_state(&connection, "policy_bundle", "not json");
-    assert_eq!(cached_bundle_identities(&connection, NOW), None);
+    assert_eq!(identities(&connection, NOW), None);
     sync_state(&connection, "policy_bundle", "{}");
-    assert_eq!(
-        cached_bundle_identities(&connection, "not a time"),
-        Some(Vec::new())
-    );
+    assert_eq!(identities(&connection, "not a time"), Some(Vec::new()));
     sync_state(&connection, "policy_bundle", r#"{"bundleVersion": 1}"#);
-    assert_eq!(cached_bundle_identities(&connection, "not a time"), None);
+    assert_eq!(identities(&connection, "not a time"), None);
 }
 
 #[cfg(unix)]
@@ -63,7 +60,7 @@ fn an_unsigned_bundle_authorizes_nothing() {
         "policy_bundle",
         r#"{"bundleVersion": 1, "decisions": [{"harness": "codex"}]}"#,
     );
-    assert_eq!(cached_bundle_identities(&connection, NOW), Some(Vec::new()));
+    assert_eq!(identities(&connection, NOW), Some(Vec::new()));
 }
 
 #[test]
@@ -128,6 +125,15 @@ fn an_identity_is_keyed_the_way_the_store_saves_the_row() {
     );
 }
 
+#[cfg(any(unix, windows))]
+#[test]
+fn the_host_name_a_generic_label_yields_to_is_read() {
+    // Off Unix this was unknown, which left the bundle's identities to the
+    // Python store.
+    let name = device_display_name(&store(), "localhost").expect("host name");
+    assert!(!name.is_empty());
+}
+
 #[test]
 fn a_generic_label_yields_to_the_host_name() {
     assert_eq!(
@@ -188,4 +194,43 @@ fn a_document_past_the_limit_is_not_chunked() {
         Some(MAX_DOCUMENT_CHARS)
     );
     assert_eq!(chunks(&json!("é".repeat(MAX_DOCUMENT_CHARS - 1))), None);
+}
+
+fn policy_row(connection: &Connection, source: &str) {
+    connection
+        .execute_batch("create table if not exists policy_decisions (source text not null)")
+        .unwrap();
+    connection
+        .execute(
+            "insert into policy_decisions (source) values (?1)",
+            [source],
+        )
+        .unwrap();
+}
+
+#[test]
+fn a_lookup_derives_identities_only_for_a_store_with_bundle_rows() {
+    let connection = store();
+    sync_state(&connection, "policy_bundle", "not json");
+    assert_eq!(lookup_bundle_authority(&connection, NOW), Ok(None));
+    policy_row(&connection, "local");
+    assert_eq!(lookup_bundle_authority(&connection, NOW), Ok(None));
+    policy_row(&connection, "policy-bundle");
+    assert_eq!(lookup_bundle_authority(&connection, NOW), Err(()));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_bundle_that_authorizes_nothing_ships_no_identities() {
+    let connection = store();
+    policy_row(&connection, "policy-bundle");
+    sync_state(
+        &connection,
+        "policy_bundle",
+        r#"{"bundleVersion": 1, "decisions": [{"harness": "codex"}]}"#,
+    );
+    assert_eq!(
+        lookup_bundle_authority(&connection, NOW),
+        Ok(Some((Vec::new(), None)))
+    );
 }

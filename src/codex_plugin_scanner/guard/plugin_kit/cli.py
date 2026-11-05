@@ -1,4 +1,4 @@
-"""CLI for the HOL Guard Plugin Kit: ``hol-guard plugin init|check|package|convert|links|card|install|uninstall|stats``.
+"""CLI for the HOL Guard Plugin Kit: ``hol-guard plugin <command>``.
 
 Detection, checks, packaging and file writes run in the native runtime's
 ``plugin-kit`` command. This module parses arguments, sends one request and
@@ -43,6 +43,7 @@ _NATIVE_PLATFORMS = _GITHUB_ONLY_PLATFORMS | {
 _SYSTEM_NAMES = {"Darwin": "macOS"}
 _NATIVE_FAILED = "The HOL Guard Plugin Kit did not complete."
 INSTALL_DOCUMENT = "hol-guard.plugin-install/1"
+VERIFY_DOCUMENT = "hol-guard.plugin-verify/1"
 
 _ERRORS = {
     "plugin_kit_root_invalid": "The path is not a readable folder.",
@@ -147,7 +148,6 @@ def _native_install_command(system: str, machine: str) -> str:
 
 def native_unavailable_message(
     *,
-    outdated: bool = False,
     incompatible: bool = False,
     version: str | None = None,
     system: str | None = None,
@@ -159,11 +159,6 @@ def native_unavailable_message(
     system = system or platform.system()
     machine = machine or platform.machine()
     where = f"{_SYSTEM_NAMES.get(system, system)} {machine}"
-    if outdated:
-        return (
-            "This HOL Guard's native runtime is too old for the Plugin Kit. "
-            f"Update it: {_native_install_command(system, machine)}"
-        )
     if incompatible:
         return (
             f"HOL Guard found a native runtime for {where}, but it does not match this install. "
@@ -199,10 +194,8 @@ def _native_request(request: Mapping[str, object]) -> dict[str, Any]:
     status = native_runtime_status()
     if not status.available or status.identity is None:
         raise PluginKitNativeError(native_unavailable_message())
-    if not status.compatible or status.capabilities is None:
+    if not status.compatible or status.capabilities is None or PLUGIN_KIT_FEATURE not in status.capabilities.features:
         raise PluginKitNativeError(native_unavailable_message(incompatible=True))
-    if PLUGIN_KIT_FEATURE not in status.capabilities.features:
-        raise PluginKitNativeError(native_unavailable_message(outdated=True))
     runtime = status.identity.path
     completed = run_isolated_hook_process(
         (str(runtime), PLUGIN_KIT_COMMAND, "--stdin"),
@@ -408,6 +401,24 @@ def build_parser(*, program_name: str = "hol-guard plugin") -> argparse.Argument
     )
     stats.add_argument("slug", help="HOL listing you own, such as owner/plugin.")
     stats.add_argument("--json", action="store_true", help="Print HOL's answer as JSON.")
+    verify = commands.add_parser(
+        "verify",
+        help="Check the commit Claude Code installed for a listing against HOL's integrity record. Warns only.",
+        description=(
+            "Check the commit Claude Code installed for a HOL listing against the commit HOL recorded for that "
+            "version. A difference is a warning: Guard changes nothing and exits 0."
+        ),
+        epilog=(
+            "exit codes:\n"
+            "  0    checked (a difference is printed as a warning)\n"
+            "  2    usage, or a record Guard could not read\n"
+            "  3    not installed in Claude Code, or not listed on HOL\n"
+            "  6    HOL unreachable"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    verify.add_argument("slug", help="HOL listing, such as owner/plugin.")
+    verify.add_argument("--json", action="store_true", help=f"Print one {VERIFY_DOCUMENT} document on stdout.")
     return parser
 
 
@@ -759,6 +770,48 @@ def _stats(args: argparse.Namespace) -> int:
     return 0
 
 
+def _verify(args: argparse.Namespace) -> int:
+    from . import install, verify
+
+    document: dict[str, Any] = {"schema": VERIFY_DOCUMENT, "slug": args.slug, "runtime": "claude-code"}
+    try:
+        slug, version = install.parse_target(args.slug)
+        if version:
+            raise install.PluginInstallError("Name the listing without a version, such as owner/plugin.")
+        endpoint, listing_origin = install.spec_endpoint()
+        if listing_origin:
+            print(f"Warning: {install.SPEC_URL_ENV} is set. HOL answers come from {endpoint}.", file=sys.stderr)
+        spec = verify.fetch_listing_spec(
+            slug, endpoint, overridden=bool(listing_origin), progress=_progress_stream(args)
+        )
+        plugin_id = verify.claude_plugin_id(spec)
+        installed = verify.claude_installed(install.claude_home(), plugin_id) if plugin_id else None
+        if installed is None:
+            raise install.PluginInstallError(
+                f"Claude Code has no install of {slug} for your user, so there is nothing to check.",
+                exit_code=install.EXIT_NOTHING,
+                code="not_installed",
+            )
+        ledger = verify.fetch_ledger(slug, verify.ledger_endpoint(endpoint))
+        result = verify.compare(installed, ledger, slug=slug, spec_slug=spec.get("slug"))
+    except install.PluginInstallError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        document["error"] = {"code": error.code, "message": str(error)}
+        if args.json:
+            print(json.dumps(document, indent=2, sort_keys=True))
+        return error.exit_code
+    document.update({"installed": installed, **result, "error": None})
+    if args.json:
+        print(json.dumps(document, indent=2, sort_keys=True))
+    else:
+        # A differing commit goes to stderr whole, so its notes and releases
+        # link stay with the warning when stdout is piped away.
+        stream = sys.stderr if result["status"] == "differs" else sys.stdout
+        for line in verify.render(slug, installed, result, verify.listing_releases_url(spec)):
+            print(line, file=stream)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None, *, program_name: str = "hol-guard plugin") -> int:
     args = build_parser(program_name=program_name).parse_args(argv)
     if args.command in {"install", "uninstall"}:
@@ -767,6 +820,8 @@ def main(argv: Sequence[str] | None = None, *, program_name: str = "hol-guard pl
         return _convert(args)
     if args.command == "stats":
         return _stats(args)
+    if args.command == "verify":
+        return _verify(args)
     result = _call(_request(args))
     if result is None:
         return 2

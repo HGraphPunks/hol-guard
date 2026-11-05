@@ -13,6 +13,8 @@ function stageFailure(code: unknown): DiscoveryFailure {
       return new DiscoveryFailure("mcp_transport_failed", "Guard could not communicate with this MCP server. Check its executable, dependencies, and server logs in the host app. Known tools and choices were kept.");
     case "mcp_initialize_failed":
       return new DiscoveryFailure("mcp_initialize_failed", "The MCP server did not complete initialization. Check that it starts in the host app and uses stdio MCP. Known tools and choices were kept.");
+    case "mcp_server_exited":
+      return new DiscoveryFailure("mcp_server_exited", "The MCP server stopped before it answered. Check that it starts in the host app. If it does, it probably reads a login or settings from your home folder: Guard lists tools in a separate run with a temporary home folder and only the environment from the host config, so it cannot list this server. Its tools still appear here as your host app uses them. Known tools and choices were kept.");
     case "mcp_protocol_unsupported":
       return new DiscoveryFailure("mcp_protocol_unsupported", "This server uses an MCP protocol version Guard does not support. Check the server and Guard versions. Known tools and choices were kept.");
     case "mcp_capability_rejected":
@@ -51,6 +53,20 @@ function stageFailure(code: unknown): DiscoveryFailure {
   }
 }
 
+/**
+ * How long to wait before each progress check. Most jobs, such as reading a
+ * tool's --help, finish within a few hundred milliseconds, so the first
+ * checks come quickly; longer scans settle into a steady half-second.
+ */
+const EARLY_POLL_DELAYS_MS = [100, 150, 250];
+
+/** How long a job may run before the page stops waiting, however quickly it checks. */
+export const DISCOVERY_WAIT_MS = 60_000;
+
+export function discoveryPollDelay(poll: number): number {
+  return EARLY_POLL_DELAYS_MS[poll] ?? 500;
+}
+
 export async function waitForDiscoveryJob(cliId: string, initialJob: unknown, signal: AbortSignal, readJson: (response: Response) => Promise<unknown>): Promise<void> {
   const normalize = (body: unknown): Record<string, unknown> => {
     if (!isRecord(body) || typeof body.job_id !== "string" || !/^[a-f0-9]{32}$/.test(body.job_id)
@@ -72,18 +88,20 @@ export async function waitForDiscoveryJob(cliId: string, initialJob: unknown, si
   let job = normalize(initialJob);
   let finished = false;
   try {
-    for (let poll = 0; poll < 120; poll += 1) {
+    for (let poll = 0, waited = 0; waited < DISCOVERY_WAIT_MS; poll += 1) {
       if (signal.aborted) return;
       if (job.state === "complete" || job.state === "cancelled") { finished = true; return; }
       if (job.state === "failed") {
         finished = true;
         throw stageFailure(job.error);
       }
+      const delay = discoveryPollDelay(poll);
       await new Promise<void>((resolve) => {
         const done = () => { window.clearTimeout(timer); signal.removeEventListener("abort", done); resolve(); };
-        const timer = window.setTimeout(done, 500);
+        const timer = window.setTimeout(done, delay);
         signal.addEventListener("abort", done, { once: true });
       });
+      waited += delay;
       if (!signal.aborted) job = await request({ job_id: job.job_id });
     }
     throw new DiscoveryFailure("discovery_timeout", "Discovery took too long. Known tools and choices were kept. Try again shortly.");

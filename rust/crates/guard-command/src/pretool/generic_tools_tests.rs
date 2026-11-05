@@ -37,7 +37,7 @@ fn a_search_tool_query_is_not_typed_as_a_prompt() {
             result.reason
         );
         assert!(
-            !result.reason.contains("override trusted instructions"),
+            !result.reason.contains("trusted instructions"),
             "{query}: {}",
             result.reason
         );
@@ -281,4 +281,135 @@ fn a_result_read_with_no_arguments_at_all_keeps_its_review() {
         "{} {}",
         result.reason_code, result.reason
     );
+}
+
+/// Bun runs a script entry the way `node` does. Typing that run as a package
+/// action put it under the installed policy's package-script setting, so an
+/// ordinary read-only test run asked for fresh approval instead of reaching
+/// the workspace sandbox the same run under `node` already reaches.
+#[test]
+fn a_bun_script_entry_is_not_a_package_action() {
+    for command in [
+        "bun node_modules/vitest/vitest.mjs run tests/unit.test.ts",
+        "bun node_modules/vitest/dist/cli.js run tests/unit.test.ts",
+        "bun scripts/report.ts",
+        "bun ./tools/check.mts --quiet",
+    ] {
+        let result = evaluate(serde_json::json!({
+            "tool_name": "Bash",
+            "tool_input": {"command": command},
+        }));
+        assert_ne!(
+            result.action.action_type,
+            PreToolActionTypeV1::Package,
+            "{command}: {} {}",
+            result.reason_code,
+            result.reason
+        );
+        assert_ne!(
+            result.reason_code, "native_package_review",
+            "{command}: {}",
+            result.reason
+        );
+    }
+}
+
+/// Bun's own verbs are still package work: reading a script suffix must not
+/// take an install out of the package path.
+#[test]
+fn a_bun_verb_is_still_a_package_action() {
+    for command in ["bun install", "bun add left-pad", "bun add ./vendor/lib.js"] {
+        let result = evaluate(serde_json::json!({
+            "tool_name": "Bash",
+            "tool_input": {"command": command},
+        }));
+        assert_eq!(
+            result.action.action_type,
+            PreToolActionTypeV1::Package,
+            "{command}: {} {}",
+            result.reason_code,
+            result.reason
+        );
+    }
+}
+
+/// A locally installed tool carries its own name, which may spell a manager's
+/// inside it. Reading that name token by token — the reading a harness tool's
+/// name needs — made `npm-run-all` an `npm` install, so a run of the project's
+/// own test scripts lost its containment and asked to review an install that
+/// never happens.
+#[test]
+fn a_local_tool_named_after_a_manager_is_not_a_package_action() {
+    for command in [
+        "./node_modules/.bin/npm-run-all test:unit",
+        "./node_modules/.bin/npm-run-all --parallel test:unit test:int",
+        "node_modules/.bin/npm-check-updates --target minor",
+        "./node_modules/.bin/yarn-deduplicate --list",
+        "cargo-nextest nextest run",
+    ] {
+        let result = evaluate(serde_json::json!({
+            "tool_name": "Bash",
+            "tool_input": {"command": command},
+        }));
+        assert_ne!(
+            result.action.action_type,
+            PreToolActionTypeV1::Package,
+            "{command}: {} {}",
+            result.reason_code,
+            result.reason
+        );
+        assert_ne!(
+            result.reason_code, "native_package_review",
+            "{command}: {}",
+            result.reason
+        );
+    }
+}
+
+/// The managers themselves are still read as package tools, under every
+/// spelling they are launched by: an absolute path, the version a Python
+/// manager carries, the extension Windows appends, and the hyphenated names
+/// that do install. Reading a name token by token reached all of these, so
+/// narrowing it must not drop one.
+#[test]
+fn a_manager_is_still_read_as_a_package_tool() {
+    for executable in [
+        "npm",
+        "/usr/bin/apt-get",
+        "pip3",
+        "pip3.12",
+        "pip-3",
+        "pip-3.12",
+        "dnf-3",
+        "cargo-install-update",
+        "npm.cmd",
+        "C:\\Program Files\\nodejs\\npm.cmd",
+        "pip-sync",
+        "cargo-binstall",
+        "yarn",
+        "pnpm",
+        "brew",
+        "poetry",
+    ] {
+        assert!(
+            super::executable_is_package_tool(executable),
+            "{executable}"
+        );
+    }
+    for executable in [
+        "./node_modules/.bin/npm-run-all",
+        "npm-check-updates",
+        "yarn-deduplicate",
+        "cargo-nextest",
+        "pip-audit",
+        "apt-cache",
+        "npmlog",
+        "vitest",
+        "node",
+    ] {
+        assert!(
+            !super::executable_is_package_tool(executable),
+            "{executable}"
+        );
+    }
 }

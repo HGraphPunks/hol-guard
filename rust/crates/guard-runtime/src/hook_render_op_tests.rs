@@ -535,3 +535,63 @@ fn cli_hook_emit_without_document_answers_as_before() {
     let result = decode(evaluate_hook_render_request(&req).expect("encoded"));
     assert_eq!(result.code, "native_hook_render_unrenderable");
 }
+
+#[test]
+fn a_large_cursor_edge_still_fits_its_route_budget() {
+    // The route sends the edge result the daemon already produced, and a
+    // native response may be far larger than an ordinary render request. A
+    // valid large edge that did not fit would drop the probe back to an
+    // ordinary review and lose its containment route, so the kind carries a
+    // budget of its own.
+    let mut req = request("cursor_shell_route");
+    req.harness = "cursor".to_owned();
+    req.cli = Some(json!({
+        "payload": {"tool_name": "Bash"},
+        "edge": {
+            "harness": "cursor",
+            "event_name": "PreToolUse",
+            "containment_route": "none",
+            "result": {"reason": "x".repeat(guard_contracts::HOOK_RENDER_MAX_BYTES)},
+        },
+    }));
+    crate::package_authority_op::request_digest_with_limit(
+        &req,
+        guard_contracts::HOOK_RENDER_MAX_BYTES,
+    )
+    .expect_err("the ordinary budget is too small for this edge");
+    crate::package_authority_op::request_digest_with_limit(
+        &req,
+        guard_contracts::hook_render_max_bytes("cursor_shell_route"),
+    )
+    .expect("the route's own budget holds it");
+}
+
+#[test]
+fn a_large_daemon_reply_still_fits_the_bridge_budget() {
+    // The bridge kinds carry the whole daemon reply they render, and a native
+    // response may be far larger than an ordinary render request. Refusing a
+    // valid large reply would turn an allow the daemon already reached into a
+    // fail-closed refusal of a permitted call, so the kinds carry a budget of
+    // their own.
+    for kind in ["hermes_bridge", "muse_bridge"] {
+        let mut req = request(kind);
+        req.harness = kind.trim_end_matches("_bridge").to_owned();
+        req.cli = Some(json!({
+            "event_name": "PreToolUse",
+            "response": {
+                "policy_action": "allow",
+                "reason": "x".repeat(guard_contracts::HOOK_RENDER_MAX_BYTES),
+            },
+        }));
+        crate::package_authority_op::request_digest_with_limit(
+            &req,
+            guard_contracts::HOOK_RENDER_MAX_BYTES,
+        )
+        .expect_err("the ordinary budget is too small for this reply");
+        crate::package_authority_op::request_digest_with_limit(
+            &req,
+            guard_contracts::hook_render_max_bytes(kind),
+        )
+        .expect("the bridge's own budget holds it");
+    }
+}

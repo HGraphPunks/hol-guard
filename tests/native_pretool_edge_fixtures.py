@@ -56,10 +56,13 @@ def _edge(harness: str, event: str, action_type: str = "unknown") -> dict[str, o
     edge: dict[str, object] = {
         "schema": "guard-hook-edge-result.v2",
         "authority": "rust",
+        # The edge answers with the request id the envelope carried.
+        "request_id": "request-1",
         "harness": harness,
         "event_name": "PreToolUse",
         "payload_kind": "inline",
         "harness_response": {"decision": "block", "reason": "HOL Guard requires review for this bounded action."},
+        "containment_route": "none",
         "result": {
             "schema": "guard-pre-tool-result.v1",
             "version": 1,

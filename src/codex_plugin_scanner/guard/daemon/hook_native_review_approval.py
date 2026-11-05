@@ -6,13 +6,14 @@ import logging
 import sqlite3
 import time
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
-from ..models import GuardApprovalRequest
-from ..native_hook_adapter import NativeHookAdapterError, native_review_request
+from ..live_process_identity import CODEX_BROWSER_WAIT_PROCESS_KEY, CODEX_BROWSER_WAIT_TIMEOUT_SECONDS_KEY
+from ..native_guard_store import NativeGuardStoreUnavailable
+from ..native_hook_adapter import NativeHookAdapterError, native_review_query
 from ..native_hook_authority_state import hook_authority_integrity_key
 from .hook_fail_closed import (
     canonical_harness,
@@ -23,28 +24,16 @@ from .hook_fail_closed import (
 )
 from .hook_native_exact_action import review_evidence_parts
 from .hook_native_package_review import native_package_review_response
-from .hook_native_review_binding import (
-    native_review_claimed_allow,
-    native_review_matching_allow,
-    native_review_matching_block,
-    native_review_policy_binding,
-)
-from .hook_native_saved_approval import native_saved_decision_response
+from .hook_native_review_binding import native_review_policy_binding, native_review_settle
+from .hook_native_saved_approval import native_exact_command_block_response, native_saved_decision_response
 from .hook_request_parsing import native_review_launch_target as _native_review_launch_target
 from .hook_request_parsing import native_review_tool_name as _native_review_tool_name
 from .hook_request_parsing import pre_tool_command
-from .native_review_allow_hint import native_review_hint
-from .native_review_connector import (
-    connector_agent_reason,
-    connector_is_local,
-    native_review_setup_connector,
-    raise_connector_setup_notice,
-    record_native_review_connector_context,
-)
-from .native_review_records import native_review_approval_center_url, record_silent_native_review_event
+from .native_review_allow_hint import native_review_hint_ask
+from .native_review_connector import native_review_connector_lookup, raise_connector_setup_notice
+from .native_review_records import native_review_approval_center_url
 
 if TYPE_CHECKING:
-    from ..local_cli_hook import SetupConnector
     from ..store import GuardStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -78,6 +67,7 @@ def pause_native_pre_tool_for_approval(
     claimed_approval_request_id: str | None = None,
     local_cli_rule: Mapping[str, object] | None = None,
     review_evidence: Mapping[str, object] | None = None,
+    exact_command_block: object = None,
 ) -> dict[str, object]:
     """Answer a native review from the edge's custom extension rule and review evidence."""
     launch_target = _native_review_launch_target(payload)
@@ -98,6 +88,18 @@ def pause_native_pre_tool_for_approval(
     valid, identity, exact_token, once_only_reason = evidence
     if not valid:
         return _policy_binding_failed(harness, native_result, guard_home)
+    # A saved block on the exact command, such as a Guard Cloud policy rule,
+    # wins over an exact-action allow or a pending once approval.
+    command_block = native_exact_command_block_response(
+        store,
+        harness=harness,
+        command=pre_tool_command(payload),
+        native_result=native_result,
+        workspace=workspace,
+        edge_hint=exact_command_block,
+    )
+    if command_block is not None:
+        return command_block
     saved = native_saved_decision_response(
         store,
         harness=harness,
@@ -110,7 +112,9 @@ def pause_native_pre_tool_for_approval(
         return saved
     if custom is not None:
         return custom
-    if native_review_matching_block(
+    # The Keep blocked check, a claimed once-approval and the approve-once
+    # spend run in one resident call.
+    reuse = native_review_settle(
         store,
         harness=harness,
         tool_name=tool_name,
@@ -118,7 +122,11 @@ def pause_native_pre_tool_for_approval(
         launch_target=launch_target,
         workspace=workspace,
         identity=identity,
-    ):
+        spend=claim_saved_approval,
+        claimed_saved_allow_hash=claimed_saved_allow_hash,
+        claimed_approval_request_id=claimed_approval_request_id,
+    )
+    if reuse == "blocked":
         blocked = dict(native_result)
         blocked.update(
             decision="deny",
@@ -133,30 +141,7 @@ def pause_native_pre_tool_for_approval(
         response["prompted"] = False
         response["approval_reuse_status"] = "blocked"
         return response
-    if claimed_saved_allow_hash is not None and native_review_claimed_allow(
-        store,
-        harness=harness,
-        artifact_id=_native_review_artifact_id(harness, tool_name),
-        workspace=workspace,
-        identity=identity,
-        claimed_saved_allow_hash=claimed_saved_allow_hash,
-        claimed_approval_request_id=claimed_approval_request_id,
-        claim_saved_approval=claim_saved_approval,
-    ):
-        allowed = dict(native_result)
-        allowed["decision"] = "allow"
-        allowed["minimum_action"] = "allow"
-        allowed["policy_action"] = "allow"
-        return render_accepted_allow(harness, allowed, guard_home=guard_home, deadline=deadline)
-    if claim_saved_approval and native_review_matching_allow(
-        store,
-        harness=harness,
-        tool_name=tool_name,
-        artifact_id=_native_review_artifact_id(harness, tool_name),
-        launch_target=launch_target,
-        workspace=workspace,
-        identity=identity,
-    ):
+    if reuse == "allowed":
         allowed = dict(native_result)
         allowed["decision"] = "allow"
         allowed["minimum_action"] = "allow"
@@ -182,23 +167,19 @@ def pause_native_pre_tool_for_approval(
     except (OSError, RuntimeError, TypeError, ValueError):
         ask = False
     approval_center_url = native_review_approval_center_url(store)
-    connector = native_review_setup_connector(
-        store, payload=payload, native_result=native_result, workspace=workspace, home_dir=home_dir
+    # The queue call looks up the connector a non-recognition review waits on
+    # and answers the agent with its setup text; the row keeps the native
+    # reason as evidence.
+    connector_lookup = native_review_connector_lookup(
+        payload=payload, native_result=native_result, workspace=workspace, home_dir=home_dir
     )
-    # Approving a row bound to neither the retry nor an exact-action Always
-    # cannot let the agent run the action, so the reason never sends the user there.
-    approval_can_unblock = identity is not None or exact_token is not None
-    # The row keeps the native reason as evidence; only the agent text changes.
-    if connector is None or (connector_is_local(connector) and identity is None and exact_token is not None):
-        # Only an exact-action Always allow can release a local row without a retry binding;
-        # the ordinary review text says so.
-        setup_reason = None
-    else:
-        setup_reason = connector_agent_reason(
-            connector, ask=ask and approval_can_unblock, approvable=identity is not None
-        )
     if not ask or (identity is None and exact_token is None):
         # The agent stays on the silent block. The inbox row is a separate record.
+        facts = {"ask": ask, "home_dir": str(home_dir or Path.home())}
+        # The queued row is stored with this same binding; without one a
+        # one-time approval cannot match the agent's retry. The resident
+        # derives it and the setup facts itself for the queued render.
+        bound = {"retry_reuses_approval": identity is not None, "exact_action_allowable": exact_token is not None}
         queued = queue_native_pre_tool_review(
             store,
             harness=harness,
@@ -213,30 +194,30 @@ def pause_native_pre_tool_for_approval(
             once_only_reason=once_only_reason,
             approval_center_url=approval_center_url,
             review_binding=identity,
-            connector=connector,
+            connector_lookup=connector_lookup,
             policy_binding_verified=True,
+            silent=True,
+            respond={"silent_review_block": facts},
         )
         if queued is None:
             _LOGGER.warning("Silent review blocked without an inbox row for %s", harness)
-        else:
-            record_silent_native_review_event(store, queued)
+        block = queued.pop("hook_response", None) if queued else None
+        if isinstance(block, dict):
+            return block
         request_id, approval_url = (queued.get("request_id"), queued.get("approval_url")) if queued else (None, None)
+        setup = _connector_setup(queued)
         inputs = {
             "harness": harness,
             "result": dict(native_result),
-            # The resident drops the setup text when the review never reached the inbox.
-            "setup_reason": setup_reason,
             "queued": queued is not None,
             "request_id": request_id if isinstance(request_id, str) else None,
             "approval_url": approval_url if isinstance(approval_url, str) else None,
-            "ask": ask,
-            # The queued row is stored with this same binding; without one a
-            # one-time approval cannot match the agent's retry.
-            "retry_reuses_approval": identity is not None,
-            "exact_action_allowable": exact_token is not None,
-            "connector_is_local": connector_is_local(connector),
             "guard_home": str(guard_home),
-            "home_dir": str(home_dir or Path.home()),
+            # The resident drops the setup text when the review never reached the inbox.
+            "setup_reason": setup.get("setup_reason"),
+            "connector_is_local": setup.get("is_local") is True,
+            **bound,
+            **facts,
         }
         return render_silent_review_block(harness, inputs, guard_home=guard_home, deadline=deadline)
 
@@ -254,9 +235,11 @@ def pause_native_pre_tool_for_approval(
         once_only_reason=once_only_reason,
         approval_center_url=approval_center_url,
         review_binding=identity,
-        connector=connector,
+        connector_lookup=connector_lookup,
         policy_binding_verified=True,
         claude_notice=canonical_harness(harness) == "claude-code",
+        codex_live_wait=canonical_harness(harness) == "codex",
+        respond={"paused_review": {}},
     )
     if queued is None:
         failed = dict(native_result)
@@ -266,13 +249,18 @@ def pause_native_pre_tool_for_approval(
         failed["reason_code"] = "native_review_queue_failed"
         failed["reason"] = "HOL Guard could not record this review for approval."
         return render_pre_tool(harness, failed, guard_home=guard_home, deadline=deadline)
-    response = render_pre_tool_review(
-        harness,
-        native_result if setup_reason is None else {**native_result, "reason": setup_reason},
-        approval=queued,
-        guard_home=guard_home,
-        deadline=deadline,
-    )
+    # The queue call renders the paused review with the row it stored; a row
+    # read back separately carries none.
+    response = queued.pop("hook_response", None)
+    if not isinstance(response, dict):
+        setup_reason = _connector_setup(queued).get("setup_reason")
+        response = render_pre_tool_review(
+            harness,
+            native_result if not isinstance(setup_reason, str) else {**native_result, "reason": setup_reason},
+            approval=queued,
+            guard_home=guard_home,
+            deadline=deadline,
+        )
     response["prompted"] = True
     response["approval_center_url"] = approval_center_url
     return response
@@ -293,33 +281,24 @@ def queue_native_pre_tool_review(
     deadline: float | None = None,
     once_only_reason: str | None = None,
     approval_center_url: str | None = None,
-    connector: SetupConnector | None = None,
+    connector_lookup: dict[str, object] | None = None,
     bound_bash: Mapping[str, object] | None = None,
     claude_notice: bool = False,
     policy_binding_verified: bool = False,
+    codex_live_wait: bool = False,
+    silent: bool = False,
+    respond: dict[str, object] | None = None,
 ) -> dict[str, object] | None:
     if not policy_binding_verified:
         try:
             native_review_policy_binding(harness=harness, native_result=native_result, verified_receipt=native_receipt)
         except ValueError:
             return None
-    persist = getattr(store, "add_approval_request", None)
-    lookup = getattr(store, "get_approval_request", None)
-    if not callable(persist) or not callable(lookup):
+    queue = getattr(store, "queue_native_review", None)
+    if not callable(queue):
         return None
-    if bound_bash is not None:
-        from .native_review_bound_bash import valid_bound_bash_review
-
-        if not valid_bound_bash_review(
-            bound_bash,
-            harness=harness,
-            exact_token=exact_token,
-            review_binding=review_binding,
-            decision=native_result,
-            native_receipt=native_receipt,
-        ):
-            return None
     request_id = uuid.uuid4().hex
+    live_wait = _codex_live_wait(payload, workspace) if codex_live_wait else None
     review = {
         "result": dict(native_result),
         "native_receipt": dict(native_receipt) if native_receipt is not None else None,
@@ -331,30 +310,14 @@ def queue_native_pre_tool_review(
         "review_binding": review_binding,
         "exact_token": exact_token,
         "once_only_reason": once_only_reason,
-        "queue_group_id": None if connector is None else connector.queue_group_id,
-        "bound_bash": (
-            None
-            if bound_bash is None
-            else {"subject": bound_bash["subject"], "review_lineage": bound_bash["review_lineage"]}
-        ),
+        # A connector the queue call finds groups the row under its setup.
+        "queue_group_id": None,
+        # The resident queues a prepared Bash review only as the reply the
+        # native Bash owner prepared, with the receipt's policy binding.
+        "bound_bash": None if bound_bash is None else dict(bound_bash),
     }
     try:
-        fields = native_review_request(
-            harness,
-            payload,
-            review,
-            workspace=workspace,
-            home_dir=home_dir,
-            guard_home=guard_home,
-            deadline=deadline,
-        )
-        request = GuardApprovalRequest(
-            **cast("dict[str, Any]", {key: value for key, value in fields.items() if key != "changed_fields"}),
-            changed_fields=tuple(cast("list[str]", fields["changed_fields"])),
-            extension_allow_hint=native_review_hint(
-                store, payload, native_result, workspace, home_dir, deadline, connector
-            ),
-        )
+        query = native_review_query(harness, payload, review, workspace=workspace, home_dir=home_dir)
     except (OSError, RuntimeError, TypeError, ValueError, KeyError) as error:
         # Never make an action approvable when its details could not be safely presented.
         # Exception messages can contain private tool input; log only the error class and, for
@@ -363,70 +326,65 @@ def queue_native_pre_tool_review(
         _LOGGER.warning("Native review presentation failed for %s (%s)", request_id, reason)
         return None
     now = datetime.now(tz=timezone.utc).isoformat()
-    # A prompted Claude review also gets the permission notice its
-    # PermissionRequest hook answers from; the resident builds and signs it in
-    # the same store write.
-    claude_review = (
-        _claude_review_notice(store, harness, payload, native_result, review_binding, request, deadline)
-        if claude_notice
-        else None
-    )
     try:
-        stored = lookup(_persist_review(persist, request, now, claude_review))
-    except (OSError, RuntimeError, TypeError, ValueError, sqlite3.Error):
-        return None
-    if connector is not None and isinstance(stored, dict):
-        record_native_review_connector_context(
-            store,
-            connector=connector,
-            native_result=native_result,
-            stored=stored,
-            harness=harness,
-            workspace=workspace,
-            deadline=deadline,
+        # The resident looks up the connector a non-recognition review waits
+        # on, builds the request from the query, decides its hint and queues it
+        # in one store call. A waiting Codex hook's operation and resume
+        # record, a prompted Claude review's permission notice, and a
+        # connector-setup review's context are written with it.
+        stored = queue(
+            query,
+            now,
+            hint=native_review_hint_ask(deadline),
+            silent=silent,
+            claude_key=_claude_notice_key(store, deadline) if claude_notice else None,
+            codex_live_wait=live_wait,
+            respond=respond,
+            connector_lookup=connector_lookup,
+            bound_bash=bound_bash is not None,
         )
-    raise_connector_setup_notice(store, stored, connector)
+    except (OSError, RuntimeError, TypeError, ValueError, sqlite3.Error) as error:
+        # The action fails closed. Only the store's fixed reason code, never an
+        # exception message that can carry tool input, reaches the log.
+        reason = error.reason if isinstance(error, NativeGuardStoreUnavailable) else type(error).__name__
+        _LOGGER.warning("Native review queue failed for %s (%s)", request_id, reason)
+        return None
+    raise_connector_setup_notice(store, stored)
     return stored if isinstance(stored, dict) else None
 
 
-def _persist_review(
-    persist: Callable[..., object],
-    request: GuardApprovalRequest,
-    now: str,
-    claude_review: dict[str, object] | None,
-) -> object:
-    if claude_review is None:
-        return persist(request, now)
-    try:
-        return persist(request, now, claude_review=claude_review)
-    except (OSError, RuntimeError, TypeError, ValueError, sqlite3.Error):
-        # The notice is best effort: a combined write the resident refuses
-        # (too large, older resident) still queues the review.
-        return persist(request, now)
+def _connector_setup(queued: object) -> Mapping[str, object]:
+    """The connector the queue call found for the review, or nothing."""
+    setup = queued.get("connector_setup") if isinstance(queued, dict) else None
+    return cast(Mapping[str, object], setup) if isinstance(setup, dict) else {}
+
+
+def _codex_live_wait(payload: Mapping[str, object], workspace: Path | None) -> dict[str, object] | None:
+    """The waiting bridge's facts; the resident proves it live and builds the wait it links."""
+    process = payload.get(CODEX_BROWSER_WAIT_PROCESS_KEY)
+    timeout_seconds = payload.get(CODEX_BROWSER_WAIT_TIMEOUT_SECONDS_KEY)
+    if process is None and timeout_seconds is None:
+        return None
+    return {
+        "process": process,
+        "timeout_seconds": timeout_seconds,
+        "workspace": None if workspace is None else str(workspace),
+    }
 
 
 def _native_review_artifact_id(harness: str, tool_name: str) -> str:
     return f"{harness}:native-pretool:{tool_name}"
 
 
-def _claude_review_notice(
-    store: object,
-    harness: str,
-    payload: Mapping[str, object],
-    native_result: Mapping[str, object],
-    binding: str | None,
-    request: GuardApprovalRequest,
-    deadline: float | None,
-) -> dict[str, object] | None:
-    """The facts the resident needs to sign a Claude review's notice, or ``None``.
+def _claude_notice_key(store: object, deadline: float | None) -> dict[str, str] | None:
+    """The integrity key a prompted Claude review's notice is signed with, or ``None``.
 
     The notice is best effort, as the retired Python notice was: without an
     integrity key, or once reading it leaves too little of the hook deadline
     for the queue write, the review still queues and the hook falls back to
     its ordinary prompt. The key goes in the store request's top-level
     ``integrity_key_b64`` and ``integrity_key_id`` args, which the request
-    digest never covers. The hook payload carries only what the notice reads,
-    so the command is not copied in full a second time.
+    digest never covers.
     """
 
     if not _notice_time_left(deadline):
@@ -434,26 +392,9 @@ def _claude_review_notice(
     key = hook_authority_integrity_key(cast("GuardStore", store), create_key=True)
     if key is None or not _notice_time_left(deadline):
         return None
-    hook_payload = {name: payload[name] for name in _NOTICE_PAYLOAD_FIELDS if name in payload}
-    command = pre_tool_command(payload)
-    if command:
-        hook_payload["tool_input"] = {"command": command}
-    return {
-        "review": {
-            "harness": harness,
-            "hook_payload": hook_payload,
-            "reason": native_result.get("reason"),
-            "review_binding": binding,
-            "config_path": request.config_path,
-            "source_scope": request.source_scope,
-        },
-        **key,
-    }
+    return key
 
 
-# What the resident's notice reads from the hook payload: the session and the
-# tool name fields (`TOOL_NAME_FIELDS`); the command goes under `tool_input`.
-_NOTICE_PAYLOAD_FIELDS = ("session_id", "tool_name", "toolName", "tool")
 # Below this much of the hook deadline the notice is dropped, so the key read
 # never costs the review its queue write.
 _NOTICE_DEADLINE_MARGIN_SECONDS = 1.0

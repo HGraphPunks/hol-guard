@@ -33,6 +33,8 @@ mod github_cli_classify;
 pub use github_cli_classify::*;
 mod github_workflow_prepare;
 pub use github_workflow_prepare::*;
+mod protect_advisory_merge;
+pub use protect_advisory_merge::*;
 mod protect_request;
 pub use protect_request::*;
 mod portable_project_identity;
@@ -75,6 +77,8 @@ mod workspace_review_contracts;
 pub use workspace_review_contracts::*;
 mod archive_inspection;
 pub use archive_inspection::*;
+mod content_decode;
+pub use content_decode::*;
 
 mod archive_acquisition;
 pub use archive_acquisition::*;
@@ -318,6 +322,8 @@ mod trust_attestation_verify;
 pub use trust_attestation_verify::*;
 mod protection_health_report;
 pub use protection_health_report::*;
+mod resident_health;
+pub use resident_health::*;
 
 pub const NATIVE_PROTOCOL_VERSION: u16 = 1;
 pub const GUARD_HOOK_ENVELOPE_V2_SCHEMA: &str = "guard-hook-envelope.v2";
@@ -379,6 +385,19 @@ pub struct GuardHookEnvelopeV2 {
     /// receipt, or request identity.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub record_receipt: bool,
+    /// With `record_receipt`, the daemon asks the edge to queue a
+    /// `PostToolUse` answer's command activity behind its receipt, after the
+    /// Composio discovery of a call that succeeded, so it need not submit
+    /// them in more requests. It never changes the verdict, receipt, or
+    /// request identity.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub record_activity: bool,
+    /// With `record_receipt`, the daemon asks the edge to queue a
+    /// `PreToolUse` answer's command activity behind its receipt when the
+    /// daemon returns that answer as the edge rendered it. It never changes
+    /// the verdict, receipt, or request identity.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub record_pre_tool_activity: bool,
     /// The managed-policy view the daemon holds for a Pi or Oh My Pi
     /// `PostToolUse`: `managed_policy_status`, `managed_policy_hash`,
     /// `managed_locked_settings` and `managed_policy`, the shape the
@@ -387,6 +406,26 @@ pub struct GuardHookEnvelopeV2 {
     /// request identity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub structured_output_config: Option<Value>,
+    /// The argv that starts Guard's CLI, so a `PreToolUse` the edge routes
+    /// into the contained sink comes back already rewritten
+    /// (`GuardHookEdgeResultV2::containment_rewrite`). Only the daemon sends
+    /// it; without it the edge rewrites nothing. It never changes the
+    /// verdict, receipt, or request identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub containment_sink: Option<GuardHookContainmentSinkV1>,
+}
+
+/// What the edge's containment rewrite needs beyond the envelope: the
+/// workspace, home and Guard home are the envelope's `source`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct GuardHookContainmentSinkV1 {
+    /// The argv prefix that starts Guard's CLI; the sink command follows it.
+    pub sink_command: Vec<String>,
+    /// The daemon admits the runtime's own sink command on Cursor's
+    /// `beforeShellExecution`, so the probe answer may route there.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub native_sink: bool,
 }
 
 /// Where the daemon's custom extension rules live and what a command's
@@ -446,16 +485,34 @@ pub struct GuardHookEdgeResultV2 {
     /// second round trip.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub containment_route: Option<String>,
+    /// The edge's rewrite of a `sink` route, when the envelope carried
+    /// `containment_sink`: `routed` when `harness_response` is the allow that
+    /// runs the call in the sink, `kept` when the receipt stands. Absent when
+    /// the edge did not rewrite; a hook then asks `containment_rewrite`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub containment_rewrite: Option<String>,
     /// The daemon's custom extension rule for a reviewed `PreToolUse`, when
     /// one applies. An allowed `PreToolUse` a rule blocks carries the block as
     /// its `harness_response` instead.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub local_cli_rule: Option<GuardHookLocalCliRuleV1>,
+    /// Whether a saved artifact-scoped block may name the exact command of a
+    /// `PreToolUse` the daemon sent its rules for, outside Watch. `false` lets
+    /// the daemon skip its saved exact-command block lookup; `true`, or an
+    /// absent answer, leaves the lookup to decide.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exact_command_block: Option<bool>,
     /// The edge queued `receipt` with the running hook evidence writer for
     /// the request's Guard home, as the envelope's `record_receipt` asked, so
     /// the daemon does not submit it again.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub receipt_recorded: bool,
+    /// The edge also queued the answer's command activity behind `receipt`,
+    /// as the envelope's `record_activity` (`PostToolUse`) or
+    /// `record_pre_tool_activity` (`PreToolUse`) asked, so the daemon does
+    /// not record it again.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub activity_recorded: bool,
     /// The retry binding and exact-action token of a reviewed `PreToolUse`,
     /// answered as a `HookReview` query would, when the daemon sent its
     /// extension-control digest.

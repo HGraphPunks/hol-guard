@@ -37,7 +37,7 @@ fn envelope(digest: Option<&str>, recording_only: bool) -> GuardHookEnvelopeV2 {
                 pager_disabled: false,
                 xdg_config_home: None,
                 git_config_no_system: false,
-                library_search_paths: Default::default(),
+                ..Default::default()
             }),
         },
         recording_only,
@@ -51,7 +51,10 @@ fn envelope(digest: Option<&str>, recording_only: bool) -> GuardHookEnvelopeV2 {
         }),
         observe_local_cli: false,
         record_receipt: false,
+        record_activity: false,
+        record_pre_tool_activity: false,
         structured_output_config: None,
+        containment_sink: None,
     }
 }
 

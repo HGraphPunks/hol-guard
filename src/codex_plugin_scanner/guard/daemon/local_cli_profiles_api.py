@@ -5,11 +5,16 @@ from __future__ import annotations
 import hashlib
 import re
 from collections.abc import Iterable, Mapping, Sequence
+from pathlib import Path
 
+from ..native_context import _resolve_digest_home, native_context_digest
+from ..native_local_cli_identity import record_local_cli_identity_failure
 from ..runtime.custom_extension_profiles import (
-    KNOWN_CLI_PROFILES,
+    CliProfileUnavailableError,
     KnownCliProfile,
+    known_cli_profiles,
     profile_for_executable,
+    profiles_for_executables,
 )
 from ..runtime.local_cli_commands import (
     OTHER_COMMAND_ID,
@@ -17,7 +22,6 @@ from ..runtime.local_cli_commands import (
     LocalCliCommand,
     merge_discovered_commands,
 )
-from ..runtime.local_cli_runner import runner_name, runner_target
 
 SEEDED_PROFILE_PREFIX = "local-cli.profile-"
 _VERSION_OR_TAG = re.compile(r"[A-Za-z0-9.^~<>=*+_-]+")
@@ -40,26 +44,75 @@ def merge_profile_commands(tool_name: str, discovered: Sequence[LocalCliCommand]
     return merge_discovered_commands(tool_name, (*discovered, *profile.local_cli_commands()))
 
 
-def profiled_cli_package_launch(tokens: Sequence[str]) -> bool:
+def profiled_cli_package_launch(tokens: Sequence[str], *, guard_home: Path | None = None) -> bool:
     """Return True when a package runner directly launches a profiled CLI.
 
     ``npx wrangler`` is a CLI call, not an MCP server; probing it over stdio
     would spawn the CLI and then reject the paste as a built-in launcher.
     Selector forms (``npx --package wrangler other``) and scoped packages
     (``@other/wrangler``) are not the profiled CLI, so they keep MCP discovery.
+    The native runtime reads which bin the runner launches and whether it is
+    profiled; when either answer is missing, the paste is treated as a
+    profiled launch so nothing is spawned.
+
+    ``guard_home`` is the home whose resident answers, which for a served
+    request is the store's own home rather than the operator's.
     """
 
     if not tokens:
         return False
-    runner = runner_name(tokens[0])
-    target = runner_target(runner, tuple(tokens[1:])) if runner is not None else None
-    if target is None:
+    target = _native_runner_target(tokens, guard_home=guard_home)
+    if target is _UNREADABLE:
+        # Only a runner paste can launch a profiled CLI, so a direct launch of a
+        # server keeps MCP discovery when the runner answer is missing, while a
+        # runner paste still spawns nothing.
+        return _names_package_runner(tokens[0])
+    if not isinstance(target, str):
         return False
     package_name, _, version_spec = target.rpartition("@") if target.rfind("@") > 0 else (target, "", "")
     # ``wrangler@npm:other`` or a URL spec can install a different package.
     if version_spec and not _VERSION_OR_TAG.fullmatch(version_spec):
         return False
-    return profile_for_executable(package_name) is not None
+    try:
+        [profile] = profiles_for_executables([package_name], guard_home=guard_home)
+    except CliProfileUnavailableError:
+        record_local_cli_identity_failure("native_cli_profile_unavailable")
+        return True
+    return profile is not None
+
+
+_UNREADABLE = object()
+
+# The runner names the native grammar reads a launched bin through, so a paste
+# this list does not name has no runner target for the native answer to miss.
+_PACKAGE_RUNNERS = frozenset({"npx", "bunx", "pnpm", "pnpx", "yarn", "npm"})
+
+
+def _names_package_runner(executable: str) -> bool:
+    name = Path(executable.replace("\\", "/")).name.lower()
+    if name.endswith(".cmd") or name.endswith(".exe"):
+        name = name[:-4]
+    return name in _PACKAGE_RUNNERS
+
+
+def _native_runner_target(tokens: Sequence[str], *, guard_home: Path | None = None) -> object:
+    """Return the launched bin's name, ``None``, or ``_UNREADABLE``."""
+
+    result = native_context_digest(
+        "package_runner_target",
+        {"tokens": [str(token) for token in tokens]},
+        guard_home=_resolve_digest_home(guard_home),
+    )
+    if not isinstance(result, dict) or result.get("status") != "ok":
+        record_local_cli_identity_failure("native_package_runner_target_unavailable")
+        return _UNREADABLE
+    target = result.get("package_runner_target")
+    if target is None:
+        return None
+    if not isinstance(target, str) or not target:
+        record_local_cli_identity_failure("native_package_runner_target_malformed")
+        return _UNREADABLE
+    return target
 
 
 _MCP_CLI_ID_PREFIX = "local-cli.mcp-"
@@ -78,7 +131,10 @@ def profile_catalog_seed(cli_id: str, tool_name: str) -> tuple[LocalCliCommand, 
 
     if cli_id.startswith(_MCP_CLI_ID_PREFIX):
         return ()
-    profile = profile_for_executable(tool_name)
+    return _profile_seed(tool_name, profile_for_executable(tool_name))
+
+
+def _profile_seed(tool_name: str, profile: KnownCliProfile | None) -> tuple[LocalCliCommand, ...]:
     if profile is None:
         return ()
     return merge_discovered_commands(tool_name, profile.local_cli_commands())
@@ -93,11 +149,7 @@ def is_default_catalog(command_ids: Iterable[object]) -> bool:
 def annotate_cli_profiles(items: list[dict[str, object]]) -> list[dict[str, object]]:
     """Copy profile metadata and suggested command states onto matching CLI items."""
 
-    annotated: list[dict[str, object]] = []
-    for item in items:
-        profile = _item_profile(item)
-        annotated.append(item if profile is None else _annotated(item, profile))
-    return annotated
+    return [item if profile is None else _annotated(item, profile) for item, profile in _item_profiles(items)]
 
 
 def seeded_profile_items(items: list[dict[str, object]], *, authority_revision: int) -> list[dict[str, object]]:
@@ -107,18 +159,27 @@ def seeded_profile_items(items: list[dict[str, object]], *, authority_revision: 
     observation or grant; they only open the trust-gated add flow.
     """
 
-    matched = {profile.profile_id for item in items if (profile := _item_profile(item)) is not None}
+    matched = {profile.profile_id for _item, profile in _item_profiles(items) if profile is not None}
     return [
         _seeded_item(profile, authority_revision=authority_revision)
-        for profile in KNOWN_CLI_PROFILES
+        for profile in known_cli_profiles()
         if profile.profile_id not in matched
     ]
 
 
-def _item_profile(item: dict[str, object]) -> KnownCliProfile | None:
-    if item.get("surface") != "cli":
-        return None
-    return profile_for_executable(item.get("name"))
+def _item_profiles(items: list[dict[str, object]]) -> list[tuple[dict[str, object], KnownCliProfile | None]]:
+    """Pair each item with its profile, asking the runtime once for the listing.
+
+    MCP servers are never profiled. A runtime that cannot answer leaves every
+    item unprofiled, which only hides suggestions.
+    """
+
+    names = [item.get("name") if item.get("surface") == "cli" else None for item in items]
+    try:
+        profiles = profiles_for_executables(names) if any(isinstance(name, str) for name in names) else ()
+    except CliProfileUnavailableError:
+        profiles = ()
+    return [(item, profiles[index] if profiles else None) for index, item in enumerate(items)]
 
 
 def _annotated(item: dict[str, object], profile: KnownCliProfile) -> dict[str, object]:
@@ -131,7 +192,8 @@ def _annotated(item: dict[str, object], profile: KnownCliProfile) -> dict[str, o
     if is_default_catalog(known):
         # Match the seed the apply transaction stores, so every shown
         # suggestion can be saved. Stored catalogs are shown as they are.
-        seed = profile_catalog_seed(str(item.get("cli_id") or ""), str(item.get("name") or ""))
+        cli_id = str(item.get("cli_id") or "")
+        seed = () if cli_id.startswith(_MCP_CLI_ID_PREFIX) else _profile_seed(str(item.get("name") or ""), profile)
         by_id = {command.get("command_id"): command for command in listed}
         listed = [by_id.get(command.command_id) or command.to_dict() for command in seed]
     annotated["commands"] = [_with_suggestion(command, suggested) for command in listed]

@@ -27,6 +27,10 @@ pub mod catalog_read_model;
 mod catalog_read_projection;
 #[path = "../../guard-command/src/catalog_read_query.rs"]
 mod catalog_read_query;
+#[path = "../../guard-command/src/cloud_action_binding.rs"]
+pub mod cloud_action_binding;
+#[path = "../../guard-command/src/cloud_action_canonical.rs"]
+mod cloud_action_canonical;
 #[path = "../../guard-command/src/cloud_audit_sync.rs"]
 pub mod cloud_audit_sync;
 #[path = "../../guard-command/src/cloud_scrub_shell.rs"]
@@ -63,6 +67,8 @@ pub mod command_model;
 mod command_operand_matchers;
 #[path = "../../guard-command/src/command_option_parsing.rs"]
 pub mod command_option_parsing;
+#[path = "../../guard-command/src/command_reviewed_literal.rs"]
+mod command_reviewed_literal;
 #[path = "../../guard-command/src/command_segment_parsing.rs"]
 mod command_segment_parsing;
 #[path = "../../guard-command/src/command_specialized_matchers.rs"]
@@ -75,9 +81,23 @@ mod command_structured_matchers;
 mod command_tokens;
 #[path = "../../guard-command/src/contained_argv.rs"]
 pub mod contained_argv;
+#[path = "../../guard-command/src/contained_git.rs"]
+mod contained_git;
+#[path = "../../guard-command/src/contained_inline_target.rs"]
+mod contained_inline_target;
+#[path = "../../guard-command/src/contained_node_tool.rs"]
+mod contained_node_tool;
+#[path = "../../guard-command/src/contained_package_test.rs"]
+pub mod contained_package_test;
+#[path = "../../guard-command/src/contained_prefix.rs"]
+mod contained_prefix;
+#[path = "../../guard-command/src/contained_run_prefix.rs"]
+mod contained_run_prefix;
 #[cfg(unix)]
 #[path = "../../guard-command/src/contained_runner/mod.rs"]
 pub mod contained_runner;
+#[path = "../../guard-command/src/containment_compatibility.rs"]
+mod containment_compatibility;
 #[path = "../../guard-command/src/contributed_mcp_decision.rs"]
 pub mod contributed_mcp_decision;
 #[path = "../../guard-command/src/contributed_mcp_url.rs"]
@@ -170,6 +190,8 @@ pub mod native_command_controls;
 pub mod native_command_program;
 #[path = "../../guard-command/src/network_url.rs"]
 pub mod network_url;
+#[path = "../../guard-command/src/node_build_output.rs"]
+pub mod node_build_output;
 #[path = "../../guard-command/src/npm_source_spec.rs"]
 pub mod npm_source_spec;
 #[path = "../../guard-command/src/ordered_json.rs"]
@@ -325,6 +347,8 @@ pub mod shell_execution_context;
 mod shell_execution_context_support;
 #[path = "../../guard-command/src/shell_model_limits.rs"]
 mod shell_model_limits;
+#[path = "../../guard-command/src/shell_secret_read_glob.rs"]
+mod shell_secret_read_glob;
 #[path = "../../guard-command/src/shell_secret_read_support.rs"]
 mod shell_secret_read_support;
 #[path = "../../guard-command/src/shell_structure.rs"]
@@ -335,8 +359,12 @@ pub mod source_cli;
 pub mod supply_chain_package_eval;
 #[path = "../../guard-command/src/target_identities.rs"]
 pub mod target_identities;
+#[path = "../../guard-command/src/tsc_project.rs"]
+mod tsc_project;
 #[path = "../../guard-command/src/typescript_launch_evidence.rs"]
 pub mod typescript_launch_evidence;
+#[path = "../../guard-command/src/vite_output.rs"]
+pub mod vite_output;
 #[path = "../../guard-command/src/workspace_inventory.rs"]
 pub mod workspace_inventory;
 #[cfg(unix)]

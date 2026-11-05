@@ -11,7 +11,9 @@ pub(crate) use tokens::{shell_tokens, shell_tokens_preserving_redirects};
 #[path = "parser_segment_shapes.rs"]
 mod shapes;
 
-use shapes::sole_command_group;
+use shapes::{blank_top_level_groups, sole_command_group};
+pub(crate) use shapes::{blanked_top_level_group_list, command_has_top_level_group_list};
+
 pub(super) use shapes::{is_stderr_to_null_redirect, is_stderr_to_stdout_redirect};
 // Only the redirect tests in `command_compatibility` read the sink directly.
 #[cfg(test)]
@@ -54,6 +56,18 @@ fn split_execution_segments_inner(
             segment.end += inside.start;
         }
         return Ok(segments);
+    }
+    // A list whose elements are subshell groups: `(cd api && npm test) &&
+    // (cd web && npm test)`. Each group runs its list in a child shell, so
+    // the list is what the group can run, and blanking the brackets leaves
+    // every segment pointing at the text it came from.
+    if let Some(blanked) = blank_top_level_groups(&chars) {
+        let flat: String = blanked.into_iter().collect();
+        return split_execution_segments_inner(
+            &flat,
+            preserve_unquoted_backslash,
+            allow_background,
+        );
     }
     let mut quote = Quote::None;
     let mut escaped = false;
@@ -171,6 +185,13 @@ fn split_execution_segments_inner(
                 if is_stderr_to_stdout_redirect(&chars, index, preserve_unquoted_backslash) {
                     index += 1;
                     continue;
+                }
+                // `&>` is one token: the redirect that sends both streams to
+                // a file. Reading its `&` as a job separator left the same
+                // work spelled `A &> f`, `A > f 2>&1` and `A & > f` deciding
+                // three different ways.
+                if chars.get(index + 1) == Some(&'>') {
+                    return Err("command_redirect_not_yet_supported");
                 }
                 if chars.get(index + 1) != Some(&'&') {
                     if !allow_background {

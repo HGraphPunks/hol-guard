@@ -26,9 +26,14 @@ _REQUEST_SCHEMA = "guard-hook-render-request.v1"
 _RESULT_SCHEMA = "guard-hook-render-result.v1"
 _TIMEOUT_SECONDS = 5.0
 _MAX_REQUEST_BYTES = 256 * 1024
-# ``cli_hook_emit`` carries a whole daemon answer as escaped JSON text; the
-# resident gives that kind the larger budget too (``hook_render_max_bytes``).
+# ``cli_hook_emit`` carries a whole daemon answer as escaped JSON text and
+# ``cursor_shell_route`` carries the edge result the daemon already produced;
+# the resident gives both kinds the larger budget (``hook_render_max_bytes``).
 _CLI_HOOK_EMIT_MAX_REQUEST_BYTES = 4 * 1024 * 1024
+_CURSOR_ROUTE_MAX_REQUEST_BYTES = 4 * 1024 * 1024
+# The bridge kinds carry the whole daemon reply they render, which may be as
+# large as a native response, so they ask for the same larger budget.
+_DAEMON_REPLY_MAX_REQUEST_BYTES = 4 * 1024 * 1024
 
 
 def _render_payload(
@@ -86,8 +91,15 @@ def native_render_cli(
     """
 
     wire: dict[str, object] = {"kind": kind, "harness": harness, "cli": dict(params)}
+    # Each kind names its own bound here rather than reading one out of a
+    # table, so the scan that compares every bound against the transport's
+    # ceiling can still read what this call offers.
     if kind == "cli_hook_emit":
         payload = _render_payload(wire, guard_home, deadline, max_request_bytes=_CLI_HOOK_EMIT_MAX_REQUEST_BYTES)
+    elif kind == "cursor_shell_route":
+        payload = _render_payload(wire, guard_home, deadline, max_request_bytes=_CURSOR_ROUTE_MAX_REQUEST_BYTES)
+    elif kind in {"hermes_bridge", "muse_bridge"}:
+        payload = _render_payload(wire, guard_home, deadline, max_request_bytes=_DAEMON_REPLY_MAX_REQUEST_BYTES)
     else:
         payload = _render_payload(wire, guard_home, deadline, max_request_bytes=_MAX_REQUEST_BYTES)
     outcome = payload.get("outcome") if payload is not None else None
@@ -117,6 +129,40 @@ def native_hermes_bridge(
     if not isinstance(document, dict) or not isinstance(exit_code, int) or isinstance(exit_code, bool):
         return None
     return dict(document), exit_code
+
+
+def native_muse_bridge(
+    response: Mapping[str, object],
+    *,
+    event_name: str,
+    guard_home: Path | None = None,
+    deadline: float | None = None,
+) -> tuple[dict[str, object] | None, int] | None:
+    """Read a Muse daemon reply into its stdout document and exit status.
+
+    The document is ``None`` where Muse expects empty stdout, which is how it
+    reads a permitted call. ``None`` for the whole result means the resident
+    could not answer, and the caller fails closed rather than deciding here
+    what the reply meant. ``deadline`` is the hook's absolute
+    ``time.monotonic()`` budget; the render gets only what remains.
+    """
+
+    rendered = native_render_cli(
+        "muse_bridge",
+        "muse",
+        {"response": dict(response), "event_name": str(event_name)},
+        guard_home=guard_home,
+        deadline=deadline,
+    )
+    if rendered is None or rendered[1] is None:
+        return None
+    document = rendered[1].get("document")
+    exit_code = rendered[1].get("exit_code")
+    if document is not None and not isinstance(document, dict):
+        return None
+    if not isinstance(exit_code, int) or isinstance(exit_code, bool):
+        return None
+    return (dict(document) if document is not None else None), exit_code
 
 
 def native_cli_hook_emit(
@@ -188,34 +234,6 @@ def native_evaluation_has_terminal_policy_action(
 
 
 # The payload fields the observer-event rule reads to name an attested event.
-_OBSERVER_EVENT_PAYLOAD_FIELDS = (
-    "hook_event_name",
-    "hookEventName",
-    "cursor_source_hook_event",
-)
-
-
-# The payload fields the after-shell rule reads to judge a Cursor report.
-_AFTER_SHELL_PAYLOAD_FIELDS = (
-    "duration",
-    "event",
-    "hook_event_name",
-    "hookEventName",
-    "hook_name",
-    "output",
-    "result_json",
-)
-
-
-# The payload fields the artifact-id rule reads to name an event.
-_ARTIFACT_ID_PAYLOAD_FIELDS = (
-    "source_scope",
-    "tool_name",
-    "event",
-    "hook_event_name",
-    "hookEventName",
-    "hook_name",
-)
 
 
 def native_render_pre_tool(

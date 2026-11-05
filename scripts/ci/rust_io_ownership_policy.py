@@ -40,8 +40,6 @@ _EQUIVALENCE_FUNCTIONS: Final = frozenset({"output_equivalent", "parity_signatur
 _COMPATIBILITY_PATHS: Final = frozenset({"src/codex_plugin_scanner/guard/native_command_model.py"})
 _TRANSPORT_IDENTITY_PATHS: Final = frozenset(
     {
-        "src/codex_plugin_scanner/guard/native_shell_request_authority.py",
-        "src/codex_plugin_scanner/guard/native_developer_inspection_authority.py",
         "src/codex_plugin_scanner/guard/native_restricted_pytest.py",
         # Resolves the session directory a launch is bound to; the native
         # runtime decides what the program found from it may reach.
@@ -74,7 +72,6 @@ _TRANSPORT_IDENTITY_PATHS: Final = frozenset(
         "src/codex_plugin_scanner/guard/daemon/discovery.py",
         "src/codex_plugin_scanner/guard/daemon/manager.py",
         "src/codex_plugin_scanner/guard/daemon/manager_ephemeral_reap.py",
-        "src/codex_plugin_scanner/guard/daemon/manager_process_query.py",
         # Interpreter bootstrap identity only; no policy or command decisions.
         "src/codex_plugin_scanner/guard/daemon/pipx_import_paths.py",
         # Resident sensitive-request transport; the observed git path is a fact, never a verdict.
@@ -118,7 +115,6 @@ _TRANSPORT_INTEGRITY_PATHS: Final = frozenset(
         "src/codex_plugin_scanner/guard/native_hook_adapter_wire.py",
         # Same correlation-only digest for the Composio routing op.
         "src/codex_plugin_scanner/guard/native_composio_role.py",
-        "src/codex_plugin_scanner/guard/native_shell_request_authority.py",
         # Same correlation-only digest for the GitHub workflow prepare op.
         "src/codex_plugin_scanner/guard/native_github_workflow.py",
         "src/codex_plugin_scanner/guard/native_protect_request.py",
@@ -145,7 +141,6 @@ _TRANSPORT_AUTHORITY_PATHS: Final = frozenset(
 )
 _TRANSPORT_DECODE_PATHS: Final = frozenset(
     {
-        "src/codex_plugin_scanner/guard/native_developer_inspection_authority.py",
         # Strict DTO decoding of request-bound rich parser replies; semantics are native.
         "src/codex_plugin_scanner/guard/native_rich_command_model.py",
         "src/codex_plugin_scanner/guard/native_hook_edge.py",
@@ -244,6 +239,9 @@ _TRANSPORT_DECODE_PATHS: Final = frozenset(
         "src/codex_plugin_scanner/guard/runtime/json_safe_copy.py",
         "src/codex_plugin_scanner/guard/native_runtime.py",
         "src/codex_plugin_scanner/guard/native_context.py",
+        # Encodes one MDM request and decodes the runtime's JSON object answer;
+        # the runtime command owns every check and verdict.
+        "src/codex_plugin_scanner/guard/mdm/runtime_request.py",
     }
 )
 _ASYNC_POLICY_PATHS: Final = frozenset(
@@ -278,7 +276,6 @@ _PERSISTENCE_PATH_PREFIXES: Final = (
     "src/codex_plugin_scanner/guard/daemon/hook_metrics.py",
     "src/codex_plugin_scanner/guard/private_file_io.py",
     "src/codex_plugin_scanner/guard/local_dashboard_session.py",
-    "src/codex_plugin_scanner/guard/guard_home_state.py",
     "src/codex_plugin_scanner/guard/store_base.py",
     "src/codex_plugin_scanner/guard/store_mcp_catalog.py",
     "src/codex_plugin_scanner/guard/store_storage_gate.py",
@@ -309,7 +306,6 @@ _SERVICE_PATHS: Final = frozenset(
         "src/codex_plugin_scanner/guard/daemon/lifecycle_journal.py",
         "src/codex_plugin_scanner/guard/daemon/manager.py",
         "src/codex_plugin_scanner/guard/daemon/manager_ephemeral_reap.py",
-        "src/codex_plugin_scanner/guard/daemon/manager_process_query.py",
         "src/codex_plugin_scanner/guard/daemon/runtime_peer.py",
         "src/codex_plugin_scanner/guard/daemon/start_classification.py",
         "src/codex_plugin_scanner/guard/frozen_daemon_runtime.py",
@@ -318,7 +314,6 @@ _SERVICE_PATHS: Final = frozenset(
         "src/codex_plugin_scanner/guard/frozen_runtime_commands.py",
         "src/codex_plugin_scanner/guard/live_process_identity.py",
         "src/codex_plugin_scanner/guard/mdm/acl.py",
-        "src/codex_plugin_scanner/guard/mdm/network_credentials.py",
         "src/codex_plugin_scanner/guard/mdm/network_transport.py",
         "src/codex_plugin_scanner/guard/mdm/network_trust.py",
         "src/codex_plugin_scanner/guard/native_policy_snapshot_windows_key.py",

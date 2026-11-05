@@ -102,6 +102,17 @@ def _worker(
         }
         receipt["decision_id"] = hashlib.sha256(canonical_receipt_bytes(receipt)).hexdigest()
         rendered["receipt"] = receipt
+        rendered.setdefault(
+            "harness_response",
+            {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": result["reason"],
+                },
+                "policy_action": result["policy_action"],
+            },
+        )
         return with_review_evidence(rendered, **kwargs)
 
     monkeypatch.setattr(
@@ -278,10 +289,10 @@ def test_native_review_queue_failure_fails_closed(
 ) -> None:
     worker, store = _worker(tmp_path, monkeypatch, _edge("codex"))
 
-    def fail_persist(*_args: object, **_kwargs: object) -> str:
+    def fail_persist(*_args: object, **_kwargs: object) -> dict[str, object]:
         raise OSError("approval store unavailable")
 
-    monkeypatch.setattr(store, "add_approval_request", fail_persist)
+    monkeypatch.setattr(store, "queue_native_review", fail_persist)
     response = worker.review_http_payload(
         payload={"hook_event_name": "PreToolUse", "tool_input": {"url": "https://example.test"}},
         params={},

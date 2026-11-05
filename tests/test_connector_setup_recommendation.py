@@ -6,18 +6,16 @@ import json
 import urllib.request
 from collections.abc import Iterable
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
-from codex_plugin_scanner.guard.daemon import GuardDaemonServer, native_review_allow_hint
+from codex_plugin_scanner.guard.daemon import GuardDaemonServer
 from codex_plugin_scanner.guard.daemon import approval_connector_recommendation as recommendation
 from codex_plugin_scanner.guard.daemon.approval_connector_recommendation import (
     CONNECTOR_RECOMMENDATION_SCHEMA,
     build_approval_connector_recommendation,
     safe_connector_recommendation,
 )
-from codex_plugin_scanner.guard.local_cli_hook import SetupConnector
 from codex_plugin_scanner.guard.models import GuardApprovalRequest
 from codex_plugin_scanner.guard.runtime.command_extensions import BUILT_IN_COMMAND_EXTENSION_REGISTRY
 from codex_plugin_scanner.guard.runtime.extension_allow_hint import (
@@ -34,24 +32,28 @@ _HASH = "a" * 64
 _OTHER_HASH = "b" * 64
 _CLI_ID = "local-cli.lanectl-0123abcd"
 _GROUP = f"connector:{_HASH}:0123456789abcdef"
-_CONNECTOR = SetupConnector(cli_id=_CLI_ID, identity_hash=_HASH, name="lanectl", surface="cli", queue_group_id=_GROUP)
+
+
+# A literal hint, so collecting the parametrized cases below never needs the
+# native runtime; the first test proves it passes the shape check.
+_RAW_HINT: dict[str, object] = {
+    "schema": CONNECTOR_SETUP_HINT_SCHEMA,
+    "identity_hash": _HASH,
+    "cli_id": _CLI_ID,
+    "surface": "cli",
+    "display_name": "lanectl",
+    "deep_link": connector_setup_deep_link(_CLI_ID),
+    "card_recommendation": {"state": "allowed", "capabilities": []},
+    "risk_classes": [],
+}
 
 
 def _hint(**overrides: object) -> dict[str, object]:
-    hint = validated_connector_setup_hint(
-        {
-            "schema": CONNECTOR_SETUP_HINT_SCHEMA,
-            "identity_hash": _HASH,
-            "cli_id": _CLI_ID,
-            "surface": "cli",
-            "display_name": "lanectl",
-            "deep_link": connector_setup_deep_link(_CLI_ID),
-            "card_recommendation": {"state": "allowed", "capabilities": []},
-            "risk_classes": [],
-        }
-    )
-    assert hint is not None
-    return {**hint, **overrides}
+    return {**_RAW_HINT, **overrides}
+
+
+def test_the_fixture_hint_passes_the_shape_check() -> None:
+    assert validated_connector_setup_hint(_RAW_HINT) == _RAW_HINT
 
 
 def _snapshot(health: AuthorityHealth = AuthorityHealth.PROTECTED) -> ExtensionControlRuntimeSnapshot:
@@ -172,57 +174,6 @@ def test_malformed_hints_are_dropped(override: dict[str, object]) -> None:
     assert validated_connector_setup_hint(_hint(**override)) is None
 
 
-def test_queue_time_hint_asks_the_resident_for_the_connector(monkeypatch: pytest.MonkeyPatch) -> None:
-    asked: list[dict[str, object]] = []
-
-    def ask(payload: object, **kwargs: object) -> dict[str, object]:
-        asked.append({"payload": payload, **kwargs})
-        return _hint()
-
-    monkeypatch.setattr(native_review_allow_hint, "_ask_review_hint", ask)
-    store = SimpleNamespace(guard_home=Path("guard-home"))
-    paused = {"reason_code": "native_command_review_required"}
-
-    hint = native_review_allow_hint.native_review_hint(store, {}, paused, None, None, None, _CONNECTOR)
-
-    assert hint == _hint()
-    # A setup review carries no extension evidence, yet still asks: the
-    # connector hint names only the connector and what the evidence observed.
-    assert asked[0]["connector"] is _CONNECTOR
-    assert asked[0]["paused"] == paused
-
-
-def test_the_connector_rides_in_the_query_and_its_answer_is_shape_checked(monkeypatch: pytest.MonkeyPatch) -> None:
-    sent: list[dict[str, object]] = []
-
-    def decide(query: dict[str, object], _home: object, _fields: object, validate, **_kwargs: object) -> None:
-        sent.append(query)
-        validate({"hint": _hint()})
-
-    monkeypatch.setattr(native_review_allow_hint, "_decide", decide)
-    store = SimpleNamespace(guard_home=Path("guard-home"))
-
-    hint = native_review_allow_hint.native_review_hint(store, {}, {}, None, None, None, _CONNECTOR)
-
-    assert hint == _hint()
-    assert sent[0]["connector"] == {
-        "cli_id": _CLI_ID,
-        "identity_hash": _HASH,
-        "name": "lanectl",
-        "surface": "cli",
-        "queue_group_id": _GROUP,
-    }
-    assert sent[0]["paused"] == {}
-
-    # An extension hint is not a connector hint, so the answer means none.
-    monkeypatch.setattr(
-        native_review_allow_hint,
-        "_decide",
-        lambda _q, _h, _f, validate, **_k: validate({"hint": {"schema": "guard.extension-allow-hint.v1"}}),
-    )
-    assert native_review_allow_hint.native_review_hint(store, {}, {}, None, None, None, _CONNECTOR) is None
-
-
 def test_a_pending_delete_keeps_caution_through_the_full_path(monkeypatch: pytest.MonkeyPatch) -> None:
     _items(monkeypatch)
     # The resident records ``destructive`` for a destructive shell rule it observed.
@@ -232,17 +183,6 @@ def test_a_pending_delete_keeps_caution_through_the_full_path(monkeypatch: pytes
 
     assert result is not None
     assert result["caution"] is True
-
-
-def test_queue_time_hint_without_a_connector_is_the_extension_hint(monkeypatch: pytest.MonkeyPatch) -> None:
-    sentinel = {"schema": "guard.extension-allow-hint.v1"}
-    monkeypatch.setattr(native_review_allow_hint, "_ask_review_hint", lambda *_a, **_k: sentinel)
-    store = SimpleNamespace(guard_home=Path("guard-home"))
-
-    assert (
-        native_review_allow_hint.native_review_hint(store, {}, {"command_extensions": {}}, None, None, None, None)
-        is sentinel
-    )
 
 
 def test_available_while_the_connector_is_unset(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -332,6 +272,35 @@ def test_caution_when_any_grouped_row_carries_a_caution_class(monkeypatch: pytes
     assert result is not None
     assert result["caution"] is True
     assert result["caution_risk_classes"] == ["destructive"]
+
+
+def test_an_unchecked_grouped_row_keeps_the_caution(monkeypatch: pytest.MonkeyPatch) -> None:
+    from codex_plugin_scanner.guard.native_runner_authority import NativeRunnerAuthorityError
+
+    _items(monkeypatch)
+    checked = recommendation.validated_connector_setup_hint
+    deadlines: list[float | None] = []
+
+    def unavailable_for_siblings(
+        value: object, *, strict: bool = False, deadline_monotonic: float | None = None
+    ) -> dict[str, object] | None:
+        if strict:
+            deadlines.append(deadline_monotonic)
+            raise NativeRunnerAuthorityError("native_runner_authority_unavailable")
+        return checked(value)
+
+    monkeypatch.setattr(recommendation, "validated_connector_setup_hint", unavailable_for_siblings)
+
+    store = _Store({"req-2": _hint(risk_classes=["destructive"]), "req-3": _hint()})
+    result = _build(_approval(_hint()), store)
+
+    assert result is not None
+    assert result["caution"] is True
+    assert result["caution_risk_classes"] == []
+    # Every sibling check shares the scan's one deadline.
+    assert len(deadlines) == 2
+    assert deadlines[0] is not None
+    assert set(deadlines) == {deadlines[0]}
 
 
 def test_the_resident_of_the_stores_home_decides_the_caution(

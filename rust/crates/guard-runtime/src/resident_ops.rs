@@ -103,6 +103,14 @@ pub(crate) fn evaluate_resident_bytes_with_cancellation(
             answer
         }
         ResidentRequestV1::Operation(request) => match *request {
+            ResidentOperationV1::ContextAssistance(request) => {
+                let policy_store = policy_store.ok_or_else(|| "native_context_assistance_resident_required".to_owned())?;
+                crate::context_assistance_op::evaluate(&request, policy_store)
+            }
+            ResidentOperationV1::ContextAgent(request) => {
+                let store = policy_store.ok_or_else(|| "native_context_assistance_resident_required".to_owned())?;
+                crate::context_assistance_agent_op::evaluate(&request, store)
+            }
             ResidentOperationV1::ArchiveAcquisition(request) => {
                 crate::archive_acquisition_op::evaluate_archive_acquisition_request(&request)
             }
@@ -341,6 +349,9 @@ pub(crate) fn evaluate_resident_bytes_with_cancellation(
             ResidentOperationV1::ProtectRequest(request) => {
                 crate::protect_request_op::evaluate_protect_request_op(&request)
             }
+            ResidentOperationV1::ProtectAdvisoryMerge(request) => {
+                crate::protect_advisory_merge_op::evaluate_protect_advisory_merge_op(&request)
+            }
             ResidentOperationV1::ApprovalReuseDiagnostic(request) => {
                 crate::approval_reuse_diagnostic_op::evaluate_approval_reuse_diagnostic_request(
                     &request,
@@ -383,6 +394,11 @@ pub(crate) fn evaluate_resident_bytes_with_cancellation(
             }
             ResidentOperationV1::CommandCapability(request) => {
                 crate::command_capability_op::evaluate_command_capability_request(&request)
+            }
+            ResidentOperationV1::CommandCapabilityIssue(request) => {
+                crate::command_capability_issue_op::evaluate_command_capability_issue_request(
+                    &request,
+                )
             }
             ResidentOperationV1::CommandEnvelope(request) => {
                 crate::command_envelope_op::evaluate_command_envelope_request(&request)
@@ -796,6 +812,9 @@ pub(crate) fn evaluate_resident_bytes_with_cancellation(
             ResidentOperationV1::ProtectionHealthReport(request) => {
                 crate::protection_health_report_op::evaluate_protection_health_report(&request)
             }
+            ResidentOperationV1::ProtectionHealthFacts(request) => {
+                crate::protection_health_report_op::evaluate_protection_health_facts(&request)
+            }
             // Diagnostic correlation only: the lineage never authorizes an action.
             ResidentOperationV1::RetryLineageCapture(request) => {
                 crate::retry_lineage_capture_op::evaluate_retry_lineage_capture(&request)
@@ -813,6 +832,9 @@ pub(crate) fn evaluate_resident_bytes_with_cancellation(
             | ResidentOperationV1::ContainedExecute(_)
             | ResidentOperationV1::ContainmentHealthProbe(_) => {
                 Err("native_operation_unavailable_on_this_platform".to_owned())
+            }
+            ResidentOperationV1::ResidentHealth(request) => {
+                crate::resident_health_op::evaluate_resident_health(&request)
             }
             ResidentOperationV1::Health(_request) => encode_response(&serde_json::json!({
                 "status": "ready",
@@ -839,6 +861,8 @@ pub(crate) fn evaluate_resident_bytes_with_cancellation(
 /// The Guard home an operation acts on, for operations that open per-home state.
 fn operation_guard_home(operation: &ResidentOperationV1) -> Option<&str> {
     match operation {
+        ResidentOperationV1::ContextAssistance(request) => Some(&request.query.guard_home),
+        ResidentOperationV1::ContextAgent(request) => Some(&request.query.guard_home),
         ResidentOperationV1::CloudCatalog(request) => {
             if request["action"] == "begin" || request["action"] == "reuse" {
                 request["observation"]["guard_home"].as_str()

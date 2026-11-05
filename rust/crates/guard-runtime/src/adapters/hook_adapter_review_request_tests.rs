@@ -6,6 +6,7 @@ use serde_json::{json, Value};
 
 const TOKEN: &str = "guard-approval-context:v1:abc";
 const RECEIPTS: &str = include_str!("../../testdata/guard_store/native_receipt_vectors.json");
+#[cfg(unix)]
 const DAEMON_REQUESTS: &str =
     include_str!("../../testdata/hook_direct_review/review_request_vectors.json");
 
@@ -275,9 +276,13 @@ fn requests_match_the_retired_daemon_builder() {
             }
         }
         let fields = built.as_object().unwrap();
-        assert_eq!(fields.len(), 19, "{name}");
+        assert_eq!(fields.len(), 22, "{name}");
         for (key, value) in fields {
-            if key != "action_envelope_json" {
+            if key.ends_with("guard_version") {
+                // The recorded daemon left it unset; the resident stamps its own.
+                assert_eq!(expected[key], Value::Null, "{name}: {key}");
+                assert_eq!(value, crate::PACKAGE_VERSION, "{name}: {key}");
+            } else if key != "action_envelope_json" {
                 assert_eq!(value, &expected[key], "{name}: {key}");
             }
         }

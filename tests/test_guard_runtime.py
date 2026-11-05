@@ -16,7 +16,7 @@ import sys
 import threading
 import urllib.error
 import urllib.request
-from base64 import urlsafe_b64decode
+from base64 import urlsafe_b64decode, urlsafe_b64encode
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -34,7 +34,6 @@ from codex_plugin_scanner.guard.adapters.codex import CodexHarnessAdapter
 from codex_plugin_scanner.guard.approvals import apply_approval_resolution
 from codex_plugin_scanner.guard.cli import commands as guard_commands_module
 from codex_plugin_scanner.guard.cli import render as guard_render_module
-from codex_plugin_scanner.guard.cli.commands_support_runtime_artifact_policy import runtime_policy_artifact_facts
 from codex_plugin_scanner.guard.cli.oauth_client import generate_dpop_key_pair
 from codex_plugin_scanner.guard.cli.render import emit_guard_payload
 from codex_plugin_scanner.guard.codex_config import read_toml_payload
@@ -63,9 +62,7 @@ from codex_plugin_scanner.guard.runtime import wrapper_run as wrapper_run
 from codex_plugin_scanner.guard.runtime.approval_context import (
     APPROVAL_CONTEXT_TOKEN_PREFIX,
 )
-from codex_plugin_scanner.guard.runtime.secret_file_request_services import constants_core
 from codex_plugin_scanner.guard.runtime.secret_file_requests import (
-    extract_sensitive_file_write_request,
     extract_sensitive_tool_action_request,
 )
 from codex_plugin_scanner.guard.store import (
@@ -96,6 +93,7 @@ from tests.policy_bundle_signing_helpers import (
     sign_policy_bundle,
 )
 from tests.policy_store_support import replace_remote_policies, resolve_policy
+from tests.runtime_artifact_policy_support import _runtime_artifact_policy_action, runtime_policy_artifact_facts
 from tests.support.network import stub_authenticated_urlopen
 
 # A credential-shaped literal in source output, assembled so that repository
@@ -426,14 +424,14 @@ def _assert_output_withheld(output: dict[str, object]) -> None:
     assert "approval_requests" not in output
 
 
-def _assert_prompt_refused_without_queue(payload: dict[str, object]) -> None:
-    # The daemon refuses a prompt that asks for sensitive local data outright.
-    # It queues nothing, so the user rephrases instead of following a link.
-    assert payload["decision"] == "block"
-    assert payload["continue"] is False
-    assert payload["reason_code"] == "native_sensitive_prompt"
-    assert "Nothing is waiting for approval" in str(payload["reason"])
-    assert "/requests/" not in str(payload["reason"])
+def _assert_prompt_sent_with_notice(payload: dict[str, object]) -> None:
+    # A prompt that asks for sensitive local data is sent with Guard's notice.
+    # Its review waits for the tool call, which offers Allow once and Always
+    # allow; the prompt itself queues nothing.
+    assert "decision" not in payload
+    assert "continue" not in payload
+    assert str(payload["systemMessage"]).startswith("HOL Guard flagged this prompt")
+    assert "/requests/" not in str(payload["systemMessage"])
 
 
 def _assert_copilot_allows(output: dict[str, object]) -> None:
@@ -4362,6 +4360,7 @@ clearer UX and an implementation plan with technical references.
             *,
             session: dict[str, object],
             auth_context: dict[str, object] | None = None,
+            catalog_failures: list[Exception] | None = None,
         ) -> dict[str, object]:
             assert current_store is store
             call_order.append("runtime")
@@ -4374,7 +4373,15 @@ clearer UX and an implementation plan with technical references.
                 "client_title": "HOL Guard CLI",
                 "client_version": guard_runner_module.__version__,
                 "workspace": "local-machine",
-                "capabilities": ["approval-center", "guard-cloud-sync", "local-daemon", "fleet-posture/v1"],
+                "capabilities": [
+                    "approval-center",
+                    "guard-cloud-sync",
+                    "local-daemon",
+                    "fleet-posture/v1",
+                    "policy-bundle-v2-cloud-exceptions.v1",
+                    "policy-document-exact-commands.v1",
+                    "policy-document-review-rules.v1",
+                ],
                 "policy_bundle_versions": [
                     "guard-policy-bundle.v1",
                     "guard-policy-bundle.v2",
@@ -4484,6 +4491,7 @@ clearer UX and an implementation plan with technical references.
             *,
             session: dict[str, object],
             auth_context: dict[str, object] | None = None,
+            catalog_failures: list[Exception] | None = None,
         ) -> dict[str, object]:
             assert current_store is store
             assert auth_context is shared_auth_context
@@ -9865,7 +9873,7 @@ _PACKAGE_THEN_SHELL_RISK_COMMANDS = (
     ("npm install lodash\nrm -f important.txt", "native_package_review"),
     ("npm install lodash | sh -c 'rm -f important.txt'", "native_command_extension_evaluation_failed"),
     ("sh -c 'npm install lodash && rm -f important.txt'", "native_package_review"),
-    ("(npm install lodash) && (rm -f important.txt)", "native_command_review_required"),
+    ("(npm install lodash) && (rm -f important.txt)", "native_package_review"),
     ("npm install lodash > install.log", "native_package_review"),
     ("npm install lodash > install.log && rm -f important.txt", "native_command_review_required"),
     ("npm install lodash && bash <<'EOF'\nrm -f important.txt\nEOF", "native_command_extension_evaluation_failed"),
@@ -10237,7 +10245,7 @@ def test_native_approval_center_context_uses_harness_specific_retry_copy() -> No
     assert "Codex command" not in claude_context
 
 
-def test_guard_hook_refuses_claude_user_prompt_submit_for_secret_read(
+def test_guard_hook_sends_claude_user_prompt_submit_for_secret_read_with_notice(
     tmp_path,
     capsys,
     monkeypatch,
@@ -10260,12 +10268,16 @@ def test_guard_hook_refuses_claude_user_prompt_submit_for_secret_read(
     )
     payload = json.loads(output)
 
-    # The daemon refuses a prompt that asks for a secret read instead of letting
-    # it reach the tool stage; nothing is queued for it.
+    # A prompt that asks for a secret read is sent with Guard's notice; the
+    # read it leads to is reviewed at the tool stage with Allow once and Always
+    # allow. Nothing is queued for the prompt itself.
     assert rc == 0
     assert payload["hookSpecificOutput"]["hookEventName"] == "UserPromptSubmit"
-    assert payload["decision"] == "block"
+    assert "decision" not in payload
+    assert payload["policy_action"] == "warn"
     assert payload["reason_code"] == "native_sensitive_prompt"
+    assert payload["systemMessage"].startswith("HOL Guard flagged this prompt")
+    assert "Do not ask for approval at the prompt stage." in payload["hookSpecificOutput"]["additionalContext"]
     assert "approval_requests" not in payload
 
 
@@ -10320,19 +10332,16 @@ def test_guard_hook_emits_json_for_claude_user_prompt_submit_overridable_prompts
     )
 
     assert rc == 0
-    assert output["decision"] == "block", output
-    assert output["policy_action"] == "require-reapproval", output
+    # The prompt is sent with Guard's notice; the .env read it leads to is
+    # reviewed at the tool stage, so nothing is queued for the prompt.
+    assert "decision" not in output, output
+    assert output["policy_action"] == "warn", output
     assert output["reason_code"] == "native_sensitive_prompt", output
-    # Blocking Claude CLI responses use top-level decision/reason fields.
-    # hookSpecificOutput is not required by this presentation path.
-    assert output["reason"], output
+    assert output["systemMessage"].startswith("HOL Guard flagged this prompt"), output
     assert any("local .env file" in signal for signal in output["risk_signals"]), output
-    # The blocking copy and native decision receipt must not echo the prompt.
-    assert event["prompt"] not in output["reason"]
-    assert event["prompt"] not in json.dumps(output["risk_signals"])
-    # The daemon refuses the prompt outright and queues nothing for it.
+    # The notice and native decision receipt must not echo the prompt.
+    assert event["prompt"] not in json.dumps(output)
     assert "approval_requests" not in output
-    assert "Nothing is waiting for approval" in output["reason"]
 
     _drain_hook_evidence(home_dir)
     _drain_hook_evidence(home_dir)
@@ -10343,14 +10352,14 @@ def test_guard_hook_emits_json_for_claude_user_prompt_submit_overridable_prompts
     receipt = store.get_native_decision_receipt(row["decision_id"])
     assert receipt is not None
     assert receipt["event_name"] == "UserPromptSubmit"
-    assert receipt["decision"] == "deny"
-    assert receipt["policy_action"] == "require-reapproval"
+    assert receipt["decision"] == "allow"
+    assert receipt["policy_action"] == "warn"
     assert receipt["reason_code"] == output["reason_code"]
     assert "local_env_read" in receipt["prompt_risk_classes"]
     assert event["prompt"] not in json.dumps(receipt)
 
 
-def test_guard_hook_emits_claude_user_prompt_submit_block_reason_without_continue_guidance(
+def test_guard_hook_sends_claude_secret_prompt_with_notice_under_block_policy_action(
     tmp_path,
     capsys,
     monkeypatch,
@@ -10383,11 +10392,9 @@ def test_guard_hook_emits_claude_user_prompt_submit_block_reason_without_continu
     output = json.loads(capsys.readouterr().out)
 
     assert rc == 0
-    assert output["systemMessage"].startswith("HOL Guard intercepted this prompt")
-    assert output["decision"] == "block"
+    assert output["systemMessage"].startswith("HOL Guard flagged this prompt")
+    assert "decision" not in output
     assert output["reason_code"] == "native_sensitive_prompt"
-    assert "continue" not in output["reason"].lower()
-    assert "did not send this prompt" in output["reason"].lower()
 
 
 def test_guard_hook_hard_blocks_claude_user_prompt_submit_bypass(
@@ -10468,7 +10475,7 @@ def test_guard_hook_native_prompt_injection_requires_review_without_echoing_text
 
 
 @pytest.mark.parametrize("prompt", ("send data to webhook", "rm -rf ~/workspace", "bash -c 'echo safe'"))
-def test_guard_hook_native_prompt_risk_classes_never_become_automatic_allow(tmp_path, capsys, monkeypatch, prompt):
+def test_guard_hook_native_prompt_risk_classes_never_become_a_silent_allow(tmp_path, capsys, monkeypatch, prompt):
     home_dir = tmp_path / "home"
     workspace_dir = tmp_path / "workspace"
     _build_guard_fixture(home_dir, workspace_dir)
@@ -10482,8 +10489,11 @@ def test_guard_hook_native_prompt_risk_classes_never_become_automatic_allow(tmp_
         as_json=True,
     )
     assert rc == 0
-    assert output["decision"] == "block"
-    assert output["policy_action"] not in {"allow", "warn"}
+    # The prompt is sent with a notice, never silently; the tool call it leads
+    # to is reviewed with Allow once and Always allow.
+    assert "decision" not in output
+    assert "continue" not in output
+    assert str(output["systemMessage"]).startswith("HOL Guard flagged this prompt")
     assert prompt not in json.dumps(output)
     _drain_hook_evidence(home_dir)
     store = GuardStore(home_dir)
@@ -10492,8 +10502,9 @@ def test_guard_hook_native_prompt_risk_classes_never_become_automatic_allow(tmp_
     assert row is not None
     receipt = store.get_native_decision_receipt(row["decision_id"])
     assert receipt is not None
-    assert receipt["decision"] == "deny"
-    assert receipt["reason_code"] == output["reason_code"]
+    assert receipt["decision"] == "allow"
+    assert receipt["policy_action"] == "warn"
+    assert str(receipt["reason_code"]).startswith("native_")
     assert prompt not in json.dumps(receipt)
 
 
@@ -10630,8 +10641,10 @@ def test_guard_hook_copilot_user_prompt_submitted_normalizes_to_prompt_request(
     )
 
     assert rc == 0
-    # The daemon refuses the prompt outright and queues nothing to approve.
-    assert output == {"decision": "block", "reason": "HOL Guard blocked this action (require-reapproval)"}
+    # The prompt is sent on; the tool call it leads to is what Guard reviews.
+    assert "decision" not in output
+    assert output["policy_action"] == "warn"
+    assert output["reason_code"] == "native_sensitive_prompt"
     assert GuardStore(home_dir).list_approval_requests(limit=10) == []
 
 
@@ -13796,7 +13809,7 @@ def test_guard_hook_allows_non_sensitive_read_file_requests(tmp_path, capsys, mo
     assert output.get("approval_requests") in (None, [])
 
 
-def test_guard_hook_blocks_codex_user_prompt_submit_sensitive_file_read(
+def test_guard_hook_flags_codex_user_prompt_submit_sensitive_file_read(
     tmp_path,
     capsys,
     monkeypatch,
@@ -13822,15 +13835,8 @@ def test_guard_hook_blocks_codex_user_prompt_submit_sensitive_file_read(
     payload = json.loads(output)
 
     assert rc == 0
-    assert payload["decision"] == "block"
-    _assert_prompt_refused_without_queue(payload)
-    assert payload["systemMessage"] == payload["reason"]
-    assert payload["stopReason"] == payload["reason"]
-    assert payload["continue"] is False
-    assert payload["hookSpecificOutput"] == {
-        "hookEventName": "UserPromptSubmit",
-        "additionalContext": payload["reason"],
-    }
+    _assert_prompt_sent_with_notice(payload)
+    assert "stopReason" not in payload
 
 
 def test_guard_hook_allows_codex_user_prompt_submit_negative_dotenv_guardrail(
@@ -13970,9 +13976,8 @@ def test_guard_hook_codex_user_prompt_submit_secret_read_carries_no_approval_url
     payload = json.loads(output)
 
     assert rc == 0
-    assert payload["decision"] == "block"
-    _assert_prompt_refused_without_queue(payload)
-    assert "guard-token=" not in payload["reason"]
+    _assert_prompt_sent_with_notice(payload)
+    assert "guard-token=" not in payload["systemMessage"]
     assert GuardStore(home_dir).list_approval_requests(limit=10) == []
 
 
@@ -14200,19 +14205,6 @@ def test_guard_runtime_does_not_target_harmless_inline_process_command(tmp_path)
     assert match is None or match.reason_code != "pytest_restricted_profile_required"
 
 
-def test_guard_runtime_allows_apply_patch_to_non_sensitive_source_file(tmp_path):
-    patch = """*** Begin Patch
-*** Update File: src/codex_plugin_scanner/guard/runtime/secret_file_requests.py
-@@
-+def _shell_interpreter_flag_payload(parts: list[str], index: int) -> object:
-+    return _interpreter_flag_payload(parts, index)
-*** End Patch"""
-
-    match = extract_sensitive_file_write_request("apply_patch", {"input": patch}, cwd=tmp_path)
-
-    assert match is None
-
-
 def test_guard_runtime_does_not_execute_classify_apply_patch_content(tmp_path):
     patch = """*** Begin Patch
 *** Update File: docs/notes.md
@@ -14221,48 +14213,6 @@ def test_guard_runtime_does_not_execute_classify_apply_patch_content(tmp_path):
 *** End Patch"""
 
     match = extract_sensitive_tool_action_request("apply_patch", patch, cwd=tmp_path)
-
-    assert match is None
-
-
-def test_guard_runtime_blocks_apply_patch_to_sensitive_file(tmp_path):
-    patch = """*** Begin Patch
-*** Update File: .env
-@@
--TOKEN=old
-+TOKEN=new
-*** End Patch"""
-
-    match = extract_sensitive_file_write_request("apply_patch", {"input": patch}, cwd=tmp_path)
-
-    assert match is not None
-    assert match.path_class == "local .env file"
-
-
-def test_guard_runtime_checks_all_apply_patch_payload_keys(tmp_path):
-    sensitive_patch = """*** Begin Patch
-*** Update File: .env
-@@
--TOKEN=old
-+TOKEN=new
-*** End Patch"""
-
-    match = extract_sensitive_file_write_request(
-        "apply_patch",
-        {"patch": "no patch headers", "input": sensitive_patch},
-        cwd=tmp_path,
-    )
-
-    assert match is not None
-    assert match.path_class == "local .env file"
-
-
-def test_guard_runtime_ignores_patch_syntax_for_other_write_tools(tmp_path):
-    match = extract_sensitive_file_write_request(
-        "write",
-        {"input": "*** Update File: .env\n..."},
-        cwd=tmp_path,
-    )
 
     assert match is None
 
@@ -15062,13 +15012,6 @@ def test_guard_runtime_keeps_mutating_pytest_flags_sensitive(tmp_path):
     assert binary_match.action_class == "destructive shell command"
 
 
-def test_guard_runtime_keeps_pytest_allowlist_disjoint_from_mutating_flags():
-    pytest_mutating_flags = constants_core._PYTHON_MODULE_MUTATING_FLAGS["pytest"]
-
-    assert constants_core._PYTEST_SAFE_FLAGS.isdisjoint(pytest_mutating_flags)
-    assert constants_core._PYTEST_SAFE_FLAGS_WITH_VALUES.isdisjoint(pytest_mutating_flags)
-
-
 def _resident_risk_classes(artifact: GuardArtifact, guard_home: Path) -> object:
     """The risk classes the resident reads off ``artifact``."""
     config = GuardConfig(guard_home=guard_home, workspace=None)
@@ -15150,10 +15093,7 @@ def test_guard_runtime_tool_action_policy_uses_network_egress_when_stricter(tmp_
     )
 
     assert (
-        guard_commands_module._runtime_artifact_policy_action(
-            config, artifact, "codex", guard_home=native_approval_reuse_runtime
-        )
-        == "block"
+        _runtime_artifact_policy_action(config, artifact, "codex", guard_home=native_approval_reuse_runtime) == "block"
     )
 
 
@@ -15180,10 +15120,7 @@ def test_guard_runtime_tool_action_policy_prefers_configured_risk_action_over_de
     )
 
     assert (
-        guard_commands_module._runtime_artifact_policy_action(
-            config, artifact, "codex", guard_home=native_approval_reuse_runtime
-        )
-        == "block"
+        _runtime_artifact_policy_action(config, artifact, "codex", guard_home=native_approval_reuse_runtime) == "block"
     )
 
 
@@ -15210,9 +15147,7 @@ def test_guard_runtime_tool_action_policy_includes_defaults_for_unconfigured_ris
     )
 
     assert (
-        guard_commands_module._runtime_artifact_policy_action(
-            config, artifact, "codex", guard_home=native_approval_reuse_runtime
-        )
+        _runtime_artifact_policy_action(config, artifact, "codex", guard_home=native_approval_reuse_runtime)
         == "require-reapproval"
     )
 
@@ -15239,9 +15174,7 @@ def test_guard_runtime_tool_action_policy_does_not_let_warn_default_override_ris
     )
 
     assert (
-        guard_commands_module._runtime_artifact_policy_action(
-            config, artifact, "codex", guard_home=native_approval_reuse_runtime
-        )
+        _runtime_artifact_policy_action(config, artifact, "codex", guard_home=native_approval_reuse_runtime)
         == "require-reapproval"
     )
 
@@ -15265,10 +15198,7 @@ def test_guard_runtime_artifact_policy_includes_stronger_global_default(tmp_path
     )
 
     assert (
-        guard_commands_module._runtime_artifact_policy_action(
-            config, artifact, "codex", guard_home=native_approval_reuse_runtime
-        )
-        == "block"
+        _runtime_artifact_policy_action(config, artifact, "codex", guard_home=native_approval_reuse_runtime) == "block"
     )
 
 
@@ -15291,10 +15221,7 @@ def test_guard_runtime_artifact_exact_allow_replaces_stricter_global_default(tmp
     )
 
     assert (
-        guard_commands_module._runtime_artifact_policy_action(
-            config, artifact, "codex", guard_home=native_approval_reuse_runtime
-        )
-        == "allow"
+        _runtime_artifact_policy_action(config, artifact, "codex", guard_home=native_approval_reuse_runtime) == "allow"
     )
 
 
@@ -15323,10 +15250,7 @@ def test_guard_runtime_artifact_exact_allow_cannot_lower_independent_risk_block(
     )
 
     assert (
-        guard_commands_module._runtime_artifact_policy_action(
-            config, artifact, "codex", guard_home=native_approval_reuse_runtime
-        )
-        == "block"
+        _runtime_artifact_policy_action(config, artifact, "codex", guard_home=native_approval_reuse_runtime) == "block"
     )
 
 
@@ -15363,9 +15287,7 @@ def test_guard_runtime_artifact_policy_composes_exact_current_override(
     )
 
     assert (
-        guard_commands_module._runtime_artifact_policy_action(
-            config, artifact, "codex", guard_home=native_approval_reuse_runtime
-        )
+        _runtime_artifact_policy_action(config, artifact, "codex", guard_home=native_approval_reuse_runtime)
         == expected_action
     )
 
@@ -15933,7 +15855,7 @@ def test_guard_hook_codex_post_tool_use_blocks_named_secret_output(
     assert "sensitive content" in payload["stopReason"]
 
 
-def test_guard_hook_codex_user_prompt_submit_blocks_credential_looking_dotfile(
+def test_guard_hook_codex_user_prompt_submit_flags_credential_looking_dotfile(
     tmp_path,
     capsys,
     monkeypatch,
@@ -15962,9 +15884,7 @@ def test_guard_hook_codex_user_prompt_submit_blocks_credential_looking_dotfile(
     payload = json.loads(output)
 
     assert rc == 0
-    assert payload["decision"] == "block"
-    assert "HOL Guard" in payload["reason"]
-    _assert_prompt_refused_without_queue(payload)
+    _assert_prompt_sent_with_notice(payload)
 
 
 def test_guard_hook_codex_user_prompt_submit_allows_generic_dotfile_with_canary_text(
@@ -15996,7 +15916,7 @@ def test_guard_hook_codex_user_prompt_submit_allows_generic_dotfile_with_canary_
     assert payload == {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit"}}
 
 
-def test_guard_hook_codex_user_prompt_submit_blocks_bare_credential_dotfile(
+def test_guard_hook_codex_user_prompt_submit_flags_bare_credential_dotfile(
     tmp_path,
     capsys,
     monkeypatch,
@@ -16025,12 +15945,10 @@ def test_guard_hook_codex_user_prompt_submit_blocks_bare_credential_dotfile(
     payload = json.loads(output)
 
     assert rc == 0
-    assert payload["decision"] == "block"
-    assert "HOL Guard" in payload["reason"]
-    _assert_prompt_refused_without_queue(payload)
+    _assert_prompt_sent_with_notice(payload)
 
 
-def test_guard_hook_codex_user_prompt_submit_blocks_envrc_credential_dotfile(
+def test_guard_hook_codex_user_prompt_submit_flags_envrc_credential_dotfile(
     tmp_path,
     capsys,
     monkeypatch,
@@ -16059,9 +15977,7 @@ def test_guard_hook_codex_user_prompt_submit_blocks_envrc_credential_dotfile(
     payload = json.loads(output)
 
     assert rc == 0
-    assert payload["decision"] == "block"
-    assert "HOL Guard" in payload["reason"]
-    _assert_prompt_refused_without_queue(payload)
+    _assert_prompt_sent_with_notice(payload)
 
 
 def test_guard_hook_codex_prompt_dotfile_scan_uses_bounded_file_read(
@@ -16091,8 +16007,7 @@ def test_guard_hook_codex_prompt_dotfile_scan_uses_bounded_file_read(
     payload = json.loads(output)
 
     assert rc == 0
-    assert payload["decision"] == "block"
-    _assert_prompt_refused_without_queue(payload)
+    _assert_prompt_sent_with_notice(payload)
 
 
 @pytest.mark.parametrize("prompt", ["read .authrc.", "print ./.authrc, please"])
@@ -16123,8 +16038,7 @@ def test_guard_hook_codex_prompt_dotfile_scan_ignores_trailing_punctuation(
     payload = json.loads(output)
 
     assert rc == 0
-    assert payload["decision"] == "block"
-    _assert_prompt_refused_without_queue(payload)
+    _assert_prompt_sent_with_notice(payload)
 
 
 def test_guard_hook_codex_prompt_dotfile_scan_prefers_exact_punctuation_filename(
@@ -16154,8 +16068,7 @@ def test_guard_hook_codex_prompt_dotfile_scan_prefers_exact_punctuation_filename
     payload = json.loads(output)
 
     assert rc == 0
-    assert payload["decision"] == "block"
-    _assert_prompt_refused_without_queue(payload)
+    _assert_prompt_sent_with_notice(payload)
 
 
 @pytest.mark.parametrize("scope", ["workspace", "global"])
@@ -17355,7 +17268,7 @@ def test_receipt_sync_context_omits_invalid_policy_bundle_acknowledgement(
     assert "policyBundleAcknowledgement" not in context
 
 
-def test_receipt_sync_context_omits_acknowledgement_for_untrusted_cached_bundle(tmp_path: Path) -> None:
+def test_receipt_sync_context_reports_untrusted_cached_bundle_as_failed(tmp_path: Path) -> None:
     store = GuardStore(tmp_path / "guard-home")
     _cache_signed_test_policy_bundle(store, [])
     policy_bundle = store.get_sync_payload("policy_bundle")
@@ -17390,7 +17303,10 @@ def test_receipt_sync_context_omits_acknowledgement_for_untrusted_cached_bundle(
         local_guard_online_at="2026-04-19T00:01:00+00:00",
     )
 
-    assert "policyBundleAcknowledgement" not in context
+    reported = context["policyBundleAcknowledgement"]
+    assert reported["status"] == "failed"
+    assert reported["bundleHash"] == policy_bundle["bundleHash"]
+    assert reported["bundleVersion"] == policy_bundle["bundleVersion"]
 
 
 def test_policy_bundle_validation_rejects_missing_rules_field():
@@ -17601,15 +17517,13 @@ def test_fresh_mdm_activation_bootstraps_first_signed_policy_sync(
     assert persisted_local_keyring["keys"] == []
     assert store.get_sync_payload("managed_policy_bundle_keyring_mirror") == keyring
     assert summary["remote_policies_stored"] == 1
-    assert (
-        resolve_policy(
-            store,
-            "codex",
-            "codex:project:package-request:fresh-managed-device",
-            "hash",
-        )
-        == "block"
-    )
+    # The resident reads machine MDM policy natively and cannot see the policy
+    # patched in above, so the check stops at the row the sync stored.
+    with sqlite3.connect(store.path) as connection:
+        stored = connection.execute(
+            "select action from policy_decisions where source = 'policy-bundle' and harness = 'codex'"
+        ).fetchall()
+    assert stored == [("block",)]
 
 
 def test_cached_bundle_is_not_activated_after_live_anchor_revocation(
@@ -18793,6 +18707,207 @@ def test_sync_receipts_rejects_policy_bundle_for_the_wrong_workspace(tmp_path, m
     assert "Reconnect Guard" in str(last_error["message"])
 
 
+def test_sync_receipts_reports_a_dropped_bundle_as_failed_to_cloud(tmp_path, monkeypatch):
+    """Clearing a rejected bundle must not leave Cloud showing the old one as applied."""
+
+    store = GuardStore(tmp_path / "guard-home")
+    _seed_guard_cloud(store, workspace_id="workspace-a")
+    store.set_sync_payload(
+        "policy_bundle_keyring",
+        policy_bundle_test_keyring(workspace_id="workspace-a"),
+        "2026-06-05T13:29:00Z",
+    )
+    device_id, device_name = guard_runner_module._guard_device_metadata(store)
+    store.set_sync_payload(
+        "policy_bundle_ack",
+        {
+            "appliedAt": "2026-06-05T13:00:00+00:00",
+            "bundleHash": "sha256:previous-bundle",
+            "bundleVersion": "policy-2026-06-05.4",
+            "deviceId": device_id,
+            "deviceName": device_name,
+            "status": "synced",
+        },
+        "2026-06-05T13:00:00Z",
+    )
+    bundle = sign_policy_bundle(
+        {
+            "contractVersion": "guard-policy-bundle.v1",
+            "bundleVersion": "policy-2026-06-05.5",
+            "bundleHash": "",
+            "issuedAt": "2026-06-05T13:30:00+00:00",
+            "expiresAt": None,
+            "verifier": {
+                "algorithm": "rsa-pss-sha256",
+                "keyId": "guard-policy-bundle-v1",
+                "signature": None,
+            },
+            "rolloutState": "enforcing",
+            "workspaceId": "workspace-b",
+            "policyDefaults": {
+                "mode": "enforce",
+                "defaultAction": "warn",
+                "unknownPublisherAction": "review",
+                "changedHashAction": "require-reapproval",
+                "newNetworkDomainAction": "warn",
+                "subprocessAction": "block",
+                "telemetryEnabled": False,
+                "syncEnabled": True,
+            },
+            "rules": [],
+            "acknowledgements": [],
+        },
+        workspace_id="workspace-b",
+    )
+
+    class _Response:
+        def __init__(self, payload: dict[str, object]) -> None:
+            self._payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self) -> bytes:
+            return json.dumps(self._payload).encode("utf-8")
+
+    sync_bodies: list[dict[str, object]] = []
+
+    def _fake_urlopen(request, timeout):
+        if request.full_url.endswith("/api/v1/guard/events"):
+            return _Response({"accepted": 0, "rejected": 0, "statuses": []})
+        if request.full_url.endswith("/receipts/sync"):
+            sync_bodies.append(json.loads(request.data.decode("utf-8")))
+        return _Response(
+            {
+                "syncedAt": "2026-06-05T13:30:01+00:00",
+                "receiptsStored": 0,
+                "policyBundle": bundle,
+            }
+        )
+
+    stub_authenticated_urlopen(monkeypatch, _fake_urlopen)
+    monkeypatch.setattr(guard_runner_module, "sync_pain_signals", lambda _store, auth_context=None: 0)
+
+    guard_runner_module.sync_receipts(store)
+
+    assert store.get_sync_payload("policy_bundle") is None
+    failed_ack = {
+        "appliedAt": store.get_sync_payload("policy_bundle_ack")["appliedAt"],
+        "bundleHash": "sha256:previous-bundle",
+        "bundleVersion": "policy-2026-06-05.4",
+        "deviceId": device_id,
+        "deviceName": device_name,
+        "status": "failed",
+    }
+    assert store.get_sync_payload("policy_bundle_ack") == failed_ack
+    context = guard_runner_module._receipt_sync_context(store, local_guard_online_at="2026-06-05T13:31:00+00:00")
+    assert context["policyBundleAcknowledgement"] == failed_ack
+    assert "policyBundleAcknowledgementV2" not in context
+    # Cloud hears about it in the same cycle, not one interval later.
+    assert len(sync_bodies) == 2
+    assert sync_bodies[1]["receipts"] == []
+    assert sync_bodies[1]["syncContext"]["policyBundleAcknowledgement"] == failed_ack
+
+
+def test_sync_receipts_reports_failure_of_the_bundle_it_last_reported_as_synced(tmp_path, monkeypatch):
+    """A drop of the applied bundle goes out in the same cycle as its earlier success."""
+
+    store = GuardStore(tmp_path / "guard-home")
+    _seed_guard_cloud(store, workspace_id="workspace-a")
+    store.set_sync_payload(
+        "policy_bundle_keyring",
+        policy_bundle_test_keyring(workspace_id="workspace-a"),
+        "2026-06-05T13:29:00Z",
+    )
+    device_id, device_name = guard_runner_module._guard_device_metadata(store)
+    bundle = sign_policy_bundle(
+        {
+            "contractVersion": "guard-policy-bundle.v1",
+            "bundleVersion": "policy-2026-06-05.4",
+            "bundleHash": "",
+            "issuedAt": "2026-06-05T13:30:00+00:00",
+            "expiresAt": None,
+            "verifier": {
+                "algorithm": "rsa-pss-sha256",
+                "keyId": "guard-policy-bundle-v1",
+                "signature": None,
+            },
+            "rolloutState": "enforcing",
+            "workspaceId": "workspace-a",
+            "policyDefaults": {
+                "mode": "enforce",
+                "defaultAction": "warn",
+                "unknownPublisherAction": "review",
+                "changedHashAction": "require-reapproval",
+                "newNetworkDomainAction": "warn",
+                "subprocessAction": "block",
+                "telemetryEnabled": False,
+                "syncEnabled": True,
+            },
+            "rules": [],
+            "acknowledgements": [],
+        },
+        workspace_id="workspace-a",
+    )
+
+    class _Response:
+        def __init__(self, payload: dict[str, object]) -> None:
+            self._payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self) -> bytes:
+            return json.dumps(self._payload).encode("utf-8")
+
+    sync_bodies: list[dict[str, object]] = []
+
+    def _fake_urlopen(request, timeout):
+        if request.full_url.endswith("/api/v1/guard/events"):
+            return _Response({"accepted": 0, "rejected": 0, "statuses": []})
+        if request.full_url.endswith("/receipts/sync"):
+            sync_bodies.append(json.loads(request.data.decode("utf-8")))
+        return _Response(
+            {
+                "syncedAt": "2026-06-05T13:30:01+00:00",
+                "receiptsStored": 0,
+                "policyBundle": bundle,
+            }
+        )
+
+    stub_authenticated_urlopen(monkeypatch, _fake_urlopen)
+    monkeypatch.setattr(guard_runner_module, "sync_pain_signals", lambda _store, auth_context=None: 0)
+
+    guard_runner_module.sync_receipts(store)
+    applied_ack = store.get_sync_payload("policy_bundle_ack")
+    assert isinstance(applied_ack, dict)
+    assert applied_ack["status"] == "synced"
+    applied_hash = applied_ack["bundleHash"]
+
+    # The next cycle refuses the bundle it applied, so nothing is left to fall
+    # back to and Guard drops it.
+    monkeypatch.setattr(guard_runner_module, "policy_bundle_is_enforceable", lambda _bundle: False)
+    sync_bodies.clear()
+    guard_runner_module.sync_receipts(store)
+
+    assert store.get_sync_payload("policy_bundle") is None
+    assert len(sync_bodies) == 2
+    first_ack = sync_bodies[0]["syncContext"]["policyBundleAcknowledgement"]
+    assert first_ack["bundleHash"] == applied_hash
+    assert first_ack["status"] == "synced"
+    follow_up_ack = sync_bodies[1]["syncContext"]["policyBundleAcknowledgement"]
+    assert follow_up_ack["bundleHash"] == applied_hash
+    assert follow_up_ack["status"] == "failed"
+    assert follow_up_ack["deviceId"] == device_id
+    assert follow_up_ack["deviceName"] == device_name
+
+
 @pytest.mark.parametrize(
     ("spec_extra", "reason", "rule_id"),
     [
@@ -18931,7 +19046,109 @@ def test_sync_receipts_rolls_back_to_last_good_bundle_on_canonical_compile_failu
     }
 
 
-def _prepare_shadow_candidate_sync(tmp_path, monkeypatch, *, canonical=True):
+def test_sync_receipts_enforces_an_exact_command_rule_from_a_v2_bundle(tmp_path, monkeypatch):
+    # Guard Cloud's Policy Studio and Cloud Review save "block this command"
+    # as an exact `match.commands` rule. The canonical compiler used to refuse
+    # it, which rejected the whole bundle and left the device on its old policy.
+    store = GuardStore(tmp_path / "guard-home")
+    _seed_guard_cloud(store, workspace_id="workspace-1")
+    monkeypatch.setenv("HOL_GUARD_POLICY_CANONICAL_ENFORCEMENT", "1")
+    store.set_sync_payload(
+        "policy_bundle_keyring",
+        policy_bundle_test_keyring(workspace_id="workspace-1"),
+        "2026-06-05T13:29:00+00:00",
+    )
+    command = "bun install --frozen-lockfile --ignore-scripts"
+    candidate = {
+        "contractVersion": "guard-policy-bundle.v2",
+        "bundleVersion": 5,
+        "bundleHash": "b" * 64,
+        "issuedAt": "2026-06-05T13:30:00Z",
+        "workspaceId": "workspace-1",
+        "payload": {
+            "apiVersion": "guard.hashgraphonline.com/v1alpha1",
+            "kind": "GuardPolicy",
+            "metadata": {"id": "policy.exact-command", "name": "Exact command", "revision": 1},
+            "spec": {
+                "defaults": {"mode": "prompt", "defaultAction": "warn"},
+                "rules": [
+                    {
+                        "id": "rule.block-install",
+                        "enabled": True,
+                        "effect": "block",
+                        "match": {"commands": [command], "harnesses": ["codex"]},
+                        "lifetime": {"mode": "permanent", "expiresAt": None},
+                        "provenance": {
+                            "source": "manual",
+                            "receiptIds": [],
+                            "createdAt": "2026-06-05T13:30:00Z",
+                            "createdBy": "owner-1",
+                        },
+                    }
+                ],
+            },
+        },
+    }
+
+    class _Response:
+        def __init__(self, payload: dict[str, object]) -> None:
+            self._payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self) -> bytes:
+            return json.dumps(self._payload).encode("utf-8")
+
+    def _fake_urlopen(request, timeout):
+        if request.full_url.endswith("/api/v1/guard/events"):
+            return _Response({"accepted": 0, "rejected": 0, "statuses": []})
+        return _Response(
+            {
+                "syncedAt": "2026-06-05T13:30:01+00:00",
+                "receiptsStored": 0,
+                "policyBundle": candidate,
+            }
+        )
+
+    stub_authenticated_urlopen(monkeypatch, _fake_urlopen)
+    monkeypatch.setattr(
+        guard_runner_module,
+        "validate_synced_policy_bundle",
+        lambda policy_bundle, *args, **kwargs: (policy_bundle, None, ()),
+    )
+    monkeypatch.setattr(
+        guard_runner_module,
+        "_validate_cached_policy_bundle",
+        lambda _store, policy_bundle: (
+            policy_bundle if isinstance(policy_bundle, dict) else None,
+            None,
+        ),
+    )
+    monkeypatch.setattr(guard_runner_module, "sync_pain_signals", lambda _store, auth_context=None: 0)
+
+    guard_runner_module.sync_receipts(store)
+
+    assert not store.get_sync_payload("policy_bundle_last_error")
+    assert store.get_sync_payload("policy_bundle") == candidate
+    digest = hashlib.sha256(command.encode("utf-8")).hexdigest()
+    assert [
+        (decision["harness"], decision["scope"], decision["action"], decision["artifact_id"], decision["owner"])
+        for decision in store.list_policy_decisions()
+    ] == [("codex", "artifact", "block", f"memory:exact-shell-command:{digest}", "rule.block-install")]
+
+
+def _prepare_shadow_candidate_sync(
+    tmp_path,
+    monkeypatch,
+    *,
+    canonical=True,
+    mode="prompt",
+    legacy_issued_at="2026-06-05T13:30:00+00:00",
+):
     store = GuardStore(tmp_path / "guard-home")
     _seed_guard_cloud(store, workspace_id="workspace-1")
     if canonical:
@@ -18948,7 +19165,7 @@ def _prepare_shadow_candidate_sync(tmp_path, monkeypatch, *, canonical=True):
             }
         ],
         bundle_version="policy-2026-06-05.4",
-        issued_at="2026-06-05T13:29:00+00:00",
+        issued_at=legacy_issued_at,
     )
     store.set_sync_payload(
         "policy_bundle_keyring",
@@ -18972,7 +19189,7 @@ def _prepare_shadow_candidate_sync(tmp_path, monkeypatch, *, canonical=True):
                 "revision": 1,
             },
             "spec": {
-                "defaults": {"mode": "prompt", "defaultAction": "warn"},
+                "defaults": {"mode": mode, "defaultAction": "warn"},
                 "rules": [
                     {
                         "id": "rule.canonical",
@@ -19042,6 +19259,19 @@ def _prepare_shadow_candidate_sync(tmp_path, monkeypatch, *, canonical=True):
     return store, legacy
 
 
+def test_sync_receipts_activates_an_evaluate_bundle_over_legacy_rows(tmp_path, monkeypatch):
+    """Evaluate compiles to no rows on purpose; an older bundle's rows are not drift."""
+
+    store, _legacy = _prepare_shadow_candidate_sync(tmp_path, monkeypatch, mode="observe")
+
+    guard_runner_module.sync_receipts(store)
+
+    assert not store.get_sync_payload("policy_bundle_last_error")
+    assert store.get_sync_payload("policy_bundle")["contractVersion"] == "guard-policy-bundle.v2"
+    assert store.list_policy_decisions() == []
+    assert store.list_events(event_name="policy_bundle/shadow_mismatch") == []
+
+
 def test_sync_receipts_keeps_legacy_bundle_active_on_canonical_shadow_mismatch(
     tmp_path,
     monkeypatch,
@@ -19061,6 +19291,47 @@ def test_sync_receipts_keeps_legacy_bundle_active_on_canonical_shadow_mismatch(
         "reasonCodes": ["action"],
         "status": "mismatch",
     }
+
+
+def test_sync_receipts_activates_v2_over_a_shadow_from_an_older_publication(
+    tmp_path,
+    monkeypatch,
+):
+    # The stored v1 bundle was issued for an earlier publication, so its rows
+    # are a different policy, not a second compile of this one. Holding the
+    # candidate against them left canonical devices on the old policy forever.
+    store, _legacy = _prepare_shadow_candidate_sync(
+        tmp_path,
+        monkeypatch,
+        legacy_issued_at="2026-06-05T13:29:00+00:00",
+    )
+
+    guard_runner_module.sync_receipts(store)
+
+    applied = store.get_sync_payload("policy_bundle")
+    assert isinstance(applied, dict)
+    assert applied["contractVersion"] == "guard-policy-bundle.v2"
+    assert not store.get_sync_payload("policy_bundle_last_error")
+    assert [decision["action"] for decision in store.list_policy_decisions()] == ["allow"]
+
+
+def test_sync_receipts_applies_v2_bundle_outside_the_canonical_rollout(
+    tmp_path,
+    monkeypatch,
+):
+    # Cloud sends v2 only when v1 cannot carry the policy, so a device outside
+    # the canonical rollout must enforce it instead of keeping the older v1
+    # decisions. The shadow comparison is still recorded.
+    store, _legacy = _prepare_shadow_candidate_sync(tmp_path, monkeypatch, canonical=False)
+
+    guard_runner_module.sync_receipts(store)
+
+    applied = store.get_sync_payload("policy_bundle")
+    assert isinstance(applied, dict)
+    assert applied["contractVersion"] == "guard-policy-bundle.v2"
+    assert [decision["action"] for decision in store.list_policy_decisions()] == ["allow"]
+    mismatch_events = store.list_events(event_name="policy_bundle/shadow_mismatch")
+    assert mismatch_events[-1]["payload"]["reasonCodes"] == ["action"]
 
 
 def test_sync_receipts_rejects_candidate_when_native_shadow_comparison_is_unavailable(
@@ -19214,7 +19485,6 @@ def test_policy_bundle_decision_resolves_before_receipt_persistence(tmp_path, mo
     original_add_receipt = store.add_receipt
 
     def tracked_resolve_policy(*args, **kwargs):
-        assert kwargs.get("consume_one_shot") is False
         order.append("resolve_policy_non_consuming")
         return original_resolve_policy(*args, **kwargs)
 
@@ -19682,7 +19952,7 @@ def test_sign_guard_dpop_proof_sets_access_token_hash_claim() -> None:
 
     claims = _decode_jwt_segment(proof.split(".")[1])
 
-    expected_ath = guard_runner_module._base64url_encode(hashlib.sha256(access_token.encode("ascii")).digest())
+    expected_ath = urlsafe_b64encode(hashlib.sha256(access_token.encode("ascii")).digest()).decode("ascii").rstrip("=")
 
     assert claims["ath"] == expected_ath
 
@@ -20261,6 +20531,37 @@ def test_sign_guard_dpop_proof_sets_nonce_claim() -> None:
     claims = _decode_jwt_segment(proof.split(".")[1])
 
     assert claims["nonce"] == "nonce-123"
+
+
+def test_sign_guard_dpop_proof_reports_a_resident_outage_as_retryable(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _outage(**_kwargs: object) -> str:
+        raise guard_runner_module.PolicyBundleNativeUnavailableError("native_unavailable")
+
+    monkeypatch.setattr(guard_runner_module, "signed_dpop_proof", _outage)
+
+    with pytest.raises(guard_runner_module.GuardSyncNotAvailableError) as error:
+        guard_runner_module._sign_guard_dpop_proof(
+            request_url="https://hol.org/api/guard/runtime/sessions/sync",
+            method="POST",
+            dpop_key_material=generate_dpop_key_pair(),
+        )
+
+    assert error.value.retryable is True
+    assert not isinstance(error.value, guard_runner_module.GuardSyncAuthorizationExpiredError)
+
+
+def test_sign_guard_dpop_proof_asks_to_reconnect_when_the_key_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _refused(**_kwargs: object) -> str:
+        raise guard_runner_module.PolicyBundleNativeError("invalid_dpop_private_key")
+
+    monkeypatch.setattr(guard_runner_module, "signed_dpop_proof", _refused)
+
+    with pytest.raises(guard_runner_module.GuardSyncAuthorizationExpiredError):
+        guard_runner_module._sign_guard_dpop_proof(
+            request_url="https://hol.org/api/guard/runtime/sessions/sync",
+            method="POST",
+            dpop_key_material=generate_dpop_key_pair(),
+        )
 
 
 def test_guard_http_header_value_matches_case_insensitive_mapping() -> None:

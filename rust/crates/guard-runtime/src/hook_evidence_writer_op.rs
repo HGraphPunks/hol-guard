@@ -322,23 +322,13 @@ fn with_running<T>(guard_home: &Path, act: impl FnOnce(&ResidentWriter) -> T) ->
     held.as_ref().map(act)
 }
 
-/// Encode an edge answer that says its receipt was recorded, then queue
-/// `receipt` with the live writer for `guard_home`, holding that writer the
-/// whole time so it cannot exit or start draining between the two.
+/// Run `act` with the live writer for `guard_home` while its slot is held,
+/// so the writer cannot exit or start draining in the meantime.
 ///
-/// `None` means nothing was queued and the answer must say so: no live writer
-/// runs for the home, its slot is busy starting one (a journal replay) or
-/// draining one, or the writer refused the receipt. The edge never waits on
-/// that slot and never starts a writer. An answer that fails to encode is
-/// returned as is and queues nothing.
-pub(crate) fn record_edge_receipt<E>(
-    guard_home: &Path,
-    receipt: &NativeHookDecisionReceiptV1,
-    encode: impl FnOnce() -> Result<Vec<u8>, E>,
-) -> Option<Result<Vec<u8>, E>> {
-    let Ok(Value::Object(receipt)) = serde_json::to_value(receipt) else {
-        return None;
-    };
+/// `None` means `act` did not run: no live writer runs for the home, or its
+/// slot is busy starting one (a journal replay) or draining one. This never
+/// waits on the slot and never starts a writer.
+fn with_live<T>(guard_home: &Path, act: impl FnOnce(&ResidentWriter) -> T) -> Option<T> {
     let slot = slot(&canonical_home(guard_home));
     let held = match slot.writer.try_lock() {
         Ok(held) => held,
@@ -349,14 +339,55 @@ pub(crate) fn record_edge_receipt<E>(
     if resident.writer.has_exited() || resident.writer.is_stopping() {
         return None;
     }
-    let encoded = match encode() {
-        Ok(encoded) => encoded,
-        Err(error) => return Some(Err(error)),
+    Some(act(resident))
+}
+
+/// Encode an edge answer that says its receipt was recorded, then queue
+/// `receipt` with the live writer for `guard_home` and hand that writer to
+/// `then` for the evidence that follows the receipt, holding the writer the
+/// whole time so it cannot exit or start draining in between.
+///
+/// `None` means nothing was queued and the answer must say so: no live writer
+/// runs for the home, its slot is busy starting one (a journal replay) or
+/// draining one, or the writer refused the receipt. The edge never waits on
+/// that slot and never starts a writer. An answer that fails to encode is
+/// returned as is and queues nothing.
+pub(crate) fn record_edge_receipt<E>(
+    guard_home: &Path,
+    receipt: &NativeHookDecisionReceiptV1,
+    encode: impl FnOnce() -> Result<Vec<u8>, E>,
+    then: impl FnOnce(&RuntimeHookEvidenceWriter),
+) -> Option<Result<Vec<u8>, E>> {
+    let Ok(Value::Object(receipt)) = serde_json::to_value(receipt) else {
+        return None;
     };
-    resident
-        .writer
-        .submit_native_decision_receipt(&receipt)
-        .then_some(Ok(encoded))
+    with_live(guard_home, |resident| {
+        let encoded = match encode() {
+            Ok(encoded) => encoded,
+            Err(error) => return Some(Err(error)),
+        };
+        if !resident.writer.submit_native_decision_receipt(&receipt) {
+            return None;
+        }
+        then(resident.writer.as_ref());
+        Some(Ok(encoded))
+    })
+    .flatten()
+}
+
+/// Queue a direct answer's evidence with `queue`, which may first record its
+/// receipt and command activity with the live writer for `guard_home` it is
+/// handed, holding that writer the whole time.
+///
+/// The drain submits whatever a record leaves to this writer through the
+/// same slot, so the activity cannot reach the writer before the receipt it
+/// cites. `None` means `queue` did not run, because no live writer is free to
+/// take the evidence, which then stays with the drain.
+pub(crate) fn record_direct<T>(
+    guard_home: &Path,
+    queue: impl FnOnce(&RuntimeHookEvidenceWriter) -> T,
+) -> Option<T> {
+    with_live(guard_home, |resident| queue(resident.writer.as_ref()))
 }
 
 /// Run `act` while this Guard home's writer slot is held, as starting a

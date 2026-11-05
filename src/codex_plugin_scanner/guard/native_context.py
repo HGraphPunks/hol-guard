@@ -83,6 +83,7 @@ _RESULT_OPTIONAL_KEYS = {
     "claude_guard_question",
     "memory_pattern",
     "guard_run_launch",
+    "package_runner_target",
 }
 _RESULT_CODES = {
     "ok",
@@ -110,6 +111,8 @@ _RESULT_CODES = {
 # comment below).  Every other kind is a pure function of request content.
 _UNCACHEABLE_DIGEST_KINDS = frozenset(
     {
+        # Builds the artifact's launch identity from the ambient environment.
+        "consumer_approval_context_token",
         "generic_hook_approval_context",
         # Builds a launch identity per previewed argv, so it reads the
         # executable's bytes, and it carries the prepared launch
@@ -656,25 +659,6 @@ def native_context_digest(
 _UNBOUND_PREFIX = "guard-context-unbound:"
 
 
-def is_unbound_context_digest(value: object) -> bool:
-    """``True`` for a digest that names material nothing has bound.
-
-    The runtime emits these for a component it could not digest, and a few
-    Python paths emit one deliberately for material there is no resident
-    question for: the unbound approval-context sentinel, a configured
-    environment with nothing configured, and a shell context the caller
-    could not observe. A sentinel never parses as a token and never
-    authorizes reuse, so recognizing one is how a caller tells an unbound
-    component from a bound digest.
-
-    What no Python path does is hand back a *bound*-looking digest when the
-    resident is unreachable: `native_context_digest` either answers from the
-    resident or raises.
-    """
-
-    return isinstance(value, str) and value.startswith(_UNBOUND_PREFIX)
-
-
 def context_mcp_launch_environment(
     inherited: Mapping[str, str],
     configured: Mapping[str, str],
@@ -1010,19 +994,6 @@ _MCP_RISK_CATEGORIES = frozenset(
 )
 
 
-def context_browser_mcp(request: dict[str, Any]) -> dict[str, Any]:
-    """Project native browser semantics; native absence is not a negative match."""
-    result = native_context_digest(
-        "browser_mcp",
-        {"request": request},
-        guard_home=_resolve_digest_home(None),
-    )
-    browser = result.get("browser_mcp") if isinstance(result, dict) and result.get("status") == "ok" else None
-    if not isinstance(browser, dict) or browser.get("operation") != request.get("operation"):
-        raise _unavailable("native_browser_mcp_intent_unavailable")
-    return browser
-
-
 def context_mcp_redact_json(value: object) -> object:
     """stdio `_redact_json` parity for recorded MCP traffic; terminal on failure."""
     fields = json.loads(json.dumps({"material": value}))
@@ -1040,7 +1011,6 @@ __all__ = [
     "bind_context_digest_home",
     "bind_context_digest_lifecycle_budget",
     "bound_context_digest_home",
-    "context_browser_mcp",
     "context_digest_guard_home",
     "context_mcp_identity",
     "context_mcp_redact_json",
@@ -1050,7 +1020,6 @@ __all__ = [
     "context_runtime_launch_identity",
     "context_runtime_launch_identity_matches",
     "context_runtime_launch_identity_projection",
-    "is_unbound_context_digest",
     "native_context_digest",
     "reset_context_digest_budget",
     "reset_context_digest_home",

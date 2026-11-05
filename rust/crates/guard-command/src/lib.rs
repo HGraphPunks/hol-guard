@@ -42,6 +42,13 @@ mod catalog_read_model_tests;
 mod catalog_read_projection;
 mod catalog_read_query;
 pub mod ci_workflow_risk;
+pub mod cloud_action;
+pub mod cloud_action_activation;
+pub mod cloud_action_binding;
+pub mod cloud_action_canonical;
+pub mod cloud_action_policy;
+#[cfg(test)]
+mod cloud_action_tests;
 pub mod cloud_catalog;
 pub mod cloud_scrub;
 mod cloud_scrub_shell;
@@ -49,6 +56,8 @@ mod cloud_scrub_source_search;
 mod codex_output_args;
 mod codex_output_env;
 pub mod command_action_risk_classes;
+#[cfg(test)]
+mod command_action_risk_classes_tests;
 mod command_ascii_comparison;
 mod command_candidate_common;
 mod command_common_cli_matchers;
@@ -88,6 +97,7 @@ pub mod command_native_factors;
 mod command_operand_matchers;
 pub mod command_option_parsing;
 mod command_parse_surface;
+mod command_reviewed_literal;
 mod command_segment_parsing;
 pub mod command_shadow;
 #[cfg(test)]
@@ -176,6 +186,7 @@ mod native_command_extension_evidence_tests;
 pub mod native_command_program;
 pub mod network_protection_bundle;
 pub mod network_url;
+pub mod node_build_output;
 pub mod npm_source_spec;
 pub mod ordered_json;
 #[cfg(unix)]
@@ -199,10 +210,19 @@ mod powershell_parser;
 mod powershell_reads;
 pub mod protect_request;
 pub mod protection_health;
+pub mod protection_health_facts;
+#[cfg(test)]
+mod protection_health_facts_containment_tests;
+#[cfg(test)]
+mod protection_health_facts_tests;
 #[cfg(test)]
 mod protection_health_tests;
 pub mod pytest_argv;
+#[cfg(test)]
+mod pytest_argv_tests;
 mod read_only_fanout;
+mod remote_mcp_origin;
+pub use remote_mcp_origin::remote_mcp_origin;
 pub mod reviewed_invocation_bindings;
 pub mod rich_command_model_api;
 use parser_executables::*;
@@ -266,9 +286,13 @@ mod sfrs_gh_shell_vectors;
 mod sfrs_gh_static_body_safety;
 mod sfrs_git_audit;
 mod sfrs_git_cached_diff;
+#[cfg(test)]
+mod sfrs_git_cached_diff_tests;
 mod sfrs_git_fetch;
 mod sfrs_git_index;
 mod sfrs_git_routines;
+#[cfg(all(test, unix))]
+mod sfrs_git_routines_tests;
 #[cfg(all(test, unix))]
 mod sfrs_github_body_vectors;
 #[cfg(all(test, not(windows)))]
@@ -373,8 +397,13 @@ pub mod shell_request_authority;
 #[cfg(test)]
 mod shell_secret_read_containment_tests;
 mod shell_secret_read_flow;
+mod shell_secret_read_glob;
+#[cfg(test)]
+mod shell_secret_read_glob_tests;
 #[cfg(test)]
 mod shell_secret_read_script_operand_tests;
+#[cfg(test)]
+mod shell_secret_read_search_reader_tests;
 mod shell_secret_read_support;
 pub mod shell_secret_reads;
 mod shell_structure;
@@ -385,6 +414,7 @@ mod tool_action_identity_tests;
 pub mod trust_claim;
 #[cfg(test)]
 mod trust_claim_tests;
+mod tsc_project;
 pub mod typescript_launch_evidence;
 #[cfg(test)]
 #[path = "../../../test_support/unique_nanos.rs"]
@@ -405,8 +435,8 @@ pub(crate) use command_parse_surface::{
     parse_posix_command, uncertain, Quote, RawSegment,
 };
 pub use command_parse_surface::{
-    parse_command, CanonicalCommandV1, CommandModelRequestV1, CommandSegmentV1, CommandSpanV1,
-    MAX_COMMAND_BYTES, MAX_COMMAND_SEGMENTS, MAX_COMMAND_TOKENS,
+    inline_shell_script_text, parse_command, CanonicalCommandV1, CommandModelRequestV1,
+    CommandSegmentV1, CommandSpanV1, MAX_COMMAND_BYTES, MAX_COMMAND_SEGMENTS, MAX_COMMAND_TOKENS,
 };
 pub use critical_floor_context::critical_floor_action;
 
@@ -453,13 +483,26 @@ mod workspace_roots;
 pub mod aibom_reporting;
 pub mod aibom_trust_metadata;
 pub mod archive_inspection;
-pub mod command_operation_classification;
 pub mod composition_rules;
 pub mod contained_argv;
 #[cfg(unix)]
 pub mod contained_execution;
+mod contained_git;
+mod contained_inline_target;
+
+/// Whether `argv` is a protected Git read the contained planner admits, for
+/// the `contained_path` fuzz target, which no operation reaches it through.
+#[doc(hidden)]
+pub fn git_read_only_invocation(argv: &[String]) -> bool {
+    contained_git::read_only_invocation(argv).is_some()
+}
+mod contained_node_tool;
+mod contained_package_test;
+mod contained_prefix;
+mod contained_run_prefix;
 #[cfg(unix)]
 pub mod contained_runner;
+mod containment_compatibility;
 pub mod credential_patterns;
 pub mod data_flow_request_artifact;
 pub mod data_flow_rules;
@@ -565,3 +608,6 @@ mod verified_read_decision_tests;
 pub mod verified_read_plan;
 #[cfg(test)]
 mod verified_read_plan_tests;
+pub mod vite_output;
+#[cfg(test)]
+mod vite_output_tests;

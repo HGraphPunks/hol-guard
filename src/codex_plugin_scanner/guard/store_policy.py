@@ -48,7 +48,6 @@ if TYPE_CHECKING:
 # ruff: noqa: F403,F405
 from .native_approval_proof import approval_reuse_claim_disposition as native_claim_disposition
 from .native_execution import _resident_request
-from .native_hook_artifact_compose import native_hook_compose
 from .native_memory_pattern import memory_pattern_verdict
 from .native_policy_snapshot_constants import NATIVE_POLICY_VERIFIER_KEY_NAME, NativePolicySnapshotError
 from .native_policy_snapshot_windows_key import provision_native_policy_verifier_key
@@ -93,7 +92,6 @@ class PolicyLookupEvidence:
     integrity_key_id: str | None = None
     local_once_integrity_key_b64: str | None = None
     local_once_integrity_key_id: str | None = None
-    policy_bundle_decision_identities: list[list[Any]] | None = None
     # The store-resident sources this evidence was gathered against, named
     # before it was derived. Only a lookup that may claim ships one.
     evidence_binding: dict[str, Any] | None = None
@@ -115,18 +113,6 @@ def _degraded_lookup_evidence(
         integrity_state=integrity_state,
         degraded_trust_status=TrustStatus.from_policy_integrity_state(integrity_state).to_dict(),
         has_saved_rows=has_saved_rows,
-    )
-
-
-def _remembered_rules_disabled(lookup: PolicyDecisionLookupResult) -> bool:
-    """Whether the lookup is the empty answer of a home that serves no authority."""
-
-    trust = lookup.get("trust_status")
-    return (
-        lookup["decision"] is None
-        and lookup["authority_revision"] == _DEGRADED_AUTHORITY_REVISION
-        and isinstance(trust, dict)
-        and trust.get("remembered_rules") == "disabled_degraded"
     )
 
 
@@ -154,39 +140,6 @@ def memory_lookup_candidates(
         guard_home=guard_home,
     )
     return verdict.exact_artifact_ids, verdict.memory_artifact_id
-
-
-def _most_restrictive_policy_lookup(
-    lookups: Sequence[PolicyDecisionLookupResult],
-    *,
-    guard_home: Path | None,
-) -> PolicyDecisionLookupResult:
-    """Compose non-consuming direct, exact-command, and memory matches.
-
-    The resident selects, with the selector the MCP tool lane already uses: it
-    reads the action lattice, so a lookup whose saved action it cannot read is
-    the most restrictive one, not a weaker one. An unavailable resident raises,
-    which the caller's fail-closed handling turns into an availability response
-    rather than a locally recomposed verdict.
-    """
-
-    if not lookups:
-        raise ValueError("at least one policy lookup is required")
-    if len(lookups) == 1 and lookups[0]["decision"] is None:
-        # One lookup that matched nothing is already the answer: there is no
-        # saved decision to rank, no second revision to reconcile, and the
-        # selector would hand back the same row.  The hook path reaches this
-        # on every request without a saved approval, so it must not spend a
-        # resident round trip to be told so.
-        return lookups[0]
-    composed = native_hook_compose(
-        "policy_lookup_select",
-        {"lookups": [dict(lookup) for lookup in lookups]},
-        guard_home=guard_home,
-    )
-    # The resident owns the selection; this only reads its row back under the
-    # name the callers use, so the cast goes through ``object``.
-    return cast("PolicyDecisionLookupResult", cast("object", composed))
 
 
 def _approval_authority_revision(connection: sqlite3.Connection) -> int:
@@ -230,56 +183,6 @@ class StorePolicyMixin:
                 local_keyring_json=json.dumps(dict(quarantined_local_keyring), allow_nan=False),
             )
         return bool(self._native_store_call("managed_keyring_reconcile", arguments))
-
-    def _cached_policy_bundle_decision_identities(
-        self,
-        *,
-        now: float | None = None,
-    ) -> frozenset[tuple[object, ...]]:
-        """Return only rows derivable from the currently authorized signed bundle."""
-
-        from .policy_bundle_decisions import build_policy_bundle_decisions
-        from .synced_policy import SyncPayloadReader, cached_policy_bundle_validation
-
-        policy_bundle = self.get_sync_payload("policy_bundle")
-        if not isinstance(policy_bundle, dict) or not policy_bundle:
-            return frozenset()
-        validated_bundle, _reason = cached_policy_bundle_validation(
-            cast(SyncPayloadReader, cast(object, self)),
-            policy_bundle,
-            now=now,
-        )
-        if validated_bundle is None:
-            return frozenset()
-        try:
-            device_metadata = self.get_device_metadata()
-            decisions = build_policy_bundle_decisions(
-                validated_bundle,
-                device_id=str(device_metadata["installation_id"]),
-                # The same name policy sync matched against; see ``_guard_device_metadata``.
-                device_name=cast("GuardStore", self).device_display_name(str(device_metadata["device_label"])),
-            )
-        except (KeyError, OSError, RuntimeError, TypeError, ValueError):
-            return frozenset()
-        identities: set[tuple[object, ...]] = set()
-        for decision in decisions:
-            artifact_id, artifact_hash, workspace, publisher = self._normalized_policy_keys(decision)
-            identities.add(
-                (
-                    decision.harness,
-                    decision.scope,
-                    artifact_id,
-                    artifact_hash,
-                    workspace,
-                    publisher,
-                    decision.action,
-                    decision.reason,
-                    decision.owner,
-                    decision.source,
-                    (_canonical_utc_timestamp(decision.expires_at) if decision.expires_at is not None else None),
-                )
-            )
-        return frozenset(identities)
 
     def upsert_policy(
         self,
@@ -448,6 +351,7 @@ class StorePolicyMixin:
             now,
             approval_gate_grant=approval_gate_grant,
             remote_write_authorized=remote_write_authorized,
+            signed_bundle=True,
         )
         payload_rejection, encoded_payloads = encoded_policy_activation_payloads(
             policy_bundle,
@@ -696,8 +600,17 @@ class StorePolicyMixin:
         *,
         policy_bundle_last_error: Mapping[str, object],
         managed_controls_publish: (Callable[[ExtensionControlAuthorityView, Callable[[], None]], object] | None) = None,
+        policy_bundle_ack: Callable[[object], Mapping[str, object] | None] | None = None,
     ) -> None:
-        """Atomically remove all cached and materialized remote authority."""
+        """Atomically remove all cached and materialized remote authority.
+
+        When ``policy_bundle_ack`` is given, it is called with the acknowledgement
+        stored at the moment of the clear, read inside the clearing transaction,
+        and its result replaces that acknowledgement in the same write. A crash
+        cannot leave the bundle cleared with no failed acknowledgement queued for
+        Cloud, and a concurrent sync cannot swap the bundle between the read and
+        the clear.
+        """
 
         normalized_now = _canonical_utc_timestamp(now)
         state_payloads: dict[str, object] = {
@@ -787,6 +700,15 @@ class StorePolicyMixin:
                     self._seal_managed_revision(managed_revision, key=managed_authority_key),
                     allow_nan=False,
                 )
+            if policy_bundle_ack is not None:
+                ack_row = connection.execute(
+                    "select payload_json from sync_state where state_key = ?",
+                    ("policy_bundle_ack",),
+                ).fetchone()
+                stored_ack = None if ack_row is None else json.loads(str(ack_row["payload_json"]))
+                failed_ack = policy_bundle_ack(stored_ack)
+                if failed_ack is not None:
+                    encoded_payloads["policy_bundle_ack"] = json.dumps(dict(failed_ack), allow_nan=False)
             self._replace_remote_policy_rows_locked(connection, ())
             connection.execute(
                 "delete from sync_state where state_key in (?, ?, ?, ?)",
@@ -831,6 +753,7 @@ class StorePolicyMixin:
         *,
         approval_gate_grant: ApprovalGateGrant | None,
         remote_write_authorized: bool,
+        signed_bundle: bool = False,
     ) -> tuple[str, list[tuple[object, ...]]]:
         normalized_now = _canonical_utc_timestamp(now)
         rows: list[tuple[object, ...]] = []
@@ -839,12 +762,20 @@ class StorePolicyMixin:
                 decision,
                 remote_write_authorized=remote_write_authorized,
             )
-            require_policy_write(
-                self.guard_home,
-                decision=decision,
-                approval_gate_grant=approval_gate_grant,
-                now=normalized_now,
-            )
+            # The approval password stops a local process from writing its own
+            # allow rules. Rows of a verified bundle carry the workspace's
+            # signature instead, which no local process can produce, and a
+            # background sync never holds a password grant: gating these rows
+            # left every password-protected device without its team policy.
+            # Only bundle activation sets ``signed_bundle``; rows rebuilt from
+            # local state, such as the review-memory registry, stay gated.
+            if not (signed_bundle and remote_write_authorized and is_remote_policy_source(decision.source)):
+                require_policy_write(
+                    self.guard_home,
+                    decision=decision,
+                    approval_gate_grant=approval_gate_grant,
+                    now=normalized_now,
+                )
             expires_at = _canonical_utc_timestamp(decision.expires_at) if decision.expires_at is not None else None
             _validate_scoped_policy_artifact_target(decision.scope, decision.artifact_id)
             artifact_id, artifact_hash, workspace, publisher = self._normalized_policy_keys(decision)
@@ -892,86 +823,6 @@ class StorePolicyMixin:
             """,
             rows,
         )
-
-    def resolve_policy_decision_lookup_with_memory_pattern(
-        self,
-        harness: str,
-        artifact_id: str | None,
-        artifact_hash: str | None = None,
-        workspace: str | None = None,
-        publisher: str | None = None,
-        now: str | None = None,
-        runtime_exact_match_context: str | None = None,
-        *,
-        memory_command: str | None = None,
-        memory_artifact_type: str | None = None,
-        memory_artifact_name: str | None = None,
-        consume_one_shot: bool = True,
-    ) -> PolicyDecisionLookupResult:
-        direct_lookup = self.resolve_policy_decision_lookup(
-            harness,
-            artifact_id,
-            artifact_hash=artifact_hash,
-            workspace=workspace,
-            publisher=publisher,
-            now=now,
-            runtime_exact_match_context=runtime_exact_match_context,
-            consume_one_shot=consume_one_shot,
-        )
-        candidate_lookups = [direct_lookup]
-        # A degraded store honors no saved decision, so the remembered-decision
-        # probes cannot change the answer and need no resident fingerprint.
-        if _remembered_rules_disabled(direct_lookup):
-            return direct_lookup
-        if consume_one_shot and (
-            direct_lookup["decision"] is not None or direct_lookup.get("ignored_local_integrity") is not None
-        ):
-            return direct_lookup
-        exact_command_artifact_ids, memory_artifact_id = memory_lookup_candidates(
-            harness,
-            artifact_id,
-            memory_command=memory_command,
-            memory_artifact_type=memory_artifact_type,
-            memory_artifact_name=memory_artifact_name,
-            guard_home=Path(self.guard_home),
-        )
-        for exact_command_artifact_id in exact_command_artifact_ids:
-            exact_command_lookup = self.resolve_policy_decision_lookup(
-                harness,
-                exact_command_artifact_id,
-                artifact_hash=artifact_hash,
-                workspace=workspace,
-                publisher=publisher,
-                now=now,
-                runtime_exact_match_context=runtime_exact_match_context,
-                consume_one_shot=consume_one_shot,
-            )
-            candidate_lookups.append(exact_command_lookup)
-            if consume_one_shot and (
-                exact_command_lookup["decision"] is not None
-                or exact_command_lookup.get("ignored_local_integrity") is not None
-            ):
-                return exact_command_lookup
-        if memory_artifact_id is None:
-            return _most_restrictive_policy_lookup(candidate_lookups, guard_home=Path(self.guard_home))
-        memory_lookup = self.resolve_policy_decision_lookup(
-            harness,
-            memory_artifact_id,
-            artifact_hash=artifact_hash,
-            workspace=workspace,
-            publisher=publisher,
-            now=now,
-            runtime_exact_match_context=runtime_exact_match_context,
-            consume_one_shot=consume_one_shot,
-        )
-        candidate_lookups.append(memory_lookup)
-        if consume_one_shot:
-            return (
-                memory_lookup
-                if (memory_lookup["decision"] is not None or memory_lookup.get("ignored_local_integrity") is not None)
-                else direct_lookup
-            )
-        return _most_restrictive_policy_lookup(candidate_lookups, guard_home=Path(self.guard_home))
 
     def peek_local_once_approval(
         self,
@@ -1086,8 +937,6 @@ class StorePolicyMixin:
             "local_once_integrity_key_b64": evidence.local_once_integrity_key_b64,
             "local_once_integrity_key_id": evidence.local_once_integrity_key_id,
         }
-        if evidence.policy_bundle_decision_identities:
-            request["policy_bundle_decision_identities"] = evidence.policy_bundle_decision_identities
         if portable_workspace is not None:
             request["portable_workspace"] = portable_workspace
             # Unset options are omitted, never sent as null: the resident
@@ -1177,8 +1026,8 @@ class StorePolicyMixin:
                 else {}
             )
             # The claim a composing lookup may take re-reads these sources under
-            # its write lock. Name them here, before the bundle identities below
-            # are derived, so a source that moves afterwards makes the resident
+            # its write lock. Name them here, before the resident derives the
+            # bundle identities, so a source that moves afterwards makes it
             # refuse the claim instead of honouring stale evidence.
             evidence_binding: dict[str, Any] | None = None
             if claim_binding:
@@ -1279,16 +1128,9 @@ class StorePolicyMixin:
                 else None
             ),
             local_once_integrity_key_id=local_once_key_id,
-            policy_bundle_decision_identities=self._lookup_bundle_identities(current_time),
             evidence_binding=evidence_binding,
             has_saved_rows=has_saved_rows,
         )
-
-    def _lookup_bundle_identities(self, current_time: str) -> list[list[Any]] | None:
-        identities = self._cached_policy_bundle_decision_identities(
-            now=_parse_utc_timestamp(current_time).timestamp(),
-        )
-        return [[field for field in identity] for identity in identities] if identities else None
 
     def resolve_policy_decision(
         self,
@@ -1401,8 +1243,8 @@ class StorePolicyMixin:
             evidence["integrity_key_b64"] = encode_key(key)
             evidence["integrity_key_id"] = key_id
         # The evidence above is derived outside the claim's write lock. Name the
-        # store-resident sources it depends on *before* deriving the bundle
-        # identities, so anything that moves afterwards makes the resident refuse
+        # store-resident sources it depends on *before* the resident derives the
+        # bundle identities, so anything that moves afterwards makes it refuse
         # the claim when it re-reads them under the lock.
         with self._connect() as connection:
             evidence["evidence_binding"] = claim_evidence_binding(
@@ -1410,12 +1252,6 @@ class StorePolicyMixin:
                 bundle=needs_bundle,
                 cloud_workspace_id=self._cloud_workspace_id_from_connection(connection) if needs_bundle else None,
             )
-        if needs_bundle:
-            identities = self._cached_policy_bundle_decision_identities(
-                now=_parse_utc_timestamp(current_time).timestamp(),
-            )
-            if identities:
-                evidence["policy_bundle_decision_identities"] = [list(identity) for identity in identities]
         return evidence
 
     def approval_reuse_validation_reason(
@@ -1458,38 +1294,6 @@ class StorePolicyMixin:
         Returns ``(reason, stored_artifact_hash)``.  The stored hash is needed
         by emit layers that must distinguish a rejected approval bound to the
         current context-token contract from stale pre-token (legacy) evidence.
-        """
-
-        reason, stored_hash, _reuse = self.approval_reuse_miss(
-            harness,
-            artifact_id,
-            artifact_hash,
-            workspace,
-            publisher,
-            current_action=None,
-            now=now,
-        )
-        return reason, stored_hash
-
-    def approval_reuse_miss(
-        self,
-        harness: str,
-        artifact_id: str | None,
-        artifact_hash: str | None,
-        workspace: str | None,
-        publisher: str | None,
-        current_action: str | None = None,
-        now: str | None = None,
-    ) -> tuple[str | None, str | None, Mapping[str, object] | None]:
-        """Diagnose a saved-allow miss and, optionally, compose what it means.
-
-        Returns ``(reason, stored_artifact_hash, reuse)``.  Naming
-        ``current_action`` asks the resident to compose the reuse decision for
-        the miss in the same round trip, including whether the rejected
-        approval was ever bound to the context-token contract; ``reuse`` is
-        ``None`` whenever the resident did not compose one, either because the
-        caller did not ask or because there was no resident answer to compose
-        from.
 
         The resident runs the bounded probes and picks the reason. This wrapper
         only procures integrity evidence when the resident asks for it. A store
@@ -1502,7 +1306,7 @@ class StorePolicyMixin:
         """
 
         if artifact_id is None:
-            return None, None, None
+            return None, None
         current_time = _canonical_utc_timestamp(now or _now())
         with self._connect() as connection:
             has_rows = (
@@ -1513,7 +1317,7 @@ class StorePolicyMixin:
                 is not None
             )
         if not has_rows:
-            return None, None, None
+            return None, None
         self._provision_resident_verifier()
 
         def evidence_provider(policy: bool, local_once: bool) -> dict[str, object]:
@@ -1544,7 +1348,6 @@ class StorePolicyMixin:
                 publisher=publisher,
                 now=current_time,
                 evidence_provider=evidence_provider,
-                current_action=current_action,
             )
         except ApprovalReuseDiagnosticUnavailableError as error:
             _LOGGER.warning(
@@ -1553,17 +1356,19 @@ class StorePolicyMixin:
                 error,
                 APPROVAL_REUSE_DIAGNOSTIC_UNAVAILABLE_REASON,
             )
-            return APPROVAL_REUSE_DIAGNOSTIC_UNAVAILABLE_REASON, None, None
+            return APPROVAL_REUSE_DIAGNOSTIC_UNAVAILABLE_REASON, None
 
-    def _provision_resident_verifier(self) -> None:
+    def _provision_resident_verifier(self, key: bytes | None = None) -> None:
         """Establish the verifier key the resident requires before it serves.
 
         Provisioning is O_EXCL and never replaces, so it is idempotent. A
         verifier that is malformed, foreign-owned, or mismatched is tampering
-        evidence and is never silently degraded past.
+        evidence and is never silently degraded past. A caller that already
+        read the keyring passes its key instead of reading it again.
         """
 
-        key, _key_id = self._policy_integrity_secret_material(create=False)
+        if key is None:
+            key, _key_id = self._policy_integrity_secret_material(create=False)
         if key is None:
             return
         try:

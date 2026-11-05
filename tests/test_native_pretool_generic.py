@@ -228,7 +228,6 @@ def test_supported_cli_pretool_unavailability_does_not_use_source_ref_fallback(
     guard_home = tmp_path / "guard-home"
     result = commands_hook_native_authority.route_native_hook(
         argparse.Namespace(harness="codex", json=True),
-        config=None,
         context=HarnessContext(tmp_path / "home", tmp_path / "workspace", guard_home),
         payload={"hook_event_name": "PreToolUse", "tool_input": {"url": "https://example.test"}},
         runtime_workspace=tmp_path / "workspace",
@@ -308,9 +307,11 @@ def test_supported_cli_pretool_worker_exception_is_recorded_in_the_guard_log(
     record = json.loads((guard_home / "logs" / "daemon.log").read_text(encoding="utf-8").splitlines()[-1])
     assert record["event"] == "native_hook_worker_exception"
     assert record["detail"] == "harness=codex event=PreToolUse"
-    assert "worker fixture failure" in record["exception"]
-    # The wire response stays free of local detail; the log carries it.
+    assert record["exception"] == "RuntimeError"
+    # Neither surface carries the failure's own words: the wire response says
+    # only that the worker failed, and the log names the class that raised.
     assert "worker fixture failure" not in json.dumps(response)
+    assert "worker fixture failure" not in json.dumps(record)
 
 
 def test_supported_cli_pretool_worker_exception_points_stderr_at_the_guard_log(

@@ -20,6 +20,11 @@ from .bounded_hook_http import post_hook_json, prepare_grok_prompt
 _MAX_HOOK_RESPONSE_BYTES = 1_000_000
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 _DAEMON_TIMEOUT_BUDGET_SECONDS = 5.0
+# The approval wait and the render share one hook budget. The render now goes
+# to the resident, so the wait stops this far short of the deadline and leaves
+# it room to answer; spending the last second waiting would turn a granted
+# approval into a fail-closed refusal.
+_RENDER_RESERVE_SECONDS = 2
 
 
 def _assert_loopback_http_url(url: str) -> None:
@@ -96,6 +101,27 @@ def _rendered_bridge_answer(
     A resident that cannot render it leaves the fixed fail-closed payload for
     this harness and event, as an unreachable daemon would.
     """
+    if harness.strip().lower().replace("_", "-") == "muse":
+        from .muse_hook_render import apply_muse_pretool_approval_wait, muse_bridge_response
+
+        answer: dict[str, object] = dict(parsed)
+        try:
+            from ..config import load_guard_config
+            from ..store import GuardStore
+
+            remaining = max(0, int(deadline - time.monotonic()) - _RENDER_RESERVE_SECONDS)
+            configured = load_guard_config(guard_home).approval_wait_timeout_seconds
+            wait_seconds = min(configured, remaining)
+            if wait_seconds > 0:
+                answer = apply_muse_pretool_approval_wait(
+                    answer,
+                    event_name=event_name,
+                    store=GuardStore(guard_home),
+                    timeout_seconds=wait_seconds,
+                )
+        except (OSError, RuntimeError, TypeError, ValueError, KeyError, sqlite3.Error):
+            answer = dict(parsed)
+        return muse_bridge_response(answer, event_name=event_name, guard_home=guard_home, deadline=deadline)
     from ..native_hook_render import native_cli_hook_emit
 
     rendered = native_cli_hook_emit(

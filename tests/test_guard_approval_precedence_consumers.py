@@ -4,16 +4,13 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 import codex_plugin_scanner.guard.local_supply_chain as local_supply_chain_module
 from codex_plugin_scanner.guard.config import GuardConfig
-from codex_plugin_scanner.guard.consumer import artifact_hash
-from codex_plugin_scanner.guard.local_supply_chain import (
-    apply_stored_package_policy_override,
-    package_request_policy_hash,
-)
+from codex_plugin_scanner.guard.local_supply_chain import package_request_policy_hash
 from codex_plugin_scanner.guard.mcp_tool_calls import (
     build_tool_call_artifact,
     build_tool_call_hash,
@@ -30,12 +27,15 @@ from codex_plugin_scanner.guard.runtime.package_request_evaluation import (
     PackageRequestEvaluation,
     SupplyChainUserCopy,
 )
-from codex_plugin_scanner.guard.runtime.secret_file_requests import (
-    extract_sensitive_file_read_request_artifact,
-)
 from codex_plugin_scanner.guard.store import GuardStore
 
 pytestmark = pytest.mark.usefixtures("approval_questionnaire_mode")
+
+
+def apply_stored_package_policy_override(evaluation: object, **kwargs: Any) -> PackageRequestEvaluation:
+    """The saved-policy override the package lane applies, as its resolver returns it."""
+
+    return local_supply_chain_module._resolve_stored_package_policy_override(evaluation, **kwargs).evaluation
 
 
 def _exact_package_context_token() -> str:
@@ -982,16 +982,3 @@ def test_tool_call_resolved_executable_change_invalidates_review_approval(tmp_pa
 
     assert decision.action == "review"
     assert decision.approval_reuse_reason_code == "approval_reuse_identity_changed"
-
-
-def _sensitive_read_artifact(workspace: Path) -> tuple[GuardArtifact, str]:
-    _request, artifact = extract_sensitive_file_read_request_artifact(
-        "read_file",
-        {"path": ".env"},
-        cwd=workspace,
-        harness="codex",
-        config_path=str(workspace / ".mcp.json"),
-        source_scope="project",
-    )
-    assert artifact is not None
-    return artifact, artifact_hash(artifact)

@@ -28,12 +28,13 @@ use std::path::PathBuf;
 use guard_command::local_supply_chain::is_audit_sensitive_basename;
 use guard_scanner::repository_scanner::decode_text;
 use guard_scanner::secret_detection::{
-    detector_version, scan_secret_text, SecretFinding, SecretScanSummary,
+    detector_version, encoded_payload_spans, scan_secret_text, SecretFinding, SecretScanSummary,
+    ENCODED_REASON,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use zeroize::{Zeroize, Zeroizing};
+use zeroize::Zeroizing;
 
 use super::secrets::{is_credential_store, MAX_PATH_BYTES};
 use super::{keyed_digest, SKIP_DIRS};
@@ -386,7 +387,25 @@ pub(super) fn redact(text: &str, path: &str, scanner: Scanner) -> Redaction {
                     .map(|(start, matched)| (start, start + matched.len())),
             );
         }
-        if ranges.len() > before {
+        // A credential the file carries inside a base64 payload has no literal
+        // occurrence there to replace, and base64 cannot have the bytes taken
+        // out of it in place, so the payload holding it is replaced whole.
+        // This is decided apart from the literal replacement above, because a
+        // credential written both ways has a plain finding on an earlier line:
+        // reading that as this payload already handled would leave the payload
+        // on the page, where the second scan finds the credential again and a
+        // file that could have been exported with it gone blocks the bundle
+        // instead. The spans are named once per credential all the same, since
+        // they are every payload in the text holding it.
+        let payloads_named = findings[..index].iter().any(|earlier| {
+            earlier.candidate == candidate && earlier.context_reasons.contains(&ENCODED_REASON)
+        });
+        if finding.context_reasons.contains(&ENCODED_REASON) && !payloads_named {
+            ranges.extend(encoded_payload_spans(text, candidate));
+        }
+        // The same secret found again, however it was written, is one
+        // redaction.
+        if !repeated && ranges.len() > before {
             redactions += 1;
         }
         rules.push(finding.rule_id);
@@ -423,7 +442,7 @@ pub(super) fn redact(text: &str, path: &str, scanner: Scanner) -> Redaction {
 
 fn wipe(findings: &mut [SecretFinding]) {
     for finding in findings {
-        finding.candidate.zeroize();
+        finding.scrub_candidate();
     }
 }
 

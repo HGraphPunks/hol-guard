@@ -70,6 +70,54 @@ pub(in crate::pretool) fn is_package_tool(tool: &str) -> bool {
     )
 }
 
+/// The package managers a shell command spells as its program. [`is_package_tool`]
+/// reads a name token by token, which is what a harness tool's name needs
+/// (`install_package`, `mcp__registry__npm_add`) but not what an executable
+/// needs: `npm-run-all` runs the project's own scripts and installs nothing,
+/// and reading its name as `npm` cost it both its containment and its reason.
+/// These are the managers that reading already reached, so no program becomes
+/// a package tool that was not one before.
+const PACKAGE_EXECUTABLES: &[&str] = &[
+    "apk",
+    "apt",
+    "apt-get",
+    "brew",
+    "bun",
+    "cargo",
+    "cargo-binstall",
+    "cargo-install-update",
+    "dnf",
+    "gem",
+    "npm",
+    "pip",
+    "pip-sync",
+    "pipx",
+    "pnpm",
+    "poetry",
+    "yarn",
+    "yum",
+];
+
+/// Whether the program `executable` names is a package manager. The basename
+/// is read without the extension Windows launches it by, and without the
+/// version a manager carries, attached or hyphenated, so `pip3`, `pip3.12`,
+/// `pip-3.12` and Fedora's `dnf-3` all read as the manager they launch.
+pub(in crate::pretool) fn executable_is_package_tool(executable: &str) -> bool {
+    let name = executable
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(executable)
+        .to_ascii_lowercase();
+    let name = name
+        .rsplit_once('.')
+        .filter(|(_, extension)| matches!(*extension, "exe" | "cmd" | "bat" | "ps1"))
+        .map_or(name.as_str(), |(stem, _)| stem);
+    let versionless = name
+        .trim_end_matches(|character: char| character.is_ascii_digit() || character == '.')
+        .trim_end_matches('-');
+    PACKAGE_EXECUTABLES.contains(&name) || PACKAGE_EXECUTABLES.contains(&versionless)
+}
+
 fn is_network_tool(tool: &str) -> bool {
     tool_matches(
         tool,
@@ -248,21 +296,44 @@ fn is_command_tool(tool: &str) -> bool {
 
 pub(super) fn package_command(model: &CanonicalCommandV1) -> bool {
     model.segments.iter().any(|segment| {
-        segment.executable.as_deref().is_some_and(is_package_tool) && !inline_eval(segment)
+        segment
+            .executable
+            .as_deref()
+            .is_some_and(executable_is_package_tool)
+            && !runs_code(segment)
     })
 }
 
-/// `bun -e <code>` runs code, not a package operation; keep the command
-/// decision so the reason names what actually needs review.
-fn inline_eval(segment: &crate::CommandSegmentV1) -> bool {
+/// Bun is a JavaScript runtime as well as a package manager. `bun -e <code>`
+/// and `bun <entry>.mjs` run code the way `node` does, not a package
+/// operation; keep the command decision so the reason names what actually
+/// needs review, and so these reach the same containment `node` reaches.
+/// `bun install`, `bun add`, `bun run <task>` and `bun test` are unchanged.
+fn runs_code(segment: &crate::CommandSegmentV1) -> bool {
     segment
         .executable
         .as_deref()
         .is_some_and(|executable| executable.rsplit(['/', '\\']).next() == Some("bun"))
-        && segment
-            .arguments
-            .first()
-            .is_some_and(|argument| matches!(argument.as_str(), "-e" | "--eval" | "-p" | "--print"))
+        && segment.arguments.first().is_some_and(|argument| {
+            matches!(argument.as_str(), "-e" | "--eval" | "-p" | "--print")
+                || script_entry(argument)
+        })
+}
+
+/// A first argument naming a JavaScript or TypeScript file. Bun runs that file
+/// directly; none of its own verbs carry one of these suffixes, so reading the
+/// suffix cannot take a package operation out of the package path.
+fn script_entry(argument: &str) -> bool {
+    !argument.starts_with('-')
+        && std::path::Path::new(argument)
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| {
+                matches!(
+                    extension,
+                    "js" | "mjs" | "cjs" | "jsx" | "ts" | "mts" | "cts" | "tsx"
+                )
+            })
 }
 
 /// Whether `infer_action_type` decides this call from the tool's name alone.

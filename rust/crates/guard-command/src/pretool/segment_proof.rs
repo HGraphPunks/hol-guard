@@ -11,8 +11,8 @@ mod cwd;
 #[path = "github_metadata_text.rs"]
 mod github_metadata_text;
 pub(super) use cwd::{
-    after_read_prefix, cwd_read_executable, exact_safe_cwd_compound, git_read_cwd_compound_context,
-    verified_cwd_compound_context, verified_cwd_list_context,
+    after_read_prefix, cwd_read_executable, exact_safe_absolute_cd_chain, exact_safe_cwd_compound,
+    git_read_cwd_compound_context, verified_cwd_compound_context, verified_cwd_list_context,
 };
 
 pub(crate) fn benign_command_segments(
@@ -38,10 +38,13 @@ pub(crate) fn benign_command_segments(
         home_dir: context.home_dir,
         cdpath_unset: context.cdpath_unset,
         rustup_override_absent: context.rustup_override_absent,
+        cargo_config_inert: context.cargo_config_inert,
         npm_config_inert: context.npm_config_inert,
         pip_config_inert: context.pip_config_inert,
         shell_home_matches: context.shell_home_matches,
         ripgrep_config_absent: context.ripgrep_config_absent,
+        gem_config_absent: context.gem_config_absent,
+        http_config_absent: context.http_config_absent,
         psql_environment: context.psql_environment,
         creates_nothing: super::search::command_creates_nothing(model),
         cwd: cwd.as_deref().or(context.cwd),
@@ -51,8 +54,12 @@ pub(crate) fn benign_command_segments(
         .iter()
         .enumerate()
         .map(|(index, segment)| {
+            // `$((PATH=10))` assigns as it expands, which a later step sees.
+            let assigns = index + 1 < model.segments.len()
+                && super::shell_arithmetic::arithmetic_assigns(&segment.text);
             (index == 0 && cwd.is_some())
-                || exact_safe_segment_with_context(model, segment, false, proof_context)
+                || (!assigns
+                    && exact_safe_segment_with_context(model, segment, false, proof_context))
         })
         .collect();
     let mut all_previous_benign = true;
@@ -73,6 +80,8 @@ pub(crate) fn benign_command_segments(
                 "pwd"
                     | "true"
                     | "exit"
+                    | "break"
+                    | "continue"
                     | "echo"
                     | "printf"
                     | "which"
@@ -98,6 +107,7 @@ pub(crate) fn benign_command_segments(
                         basename,
                     "ls" | "cat"
                         | "base64"
+                        | "base32"
                         | "dd"
                         | "cp"
                         | "mkdir"
@@ -124,6 +134,30 @@ pub(crate) fn benign_command_segments(
                         | "npm"
                         | "jq"
                         | "pkill"
+                        // A filter given a file operand opens that file, so
+                        // its coverage takes the same session proof `cat`
+                        // takes. The stdin forms are path-free above.
+                        | "sort"
+                        | "uniq"
+                        | "cut"
+                        | "tr"
+                        | "paste"
+                        | "join"
+                        | "column"
+                        | "nl"
+                        | "tac"
+                        | "rev"
+                        | "fold"
+                        | "expand"
+                        | "unexpand"
+                        | "fmt"
+                        | "comm"
+                        | "strings"
+                        | "hexdump"
+                        | "xxd"
+                        | "pr"
+                        | "shuf"
+                        | "iconv"
                 ))
                 // A file operand prints a source line on a syntax error, so it
                 // gets the same session proof as `cat`.
@@ -224,7 +258,7 @@ fn no_peer_creates(model: &CanonicalCommandV1, segment: &crate::CommandSegmentV1
         .segments
         .iter()
         .filter(|other| other.span != segment.span)
-        .all(|other| search::grep::creates_nothing(other, true))
+        .all(search::grep::creates_nothing)
 }
 
 pub(super) fn exact_safe_segment_with_context(
@@ -263,7 +297,13 @@ pub(super) fn exact_safe_segment_with_context(
     let inert_search = match basename {
         "grep" | "egrep" | "fgrep" => search::grep::safe_grep_segment(model, segment, context),
         "rg" => search::safe_rg_segment(model, segment, context),
-        "fd" => search::safe_search_arguments_with_context(basename, &segment.arguments, context),
+        // A fan-out is deliberately absent here. The proof below bounds the
+        // walk to regular source files under the working directory, but it
+        // reads nothing about the name the walk matches, so `fd -H -t f -e
+        // txt id_rsa -x cat` would otherwise shed the screen that keeps the
+        // same pattern reviewed as a plain search -- and as `find ... -exec`,
+        // which this arm has never carried either.
+        "fd" => search::safe_fd_segment(model, segment, context),
         _ => false,
     };
     let search_text = if basename == "git" {
@@ -276,10 +316,7 @@ pub(super) fn exact_safe_segment_with_context(
         secret_namespace.map(|index| github_metadata_text::without_namespace(segment, index));
     if (!inert_search
         && !super::source_file_read_segment(segment)
-        && super::git_search_text::sensitive_beyond_patterns(
-            sensitive_text.as_deref().unwrap_or(&segment.text),
-            super::git_search_text::segment_without_patterns(segment),
-        ))
+        && super::git_search_text::segment_sensitive(model, segment, sensitive_text, context.cwd))
         || (!matches!(basename, "rg" | "grep" | "egrep" | "fgrep" | "fd")
             && segment
                 .arguments
@@ -297,11 +334,17 @@ pub(super) fn exact_safe_segment_with_context(
                 && super::kubectl_reads::trusted_kubeconfig_prefix(segment, context)))
         || (executable.contains(['/', '\\'])
             && !super::postgres_reads::trusted_pg_ctl_path(executable, context)
-            && !super::venv_program_path::environment_program(executable, context))
+            && !super::guard_diagnostics::guard_install_executable(executable, context)
+            && !super::venv_program_path::environment_program(executable, context)
+            && !super::installed_program_path::installed_program(segment, executable, context))
     {
         return false;
     }
-    if super::version_probes::safe_version_probe(basename, &segment.arguments) {
+    if super::version_probes::safe_version_probe(basename, &segment.arguments)
+        || super::help_probes::safe_help_probe(basename, &segment.arguments, context)
+        || super::liveness_probes::safe_liveness_probe(basename, &segment.arguments)
+        || super::manager_usage::safe_manager_segment(basename, model, segment, context)
+    {
         return true;
     }
     match basename {
@@ -310,15 +353,20 @@ pub(super) fn exact_safe_segment_with_context(
                 && matches!(segment.arguments.as_slice(), [target] if safe_directory_target(target))
                 && super::directory_targets::drive_targets_quoted(segment)
         }
+        // `printf -v NAME` and `%n` assign a shell variable rather than print.
         "pwd" | "true" | "echo" | "printf" | "which" | "whoami" | "uname" => {
-            super::glob_words::printed_globs_listable(model, segment, context)
+            !super::printf_words::printf_sets_variable(segment)
+                && !super::control_flow_flatten::command_word_changes_shell_state(&segment.text)
+                && super::glob_words::printed_globs_listable(model, segment, context)
         }
-        "exit" => super::safe_scalar::safe_exit_arguments(&segment.arguments),
+        "exit" => super::shell_flow::safe_exit_arguments(&segment.arguments),
+        "break" | "continue" => super::shell_flow::safe_loop_control_arguments(&segment.arguments),
         "unset" | "set" => super::inert_environment::safe_shell_setting(basename, segment),
         "type" | "command" => {
             super::lookup_reads::safe_lookup_arguments(basename, &segment.arguments)
         }
-        "cargo" | "rustc" => super::rust_toolchain::safe_version_probe(&segment.arguments, context),
+        "cargo" => super::rust_toolchain::safe_cargo_probe(&segment.arguments, context),
+        "rustc" => super::rust_toolchain::safe_version_probe(&segment.arguments, context),
         "date" => safe_reads::safe_date_arguments(&segment.arguments),
         "sleep" => safe_reads::safe_sleep_arguments(&segment.arguments),
         "uptime" => segment.arguments.is_empty(),
@@ -355,6 +403,7 @@ pub(super) fn exact_safe_segment_with_context(
         }
         "xargs" => {
             super::fanout_reads::safe_xargs(model, segment, context)
+                || super::fanout_reads::safe_listing_xargs(model, segment, context)
                 || super::fanout_reads::safe_git_xargs(model, segment, context)
         }
         // Operand-free `cat` after a pipe only copies the proven producer's output.
@@ -362,7 +411,7 @@ pub(super) fn exact_safe_segment_with_context(
             (segment.pipeline_index > 0 && safe_reads::safe_cat_stdin_arguments(&segment.arguments))
                 || safe_reads::safe_plain_file_arguments(&segment.arguments, context)
         }
-        "base64" => {
+        "base64" | "base32" => {
             super::base64_reads::safe_base64_arguments(&segment.arguments, context)
                 || (segment.pipeline_index > 0
                     && super::stdin_filters::safe_arguments(basename, &segment.arguments))
@@ -426,6 +475,8 @@ pub(super) fn exact_safe_segment_with_context(
         }
         "gh" => safe_gh_arguments(&segment.arguments, &segment.text),
         "curl" => super::curl_reads::safe_curl_segment(model, segment, context),
+        "http" | "xh" => super::http_reads::safe_http_segment(basename, model, segment, context),
+        "wget" => super::wget_reads::safe_wget_segment(model, segment, context),
         "kubectl" => super::kubectl_reads::safe_kubectl_segment(model, segment, context),
         "export" => {
             (super::kubectl_reads::safe_export_segment(model, segment, context)
@@ -439,16 +490,34 @@ pub(super) fn exact_safe_segment_with_context(
         "wrangler" => super::wrangler_reads::safe_wrangler_arguments(&segment.arguments),
         "doctl" => super::doctl_reads::safe_doctl_arguments(&segment.arguments),
         "docker" => super::docker_reads::safe_docker_segment(model, segment),
+        "helm" => super::helm_usage::safe_helm_segment(model, segment),
         "nc" | "netcat" => super::port_probes::safe_nc_segment(model, segment),
         "brew" => super::brew_reads::safe_brew_segment(model, segment),
+        "gem" => super::gem_reads::safe_gem_segment(model, segment, context),
         "pg_ctl" => super::postgres_reads::safe_pg_ctl_arguments(&segment.arguments),
         "psql" => super::postgres_reads::safe_psql_arguments(&segment.arguments, context),
         "npm" => {
-            super::npm_reads::read_only_neighbors(model)
+            super::npm_reads::read_only_neighbors(model, "npm")
                 && super::npm_reads::safe_npm_read(&segment.arguments, context)
         }
+        "pnpm" => {
+            super::npm_reads::read_only_neighbors(model, "pnpm")
+                && super::pnpm_reads::safe_pnpm_read(&segment.arguments, context)
+        }
         "pip" | "pip3" => super::pip_reads::safe_pip_segment(model, segment, context),
-        "hol-guard" => super::guard_diagnostics::safe_hol_guard_segment(
+        "uv" => super::tool_inventory_reads::safe_uv_segment(model, segment),
+        "pipx" => super::tool_inventory_reads::safe_pipx_segment(model, segment),
+        // Windows spells the same launcher with its program suffix, and the
+        // install screen above already strips one before it decides, so the
+        // two spellings have to reach the same proof. `hol-guard.cmd`, the
+        // desktop PATH shim, is deliberately absent: a batch target is run
+        // through `cmd.exe /c`, which reads the arguments a second time, and
+        // the text `command test` carries exists to hold the operators that
+        // reading would act on. The spelling is handed on, because on Windows
+        // the one without a suffix reaches that same shim through `PATHEXT`
+        // and the proof has to read its arguments as the shim would.
+        "hol-guard" | "hol-guard.exe" => super::guard_diagnostics::safe_hol_guard_segment(
+            basename,
             &segment.arguments,
             context.cwd,
             segment.pipeline_index,
@@ -477,7 +546,16 @@ pub(super) fn exact_safe_segment_with_context(
                 context,
             )
         }
-        "sort" | "uniq" | "cut" | "tr" => {
+        // `numfmt` takes numbers, not files. Its operands are the numbers it
+        // rewrites, and it reads standard input when it is given none, so a
+        // file name there is an invalid number rather than a read. Proving
+        // the operands as files would claim a read that never happens and
+        // would leave the ordinary `numfmt --to=iec 1048576` under review.
+        "numfmt" => super::stdin_filters::safe_number_arguments(&segment.arguments),
+        "sort" | "uniq" | "cut" | "tr" | "paste" | "join" | "column" | "nl" | "tac" | "rev"
+        | "fold" | "expand" | "unexpand" | "fmt" | "comm" | "strings" | "hexdump" | "xxd"
+        | "pr" | "shuf" | "iconv" | "ul" | "tsort" | "zcat" | "gzcat" | "bzcat" | "xzcat"
+        | "lzcat" | "zstdcat" => {
             (segment.pipeline_index > 0
                 && super::stdin_filters::safe_arguments(basename, &segment.arguments))
                 || super::stdin_filters::safe_file_arguments(basename, &segment.arguments, context)
@@ -488,11 +566,10 @@ pub(super) fn exact_safe_segment_with_context(
                     search::grep::safe_grep_segment(model, segment, context)
                 }
                 "rg" => search::safe_rg_segment(model, segment, context),
-                _ => search::safe_search_arguments_with_context(
-                    basename,
-                    &segment.arguments,
-                    context,
-                ),
+                _ => {
+                    search::safe_fd_segment(model, segment, context)
+                        || super::fanout_reads::safe_fd_exec(model, segment, context)
+                }
             }) && super::directory_targets::search_home_targets_safe(
                 segment,
                 context.cwd,

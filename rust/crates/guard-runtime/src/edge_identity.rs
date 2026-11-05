@@ -7,6 +7,11 @@ pub(super) const MAX_HARNESS_BYTES: usize = 64;
 pub(super) const MAX_EVENT_BYTES: usize = 64;
 pub(super) const MAX_PATH_BYTES: usize = 32 * 1024;
 
+/// The edge echoes the envelope's request id verbatim on the result and on
+/// the receipt, so a caller that mints an id can tell this request's answer
+/// from another request's. A caller sees the guarantee through this feature.
+pub(crate) const REQUEST_BINDING_FEATURE: &str = "edge-request-binding-v1";
+
 pub(super) fn request_id_is_safe(value: &str) -> bool {
     let opaque_token = !value.is_empty()
         && value.len() <= 256
@@ -34,8 +39,8 @@ pub(super) fn request_payload_identity(
     let Some(record) = payload.as_object() else {
         return Err("native_hook_payload_invalid".to_owned());
     };
-    // Event aliases and adapter timestamps are transport metadata, not request
-    // semantics. Event aliases are validated for agreement by
+    // Event aliases, adapter timestamps and the HTTP deadline hint are
+    // transport metadata, not request semantics. Event aliases are validated by
     // `authoritative_event`, then omitted here so a harness spelling change
     // cannot change an otherwise identical request. Timestamps are removed
     // only at the envelope root: a nested timestamp may be an actual tool
@@ -55,20 +60,35 @@ pub(super) fn request_payload_identity(
         "createdAt",
         "received_at",
         "receivedAt",
+        "guard_remaining_ms",
     ] {
         identity.remove(key);
     }
+    // Each Codex hook bridge stamps its own process and wait budget. A retry
+    // starts another bridge, and live-decision revalidates the prepared input
+    // without the HTTP hint. None of these fields changes the reviewed action.
+    // Keep nested tool arguments and other harnesses' fields committed.
+    if harness == "codex" && event == "PreToolUse" {
+        identity.remove(crate::codex_hook_bridge::BROWSER_WAIT_PROCESS_KEY);
+        identity.remove(crate::codex_hook_bridge::BROWSER_WAIT_TIMEOUT_KEY);
+    }
     // A retry of an unchanged action mints a new transport call ID: Pi's
-    // `tool_call_id`, and the `tool_use_id` Claude Code and Codex stamp on each
-    // tool-use block the model emits. Dropping it lets an Allow once approval
-    // reach the agent's own retry. Nested tool arguments and session identity
-    // stay in the commitment, and a request without a session keeps the ID.
-    if event == "PreToolUse"
-        && identity
-            .get("session_id")
+    // `tool_call_id`, and the `tool_use_id` Claude Code, Codex and Cursor stamp
+    // on each tool-use block the model emits. Claude Code also stamps the user
+    // turn as `prompt_id`, and Cursor stamps every attempt with a fresh
+    // `generation_id`, the request id its own adapter documents, while ZCode
+    // moves `tool_use_id`, `toolCallId` and `turnId` together; the retry an
+    // approval unblocks comes in the turn after the user answers. Dropping them
+    // lets an Allow once approval reach the agent's own retry. Nested tool
+    // arguments and session identity stay in the commitment, and a request
+    // without a session keeps the IDs.
+    let session_bound = session_identity_keys(harness).iter().any(|key| {
+        identity
+            .get(*key)
             .and_then(Value::as_str)
             .is_some_and(|s| !s.is_empty())
-    {
+    });
+    if event == "PreToolUse" && session_bound {
         for key in transport_call_id_keys(harness) {
             identity.remove(*key);
         }
@@ -76,11 +96,36 @@ pub(super) fn request_payload_identity(
     Ok(Value::Object(identity))
 }
 
+/// The root payload keys that carry a harness's own session identity.
+///
+/// Cursor never sends `session_id`: its hook payload spells the session
+/// `conversation_id`, the field `hook_authority_state_op` already keys Cursor
+/// pending and allow state by, and stamps every attempt with a fresh
+/// `generation_id`. Reading only `session_id` left the Cursor retry guard
+/// unreachable, so a Cursor retry kept its moving `generation_id` and could
+/// never reach the approval the user had just given.
+fn session_identity_keys(harness: &str) -> &'static [&'static str] {
+    match harness {
+        "cursor" => &["session_id", "conversation_id", "conversationId"],
+        _ => &["session_id"],
+    }
+}
+
 /// The root payload keys a harness's retry replaces for the same action.
 fn transport_call_id_keys(harness: &str) -> &'static [&'static str] {
     match harness {
         "pi" | "omp" => &["tool_call_id"],
-        "claude-code" | "codex" => &["tool_use_id"],
+        "claude-code" => &["tool_use_id", "prompt_id"],
+        "codex" => &["tool_use_id"],
+        // Cursor's own request id, the field `PROVEN_REQUEST_ID_FIELDS` pairs
+        // its pre- and post-execution evidence by. It moves on every attempt,
+        // so an identical retry never reached the approval the user gave.
+        "cursor" => &["generation_id", "tool_use_id"],
+        // ZCode spells the same tool call twice, `tool_use_id` and
+        // `toolCallId`, and stamps the surrounding turn as `turnId`. All three
+        // move on every attempt, so no ZCode approval could be reused and an
+        // unchanged retry asked again as a reapproval.
+        "zcode" => &["tool_use_id", "toolCallId", "turnId"],
         _ => &[],
     }
 }

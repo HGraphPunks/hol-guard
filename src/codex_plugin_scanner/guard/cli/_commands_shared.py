@@ -61,8 +61,8 @@ from ..approvals import (
     approvals_queued_before,
     attach_primary_approval_link,
     build_approval_browser_url,
-    canonical_local_approval_url,
     first_approval_url,
+    preferred_approval_review_url,
     queue_blocked_approvals,
     wait_for_approval_requests,
 )
@@ -113,7 +113,6 @@ from ..desktop_notifications import (
 from ..local_dashboard_session import build_local_dashboard_session_token
 from ..local_supply_chain import (
     _resolve_guard_sync_auth_context,
-    apply_stored_package_policy_override,
     build_local_supply_chain_posture,
     build_supply_chain_status_payload,
     evaluate_package_request_artifact,
@@ -164,19 +163,7 @@ from ..runtime.runner import (
 )
 from ..runtime.secret_file_requests import (
     build_tool_action_request_artifact,
-    extract_sensitive_file_read_request,
-    extract_sensitive_file_read_request_artifact,
-    extract_sensitive_file_read_request_artifact_from_action,
-    extract_sensitive_file_read_request_from_action,
-    extract_sensitive_file_write_request,
-    extract_sensitive_file_write_request_artifact,
     extract_sensitive_tool_action_request,
-)
-from ..runtime.secret_sensitivity import (
-    SecretContentMatch,
-    SecretPathMatch,
-    classify_secret_content,
-    classify_secret_path,
 )
 from ..runtime.signals import RiskSignalV2
 from ..runtime.surface_server import GuardSurfaceRuntime
@@ -229,8 +216,6 @@ class GuardBrowserOpener(Protocol):
 _GUARD_CLIENT_VERSION = "2.0.0"
 _SERVICE_RUNTIME_PROFILE_STATE_KEY = "service_runtime_profile"
 _NAMED_SECURITY_LEVELS = {"relaxed", "balanced", "strict", "gentle", "paranoid"}
-_HOOK_DAEMON_UNREACHABLE_REASON_MARKER = "daemon was unreachable"
-_CODEX_BROWSER_APPROVAL_WAIT_MAX_SECONDS = 8
 
 
 _SETTINGS_POLICY_RISK_ACTIONS: dict[str, dict[str, dict[str, str]]] = {

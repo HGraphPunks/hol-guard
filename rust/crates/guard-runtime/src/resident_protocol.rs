@@ -71,6 +71,7 @@ pub(crate) fn capabilities() -> RuntimeCapabilitiesV1 {
         crate::hook_direct::HOOK_DIRECT_PERMISSION_NOTICE_FEATURE.into(),
         crate::hook_direct::HOOK_DIRECT_SAVED_DECISION_FEATURE.into(),
         crate::hook_direct::HOOK_DIRECT_CONNECTOR_NOTICE_FEATURE.into(),
+        crate::hook_direct::HOOK_DIRECT_ACTIVITY_RECORD_FEATURE.into(),
         crate::hook_direct::HOOK_DIRECT_STRUCTURED_OUTPUT_FEATURE.into(),
         crate::policy_store::policy_store_direct_lane::HOOK_DIRECT_REVIEW_FACTS_FEATURE.into(),
         crate::hook_direct_evidence::HOOK_DIRECT_EVIDENCE_FEATURE.into(),
@@ -78,39 +79,13 @@ pub(crate) fn capabilities() -> RuntimeCapabilitiesV1 {
         crate::directory_trust::HOOK_PATH_RULES_FEATURE.into(),
         crate::mcp_relay_decide::MCP_RELAY_DECIDE_FEATURE.into(),
         crate::mcp_relay_servers::MCP_RELAY_SERVER_REPORT_FEATURE.into(),
-        "native-approval-artifact-v3".into(),
-        "native-approval-challenge-v3".into(),
-        "native-approval-validation-v3".into(),
-        "native-approval-consume-v3".into(),
-        "native-approval-webauthn-v4".into(),
-        "native-approval-challenge-v4".into(),
-        "native-approval-validation-v4".into(),
-        "native-approval-consume-v4".into(),
-        "native-approval-replay-memory-v1".into(),
-        "native-workspace-review-authority-v1".into(),
-        "native-workspace-review-enrollment-resident-v1".into(),
-        "native-workspace-review-context-v1".into(),
-        "native-local-business-review-summary-v1".into(),
-        "native-local-business-review-queue-v1".into(),
-        "native-workspace-review-decision-v1".into(),
-        "native-policy-in-memory-v1".into(),
-        "native-policy-snapshot-build-v1".into(),
-        "native-policy-snapshot-inspect-v1".into(),
-        "native-policy-snapshot-materialize-v1".into(),
-        "native-business-policy-retained-floor-v1".into(),
-        "native-business-policy-document-compile-v1".into(),
-        "native-guard-config-load-v1".into(),
-        "native-guard-config-update-v1".into(),
-        "native-guard-config-resolve-v1".into(),
-        "native-policy-effective-v1".into(),
-        "native-policy-verifier-key-provision-v1".into(),
-        "native-business-source-codec-v1".into(),
-        "native-business-source-anchor-codec-v1".into(),
-        "native-business-source-current-fence-v2".into(),
         "hook-envelope-v2".into(),
         "hook-harness-response-v1".into(),
         // The edge checks its own result and receipt before it answers.
         "edge-self-check-v1".into(),
+        // The edge answers with the request id the envelope carried, on the
+        // result and on the receipt alike.
+        crate::edge::REQUEST_BINDING_FEATURE.into(),
         // The edge mediates a Pi or Oh My Pi `PostToolUse` against the managed
         // structured-output policy the envelope carries.
         "edge-structured-output-v1".into(),
@@ -123,6 +98,7 @@ pub(crate) fn capabilities() -> RuntimeCapabilitiesV1 {
         crate::runtime_identity::BUNDLE_FEATURE.into(),
         crate::runtime_identity_probe::FEATURE.into(),
         crate::runtime_identity_instances::FEATURE.into(),
+        crate::runtime_identity_instance_store::FEATURE.into(),
         crate::runtime_identity_launch::FEATURE.into(),
         guard_plugin_kit::FEATURE.into(),
         guard_plugin_telemetry::FEATURE.into(),
@@ -142,6 +118,7 @@ pub(crate) fn capabilities() -> RuntimeCapabilitiesV1 {
     features.extend(
         crate::resident_op_features::RESIDENT_OP_FEATURES
             .iter()
+            .chain(crate::resident_op_features::NATIVE_HELPER_FEATURES)
             .map(|feature| (*feature).into()),
     );
     if cfg!(windows) {
@@ -166,6 +143,10 @@ pub(crate) fn capabilities() -> RuntimeCapabilitiesV1 {
     features.push(crate::contained_completion_op::FEATURE.into());
     #[cfg(unix)]
     features.push(crate::mcp_write_budget_op::FEATURE.into());
+    // Unpacking extracts with the pinned macOS `ditto`, so only a macOS
+    // runtime offers it.
+    #[cfg(target_os = "macos")]
+    features.push("native-desktop-core-onedir-v1".into());
     features.push(crate::mcp_relay::RELAY_FEATURE.into());
     features.push(crate::hook_evidence_writer_op::HOOK_EVIDENCE_WRITER_FEATURE.into());
     features.push(crate::claude_session_start::SESSION_START_FEATURE.into());
@@ -174,6 +155,7 @@ pub(crate) fn capabilities() -> RuntimeCapabilitiesV1 {
     features.push(crate::bounded_hook_bridge::BRIDGE_FEATURE.into());
     features.push(crate::cursor_hook_bridge::BRIDGE_FEATURE.into());
     features.push(crate::pi_hook_bridge::BRIDGE_FEATURE.into());
+    features.push(crate::cline_hook_worker::WORKER_FEATURE.into());
     features.push(guard_contracts::SKILL_DIRECTORY_IDENTITY_FEATURE.into());
     features.push(guard_contracts::SKILL_DOCUMENT_EVIDENCE_FEATURE.into());
     let (program_digest, catalog_digest, trust_digest) =
@@ -194,6 +176,8 @@ pub(crate) fn capabilities() -> RuntimeCapabilitiesV1 {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "operation", content = "request", rename_all = "snake_case")]
 pub(crate) enum ResidentOperationV1 {
+    ContextAssistance(crate::context_assistance_op::Request),
+    ContextAgent(crate::context_assistance_agent_op::Request),
     ArchiveAcquisition(guard_contracts::ArchiveAcquisitionRequestV1),
     CommandModel(CommandModelRequestV1),
     RichCommandModel(crate::rich_command_model_op::RichCommandModelRequest),
@@ -239,6 +223,7 @@ pub(crate) enum ResidentOperationV1 {
     GithubCliClassify(GithubCliClassifyRequestV1),
     GithubWorkflowPrepare(guard_contracts::GithubWorkflowPrepareRequestV1),
     ProtectRequest(ProtectRequestRequestV1),
+    ProtectAdvisoryMerge(guard_contracts::ProtectAdvisoryMergeRequestV1),
     ClaimApprovalReuseDecisions(ClaimApprovalReuseDecisionsRequestV1),
     ApprovalReuseDiagnostic(ApprovalReuseDiagnosticRequestV1),
     ApprovalBulkEligibility(ApprovalBulkEligibilityRequestV1),
@@ -250,6 +235,7 @@ pub(crate) enum ResidentOperationV1 {
     ApprovalScopeSelect(guard_contracts::ApprovalScopeSelectRequestV1),
     ApprovalResolutionEligibility(guard_contracts::ApprovalResolutionEligibilityRequestV1),
     CommandCapability(guard_contracts::CommandCapabilityRequestV1),
+    CommandCapabilityIssue(guard_contracts::CommandCapabilityIssueRequestV1),
     CommandEnvelope(guard_contracts::CommandEnvelopeRequestV1),
     ContainedWrapperPlan(guard_contracts::ContainedWrapperPlanRequestV1),
     ApprovalPersistSelect(guard_contracts::ApprovalPersistSelectRequestV1),
@@ -378,6 +364,8 @@ pub(crate) enum ResidentOperationV1 {
     RetryLineageCapture(guard_contracts::RetryLineageCaptureRequestV1),
     AdapterStateIntegrity(guard_contracts::AdapterStateIntegrityRequestV1),
     ProtectionHealthReport(guard_contracts::ProtectionHealthReportRequestV1),
+    ProtectionHealthFacts(guard_contracts::ProtectionHealthFactsRequestV1),
+    ResidentHealth(guard_contracts::ResidentHealthRequestV1),
     Health(Value),
     Shutdown(Value),
 }

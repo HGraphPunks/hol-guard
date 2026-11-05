@@ -14,11 +14,12 @@ from codex_plugin_scanner.guard.models import GuardApprovalRequest
 from codex_plugin_scanner.guard.runtime.command_extensions import BUILT_IN_COMMAND_EXTENSION_REGISTRY
 from codex_plugin_scanner.guard.runtime.extension_allow_hint import EXTENSION_ALLOW_HINT_SCHEMA
 from codex_plugin_scanner.guard.store import GuardStore
-from codex_plugin_scanner.guard.store_approvals import (
+from tests.native_approval_writes import (
+    add_approval_request,
     get_approval_request,
     list_approval_requests,
+    native_approval_connection,
 )
-from tests.native_approval_writes import add_approval_request, native_approval_connection
 
 REGISTRY = BUILT_IN_COMMAND_EXTENSION_REGISTRY
 GIT_ADD = "command.git.permission.add"
@@ -134,6 +135,9 @@ def _resident_recommends(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, obje
 
     def decide(query, guard_home, _fields, validate, **_kwargs):
         asked.append({"query": query, "guard_home": guard_home})
+        if query["kind"] == "coverage":
+            validate({"kind": "coverage", "coverage": None})
+            return {}
         permission_id = query["hint"]["permission_ids"][0]
         validate(
             {
@@ -186,7 +190,8 @@ def test_daemon_request_detail_includes_recommendation(monkeypatch: pytest.Monke
     assert recommendation["status"] in {"available", "authority_unavailable"}
     assert [item["permission_id"] for item in recommendation["permissions"]] == [GIT_ADD]
     # The resident of the daemon's own home is the one asked.
-    assert [entry["guard_home"] for entry in asked] == [store.guard_home]
+    recommended = [entry for entry in asked if entry["query"]["kind"] != "coverage"]
+    assert [entry["guard_home"] for entry in recommended] == [store.guard_home]
 
 
 def test_daemon_request_detail_computes_live_recommendation_for_legacy_pending_row(

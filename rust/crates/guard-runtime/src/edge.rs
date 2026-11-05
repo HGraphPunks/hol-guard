@@ -5,7 +5,7 @@ use crate::native_hook_receipt::{
     receipt_from_post_tool, receipt_from_pre_tool, NativeReceiptIdentity,
 };
 use crate::policy_enforcement::AdmittedPolicySnapshot;
-use crate::runtime_known_vulnerable as runtime_risk;
+use crate::{edge_exact_command_review as exact_review, runtime_known_vulnerable as runtime_risk};
 use guard_contracts::{
     GuardHookEdgeResultV2, GuardHookEnvelopeV2, GuardHookPayloadKindV2, HookOutputSummaryV1,
     HookSourceFileRefV1, NativeHookRequestV1, PreToolResultV1, GUARD_HOOK_EDGE_RESULT_V2_SCHEMA,
@@ -23,7 +23,10 @@ use edge_identity::{
 };
 pub(crate) use edge_identity::{
     policy_generation_matches, review_anchor_digest, stable_policy_identity,
+    REQUEST_BINDING_FEATURE,
 };
+#[path = "edge_containment.rs"]
+mod edge_containment;
 #[path = "edge_local_cli.rs"]
 mod edge_local_cli;
 #[path = "edge_result_check.rs"]
@@ -83,10 +86,8 @@ pub(crate) fn request_identity(envelope: &GuardHookEnvelopeV2) -> Result<(String
     Ok((request_id, digest))
 }
 
-/// The full source material of a request. `execution_intent_digest` carries a
-/// deliberately narrower source, so anything that has to stay bound to the
-/// guard home, the home directory or the external source-ref flag builds its
-/// commitment from this instead.
+/// Full request source. `execution_intent_digest` is narrower, so commitments
+/// to the guard home, home directory, or source-ref flag use this instead.
 fn request_source(envelope: &GuardHookEnvelopeV2, error: &str) -> Result<Value, String> {
     let mut source = serde_json::json!({
         "cwd": envelope.source.cwd,
@@ -120,6 +121,7 @@ fn canonical_harness(value: &str) -> Result<String, String> {
         "oh-my-pi" => "omp",
         "zai" | "z-code" | "zai-zcode" => "zcode",
         "devin-cli" | "cognition-devin" => "devin",
+        "muse-code" => "muse",
         _ => normalized.as_str(),
     };
     if !canonical
@@ -141,6 +143,7 @@ fn canonical_harness(value: &str) -> Result<String, String> {
             | "grok"
             | "hermes"
             | "kimi"
+            | "muse"
             | "omp"
             | "openclaw"
             | "opencode"
@@ -263,10 +266,13 @@ fn validate_envelope_shape(envelope: &GuardHookEnvelopeV2) -> Result<(), String>
     Ok(())
 }
 
-fn evaluate_validated_envelope(
+/// `lease` is held until the verdict and its evidence are settled, and
+/// released before any prompt context lookup waits on CIGAR.
+fn evaluate_validated_envelope<Lease>(
     envelope: GuardHookEnvelopeV2,
     policy_snapshot: Option<&AdmittedPolicySnapshot>,
     origin_store: Option<&crate::policy_store::PolicySnapshotStore>,
+    lease: Lease,
 ) -> Result<Vec<u8>, String> {
     let started = Instant::now();
     let harness = canonical_harness(&envelope.harness)?;
@@ -340,6 +346,8 @@ fn evaluate_validated_envelope(
             );
             let evaluated = crate::network_protection::apply_to_envelope(&envelope, evaluated);
             let evaluated = runtime_risk::apply_to_envelope(&envelope, policy_snapshot, evaluated);
+            let evaluated = exact_review::apply_to_envelope(&envelope, policy_snapshot, evaluated);
+            let evaluated = crate::policy_enforcement::deferred_prompt_review(evaluated);
             let value = serde_json::to_value(evaluated)
                 .map_err(|_| "native_hook_edge_response_invalid".to_owned())?;
             edge_result_check::validate_pre_tool_result(&value)?;
@@ -366,10 +374,9 @@ fn evaluate_validated_envelope(
                 home_dir: envelope.source.home_dir.clone(),
                 guard_home: envelope.source.guard_home.clone(),
                 source_ref_external_allowed: envelope.source.source_ref_external_allowed,
-                // Keep the intrinsic result intact. The authenticated policy
-                // join below owns observe-mode semantics and suppresses only
-                // policy-only escalation; passing observe here would erase a
-                // native source/content block before that join runs.
+                // Keep the intrinsic result intact. The authenticated policy join below owns
+                // observe-mode semantics and suppresses only policy-only escalation; passing
+                // observe here would erase a native source/content block before that join runs.
                 observe_mode: false,
                 deadline_budget_ms: envelope.deadline_budget_ms,
             };
@@ -388,9 +395,8 @@ fn evaluate_validated_envelope(
             } else {
                 native
             };
-            // The policy join above may rewrite the verdict or the output
-            // action, so the answer to "may the model read this" is settled
-            // here, once, after everything that can change it has run.
+            // The policy join may rewrite the verdict or output action, so
+            // "may the model read this" is settled once, after all of it ran.
             evaluated.seal_output_mask();
             let receipt = receipt_from_post_tool(
                 &envelope,
@@ -408,22 +414,10 @@ fn evaluate_validated_envelope(
     };
     if let Some(store) = origin_store {
         crate::policy_store::native_review_origin::authenticate(store, &mut receipt)?;
+        crate::context_assistance_notifications::notify_hook(&envelope, &receipt, &result);
     }
     if event_name == "PreToolUse" {
         crate::command_policy_repair::apply_at_edge(&mut result, policy_snapshot, &envelope.source);
-    }
-    let mut harness_response = guard_command::hook_responses::render_edge_response(
-        &harness,
-        &event_name,
-        &result,
-        envelope.recording_only,
-    )
-    .map(Value::Object);
-    if let Some(response) = harness_response.as_mut().filter(|_| {
-        event_name == "UserPromptSubmit" && harness == "claude-code" && !envelope.recording_only
-    }) {
-        // Guard's Claude Code notice outside Watch; the typed result's reason is always text.
-        let _ = crate::hook_direct::claude_prompt_text::brand(response, &result);
     }
     let guard_home = origin_store.map(crate::policy_store::PolicySnapshotStore::guard_home);
     let (local_cli_rule, review_evidence) = crate::edge_review_evidence::beside(
@@ -435,12 +429,24 @@ fn evaluate_validated_envelope(
         guard_home,
         || edge_local_cli::settle(&envelope, &harness, &event_name, &result),
     );
-    let edge = GuardHookEdgeResultV2 {
+    drop(lease);
+    let harness_response = crate::context_assistance_prompt::harness_response(
+        &envelope,
+        &harness,
+        &event_name,
+        &result,
+        origin_store,
+        started,
+    );
+    let mut edge = GuardHookEdgeResultV2 {
+        exact_command_block: None,
         review_evidence,
         // Every edge carries its route so no hook asks again; only PreToolUse is routed.
         containment_route: Some(edge_route(&event_name, &result, envelope.recording_only)),
+        containment_rewrite: None,
         local_cli_rule: local_cli_rule?,
         receipt_recorded: false,
+        activity_recorded: false,
         schema: GUARD_HOOK_EDGE_RESULT_V2_SCHEMA.to_owned(),
         authority: "rust".to_owned(),
         request_id: Some(request_id),
@@ -451,7 +457,10 @@ fn evaluate_validated_envelope(
         harness_response,
         receipt,
     };
+    edge_local_cli::attach_exact_command_block(&envelope, &mut edge);
     edge_result_check::check(&edge)?;
+    // After the check, so a refused edge leaves no sink snapshot behind.
+    edge_containment::attach(&envelope, &mut edge);
     crate::edge_receipt::encode(&envelope, origin_store.is_some(), edge, started)
 }
 
@@ -467,8 +476,8 @@ pub(crate) fn evaluate_envelope_with_store(
         &envelope.source.guard_home,
         envelope.policy_generation,
     )?;
-    let _command_lease = policy_store.command_authority_lease(snapshot.snapshot())?;
-    evaluate_validated_envelope(envelope, Some(snapshot.as_ref()), Some(policy_store))
+    let lease = policy_store.command_authority_lease(snapshot.snapshot())?;
+    evaluate_validated_envelope(envelope, Some(snapshot.as_ref()), Some(policy_store), lease)
 }
 
 /// Evaluate against a snapshot while the policy store's request fence is
@@ -479,9 +488,13 @@ pub(crate) fn evaluate_envelope_with_snapshot(
     snapshot: &AdmittedPolicySnapshot,
 ) -> Result<Vec<u8>, String> {
     validate_envelope_shape(&envelope)?;
-    evaluate_validated_envelope(envelope, Some(snapshot), None)
+    evaluate_validated_envelope(envelope, Some(snapshot), None, ())
 }
 
 #[cfg(test)]
 #[path = "edge_tests.rs"]
 pub(crate) mod tests;
+
+#[cfg(test)]
+#[path = "edge_request_binding_tests.rs"]
+mod request_binding_tests;

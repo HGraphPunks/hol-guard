@@ -31,41 +31,19 @@ from .native_package_audit_projection import (
     native_workspace_package_findings,
 )
 from .native_supply_chain_egress import offline_egress
+from .native_workspace_inventory import AuditDeadlineError, audit_deadline
 from .native_workspace_snapshot import WorkspaceSnapshot, WorkspaceSnapshotError, workspace_snapshot
 from .store_workspace_assessment_schema import FINDINGS_BYTE_BUDGET, MAX_FINDINGS
-from .workspace_ci_workflow_findings import (
-    CI_WORKFLOW_DETECTOR,
-    project_ci_workflow_findings,
-    with_ci_workflow_coverage,
-)
-from .workspace_editor_task_findings import (
-    EDITOR_TASK_DETECTOR,
-    project_editor_task_findings,
-    with_editor_task_coverage,
-)
-from .workspace_hook_config_findings import (
-    HOOK_CONFIG_DETECTOR,
-    project_hook_config_findings,
-    with_hook_config_coverage,
-)
-from .workspace_instruction_findings import (
-    INSTRUCTION_DETECTOR,
-    project_instruction_findings,
-    with_instruction_coverage,
-)
-from .workspace_mcp_config_findings import (
-    MCP_CONFIG_DETECTOR,
-    assess_workspace_mcp_configs,
-    project_mcp_config_findings,
-    with_mcp_config_coverage,
-)
-from .workspace_plugin_manifest_findings import (
-    PLUGIN_MANIFEST_DETECTOR,
-    project_plugin_manifest_findings,
-    with_plugin_manifest_coverage,
-)
+from .workspace_ci_workflow_findings import CI_WORKFLOW_DETECTOR
+from .workspace_editor_task_findings import EDITOR_TASK_DETECTOR
+from .workspace_hook_config_findings import HOOK_CONFIG_DETECTOR
+from .workspace_instruction_findings import INSTRUCTION_DETECTOR
+from .workspace_mcp_config_findings import MCP_CONFIG_DETECTOR, assess_workspace_mcp_configs
+from .workspace_plugin_manifest_findings import PLUGIN_MANIFEST_DETECTOR
+from .workspace_rule_findings import rule_findings
 from .workspace_runtime_findings import (
     RUNTIME_DETECTOR,
+    WorkspaceRuntimeFindingsError,
     assessment_context_digest,
     log_probe_failure,
     observe_workspace_runtimes,
@@ -74,7 +52,7 @@ from .workspace_runtime_findings import (
     with_runtime_coverage,
 )
 from .workspace_secret_findings import SECRET_DETECTOR, load_fingerprint_key, project_secret_findings, secret_coverage
-from .workspace_skill_findings import SKILL_DETECTOR, project_skill_findings, with_skill_coverage
+from .workspace_skill_findings import SKILL_DETECTOR
 from .workspace_supply_chain_findings import SUPPLY_CHAIN_DETECTOR
 
 DETECTOR_SET: Final = (
@@ -89,12 +67,19 @@ DETECTOR_SET: Final = (
     EDITOR_TASK_DETECTOR,
     INSTRUCTION_DETECTOR,
 )
-# The content scans in the order they reached the native runtime.
+# The content scans every snapshot runs.
 _CONTENT_SCANS: Final = ("secrets", "skills", "hooks", "plugins", "workflows", "editor_tasks", "instructions")
 DETECTOR_SET_DIGEST: Final = hashlib.sha256(
     ("guard.workspace-detectors.v1\0" + "\0".join(DETECTOR_SET)).encode("utf-8")
 ).hexdigest()
 _SEVERITY_ORDER: Final = ("critical", "high", "medium", "low", "info", "unknown")
+
+
+# The package audit stops starting resident requests after this long. The one
+# already in flight is bounded on its own (about 25 seconds per evaluation), so
+# the stage ends well inside the 5 minute lease instead of the lease expiring
+# and the run being retried.
+AUDIT_STAGE_SECONDS: Final = 3 * 60
 
 
 # A run that lost its lease (canceled, expired or fenced) records nothing;
@@ -116,7 +101,12 @@ def run_next(
     )
     if claimed is None:
         return False
-    outcome = execute(store, config, claimed, clock=clock)
+    try:
+        outcome = execute(store, config, claimed, clock=clock)
+    except WorkspaceRuntimeFindingsError:
+        # The runtime detector could not answer, so the run fails now instead
+        # of holding its lease until it expires and the run repeats.
+        outcome = assessments.RunOutcome(state="failed", error_code="runtime_detector_failed")
     try:
         assessments.finish(store, claimed, outcome, now_ms=clock())
     except ValueError:
@@ -158,9 +148,16 @@ def execute(
         return _LEASE_LOST
     automatic = run.trigger_kind not in assessments.USER_TRIGGERS
     try:
-        with offline_egress() if automatic else nullcontext(None) as offline:
+        with offline_egress() if automatic else nullcontext(None) as offline, audit_deadline(AUDIT_STAGE_SECONDS):
             payload = _local_audit(store, config, root)
         supply, supply_truncated = project_supply_chain_findings(run.keys.worktree_key, payload, store=store)
+    except AuditDeadlineError:
+        return assessments.RunOutcome(
+            state="failed",
+            snapshot_digest=before.snapshot_digest,
+            input_manifest_digest=before.input_manifest_digest,
+            error_code="supply_chain_audit_timed_out",
+        )
     except Exception:
         return assessments.RunOutcome(
             state="failed",
@@ -191,33 +188,31 @@ def execute(
     runtime_findings, runtime_truncated = (
         project_runtime_findings(run.keys.worktree_key, posture) if posture is not None else ([], False)
     )
-    findings, merge_truncated = merge_findings(
-        supply.findings,
-        project_secret_findings(before.secrets),
-        runtime_findings,
-        project_skill_findings(before.skills),
-        project_mcp_config_findings(mcp_configs),
-        project_hook_config_findings(before.hooks),
-        project_plugin_manifest_findings(before.plugins),
-        project_ci_workflow_findings(before.workflows),
-        project_editor_task_findings(before.editor_tasks),
-        project_instruction_findings(before.instructions),
-    )
-    truncated = supply_truncated or runtime_truncated or merge_truncated
+    truncated = supply_truncated or runtime_truncated
     refused = offline.refused if offline is not None else 0
     coverage = with_runtime_coverage(
         coverage_summary(before, payload, supply, findings_truncated=truncated, egress_refused=refused), posture
     )
-    for add_coverage, result in (
-        (with_skill_coverage, before.skills),
-        (with_mcp_config_coverage, mcp_configs),
-        (with_hook_config_coverage, before.hooks),
-        (with_plugin_manifest_coverage, before.plugins),
-        (with_ci_workflow_coverage, before.workflows),
-        (with_editor_task_coverage, before.editor_tasks),
-        (with_instruction_coverage, before.instructions),
-    ):
-        coverage = add_coverage(coverage, result)
+    rule, coverage = rule_findings(
+        coverage,
+        [
+            (SKILL_DETECTOR, before.skills),
+            (MCP_CONFIG_DETECTOR, mcp_configs),
+            (HOOK_CONFIG_DETECTOR, before.hooks),
+            (PLUGIN_MANIFEST_DETECTOR, before.plugins),
+            (CI_WORKFLOW_DETECTOR, before.workflows),
+            (EDITOR_TASK_DETECTOR, before.editor_tasks),
+            (INSTRUCTION_DETECTOR, before.instructions),
+        ],
+    )
+    findings, merge_truncated = merge_findings(
+        supply.findings, project_secret_findings(before.secrets), runtime_findings, rule
+    )
+    # The merge bounds are known only once every detector's findings are in,
+    # so a list the merge cut adds its cap after the detectors.
+    reasons = _strings(coverage.get("reasons"))
+    if merge_truncated and "finding_cap" not in reasons:
+        coverage = {**coverage, "status": "partial", "reasons": [*reasons, "finding_cap"]}
     return assessments.RunOutcome(
         state="completed" if coverage["status"] == "complete" else "partial",
         snapshot_digest=before.snapshot_digest,
@@ -230,27 +225,10 @@ def execute(
 
 
 def _detector_snapshot(root: Path, secret_key: str) -> WorkspaceSnapshot:
-    """Snapshot with the content detectors, dropping each one the runtime lacks.
+    """Snapshot with every content detector."""
 
-    The run is then partial: coverage reports a dropped detector as not run.
-    """
-
-    scans = _CONTENT_SCANS
-    while True:
-        try:
-            return _content_snapshot(root, secret_key, scans)
-        except WorkspaceSnapshotError as error:
-            missing = next((scan for scan in scans if error.code == f"workspace_snapshot_{scan}_unavailable"), None)
-            if missing is None:
-                raise
-            scans = tuple(scan for scan in scans if scan != missing)
-
-
-def _content_snapshot(root: Path, secret_key: str, scans: tuple[str, ...]) -> WorkspaceSnapshot:
-    requested: dict[str, Any] = dict.fromkeys(scans, True)
-    if "secrets" in scans:
-        requested["secret_key"] = secret_key
-    return workspace_snapshot(root, mode="content", **requested)
+    requested: dict[str, Any] = dict.fromkeys(_CONTENT_SCANS, True)
+    return workspace_snapshot(root, mode="content", secret_key=secret_key, **requested)
 
 
 def _runtime_posture(store: Any, root: Path) -> dict[str, object] | None:

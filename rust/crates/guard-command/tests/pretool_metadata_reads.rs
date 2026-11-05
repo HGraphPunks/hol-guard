@@ -66,7 +66,7 @@ fn shell(home: &Path, command: &str) -> String {
         pager_disabled: false,
         xdg_config_home: None,
         git_config_no_system: true,
-        library_search_paths: Default::default(),
+        ..Default::default()
     };
     let project = home.join("project");
     let [omp, zcode] = ["omp", "zcode"].map(|harness| {
@@ -81,10 +81,13 @@ fn shell(home: &Path, command: &str) -> String {
                 cwd: project.to_str(),
                 cdpath_unset: false,
                 rustup_override_absent: false,
+                cargo_config_inert: false,
                 npm_config_inert: false,
                 pip_config_inert: false,
                 shell_home_matches: false,
                 ripgrep_config_absent: false,
+                gem_config_absent: false,
+                http_config_absent: false,
                 psql_environment: Default::default(),
                 creates_nothing: false,
             },

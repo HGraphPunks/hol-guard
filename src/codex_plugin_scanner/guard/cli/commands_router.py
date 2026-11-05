@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 from ._commands_shared import *
 from .approval_gate_prompt import print_approval_gate_error
+from .codebase_commands import run_codebases_command  # noqa: F401  (looked up by name in _COMMON_HANDLERS)
 from .commands_lifecycle_gate import (
     enforce_lifecycle_gate,
     explain_missing_native_runtime,
@@ -24,6 +25,7 @@ from .inventory_list_commands import is_inventory_list_command, run_inventory_li
 
 _EARLY_HANDLERS = {
     "mdm": "_run_guard_mdm_command",
+    "cloud-actions": "_run_guard_cloud_actions_command",
     "command": "_run_guard_command_inspection_command",
     "pytest-contained": "_run_guard_pytest_contained_command",
     "verified-read": "_run_guard_verified_read_command",
@@ -46,6 +48,7 @@ _PRESTORE_HANDLERS = {
 }
 
 _COMMON_HANDLERS = {
+    "codebases": "run_codebases_command",
     "protect": "_run_guard_protect_command",
     "start": "_run_guard_start_command",
     "status": "_run_guard_status_command",
@@ -62,6 +65,8 @@ _COMMON_HANDLERS = {
     "codex-mcp-proxy": "_run_guard_codex_mcp_proxy_command",
     "omp-mcp-proxy": "_run_guard_omp_mcp_proxy_command",
     "cursor-mcp-proxy": "_run_guard_cursor_mcp_proxy_command",
+    "cline-mcp-proxy": "_run_guard_cline_mcp_proxy_command",
+    "mcp-proxy": "_run_guard_cline_mcp_proxy_command",
     "opencode-mcp-proxy": "_run_guard_opencode_mcp_proxy_command",
     "copilot-mcp-proxy": "_run_guard_copilot_mcp_proxy_command",
     "hermes-mcp-proxy": "_run_guard_hermes_mcp_proxy_command",
@@ -124,13 +129,19 @@ def _normalize_guard_handler_result(result: object) -> int:
     return result if isinstance(result, int) else 1
 
 
-def _invoke_guard_handler(handler: object, args: argparse.Namespace, **kwargs: object) -> int:
+def _invoke_guard_handler(
+    handler: object,
+    args: argparse.Namespace,
+    *,
+    error_output_stream: TextIO | None = None,
+    **kwargs: object,
+) -> int:
     if not callable(handler):
         return 1
     try:
         result = handler(args, **kwargs)
     except KeyboardInterrupt:
-        print("Interrupted.", file=sys.stderr)
+        print("Interrupted.", file=error_output_stream if error_output_stream is not None else sys.stderr)
         return 130
     return _normalize_guard_handler_result(result)
 
@@ -157,6 +168,7 @@ def run_guard_command(
     *,
     input_text: str | None = None,
     output_stream: TextIO | None = None,
+    error_stream: TextIO | None = None,
 ) -> int:
     """Execute a Guard subcommand under the digest budget it is entitled to.
 
@@ -170,12 +182,22 @@ def run_guard_command(
     """
 
     if args.guard_command not in _NATIVE_LIFECYCLE_COMMANDS:
-        return _dispatch_guard_command(args, input_text=input_text, output_stream=output_stream)
+        return _dispatch_guard_command(
+            args,
+            input_text=input_text,
+            output_stream=output_stream,
+            error_stream=error_stream,
+        )
     from ..native_context_budget import bind_context_digest_lifecycle_budget, reset_context_digest_budget
 
     token = bind_context_digest_lifecycle_budget()
     try:
-        return _dispatch_guard_command(args, input_text=input_text, output_stream=output_stream)
+        return _dispatch_guard_command(
+            args,
+            input_text=input_text,
+            output_stream=output_stream,
+            error_stream=error_stream,
+        )
     finally:
         reset_context_digest_budget(token)
 
@@ -185,8 +207,14 @@ def _dispatch_guard_command(
     *,
     input_text: str | None = None,
     output_stream: TextIO | None = None,
+    error_stream: TextIO | None = None,
 ) -> int:
     "Route one Guard subcommand to its handler."
+
+    if args.guard_command == "context":
+        from .context_assistance_commands import run_context_command
+
+        return _invoke_guard_handler(run_context_command, args, input_text=input_text, output_stream=output_stream)
 
     inventory_list = is_inventory_list_command(args)
     if args.guard_command == "extensions" and not inventory_list:
@@ -209,6 +237,7 @@ def _dispatch_guard_command(
         return _invoke_guard_handler(
             handler,
             args,
+            error_output_stream=error_stream,
             input_text=input_text,
             output_stream=output_stream,
         )
@@ -252,12 +281,21 @@ def _dispatch_guard_command(
         return run_codex_incident_export(args, context, output_stream=output_stream)
     try:
         try:
-            enforce_lifecycle_gate(args, guard_home=guard_home)
+            lifecycle_gate_context = enforce_lifecycle_gate(
+                args,
+                guard_home=guard_home,
+                error_stream=error_stream,
+            )
         except ApprovalGateError as error:
             if not restore_missing_native_runtime(error, context=context, guard_home=guard_home):
                 raise
             # The authority can answer now; the command still needs the gate's approval.
-            enforce_lifecycle_gate(args, guard_home=guard_home)
+            lifecycle_gate_context = enforce_lifecycle_gate(
+                args,
+                guard_home=guard_home,
+                error_stream=error_stream,
+            )
+        args._lifecycle_gate_context = lifecycle_gate_context
     except ApprovalGateError as error:
         return print_approval_gate_error(
             explain_missing_native_runtime(error),
@@ -267,14 +305,20 @@ def _dispatch_guard_command(
 
     handler = _resolve_guard_handler(_PRESTORE_HANDLERS, args.guard_command)
     if callable(handler):
+        handler_kwargs: dict[str, object] = {
+            "guard_home": guard_home,
+            "workspace": workspace,
+            "context": context,
+            "input_text": input_text,
+            "output_stream": output_stream,
+        }
+        if args.guard_command == "daemon":
+            handler_kwargs["error_stream"] = error_stream
         return _invoke_guard_handler(
             handler,
             args,
-            guard_home=guard_home,
-            workspace=workspace,
-            context=context,
-            input_text=input_text,
-            output_stream=output_stream,
+            error_output_stream=error_stream,
+            **handler_kwargs,
         )
 
     source = getattr(args, "source", "default")
@@ -286,7 +330,10 @@ def _dispatch_guard_command(
             allow_system_keyring=_should_allow_system_keyring(args),
         )
     except (TimeoutError, ValueError) as error:
-        print(f"Error: {error}", file=sys.stderr)
+        print(
+            f"Error: {error}",
+            file=error_stream if error_stream is not None else sys.stderr,
+        )
         return 2
     if args.guard_command == "hook":
         # Native hooks receive the raw envelope before any request-time
@@ -306,6 +353,7 @@ def _dispatch_guard_command(
         return _invoke_guard_handler(
             handler,
             args,
+            error_output_stream=error_stream,
             guard_home=guard_home,
             workspace=workspace,
             context=context,

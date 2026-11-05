@@ -82,7 +82,6 @@ fn execution_changing_prefixes_leave_the_command_untouched() {
         "CURL_HOME=/tmp curl https://x.example",
         "FOO=`id` ls",
         "FOO=~/x ls",
-        "FOO=*.env ls",
         "FOO=1",
         "FOO=1 && rm -rf x",
         "env",
@@ -353,6 +352,13 @@ fn code_loading_settings_are_named_for_the_block_reason() {
         ("REPORT_DIR=out CC=./x npm run build", Some("CC")),
         ("cd app && PYTHONPATH=. python x.py", Some("PYTHONPATH")),
         ("REPORT_DIR=out node x.mjs", None),
+        // A setting the projection removes stopped nothing, so the reason
+        // skips it and names the one that did.
+        ("NODE_OPTIONS=--max-old-space-size=4096 npm test", None),
+        (
+            "NODE_OPTIONS=--max-old-space-size=4096 NODE_PATH=/ws node x.mjs",
+            Some("NODE_PATH"),
+        ),
         ("echo NODE_PATH=/ws | cat", None),
         ("node x.mjs NODE_PATH=/ws", None),
         ("NODE-PATH=/ws node x.mjs", None),

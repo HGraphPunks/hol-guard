@@ -35,6 +35,7 @@ use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 use guard_contracts::write_canonical_json;
+use hmac::{Hmac, Mac};
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256, Sha512};
 
@@ -1223,28 +1224,10 @@ pub fn stable_digest_hex(payload: &[u8]) -> String {
 
 /// `stable_digest_hex(payload, length=n)`.
 pub fn stable_digest_hex_len(payload: &[u8], length: Option<usize>) -> String {
-    const BLOCK: usize = 128; // sha512 block size
-    let mut key = [0u8; BLOCK];
-    if STABLE_DIGEST_KEY.len() > BLOCK {
-        let hashed = Sha512::digest(STABLE_DIGEST_KEY);
-        key[..64].copy_from_slice(&hashed);
-    } else {
-        key[..STABLE_DIGEST_KEY.len()].copy_from_slice(STABLE_DIGEST_KEY);
-    }
-    let mut ipad = [0x36u8; BLOCK];
-    let mut opad = [0x5cu8; BLOCK];
-    for i in 0..BLOCK {
-        ipad[i] ^= key[i];
-        opad[i] ^= key[i];
-    }
-    let mut inner = Sha512::new();
-    inner.update(ipad);
-    inner.update(payload);
-    let inner_digest = inner.finalize();
-    let mut outer = Sha512::new();
-    outer.update(opad);
-    outer.update(inner_digest);
-    let hex_digest = hex::encode(outer.finalize());
+    let mut mac =
+        <Hmac<Sha512>>::new_from_slice(STABLE_DIGEST_KEY).expect("hmac accepts any key length");
+    mac.update(payload);
+    let hex_digest = hex::encode(mac.finalize().into_bytes());
     match length {
         Some(n) => hex_digest[..n.min(64)].to_string(),
         None => hex_digest[..64].to_string(),
@@ -1983,9 +1966,6 @@ pub fn build_local_supply_chain_posture(
         .synced_policy_payload(store)
         .and_then(|p| dict_payload(Some(&p)))
         .unwrap_or_default();
-    // Legacy team-policy siblings are not signed policy-bundle content and
-    // therefore cannot contribute enforcement or managed-policy status.
-    let team_policy_pack: Map<String, Value> = Map::new();
     let cached_bundle = workspace_id
         .as_deref()
         .and_then(|id| store.get_cached_supply_chain_bundle(id));
@@ -2018,16 +1998,9 @@ pub fn build_local_supply_chain_posture(
         .or_else(|| string_value(remote_policy.get("package_script_action")));
     let remote_cloud_advisory_action = string_value(remote_policy.get("cloudAdvisoryAction"))
         .or_else(|| string_value(remote_policy.get("cloud_advisory_action")));
-    let managed_by_cloud = !remote_policy.is_empty() || !team_policy_pack.is_empty();
-    let managed_label = string_value(team_policy_pack.get("name")).or_else(|| {
-        if managed_by_cloud {
-            Some("Guard Cloud sync".to_string())
-        } else {
-            None
-        }
-    });
-    let managed_updated_at = string_value(team_policy_pack.get("updatedAt"))
-        .or_else(|| string_value(remote_policy.get("updatedAt")));
+    let managed_by_cloud = !remote_policy.is_empty();
+    let managed_label = managed_by_cloud.then(|| "Guard Cloud sync".to_string());
+    let managed_updated_at = string_value(remote_policy.get("updatedAt"));
 
     let mut posture = Map::new();
     posture.insert("generated_at".into(), json!(now_text));
@@ -2072,7 +2045,6 @@ pub fn build_local_supply_chain_posture(
                 .or_else(|| resolve_risk_action(config, Some("package_script"), None)),
             "managed_by_cloud": managed_by_cloud,
             "remote_policy_active": !remote_policy.is_empty(),
-            "team_policy_active": !team_policy_pack.is_empty(),
             "managed_label": managed_label,
             "managed_updated_at": managed_updated_at,
         }),
@@ -2878,7 +2850,7 @@ pub fn resolve_supply_chain_audit_workspace_dir(
     Ok(None)
 }
 
-/// `_audit_lockfile_warnings` — `parse_manifest_dependencies` is the shared
+/// `_audit_lockfile_warnings` — `try_parse_manifest_dependencies_ordered` is the shared
 /// `package_manifest_diff` port; `path` is the relative lockfile path.
 #[allow(dead_code)]
 fn audit_lockfile_warnings(
@@ -2913,13 +2885,14 @@ fn audit_lockfile_warnings(
             }));
             continue;
         };
-        let dependency_map = crate::package_manifest_diff::parse_manifest_dependencies(
+        // A lockfile that parses and lists no packages is complete, not a warning.
+        let dependency_map = crate::package_manifest_diff::try_parse_manifest_dependencies_ordered(
             lockfile_path,
             &lockfile_text,
             2_097_152,
             50,
         );
-        if dependency_map.is_empty() {
+        if dependency_map.is_none() {
             warnings.push(json!({
                 "code": "lockfile_parse_warning",
                 "message": format!("Guard could not parse {lockfile_name} for workspace audit."),
@@ -7415,3 +7388,7 @@ pub fn sync_supply_chain_cloud_state(
     }
     Ok(payload)
 }
+
+#[cfg(test)]
+#[path = "local_supply_chain_stable_digest_tests.rs"]
+mod stable_digest_tests;

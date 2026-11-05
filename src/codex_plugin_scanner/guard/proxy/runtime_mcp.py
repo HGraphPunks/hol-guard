@@ -60,7 +60,6 @@ from ..native_mcp_proxy_decision import (
     cursor_fact,
     native_external_archive_bind,
     native_inline_approval_reply,
-    native_inline_approval_reply_available,
     native_mcp_proxy_decide,
     native_package_answer,
     package_facts,
@@ -937,11 +936,6 @@ class RuntimeMcpGuardProxy:
             "method": method,
             "tool_name": params.get("name") if isinstance(params, dict) else None,
             "decision": "forward",
-            "redacted_params": (
-                self._call_projector.project(str(params.get("name") or "unknown"), params).safe_params
-                if isinstance(params, dict)
-                else {}
-            ),
         }
         if method in {"notifications/tools/list_changed", "tools/list_changed"}:
             self._invalidate_tools_catalog()
@@ -1066,15 +1060,7 @@ class RuntimeMcpGuardProxy:
             "mode": self.config.mode,
             "package_present": package_artifact is not None,
             "asks_for_approval": bool(asks_for_approval(self.config)),
-            # A prompt is only worth raising when the resident can classify the
-            # answer. Without the query every answer -- including an approval the
-            # user gave -- fails closed into the approval queue, so an older
-            # resident would interrupt the user for nothing.
-            "inline_available": bool(
-                self._inline_prompt_available
-                and approval_callback is not None
-                and native_inline_approval_reply_available()
-            ),
+            "inline_available": bool(self._inline_prompt_available and approval_callback is not None),
             "tool_name": tool_name,
         }
 
@@ -2088,7 +2074,6 @@ class RuntimeMcpGuardProxy:
             "tool_name": tool_name,
             "decision": "timeout" if _is_timeout_response(response) else event_decision,
             "policy_action": policy_action,
-            "redacted_params": self._call_projector.project(tool_name, params).safe_params,
             "scanner_evidence": list(scanner_evidence),
         }
 
@@ -2237,7 +2222,6 @@ class RuntimeMcpGuardProxy:
             "tool_name": tool_name,
             "decision": "queue-package-approval",
             "policy_action": policy_action,
-            "redacted_params": self._call_projector.project(tool_name, params).safe_params,
             "approval_center_url": approval_center_url,
             "approval_requests": queued,
             "review_url": review_url,
@@ -2342,7 +2326,6 @@ class RuntimeMcpGuardProxy:
             "tool_name": tool_name,
             "decision": answer["decision"],
             "policy_action": answer["policy_action"],
-            "redacted_params": self._call_projector.project(tool_name, params).safe_params,
             "approval_requests": [],
         }
         if leg.scanner_evidence or answer["scanner_evidence_always"]:
@@ -2599,7 +2582,6 @@ class RuntimeMcpGuardProxy:
             "tool_name": params.get("name"),
             "decision": "timeout" if _is_timeout_response(response) else decision_source,
             "policy_action": policy_action,
-            "redacted_params": self._call_projector.project(str(params.get("name") or "unknown"), params).safe_params,
         }
         if scanner_evidence:
             event["scanner_evidence"] = list(scanner_evidence)
@@ -3168,7 +3150,6 @@ class RuntimeMcpGuardProxy:
                 "policy_action": policy_action,
                 "approval_requests": [],
                 "prompted": False,
-                "redacted_params": self._call_projector.project(tool_name, params, artifact).safe_params,
             }
         approval_center_url = ensure_guard_daemon(self.context.guard_home)
         queued = queue_blocked_approvals(
@@ -3240,7 +3221,6 @@ class RuntimeMcpGuardProxy:
             "tool_name": tool_name,
             "decision": "queue-approval",
             "policy_action": policy_action,
-            "redacted_params": self._call_projector.project(tool_name, params, artifact).safe_params,
             "approval_center_url": approval_center_url,
             "approval_requests": queued,
             "review_url": review_url,

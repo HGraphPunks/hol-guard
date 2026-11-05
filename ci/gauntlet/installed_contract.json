@@ -7,10 +7,7 @@
       "format": "json",
       "hooks_key": "hooks",
       "events_key": "events",
-      "required_events": [
-        "SessionStart", "UserPromptSubmit", "PreToolUse", "PermissionRequest",
-        "PostToolUse", "PostToolUseFailure", "Stop"
-      ],
+      "required_events": ["PreToolUse", "UserPromptSubmit"],
       "replay_event": "PreToolUse",
       "replay_events": ["UserPromptSubmit"],
       "replay": true
@@ -28,6 +25,18 @@
         "SessionStart"
       ],
       "replay_event": "PreToolUse",
+      "replay": true
+    },
+    "muse": {
+      "config": ".config/muse/settings.json",
+      "format": "json",
+      "hooks_key": "hooks",
+      "required_events": [
+        "PreToolUse", "PermissionRequest", "UserPromptSubmit",
+        "PostToolUse", "SessionStart", "Stop"
+      ],
+      "replay_event": "PreToolUse",
+      "replay_events": ["UserPromptSubmit"],
       "replay": true
     },
     "codex": {
@@ -109,6 +118,16 @@
       "payload": {
         "hook_event_name": "UserPromptSubmit",
         "prompt": "Read README.md and summarise what this project does.",
+        "cwd": "{workspace}"
+      }
+    },
+    {
+      "id": "benign-prompt-submit-wire-encoding",
+      "event": "UserPromptSubmit",
+      "expect": "allow",
+      "payload": {
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": "Make the email parser keep Unicode, newlines, transfer-encoding and multipart parts intact.",
         "cwd": "{workspace}"
       }
     },

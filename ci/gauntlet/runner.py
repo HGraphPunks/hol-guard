@@ -39,7 +39,7 @@ from .catalog import CATALOG, WATCH_COMMAND, WATCH_PROMPT, Scenario, catalog_dig
 from .cleanup import cleanup_case_resources
 from .contained_core import request_proofs
 from .decision_coverage import profile_coverage
-from .evidence import assess_case, sha256_bytes
+from .evidence import assess_case, execution_error_chain, sha256_bytes
 from .extension_adapters import configure_extension_permission_denial, extension_adapter
 from .fixtures import (
     create_fixture,
@@ -64,13 +64,14 @@ from .native_tools import CREDENTIAL_REPORT_CASE, TASK_SCHEMA_CASE, cleanup_priv
 from .observed_extension import generate_observed_extension
 from .parallel import HostSlots, Lease, LoadGate, run_scheduled, validate_jobs
 from .provider import InferenceRelay, LoopbackCollector
-from .review_fixtures import GITHUB_ENABLED_CASES, GITHUB_STUB_CASES, WORKTREE_CASE, configure_github_review_controls
+from .review_fixtures import GITHUB_ENABLED_CASES, GITHUB_STUB_CASES, WORKTREE_CASES, configure_github_review_controls
 from .runtime_cases import stage_runtime_cases
 from .script_cases import stage_script_cases
 from .session_folder import seed_session_folder, session_cwd
 from .source_identity import source_identity
 from .summary import inference_usage, render_summary_markdown
 from .supply_chain import stage_supply_chain
+from .workspace_runner_fixtures import WORKSPACE_RUNNER_CASES, workspace_node_bin
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
@@ -154,8 +155,8 @@ def run_case(
     first_contact = scenario.oracle == "native-tools"
     fixture = create_fixture(
         root / case_fixture_name(scenario.id, attempt),
-        realistic=first_contact and scenario.id != WORKTREE_CASE,
-        linked_worktree=scenario.id == WORKTREE_CASE,
+        realistic=first_contact and scenario.id not in WORKTREE_CASES,
+        linked_worktree=scenario.id in WORKTREE_CASES,
         scenario_id=scenario.id,
     )
     stage_supply_chain(fixture.workspace, scenario.id)
@@ -306,6 +307,10 @@ def run_case(
                 environment["GAUNTLET_WATCH_WORKSPACE"] = str(fixture.workspace)
             if scenario.oracle == "blocked-extension" or scenario.id in BUSINESS_CLI_CASES | GITHUB_STUB_CASES:
                 environment["PATH"] = str(fixture.root / "bin") + os.pathsep + environment["PATH"]
+            # The contained runner resolves Node from the request's own PATH, and
+            # trusts the one this fixture's home owns rather than the host's.
+            if node_bin := workspace_node_bin(fixture.home):
+                environment["PATH"] = str(node_bin) + os.pathsep + environment["PATH"]
             environment.update(
                 GUARD_GAUNTLET_OBSERVER_LOG=str(guard_log),
                 GUARD_GAUNTLET_DAEMON_PORT=str(daemon._server.server_address[1]),
@@ -421,7 +426,9 @@ def run_case(
                 raise RuntimeError("installed Guard or its generated extension changed during the session")
     except Exception as exc:
         case["execution_error"] = type(exc).__name__
-        (private / "execution-error.txt").write_text(f"{type(exc).__name__}: {exc}\n", encoding="utf-8")
+        chain = execution_error_chain(exc, replacements)
+        case["execution_error_chain"] = chain
+        (private / "execution-error.txt").write_text("\n".join(chain) + "\n", encoding="utf-8")
     finally:
         case["filesystem"] = filesystem_checks(fixture, scenario.oracle, scenario.id)
         remove_scratch_checkout(fixture.root)
@@ -513,6 +520,10 @@ def run_suite(
     if selected_ids and (set(selected_ids) - {scenario.id for scenario in catalog}):
         raise ValueError("unknown scenario selection")
     selected = tuple(s for s in catalog if not selected_ids or s.id in selected_ids)
+    # Only the workspace runner cases need Node, so a selection without them
+    # runs on a host that has none.
+    if any(scenario.id in WORKSPACE_RUNNER_CASES for scenario in selected) and shutil.which("node") is None:
+        raise RuntimeError("Gauntlet prerequisite is missing: node")
     parent = (work_root or output.parent).resolve()
     parent.mkdir(parents=True, exist_ok=True)
     root = create_run_root(parent)

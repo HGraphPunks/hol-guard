@@ -9,6 +9,7 @@ import urllib.error
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -253,6 +254,32 @@ def test_access_graph_queue_failure_does_not_block_local_approval_decision(tmp_p
     assert "sk-live-secret-token" not in json.dumps(failure_events[0]["payload"])
 
 
+def test_access_graph_snapshot_is_skipped_when_the_resident_refuses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from codex_plugin_scanner.guard import native_runner_authority
+    from codex_plugin_scanner.guard.access_graph_events import queue_access_graph_snapshot
+
+    def refuse(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise native_runner_authority.NativeRunnerAuthorityError("native_runner_authority_unavailable")
+
+    monkeypatch.setattr(native_runner_authority, "native_runner_authority", refuse)
+    store = GuardStore(tmp_path / "guard-home")
+    _seed_guard_cloud(store, workspace_id="workspace-alpha")
+
+    queue_access_graph_snapshot(
+        store=store,
+        detection=_detection(_artifact(tmp_path)),
+        artifacts=[{"artifact_id": "codex:mcp:x", "artifact_type": "mcp_server"}],
+        now="2026-07-07T00:00:00Z",
+    )
+
+    pending = store.list_guard_events_v1(uploaded=False, limit=10)
+    failure_events = store.list_events(limit=5, event_name="access_graph_snapshot_queue_failed")
+    assert not [item for item in pending if item["event_type"] == "access_graph.snapshot"]
+    assert failure_events[0]["payload"]["error_type"] == "NativeRunnerAuthorityError"
+
+
 def test_guard_cloud_event_queue_backpressures_without_dropping_pending_events(
     tmp_path: Path,
 ) -> None:
@@ -490,6 +517,98 @@ def test_runtime_snapshot_exposes_safe_trust_status(tmp_path: Path) -> None:
     assert trust_status["last_proof"] is None
     serialized = json.dumps(snapshot, sort_keys=True)
     assert "key_id" not in serialized
+
+
+def test_runtime_snapshot_cloud_status_copy_comes_from_the_native_runtime(tmp_path: Path) -> None:
+    store = GuardStore(tmp_path / "guard-home")
+    provision_native_verifier_key_for_store(store)
+
+    snapshot = build_runtime_snapshot(store=store, approval_center_url=None)
+
+    assert snapshot["cloud_state"] == "local_only"
+    assert snapshot["cloud_state_label"] == "Local only"
+    assert snapshot["cloud_pairing_state"]["label"] == "Local only"
+    assert snapshot["cloud_sync_health"] == {
+        "state": "disabled",
+        "label": "Cloud optional",
+        "detail": (
+            "Local Guard is active. Cloud sync is optional and currently off; connect it for shared team proof."
+        ),
+        "pending_events": 0,
+        "last_synced_at": None,
+        "next_retry_after": None,
+    }
+    assert snapshot["proof_status"]["state"] == "not_connected"
+    assert snapshot["proof_status"]["label"] == "Cloud proof not started"
+    assert snapshot["proof_status"]["request_id"] is None
+    assert snapshot["proof_status"]["receipts_stored"] == 0
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [None, {}, {"proof_status": {}, "cloud_state_label": "Connected", "cloud_state_detail": 1}],
+    ids=["refused", "empty", "malformed"],
+)
+def test_runtime_snapshot_reports_cloud_status_unavailable_without_the_native_runtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reply: dict[str, object] | None,
+) -> None:
+    from codex_plugin_scanner.guard import native_runner_authority as authority_module
+
+    store = GuardStore(tmp_path / "guard-home")
+    asked: list[str] = []
+    original = authority_module.native_runner_authority
+
+    def refuse_cloud_status(kind: str, args: Any, **kwargs: Any) -> dict[str, object]:
+        if kind == "runtime_cloud_status":
+            asked.append(kind)
+            if reply is None:
+                raise authority_module.NativeRunnerAuthorityError("native_runtime_unavailable")
+            return reply
+        return original(kind, args, **kwargs)
+
+    monkeypatch.setattr(authority_module, "native_runner_authority", refuse_cloud_status)
+
+    snapshot = build_runtime_snapshot(store=store, approval_center_url=None)
+
+    assert asked == ["runtime_cloud_status"]
+    assert snapshot["cloud_state"] == "local_only"
+    assert snapshot["cloud_state_label"] == "Cloud status unavailable"
+    assert snapshot["cloud_sync_health"]["state"] == "failed"
+    assert snapshot["cloud_sync_health"]["label"] == "Cloud status unavailable"
+    assert snapshot["cloud_sync_health"]["pending_events"] == 0
+    assert snapshot["proof_status"]["state"] == "failed"
+    assert snapshot["proof_status"]["label"] == "Cloud status unavailable"
+    assert snapshot["proof_status"]["first_synced_at"] is None
+    assert snapshot["dashboard_url"] == "https://hol.org/guard"
+    assert snapshot["cloud_pairing_state"]["connect_url"] == "https://hol.org/guard/connect"
+
+
+@pytest.mark.parametrize(
+    ("sync_url", "dashboard_url"),
+    [
+        (
+            "https://registry-staging.example.test/points/api/guard/receipts/sync",
+            "https://registry-staging.example.test/guard",
+        ),
+        (None, "https://hol.org/guard"),
+        ("not a url", "https://hol.org/guard"),
+    ],
+    ids=["configured", "absent", "unparsable"],
+)
+def test_cloud_status_fallback_links_stay_on_the_configured_sync_origin(
+    sync_url: str | None,
+    dashboard_url: str,
+) -> None:
+    from codex_plugin_scanner.guard import approvals as approvals_module
+
+    assert approvals_module._fallback_guard_urls(sync_url) == {
+        "dashboard_url": dashboard_url,
+        "inbox_url": f"{dashboard_url}/inbox",
+        "fleet_url": f"{dashboard_url}/protect",
+        "connect_url": f"{dashboard_url}/connect",
+    }
 
 
 def test_runtime_snapshot_trust_status_does_not_refresh_integrity_state(tmp_path: Path) -> None:
@@ -1080,6 +1199,8 @@ def test_sync_runtime_session_emits_package_manager_coverage_payload(
     ]
     assert session_payload["yamlImport"] is False
     assert "canonicalPolicyEnforcement" not in session_payload
+    assert "policy-document-exact-commands.v1" in session_payload["capabilities"]
+    assert "policy-document-review-rules.v1" in session_payload["capabilities"]
 
 
 def test_local_runtime_session_advertises_enabled_policy_capabilities(
@@ -1101,6 +1222,8 @@ def test_local_runtime_session_advertises_enabled_policy_capabilities(
     ]
     assert session["yaml_import"] is True
     assert session["canonical_policy_enforcement"] is True
+    assert "policy-document-exact-commands.v1" in session["capabilities"]
+    assert "policy-document-review-rules.v1" in session["capabilities"]
 
 
 def test_local_runtime_session_applies_stable_policy_rollout_cohorts(
