@@ -113,7 +113,11 @@ fn group_result(owner: &FeatureBox, group: &FeatureGroup) -> Result<Value, Strin
         600,
         false,
     )?;
-    let xml = artifact(&format!("{}.xml", group.id()), MAX_FEATURE_JUNIT_BYTES)?;
+    let xml = files::publish_private(
+        &Path::new("/output").join(format!("{}.xml", group.id())),
+        (65532, 65532),
+        MAX_FEATURE_JUNIT_BYTES,
+    )?;
     let log = artifact(&format!("{}.log", group.id()), LOG_LIMIT)?
         .ok_or("feature command log missing")?;
     let counts = xml

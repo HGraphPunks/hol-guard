@@ -1,6 +1,6 @@
 # Finish the Gauntlet Rust migration
 
-Updated: 2026-11-05. Executor: **GPT-6.1 Sol, Max reasoning**.
+Updated: 2026-11-06. Executor: **GPT-6.1 Sol, Max reasoning**.
 
 ## Mission and completion rule
 
@@ -36,7 +36,13 @@ with evidence. Code volume and checked substeps do not establish completion.
   The merge passes 650 Mac Rust tests, 223 focused Python tests, Mac/ARM
   warnings-denied migration Clippy and Mac/ARM Native library/CLI checks.
 - The [feature worker](gauntlet-rust-feature-worker.md) has a host `run/read/repair`
-  path, but needs live feature execution/recovery and complete operator wiring.
+  path. Its first complete live attempt remains invalid because XML mode
+  publication failed; its interrupted attempt reached an aborted receipt only
+  after operator assistance for runtime signal denials. Private XML publication
+  and the receive-only `crun` rule pass focused ARM tests and a real stop probe.
+  The new controller digest is `409fe095fe10627e4c2ab7a14fe73e9d1b6177bbc3471364ca430cf4ddfb35f0`;
+  all 656 Mac tests pass. Fresh full execution, automatic recovery and operator
+  wiring remain open.
   [Native reply checks](gauntlet-rust-native-operation-reply-bindings.md) still
   leave wire authenticity, request semantics and physical effect attribution
   unverified. Existing product `dc3b9336` evidence is historical.

@@ -45,18 +45,66 @@ fn unchanged(path: &Path, file: &File, before: &std::fs::Metadata) -> Result<(),
     }
     Ok(())
 }
-pub(super) fn read(path: &Path, bound: usize) -> Result<Vec<u8>, String> {
-    let (mut file, before) = opened(path, bound as u64)?;
+fn read_opened(
+    path: &Path,
+    file: &mut File,
+    before: &std::fs::Metadata,
+    bound: usize,
+) -> Result<Vec<u8>, String> {
     let mut raw = Vec::new();
-    (&mut file)
+    (&mut *file)
         .take(bound as u64 + 1)
         .read_to_end(&mut raw)
         .map_err(|e| e.to_string())?;
     if raw.len() as u64 != before.len() {
         return Err("feature file length changed".into());
     }
-    unchanged(path, &file, &before)?;
+    unchanged(path, file, before)?;
     Ok(raw)
+}
+pub(super) fn read(path: &Path, bound: usize) -> Result<Vec<u8>, String> {
+    let (mut file, before) = opened(path, bound as u64)?;
+    read_opened(path, &mut file, &before, bound)
+}
+
+/// Pytest creates XML with its ordinary umask. After the child tree is drained,
+/// publish only our single-link file as private data through its held descriptor.
+pub(super) fn publish_private(
+    path: &Path,
+    owner: (u32, u32),
+    bound: usize,
+) -> Result<Option<Vec<u8>>, String> {
+    match path.symlink_metadata() {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e.to_string()),
+        Ok(_) => {}
+    }
+    let (mut file, before) = opened(path, bound as u64)?;
+    if (before.uid(), before.gid()) != owner
+        || before.nlink() != 1
+        || !matches!(before.mode() & 0o7777, 0o600 | 0o644)
+    {
+        return Err("feature output owner, link count or mode differs".into());
+    }
+    let raw = read_opened(path, &mut file, &before, bound)?;
+    file.set_permissions(std::fs::Permissions::from_mode(0o600))
+        .and_then(|_| file.sync_all())
+        .map_err(|e| e.to_string())?;
+    let after = file.metadata().map_err(|e| e.to_string())?;
+    if before.dev() != after.dev()
+        || before.ino() != after.ino()
+        || before.uid() != after.uid()
+        || before.gid() != after.gid()
+        || before.nlink() != after.nlink()
+        || before.len() != after.len()
+        || before.mtime() != after.mtime()
+        || before.mtime_nsec() != after.mtime_nsec()
+        || after.mode() & 0o7777 != 0o600
+    {
+        return Err("feature output changed during private publication".into());
+    }
+    unchanged(path, &file, &after)?;
+    Ok(Some(raw))
 }
 pub(super) fn root_input(path: &Path, bound: u64, pin: &str) -> Result<File, String> {
     let (mut file, before) = opened(path, bound)?;
@@ -190,4 +238,68 @@ pub(super) fn copy_tree(source: &Path, target: &Path) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::symlink;
+
+    #[test]
+    fn pytest_xml_publication_matches_the_root_readers_private_mode() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("group.xml");
+        let raw = b"<testsuites/>";
+        save(&path, raw, 0o644).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let metadata = path.metadata().unwrap();
+        let owner = (metadata.uid(), metadata.gid());
+        assert_eq!(
+            publish_private(&path, owner, raw.len()).unwrap(),
+            Some(raw.to_vec())
+        );
+        assert_eq!(path.metadata().unwrap().mode() & 0o7777, 0o600);
+        let directory = rustix::fs::open(
+            temp.path(),
+            rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::DIRECTORY,
+            rustix::fs::Mode::empty(),
+        )
+        .unwrap();
+        assert_eq!(
+            crate::feature_files::required(&directory, "group.xml", owner, 0o600, raw.len())
+                .unwrap(),
+            raw
+        );
+        assert_eq!(
+            publish_private(&path, owner, raw.len()).unwrap(),
+            Some(raw.to_vec())
+        );
+        assert!(publish_private(&temp.path().join("missing.xml"), owner, 16)
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn private_publication_refuses_links_unsafe_modes_wrong_owner_and_bounds() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("group.xml");
+        save(&path, b"xml", 0o644).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let metadata = path.metadata().unwrap();
+        let owner = (metadata.uid(), metadata.gid());
+        assert!(publish_private(&path, (owner.0 + 1, owner.1), 3).is_err());
+        assert!(publish_private(&path, owner, 2).is_err());
+        symlink("group.xml", temp.path().join("alias.xml")).unwrap();
+        assert!(publish_private(&temp.path().join("alias.xml"), owner, 3).is_err());
+        std::fs::hard_link(&path, temp.path().join("hard.xml")).unwrap();
+        assert!(publish_private(&path, owner, 3).is_err());
+        assert_eq!(path.metadata().unwrap().mode() & 0o7777, 0o644);
+        let loose = temp.path().join("loose.xml");
+        save(&loose, b"xml", 0o600).unwrap();
+        for mode in [0o666, 0o700, 0o4600] {
+            std::fs::set_permissions(&loose, std::fs::Permissions::from_mode(mode)).unwrap();
+            assert!(publish_private(&loose, owner, 3).is_err());
+            assert_eq!(loose.metadata().unwrap().mode() & 0o7777, mode);
+        }
+    }
 }

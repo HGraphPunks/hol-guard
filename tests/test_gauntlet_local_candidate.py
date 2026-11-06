@@ -1,10 +1,11 @@
 """Local immutable admission remains passive and separate from releases."""
+
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from ci.gauntlet.control_plane import local_candidate, releases, local_vm, vm_build, retry
+from ci.gauntlet.control_plane import local_candidate, local_vm, releases, retry, vm_build
 from ci.gauntlet.control_plane.agent import Agent
 from ci.gauntlet.control_plane.config import DEFAULTS
 
@@ -17,17 +18,21 @@ class CandidateTests(unittest.TestCase):
                 value=local_candidate.identity(temporary)
             self.assertEqual(value['sha'],SHA)
             self.assertEqual(value['version'],'3.49.0')
-            with patch.object(local_candidate,'git',return_value=' M product.py'):
-                with self.assertRaisesRegex(ValueError,'clean immutable'):
-                    local_candidate.identity(temporary)
+            with (
+                patch.object(local_candidate,'git',return_value=' M product.py'),
+                self.assertRaisesRegex(ValueError,'clean immutable'),
+            ):
+                local_candidate.identity(temporary)
 
     def test_alpha_package_version_is_admitted_from_a_clean_commit(self):
         with tempfile.TemporaryDirectory() as temporary:
             with patch.object(local_candidate,'git',side_effect=['',SHA,'codex/gauntlet-alpha','version = "3.50.0a5"']):
                 self.assertEqual(local_candidate.identity(temporary)['version'],'3.50.0a5')
-            with patch.object(local_candidate,'git',side_effect=['',SHA,'codex/gauntlet-alpha','version = "3.50.0a0"']):
-                with self.assertRaisesRegex(ValueError,'package version'):
-                    local_candidate.identity(temporary)
+            with (
+                patch.object(local_candidate,'git',side_effect=['',SHA,'codex/gauntlet-alpha','version = "3.50.0a0"']),
+                self.assertRaisesRegex(ValueError,'package version'),
+            ):
+                local_candidate.identity(temporary)
 
     def test_changed_commit_or_branch_refuses_admission(self):
         value={'source_path':'/candidate','sha':SHA,'branch':'codex/gauntlet-test','version':'3.49.0'}
@@ -45,7 +50,8 @@ class CandidateTests(unittest.TestCase):
         self.assertFalse(releases.admitted(DEFAULTS,{**job,'operator_queued':False}))
         self.assertFalse(releases.admitted(DEFAULTS,{**job,'archived_at':1}))
         with tempfile.TemporaryDirectory() as temporary:
-            agent=Agent(dict(DEFAULTS),Path(temporary)); agent.github=Mock()
+            agent=Agent(dict(DEFAULTS),Path(temporary))
+            agent.github=Mock()
             agent.jobs.append(job)
             receipt={'source_sha':SHA,'job_id':job['id'],'deployment_digest':'c'*64,
                      'exit_code':0,'status':'passed','report_sha256':'d'*64}
@@ -98,7 +104,9 @@ class CandidateTests(unittest.TestCase):
 
     def test_obsolete_local_branch_is_superseded_before_vm_work(self):
         with tempfile.TemporaryDirectory() as temporary:
-            agent=Agent(dict(DEFAULTS),Path(temporary)); agent.github=Mock();agent.worker=Mock()
+            agent=Agent(dict(DEFAULTS),Path(temporary))
+            agent.github=Mock()
+            agent.worker=Mock()
             job={'id':'1'*16,'sha':SHA,'kind':'local-candidate','operator_queued':True,
                  'tag':'local-'+SHA,'state':'queued','created_at':1}
             agent.jobs.append(job)
@@ -110,8 +118,10 @@ class CandidateTests(unittest.TestCase):
 
     def test_duplicate_admission_does_not_stop_the_observer(self):
         with tempfile.TemporaryDirectory() as temporary:
-            state=Path(temporary); agent=Agent(dict(DEFAULTS),state)
-            job={'id':'1'*16,'sha':SHA,'state':'passed'};agent.save(job)
+            state=Path(temporary)
+            agent=Agent(dict(DEFAULTS),state)
+            job={'id':'1'*16,'sha':SHA,'state':'passed'}
+            agent.save(job)
             with patch.object(local_candidate,'identity',return_value={'sha':SHA}), \
                  patch('ci.gauntlet.control_plane.lifecycle.stop_observer') as stop:
                 with self.assertRaisesRegex(ValueError,'observer left running'):
@@ -124,7 +134,7 @@ class CandidateTests(unittest.TestCase):
         self.assertIn('/build/retest-candidate.zip:/input/candidate.zip:ro',args)
         self.assertIn('--security-opt=apparmor=hol-gauntlet-build-'+('1'*16),args)
         self.assertIn('--cap-drop=ALL',args)
-        self.assertFalse(any('privileged'==a or 'unconfined'==a for a in args))
+        self.assertFalse(any(a=='privileged' or a=='unconfined' for a in args))
 
     def test_builder_policy_preserves_stock_denials_and_scopes_peer_access(self):
         policy=Path(vm_build.__file__).with_name('Builder.apparmor').read_text()
@@ -135,3 +145,9 @@ class CandidateTests(unittest.TestCase):
         self.assertEqual(len(peers),3)
         self.assertTrue(all('peer=' in line and 'HOL_GAUNTLET_BUILD_PROFILE' in line for line in peers))
         self.assertTrue(all('*' not in line for line in peers))
+        signals=[line.strip() for line in policy.splitlines() if line.strip().startswith('signal (')]
+        self.assertIn('signal (receive) peer=unconfined,',signals)
+        self.assertIn('signal (receive) peer=crun,',signals)
+        senders=[line for line in signals if '(send' in line]
+        self.assertEqual(len(senders),3)
+        self.assertTrue(all('HOL_GAUNTLET_BUILD_PROFILE' in line and '*' not in line for line in senders))

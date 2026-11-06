@@ -1,10 +1,11 @@
 # Rust Root feature worker
 
-Updated 2026-11-05. The development worker and fixed host caller implement
+Updated 2026-11-06. The development worker and fixed host caller implement
 `run/read/repair`, including retained kernel ownership for active cleanup.
-Current owned-VM feature execution, live restart/recovery proofs and final operator
-integration remain open. Parent acceptance stays 24/62; local tests establish
-implementation behavior rather than a qualified live audit.
+The first owned-VM attempts exposed XML publication and runtime-signal failures.
+Their results remain retained. Both fixes pass focused ARM checks; a fresh full
+audit and automatic interruption/recovery remain open, along with operator
+integration. Parent acceptance stays 24/62.
 
 ## Ownership and fixed inputs
 
@@ -109,9 +110,58 @@ Metadata for all 333 retained worker records is unchanged; no owned container
 or cgroup remains. See the execution checklist for exact binary and log pins.
 These probes still leave the complete live worker flow unproved.
 
-The first new live run will use the already retained product/build inputs.
-It must remain explicitly attributed to that product source rather than the
-newer migration implementation or upstream merge. Current-source product
-qualification, full operator wiring, interruption coverage and cutover remain
-separate acceptance requirements. Required cloud CI remains user-owned and
-pending.
+## Live attempts and fixes
+
+Both attempts below used product `dc3b9336` (3.58.0), build `e2c701baf1475501`
+and Root worker SHA-256
+`8baf4a30f4507f454639f07c312f2dbf5efc581a1266ff0164dff6dea02bc4ef`.
+They do not qualify the newer 3.59.0 source or the current migration tree.
+
+| Audit | Retained result |
+| --- | --- |
+| `98d0cdb912f50ef8` | Produced all 28 XML files, then Root returned `invalid-evidence`: pytest wrote mode 0644 while the strict export reader requires 0600. Real host readback preserves that result; consumed run and completed repair refuse. |
+| `47f1bc9d804a6e25` | Supervisor SIGKILL left the client and container active. Repair drained the owned client group, but kernel audit logs show AppArmor denying `crun`'s TERM/KILL. After an operator-assisted, fresh full-CID/intent/start-tick/cgroup/pidfd-bound stop under all three leases, the pinned worker recorded `aborted`, unknown exit and quiescence. This is not automatic-recovery acceptance. |
+
+On November 6, fresh host processes read and repeat-repair the identical aborted
+receipt, and another `run` refuses. All four host intent/dispatch/authorization/
+result byte hashes stay unchanged across these checks.
+
+The executor now publishes pytest XML as 0600 through its held descriptor
+after draining the child tree. It checks owner, single link, size and exact
+0600/0644 source mode, preserves the bytes, fsyncs and rechecks identity/path.
+Root keeps its strict reader and independent artifact recomputation. Two
+actual ARM tests pass, including links, unsafe modes, wrong owner and bounds;
+the test executable is `a2d8316e9d5bdc5982e9a956514d3cefd2cd5158a75f7fec0403d883d1885108`.
+
+The shared builder policy adds receive-only access from the host's bare
+`crun` profile. Outbound signals and ptrace remain scoped to the job. Fresh
+probe `5e8b2a71c09f643d` runs a confined UID-65532 system sleep process and
+proves that Podman stops/removes it while enforcement remains loaded. No
+operator signal is used in that probe; its container/cgroup and profile are
+then absent. Its rendered policy is
+`f7313b4dc1e6172b50efec837fcce95636e96668bbc1db76d2c5eb7fc2efc66d`.
+
+The source map has 437 files, 78 changed and 17 added against the unchanged
+420-file baseline. Actual Python bootstrap selection and Rust agree on 406
+files, 417 entries and controller digest
+`409fe095fe10627e4c2ab7a14fe73e9d1b6177bbc3471364ca430cf4ddfb35f0`.
+All 656 Mac workspace tests, 28 focused Python tests and seven subtests pass.
+Rustfmt, Mac workspace Clippy and ARM worker Clippy pass with warnings denied;
+the touched Python test passes Ruff.
+Supporting independent review found no blocking safety concern; the formal
+immutable security scan still has its tool inventory gap.
+
+Evidence remains outside Git in `gauntlet-rust-pr-ready-evidence-20261026`:
+`feature-publication-policy-20261105-mac-all-001.log`
+(`18bf84038f6db57d587a87a8366da381dfef23fc73a0c56f40f03168b758ea82`),
+`feature-xml-publication-20261105-arm-tests-001.log`
+(`907398dabac6f9355d41c2129d6fb865bce60cc87809dab50ba0b91a5aa55ed7`),
+`feature-policy-20261105-crun-stop-001.json`
+(`4a662b7e47829498e65e583fe42a6cfffd3fce6701ad366ad939ae0fb9c8245e`),
+and the private `feature-worker-live-host-20261105-001` intent/result/attempt
+journal. Metadata for all 333 older worker records remains identical;
+`feature-live-20261106-worker-metadata-after-001.json` has SHA-256
+`53760220746ed9bfa2a8256a954d5ff510fb49067935f4b53aae945c7c6edeae`.
+Local evidence still needs a sanitized reviewer handoff. Current-source
+qualification, automatic recovery, operator wiring, interruption coverage,
+cutover and required cloud CI remain open.
