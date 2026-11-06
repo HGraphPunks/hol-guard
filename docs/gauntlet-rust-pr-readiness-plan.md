@@ -19,17 +19,21 @@ with evidence. Code volume and checked substeps do not establish completion.
 ## Resume from this checkpoint
 
 - Continue `codex/gauntlet-rust-finish-20261105`, preserving preparation and the
-  merge of upstream `48d012fd7e846bd8a39d277a1c35a30fc239a813`.
+  merge of upstream `2b811b610f0bd52e182c1e9ba3592fcc7fbfd98e`.
   [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5) stays draft.
   Fork integration remains `f143f9ac`; PR #3 is open and upstream PR #5402
   has conflicts. Fork dispatch still returns HTTP 422, Actions disabled.
   Obtain all five current-head checks before any authorized integration merge.
 - The source map has 440 files, 78 changed and 20 added against the unchanged
-  baseline. Actual Python selection, Rust and the installed Root controller
-  agree on 409 files, 420 entries and digest `e81a214c…`. Preserve earlier
-  generations. The current timeout/HTTP fixes pass all 656 Mac Rust tests,
-  Mac/ARM warnings-denied Clippy and the documented physical probes; upstream
-  reconciliation also passes 226 focused Python tests and seven subtests.
+  baseline. After thirteen more upstream commits, actual Python selection and
+  Rust agree on 409 files, 420 entries and digest `24926e43…`. The installed
+  Root controller remains `e81a214c…` for retained/current running jobs. All 658
+  Mac migration tests, Mac/ARM Native library/CLI compilation, formatting and
+  Mac/ARM warnings-denied Clippy pass on the merge;
+  all ten changed Gauntlet files match upstream and 39 changed Python files
+  parse without imports. Validation record `upstream-20261106-merge-validation-002.json`
+  hashes to `888fa5de417b065f5c0eb051b4c99b432c394bb38c9b1b8977732d9fe1744b35`.
+  Fresh merged-source runtime validation remains open.
   Formal security review remains incomplete because its tool excludes `ci/`.
 - Corrected 3.59.0 source `023e0b641` changes one test import to the maintained
   Native facts bridge, retaining its assertions. Build `97bef577d8beb254`

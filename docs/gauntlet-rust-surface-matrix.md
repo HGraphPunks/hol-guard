@@ -61,4 +61,13 @@ unprivileged product boundary, and approval/effect grading to
 cases. Their added source pins and focused regression tests do not establish
 Rust execution or grading parity.
 
+The subsequent import through `2b811b610` expands those existing Phase 5
+owners with persistent offline package approval under `NODE_OPTIONS`, an exact
+GitHub merge/read sequence after `cd`, Git-config key-pattern reads and a
+sibling Jest command filtered through `sed`. The ten changed Gauntlet files
+match upstream exactly. The source map remains 440 files, 78 changed and 20
+added; the fresh 409-file/420-entry controller plan hashes to `24926e43…`.
+It is not installed over the retained `e81a214c…` generation. These source
+pins do not establish Rust legacy execution, approval or effect parity.
+
 This table covers the named entrypoints and primary durable state boundaries. The 420-file [parity manifest](../ci/gauntlet-rs/parity-manifest.v1.json) still needs disposition-by-disposition review. In particular, enumerate every historical evidence schema, provider and controller journal format, public status field, external executable argument contract, and legacy exit code against a trusted Rust owner or retained Python reader. The checklist leaves that audit open until the matrix is exhaustive and its accept/refuse cases are frozen.

@@ -95,6 +95,23 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
   `67f7a6ccbef21bd4f867d83399e1f7bda2066961a3d0f1dc18480b35073900e8`).
   The new controller is not installed over retained generations. Required CI,
   independent review and fresh qualification remain open; no parent exit closes.
+  - [x] Reconcile thirteen more upstream commits through `2b811b610`, preserving
+  the Native completion/budget modules and their Python bridge. Review all ten
+  changed Gauntlet files; the merged bytes match upstream exactly. The unchanged
+  420-file baseline still maps 440 files, 78 changed and 20 added. Actual Python
+  selection and Rust agree on 409 files, 420 entries and controller digest
+  `24926e437754ebf4be36c9a117a6e35ad55ab0d4d7cae58c8e1a69ae45e7d82b`.
+  All 658 Mac migration tests, Mac/ARM warnings-denied Clippy, formatting and
+  Mac/ARM Native library/CLI checks pass; the existing ARM musl deprecation stays
+  visible. Static checks parse 39 changed Python files without imports and
+  verify all 282 non-Unix inventory arms. The aggregate external record
+  `upstream-20261106-merge-validation-002.json` hashes to
+  `888fa5de417b065f5c0eb051b4c99b432c394bb38c9b1b8977732d9fe1744b35`;
+  the independent selector record hashes to
+  `031f1d4ce364a359b4a4433826233b5c7d87b09feaf63e6116970496f68af9ae`.
+  No controller is installed over retained `e81a214c…` jobs. Fresh merged-source
+  product/legacy execution, independent review and required cloud checks remain
+  open. No parent exit closes and no model request is made.
 - [x] Enumerate the three Python CLI entrypoints, primary command/profile surfaces, operational job states, public snapshot boundary, file/tree asset roles and major journals with proposed Rust phase owners. Evidence: [command and state ownership matrix](gauntlet-rust-surface-matrix.md). Historical schemas, every status field, legacy exit codes and the 420-file dispositions still need the exhaustive audit below.
 - [ ] Audit every manifest disposition and enumerate each CLI command, profile, schema/version, external executable, artifact role, public status field, exit code, journal and state transition with an owning Rust component.
 - [x] Freeze Python-produced canonical JSON vectors, seven accepted runner declarations, and valid/incomplete, complete synthetic, and signed hostile public bundles. Evidence: Rust fixture tests under `ci/gauntlet-rs/crates/`.
