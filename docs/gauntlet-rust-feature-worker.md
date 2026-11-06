@@ -2,7 +2,7 @@
 
 Updated 2026-11-05. The development worker and fixed host caller implement
 `run/read/repair`, including retained kernel ownership for active cleanup.
-Current owned-VM execution, live restart/recovery proofs and final operator
+Current owned-VM feature execution, live restart/recovery proofs and final operator
 integration remain open. Parent acceptance stays 24/62; local tests establish
 implementation behavior rather than a qualified live audit.
 
@@ -101,8 +101,13 @@ are absent and the original client has gone. It then removes the pinned policy,
 rechecks actual cleanup and appends an exclusive `aborted` receipt with unknown
 exit and zero model usage. Reading that receipt rechecks present cleanup.
 Existing results and partial records remain immutable; unresolved uncertainty
-continues to block dispatch. The new physical recovery cases still need an
-explicit Root run in the owned VM.
+continues to block dispatch. At `22d29e6e`, eleven feature cases and the explicit
+Root cgroup-recovery case pass in the owned VM. The latter observes child and
+descendant tasks, the parent's SIGKILL exit, complete drain/removal, forged/partial
+receipt refusals and refusal of a replacement group with the same name.
+Metadata for all 333 retained worker records is unchanged; no owned container
+or cgroup remains. See the execution checklist for exact binary and log pins.
+These probes still leave the complete live worker flow unproved.
 
 The first new live run will use the already retained product/build inputs.
 It must remain explicitly attributed to that product source rather than the
