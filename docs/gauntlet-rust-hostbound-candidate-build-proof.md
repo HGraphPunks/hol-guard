@@ -114,7 +114,9 @@ The first observer compared access times and refused after its own log read;
 it remains retained. The corrected reader excludes access time while rechecking
 device/inode, ownership, mode, links, size, modification and change times.
 
-Fresh job `97bef577d8beb254` now runs corrected product source
+## Corrected 3.59.0 build and immutable runtime
+
+Fresh job `97bef577d8beb254` completes corrected product source
 `023e0b6418296cb50c5ca8c1505a1f508d7a58be`, with a distinct 62,957,603-byte
 source archive, SHA-256
 `d4abdebeb4d5167046773982bc6b98bf224d75a995a09d26ab2f346b16544637`.
@@ -122,9 +124,70 @@ Actual outside host-pin arguments, both held Root/init pidfds, source mount
 read-only state, all empty capability sets and enforced kernel limits match.
 Its live receipt, `native-current359-build-host-state-20261106-003/outside-kernel-001.json`,
 hashes to `23d4cfdea7a061b4dae38c5b28e07cc55cb87db60b24bbab19cc57cc5ffc5f16`.
-The current Rust feature worker and executor are separately captured at hashes
-`32135d91…` and `5c353aee…`; old generations remain intact. This new build has
-no terminal outcome yet. Do not rerun the failed or active IDs.
+The run exits zero after 2,363.16 host seconds, with four selected checks and
+all **185 contained contracts passing**. Root result SHA-256 is
+`d62c1f337d69300ef656310f9def447d1508fbd323af66e9cf12e83595f94975`.
+Independent completion under all four leases verifies original process death,
+exact container/client/conmon cgroup and profile absence, and unchanged metadata
+for all 333 older records. That outside completion receipt hashes to
+`24d2c0175062c9a346c5ef7ff9370f3224223080fcf369a1ed2d6b200b0b20ab`.
+The captured 29,226,797-byte candidate ZIP hashes to
+`c39aeff19389eecfa75230dd414f679333d097ad32f2c584d15af86dcef56465`;
+Rust verifies all 1,626 wheel files and the actual Native ELF, SHA-256
+`9092baa4915c17a7cdafeb4bfd8144f1d0c361032eaa7d177335f6f92c983ed4`.
+Frozen host result readback matches the private pin, Root anchor, source,
+logs, result, archive, wheel and cleanup without changing the pin.
+
+Fresh dependency job `b20e4bd21efb86e9` binds the corrected source and exits
+zero in 40.874 seconds. Source archive and three-member input capsule are reused
+only after independent byte comparisons; Root retains distinct single-link
+source files and a fresh one-use intent, result and prefix receipt. Actual
+exporter/argv, mounted inputs, confinement and cleanup are independently observed.
+The first host observer refuses before guest execution because Python 3.9 lacks
+the used `stat` keyword; its receipt is retained. The corrected `lstat` observer
+captures the same running job without workload replay. Rust stages all 2,290
+dependency files, then composes and publishes the candidate runtime as immutable
+data at `/opt/hol-gauntlet/candidates/023e0b6418296cb50c5ca8c1505a1f508d7a58be/prefix`.
+Its 4,316-entry, 124,040,037-byte tree has digest
+`89036d113a0a5d94f66eb1338ec4e9bd43a7c8d4e2e5f8977d5b70c12a2eab80`;
+both canonical publication receipts hash to
+`0e893c5894d342c5e00a10fea4ad48c5ce373cad34276c9e091370dd46db5055`.
+
+The external `native-current359-build-host-state-20261106-003` journal retains
+`runtime-public-export-001.tar`: 48,025,600 bytes and 19 public members, SHA-256
+`99e0b5ed755ece0f508fde52396103179efc2a9d29ee900ac9639bbc66961b4d`.
+Independent host verification reads every wheel/dependency byte and reconstructs
+all four actual inventories and six console scripts without candidate imports.
+Its `independent-runtime-readback-001.json` hashes to
+`cebc14f4e6772eb8aaed61e6e4d48ae0d0d6746636f00bc88c926eea61cd1948`.
+The exact source-pinned Python requirement loop independently agrees with Rust
+on 62 distributions, MCP 1.30.0 and all 21 requirements: 11 active and satisfied,
+ten inactive. `independent-python-requirements-001.json` hashes to
+`6126639343ca79ea4c8de7f9c407ccde1710615845e2dd0d1826e45eb4a14eef`.
+Private intents, anchors, nonces and keys are excluded from the export.
+
+The same external journal contains parameterized public replay programs:
+`runtime-public-replay-001.py`, SHA-256
+`7eac64d85e73b064a06ab7b0b65b36ef4b697ef58d6f6b5b5f2d03440ea2af77`,
+and `python-requirements-public-replay-001.py`, SHA-256
+`1367edc2ec84aba65573b47fe85527def7f9a937a65f969e3dfe4b8976f731ce`.
+Both accept repository and public-evidence-directory arguments and reproduce
+the retained results from their saved files. The first uses only the standard
+library and six hash-pinned existing verifier helpers; the second additionally
+uses the trusted host environment's locked `packaging` dependency. Neither
+imports candidate or exported dependency code.
+
+Fresh 28-group/52-selector audit `df0cc730b3b23ef5` is running from corrected
+source with separately captured worker `32135d91…` and executor `5c353aee…`;
+old generations remain intact. Outside observation verifies actual executor/argv,
+four input hashes and read-only mounts, Root/init pidfds, UID/GID 65532, empty
+capabilities, no-new-privileges, seccomp, enforced job policy and separate
+namespaces. Effective limits are 12 GiB, zero swap, 2,048 PIDs and two CPUs.
+The external `feature-worker-current359-host-20261106-001/outside-kernel-001.json`
+hashes to `f55fa8de3841c066a44b2d153bdf595bd014a5d8c3924e37c101c474b947b906`.
+Its terminal outcome remains pending. Do not rerun any consumed ID. Immutable
+publication supplies no conformance, admission or causality credit; all related
+flags stay false, with zero model requests/tokens. No parent exit closes.
 
 ## Retained 3.59.0 dependencies for `83f079b5c`
 

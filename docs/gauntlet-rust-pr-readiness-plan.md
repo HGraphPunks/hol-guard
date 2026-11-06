@@ -18,79 +18,49 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
-- Execute on `codex/gauntlet-rust-finish-20261105`. Merge `1acc28a7a` preserves
-  preparation through `6ddf29cb0` and imports upstream `b2da1b2b`. The branch
-  now also imports `48d012fd7e846bd8a39d277a1c35a30fc239a813` without conflicts;
-  never reset accumulated work to the older integration tip.
-- Implementation `22d29e6e` adds host repair and exact kernel-resource recovery.
-  That implementation passes 653 Mac tests and 12 explicit Linux ARM feature/recovery cases;
-  the complete live flow and supervisor-crash repair are now observed below.
-  [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5)
-  carries this work and stays draft pending all five checks and review.
-- The accepted-socket HTTP path now shares one monotone request/response budget.
-  Its pre-fix regression fails; all 656 Mac workspace tests and seven explicit
-  ARM dashboard cases pass after the change. The formal security scan retains
-  a candidate-registration gap because the tool excludes `ci/`; it is incomplete.
-- Fork integration `codex/gauntlet-rust-integration-20261020` is at `f143f9ac`;
-  PR #3 is open. Upstream PR #5402 is draft with conflicts. Main was fetched at
-  `48d012fd7e846bd8a39d277a1c35a30fc239a813`. The current source map has 440
-  files, 78 changed and 20 added against the unchanged baseline. Actual Python
-  bootstrap selection and Rust agree on 409 files and 420 controller entries,
-  digest `e81a214c9771095da22f2897aa5c25600d2016f416cd6562d4fd5511f6321e9a`.
-  All 656 Mac Rust tests, 226 focused Python tests and seven subtests pass,
-  along with formatting, Mac/ARM warnings-denied migration Clippy and Native
-  library/CLI checks. The Git-source reader now
-  validates its count against the embedded delta instead of a second constant.
-  This controller is installed at a fresh path; retained VM trees stay intact.
-- The [feature worker](gauntlet-rust-feature-worker.md) has a host `run/read/repair`
-  path. Its first complete live attempt remains invalid because XML mode
-  publication failed; its interrupted attempt reached an aborted receipt only
-  after operator assistance for runtime signal denials. Private XML publication
-  and the receive-only `crun` rule pass focused ARM tests and a real stop probe.
-  The new controller digest is `409fe095fe10627e4c2ab7a14fe73e9d1b6177bbc3471364ca430cf4ddfb35f0`;
-  all 656 Mac tests pass. Fresh audit `6fb9d42a017c83e5` now completes all
-  28 groups with 1,286 passing tests, two Cline failures and one skip. Root
-  independently verifies its artifacts and retains failed/incomplete outcomes.
-  Supervisor-crash audit `c42a9e3b701fd865` recovers through the pinned Rust
-  repair command, with outside cleanup, restart readback and consumed-run
-  refusal verified. All 333 older records' metadata remains unchanged. Both
-  attempts use the retained 3.58.0 candidate and stay ineligible. Current-source
-  qualification, the broader interruption matrix and operator wiring remain open.
-  Exact 3.59.0 source `83f079b5c4a45cc7aa01849189ad80e0c674386a` has a
-  separately installed 409-file controller. Candidate `b937d2e04a16c85f` remains
-  consumed/unknown after its supervisor/client disappear while the container
-  survives. The [build proof](gauntlet-rust-hostbound-candidate-build-proof.md#current-3590-timeout-and-container-cleanup)
-  retains the failure, observed confinement and operator-only profile cleanup.
-  Rust now binds the full container ID before start and drains it on timeout;
-  a bounded two-hour candidate budget covers current release LTO. The actual
-  Root timeout/foreign-binding probe, all 656 Mac tests and Mac/ARM Clippy pass.
-  Dependency job `5ea8b3c2907df614` completes; Rust and independent host readback
-  agree on all 2,290 files and the 2,633-entry inert prefix. The corrected Root
-  timeout probe captures and verifies the actual client cgroup; earlier receipts
-  remain retained. Candidate `d5a9c18e3bf20764` completes under the fixed
-  `8bb6d1b5f` supervisor: four selected checks and 183 contracts pass, while
-  two contracts fail on one stale import of a removed Python runtime module.
-  Commit `023e0b641` switches that test to the existing Native facts bridge
-  and preserves its assertions; Ruff and syntax checks pass. Outside completion
-  proves actual client/container/conmon cgroup and profile absence, original
-  process death and unchanged metadata for all 333 older records. The failed
-  wheel is captured and verified inertly; result readback refuses it.
-  Fresh job `97bef577d8beb254` is running from corrected source `023e0b641`.
-  Its independently observed source, read-only mount, Root/entrypoint pidfds,
-  retained CID and confinement match. External receipt
-  `native-current359-build-host-state-20261106-003/outside-kernel-001.json`
-  hashes to `23d4cfdea7a061b4dae38c5b28e07cc55cb87db60b24bbab19cc57cc5ffc5f16`.
-  Do not replay either consumed ID. Full build, a dependency prefix bound to
-  the corrected source, inert publication and qualification remain open.
+- Continue `codex/gauntlet-rust-finish-20261105`, preserving preparation and the
+  merge of upstream `48d012fd7e846bd8a39d277a1c35a30fc239a813`.
+  [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5) stays draft.
+  Fork integration remains `f143f9ac`; PR #3 is open and upstream PR #5402
+  has conflicts. Fork dispatch still returns HTTP 422, Actions disabled.
+  Obtain all five current-head checks before any authorized integration merge.
+- The source map has 440 files, 78 changed and 20 added against the unchanged
+  baseline. Actual Python selection, Rust and the installed Root controller
+  agree on 409 files, 420 entries and digest `e81a214c…`. Preserve earlier
+  generations. The current timeout/HTTP fixes pass all 656 Mac Rust tests,
+  Mac/ARM warnings-denied Clippy and the documented physical probes; upstream
+  reconciliation also passes 226 focused Python tests and seven subtests.
+  Formal security review remains incomplete because its tool excludes `ci/`.
+- Corrected 3.59.0 source `023e0b641` changes one test import to the maintained
+  Native facts bridge, retaining its assertions. Build `97bef577d8beb254`
+  passes four selected checks and all 185 contained contracts. Failed build
+  `d5a9c18e3bf20764` and consumed/unknown `b937d2e04a16c85f` remain retained.
+  [Build and runtime proof](gauntlet-rust-hostbound-candidate-build-proof.md#corrected-3590-build-and-immutable-runtime)
+  records confinement, full-CID timeout cleanup and independent completion.
+- Fresh dependency job `b20e4bd21efb86e9`, inert staging, composition and
+  immutable publication bind the corrected source. Independent host replay
+  reconstructs all four inventories, 4,316 prefix entries and six aliases.
+  The exact Python requirement loop agrees with Rust on 62 distributions and
+  21 requirements: 11 active and satisfied, ten inactive. The 19-member public
+  runtime export hashes to `99e0b5ed755ece0f508fde52396103179efc2a9d29ee900ac9639bbc66961b4d`.
+- Fresh 28-group/52-selector audit `df0cc730b3b23ef5` is running from that source
+  with worker `32135d91…` and executor `5c353aee…`. Outside observation binds
+  actual executor/argv, four read-only inputs, Root/init pidfds and confinement;
+  receipt SHA-256 is `f55fa8de3841c066a44b2d153bdf595bd014a5d8c3924e37c101c474b947b906`.
+  Active readback refuses and preserves the host records. Capture its terminal,
+  independently replay all XML/log evidence and verify cleanup before advancing.
+  Earlier complete feature audit `6fb9d42a017c83e5` and automatic crash repair
+  `c42a9e3b701fd865` use retained 3.58.0; their failures and claim limits remain
+  in the [feature proof](gauntlet-rust-feature-worker.md#live-attempts-and-fixes).
+- Next finish broader recovery and all twelve staging/installed roles.
   [Native reply checks](gauntlet-rust-native-operation-reply-bindings.md) still
-  leave wire authenticity, request semantics and physical effect attribution
-  unverified. Existing product `dc3b9336` evidence is historical.
-- Git transport works. Owned VM
-  `hol-gauntlet-rust-build-20261026-001` is running (2 CPUs, 16 GiB, 48 GiB).
-  Inspect retained jobs, leases and resources before worker installation or
-  dispatch. On November 6, fork workflow dispatch still returns HTTP 422,
-  `Actions has been disabled for this repository`. All five checks remain a
-  merge blocker; continue independent implementation and owned-VM validation.
+  leave atomic wire bytes, request semantics and actual effect writers
+  unverified. All admission/qualification/causality flags remain false and
+  model use is zero. Current publication and historical successes close no
+  parent exit.
+- Owned VM `hol-gauntlet-rust-build-20261026-001` is running at 2 CPUs,
+  16 GiB and 48 GiB. Inspect retained jobs, all leases and actual resources
+  before installing or dispatching a worker. Never replay a consumed ID.
 
 ## Keep the implementation small
 
