@@ -66,7 +66,9 @@ pub use candidate_build_pins::{
     HostCandidateBuildPins,
 };
 pub use dependency_intent::{read_dependency_run_pins, DependencyIntentJournal};
-pub use feature_intent::{read_feature_run_pins, FeatureIntentJournal};
+pub use feature_intent::{
+    read_feature_run_pins, run_feature_audit_command, FeatureIntentJournal, FEATURE_AUDIT_USAGE,
+};
 mod private_jobs;
 pub use private_jobs::{
     read_private_jobs, read_private_jobs_if_idle, read_private_operations, PrivateJobError,

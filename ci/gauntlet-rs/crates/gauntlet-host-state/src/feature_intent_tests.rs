@@ -63,18 +63,73 @@ fn transport_failure_leaves_consumed_dispatch_and_never_implicitly_retries() {
     ops["limactl"] = json!(transport.to_str().unwrap());
     let journal = FeatureIntentJournal::open(&path).unwrap();
     let intent = journal.record(pins("0123456789abcdef"), &ops).unwrap();
-    assert!(journal
-        .execute_once(&intent)
+    let mut args = vec![
+        "run".into(),
+        path.to_str().unwrap().into(),
+        "0123456789abcdef".into(),
+        "0".repeat(64),
+    ];
+    assert!(run_feature_audit_command(&args)
+        .unwrap_err()
+        .contains("digest differs"));
+    let dispatch = path.join("0123456789abcdef.feature-dispatch.json");
+    assert!(!dispatch.exists());
+    args[3] = intent.digest().unwrap();
+    assert!(run_feature_audit_command(&args)
         .unwrap_err()
         .contains("uncertain"));
-    let dispatch = path.join("0123456789abcdef.feature-dispatch.json");
     let original = std::fs::read(&dispatch).unwrap();
-    assert!(FeatureIntentJournal::open(&path)
-        .unwrap()
-        .execute_once(&intent)
+    assert!(run_feature_audit_command(&args)
         .unwrap_err()
         .contains("consumed"));
     assert_eq!(std::fs::read(dispatch).unwrap(), original);
+}
+
+#[test]
+fn feature_record_command_keeps_nonce_private_and_preserves_consumed_intent() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().canonicalize().unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let pins_path = path.join("pins.json");
+    std::fs::write(&pins_path, pins("0123456789abcdef").value().to_string()).unwrap();
+    std::fs::set_permissions(&pins_path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    let args = vec![
+        "record".into(),
+        path.to_str().unwrap().into(),
+        pins_path.to_str().unwrap().into(),
+        "owned-vm".into(),
+    ];
+    let result = run_feature_audit_command(&args).unwrap();
+    let journal = FeatureIntentJournal::open(&path).unwrap();
+    let intent = journal.read("0123456789abcdef").unwrap();
+    assert_eq!(
+        result,
+        json!({"schema":"hol-gauntlet-host-feature-record.v1",
+            "audit_id":"0123456789abcdef","source_sha":"a".repeat(40),
+            "intent_sha256":intent.digest().unwrap(),
+            "execution_eligible":false,"qualification_eligible":false})
+    );
+    let private: Value = serde_json::from_slice(&intent.bytes().unwrap()).unwrap();
+    assert!(!result
+        .to_string()
+        .contains(private["host_nonce_hex"].as_str().unwrap()));
+    let original = std::fs::read(path.join("0123456789abcdef.feature-intent.json")).unwrap();
+    assert!(run_feature_audit_command(&args).is_err());
+    assert_eq!(
+        std::fs::read(path.join("0123456789abcdef.feature-intent.json")).unwrap(),
+        original
+    );
+    assert!(!path.join("0123456789abcdef.feature-dispatch.json").exists());
+    for malformed in [vec![], vec!["unknown".into()], args[..3].to_vec(), {
+        let mut extra = args.clone();
+        extra.push("unexpected".into());
+        extra
+    }] {
+        assert_eq!(
+            run_feature_audit_command(&malformed).unwrap_err(),
+            FEATURE_AUDIT_USAGE
+        );
+    }
 }
 #[test]
 fn read_reconciles_only_a_completed_result_after_consumed_dispatch() {

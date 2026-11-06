@@ -63,6 +63,12 @@ with evidence. Code volume and checked substeps do not establish completion.
   `c42a9e3b701fd865` use retained 3.58.0; their failures and claim limits remain
   in the [feature proof](gauntlet-rust-feature-worker.md#live-attempts-and-fixes).
 - Next finish broader recovery and all twelve staging/installed roles.
+  Explicit `gauntlet-host features record/run/read/repair` now reuses the
+  existing journal and diagnostic caller implementation. Both entrypoints
+  return versioned public recording pins, keeping the nonce private. All 658
+  Mac Rust tests, formatting and Mac/ARM warnings-denied Clippy pass; live primary
+  command execution and observer admission remain open. No repository file,
+  crate, target or dependency is added.
   [Native reply checks](gauntlet-rust-native-operation-reply-bindings.md) still
   leave atomic wire bytes, request semantics and actual effect writers
   unverified. All admission/qualification/causality flags remain false and

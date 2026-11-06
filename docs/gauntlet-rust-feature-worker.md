@@ -5,12 +5,13 @@ Updated 2026-11-06. The development worker and fixed host caller complete
 retains real product failures, and a separate supervisor-crash test completes
 through the pinned Rust repair command. The earlier XML and signal failures
 remain retained. Current-source qualification, the broader interruption matrix
-and operator integration remain open. Parent acceptance stays 24/62.
+and observer integration remain open. Parent acceptance stays 24/62.
 
 ## Ownership and fixed inputs
 
 The Root executable is `gauntlet-feature-worker`; the Mac caller is
-`gauntlet-host-feature-audit`. A closed host intent binds the existing
+`gauntlet-host features`. The existing `gauntlet-host-feature-audit` command
+uses the same implementation. A closed host intent binds the existing
 11-field executor spec, exact completed build result, complete controller
 tree, builder/base images, rendered audit policy, four VM helper hashes and
 the actual Root worker executable. It admits no arbitrary command, selector,
@@ -22,6 +23,37 @@ controller tree and immutable local image, and repeats those checks after
 execution. It never imports or executes a candidate package as Root. The
 executor and fixed Node are separately captured as inert, content-addressed
 ARM ELFs. Partial asset slots remain consumed.
+
+The explicit host commands are:
+
+```text
+gauntlet-host features record PRIVATE_JOURNAL PRIVATE_PINS VM
+gauntlet-host features run PRIVATE_JOURNAL AUDIT_ID INTENT_SHA256
+gauntlet-host features read PRIVATE_JOURNAL AUDIT_ID INTENT_SHA256
+gauntlet-host features repair PRIVATE_JOURNAL AUDIT_ID INTENT_SHA256 REPAIR_BINARY_SHA256
+```
+
+Use an existing private journal directory and a private pins file. `record`
+now returns `hol-gauntlet-host-feature-record.v1`: audit ID, source SHA,
+intent digest and false eligibility flags. Both entrypoints keep the complete
+nonce-bearing intent only in the private journal; scripts that previously
+read the diagnostic command's `intent` stdout field must use the durable
+journal when private access is necessary. Historical intent, dispatch and
+terminal formats are unchanged. These explicit diagnostics do not connect
+the passive observer's admission queue or confer qualification.
+
+The complete Mac workspace passes 658 tests with zero failures or ignores,
+including real processes for both entrypoints. The tests verify public-only
+record output, wrong-pin refusal before dispatch, unstarted read/repair refusal,
+immutable consumed intents and transport-failure replay refusal. The test log
+`host-feature-commands-20261106-mac-tests-001.log` hashes to
+`2550d4bb0b530ea9bac94962bfb8e1b12c583e46381b53580f804462f58d8960`.
+Mac/ARM warnings-denied Clippy and formatting pass. No crate, target, dependency or
+repository file is added. Fresh live execution through the primary command,
+observer integration and broader recovery remain separate open work.
+The source/patch pins, all three check receipts and frozen host executable
+are recorded in `host-feature-commands-20261106-validation-001.json`, SHA-256
+`ca46cd9fc225dfe5ec06c53ca4fef6c4e79d9cb2b00eae84b6fe493ce17d6789`.
 
 The feature profile remains two CPUs, 12 GiB, 2048 tasks and a four-hour
 deadline. The Root Podman client has its own fixed cgroup and bounded

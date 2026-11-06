@@ -1,4 +1,4 @@
-//! Explicit passive lifecycle; the existing operator entrypoint is unchanged.
+//! Passive lifecycle and explicit one-use feature diagnostics.
 
 use gauntlet_host_state::{
     collect_observer_once, compose_observer_snapshot, open_observer_store,
@@ -36,6 +36,20 @@ fn run() -> Result<(), String> {
     };
     if matches!(command.as_str(), "--help" | "-h") {
         println!("{USAGE}");
+        println!(
+            "gauntlet-host features {}",
+            gauntlet_host_state::FEATURE_AUDIT_USAGE
+        );
+        return Ok(());
+    }
+    if command == "features" {
+        let args: Vec<String> = args.collect();
+        if matches!(args.as_slice(), [arg] if matches!(arg.as_str(), "--help" | "-h")) {
+            println!("{}", gauntlet_host_state::FEATURE_AUDIT_USAGE);
+            return Ok(());
+        }
+        let value = gauntlet_host_state::run_feature_audit_command(&args)?;
+        println!("{value}");
         return Ok(());
     }
     let mut options = std::collections::BTreeMap::new();

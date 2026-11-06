@@ -348,3 +348,106 @@ fn observer_start_has_a_finite_wait_and_preserves_the_checkpoint_when_blocked() 
     assert!(String::from_utf8_lossy(&output.stderr).contains("already owned"));
     assert_eq!(fs::read(checkpoint).unwrap(), before);
 }
+
+#[test]
+fn both_feature_entrypoints_keep_recorded_intents_private_and_refuse_unstarted_reads() {
+    let parent = parent();
+    let pins_path = parent.path().join("pins.json");
+    let mut pins = json!({"executor_spec":{
+        "schema":"hol-gauntlet-feature-executor.v1","audit_id":"0123456789abcdef",
+        "source_sha":"a".repeat(40),"source_archive_sha256":"b".repeat(64),
+        "candidate_archive_sha256":"c".repeat(64),"wheel_sha256":"d".repeat(64),
+        "native_sha256":"e".repeat(64),"executor_sha256":"f".repeat(64),"version":"3.59.0",
+        "catalog_sha256":gauntlet_contracts::FEATURE_CATALOG_SHA256,
+        "node_sha256":gauntlet_contracts::FEATURE_NODE_SHA256},
+        "build_job_id":"0123456789abcdee",
+        "controller_root":"/opt/hol-gauntlet/controller-0123456789abcdee",
+        "builder_image_id":format!("sha256:{}","a".repeat(64))});
+    for key in [
+        "build_result_sha256",
+        "controller_tree_sha256",
+        "uv_base_image_id",
+        "rust_base_image_id",
+        "policy_sha256",
+        "podman_sha256",
+        "slirp4netns_sha256",
+        "apparmor_parser_sha256",
+        "seccomp_sha256",
+        "runner_binary_sha256",
+    ] {
+        pins[key] = json!("b".repeat(64));
+    }
+    for (binary, prefix, id) in [
+        (
+            env!("CARGO_BIN_EXE_gauntlet-host"),
+            vec!["features"],
+            "0123456789abcdef",
+        ),
+        (
+            env!("CARGO_BIN_EXE_gauntlet-host-feature-audit"),
+            vec![],
+            "1123456789abcdef",
+        ),
+    ] {
+        pins["executor_spec"]["audit_id"] = json!(id);
+        fs::write(&pins_path, pins.to_string()).unwrap();
+        fs::set_permissions(&pins_path, fs::Permissions::from_mode(0o600)).unwrap();
+        let record = || {
+            Command::new(binary)
+                .args(&prefix)
+                .arg("record")
+                .arg(parent.path())
+                .arg(&pins_path)
+                .arg("owned-vm")
+                .output()
+                .unwrap()
+        };
+        let output = record();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+        let intent_path = parent.path().join(format!("{id}.feature-intent.json"));
+        let original = fs::read(&intent_path).unwrap();
+        let private: Value = serde_json::from_slice(&original).unwrap();
+        let intent = gauntlet_contracts::FeatureRunIntent::parse(&original).unwrap();
+        assert_eq!(
+            value,
+            json!({"schema":"hol-gauntlet-host-feature-record.v1",
+            "audit_id":id,"source_sha":"a".repeat(40),"intent_sha256":intent.digest().unwrap(),
+            "execution_eligible":false,"qualification_eligible":false})
+        );
+        assert!(!String::from_utf8_lossy(&output.stdout)
+            .contains(private["host_nonce_hex"].as_str().unwrap()));
+        assert_eq!(record().status.code(), Some(2));
+        for (action, digest) in [
+            ("run", "0".repeat(64)),
+            ("read", intent.digest().unwrap()),
+            ("repair", intent.digest().unwrap()),
+        ] {
+            let mut command = Command::new(binary);
+            command
+                .args(&prefix)
+                .arg(action)
+                .arg(parent.path())
+                .arg(id)
+                .arg(digest);
+            if action == "repair" {
+                command.arg("d".repeat(64));
+            }
+            assert_eq!(command.output().unwrap().status.code(), Some(2));
+        }
+        assert_eq!(fs::read(intent_path).unwrap(), original);
+        assert!(!parent
+            .path()
+            .join(format!("{id}.feature-dispatch.json"))
+            .exists());
+        assert!(!parent
+            .path()
+            .join(format!("{id}.feature-repair.json"))
+            .exists());
+    }
+    assert!(!parent.path().join("rust-host-v1").exists());
+}
