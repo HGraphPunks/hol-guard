@@ -22,9 +22,13 @@ with evidence. Code volume and checked substeps do not establish completion.
   preparation through `6ddf29cb0` and imports upstream `b2da1b2b`; never reset
   accumulated work to the older integration tip.
 - Implementation `22d29e6e` adds host repair and exact kernel-resource recovery.
-  All 653 Mac tests and 12 explicit Linux ARM feature/recovery cases pass;
+  That implementation passes 653 Mac tests and 12 explicit Linux ARM feature/recovery cases;
   the complete live worker flow remains next. [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5)
   carries this work and stays draft pending all five checks and review.
+- The accepted-socket HTTP path now shares one monotone request/response budget.
+  Its pre-fix regression fails; all 656 Mac workspace tests and seven explicit
+  ARM dashboard cases pass after the change. The formal security scan retains
+  a candidate-registration gap because the tool excludes `ci/`; it is incomplete.
 - Fork integration `codex/gauntlet-rust-integration-20261020` is at `f143f9ac`;
   PR #3 is open. Upstream PR #5402 is draft with conflicts; `main` is at
   `b2da1b2b3cbcce01d5d936659f40d4c3693a6279`. The current source map has 437

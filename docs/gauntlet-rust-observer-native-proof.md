@@ -68,6 +68,42 @@ out of disk. Clearing only generated migration build caches and rebuilding
 with debug information/incremental output disabled resolved it. Retained
 proofs and VM job evidence were preserved.
 
+## Request deadline follow-up, 2026-11-05
+
+Accepted macOS sockets can inherit the observer listener's nonblocking mode.
+The accepted-socket correction preserves fragmented HTTP requests. Each
+connection now has one three-second monotone budget shared by all socket
+reads and response writes. Partial headers and slow response readers cannot
+renew that budget and hold the synchronous observer loop for hours.
+
+Before the deadline change, the new header regression failed after 4.44 seconds;
+the failure log is `dashboard-deadline-20261105-red-001.log`, SHA-256
+`6b190b30cda46a4ab0a0d2c1e814bc57ed1354d7dad66e086b060f2794703211`.
+Afterward, all **656 macOS workspace tests** passed with no failures or skips
+across 229 target summaries. The complete log is
+`dashboard-deadline-20261105-mac-all-001.log`, SHA-256
+`f5ce29d20e52c75719d00584e8a739c501847f8e3644f3ff0485337ca9090c04`.
+The accompanying JSON records the tested source-file digests. These files live
+in `gauntlet-rust-pr-ready-evidence-20261026` outside Git.
+
+Seven dashboard tests also passed as UID 501 in the owned ARM VM, including
+fragmented and slow headers and a header read that consumes most of the
+response-write budget. Their binaries are pinned separately:
+
+| Test binary | SHA-256 | Result log SHA-256 |
+| --- | --- | --- |
+| Dashboard integration | `2a0628db8dd61e6f387136fe1271eada58eb803c140180ec48459631c59eb222` | `2185c6731f72d00ffb36202bf3dada892b7ebfbee5f9bb3bc7045db9f2dd16d6` |
+| Shared socket deadline | `bd12d1d7f91a318b3cb71be0fa1abb6a14944efdcb768877ce23833381b51d9a` | `82d9db00dcf58dfe0854cd7a27f3efc9f1e60b86f14c7ce816564668ca007786` |
+
+The Mac process test also completes `down`, closes the listener and releases
+the observer lease while a peer sends partial headers. It complements the
+direct handler regression; its initial sleep alone does not prove acceptance
+before the stop request. Static independent review found no implementation
+defect and prompted the shared read/write-budget test. The formal security
+scan remains incomplete because its inventory excludes `ci/` and rejects
+candidate registration. These tests do not qualify a worker or close a parent
+migration exit, and the retained live installation below is unchanged.
+
 ## Live host/VM result
 
 The retained proof directory is

@@ -244,6 +244,44 @@ fn combined_observer_serves_exact_release_queue_and_operator_lifecycle() {
 }
 
 #[test]
+fn slow_dashboard_peer_does_not_prevent_operator_shutdown() {
+    let fixture = Fixture::new(false);
+    let mut owned = Owned::start(&fixture);
+    let startup = owned.startup();
+    let address = startup["url"]
+        .as_str()
+        .unwrap()
+        .strip_prefix("http://")
+        .unwrap();
+    let mut client = TcpStream::connect(address).unwrap();
+    client
+        .write_all(b"GET /healthz HTTP/1.1\r\nHost: localhost\r\nX-Slow: ")
+        .unwrap();
+    sleep(Duration::from_millis(300));
+    assert_eq!(action(&fixture, "down")["stop_requested"], true);
+    let until = Instant::now() + Duration::from_secs(4);
+    while owned.child.as_mut().unwrap().try_wait().unwrap().is_none() {
+        assert!(
+            Instant::now() < until,
+            "slow peer blocked observer shutdown"
+        );
+        let _ = client.write_all(b"x");
+        sleep(Duration::from_millis(150));
+    }
+    let output = owned.wait();
+    assert_eq!(
+        output.last().unwrap()["observer"]["schema"],
+        "hol-gauntlet-observer.stopped"
+    );
+    assert!(TcpStream::connect(address).is_err());
+    let store = HostLifecycleStore::open(&fixture.parent).unwrap();
+    assert_eq!(
+        store.status(now()).unwrap()["observer"]["lease_held"],
+        false
+    );
+}
+
+#[test]
 fn occupied_dashboard_port_does_not_acquire_lease_or_mutate_checkpoint() {
     let fixture = Fixture::new(false);
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
