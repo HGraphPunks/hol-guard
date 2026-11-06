@@ -1,4 +1,6 @@
-# Host-bound local 3.49.0 candidate build
+# Host-bound candidate builds
+
+## Historical local 3.49.0
 
 The host-bound runner and result reader came from `7bd496e5`; the read-only prelaunch readiness check came from `d7e8d110`. This is a **shadow build**, with `artifact_admitted:false` and `execution_eligible:false` throughout. It did not stage or install Guard, run conformance or model inference, publish observer state, or enable the PR gate.
 
@@ -11,3 +13,61 @@ The Mac wrote one private 0600 pin journal entry before spawning Lima. Its SHA-2
 The first read-only host result probe correctly refused the uncaptured export. A separate one-use Root capture copied the 20,274,622-byte unprivileged export into mode-0444 `candidate.zip`; its SHA-256 was `5283c839fc0e035f5b475d6837c9dc8bbe0f1e44e4fad7530a3cb48d9e854b14`. The host-bound reader then succeeded, checking the host journal, exact guest anchor bytes, result, captured source, stdout/stderr, exported and captured archive, wheel declaration, and cleanup. A separate inert wheel reader decoded all 1,727 entries and 53,396,514 uncompressed bytes, matched wheel SHA-256 `f3acbcd0476e1ecc3d119f29e56c9c1bd22401e76c5d83c8cb8255d214eab496`, and hashed the 29,732,624-byte native executable to `533d72c30de62b460556c7330067e1078b353b094ee2fc3f1edf0f6d6af83eed`. Both readers reported the artifact unadmitted.
 
 This demonstrates a full host-pinned source build and retained-result reconciliation for one historical local commit. It does not independently review the source/controller/compiler pins, authenticate a signed deterministic worker verdict, stage an installed prefix, execute the six controls, or run a model-backed feature campaign. The current Rust host pin is an execution-intent record, not an admission decision. The archive-fixture fix at `aabdbd7d` passed the isolated Linux `contracts`, `macos-host` and `arm64-binaries` checks on [run 39590546631](https://github.com/hashgraph-online/hol-guard/actions/runs/39590546631). The product-wide rollup on that head had one Windows packaged-daemon failure and a pending benchmark-candidate job when inspected; the final-head CI exit remains open. The separate [release-tag proof](gauntlet-rust-release-tag-build-proof.md) covers the subsequent v3.48.0 source-ref correction and live build.
+
+## Current 3.59.0 timeout and container cleanup
+
+On November 6, job `b937d2e04a16c85f` captured exact product source
+`83f079b5c4a45cc7aa01849189ad80e0c674386a`, archive SHA-256
+`5d7ca00197896145d0ad07650a70acea1dc5f2eabdebec92367f79c321a8f8c8`.
+The new 409-file controller has digest `e81a214c…`; prior generations remain
+intact. Outside observation binds the actual Root supervisor, UID-65532 builder,
+entry script, source/version/tag, source archive, enforced job profile, separate
+namespaces, seccomp, 12-GiB/zero-swap/512-PID/two-CPU limits and held pidfds.
+
+After 2,093 host seconds, the call is uncertain and its dispatch stays consumed.
+The supervisor/client are gone while the exact container remains active. This
+matches the 2,100-second timeout path: it killed the client cgroup but supplied
+a no-op candidate-container drain callback. No OOM event was observed. The
+container later disappears without a retained Root result or export. Under
+all three leases, outside checks find its original processes and cgroups gone;
+an operator removes only the remaining profile. No workload signal, fabricated
+exit or replay is supplied. The attempt remains unknown and unqualified.
+
+Rust now precreates a container with a request-binding label, verifies and
+durably retains its full ID before starting the attached client, and reopens
+that identity before removal. Shared validation checks full CID, exact job name,
+immutable image, UID and binding. Both client cleanup and create/receipt failure
+paths drain the verified container before the enforced profile can be removed.
+The frozen Python run-vector reader is unchanged. Candidate release LTO now has
+a fixed 7,200-second budget; host transport adds 120 seconds for teardown.
+Dependency and feature deadlines stay 2,100 and 14,400 seconds.
+
+The exact patch from base `dd621e614` has SHA-256
+`ecefc9a2e32ed2b8fc2d37e472de1be9d97c8ebeafad6f5cd9fdd9bb6d38628d`
+over `git diff --binary dd621e614 -- ci/gauntlet-rs`. Its ARM test ELF is
+`69c6dacdefb579b00e8cda25e3e472ead9d65d8c7df9ad5bb48e42dc8b8d5ca8`.
+An explicit Root probe starts only inert `/bin/sleep` as UID/GID 65532, with
+zero capabilities, no-new-privileges, the enforced job policy, no network,
+configured 128-MiB/zero-swap/16-PID/one-CPU limits and a 100-ms supervision timeout.
+It refuses a foreign binding without changing the receipt, then proves actual
+container/cgroup removal and original-init death. The profile is removed after
+cleanup; repeat drain preserves the receipt. These fixture limits do not replace
+the production limits observed above. Outside checks under all three leases
+confirm complete absence and unchanged metadata for all 333 older worker records,
+without reading their private bytes. All 656 Mac tests, Rustfmt and Mac/ARM
+warnings-denied Clippy pass. No crate, Cargo target, codebase file or dependency is added.
+
+Evidence is retained outside Git in `gauntlet-rust-pr-ready-evidence-20261026`:
+
+| Receipt | SHA-256 |
+| --- | --- |
+| `native-current359-build-host-state-20261106-001/outside-kernel-003.json` | `610799559fb177c633c249a645b69e86a48e81992bf78f4330a4947d1d2b9d38` |
+| Same directory, `run-command-002.json` | `08fc8015c97fe59f537a4e9412c84923b8f622cca0cb92289217ca7b44f0c96d` |
+| Same directory, `operator-quiescence-001.json` | `3d8ef67a60ff181fc121f3317508d87d5075a62da1687e548a2ce320a5955db3` |
+| `candidate-timeout-20261106-root-timeout-001.json` | `b1331b5bc58f83d229bf7dbdc52887e663235ddab9b0f7939f087d133506ddfc` |
+| `candidate-timeout-20261106-outside-completion-001.json` | `a050007c64624270355b697e84930895d5f38f76f3b923cead162a6e3ff3aa9c` |
+| `candidate-timeout-20261106-mac-all-001.log` | `d2d3daebc08297bc0ed389490212a017a9162d75c6573299acf81d04a2fd99f2` |
+
+The physical probe closes handled-timeout cleanup only. Fresh full candidate
+build/publication, crash recovery, conformance and admission remain open. Every
+result stays ineligible, with zero model requests/tokens and no causality claim.

@@ -249,24 +249,43 @@ impl<'a> DependencyContainer<'a> {
 }
 
 fn validated_identity(v: &Value, intent: &DependencyRunIntent) -> Result<String, String> {
+    validated_container_identity(
+        v,
+        intent.pins.text("job_id"),
+        intent.pins.text("builder_image_id"),
+        "hol-gauntlet.dependency-intent",
+        &intent.digest()?,
+    )
+}
+
+pub(crate) fn validated_container_identity(
+    v: &Value,
+    job: &str,
+    image: &str,
+    label: &str,
+    binding: &str,
+) -> Result<String, String> {
+    if !crate::hex(job, 16)
+        || !crate::hex(binding, 64)
+        || !image
+            .strip_prefix("sha256:")
+            .is_some_and(|s| crate::hex(s, 64))
+    {
+        return Err("exact outside container identity pins required".into());
+    }
     let cid = v["Id"]
         .as_str()
         .filter(|s| crate::hex(s, 64))
-        .ok_or("full dependency CID required")?;
-    let job = intent.pins.text("job_id");
+        .ok_or("full owned container CID required")?;
     let image_matches = v["Image"].as_str().is_some_and(|s| {
-        s.strip_prefix("sha256:").unwrap_or(s)
-            == intent
-                .pins
-                .text("builder_image_id")
-                .trim_start_matches("sha256:")
+        s.strip_prefix("sha256:").unwrap_or(s) == image.trim_start_matches("sha256:")
     });
     if v["Name"] != format!("hol-gauntlet-build-{job}")
         || !image_matches
-        || v["Config"]["Labels"]["hol-gauntlet.dependency-intent"] != intent.digest()?
+        || v["Config"]["Labels"][label] != binding
         || v["Config"]["User"] != "65532:65532"
     {
-        return Err("dependency container identity differs from intent".into());
+        return Err("container identity differs from its outside binding".into());
     }
     Ok(cid.into())
 }

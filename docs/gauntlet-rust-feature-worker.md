@@ -137,7 +137,13 @@ records remains unchanged; their private byte contents are not read by that
 metadata comparison.
 
 The two Cline failures compare different withholding messages; the captured
-output remains withheld. The single skipped test leaves its group incomplete.
+output remains withheld. The skipped Pi test is explicitly marked as retired
+Python composition behavior: the live hook now reviews that external-source
+search shape. Its unchanged XML digest is
+`11de5984ab328db8fbad56a2e62e53f1fe9b4d7ae96154585a8701a5619a33d8`;
+the outside skip diagnostic receipt hashes to
+`87b406647d0ae422f8856ef111645574c37e754d285c50491b5cf8056b650f88`.
+That expected skip still leaves its group incomplete.
 Neither outcome is rewritten as a pass. The Root report is SHA-256
 `c9587c7ce2b5d909744565245c4f0b5b8b394122ff7a6f2a2848de47673a2dcf`;
 its independent readback is
@@ -187,7 +193,14 @@ and the private `feature-worker-live-host-20261105-001` intent/result/attempt
 journal. Metadata for all 333 older worker records remains identical;
 `feature-live-20261106-worker-metadata-after-001.json` has SHA-256
 `53760220746ed9bfa2a8256a954d5ff510fb49067935f4b53aae945c7c6edeae`.
-Local evidence still needs a sanitized reviewer handoff. Current-source
+The external evidence directory now contains
+`feature-audit-6fb9d42a017c83e5-public-artifacts-20261106-001.tar`
+(296,960 bytes), SHA-256
+`a78fc9715147258ea019a94a416e49b8c0d3a4a9c9bbce012053c001543df672`.
+Host readback verifies all 59 members: the unchanged report, readback,
+56 XML/log artifacts and a source-pinned manifest. Private intents, nonces,
+keys and dispatch records are excluded. This local package is ready for review;
+remote delivery and a recovery-evidence handoff remain open. Current-source
 qualification, operator wiring, broader interruption coverage,
 cutover and required cloud CI remain open.
 

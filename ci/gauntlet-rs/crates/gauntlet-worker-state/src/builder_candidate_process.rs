@@ -191,14 +191,35 @@ pub(crate) fn run_candidate_process(
     plan: &BuilderRunPlan,
     job: &OwnedFd,
     still_owned: &impl Fn() -> Result<(), CandidateProcessError>,
+    drain_container: &impl Fn() -> Result<(), CandidateProcessError>,
 ) -> Result<CandidateProcessObservation, CandidateProcessError> {
     run_process(
         plan,
         job,
         still_owned,
         RunKind::Candidate,
-        &|| Ok(()),
+        drain_container,
         &|_, _| Ok(()),
+        RunKind::Candidate.deadline(),
+    )
+}
+
+#[cfg(test)]
+pub(crate) fn candidate_timeout_probe(
+    plan: &BuilderRunPlan,
+    job: &OwnedFd,
+    still_owned: &impl Fn() -> Result<(), CandidateProcessError>,
+    drain_container: &impl Fn() -> Result<(), CandidateProcessError>,
+    observe: &impl Fn(crate::ProcessIdentity, &str) -> Result<(), CandidateProcessError>,
+) -> Result<CandidateProcessObservation, CandidateProcessError> {
+    run_process(
+        plan,
+        job,
+        still_owned,
+        RunKind::Candidate,
+        drain_container,
+        observe,
+        Duration::from_millis(100),
     )
 }
 
@@ -216,6 +237,7 @@ pub(crate) fn run_precreated_dependency_process(
         RunKind::Dependency,
         drain_container,
         record_running,
+        RunKind::Dependency.deadline(),
     )
 }
 
@@ -234,6 +256,7 @@ pub(crate) fn run_precreated_feature_process(
         RunKind::Feature(intent),
         drain_container,
         record_running,
+        RunKind::Feature(intent).deadline(),
     )
 }
 
@@ -252,10 +275,10 @@ impl RunKind<'_> {
         }
     }
     fn deadline(self) -> Duration {
-        Duration::from_secs(if matches!(self, Self::Feature(_)) {
-            14400
-        } else {
-            2100
+        Duration::from_secs(match self {
+            Self::Candidate => gauntlet_contracts::CANDIDATE_BUILD_TIMEOUT_SECONDS,
+            Self::Dependency => 2100,
+            Self::Feature(_) => 14400,
         })
     }
     fn log_limit(self) -> u64 {
@@ -274,10 +297,8 @@ fn run_process(
     kind: RunKind,
     drain_container: &impl Fn() -> Result<(), CandidateProcessError>,
     record_running: &impl Fn(crate::ProcessIdentity, &str) -> Result<(), CandidateProcessError>,
+    deadline: Duration,
 ) -> Result<CandidateProcessObservation, CandidateProcessError> {
-    if matches!(kind, RunKind::Candidate) && !container_absent(&plan.job_id)? {
-        return Err(CandidateProcessError::ExistingContainer);
-    }
     let (out_name, err_name) = kind.log_names();
     let stdout = create_log(job, out_name)?;
     let stderr = create_log(job, err_name)?;
@@ -397,7 +418,7 @@ fn run_process(
                     .or_else(|| status.signal().map(|signal| 128 + signal))
                     .ok_or(CandidateProcessError::ProcessMismatch)
             }
-            Ok(None) if started.elapsed() < kind.deadline() => thread::sleep(POLL),
+            Ok(None) if started.elapsed() < deadline => thread::sleep(POLL),
             Ok(None) => break Err(CandidateProcessError::TimedOut),
             Err(_) => break Err(CandidateProcessError::CleanupUncertain),
         }

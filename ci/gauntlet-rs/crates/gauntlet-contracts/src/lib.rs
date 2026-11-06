@@ -55,6 +55,7 @@ pub const MAX_RECORD_BYTES: usize = 16 * 1024 * 1024;
 pub const NATIVE_HOST_PINNED_COMPLETION_LIMIT: usize = MAX_RECORD_BYTES;
 pub const MAX_DEPTH: usize = 32;
 pub const MAX_NODES: usize = 500_000;
+pub const CANDIDATE_BUILD_TIMEOUT_SECONDS: u64 = 7200;
 const MAX_INTEGER_DIGITS: usize = 4_300; // CPython 3.12's default decimal-int limit.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

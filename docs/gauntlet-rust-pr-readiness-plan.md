@@ -24,7 +24,8 @@ with evidence. Code volume and checked substeps do not establish completion.
   never reset accumulated work to the older integration tip.
 - Implementation `22d29e6e` adds host repair and exact kernel-resource recovery.
   That implementation passes 653 Mac tests and 12 explicit Linux ARM feature/recovery cases;
-  the complete live worker flow remains next. [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5)
+  the complete live flow and supervisor-crash repair are now observed below.
+  [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5)
   carries this work and stays draft pending all five checks and review.
 - The accepted-socket HTTP path now shares one monotone request/response budget.
   Its pre-fix regression fails; all 656 Mac workspace tests and seven explicit
@@ -40,7 +41,7 @@ with evidence. Code volume and checked substeps do not establish completion.
   along with formatting, Mac/ARM warnings-denied migration Clippy and Native
   library/CLI checks. The Git-source reader now
   validates its count against the embedded delta instead of a second constant.
-  This new controller generation is not installed over the retained VM trees.
+  This controller is installed at a fresh path; retained VM trees stay intact.
 - The [feature worker](gauntlet-rust-feature-worker.md) has a host `run/read/repair`
   path. Its first complete live attempt remains invalid because XML mode
   publication failed; its interrupted attempt reached an aborted receipt only
@@ -55,11 +56,17 @@ with evidence. Code volume and checked substeps do not establish completion.
   refusal verified. All 333 older records' metadata remains unchanged. Both
   attempts use the retained 3.58.0 candidate and stay ineligible. Current-source
   qualification, the broader interruption matrix and operator wiring remain open.
-  Next candidate job `b937d2e04a16c85f` has a Git-verified source archive for
-  exact `83f079b5c4a45cc7aa01849189ad80e0c674386a` (3.59.0), SHA-256
-  `5d7ca00197896145d0ad07650a70acea1dc5f2eabdebec92367f79c321a8f8c8`.
-  Its 409-file controller is installed under a fresh path and independently
-  verified; source capture, build/stage and qualification remain next.
+  Exact 3.59.0 source `83f079b5c4a45cc7aa01849189ad80e0c674386a` has a
+  separately installed 409-file controller. Candidate `b937d2e04a16c85f` remains
+  consumed/unknown after its supervisor/client disappear while the container
+  survives. The [build proof](gauntlet-rust-hostbound-candidate-build-proof.md#current-3590-timeout-and-container-cleanup)
+  retains the failure, observed confinement and operator-only profile cleanup.
+  Rust now binds the full container ID before start and drains it on timeout;
+  a bounded two-hour candidate budget covers current release LTO. The actual
+  Root timeout/foreign-binding probe, all 656 Mac tests and Mac/ARM Clippy pass.
+  Captured dependency job `5ea8b3c2907df614` passes readiness and is next to run.
+  Then use a fresh candidate ID. Full build, inert publication and current-source
+  qualification remain open; all 333 older worker records' metadata stays intact.
   [Native reply checks](gauntlet-rust-native-operation-reply-bindings.md) still
   leave wire authenticity, request semantics and physical effect attribution
   unverified. Existing product `dc3b9336` evidence is historical.

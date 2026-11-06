@@ -493,7 +493,7 @@ impl VmCandidateBuildInvocation {
         }
         let output = run_fixed(
             &self.argv,
-            Duration::from_secs(3600),
+            Duration::from_secs(gauntlet_contracts::CANDIDATE_BUILD_TIMEOUT_SECONDS + 120),
             MAX_TERMINAL_BYTES + 1,
             4096,
             &[],

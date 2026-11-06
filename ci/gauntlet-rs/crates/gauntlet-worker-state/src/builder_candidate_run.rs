@@ -18,11 +18,12 @@ use crate::builder_image_context::{
 };
 use crate::builder_policy::{profile_is_loaded, read_policy, run_parser};
 use crate::candidate_host_anchor::{
-    verify_running_binary, write_host_anchor, HostCandidateRunAnchor,
+    verify_running_binary, write_host_anchor, CandidateContainer, HostCandidateRunAnchor,
 };
 use crate::{fixed_builder_run_plan, hex, RunReservationJournal};
 use rustix::process::geteuid;
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::fmt;
 use std::path::Path;
 
@@ -329,6 +330,17 @@ fn run_fixed_local_candidate_inner(
         None
     };
     prepare_export(&job).map_err(|_| CandidateRunError::ExportUnavailable)?;
+    let binding = host_anchor
+        .as_ref()
+        .map(|(_, hash)| hash.clone())
+        .unwrap_or_else(|| {
+            format!(
+                "{:x}",
+                Sha256::digest(plan.to_json().to_string().as_bytes())
+            )
+        });
+    let mut container = CandidateContainer::new(&plan, image_id, &runtime.podman_sha256, &binding)
+        .map_err(|_| CandidateRunError::InvalidPins)?;
     let policy_path = format!("{BUILDS}/{job_id}/Builder.apparmor");
     let load = run_parser("--replace", &policy_path);
     if load.is_err() {
@@ -350,7 +362,20 @@ fn run_fixed_local_candidate_inner(
             .map_err(|_| CandidateProcessError::LeaseUnavailable)?;
         verify_python_lock(&python_lock).map_err(|_| CandidateProcessError::LeaseUnavailable)
     };
-    let process = run_candidate_process(&plan, &job, &still_owned);
+    let process = (|| {
+        let attached = container
+            .create(&job)
+            .map_err(|_| CandidateProcessError::ContainerUnknown)?;
+        run_candidate_process(&attached, &job, &still_owned, &|| {
+            container
+                .drain()
+                .map_err(|_| CandidateProcessError::CleanupUncertain)
+        })
+    })();
+    // Also drain after create/receipt failures, before removing the enforced profile.
+    container
+        .drain()
+        .map_err(|_| CandidateRunError::CleanupUncertain)?;
     let absent = container_absent(job_id);
     if absent != Ok(true) {
         // Keep the exact profile for inspection if the container may survive.
