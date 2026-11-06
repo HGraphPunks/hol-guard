@@ -35,44 +35,40 @@ with evidence. Code volume and checked substeps do not establish completion.
   hashes to `888fa5de417b065f5c0eb051b4c99b432c394bb38c9b1b8977732d9fe1744b35`.
   Fresh merged-source runtime validation remains open.
   Formal security review remains incomplete because its tool excludes `ci/`.
-- Corrected 3.59.0 source `023e0b641` changes one test import to the maintained
-  Native facts bridge, retaining its assertions. Build `97bef577d8beb254`
-  passes four selected checks and all 185 contained contracts. Failed build
-  `d5a9c18e3bf20764` and consumed/unknown `b937d2e04a16c85f` remain retained.
-  [Build and runtime proof](gauntlet-rust-hostbound-candidate-build-proof.md#corrected-3590-build-and-immutable-runtime)
-  records confinement, full-CID timeout cleanup and independent completion.
-- Fresh dependency job `b20e4bd21efb86e9`, inert staging, composition and
-  immutable publication bind the corrected source. Independent host replay
-  reconstructs all four inventories, 4,316 prefix entries and six aliases.
-  The exact Python requirement loop agrees with Rust on 62 distributions and
-  21 requirements: 11 active and satisfied, ten inactive. The 19-member public
-  runtime export hashes to `99e0b5ed755ece0f508fde52396103179efc2a9d29ee900ac9639bbc66961b4d`.
-- Fresh 28-group/52-selector audit `df0cc730b3b23ef5` completes from that source
-  with worker `32135d91…` and executor `5c353aee…`. Outside observation binds
-  actual executor/argv, four read-only inputs, Root/init pidfds and confinement;
-  receipt SHA-256 is `f55fa8de3841c066a44b2d153bdf595bd014a5d8c3924e37c101c474b947b906`.
-  Independent Rust/Python readback reproduces 1,300 passing tests, three failures
-  and one deliberately retired Pi skip: 25 groups pass, two fail and one is
-  incomplete. Two Cline reason assertions fail and a Kimi test lacks its TOML
-  import. All failures remain retained. Outside completion verifies original
-  process death, resource absence and all 333 older records' unchanged metadata;
-  consumed-run refusal preserves the host records. The 62-member public export
-  hashes to `8f85076c35cf14b061be680aad17327951e709043c6680e024b2dfa18a8a0dfd`.
-  Focused reproduction confirms `EPIPE` from mock guards that do not consume
-  their input. Existing-helper reuse and the Kimi import fix preserve all 186
-  assertions and pass 173 owned-ARM executions. A fresh full source-bound audit
-  remains required; the [current feature proof](gauntlet-rust-feature-worker.md#current-3590-audit)
-  records outcomes, replay programs and the sanitized review bundle.
-  Earlier complete feature audit `6fb9d42a017c83e5` and automatic crash repair
-  `c42a9e3b701fd865` use retained 3.58.0; their failures and claim limits remain
-  in the [feature proof](gauntlet-rust-feature-worker.md#live-attempts-and-fixes).
+- Fixture-corrected 3.59.0 source `8920be8bd` completes fresh build
+  `9ca1b850e63fd247`: four selected checks and all 185 contained contracts pass.
+  Dependency job `22b1bd1ca737f37a`, inert staging, composition and local immutable
+  publication complete: 4,316 prefix entries, six aliases, 62 distributions and
+  all 21 requirements, including 11 active and satisfied. Independent completion
+  verifies cleanup and all 333 historical records' unchanged metadata; host
+  retained-result readback matches. New-generation inventory reconstruction is
+  pending while the audit holds its leases. See the
+  [build/runtime pins](gauntlet-rust-hostbound-candidate-build-proof.md#fixture-corrected-3590-and-primary-host-dispatch).
+- Audit `462a926cee8fcfff` is running all 28 groups/52 selectors through
+  `gauntlet-host features`, with frozen host `6a2d8b61…`, Root worker
+  `32135d91…` and executor `5c353aee…`. Outside observation verifies actual
+  executor/argv, four read-only inputs, Root/init pidfds and confinement;
+  receipt SHA-256 is `fd3dc46b0b7b4fb3c7bfcf12c72985f750d507429afd4e28d4ad12cc29a2c9ee`.
+  Active readback and intentional consumed-run checks refuse with unchanged
+  records and the original owner still live. Terminal readback, artifact replay
+  and complete cleanup remain required. See the
+  [live command proof](gauntlet-rust-feature-worker.md#fresh-audit-through-the-primary-host-command).
+- Prior source `023e0b641`, build `97bef577d8beb254` and dependency job
+  `b20e4bd21efb86e9` retain independently replayed runtime inventories. Its full
+  audit `df0cc730b3b23ef5` preserves 1,300 passes, three failures and one retired
+  Pi skip. Cline EPIPE reproduction and the missing Kimi import correction
+  preserve all 186 assertions and pass 173 separate ARM diagnostic executions.
+  Failed build `d5a9c18e3bf20764`, unknown `b937d2e04a16c85f`, earlier audit
+  `6fb9d42a017c83e5` and automatic repair `c42a9e3b701fd865` remain retained.
+  The [feature proof](gauntlet-rust-feature-worker.md) records their claim limits
+  and sanitized review bundle; newest exports and remote delivery remain open.
 - Next finish broader recovery and all twelve staging/installed roles.
   Explicit `gauntlet-host features record/run/read/repair` now reuses the
   existing journal and diagnostic caller implementation. Both entrypoints
-  return versioned public recording pins, keeping the nonce private. All 658
-  Mac Rust tests, formatting and Mac/ARM warnings-denied Clippy pass; live primary
-  command execution and observer admission remain open. No repository file,
-  crate, target or dependency is added.
+  return versioned public recording pins, keeping the nonce private. Primary
+  recording, dispatch and active refusals are observed; completed readback and
+  observer admission remain open. The host command slice adds no repository
+  file, crate, target or dependency.
   [Native reply checks](gauntlet-rust-native-operation-reply-bindings.md) still
   leave atomic wire bytes, request semantics and actual effect writers
   unverified. All admission/qualification/causality flags remain false and
@@ -80,7 +76,8 @@ with evidence. Code volume and checked substeps do not establish completion.
   parent exit.
 - Owned VM `hol-gauntlet-rust-build-20261026-001` is running at 2 CPUs,
   16 GiB and 48 GiB. Inspect retained jobs, all leases and actual resources
-  before installing or dispatching a worker. Never replay a consumed ID.
+  before installing or dispatching a worker. Audit `462a926cee8fcfff` is active;
+  serialize VM mutations behind it. Never replay a consumed ID.
 
 ## Keep the implementation small
 

@@ -340,3 +340,35 @@ allowlist and comparison with three current private nonce sources pass; private
 intent/key files are excluded. Remote delivery, independent review and fresh
 full audit remain open. Every eligibility/causality flag stays false, with zero
 model requests/tokens and no parent-exit credit.
+
+### Fresh audit through the primary host command
+
+Audit `462a926cee8fcfff` is running the complete 28-group/52-selector schedule
+from fixture-corrected source `8920be8bd`, after successful build
+`9ca1b850e63fd247` and fresh dependency/prefix publication. The frozen primary
+host executable is `6a2d8b61…`, built from `79e061662`; Root worker `32135d91…`
+and executor `5c353aee…` remain unchanged. See the
+[build and runtime pins](gauntlet-rust-hostbound-candidate-build-proof.md#fixture-corrected-3590-and-primary-host-dispatch).
+
+Actual `gauntlet-host features record` output uses the public v1 schema and
+excludes the private nonce. Its record receipt hashes to
+`fc6eba1c5aae92d5825c8348a5e5079b50819ddff973305177c0832b3c9f1efc`.
+Outside kernel observation verifies the real executor/argv, four input hashes
+and read-only mounts, Root/init pidfds, UID/GID 65532, empty capability sets,
+no-new-privileges, seccomp, enforced policy and separate namespaces. Limits are
+12 GiB, zero swap, 2,048 PIDs and two CPUs. The observation receipt is
+`fd3dc46b0b7b4fb3c7bfcf12c72985f750d507429afd4e28d4ad12cc29a2c9ee`.
+
+Primary-command active readback and intentional consumed-run checks both refuse
+with exit two and leave all three existing host records unchanged. Their
+receipts are `9cd6b3ac82e2e42cf0331e3a2870d9464f70fa13dfa92c2baf295b7dfd0b909b`
+and `1268ce2d2e98f543ae248d6c00c988cd6278df20668358a3c1b60cec1ca7b28b`.
+Subsequent pidfd/ELF observation confirms the original Root supervisor and
+executor remain live under the same container; receipt SHA-256 is
+`185c1f263c882dab18346c46c97290d0e87ae6825892439b7573d70ee1b664db`.
+
+These records live in external `feature-worker-current359-host-20261106-002`.
+No terminal audit result is claimed yet. The earlier failed audit stays intact;
+latest merged-source qualification, independent authority, observer integration
+and broader recovery remain open. Every eligibility/causality flag stays false,
+with zero model requests/tokens and no parent-exit credit.

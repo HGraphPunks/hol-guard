@@ -177,7 +177,7 @@ library and six hash-pinned existing verifier helpers; the second additionally
 uses the trusted host environment's locked `packaging` dependency. Neither
 imports candidate or exported dependency code.
 
-Fresh 28-group/52-selector audit `df0cc730b3b23ef5` is running from corrected
+Fresh 28-group/52-selector audit `df0cc730b3b23ef5` completed from corrected
 source with separately captured worker `32135d91…` and executor `5c353aee…`;
 old generations remain intact. Outside observation verifies actual executor/argv,
 four input hashes and read-only mounts, Root/init pidfds, UID/GID 65532, empty
@@ -196,6 +196,48 @@ older records. See the [current feature proof](gauntlet-rust-feature-worker.md#c
 for the public export and receipt pins. Do not rerun any consumed ID. Immutable
 publication supplies no conformance, admission or causality credit; all related
 flags stay false, with zero model requests/tokens. No parent exit closes.
+
+## Fixture-corrected 3.59.0 and primary host dispatch
+
+Source `8920be8bd4ed87d04c6110639633dff9de3545de` preserves the Cline/Kimi
+assertions and corrects only their fixtures. Fresh build `9ca1b850e63fd247`
+exits zero in 2,789.152 host seconds: four selected checks and all 185 contained
+contracts pass. It uses the retained `e81a214c…` controller and fixed Root
+runner `b11cc1dc…`. Independent completion under four leases verifies actual
+container/client/profile absence, original process death and unchanged metadata
+for all 333 historical records; its receipt hashes to
+`2a2b049920623c742718dc9a9c4e1a77724edcc3a64cf5a5c08d39f6195b9795`.
+
+| Captured object | SHA-256 |
+| --- | --- |
+| Source archive, 62,942,172 bytes | `42c3f3e3f165d81dcfb6743366d82af9c91c89fec15fda5842785d8a4e2f47bb` |
+| Candidate ZIP, 29,226,900 bytes | `d7f13e5780f28cfa62eca1dfadae28d50e45dea2e79a144be5a76e5385a693b5` |
+| Wheel, 29,475,971 bytes | `a3b3b9a1bc2a32633c5a3abf91bb561c2ff2d29d32ca10661d16ce8dcb86811f` |
+| Actual Native ELF, 47,368,640 bytes | `b2b8b3948c42c75fc25321160232adfcbadb96df11f10c28a3072a0b2e09c156` |
+| Immutable 4,316-entry candidate prefix | `4379b06fcfe9567146779862bb1f22e3dbdff1bd4371ccf4fe598c3f7f2b01a7` |
+
+The inert reader verifies every wheel entry and Native byte; staging creates
+1,677 entries without importing a candidate. Host retained-result readback
+matches the original private pin without changing it; receipt SHA-256 is
+`21c6e55de77a0501b951d648fc4f7e38bf34ba055f6e01695d7a0ca454721a1c`.
+
+Fresh dependency job `22b1bd1ca737f37a` completes in 47.746 seconds with actual
+exporter/input/kernel observation and independently verified cleanup. Its
+canonical report hashes to `5a0ff27c3f6025eaf50ad491fe28840694f97d8e6e7e9ac5ccf44452eb07e17a`.
+The 2,290-file dependency prefix retains digest `ae59b1bb…`; the fresh
+source-bound receipt is `37ff2959f714231474a769d6a8d45f10a537044f1e65a250b5d9f8ce6959a7bb`.
+Rust composition and local immutable publication complete, including six aliases,
+62 distributions and all 21 requirements: 11 active and satisfied, ten inactive.
+The publication receipt is `97fad4b5bfbea6b1695ec159b52a0fd627f54ead91414291314e3d68e57603b5`.
+
+Evidence remains in external `native-current359-build-host-state-20261106-004`
+and `native-current359-dependency-host-state-20261106-003`. Independent host
+inventory reconstruction is pending for this generation while fresh audit
+`462a926cee8fcfff` runs through the primary host command; see the
+[live command proof](gauntlet-rust-feature-worker.md#fresh-audit-through-the-primary-host-command).
+This source predates the latest upstream reconciliation. Fresh merged-source
+validation, conformance and all eligibility/causality flags remain open or false;
+model requests/tokens remain zero and no parent exit closes.
 
 ## Retained 3.59.0 dependencies for `83f079b5c`
 
