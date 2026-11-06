@@ -12,7 +12,8 @@ use std::fmt;
 mod dependency_run;
 mod feature_run;
 pub use feature_run::{
-    verify_feature_run_result, FeatureRunIntent, FeatureRunPins, FEATURE_INTENT_LIMIT,
+    verify_feature_repair_result, verify_feature_run_result, FeatureRunIntent, FeatureRunPins,
+    FEATURE_INTENT_LIMIT,
 };
 mod effect_file_handle;
 pub use dependency_run::{DependencyRunIntent, DependencyRunPins, DEPENDENCY_INTENT_LIMIT};

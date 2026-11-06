@@ -1,9 +1,10 @@
 # Rust Root feature worker
 
-Updated 2026-10-28. The branch implements a separate development feature
-worker and fixed host caller. All 645 Mac migration tests and warnings-denied
-Mac/ARM Clippy pass. Fresh owned-VM execution, live restart/recovery proofs and
-final operator integration remain open. Parent acceptance stays 24/62.
+Updated 2026-11-05. The development worker and fixed host caller implement
+`run/read/repair`, including retained kernel ownership for active cleanup.
+Current owned-VM execution, live restart/recovery proofs and final operator
+integration remain open. Parent acceptance stays 24/62; local tests establish
+implementation behavior rather than a qualified live audit.
 
 ## Ownership and fixed inputs
 
@@ -42,9 +43,12 @@ lease covers all feature journal writes.
 
 Container ownership requires a full 64-character CID, exact intent label,
 fixed unprivileged user, immutable image and exact security/resource settings.
-The CID receipt precedes start. The running marker binds the actual client
-PID/start ticks and feature cgroup. Cleanup targets that identity, and keeps
-confinement enforced when teardown cannot be proved.
+The CID receipt precedes start. A separate fsynced client-cgroup receipt binds
+the intent, kernel boot ID, device and inode before spawning the client. The
+running marker binds its actual PID/start ticks and feature cgroup. Cleanup
+targets those identities and keeps confinement enforced when teardown cannot
+be proved. Shared cgroup custody now lives in `owned_cgroup.rs`; the existing
+probe API and fixed limits remain unchanged.
 
 After exact container/client/profile cleanup, Root compares its captured
 stdout with the exported report, independently recomputes every XML/log
@@ -67,27 +71,38 @@ uncertain transport consumes the attempt. A second invocation refuses instead
 of replaying the work. Restart opens the retained guest result using the
 audit ID and original complete intent digest.
 
-The Mac host caller now exposes an explicit `read` action for that restart
-path. It requires the exact durable intent and dispatch bytes before invoking
-the pinned Root worker's `--read` action. It sends no run intent, checks the
-canonical completed result against the original outside pins, and commits or
-compares a private host copy. A missing or changed dispatch, substituted
-intent digest, changed result and attempted repeated `run` refuse. The fake
-Lima process test covers these cases; all 31 host library tests and Mac/ARM
-warnings-denied Clippy pass. This is local process validation only. It has
-not read a real guest result, and the host still lacks an explicit repair
-command for the guest's quiescent aborted receipt. Exact source and built
-host-binary digests are retained in workspace evidence
-`gauntlet-rust-pr-ready-evidence-20261026/feature-host-read-proof-001.json`
-against base commit `a47b133b`.
+The host's `read` action requires the exact durable intent and dispatch bytes
+before calling the pinned worker. It sends no run intent and commits or
+compares a canonical private terminal copy. Its `repair` action additionally
+requires an outside repair-binary SHA-256 and durably pins that authorization
+before contacting the guest. Later reads use that authorized executable and
+accept an aborted receipt only with matching original intent and repair pins.
+The authorization is immutable; repeated cleanup reconciles the same binary
+and never resubmits the workload. A completed host result cannot be repaired.
 
-Quiescent recovery appends a separate `aborted` receipt with an unknown exit.
-It requires the original client identity to be gone, the exact container and
-cgroups absent, and the profile removed. It never signals a historical or
-reused PID and never replaces a result, repairs partial records in place or
-re-executes an audit. Recovery of still-active resources and other uncertain
-states needs further implementation/proof; their presence continues to block
-dispatch.
+Local process tests cover completed readback, aborted repair/readback across
+restart, transport failure, changed dispatch, partial or changed authorization,
+substituted receipts and consumed-run refusal. The host journal tests have one
+dedicated test module to keep the implementation below 500 lines. Historical
+host-read evidence remains in
+`gauntlet-rust-pr-ready-evidence-20261026/feature-host-read-proof-001.json`;
+that earlier proof does not establish a new guest execution.
+
+Under all three leases, recovery validates the original container receipt,
+full CID/intent label and fixed resource/security settings. An active client
+cgroup can be reopened only with its retained boot/device/inode identity.
+Cleanup uses its held descriptor, never a historical PID. A name replacement,
+missing ownership receipt, changed helper or policy pin, or uncertain custody
+refuses before destructive cleanup. The create/receipt gap can retain a CID
+only after an exact intent-bound inspect, before removing that container.
+
+The worker keeps AppArmor loaded until the exact container and client cgroups
+are absent and the original client has gone. It then removes the pinned policy,
+rechecks actual cleanup and appends an exclusive `aborted` receipt with unknown
+exit and zero model usage. Reading that receipt rechecks present cleanup.
+Existing results and partial records remain immutable; unresolved uncertainty
+continues to block dispatch. The new physical recovery cases still need an
+explicit Root run in the owned VM.
 
 The first new live run will use the already retained product/build inputs.
 It must remain explicitly attributed to that product source rather than the

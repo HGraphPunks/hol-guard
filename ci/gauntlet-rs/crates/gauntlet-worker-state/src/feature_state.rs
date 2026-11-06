@@ -76,12 +76,7 @@ pub(crate) fn verify_result(record: &FeatureRecord, result: &Value) -> Result<()
     }
     Ok(())
 }
-pub(crate) fn repair_body(record: &FeatureRecord, generation: &str) -> Result<Value, String> {
-    if !crate::hex(generation, 64) {
-        return Err("feature repair generation required".into());
-    }
-    let intent = &record.intent;
-    let p = intent.pins();
+pub(crate) fn original_client_absent(record: &FeatureRecord) -> Result<(), String> {
     if let Some(running) = &record.running {
         let pid = running["client_pid"]
             .as_u64()
@@ -101,6 +96,15 @@ pub(crate) fn repair_body(record: &FeatureRecord, generation: &str) -> Result<Va
             Err(e) => return Err(e.to_string()),
         }
     }
+    Ok(())
+}
+pub(crate) fn repair_body(record: &FeatureRecord, generation: &str) -> Result<Value, String> {
+    if !crate::hex(generation, 64) {
+        return Err("feature repair generation required".into());
+    }
+    original_client_absent(record)?;
+    let intent = &record.intent;
+    let p = intent.pins();
     let slot = slot(p.audit_id())?;
     let container = crate::feature_container::FeatureContainer::restore(intent, slot.as_ref())?;
     crate::feature_container::completed_absent(intent, container.id())?;
@@ -147,4 +151,35 @@ pub(crate) fn require_idle() -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn a_reused_pid_is_never_signalled_or_mistaken_for_the_original_client() {
+        let pid = std::process::id();
+        let raw = std::fs::read(format!("/proc/{pid}/stat")).unwrap();
+        let ticks = crate::linux_process::parse_proc_stat(&raw, pid)
+            .unwrap()
+            .start_ticks;
+        let mut record = FeatureRecord {
+            intent: crate::feature_journal::tests::fixture(),
+            running: Some(json!({"client_pid":pid,"client_start_ticks":ticks})),
+            result: None,
+            repair: None,
+        };
+        assert!(original_client_absent(&record).is_err());
+        record.running.as_mut().unwrap()["client_start_ticks"] = json!(ticks + 1);
+        original_client_absent(&record).unwrap();
+        assert_eq!(
+            crate::linux_process::parse_proc_stat(
+                &std::fs::read(format!("/proc/{pid}/stat")).unwrap(),
+                pid
+            )
+            .unwrap()
+            .start_ticks,
+            ticks
+        );
+    }
 }

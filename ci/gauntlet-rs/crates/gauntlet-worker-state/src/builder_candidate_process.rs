@@ -222,6 +222,7 @@ pub(crate) fn run_precreated_dependency_process(
 pub(crate) fn run_precreated_feature_process(
     plan: &BuilderRunPlan,
     job: &OwnedFd,
+    intent: &gauntlet_contracts::FeatureRunIntent,
     still_owned: &impl Fn() -> Result<(), CandidateProcessError>,
     drain_container: &impl Fn() -> Result<(), CandidateProcessError>,
     record_running: &impl Fn(crate::ProcessIdentity, &str) -> Result<(), CandidateProcessError>,
@@ -230,31 +231,35 @@ pub(crate) fn run_precreated_feature_process(
         plan,
         job,
         still_owned,
-        RunKind::Feature,
+        RunKind::Feature(intent),
         drain_container,
         record_running,
     )
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum RunKind {
+#[derive(Clone, Copy)]
+enum RunKind<'a> {
     Candidate,
     Dependency,
-    Feature,
+    Feature(&'a gauntlet_contracts::FeatureRunIntent),
 }
-impl RunKind {
+impl RunKind<'_> {
     fn log_names(self) -> (&'static str, &'static str) {
         match self {
             Self::Candidate => ("candidate-run.stdout.log", "candidate-run.stderr.log"),
             Self::Dependency => ("dependency-run.stdout.log", "dependency-run.stderr.log"),
-            Self::Feature => ("feature-run.stdout.log", "feature-run.stderr.log"),
+            Self::Feature(_) => ("feature-run.stdout.log", "feature-run.stderr.log"),
         }
     }
     fn deadline(self) -> Duration {
-        Duration::from_secs(if self == Self::Feature { 14400 } else { 2100 })
+        Duration::from_secs(if matches!(self, Self::Feature(_)) {
+            14400
+        } else {
+            2100
+        })
     }
     fn log_limit(self) -> u64 {
-        if self == Self::Feature {
+        if matches!(self, Self::Feature(_)) {
             128 * 1024
         } else {
             MAX_LOG_BYTES
@@ -270,19 +275,30 @@ fn run_process(
     drain_container: &impl Fn() -> Result<(), CandidateProcessError>,
     record_running: &impl Fn(crate::ProcessIdentity, &str) -> Result<(), CandidateProcessError>,
 ) -> Result<CandidateProcessObservation, CandidateProcessError> {
-    if kind == RunKind::Candidate && !container_absent(&plan.job_id)? {
+    if matches!(kind, RunKind::Candidate) && !container_absent(&plan.job_id)? {
         return Err(CandidateProcessError::ExistingContainer);
     }
     let (out_name, err_name) = kind.log_names();
     let stdout = create_log(job, out_name)?;
     let stderr = create_log(job, err_name)?;
     fsync(job).map_err(|_| CandidateProcessError::LogUnavailable)?;
-    let mut group = (if kind == RunKind::Feature {
+    let mut group = (if matches!(kind, RunKind::Feature(_)) {
         OwnedCandidateCgroup::create_feature(&plan.job_id)
     } else {
         OwnedCandidateCgroup::create(&plan.job_id)
     })
     .map_err(|_| CandidateProcessError::CgroupUnavailable)?;
+    if let RunKind::Feature(intent) = kind {
+        if group.retain_feature(job, intent).is_err() {
+            group
+                .kill()
+                .map_err(|_| CandidateProcessError::CleanupUncertain)?;
+            group
+                .drain_and_remove()
+                .map_err(|_| CandidateProcessError::CleanupUncertain)?;
+            return Err(CandidateProcessError::CgroupUnavailable);
+        }
+    }
     let mut command = podman_command();
     command.args(&plan.argv[1..]);
     command

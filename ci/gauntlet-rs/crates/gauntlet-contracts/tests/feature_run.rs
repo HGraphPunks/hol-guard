@@ -130,3 +130,59 @@ fn root_feature_response_cannot_convert_diagnostic_execution_into_qualification(
     v["exit_code"] = json!(2);
     gauntlet_contracts::verify_feature_run_result(&intent, &v).unwrap();
 }
+
+#[test]
+fn aborted_feature_receipt_requires_outside_repair_pin_and_cannot_claim_a_result() {
+    use gauntlet_contracts::verify_feature_repair_result as verify;
+    let intent = FeatureRunIntent::new(
+        FeatureRunPins::from_value(pins()).unwrap(),
+        "/bin/limactl",
+        "owned-vm",
+        &"a".repeat(64),
+    )
+    .unwrap();
+    let generation = "d".repeat(64);
+    let mut v = json!({"schema":"hol-gauntlet-native-feature-repair.v1",
+        "audit_id":intent.pins().audit_id(),"source_sha":intent.pins().spec().text("source_sha"),
+        "intent_sha256":intent.digest().unwrap(),"worker_generation":intent.pins().text("runner_binary_sha256"),
+        "repair_generation":generation,"running_sha256":null,"container_id":null,
+        "status":"aborted","exit_code":null,"quiescent":true,"artifact_admitted":false,
+        "execution_eligible":false,"qualification_eligible":false,"guard_causality_verified":false,
+        "model_requests":0,"model_tokens":0});
+    verify(&intent, &v, &generation).unwrap();
+    for (key, wrong) in [
+        ("schema", json!("hol-gauntlet-native-feature-result.v1")),
+        ("audit_id", json!("1123456789abcdef")),
+        ("source_sha", json!("c".repeat(40))),
+        ("intent_sha256", json!("c".repeat(64))),
+        ("worker_generation", json!("c".repeat(64))),
+        ("repair_generation", json!("c".repeat(64))),
+        ("running_sha256", json!("c".repeat(64))),
+        ("container_id", json!("c".repeat(12))),
+        ("status", json!("passed")),
+        ("exit_code", json!(0)),
+        ("quiescent", json!(false)),
+        ("artifact_admitted", json!(true)),
+        ("execution_eligible", json!(true)),
+        ("qualification_eligible", json!(true)),
+        ("guard_causality_verified", json!(true)),
+        ("model_requests", json!(1)),
+        ("model_tokens", json!(0.0)),
+        ("extra", json!(null)),
+    ] {
+        let mut changed = v.clone();
+        changed[key] = wrong;
+        assert!(verify(&intent, &changed, &generation).is_err(), "{key}");
+    }
+    for key in v.as_object().unwrap().keys() {
+        let mut missing = v.clone();
+        missing.as_object_mut().unwrap().remove(key);
+        assert!(verify(&intent, &missing, &generation).is_err(), "{key}");
+    }
+    assert!(verify(&intent, &v, &"c".repeat(64)).is_err());
+    assert!(verify(&intent, &v, "../worker").is_err());
+    v["container_id"] = json!("e".repeat(64));
+    verify(&intent, &v, &generation).unwrap(); // container created before client launch
+    v["running_sha256"] = json!("f".repeat(64));
+    verify(&intent, &v, &generation).unwrap();
+}

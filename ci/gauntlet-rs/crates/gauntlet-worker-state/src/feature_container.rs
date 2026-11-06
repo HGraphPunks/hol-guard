@@ -155,10 +155,7 @@ impl<'a> FeatureContainer<'a> {
         if self.cid.as_deref() != Some(reported) {
             return Err("feature create/inspect CID differ".into());
         }
-        let body = json!({"schema":"hol-gauntlet-native-feature-container.v1","container_id":reported,"intent_sha256":self.intent.digest()?});
-        let bytes = gauntlet_contracts::canonicalize(body.to_string().as_bytes())
-            .map_err(|e| e.to_string())?;
-        files::write(slot, "feature-container.v1.json", &bytes, (0, 0), 0o600)?;
+        self.retain_identity(slot)?;
         Ok(BuilderRunPlan {
             argv: vec![
                 "/usr/bin/podman".into(),
@@ -175,6 +172,33 @@ impl<'a> FeatureContainer<'a> {
                 .into(),
             execution_eligible: false,
         })
+    }
+    fn retain_identity(&self, slot: &std::os::fd::OwnedFd) -> Result<(), String> {
+        let cid = self
+            .cid
+            .as_deref()
+            .ok_or("feature container identity missing")?;
+        let body = json!({"schema":"hol-gauntlet-native-feature-container.v1","container_id":cid,"intent_sha256":self.intent.digest()?});
+        let bytes = gauntlet_contracts::canonicalize(body.to_string().as_bytes())
+            .map_err(|e| e.to_string())?;
+        files::write(slot, "feature-container.v1.json", &bytes, (0, 0), 0o600)?;
+        Ok(())
+    }
+    /// Recover the create/receipt gap only through a complete intent-labeled
+    /// inspect. Preserve its full CID before any removal, never just the name.
+    pub(crate) fn pin_repair_identity(
+        &mut self,
+        slot: Option<&std::os::fd::OwnedFd>,
+    ) -> Result<(), String> {
+        let observed = self.identity()?;
+        if self.cid.is_none() {
+            if let Some(cid) = observed {
+                let slot = slot.ok_or("feature container lacks retained private job slot")?;
+                self.cid = Some(cid);
+                self.retain_identity(slot)?;
+            }
+        }
+        Ok(())
     }
     pub(crate) fn restore(
         intent: &'a FeatureRunIntent,

@@ -141,7 +141,7 @@ pub fn run_native_features(
             .id()
             .ok_or("feature CID not retained")?
             .to_owned();
-        run_precreated_feature_process(&plan,&slot,&still_owned,
+        run_precreated_feature_process(&plan,&slot,&intent,&still_owned,
             &||container.borrow_mut().drain().map_err(|_|CandidateProcessError::CleanupUncertain),
             &|process,group| {
                 let running=json!({"schema":"hol-gauntlet-native-feature-running.v1","audit_id":id,

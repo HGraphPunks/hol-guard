@@ -263,3 +263,62 @@ pub fn verify_feature_run_result(intent: &FeatureRunIntent, v: &Value) -> Result
     }
     Ok(())
 }
+
+/// Bind an aborted supervisor receipt to the outside intent and an explicitly
+/// authorized repair executable. Physical cleanup is rechecked by the guest;
+/// this structural check never establishes artifact or qualification authority.
+pub fn verify_feature_repair_result(
+    intent: &FeatureRunIntent,
+    v: &Value,
+    repair_generation: &str,
+) -> Result<(), String> {
+    const FIELDS: &[&str] = &[
+        "schema",
+        "audit_id",
+        "source_sha",
+        "intent_sha256",
+        "worker_generation",
+        "repair_generation",
+        "running_sha256",
+        "container_id",
+        "status",
+        "exit_code",
+        "quiescent",
+        "artifact_admitted",
+        "execution_eligible",
+        "qualification_eligible",
+        "guard_causality_verified",
+        "model_requests",
+        "model_tokens",
+    ];
+    if !hex(repair_generation, 64)
+        || v.as_object().is_none_or(|v| v.len() != FIELDS.len())
+        || FIELDS.iter().any(|k| v.get(*k).is_none())
+        || v["schema"] != "hol-gauntlet-native-feature-repair.v1"
+        || v["audit_id"] != intent.pins().audit_id()
+        || v["source_sha"] != intent.pins().spec().text("source_sha")
+        || v["intent_sha256"] != intent.digest()?
+        || v["worker_generation"] != intent.pins().text("runner_binary_sha256")
+        || v["repair_generation"] != repair_generation
+        || v["status"] != "aborted"
+        || !v["exit_code"].is_null()
+        || v["quiescent"] != true
+        || !["running_sha256", "container_id"]
+            .iter()
+            .all(|k| v[*k].is_null() || v[*k].as_str().is_some_and(|s| hex(s, 64)))
+        || !v["running_sha256"].is_null() && v["container_id"].is_null()
+        || ![
+            "artifact_admitted",
+            "execution_eligible",
+            "qualification_eligible",
+            "guard_causality_verified",
+        ]
+        .iter()
+        .all(|k| v[*k] == false)
+        || v["model_requests"].as_u64() != Some(0)
+        || v["model_tokens"].as_u64() != Some(0)
+    {
+        return Err("feature repair differs from reserved aborted execution".into());
+    }
+    Ok(())
+}
