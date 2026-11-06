@@ -1,11 +1,11 @@
 # Rust Root feature worker
 
-Updated 2026-11-06. The development worker and fixed host caller implement
-`run/read/repair`, including retained kernel ownership for active cleanup.
-The first owned-VM attempts exposed XML publication and runtime-signal failures.
-Their results remain retained. Both fixes pass focused ARM checks; a fresh full
-audit and automatic interruption/recovery remain open, along with operator
-integration. Parent acceptance stays 24/62.
+Updated 2026-11-06. The development worker and fixed host caller complete
+`run/read/repair` in the owned ARM VM. A fresh 28-group audit independently
+retains real product failures, and a separate supervisor-crash test completes
+through the pinned Rust repair command. The earlier XML and signal failures
+remain retained. Current-source qualification, the broader interruption matrix
+and operator integration remain open. Parent acceptance stays 24/62.
 
 ## Ownership and fixed inputs
 
@@ -108,19 +108,40 @@ descendant tasks, the parent's SIGKILL exit, complete drain/removal, forged/part
 receipt refusals and refusal of a replacement group with the same name.
 Metadata for all 333 retained worker records is unchanged; no owned container
 or cgroup remains. See the execution checklist for exact binary and log pins.
-These probes still leave the complete live worker flow unproved.
+The fresh runs below subsequently exercise the complete live worker flow.
 
 ## Live attempts and fixes
 
-Both attempts below used product `dc3b9336` (3.58.0), build `e2c701baf1475501`
-and Root worker SHA-256
-`8baf4a30f4507f454639f07c312f2dbf5efc581a1266ff0164dff6dea02bc4ef`.
-They do not qualify the newer 3.59.0 source or the current migration tree.
+All four attempts below used product `dc3b9336` (3.58.0) and build
+`e2c701baf1475501`. The first two used Root worker SHA-256
+`8baf4a30f4507f454639f07c312f2dbf5efc581a1266ff0164dff6dea02bc4ef`;
+the last two used worker
+`534c1ed1cada4f80de9147b2865a71f2084955793c6bfcf2b0cada32a75f6fee`
+and executor `750c1643f18a76ade2d405aaf84f707c05e381362428aedaef209ac164c6dffb`.
+They do not qualify the newer 3.59.0 candidate. The current-source build at
+`83f079b5c` reports identical hashes for all eight trusted ARM release tools.
 
 | Audit | Retained result |
 | --- | --- |
 | `98d0cdb912f50ef8` | Produced all 28 XML files, then Root returned `invalid-evidence`: pytest wrote mode 0644 while the strict export reader requires 0600. Real host readback preserves that result; consumed run and completed repair refuse. |
 | `47f1bc9d804a6e25` | Supervisor SIGKILL left the client and container active. Repair drained the owned client group, but kernel audit logs show AppArmor denying `crun`'s TERM/KILL. After an operator-assisted, fresh full-CID/intent/start-tick/cgroup/pidfd-bound stop under all three leases, the pinned worker recorded `aborted`, unknown exit and quiescence. This is not automatic-recovery acceptance. |
+| `6fb9d42a017c83e5` | Completes all 28 groups and 52 selectors in 2,019 seconds. Root verifies all XML/log digests, independently recomputes counts and retains 56 artifacts. There are 1,286 passing tests, two Cline assertion failures and one skip: 26 groups pass, one fails and one is incomplete. Audit status stays `failed`, outer status `invalid-evidence`, and eligibility false. Fresh read matches; replay and completed repair refuse. |
+| `c42a9e3b701fd865` | A fresh pidfd-bound supervisor SIGKILL leaves the client and container active, with unknown readback refused. The pinned Rust repair finishes in 13.64 seconds and retains `aborted` with unknown exit. Fresh read and repeat repair match; replay refuses and all four host records remain byte-identical. No workload signal or resource rescue is supplied outside Rust repair. |
+
+The complete audit uses controller `0a7c949b9` at digest `409fe095…`;
+the crash/recovery test uses the newly installed `83f079b5c` controller at
+`e81a214c…`. Outside observations bind the actual UID-65532 executor and
+resource/confinement tuple, then verify container/cgroup/profile and original
+process absence under all three leases. Metadata for all 333 older worker
+records remains unchanged; their private byte contents are not read by that
+metadata comparison.
+
+The two Cline failures compare different withholding messages; the captured
+output remains withheld. The single skipped test leaves its group incomplete.
+Neither outcome is rewritten as a pass. The Root report is SHA-256
+`c9587c7ce2b5d909744565245c4f0b5b8b394122ff7a6f2a2848de47673a2dcf`;
+its independent readback is
+`65755213874d5e8491cc53741222951119da4436b3f2c106663f59488da652b1`.
 
 On November 6, fresh host processes read and repeat-repair the identical aborted
 receipt, and another `run` refuses. All four host intent/dispatch/authorization/
@@ -141,10 +162,14 @@ operator signal is used in that probe; its container/cgroup and profile are
 then absent. Its rendered policy is
 `f7313b4dc1e6172b50efec837fcce95636e96668bbc1db76d2c5eb7fc2efc66d`.
 
-The source map has 437 files, 78 changed and 17 added against the unchanged
+At `0a7c949b9`, the source map has 437 files, 78 changed and 17 added against the unchanged
 420-file baseline. Actual Python bootstrap selection and Rust agree on 406
 files, 417 entries and controller digest
 `409fe095fe10627e4c2ab7a14fe73e9d1b6177bbc3471364ca430cf4ddfb35f0`.
+The upstream import at `83f079b5c` has 440 files, 78 changed and 20 added;
+actual Python, Rust Git-blob verification and the installed Root tree agree on
+409 files, 420 entries and digest
+`e81a214c9771095da22f2897aa5c25600d2016f416cd6562d4fd5511f6321e9a`.
 All 656 Mac workspace tests, 28 focused Python tests and seven subtests pass.
 Rustfmt, Mac workspace Clippy and ARM worker Clippy pass with warnings denied;
 the touched Python test passes Ruff.
@@ -163,5 +188,15 @@ journal. Metadata for all 333 older worker records remains identical;
 `feature-live-20261106-worker-metadata-after-001.json` has SHA-256
 `53760220746ed9bfa2a8256a954d5ff510fb49067935f4b53aae945c7c6edeae`.
 Local evidence still needs a sanitized reviewer handoff. Current-source
-qualification, automatic recovery, operator wiring, interruption coverage,
+qualification, operator wiring, broader interruption coverage,
 cutover and required cloud CI remain open.
+
+Fresh completion and recovery evidence in the same private journal:
+`6fb9d42a017c83e5.outside-completion-001.json` has SHA-256
+`6a18284ed7fc6f6fa61e3ff4023c2563583b6e7773a6372ae19d579d540582f2`;
+`c42a9e3b701fd865.repair-command-001.json` has SHA-256
+`26cb52e174f4eac49bacbf60472e0bad2a46bbccc80e806f476b7cf1e011115d`;
+`c42a9e3b701fd865.outside-recovery-completion-001.json` has SHA-256
+`711c0d08f97bdcda02a5a9edd62ab8397bee5d3136428c61a722de5863f54fa5`.
+These establish the observed development flow and resource recovery, with
+zero model use and false qualification/causality throughout.

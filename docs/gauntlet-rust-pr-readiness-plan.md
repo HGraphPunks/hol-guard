@@ -47,11 +47,19 @@ with evidence. Code volume and checked substeps do not establish completion.
   after operator assistance for runtime signal denials. Private XML publication
   and the receive-only `crun` rule pass focused ARM tests and a real stop probe.
   The new controller digest is `409fe095fe10627e4c2ab7a14fe73e9d1b6177bbc3471364ca430cf4ddfb35f0`;
-  all 656 Mac tests pass. Fresh full execution, automatic recovery and operator
-  wiring remain open. Audit `6fb9d42a017c83e5` is running with the committed
-  `0a7c949b9` controller, executor and worker; outside observation confirms its
-  UID-65532 executor hash, confinement and resource limits. Its product remains
-  the retained 3.58.0 candidate. It cannot qualify the newer source or controller.
+  all 656 Mac tests pass. Fresh audit `6fb9d42a017c83e5` now completes all
+  28 groups with 1,286 passing tests, two Cline failures and one skip. Root
+  independently verifies its artifacts and retains failed/incomplete outcomes.
+  Supervisor-crash audit `c42a9e3b701fd865` recovers through the pinned Rust
+  repair command, with outside cleanup, restart readback and consumed-run
+  refusal verified. All 333 older records' metadata remains unchanged. Both
+  attempts use the retained 3.58.0 candidate and stay ineligible. Current-source
+  qualification, the broader interruption matrix and operator wiring remain open.
+  Next candidate job `b937d2e04a16c85f` has a Git-verified source archive for
+  exact `83f079b5c4a45cc7aa01849189ad80e0c674386a` (3.59.0), SHA-256
+  `5d7ca00197896145d0ad07650a70acea1dc5f2eabdebec92367f79c321a8f8c8`.
+  Its 409-file controller is installed under a fresh path and independently
+  verified; source capture, build/stage and qualification remain next.
   [Native reply checks](gauntlet-rust-native-operation-reply-bindings.md) still
   leave wire authenticity, request semantics and physical effect attribution
   unverified. Existing product `dc3b9336` evidence is historical.
