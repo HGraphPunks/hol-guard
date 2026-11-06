@@ -403,7 +403,7 @@ def test_generated_plugin_syntax_pretool_block_and_posttool_replacement(tmp_path
 def test_generated_plugin_withholds_unreviewed_posttool_output(tmp_path: Path) -> None:
     context = _context(tmp_path)
     _activate(context, "plugin")
-    source = _plugin_source(context, [sys.executable, "-c", "import sys; sys.exit(3)"])
+    source = _plugin_source(context, [sys.executable, "-c", "import sys; sys.stdin.read(); sys.exit(3)"])
     after = _run_plugin(
         source,
         tmp_path,
@@ -456,6 +456,7 @@ def test_generated_plugin_preserves_guard_block_on_exit_one(tmp_path: Path) -> N
     _activate(context, "plugin")
     guard = tmp_path / "blocking_guard.py"
     guard.write_text(
+        "import sys\nsys.stdin.read()\n"
         'print(\'{"decision":"block","reason":"REFLECTED_PRIVATE_TOKEN"}\')\nraise SystemExit(1)\n',
         encoding="utf-8",
     )
@@ -508,8 +509,7 @@ def test_generated_plugin_withholds_unserializable_posttool_output(tmp_path: Pat
 def test_generated_plugin_withholds_allow_without_model_output_action(tmp_path: Path, decision: dict[str, str]) -> None:
     context = _context(tmp_path)
     _activate(context, "plugin")
-    guard = tmp_path / "replacement_guard.py"
-    guard.write_text(f"print({json.dumps(decision)!r})\n", encoding="utf-8")
+    guard = _scripted_guard(tmp_path, json.dumps(decision))
     source = _plugin_source(context, [sys.executable, str(guard)])
     after = _run_plugin(
         source,
@@ -558,8 +558,7 @@ def test_generated_plugin_obeys_model_output_directive(
 ) -> None:
     context = _context(tmp_path)
     _activate(context, "plugin")
-    guard = tmp_path / "directive_guard.py"
-    guard.write_text(f"print({json.dumps({'decision': 'allow', **directive})!r})\n", encoding="utf-8")
+    guard = _scripted_guard(tmp_path, json.dumps({"decision": "allow", **directive}))
     source = _plugin_source(context, [sys.executable, str(guard)])
     after = _run_plugin(
         source,
@@ -576,13 +575,12 @@ def test_generated_plugin_obeys_model_output_directive(
 def test_generated_plugin_binds_allow_original_to_exact_output(tmp_path: Path) -> None:
     context = _context(tmp_path)
     _activate(context, "plugin")
-    guard = tmp_path / "matching_digest_guard.py"
     decision = {
         "decision": "allow",
         "model_output_action": "allow_original",
         "reviewed_output_sha256": sha256(b"SAFE_OUTPUT").hexdigest(),
     }
-    guard.write_text(f"print({json.dumps(decision)!r})\n", encoding="utf-8")
+    guard = _scripted_guard(tmp_path, json.dumps(decision))
     source = _plugin_source(context, [sys.executable, str(guard)])
     after = _run_plugin(
         source,
@@ -598,13 +596,12 @@ def test_generated_plugin_binds_allow_original_to_exact_output(tmp_path: Path) -
 def test_generated_plugin_returns_the_exact_output_reviewed_for_allow_original(tmp_path: Path) -> None:
     context = _context(tmp_path)
     _activate(context, "plugin")
-    guard = tmp_path / "matching_digest_guard.py"
     decision = {
         "decision": "allow",
         "model_output_action": "allow_original",
         "reviewed_output_sha256": sha256(b"SAFE_OUTPUT").hexdigest(),
     }
-    guard.write_text(f"print({json.dumps(decision)!r})\n", encoding="utf-8")
+    guard = _scripted_guard(tmp_path, json.dumps(decision))
     source = _plugin_source(context, [sys.executable, str(guard)])
     after = _run_plugin(
         source,
@@ -634,8 +631,7 @@ def test_generated_plugin_returns_the_exact_output_reviewed_for_allow_original(t
 def test_generated_plugin_rejects_ambiguous_guard_decision(tmp_path: Path, decision_json: str) -> None:
     context = _context(tmp_path)
     _activate(context, "plugin")
-    guard = tmp_path / "ambiguous_guard.py"
-    guard.write_text(f"print({decision_json!r})\n", encoding="utf-8")
+    guard = _scripted_guard(tmp_path, decision_json)
     source = _plugin_source(context, [sys.executable, str(guard)])
     before = _run_plugin(
         source,
@@ -696,7 +692,9 @@ def test_generated_plugin_rejects_nonzero_guard_exit_even_with_allow_json(tmp_pa
     context = _context(tmp_path)
     _activate(context, "plugin")
     guard = tmp_path / "failed_guard.py"
-    guard.write_text('print(\'{"decision":"allow"}\')\nraise SystemExit(7)\n', encoding="utf-8")
+    guard.write_text(
+        'import sys\nsys.stdin.read()\nprint(\'{"decision":"allow"}\')\nraise SystemExit(7)\n', encoding="utf-8"
+    )
     source = _plugin_source(context, [sys.executable, str(guard)])
     before = _run_plugin(
         source,
@@ -716,6 +714,8 @@ def test_generated_plugin_rejects_nonzero_guard_exit_even_with_allow_json(tmp_pa
 
 
 def _scripted_guard(tmp_path: Path, response: str) -> Path:
+    # Consume the hook request before replying, so Node cannot race an early
+    # stdin close and classify this decision fixture as an EPIPE transport error.
     path = tmp_path / f"scripted_guard_{sha256(response.encode()).hexdigest()[:12]}.py"
     path.write_text(
         f"from __future__ import annotations\nimport json, sys\njson.load(sys.stdin)\nprint({response!r})\n",

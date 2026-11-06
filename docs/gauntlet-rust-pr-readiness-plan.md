@@ -43,12 +43,22 @@ with evidence. Code volume and checked substeps do not establish completion.
   The exact Python requirement loop agrees with Rust on 62 distributions and
   21 requirements: 11 active and satisfied, ten inactive. The 19-member public
   runtime export hashes to `99e0b5ed755ece0f508fde52396103179efc2a9d29ee900ac9639bbc66961b4d`.
-- Fresh 28-group/52-selector audit `df0cc730b3b23ef5` is running from that source
+- Fresh 28-group/52-selector audit `df0cc730b3b23ef5` completes from that source
   with worker `32135d91…` and executor `5c353aee…`. Outside observation binds
   actual executor/argv, four read-only inputs, Root/init pidfds and confinement;
   receipt SHA-256 is `f55fa8de3841c066a44b2d153bdf595bd014a5d8c3924e37c101c474b947b906`.
-  Active readback refuses and preserves the host records. Capture its terminal,
-  independently replay all XML/log evidence and verify cleanup before advancing.
+  Independent Rust/Python readback reproduces 1,300 passing tests, three failures
+  and one deliberately retired Pi skip: 25 groups pass, two fail and one is
+  incomplete. Two Cline reason assertions fail and a Kimi test lacks its TOML
+  import. All failures remain retained. Outside completion verifies original
+  process death, resource absence and all 333 older records' unchanged metadata;
+  consumed-run refusal preserves the host records. The 62-member public export
+  hashes to `8f85076c35cf14b061be680aad17327951e709043c6680e024b2dfa18a8a0dfd`.
+  Focused reproduction confirms `EPIPE` from mock guards that do not consume
+  their input. Existing-helper reuse and the Kimi import fix preserve all 186
+  assertions and pass 173 owned-ARM executions. A fresh full source-bound audit
+  remains required; the [current feature proof](gauntlet-rust-feature-worker.md#current-3590-audit)
+  records outcomes, replay programs and the sanitized review bundle.
   Earlier complete feature audit `6fb9d42a017c83e5` and automatic crash repair
   `c42a9e3b701fd865` use retained 3.58.0; their failures and claim limits remain
   in the [feature proof](gauntlet-rust-feature-worker.md#live-attempts-and-fixes).

@@ -213,3 +213,98 @@ Fresh completion and recovery evidence in the same private journal:
 `711c0d08f97bdcda02a5a9edd62ab8397bee5d3136428c61a722de5863f54fa5`.
 These establish the observed development flow and resource recovery, with
 zero model use and false qualification/causality throughout.
+
+## Current 3.59.0 audit
+
+Fresh audit `df0cc730b3b23ef5` uses exact product/test source
+`023e0b6418296cb50c5ca8c1505a1f508d7a58be`, successful build `97bef577d8beb254`,
+controller digest `e81a214c…`, Root worker `32135d91…` and executor `5c353aee…`.
+The [build and immutable runtime](gauntlet-rust-hostbound-candidate-build-proof.md#corrected-3590-build-and-immutable-runtime)
+have separate custody and independent replay. This audit does not borrow the
+earlier 3.58.0 results.
+
+The 2,510.775-second run completes all 28 groups and 52 selectors. Root verifies
+56 XML/log artifacts. Independent host Python counts actual test cases, checks
+the immutable Python JUnit oracle and invokes the frozen Rust reader: all agree
+on **1,304 tests: 1,300 passed, three failed and one skipped**. There are 25
+passing groups, two failed groups and one incomplete group. Wrong spec/report
+pins refuse; all public files remain unchanged.
+
+Two Cline cases return a generic withholding reason instead of the expected
+missing-excerpt or ambiguous-decision reason. Both outputs remain withheld;
+their assertions remain intact. The Kimi install test reaches `tomllib.loads`
+without importing `tomllib`. The Pi skip is the explicitly retired Python
+external-source search composition case. None is relabeled as a pass.
+
+Outside observation binds actual executor/argv, all four read-only input mounts,
+Root/init pidfds, UID/GID 65532 and enforced resource/confinement limits. After
+termination, independent checks under all four leases establish exact CID/name,
+client/container/conmon cgroup and profile absence; original supervisor/init/
+client death; and unchanged metadata for all 333 historical worker records and
+their lock. No historical private bytes are read for that metadata check. Fresh
+host readback matches and consumed-run refusal preserves every host record.
+
+Evidence is in external `feature-worker-current359-host-20261106-001`:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `public-artifacts-001.tar` (327,680 bytes, 62 members) | `8f85076c35cf14b061be680aad17327951e709043c6680e024b2dfa18a8a0dfd` |
+| `independent-public-readback-001.json` | `e074c58288e09e82dbc0522a7d4b7a23cefbb007b38294d44dbbe1606746cc83` |
+| `outside-kernel-001.json` | `f55fa8de3841c066a44b2d153bdf595bd014a5d8c3924e37c101c474b947b906` |
+| `outside-completion-001.json` | `75c5e75fc4010a6c452c98f64a12b67aedc7e06b682d2fb2166699605fbc977e` |
+| `terminal-readback-001.json` | `eedde16e740d6fa506d9a1d6313299bfe15b84365b530fac828b0209f812b6db` |
+| `consumed-run-refusal-001.json` | `f83777fbd743774cececa8c1751b4f42b240871fec414cab1006861ea0139fc2` |
+
+The retained report is `6ba31749…`; its independently recomputed Root readback
+is `2dd62869…`. The public archive includes the spec, catalog, report, readback,
+56 artifacts, a projected terminal and manifest. It excludes private intents,
+nonces and keys. Status remains `failed`/`invalid-evidence`, with every admission,
+qualification and causality flag false and zero model requests/tokens. Broader
+recovery, independent authority, current-source qualification and merge gates
+remain open; no parent exit closes.
+
+### Fixture failure diagnosis and correction
+
+An isolated pinned-Node diagnostic passes all 120 missing-excerpt/null-decision
+trials. Repeating the actual source checkout, virtual environment and 74 Cline
+tests with subprocess logging then reproduces three failures on different cases:
+each child prints the expected JSON and exits zero, while Node reports `EPIPE`.
+The mock guard exits without consuming its hook request. The transport correctly
+treats that pipe error as unavailable and withholds the result.
+
+The tests now reuse the existing `_scripted_guard` input-consuming helper;
+explicit exit-one/exit-seven fixtures also consume stdin before replying.
+The Kimi test imports `tomllib` with the existing Python-3.10 `tomli` fallback.
+AST comparison preserves all **123 Cline and 63 Kimi assertions**. Product
+runtime, Rust code, dependencies and Gauntlet source-map bytes are unchanged.
+Ruff, formatting and diff checks pass. No codebase file, crate or target is added.
+
+Fresh unprivileged ARM execution of the exact corrected test bytes passes
+**74 Cline tests twice and all 25 Kimi tests**, with no failure or skip.
+The same pinned image, Node, candidate Native bytes and source environment are
+used. Outside observation verifies UID/GID 65532, empty capabilities,
+no-new-privileges, seccomp, enforced profile and 12-GiB/zero-swap/2,048-PID/two-CPU
+limits. Exact container/cgroup/profile cleanup and all 333 older records'
+metadata remain verified. These are separate diagnostic Python fixture runs;
+they claim no Rust worker ownership or new full feature-audit result. The
+earlier failed 28-group audit remains unchanged and ineligible.
+
+External `cline-feature-source-context-20261106-001/diagnostic-command-001.json`
+hashes to `8bda76581c1193c1b24740ca92058fc61c69a30cbae1c4d2e786c611ed3280c4`.
+Corrected `cline-feature-corrected-context-20261106-001/corrected-suites-readback-001.json`
+hashes to `f1742c144aa0c8ff38bc8318626c89720e67d43371548c68a55257e9f9b2f19a`.
+
+The public `feature-public-replay-001.py` in the audit journal accepts a full
+repository, public audit directory, pinned Rust reader and fresh output directory.
+It reproduces the retained failed result without executing candidate code;
+its SHA-256 is `2e907a96cced32a4f57f0938fe06187b56387349e5b0093ffe6f92d03f316f07`.
+The combined external review bundle,
+`gauntlet-rust-review-evidence-20261106-002.tar`, is 68,218,880 bytes with 28
+members, SHA-256
+`53a8a28d7175d61d244e69baaf9ca3fba0caf0aa30c6f7792f9251f07cabdbbc`.
+It preserves the frozen earlier bundle, current runtime/audit exports, replay
+programs and separate diagnosis/correction evidence. Its explicit public-file
+allowlist and comparison with three current private nonce sources pass; private
+intent/key files are excluded. Remote delivery, independent review and fresh
+full audit remain open. Every eligibility/causality flag stays false, with zero
+model requests/tokens and no parent-exit credit.

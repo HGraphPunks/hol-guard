@@ -185,7 +185,15 @@ capabilities, no-new-privileges, seccomp, enforced job policy and separate
 namespaces. Effective limits are 12 GiB, zero swap, 2,048 PIDs and two CPUs.
 The external `feature-worker-current359-host-20261106-001/outside-kernel-001.json`
 hashes to `f55fa8de3841c066a44b2d153bdf595bd014a5d8c3924e37c101c474b947b906`.
-Its terminal outcome remains pending. Do not rerun any consumed ID. Immutable
+The audit terminates in 2,510.775 host seconds with 1,300 passing tests, three
+failures and one deliberately retired Pi skip. Rust and independent Python
+recomputation agree on all 28 groups, 52 selectors and 56 XML/log artifacts.
+The two Cline reason assertions and missing Kimi TOML import remain failures;
+25 groups pass, two fail and one is incomplete. Fresh result readback matches,
+consumed dispatch refuses, and independent checks under four leases establish
+resource absence, original process death and unchanged metadata for all 333
+older records. See the [current feature proof](gauntlet-rust-feature-worker.md#current-3590-audit)
+for the public export and receipt pins. Do not rerun any consumed ID. Immutable
 publication supplies no conformance, admission or causality credit; all related
 flags stay false, with zero model requests/tokens. No parent exit closes.
 
