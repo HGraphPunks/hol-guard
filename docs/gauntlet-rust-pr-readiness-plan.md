@@ -67,14 +67,21 @@ with evidence. Code volume and checked substeps do not establish completion.
   Dependency job `5ea8b3c2907df614` completes; Rust and independent host readback
   agree on all 2,290 files and the 2,633-entry inert prefix. The corrected Root
   timeout probe captures and verifies the actual client cgroup; earlier receipts
-  remain retained. Fresh candidate `d5a9c18e3bf20764` has a separate captured
-  archive for the same product source and is running through the fixed
-  `8bb6d1b5f` supervisor. Its actual retained CID, outside host-pin arguments,
-  builder/source bytes and kernel confinement match; external journal
-  `native-current359-build-host-state-20261106-002/outside-kernel-001.json`
-  hashes to `3e0dc177a70eb7ec2637f6611389b5be49e7a1457533aee687edfa0085c928bf`.
-  Do not rerun this consumed ID. Full build, inert publication and current-source
-  qualification remain open; all 333 older worker records' metadata stays intact.
+  remain retained. Candidate `d5a9c18e3bf20764` completes under the fixed
+  `8bb6d1b5f` supervisor: four selected checks and 183 contracts pass, while
+  two contracts fail on one stale import of a removed Python runtime module.
+  Commit `023e0b641` switches that test to the existing Native facts bridge
+  and preserves its assertions; Ruff and syntax checks pass. Outside completion
+  proves actual client/container/conmon cgroup and profile absence, original
+  process death and unchanged metadata for all 333 older records. The failed
+  wheel is captured and verified inertly; result readback refuses it.
+  Fresh job `97bef577d8beb254` is running from corrected source `023e0b641`.
+  Its independently observed source, read-only mount, Root/entrypoint pidfds,
+  retained CID and confinement match. External receipt
+  `native-current359-build-host-state-20261106-003/outside-kernel-001.json`
+  hashes to `23d4cfdea7a061b4dae38c5b28e07cc55cb87db60b24bbab19cc57cc5ffc5f16`.
+  Do not replay either consumed ID. Full build, a dependency prefix bound to
+  the corrected source, inert publication and qualification remain open.
   [Native reply checks](gauntlet-rust-native-operation-reply-bindings.md) still
   leave wire authenticity, request semantics and physical effect attribution
   unverified. Existing product `dc3b9336` evidence is historical.

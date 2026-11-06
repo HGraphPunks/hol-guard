@@ -84,11 +84,49 @@ It checks the actual candidate-client group, all container/conmon groups,
 original-init death, profile absence and all 333 prior records' unchanged metadata.
 The production code is unchanged by this follow-up.
 
-The physical probe closes handled-timeout cleanup only. Fresh full candidate
-build/publication, crash recovery, conformance and admission remain open. Every
+The physical probe closes handled-timeout cleanup only. Full candidate
+publication, crash recovery, conformance and admission remain open. Every
 result stays ineligible, with zero model requests/tokens and no causality claim.
 
-## Source-matched 3.59.0 dependencies
+Fresh full attempt `d5a9c18e3bf20764` completes in 2,369.229 host seconds under
+the fixed supervisor. Release compilation takes 36m 35s; the wheel is built,
+four selected checks pass, and the contained suite retains **183 passes and two
+failures**. Both failures are the same stale import of the removed Python
+`commands_support_runtime_artifact_policy` module. Commit `023e0b641` changes
+only that import to the maintained test bridge, which calls the Native resident;
+both assertions stay intact. Ruff, syntax and diff checks pass. Product runtime,
+project/lock and Python controller bytes remain unchanged from `83f079b5c`.
+
+The failed Root result hashes to
+`dea47386f989ed58d9421690309bcd0449849f3d1be3f7ecb58be658e9643226`.
+Its 29,226,695-byte ZIP is captured once, SHA-256
+`f34e2f70ff41665ba763f836fd07eb9cab042ff4ab45535cf793a438c7756455`.
+Rust verifies all 1,626 wheel entries and 72,720,561 decoded bytes, including the
+47,368,640-byte Native ELF. Host result readback refuses the failed build and
+leaves its pin unchanged. This archive supplies diagnostic custody only.
+
+Under all four leases, outside observation verifies original supervisor, init
+and client death; exact CID/name, actual client and all container/conmon groups
+absent; profile absent; and all 333 old records' metadata unchanged. External
+`native-current359-build-host-state-20261106-002/outside-completion-002.json`
+hashes to `6a6eb83600e1b3d6f6f56f197e198a07a5982f42ae2ada95daec39a5f0a65667`.
+The first observer compared access times and refused after its own log read;
+it remains retained. The corrected reader excludes access time while rechecking
+device/inode, ownership, mode, links, size, modification and change times.
+
+Fresh job `97bef577d8beb254` now runs corrected product source
+`023e0b6418296cb50c5ca8c1505a1f508d7a58be`, with a distinct 62,957,603-byte
+source archive, SHA-256
+`d4abdebeb4d5167046773982bc6b98bf224d75a995a09d26ab2f346b16544637`.
+Actual outside host-pin arguments, both held Root/init pidfds, source mount
+read-only state, all empty capability sets and enforced kernel limits match.
+Its live receipt, `native-current359-build-host-state-20261106-003/outside-kernel-001.json`,
+hashes to `23d4cfdea7a061b4dae38c5b28e07cc55cb87db60b24bbab19cc57cc5ffc5f16`.
+The current Rust feature worker and executor are separately captured at hashes
+`32135d91…` and `5c353aee…`; old generations remain intact. This new build has
+no terminal outcome yet. Do not rerun the failed or active IDs.
+
+## Retained 3.59.0 dependencies for `83f079b5c`
 
 Fresh dependency job `5ea8b3c2907df614` independently captures the same exact
 `83f079b5c` product source, archive `8ce7383a…`, and a three-member input capsule.
