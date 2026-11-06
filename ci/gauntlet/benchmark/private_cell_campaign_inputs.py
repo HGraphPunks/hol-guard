@@ -10,8 +10,8 @@ import hashlib
 import os
 from pathlib import Path
 
-from .contracts import strict_json_loads
 from .private_cell_factory import PrivateCellConfig
+from .product_cell_layout import NATIVE_ACTOR, RUST_ACTOR, read_artifact_runtime
 from .product_vm_rootfs import _trusted
 
 SOURCE = Path(__file__).resolve().parent
@@ -62,12 +62,13 @@ def verify_artifacts(value):
     raw = _read(root/'manifest.json', maximum=1024**2)
     if hashlib.sha256(raw).hexdigest()!=cfg.artifact_manifest_sha256:
         raise ValueError('private-cell artifact manifest differs from caller pin')
-    manifest = strict_json_loads(raw)
-    if (type(manifest) is not dict or set(manifest)!={'schema','files'}
-            or manifest['schema']!='product-cell-artifacts.v1' or type(manifest['files']) is not dict):
-        raise ValueError('exact private-cell artifact manifest required')
+    manifest, actor = read_artifact_runtime(raw, cfg.artifact_manifest_sha256, cfg.initializer_sha256)
     sources = _sources()
-    required = set(sources) | {'public/actor.py', 'public/initializer'}
+    native = actor == list(RUST_ACTOR)
+    if native:
+        sources = {name:data for name,data in sources.items()
+                   if not name.startswith('public/') or name=='public/product_vm_seccomp_oci_v1.json'}
+    required = set(sources) | {NATIVE_ACTOR if native else 'public/actor.py', 'public/initializer'}
     if set(manifest['files'])!=required:
         raise ValueError('private-cell artifact inventory differs from fixed bootstrap')
     actual, count = set(), 0

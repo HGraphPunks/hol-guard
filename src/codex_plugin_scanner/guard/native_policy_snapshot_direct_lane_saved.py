@@ -47,7 +47,7 @@ def _utf8_len(value: str) -> int | None:
 
 
 def _environment() -> dict[str, str] | None:
-    # ``native_exact_action`` sends every text entry of ``os.environ``.
+    # The edge's review evidence query sends every text entry of ``os.environ``.
     environment = {name: value for name, value in os.environ.items() if isinstance(value, str)}
     if len(environment) > _MAX_ENVIRONMENT_ENTRIES:
         return None
@@ -189,10 +189,11 @@ class NativePolicySnapshotSavedStateMixin:
     def _recheck_direct_lane_saved_state(self) -> None:
         """Refresh after a database write and rebind once the state moved.
 
-        Only a write can move the state, so an unchanged database costs two
-        stats. The stamp is taken before the refresh, so a write that lands
-        during or after it is refreshed on the next reconcile. A refresh that
-        wrote the row costs one more refresh, which writes nothing.
+        On POSIX an unchanged database costs two stats. Windows can retain the
+        same last-write time and size while an open SQLite connection reuses
+        WAL pages, so its background reconcile must read the state every time.
+        The stamp is taken before the refresh, so a later write is refreshed
+        on the next reconcile. An unchanged state never queues another rebind.
         """
 
         publisher = cast("NativePolicySnapshotPublisher", self)
@@ -200,7 +201,7 @@ class NativePolicySnapshotSavedStateMixin:
         if bound is None or publisher._direct_lane_ack_target is None:
             return
         stamp = _database_stamp(publisher.guard_home)
-        if stamp == self._integrity_checked_stamp:
+        if os.name != "nt" and stamp == self._integrity_checked_stamp:
             return
         if _refresh_integrity_state(publisher.store) is None:
             return

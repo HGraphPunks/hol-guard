@@ -150,7 +150,7 @@ impl VmCandidateBuildPlan {
         journal: &HostCandidateBuildPinJournal,
     ) -> Result<VmCandidateBuildInvocation, VmCandidateBuildError> {
         let record = journal
-            .record(&self.pins)
+            .record_for_vm(&self.pins, &self.limactl, &self.vm)
             .map_err(VmCandidateBuildError::HostPin)?;
         let pins = &record.pins;
         let argv = vec![
@@ -372,7 +372,7 @@ impl VmCandidateBuildInvocation {
             "unadmitted_export_sha256",
         ];
         let pins = &self.record.pins;
-        let tagged = self.record.schema == "hol-gauntlet-host-candidate-build-pin.v3";
+        let tagged = self.record.schema != "hol-gauntlet-host-candidate-build-pin.v2";
         let exited_zero = value["status"] == "exited-zero" && value["exit_code"] == 0;
         let failed = value["status"] == "build-failed"
             && value["exit_code"].as_i64().is_some_and(|code| code != 0);

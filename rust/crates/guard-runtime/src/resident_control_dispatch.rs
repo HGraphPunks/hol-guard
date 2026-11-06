@@ -7,7 +7,7 @@ use std::sync::mpsc::{sync_channel, SyncSender, TrySendError};
 use std::sync::Arc;
 use std::thread::JoinHandle;
 
-pub(super) const WORKERS: usize = 1;
+pub(super) const WORKERS: usize = crate::resident_worker_budget::CONTROL_WORKERS;
 
 pub(super) fn capacity() -> usize {
     crate::evaluation_queue_capacity() / 4

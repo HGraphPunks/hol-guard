@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import errno
 import hashlib
 import importlib.metadata
 import io
@@ -52,6 +53,10 @@ from ..native_policy_bundle import (
 )
 from ..native_prompt import request_from_dict as _prompt_request_from_dict  # noqa: F401
 from ..native_runner_authority import NativeRunnerAuthorityError
+from ..native_supply_chain_bundle import (
+    MAX_SUPPLY_CHAIN_BUNDLE_RESPONSE_BYTES,
+    native_verify_supply_chain_bundle_response,
+)
 from ..oauth_token_claims import decode_oauth_access_token_claims as _decode_oauth_access_token_claims
 from ..oauth_token_claims import oauth_binding_from_credentials, oauth_binding_metadata, oauth_refresh_binding
 from ..package_firewall_defaults import extract_cloud_user_profile
@@ -87,8 +92,7 @@ from ..policy_bundle_v2 import (
     validate_policy_bundle_v2_transition,
     validated_policy_bundle_v2_acknowledgement,
 )
-from ..policy_document import GuardPolicyDocument
-from ..policy_document_io import PolicyCompilationError, compile_policy_document
+from ..policy_document_io import PolicyCompilationError, compile_policy_bundle_document
 from ..redaction import redact_sensitive_text
 from ..review_contracts import validated_review_verification_keys_from_sync
 from ..shims import package_shim_cloud_coverage
@@ -98,6 +102,7 @@ from . import runner_native_authority as _authority
 from . import runner_native_sync as _sync
 from .cloud_request_native import cloud_sync_receipt_payloads
 from .extension_catalog_handshake import (
+    catalog_runtime_unavailable_summary,
     prepare_extension_catalog_handshake,
     runtime_session_success_summary,
     runtime_summary_device_id,
@@ -141,10 +146,17 @@ from .supply_chain_bundle import (
     SupplyChainBundleError,
     load_supply_chain_bundle_response,
     load_supply_chain_verification_keys,
-    verify_supply_chain_bundle_response,
 )
-from .supply_chain_bundle_models import SupplyChainVerificationKey
+from .supply_chain_bundle_models import SupplyChainBundleResponse, SupplyChainVerificationKey
 from .supply_chain_support import ecosystem_support_matrix
+from .workspace_assessment_sync import (
+    MAX_REQUEST_BYTES as _WORKSPACE_ASSESSMENT_REQUEST_BYTES,
+)
+from .workspace_assessment_sync import (
+    build_workspace_assessment_sync_safely,
+    fit_workspace_assessment_to_request,
+    record_workspace_assessment_delivery,
+)
 
 _POLICY_DOCUMENT_VERSIONS = ("guard.hashgraphonline.com/v1alpha1",)
 _POLICY_BUNDLE_VERSIONS = ("guard-policy-bundle.v1", "guard-policy-bundle.v2")
@@ -215,6 +227,8 @@ _SYNC_RETRYABLE_GATEWAY_MAX_ATTEMPTS = 2
 _RUNTIME_SYNC_TIMEOUT_SECONDS = 10
 _RUNTIME_SYNC_RETRY_TIMEOUT_SECONDS = 90
 _RECEIPT_SYNC_BATCH_SIZE = 50
+# Serialized size of the `, "workspaceAssessments": ` key the summary adds to the sync context.
+_WORKSPACE_ASSESSMENT_KEY_OVERHEAD = 32
 _RECEIPT_SYNC_CURSOR_PAGE_SIZE = 200
 _RECEIPT_SYNC_CURSOR_BACKFILL_ROWS = 200
 _RECEIPT_COMMAND_DETAIL_BACKFILL_DAYS = 30
@@ -329,58 +343,28 @@ def _build_canonical_policy_bundle_decisions(
     device_id: str,
     device_name: str,
 ) -> list[PolicyDecision]:
-    payload = policy_bundle.get("payload")
-    if not isinstance(payload, dict):
-        raise PolicyCompilationError("missing_policy_bundle_payload", "policy-bundle")
-    local_document = json.loads(json.dumps(payload))
-    spec = local_document.get("spec")
-    if not isinstance(spec, dict):
-        raise PolicyCompilationError("invalid_policy_spec", "policy-bundle")
-    rules = spec.get("rules")
-    if not isinstance(rules, list):
-        raise PolicyCompilationError("invalid_policy_rules", "policy-bundle")
-    local_rules: list[object] = []
-    for raw_rule in rules:
-        if not isinstance(raw_rule, dict):
-            continue
-        # Extension-targeted rules are compiled by the Managed Controls
-        # authority path. Materializing them again as generic policy rows can
-        # reject valid Extension outcomes (for example ``review``) or apply a
-        # second, semantically different enforcement decision.
-        if "x-hol-extension-targets" in raw_rule:
-            continue
-        match = raw_rule.get("match")
-        if not isinstance(match, dict):
-            local_rules.append(raw_rule)
-            continue
-        devices = match.get("devices")
-        if isinstance(devices, list) and devices:
-            device_selectors = {str(value) for value in devices}
-            if device_id not in device_selectors and device_name not in device_selectors:
-                continue
-            match.pop("devices", None)
-        local_rules.append(raw_rule)
-    spec["rules"] = local_rules
-    document = GuardPolicyDocument.from_mapping(local_document)
-    decisions: list[PolicyDecision] = []
-    for row in compile_policy_document(document):
-        decision = row.decision
-        decisions.append(
-            PolicyDecision(
-                harness=decision.harness,
-                scope=decision.scope,
-                action=decision.action,
-                artifact_id=decision.artifact_id,
-                artifact_hash=decision.artifact_hash,
-                workspace=decision.workspace,
-                publisher=decision.publisher,
-                reason=decision.reason,
-                owner=row.rule_id,
-                source="policy-bundle-canonical",
-                expires_at=decision.expires_at,
-            )
+    """Persist the canonical bundle rules the resident scoped to this device."""
+
+    return [
+        PolicyDecision(
+            harness=row.decision.harness,
+            scope=row.decision.scope,
+            action=row.decision.action,
+            artifact_id=row.decision.artifact_id,
+            artifact_hash=row.decision.artifact_hash,
+            workspace=row.decision.workspace,
+            publisher=row.decision.publisher,
+            reason=row.decision.reason,
+            owner=row.rule_id,
+            source="policy-bundle-canonical",
+            expires_at=row.decision.expires_at,
         )
-    return decisions
+        for row in compile_policy_bundle_document(
+            policy_bundle,
+            device_id=device_id,
+            device_name=device_name,
+        )
+    ]
 
 
 def _build_policy_bundle_decisions(
@@ -467,6 +451,7 @@ def sync_receipts(
         home_dir=home_dir,
         workspace_dir=workspace_dir,
     )
+    pending_workspace_assessments = build_workspace_assessment_sync_safely(store)
     bundle_hash_sent = _sync_context_bundle_hash(sync_context)
     for receipt_batch in _iter_receipt_sync_batches(receipts):
         batch_sync_context = dict(sync_context)
@@ -474,17 +459,30 @@ def sync_receipts(
         pending_fleet_posture = None
         if batch_fleet_posture is not None:
             batch_sync_context["fleetPosture"] = batch_fleet_posture.payload
-        body = json.dumps(
-            {
-                "receipts": _cloud_sync_receipts_payload(
-                    receipt_batch,
-                    device_id=device_id,
-                    device_name=device_name,
-                    redaction_level=redaction_level,
-                ),
-                "syncContext": batch_sync_context,
-            }
-        ).encode("utf-8")
+        unfitted_workspace_assessments = pending_workspace_assessments
+        pending_workspace_assessments = None
+        batch_workspace_assessments = unfitted_workspace_assessments
+        batch_receipts_payload = _cloud_sync_receipts_payload(
+            receipt_batch,
+            device_id=device_id,
+            device_name=device_name,
+            redaction_level=redaction_level,
+        )
+        if batch_workspace_assessments is not None:
+            # The summary gets what the receipts and fleet posture leave of the request budget.
+            base_size = len(
+                json.dumps({"receipts": batch_receipts_payload, "syncContext": batch_sync_context}).encode("utf-8")
+            )
+            batch_workspace_assessments = fit_workspace_assessment_to_request(
+                batch_workspace_assessments,
+                _WORKSPACE_ASSESSMENT_REQUEST_BYTES - base_size - _WORKSPACE_ASSESSMENT_KEY_OVERHEAD,
+            )
+            if batch_workspace_assessments is None:
+                # A later, smaller receipt batch may leave room for it.
+                pending_workspace_assessments = unfitted_workspace_assessments
+        if batch_workspace_assessments is not None:
+            batch_sync_context["workspaceAssessments"] = batch_workspace_assessments.payload
+        body = json.dumps({"receipts": batch_receipts_payload, "syncContext": batch_sync_context}).encode("utf-8")
         request = _guard_sync_request(
             resolved_auth_context,
             request_url=sync_url,
@@ -550,6 +548,7 @@ def sync_receipts(
         except OSError as error:
             raise RuntimeError(_sync_url_error_message(error)) from error
         _record_fleet_posture_delivery(store, batch_fleet_posture, payload)
+        record_workspace_assessment_delivery(store, batch_workspace_assessments)
         cursor_batch_rowids = _receipt_sync_cursor_rowids_from_batch(
             receipt_batch,
             cursor_receipt_ids=cursor_receipt_ids,
@@ -1178,10 +1177,14 @@ def _guard_cloud_http_error_details(error: urllib.error.HTTPError) -> tuple[str,
 
 def _fetch_supply_chain_bundle_payload(request: urllib.request.Request) -> dict[str, object]:
     try:
+        # Stop at what the verifier can be asked about. A larger response could
+        # only be carried to a verifier that would refuse the request, so
+        # failing the fetch keeps the reason where the caller can report it.
         return _urlopen_json_with_timeout_retry(
             request=request,
             timeout_seconds=_SYNC_HTTP_TIMEOUT_SECONDS,
             retry_timeout_seconds=_SYNC_HTTP_RETRY_TIMEOUT_SECONDS,
+            max_response_bytes=MAX_SUPPLY_CHAIN_BUNDLE_RESPONSE_BYTES,
         )
     except urllib.error.HTTPError as error:
         if error.code == 403:
@@ -1194,7 +1197,36 @@ def _fetch_supply_chain_bundle_payload(request: urllib.request.Request) -> dict[
             raise GuardSyncNotAvailableError(message, retryable=True) from error
         raise RuntimeError(message) from error
     except OSError as error:
+        if _is_guard_cloud_unreachable_error(error):
+            raise GuardSyncNotAvailableError(_GUARD_CLOUD_UNREACHABLE_MESSAGE, retryable=True) from error
         raise RuntimeError(_sync_url_error_message(error)) from error
+
+
+def _verified_supply_chain_bundle_response(
+    payload: dict[str, object],
+    *,
+    trusted_keys: tuple[SupplyChainVerificationKey, ...],
+    cached_bundle_version: str | None,
+    store: GuardStore,
+) -> SupplyChainBundleResponse:
+    """Read one bundle response and have the resident verify it.
+
+    Reading is transport. The resident recomputes the canonical payload over
+    ``payload`` itself and owns every verdict about it: the payload hash, the
+    keyring the signing key anchors to, that key's rotation state, freshness,
+    rollback and the signature. A resident that cannot answer raises, so an
+    unverified bundle is never treated as verified.
+    """
+
+    response = load_supply_chain_bundle_response(payload)
+    native_verify_supply_chain_bundle_response(
+        payload,
+        trusted_keys=[key.to_dict() for key in trusted_keys] or None,
+        cached_bundle_version=cached_bundle_version,
+        guard_home=store.guard_home,
+        store=store,
+    )
+    return response
 
 
 def _sync_supply_chain_bundle_incremental(
@@ -1245,11 +1277,11 @@ def _sync_supply_chain_bundle_incremental(
             raw_cached_response = cached_partition.get("response")
             if isinstance(raw_cached_response, dict):
                 try:
-                    response = load_supply_chain_bundle_response(raw_cached_response)
-                    verify_supply_chain_bundle_response(
-                        response,
-                        trusted_keys=trusted_keys or None,
+                    response = _verified_supply_chain_bundle_response(
+                        raw_cached_response,
+                        trusted_keys=trusted_keys,
                         cached_bundle_version=cached_bundle_version,
+                        store=store,
                     )
                 except SupplyChainBundleError:
                     response = None
@@ -1265,11 +1297,11 @@ def _sync_supply_chain_bundle_incremental(
                     extra_headers={"Accept-Encoding": "identity"},
                 )
                 partition_payload = _fetch_supply_chain_bundle_payload(partition_request)
-                response = load_supply_chain_bundle_response(partition_payload)
-                verify_supply_chain_bundle_response(
-                    response,
-                    trusted_keys=trusted_keys or None,
+                response = _verified_supply_chain_bundle_response(
+                    partition_payload,
+                    trusted_keys=trusted_keys,
                     cached_bundle_version=cached_bundle_version,
+                    store=store,
                 )
             except (RuntimeError, SupplyChainBundleError):
                 return None
@@ -1333,11 +1365,11 @@ def sync_supply_chain_bundle(
         and isinstance(cached_bundle, dict)
     ):
         try:
-            response = load_supply_chain_bundle_response(cached_bundle)
-            verify_supply_chain_bundle_response(
-                response,
-                trusted_keys=trusted_keys or None,
+            response = _verified_supply_chain_bundle_response(
+                cached_bundle,
+                trusted_keys=trusted_keys,
                 cached_bundle_version=cached_bundle_version,
+                store=store,
             )
         except SupplyChainBundleError:
             try:
@@ -1349,12 +1381,14 @@ def sync_supply_chain_bundle(
                     extra_headers={"Accept-Encoding": "identity"},
                 )
                 payload = _fetch_supply_chain_bundle_payload(request)
-                response = load_supply_chain_bundle_response(payload)
-                verify_supply_chain_bundle_response(
-                    response,
-                    trusted_keys=trusted_keys or None,
+                response = _verified_supply_chain_bundle_response(
+                    payload,
+                    trusted_keys=trusted_keys,
                     cached_bundle_version=cached_bundle_version,
+                    store=store,
                 )
+            except GuardSyncNotAvailableError:
+                raise
             except (RuntimeError, SupplyChainBundleError) as error:
                 raise RuntimeError(f"Guard supply-chain bundle sync failed: {error}") from error
     else:
@@ -1367,11 +1401,11 @@ def sync_supply_chain_bundle(
         )
         payload = _fetch_supply_chain_bundle_payload(request)
         try:
-            response = load_supply_chain_bundle_response(payload)
-            verify_supply_chain_bundle_response(
-                response,
-                trusted_keys=trusted_keys or None,
+            response = _verified_supply_chain_bundle_response(
+                payload,
+                trusted_keys=trusted_keys,
                 cached_bundle_version=cached_bundle_version,
+                store=store,
             )
         except SupplyChainBundleError as error:
             raise RuntimeError(f"Guard supply-chain bundle sync failed: {error}") from error
@@ -1433,11 +1467,11 @@ def sync_network_protection_bundle(
 ) -> dict[str, object]:
     """Fetch, verify, and save the workspace's signed network protection bundle."""
 
+    from ..native_network_protection_bundle import native_verify_network_protection_response
     from .network_protection_bundle import (
         NETWORK_PROTECTION_SYNC_STATE_KEY,
         NetworkProtectionBundleError,
         network_protection_status,
-        verify_network_protection_response,
     )
 
     resolved_auth_context = auth_context if auth_context is not None else _resolve_guard_sync_auth_context(store)
@@ -1470,13 +1504,15 @@ def sync_network_protection_bundle(
     )
     payload = _fetch_supply_chain_bundle_payload(request)
     try:
-        verified = verify_network_protection_response(
+        verified = native_verify_network_protection_response(
             payload,
             workspace_id=workspace_id,
-            trusted_keys=load_supply_chain_verification_keys(store.get_sync_payload("supply_chain_bundle_keyring")),
+            # The saved keyring goes over as it was stored; the resident parses
+            # and anchors it, so Python never decides which key is trusted.
+            trusted_keys=store.get_sync_payload("supply_chain_bundle_keyring"),
             cached_bundle_version=cached_bundle_version,
         )
-    except (NetworkProtectionBundleError, SupplyChainBundleError) as error:
+    except NetworkProtectionBundleError as error:
         raise RuntimeError(f"Guard network protection bundle sync failed: {error}") from error
     synced_at = _now()
     store.set_sync_payload(NETWORK_PROTECTION_SYNC_STATE_KEY, verified, synced_at)
@@ -2353,6 +2389,8 @@ def _refresh_guard_oauth_access_token_once(
             refresh_error_message = _oauth_refresh_error_message(error)
             raise RuntimeError(f"Guard OAuth token refresh failed: {refresh_error_message}") from error
         except OSError as error:
+            if _is_guard_cloud_unreachable_error(error):
+                raise GuardSyncNotAvailableError(_GUARD_CLOUD_UNREACHABLE_MESSAGE, retryable=True) from error
             raise RuntimeError(_sync_url_error_message(error)) from error
         if not isinstance(payload, dict):
             raise GuardSyncAuthorizationExpiredError(_guard_oauth_reauthorization_message())
@@ -3355,6 +3393,50 @@ def _sync_url_error_message(error: OSError) -> str:
     return "Guard sync failed because the remote endpoint could not be reached."
 
 
+_UNREACHABLE_NETWORK_ERRNOS = frozenset({errno.EHOSTUNREACH, errno.ENETUNREACH, errno.ENETDOWN})
+_MANAGED_PROXY_REQUEST_FAILED = "managed_proxy_request_failed"
+_GUARD_CLOUD_UNREACHABLE_MESSAGE = "Guard Cloud could not be reached. Local Guard keeps protecting this machine."
+
+
+def _is_guard_cloud_unreachable_error(error: OSError) -> bool:
+    """Return whether a sync request failed because Guard Cloud was offline, not misconfigured.
+
+    Refused or reset connections, unreachable hosts or networks, DNS failures and
+    timeouts clear up on their own, so the caller can offer a retry, including
+    when they happen behind a managed proxy. TLS verification failures are not
+    included.
+    """
+    if _is_network_outage_error(error):
+        return True
+    if getattr(error, "reason", None) != _MANAGED_PROXY_REQUEST_FAILED:
+        return False
+    # A managed proxy keeps the transport failure only in the urllib3 error it
+    # wraps, which nests it under reason, original_error or either chain link.
+    pending: list[BaseException] = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if current is not error and isinstance(current, OSError) and _is_network_outage_error(current):
+            return True
+        for attribute in ("reason", "original_error", "__cause__", "__context__"):
+            nested = getattr(current, attribute, None)
+            if isinstance(nested, BaseException):
+                pending.append(nested)
+    return False
+
+
+def _is_network_outage_error(error: OSError) -> bool:
+    if _is_timeout_error(error):
+        return True
+    reason = getattr(error, "reason", error)
+    if isinstance(reason, ConnectionError | socket.gaierror):
+        return True
+    return isinstance(reason, OSError) and reason.errno in _UNREACHABLE_NETWORK_ERRNOS
+
+
 def _is_timeout_error(error: OSError) -> bool:
     if isinstance(error, TimeoutError | socket.timeout):
         return True
@@ -3560,18 +3642,6 @@ def _cloud_sync_receipts_payload(
         redaction_level=redaction_level,
         now=_now(),
     )
-
-
-def _cloud_sync_receipt_payload(
-    receipt: dict[str, object],
-    *,
-    device_id: str,
-    device_name: str,
-    redaction_level: str = "full",
-) -> dict[str, object]:
-    return _cloud_sync_receipts_payload(
-        [receipt], device_id=device_id, device_name=device_name, redaction_level=redaction_level
-    )[0]
 
 
 def _dedupe_sync_payload_items(items: list[dict[str, object]]) -> list[dict[str, object]]:
@@ -4187,13 +4257,16 @@ def _sync_extension_catalog_from_runtime_handshake(
     """Upload the canonical catalog only after a digest-bound Cloud request."""
 
     from .extension_catalog_pages import observed_view
-    from .extension_catalog_sync import build_v1_catalog_from_view
+    from .extension_catalog_sync import ExtensionCatalogUnavailableError, build_v1_catalog_from_view
     from .extension_catalog_transfer import catalog_sync_plan, sync_catalog_view
 
     signal = runtime_response.get("extensionCatalogSync")
     if isinstance(signal, dict) and "protocolVersion" in signal:
+        sent = False
 
         def send_page(url: str, body: bytes) -> object:
+            nonlocal sent
+            sent = True
             request = _guard_sync_request(
                 auth_context,
                 request_url=url,
@@ -4213,32 +4286,45 @@ def _sync_extension_catalog_from_runtime_handshake(
             except OSError as error:
                 raise RuntimeError(_sync_url_error_message(error)) from error
 
-        view = observed_view(session_payload, guard_home)
-        result = sync_catalog_view(
-            runtime_sync_url=runtime_sync_url,
-            runtime_response=runtime_response,
-            session_payload=session_payload,
-            view=view,
-            send=send_page,
-        )
-        if store is None:
-            raise RuntimeError("Authenticated catalog completion requires the current store")
-        from .extension_catalog_completion import complete_authenticated_view
-
-        result.update(
-            complete_authenticated_view(
-                store=store,
+        try:
+            # A concurrent publish can drop the view this session named at any
+            # point up to the first page: the lookup, the pin the transfer
+            # takes, and the plan it builds all read the shared cache. None of
+            # those has told Cloud anything, so the session keeps going and the
+            # next sync names a current view. What decides that is whether a
+            # page actually went out, not which call raised: once a transfer
+            # may have reached Cloud, a later failure must not be reported as
+            # an absent catalog.
+            view = observed_view(session_payload, guard_home)
+            result = sync_catalog_view(
+                runtime_sync_url=runtime_sync_url,
+                runtime_response=runtime_response,
+                session_payload=session_payload,
                 view=view,
-                auth_context=auth_context,
-                url=catalog_sync_plan(
-                    view=view,
-                    runtime_sync_url=runtime_sync_url,
-                    runtime_response=runtime_response,
-                    session_payload=session_payload,
-                )["upload_url"],
                 send=send_page,
             )
-        )
+            if store is None:
+                raise RuntimeError("Authenticated catalog completion requires the current store")
+            from .extension_catalog_completion import complete_authenticated_view
+
+            result.update(
+                complete_authenticated_view(
+                    store=store,
+                    view=view,
+                    auth_context=auth_context,
+                    url=catalog_sync_plan(
+                        view=view,
+                        runtime_sync_url=runtime_sync_url,
+                        runtime_response=runtime_response,
+                        session_payload=session_payload,
+                    )["upload_url"],
+                    send=send_page,
+                )
+            )
+        except ExtensionCatalogUnavailableError:
+            if sent:
+                raise
+            return catalog_runtime_unavailable_summary()
         return result
 
     summary, upload = prepare_extension_catalog_handshake(

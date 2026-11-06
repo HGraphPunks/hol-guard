@@ -16,7 +16,6 @@ from .models import GuardAction
 from .native_context import _canonical_request_sha256, ensure_resident_prerequisite
 from .native_execution import _resident_request
 from .native_guard_store import _raise_for_code
-from .native_hook_decision import NativeHookDecisionError
 from .sqlite_tuning import sqlite_connect_timeout_seconds, sqlite_operation_deadline_monotonic
 
 if TYPE_CHECKING:
@@ -71,84 +70,6 @@ class _Reply:
     connector: SetupConnector | None
     contained_grant: ContainedGrant | None
     contained_route: Mapping[str, str] | None = None
-
-
-def local_cli_grant_action(
-    *,
-    store: GuardStore,
-    command: str | None,
-    cwd: Path,
-    home_dir: Path | None,
-    current_action: GuardAction,
-    grant_allowed: bool,
-    reason_code: str | None = None,
-    path: str | None = None,
-) -> GuardAction:
-    """Record the CLI the command launches and refine the action with its grant.
-
-    The resident decides the refined action. No bound answer is a resident
-    outage: this raises ``NativeHookDecisionError`` and the hook answers with
-    the host outage response, as the direct hook path does, instead of an
-    action picked here.
-    """
-
-    if command is None:
-        return current_action
-    action = native_local_cli_hook(
-        store,
-        command=command,
-        cwd=cwd,
-        home_dir=home_dir,
-        current_action=current_action,
-        grant_allowed=grant_allowed,
-        reason_code=reason_code,
-        path=path,
-    )
-    if action is None:
-        raise NativeHookDecisionError("native_local_cli_hook_unavailable")
-    return action
-
-
-def observe_unlisted_cli(
-    *, store: GuardStore, command: str, cwd: Path, home_dir: Path | None, path: str | None = None
-) -> None:
-    """Record the CLIs a command launches without consulting any grant."""
-
-    native_local_cli_hook(
-        store, command=command, cwd=cwd, home_dir=home_dir, current_action="allow", grant_allowed=False, path=path
-    )
-
-
-def native_local_cli_hook(
-    store: GuardStore,
-    *,
-    command: str,
-    cwd: Path,
-    home_dir: Path | None,
-    current_action: GuardAction,
-    grant_allowed: bool,
-    reason_code: str | None = None,
-    path: str | None = None,
-) -> GuardAction | None:
-    """Return the resident's action, or ``None`` without a bound answer; a store failure raises.
-
-    A grant that only widens the sandbox keeps the action here: callers that
-    run the command contained ask ``local_cli_contained_grant`` instead.
-    """
-
-    reply = _native_local_cli_hook_reply(
-        store,
-        command=command,
-        cwd=cwd,
-        home_dir=home_dir,
-        current_action=current_action,
-        grant_allowed=grant_allowed,
-        reason_code=reason_code,
-        path=path,
-    )
-    if reply is None:
-        return None
-    return current_action if reply.action == ALLOW_CONTAINED_WITH_GRANT else cast(GuardAction, reply.action)
 
 
 def local_cli_contained_grant(

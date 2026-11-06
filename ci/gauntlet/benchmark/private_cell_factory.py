@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from .json_data import canonical_json, strict_json_loads
+from .json_data import canonical_json
 from .native_product_container import root_prefix_digest
 from .private_cell_hook_plane import PrivateCellHookPlane
 from .product_cell_idmap import PROFILES
@@ -71,11 +71,13 @@ def _stage_public(artifacts,stage,expected):
         raw=stream.read(1024**2+1)
     if len(raw)>1024**2 or hashlib.sha256(raw).hexdigest()!=expected:
         raise ValueError('externally pinned cell artifact manifest required before staging')
-    value=strict_json_loads(raw)
-    if (type(value) is not dict or set(value)!={'schema','files'}
-            or value['schema']!='product-cell-artifacts.v1' or type(value['files']) is not dict
-            or not 1<=len(value['files'])<=128):
-        raise ValueError('bounded cell artifact manifest required')
+    from .product_cell_layout import read_artifact_runtime
+    value,_=read_artifact_runtime(raw,expected)
+    # Root-only staging retains the exact outside-pinned bytes for the
+    # namespace constructor. Only manifest-listed public files enter the cell.
+    with (stage/'cell-artifact-manifest.json').open('xb') as stream:
+        stream.write(raw)
+    (stage/'cell-artifact-manifest.json').chmod(0o444)
     total=0
     public=stage/'public'
     public.mkdir(mode=0o755)
@@ -109,7 +111,8 @@ def _stage_public(artifacts,stage,expected):
             directory.chmod(0o755)
         with target.open('xb') as stream:
             stream.write(data)
-        target.chmod(0o555 if relative.as_posix()=='public/initializer' else 0o444)
+        target.chmod(0o555 if relative.as_posix() in
+                     {'public/initializer','public/gauntlet-product-cell'} else 0o444)
 
 
 class _BudgetPrivatePlane(PrivateCellHookPlane):

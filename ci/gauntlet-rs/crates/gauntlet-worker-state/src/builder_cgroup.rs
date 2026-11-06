@@ -50,13 +50,33 @@ impl OwnedBuilderCgroup {
 
 impl OwnedCandidateCgroup {
     pub(crate) fn create(job_id: &str) -> Result<Self, CgroupProbeError> {
+        Self::with_profile(job_id, false)
+    }
+
+    pub(crate) fn create_feature(job_id: &str) -> Result<Self, CgroupProbeError> {
+        Self::with_profile(job_id, true)
+    }
+
+    fn with_profile(job_id: &str, feature: bool) -> Result<Self, CgroupProbeError> {
         if !hex(job_id, 16) {
             return Err(CgroupProbeError::InvalidJobId);
         }
-        let name = format!("hol-gauntlet-rust-candidate-{job_id}");
+        let kind = if feature { "feature" } else { "candidate" };
+        let name = format!("hol-gauntlet-rust-{kind}-{job_id}");
         let path = format!("/system.slice/{name}");
         Ok(Self {
-            inner: OwnedProbeGroup::create_named(name, path, LIMITS)?,
+            inner: OwnedProbeGroup::create_named(
+                name,
+                path,
+                if feature {
+                    GroupLimits {
+                        pids: "2048\n",
+                        ..LIMITS
+                    }
+                } else {
+                    LIMITS
+                },
+            )?,
         })
     }
 

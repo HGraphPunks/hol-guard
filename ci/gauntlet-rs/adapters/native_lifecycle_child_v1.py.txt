@@ -1,0 +1,24 @@
+import json
+import os
+import time
+import ctypes
+
+ROLE = HOL_LIFECYCLE_ROLE_JSON
+TOKEN = HOL_LIFECYCLE_TOKEN_JSON
+value = dict(schema="hol-gauntlet-native-detached-ready.v1", role=ROLE, token=TOKEN,
+             pid=os.getpid(), sid=os.getsid(0), pgrp=os.getpgrp())
+fd = os.open("detached-ready.pending", os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+with os.fdopen(fd, "w") as stream:
+    os.fchmod(stream.fileno(), 0o600)
+    json.dump(value, stream, sort_keys=True)
+    stream.flush()
+    os.fsync(stream.fileno())
+libc = ctypes.CDLL(None, use_errno=True)
+if libc.renameat2(-100, b"detached-ready.pending", -100, b"detached-ready.json", 1) != 0:
+    raise OSError(ctypes.get_errno(), "exclusive detached readiness publication failed")
+time.sleep(60)
+fd = os.open("late-detached-effect.txt", os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+with os.fdopen(fd, "w") as stream:
+    stream.write(TOKEN)
+    stream.flush()
+    os.fsync(stream.fileno())

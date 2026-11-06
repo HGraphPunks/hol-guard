@@ -11,11 +11,10 @@ from __future__ import annotations
 
 import os
 import shutil
-from dataclasses import fields, replace
+from dataclasses import fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from . import native_git_execution_safety
 from .models import GuardArtifact
 from .native_direct_tool_context import _facts
 from .native_git_execution_safety import _environment_snapshot
@@ -77,12 +76,6 @@ def _git_executable() -> str | None:
     return found if found is not None and os.path.isabs(found) else None
 
 
-def _control_snapshot() -> dict[str, object] | None:
-    from .cli.commands_hook_native_generic_facts import _control_snapshot as snapshot
-
-    return snapshot()
-
-
 def _path_text(value: Path | None) -> str | None:
     return None if value is None else str(value)
 
@@ -103,7 +96,7 @@ def _ask(query: str, input_value: dict[str, Any], *, cwd: Path | None, home_dir:
                 "input": {**input_value, "cwd": _path_text(cwd), "home_dir": _path_text(home_dir)},
                 "facts": facts,
                 "git_executable": _git_executable(),
-                "control_snapshot": _control_snapshot(),
+                "control_snapshot": None,
             },
         },
         source="hook",
@@ -479,100 +472,3 @@ def native_command_list_candidate_texts(values: list[str], *, preserve_items: bo
     if not isinstance(result, list):
         raise _invalid()
     return tuple(_text(item) for item in result)
-
-
-def native_benign_file_read(tool_name: object, arguments: object, *, cwd: Path | None, home_dir: Path | None) -> bool:
-    return _bool(_ask("benign_file_read", {"tool_name": tool_name, "arguments": arguments}, cwd=cwd, home_dir=home_dir))
-
-
-def native_unmodeled_shell_artifact(
-    command_text: str, *, workspace: Path | None, home_dir: Path
-) -> tuple[str, dict[str, object]] | None:
-    """The fingerprint and metadata of the one review an incompletely modeled shell command needs."""
-
-    result = _ask(
-        "unmodeled_shell_artifact",
-        {
-            "command_text": command_text,
-            "workspace": _path_text(workspace),
-            "home": str(home_dir),
-            "account_home": native_git_execution_safety._account_home_directory(),
-        },
-        cwd=None,
-        home_dir=None,
-    )
-    if result is None:
-        return None
-    wire = _object(result, frozenset({"fingerprint", "metadata"}))
-    pairs = wire["metadata"]
-    if not isinstance(pairs, list) or not all(
-        isinstance(pair, list) and len(pair) == 2 and isinstance(pair[0], str) for pair in pairs
-    ):
-        raise _invalid()
-    return _text(wire["fingerprint"]), dict(pairs)
-
-
-# The finding fields the resident reads when it binds findings to one command.
-_COMPOUND_FINDING_FIELDS = (
-    "action_class",
-    "command_rule_matches",
-    "risk_classes",
-    "runtime_request_reason",
-    "runtime_request_signals",
-    "runtime_request_summary",
-)
-
-
-def native_compound_artifact(
-    artifacts: list[GuardArtifact],
-    *,
-    command_text: str | None,
-    decision: dict[str, object],
-    workspace: Path | None,
-    home_dir: Path,
-) -> GuardArtifact:
-    """The findings bound to the whole command, or the primary alone (resident-owned)."""
-
-    findings = [
-        {
-            "artifact_id": artifact.artifact_id,
-            "artifact_type": artifact.artifact_type,
-            "name": artifact.name,
-            "metadata": {key: artifact.metadata[key] for key in _COMPOUND_FINDING_FIELDS if key in artifact.metadata},
-        }
-        for artifact in artifacts
-    ]
-    reply = _ask(
-        "compound_artifact",
-        {"artifacts": findings, "command_text": command_text, "decision": decision},
-        cwd=workspace,
-        home_dir=home_dir,
-    )
-    index = reply.get("primary") if isinstance(reply, dict) else None
-    if type(index) is not int or not 0 <= index < len(artifacts):
-        raise _invalid()
-    primary = artifacts[index]
-    if set(reply) == {"primary", "metadata"} and reply["metadata"] is None:
-        return primary
-    pairs = reply.get("metadata")
-    if set(reply) != {"primary", "artifact_id", "name", "metadata"} or not isinstance(pairs, list):
-        raise _invalid()
-    if not all(isinstance(pair, list) and len(pair) == 2 and isinstance(pair[0], str) for pair in pairs):
-        raise _invalid()
-    metadata = dict(primary.metadata)
-    if len(artifacts) > 1:
-        # The hint only covers the extension evaluation; other findings keep reviewing.
-        metadata.pop("extension_allow_hint", None)
-    metadata.update((key, value) for key, value in pairs)
-    return replace(primary, artifact_id=_text(reply["artifact_id"]), name=_text(reply["name"]), metadata=metadata)
-
-
-def native_read_only_lookup_target_is_safe(target: str, *, allow_dirs: bool, home_dir: Path | None) -> bool:
-    return _bool(
-        _ask(
-            "read_only_lookup_target_is_safe",
-            {"target": target, "allow_dirs": allow_dirs},
-            cwd=None,
-            home_dir=home_dir,
-        )
-    )

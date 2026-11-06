@@ -209,7 +209,18 @@ mod tests {
             Err(ReservationError::UnsafeRoot)
         ));
         drop(held);
-        let recovered = acquire(&second.root, false).unwrap();
+        // Concurrent tests can fork while this descriptor is open. CLOEXEC
+        // closes that inherited description at exec, rather than at our drop.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        let recovered = loop {
+            match acquire(&second.root, false) {
+                Ok(lease) => break lease,
+                Err(ReservationError::LeaseBusy) if std::time::Instant::now() < deadline => {
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+                Err(error) => panic!("lease did not release after descriptor close: {error:?}"),
+            }
+        };
         recovered.verify(&second.root).unwrap();
     }
 

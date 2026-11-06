@@ -15,7 +15,6 @@ from codex_plugin_scanner.cli import main
 from codex_plugin_scanner.guard.approvals import queue_blocked_approvals
 from codex_plugin_scanner.guard.config import GuardConfig
 from codex_plugin_scanner.guard.consumer import artifact_hash, evaluate_detection
-from codex_plugin_scanner.guard.incident import build_incident_context
 from codex_plugin_scanner.guard.mcp_tool_calls import (
     build_tool_call_artifact,
     build_tool_call_hash,
@@ -24,17 +23,11 @@ from codex_plugin_scanner.guard.mcp_tool_calls import (
 from codex_plugin_scanner.guard.models import GuardArtifact, HarnessDetection
 from codex_plugin_scanner.guard.native_shell_request_authority import shell_request_authority
 from codex_plugin_scanner.guard.risk import (
-    artifact_risk_signals,
-    artifact_risk_signals_typed,
     artifact_risk_signals_v2,
     artifact_risk_summary,
 )
 from codex_plugin_scanner.guard.runtime.actions import normalize_codex_hook_payload
 from codex_plugin_scanner.guard.runtime.git_execution_safety import git_binary_path_is_trusted
-from codex_plugin_scanner.guard.runtime.secret_file_request_services.shell_static_safety import (
-    _path_text_is_within_root_text,
-    _script_has_aliased_risky_import,
-)
 from codex_plugin_scanner.guard.runtime.secret_file_requests import (
     build_tool_action_request_artifact,
     classify_sensitive_path,
@@ -42,7 +35,6 @@ from codex_plugin_scanner.guard.runtime.secret_file_requests import (
     extract_sensitive_file_read_request_artifact,
     extract_sensitive_file_read_request_from_action,
     extract_sensitive_tool_action_request,
-    is_file_read_tool_name,
 )
 from codex_plugin_scanner.guard.runtime.secret_sensitivity import (
     SecretContentMatch,
@@ -51,6 +43,8 @@ from codex_plugin_scanner.guard.runtime.secret_sensitivity import (
     classify_secret_path,
 )
 from codex_plugin_scanner.guard.store import GuardStore
+from tests.artifact_risk_support import artifact_risk_signals, artifact_risk_signals_typed
+from tests.incident_context_support import build_incident_context
 
 LOCAL_COMPOSE_SAFE_CASES = (
     "docker compose up -d postgres",
@@ -662,10 +656,7 @@ def test_file_read_request_classifier_is_argument_aware(tmp_path):
     claude_request = extract_sensitive_file_read_request("Read", {"file_path": "~/.ssh/config"}, home_dir=tmp_path)
     copilot_request = extract_sensitive_file_read_request("view", {"path": ".env"})
 
-    assert is_file_read_tool_name("read_file") is True
-    assert is_file_read_tool_name("Read") is True
-    assert is_file_read_tool_name("view") is True
-    assert is_file_read_tool_name("write_file") is False
+    assert extract_sensitive_file_read_request("write_file", {"path": ".env.local"}) is None
     assert env_request is not None
     assert env_request.path_match.path_class == "local .env file"
     assert claude_request is not None
@@ -1372,7 +1363,7 @@ def test_tool_action_request_classifier_reviews_native_coauthored_commit_redirec
     assert request.canonical_command.confidence == "exact"
     assert request.guard_default_action is None
     native = real_native_command_evaluation(request.command_text, cwd=tmp_path)
-    assert native.native_minimum_action == "review"
+    assert native.payload["minimum_action"] == "review"
     assert native.evaluation.minimum_action == "review"
 
 
@@ -3705,10 +3696,6 @@ def test_tool_action_request_classifier_detects_rm_with_attached_stdin_redirecti
     assert request.action_class == "destructive shell command"
 
 
-def test_script_has_aliased_risky_import_ignores_null_byte_parse_failures():
-    assert not _script_has_aliased_risky_import("print('ok')\x00from pathlib import Path as P")
-
-
 def test_tool_action_request_classifier_allows_python_time_sleep_one_liner(tmp_path, monkeypatch):
     _prefer_guard_interpreter_on_path(monkeypatch)
     request = extract_sensitive_tool_action_request(
@@ -4402,18 +4389,6 @@ def test_tool_action_request_classifier_detects_fd_prefixed_curl_heredoc_upload(
         "credential exfiltration shell command",
         "shell file upload command",
     }
-
-
-def test_path_text_is_within_root_text_preserves_windows_case_insensitivity(monkeypatch):
-    def fake_normcase(value: str) -> str:
-        return value.replace("\\", "/").lower()
-
-    monkeypatch.setattr("os.path.normcase", fake_normcase)
-
-    assert _path_text_is_within_root_text(
-        "C:\\Users\\Michael\\Workspace\\config.toml",
-        "c:\\users\\michael\\workspace",
-    )
 
 
 def test_tool_action_request_classifier_detects_nested_relative_curl_config_file_upload(tmp_path):

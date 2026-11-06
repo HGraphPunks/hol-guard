@@ -11,8 +11,10 @@ pub(crate) type CommandList<'a> = (Vec<(String, &'static str)>, &'static str, &'
 /// Split a command list into items (with the separator that follows each),
 /// stopping at whichever of `terminators` closes it, and return that keyword
 /// with the text after it. Items keep a marker where `$NAME` appeared;
-/// `substitute` expands it. Any construct outside the simple command list
-/// grammar returns `None`.
+/// `substitute` expands it. An empty `name` binds nothing, and every
+/// expansion is written back as it stood, because a list that binds no name
+/// reads the same values the construct around it read. Any construct outside
+/// the simple command list grammar returns `None`.
 pub(crate) fn body_items<'a>(
     text: &'a str,
     name: &str,
@@ -397,7 +399,7 @@ fn reference(chars: &[(usize, char)], i: &mut usize, name: &str, argument: bool)
             break;
         }
     }
-    if ident != name {
+    if ident.is_empty() {
         return None;
     }
     if braced {
@@ -406,7 +408,17 @@ fn reference(chars: &[(usize, char)], i: &mut usize, name: &str, argument: bool)
         }
         *i += 1;
     }
-    Some(MARKER.to_owned())
+    if name.is_empty() {
+        // Nothing binds a name here, so the expansion reads the same value in
+        // the rewritten list as it did inside the construct. Writing it back
+        // keeps the two the same work.
+        return Some(if braced {
+            format!("${{{ident}}}")
+        } else {
+            format!("${ident}")
+        });
+    }
+    (ident == name).then(|| MARKER.to_owned())
 }
 
 const MARKER: &str = "\u{1}";
@@ -418,14 +430,21 @@ pub(crate) fn substitute(item: &str, word: &str) -> Option<String> {
     // stage that starts with one is rejected. A glob in the command word
     // (`/usr/bin/doc?er`) could name any program, so it keeps the loop on
     // the unmodeled path.
+    //
+    // A stage that opens with `[[` and closes with `]]` is the one keyword
+    // that is read here, because the parse surface reads that closed pair as
+    // the `[` test it asks, of less: inside `[[ ]]` the shell splits no word
+    // and expands no glob. An unclosed `[[` is some other shape and keeps the
+    // construct on the unmodeled path with every other keyword.
     for stage in item.split('|') {
         let first = stage.split_whitespace().next()?;
         let bare = first.trim_start_matches(|c: char| c.is_ascii_digit());
+        let bracket_test = first == "[[" && stage.trim_end().ends_with("]]");
         if first.contains(MARKER)
             || first.contains('=')
             || bare.starts_with(['>', '<', '&'])
-            || (first != "[" && first.contains(['*', '?', '[']))
-            || CONTROL_WORDS.contains(&first)
+            || (first != "[" && !bracket_test && first.contains(['*', '?', '[']))
+            || (CONTROL_WORDS.contains(&first) && !bracket_test)
         {
             return None;
         }
