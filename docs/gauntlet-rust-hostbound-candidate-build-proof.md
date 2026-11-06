@@ -68,6 +68,54 @@ Evidence is retained outside Git in `gauntlet-rust-pr-ready-evidence-20261026`:
 | `candidate-timeout-20261106-outside-completion-001.json` | `a050007c64624270355b697e84930895d5f38f76f3b923cead162a6e3ff3aa9c` |
 | `candidate-timeout-20261106-mac-all-001.log` | `d2d3daebc08297bc0ed389490212a017a9162d75c6573299acf81d04a2fd99f2` |
 
+The first outside completion check named the image-builder group instead of
+the candidate-client group. Its original receipt remains retained; it alone
+does not independently establish client-group absence. A follow-up test captures
+the actual client path from the supervisor and asserts that exact path is gone.
+Test-only patch `fe5f5641…` over `8bb6d1b5f` compiles to ELF
+`05c08242cfe31d25dc339b61a79193e270c5a2d22c41b90299531408d4bbbbf1`.
+The explicit Root case and ARM warnings-denied Clippy pass. Its command receipt,
+`candidate-timeout-20261106-root-timeout-002.json`, hashes to
+`043724ac93bd3a8c9c1e3a299e9a67d601570f4b9394455aa59932e23f02bef3`;
+the corrected independent outside receipt,
+`candidate-timeout-20261106-outside-completion-002.json`, hashes to
+`a173553923130ebca0c06fbc4dbc0d279becdd5250454643d3b39063ab059c45`.
+It checks the actual candidate-client group, all container/conmon groups,
+original-init death, profile absence and all 333 prior records' unchanged metadata.
+The production code is unchanged by this follow-up.
+
 The physical probe closes handled-timeout cleanup only. Fresh full candidate
 build/publication, crash recovery, conformance and admission remain open. Every
 result stays ineligible, with zero model requests/tokens and no causality claim.
+
+## Source-matched 3.59.0 dependencies
+
+Fresh dependency job `5ea8b3c2907df614` independently captures the same exact
+`83f079b5c` product source, archive `8ce7383a…`, and a three-member input capsule.
+Outside observation binds the actual Rust exporter ELF, five argv elements,
+mounted project/lock bytes, prelaunch intent, held pidfd, enforced profile,
+namespaces and effective production resource limits. The 36.34-second run exits
+zero and retains an ineligible producer result. Under four leases, independent
+checks verify cleanup and unchanged metadata for all 333 prior worker records;
+they also verify the actual candidate-client paths for both earlier probe jobs.
+
+Rust stages 2,290 inert files under the pinned system interpreter. Independent
+host reconstruction reuses five bounded helpers from the existing 3.58 verifier;
+it imports no candidate or dependency. All 2,633 tree entries and 51,318,689 file
+bytes match, digest
+`ae59b1bbf115f41cab193c47e5f47caf1abef701a03c4a4e041370e63fd2f30e`.
+There are 61 distributions, including MCP 1.30.0. The source-bound prefix receipt
+is `416ee68d0db6f6c75e3c7146d928291e8ee694336671f8ce34114d470ec416a3`.
+
+Evidence lives in external `native-current359-dependency-host-state-20261106-001`:
+`outside-kernel-001.json` hashes to
+`2b7979aca179f6fd2f043cd82a3f94f070b9e9256430839f9254075ad876f217`;
+`outside-completion-001.json` to
+`7e6209469c91353b49d7d56ceeea87849bb23073cac2b514b90c4a72e4fcb115`;
+the six-member `inert-prefix-export-001.tar` to
+`db6966fb1875b542c0c94ce900f27520edfdb0a6e87667ada8c236aee918f07f`;
+and `independent-prefix-readback-001.json` to
+`21504a167f59075bde699836321dd13e082cfe636030525ab859fae394b6c98b`.
+Private intents, nonces and keys are excluded from the export. Candidate wheel
+composition and publication remain open, with no artifact admission, qualification,
+causality or model use claimed.

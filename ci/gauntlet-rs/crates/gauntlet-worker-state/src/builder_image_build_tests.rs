@@ -150,7 +150,11 @@ fn candidate_timeout_stops_its_container_and_refuses_a_foreign_binding() {
         crate::builder_image_context::verify_python_lock(&legacy).unwrap();
         Ok(())
     };
-    let observe = |_, _: &str| {
+    let observe = |_, group: &str| {
+        assert_eq!(
+            group,
+            format!("/system.slice/hol-gauntlet-rust-candidate-{job}")
+        );
         let until = Instant::now() + Duration::from_secs(5);
         loop {
             let raw =
@@ -181,7 +185,7 @@ fn candidate_timeout_stops_its_container_and_refuses_a_foreign_binding() {
                 assert!(std::fs::read_to_string(base.join("attr/current"))
                     .unwrap()
                     .contains(&profile));
-                *seen.borrow_mut() = Some((pid, ticks));
+                *seen.borrow_mut() = Some((pid, ticks, group.to_owned()));
                 break;
             }
             assert!(
@@ -212,7 +216,7 @@ fn candidate_timeout_stops_its_container_and_refuses_a_foreign_binding() {
         Err(CandidateProcessError::TimedOut)
     );
     owned.drain().unwrap();
-    let (pid, ticks) = seen.into_inner().unwrap();
+    let (pid, ticks, client_group) = seen.into_inner().unwrap();
     if let Ok(raw) = std::fs::read(format!("/proc/{pid}/stat")) {
         assert_ne!(
             crate::linux_process::parse_proc_stat(&raw, pid)
@@ -223,10 +227,9 @@ fn candidate_timeout_stops_its_container_and_refuses_a_foreign_binding() {
     }
     crate::builder_policy::run_parser("--remove", policy.to_str().unwrap()).unwrap();
     assert!(crate::builder_policy::profile_absent(&profile).unwrap());
-    assert!(!Path::new(&format!(
-        "/sys/fs/cgroup/system.slice/hol-gauntlet-rust-builder-{job}"
-    ))
-    .exists());
+    assert!(!Path::new("/sys/fs/cgroup")
+        .join(client_group.trim_start_matches('/'))
+        .exists());
     assert_eq!(
         std::fs::read(directory.join("candidate-container.v1.json")).unwrap(),
         receipt
@@ -234,7 +237,7 @@ fn candidate_timeout_stops_its_container_and_refuses_a_foreign_binding() {
     println!(
         "{}",
         json!({"schema":"hol-gauntlet-candidate-timeout-probe.v1","job_id":job,
-        "container_id":cid,"init_pid":pid,"init_start_ticks":ticks,"timeout_observed":true,
+        "container_id":cid,"init_pid":pid,"init_start_ticks":ticks,"client_cgroup":client_group,"timeout_observed":true,
         "foreign_binding_refused":true,"container_and_cgroups_absent":true,"profile_absent":true,
         "receipt_unchanged":true,"proof_directory":directory,"leases_held":3,"candidate_executed":false,
         "qualification_eligible":false,"model_requests":0,"model_tokens":0})

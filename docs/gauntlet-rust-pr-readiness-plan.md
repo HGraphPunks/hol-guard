@@ -64,8 +64,12 @@ with evidence. Code volume and checked substeps do not establish completion.
   Rust now binds the full container ID before start and drains it on timeout;
   a bounded two-hour candidate budget covers current release LTO. The actual
   Root timeout/foreign-binding probe, all 656 Mac tests and Mac/ARM Clippy pass.
-  Captured dependency job `5ea8b3c2907df614` passes readiness and is next to run.
-  Then use a fresh candidate ID. Full build, inert publication and current-source
+  Dependency job `5ea8b3c2907df614` completes; Rust and independent host readback
+  agree on all 2,290 files and the 2,633-entry inert prefix. The corrected Root
+  timeout probe captures and verifies the actual client cgroup; earlier receipts
+  remain retained. Fresh candidate `d5a9c18e3bf20764` has a separate captured
+  archive for the same product source; finish its context/policy and run through
+  the fixed `8bb6d1b5f` supervisor. Full build, inert publication and current-source
   qualification remain open; all 333 older worker records' metadata stays intact.
   [Native reply checks](gauntlet-rust-native-operation-reply-bindings.md) still
   leave wire authenticity, request semantics and physical effect attribution
