@@ -8,6 +8,7 @@ This is a migration inventory for Python Gauntlet PR #5263 at `b4efd8171b06d0e13
 | --- | --- | --- |
 | `scripts/gauntlet up`, `down`, `doctor`, `status`, `agent`, `hold`, `resume` | Own the passive dashboard/observer lifecycle, VM readiness and admission hold. | Host controller, Phase 3. |
 | `gauntlet-vm-worker` fixed `inspect`, `progress`, `reconcile`, `run` | Rust-owned native dispatch with both leases, durable reservation/running/terminal state and fixed job/source/deployment/generation pins. No command or path selector. | `gauntlet-worker-state`, Phase 2. [Current-source apparatus lifecycle passes](gauntlet-rust-native-current-worker-vm-proof-20261026.md); all terminals remain invalid-evidence. The distinct [v2 hook transport](gauntlet-rust-native-hook-transport.md) is implemented and awaits its first live run. |
+| `gauntlet-host-feature-audit` fixed `record`, `run`, `read`, `repair`; `gauntlet-feature-worker` fixed initialize/capture/run/read/repair | Durably bind the complete outside intent, consume dispatch once, run the unprivileged 28-group executor, independently verify artifacts and reconcile exact owned resources. Repair pins its executable before contacting the VM. | `gauntlet-host-state`, `gauntlet-worker-state` and `gauntlet-evidence`, Phases 2–3. [Feature worker](gauntlet-rust-feature-worker.md); full execution, automatic recovery and supported operator integration remain open. No qualification is granted. |
 | `gauntlet-native-actor-verify ACTOR OUTSIDE_SHA256` | Bounded inert ELF64/ARM64/glibc-loader and outside byte-hash inspection. No code execution or admission. | `gauntlet-evidence`; the factory repeats preflight before artifact creation and ARM CI checks its release artifact. |
 | `gauntlet-product-cell actor`, `exec-gate` (Rust preparation) | Run the UID/GID-10004 PID1 actor, eight private RPC operations, bounded child I/O and measured release gate with the pinned syscall floor. | [Native product-cell proof](gauntlet-rust-product-cell-native-proof.md), Phase 2 subset. Real ARM64 process interoperability passed; versioned VM artifacts, AppArmor/rootfs/supervisor integration and qualified effects remain open. |
 | `gauntlet-host init`, `configure`, `up`, `status`, `doctor`, `hold`, `resume`, `agent`, `down`, `enqueue-release` (isolated Rust preparation) | Own `rust-host-v1`, an immutable configuration, exact two-release discovery/queue, independent cancellable telemetry and public publication; `up` owns its loopback dashboard in the same process. Never dispatch VM work. | [Native observer proof](gauntlet-rust-observer-native-proof.md), Phase 3 subset, live port 8794. Python history import, repair, receipt reconciliation and production admission/cutover remain open. |
@@ -50,5 +51,14 @@ The VM uses a Root-owned worker lease and a one-time `<job>.started.json` marker
 Local control-plane commands return `0` for success and `2` for caught operational errors. `ci check` returns its report's exit code: `0` for accepted local result, `1` for a computed failed gate, `2` for invalid execution, and `130` for interruption. Its report remains `qualification_eligible: false`, `trust_status: local-integrity-only`, and `production_ci_activated: false`. The Python worker also exits `2` on rejected requests. The legacy CLI's full exit-code matrix still needs a separate differential inventory; do not infer it from this row.
 
 ## Open inventory work
+
+The November 6 upstream import adds `approval_retry_persistent.py`,
+`docker_stub_fixtures.py` and `extension_allow_fixtures.py`. Their explicit
+disposition is Phase 5 `port_to_rust`: catalog/selection belongs to
+`gauntlet-contracts`, fixture execution to `gauntlet-worker-state` under the
+unprivileged product boundary, and approval/effect grading to
+`gauntlet-evidence`. Python remains the current implementation of these legacy
+cases. Their added source pins and focused regression tests do not establish
+Rust execution or grading parity.
 
 This table covers the named entrypoints and primary durable state boundaries. The 420-file [parity manifest](../ci/gauntlet-rs/parity-manifest.v1.json) still needs disposition-by-disposition review. In particular, enumerate every historical evidence schema, provider and controller journal format, public status field, external executable argument contract, and legacy exit code against a trusted Rust owner or retained Python reader. The checklist leaves that audit open until the matrix is exhaustive and its accept/refuse cases are frozen.

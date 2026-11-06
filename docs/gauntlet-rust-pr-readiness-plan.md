@@ -19,8 +19,9 @@ with evidence. Code volume and checked substeps do not establish completion.
 ## Resume from this checkpoint
 
 - Execute on `codex/gauntlet-rust-finish-20261105`. Merge `1acc28a7a` preserves
-  preparation through `6ddf29cb0` and imports upstream `b2da1b2b`; never reset
-  accumulated work to the older integration tip.
+  preparation through `6ddf29cb0` and imports upstream `b2da1b2b`. The branch
+  now also imports `48d012fd7e846bd8a39d277a1c35a30fc239a813` without conflicts;
+  never reset accumulated work to the older integration tip.
 - Implementation `22d29e6e` adds host repair and exact kernel-resource recovery.
   That implementation passes 653 Mac tests and 12 explicit Linux ARM feature/recovery cases;
   the complete live worker flow remains next. [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5)
@@ -30,11 +31,16 @@ with evidence. Code volume and checked substeps do not establish completion.
   ARM dashboard cases pass after the change. The formal security scan retains
   a candidate-registration gap because the tool excludes `ci/`; it is incomplete.
 - Fork integration `codex/gauntlet-rust-integration-20261020` is at `f143f9ac`;
-  PR #3 is open. Upstream PR #5402 is draft with conflicts; `main` is at
-  `b2da1b2b3cbcce01d5d936659f40d4c3693a6279`. The current source map has 437
-  files; Python bootstrap selection and Rust agree on 417 controller entries.
-  The merge passes 650 Mac Rust tests, 223 focused Python tests, Mac/ARM
-  warnings-denied migration Clippy and Mac/ARM Native library/CLI checks.
+  PR #3 is open. Upstream PR #5402 is draft with conflicts. Main was fetched at
+  `48d012fd7e846bd8a39d277a1c35a30fc239a813`. The current source map has 440
+  files, 78 changed and 20 added against the unchanged baseline. Actual Python
+  bootstrap selection and Rust agree on 409 files and 420 controller entries,
+  digest `e81a214c9771095da22f2897aa5c25600d2016f416cd6562d4fd5511f6321e9a`.
+  All 656 Mac Rust tests, 226 focused Python tests and seven subtests pass,
+  along with formatting, Mac/ARM warnings-denied migration Clippy and Native
+  library/CLI checks. The Git-source reader now
+  validates its count against the embedded delta instead of a second constant.
+  This new controller generation is not installed over the retained VM trees.
 - The [feature worker](gauntlet-rust-feature-worker.md) has a host `run/read/repair`
   path. Its first complete live attempt remains invalid because XML mode
   publication failed; its interrupted attempt reached an aborted receipt only
@@ -42,14 +48,17 @@ with evidence. Code volume and checked substeps do not establish completion.
   and the receive-only `crun` rule pass focused ARM tests and a real stop probe.
   The new controller digest is `409fe095fe10627e4c2ab7a14fe73e9d1b6177bbc3471364ca430cf4ddfb35f0`;
   all 656 Mac tests pass. Fresh full execution, automatic recovery and operator
-  wiring remain open.
+  wiring remain open. Audit `6fb9d42a017c83e5` is running with the committed
+  `0a7c949b9` controller, executor and worker; outside observation confirms its
+  UID-65532 executor hash, confinement and resource limits. Its product remains
+  the retained 3.58.0 candidate. It cannot qualify the newer source or controller.
   [Native reply checks](gauntlet-rust-native-operation-reply-bindings.md) still
   leave wire authenticity, request semantics and physical effect attribution
   unverified. Existing product `dc3b9336` evidence is historical.
 - Git transport works. Owned VM
   `hol-gauntlet-rust-build-20261026-001` is running (2 CPUs, 16 GiB, 48 GiB).
   Inspect retained jobs, leases and resources before worker installation or
-  dispatch. On November 5, fork workflow dispatch still returns HTTP 422,
+  dispatch. On November 6, fork workflow dispatch still returns HTTP 422,
   `Actions has been disabled for this repository`. All five checks remain a
   merge blocker; continue independent implementation and owned-VM validation.
 

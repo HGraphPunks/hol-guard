@@ -41,6 +41,10 @@ if TYPE_CHECKING:
     from .store import GuardStore
 
 EXTENSION_CONTROL_AUTHORITY_FEATURE = "extension-control-authority-v1"
+# The resident applies these ops itself rather than answering a plan.
+EXTENSION_CONTROL_AUTHORITY_WRITES_FEATURE = "extension-control-authority-writes-v1"
+_WRITE_OPS = frozenset({"restore", "roll_back"})
+EXTENSION_CONTROL_AUTHORITY_COMMIT_FEATURE = "extension-control-authority-commit-v1"
 _REQUEST_SCHEMA = "guard-extension-control-authority-request.v1"
 _RESULT_SCHEMA = "guard-extension-control-authority-result.v1"
 _TIMEOUT_SECONDS = 10.0
@@ -114,7 +118,7 @@ def extension_control_authority(
             request=wire,
             guard_home=guard_home,
             timeout_seconds=_TIMEOUT_SECONDS,
-            required_feature=EXTENSION_CONTROL_AUTHORITY_FEATURE,
+            required_feature=_required_feature(op),
             response_schema=_RESULT_SCHEMA,
             max_request_bytes=_MAX_REQUEST_BYTES,
             record_success=False,
@@ -128,6 +132,27 @@ def extension_control_authority(
     return payload
 
 
+def _required_feature(op: str) -> str:
+    if op in {
+        "abandon_bootstrap",
+        "apply_policy",
+        "apply_review_memory",
+        "bootstrap",
+        "clear_policy",
+        "commit_prepare",
+        "resume",
+        "migrate",
+        "queue_change",
+        "record_migration",
+        "reset",
+        "write_anchor",
+        "write_command_marker",
+        "write_manifest",
+    }:
+        return EXTENSION_CONTROL_AUTHORITY_COMMIT_FEATURE
+    return EXTENSION_CONTROL_AUTHORITY_WRITES_FEATURE if op in _WRITE_OPS else EXTENSION_CONTROL_AUTHORITY_FEATURE
+
+
 def raise_fault(payload: Mapping[str, object]) -> None:
     """Raise the store exception for a fault reply; return for any other."""
 
@@ -138,7 +163,23 @@ def raise_fault(payload: Mapping[str, object]) -> None:
     message = reason if isinstance(reason, str) and reason else "extension control authority fault"
     if fault == "tampered":
         raise ExtensionControlAuthorityError(message)
+    if fault == "pack":
+        _raise_pack_fault(message)
     raise RuntimeError(message)
+
+
+def _raise_pack_fault(reason: str) -> None:
+    """Raise what the command-pack activation journal raised for ``reason``."""
+
+    from .catalog_delivery.activation_journal import UnverifiablePackTransitionError
+    from .native_policy_snapshot_constants import NativePolicySnapshotError
+
+    if reason in {"native_command_pack_transition_missing", "native_command_pack_transition_mismatch"}:
+        raise UnverifiablePackTransitionError(reason)
+    if reason.startswith("native_command_pack_"):
+        raise NativePolicySnapshotError(reason)
+    # The lifecycle floor and active-security checks refuse by name.
+    raise ValueError(reason)
 
 
 def manifest_sha256(manifest: Mapping[str, str]) -> str:
@@ -190,7 +231,9 @@ def manifest_from_wire(value: object) -> dict[str, str] | None:
 
 
 __all__ = [
+    "EXTENSION_CONTROL_AUTHORITY_COMMIT_FEATURE",
     "EXTENSION_CONTROL_AUTHORITY_FEATURE",
+    "EXTENSION_CONTROL_AUTHORITY_WRITES_FEATURE",
     "NativeExtensionControlAuthorityUnavailableError",
     "anchor_from_wire",
     "extension_control_authority",

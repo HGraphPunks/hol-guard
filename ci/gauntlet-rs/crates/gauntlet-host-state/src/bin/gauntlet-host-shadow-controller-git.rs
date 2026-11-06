@@ -59,7 +59,7 @@ fn embedded_source_map() -> Result<BTreeMap<String, String>, String> {
             return Err("embedded added path already exists".to_owned());
         }
     }
-    if map.len() != 437 {
+    if delta["source_file_count"].as_u64() != Some(map.len() as u64) {
         return Err("embedded integration map has an unexpected file count".to_owned());
     }
     Ok(map)
@@ -94,7 +94,7 @@ mod tests {
     #[test]
     fn current_source_map_is_available_before_git_verification() {
         let files = super::embedded_source_map().unwrap();
-        assert_eq!(files.len(), 437);
+        assert_eq!(files.len(), 440);
         gauntlet_evidence::plan_controller_install(&files).unwrap();
     }
 }
