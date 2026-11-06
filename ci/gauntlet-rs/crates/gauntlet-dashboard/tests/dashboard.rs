@@ -119,6 +119,39 @@ fn exchange(root: PublicRoot, request: &'static [u8]) -> Vec<u8> {
     response
 }
 
+#[test]
+fn accepted_nonblocking_socket_waits_for_the_complete_bounded_request() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = PublicRoot::open(dir.path()).unwrap();
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    let addr = listener.local_addr().unwrap();
+    let (ready, started) = std::sync::mpsc::channel();
+    let server = thread::spawn(move || {
+        let (stream, _) = listener.accept().unwrap();
+        // macOS accept can inherit O_NONBLOCK from the observer's listener.
+        // Set it explicitly so Linux exercises the same fragmented request.
+        stream.set_nonblocking(true).unwrap();
+        ready.send(()).unwrap();
+        http::handle(stream, &root).unwrap();
+    });
+    let mut client = TcpStream::connect(addr).unwrap();
+    client
+        .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+        .unwrap();
+    client.write_all(b"GET /healthz HTTP/1.1\r\n").unwrap();
+    started.recv().unwrap();
+    thread::sleep(std::time::Duration::from_millis(50));
+    client.write_all(b"Host: localhost\r\n\r\n").unwrap();
+    let mut response = Vec::new();
+    client.read_to_end(&mut response).unwrap();
+    server.join().unwrap();
+    assert!(
+        response.starts_with(b"HTTP/1.1 200 OK"),
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+}
+
 fn body(response: &[u8]) -> Value {
     let offset = response
         .windows(4)

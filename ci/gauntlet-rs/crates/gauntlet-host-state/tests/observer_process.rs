@@ -155,7 +155,11 @@ fn http(url: &str, path: &str) -> Value {
     write!(socket, "GET {path} HTTP/1.1\r\nHost: localhost\r\n\r\n").unwrap();
     let mut bytes = Vec::new();
     socket.read_to_end(&mut bytes).unwrap();
-    assert!(bytes.starts_with(b"HTTP/1.1 200 OK"));
+    assert!(
+        bytes.starts_with(b"HTTP/1.1 200 OK"),
+        "{}",
+        String::from_utf8_lossy(&bytes)
+    );
     let offset = bytes
         .windows(4)
         .position(|part| part == b"\r\n\r\n")
