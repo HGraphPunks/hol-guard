@@ -6,8 +6,11 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Mapping
+from contextlib import suppress
 from datetime import datetime, timezone
+from pathlib import Path
 
+from .. import native_context_assistance
 from ..approval_gate import (
     ApprovalGateError,
     require_high_risk,
@@ -31,6 +34,7 @@ from ..config import (
 from ..models import (
     GuardRuntimeRegistration,
 )
+from ..native_context_assistance import ContextAssistanceError
 from ..package_firewall_entitlement import (
     package_firewall_entitlement_or_denied,
 )
@@ -158,7 +162,10 @@ class _RepairSettingsRoutes:
                         containment_repaired,
                         containment_failed,
                         containment_reasons,
-                    ) = containment_repair_outcome(lambda: self._containment_health_payload(force_refresh=True))
+                    ) = containment_repair_outcome(
+                        lambda: self._containment_health_payload(force_refresh=True),
+                        guard_home=store.guard_home,
+                    )
                     repaired_check_ids.extend(containment_repaired)
                     failed_check_ids.extend(containment_failed)
                     for failed_check_id in containment_failed:
@@ -372,6 +379,8 @@ class _RepairSettingsRoutes:
         except ValueError as error:
             self._write_json({"error": "invalid_settings", "message": str(error)}, status=400)
             return
+        if "context_assistance" in config_settings:
+            _hand_settings_to_cigar(guard_home)
         self._write_json(_settings_response_payload(guard_home, editable_guard_settings(config)))
 
     def _handle_update_channel(self, payload: dict[str, object]) -> None:
@@ -424,4 +433,16 @@ class _RepairSettingsRoutes:
         except ApprovalGateError as error:
             self._write_approval_gate_error(error)
             return
+        _hand_settings_to_cigar(guard_home)
         self._write_json(_settings_response_payload(guard_home, editable_guard_settings(config)))
+
+
+def _hand_settings_to_cigar(guard_home: Path) -> None:
+    """Give saved CIGAR settings to the native service right away.
+
+    Prompt hooks read the native copy, which otherwise refreshes only on the
+    next context call. Without this, turning project context back on leaves
+    every prompt without context until something asks for CIGAR's status.
+    """
+    with suppress(ContextAssistanceError):
+        native_context_assistance.control("status", guard_home=guard_home)

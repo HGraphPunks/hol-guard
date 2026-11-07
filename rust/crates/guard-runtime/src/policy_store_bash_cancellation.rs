@@ -5,9 +5,9 @@ use std::sync::{Arc, Mutex};
 
 use super::PolicySnapshotStore;
 
-// Leave the evaluation pool (at least 16 workers) available for cancellation,
-// current policy, and ordinary hooks even while launches wait for their result.
-const MAX_ACTIVE: usize = 2;
+// The worker budget reserves metadata and two interactive evaluation slots
+// beside these launches, even in a single-CPU resident.
+const MAX_ACTIVE: usize = crate::resident_worker_budget::MAX_ACTIVE_LAUNCHES;
 
 #[derive(Default)]
 struct State {

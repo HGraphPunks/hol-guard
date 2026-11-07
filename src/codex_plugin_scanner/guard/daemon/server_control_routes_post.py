@@ -8,25 +8,30 @@ from typing import Any, cast
 
 from ..approval_gate import ApprovalGateError
 from ..approval_gate import input_from_mapping as approval_gate_input_from_mapping
+from ..approval_scope_selection import resolve_request_scope_selection
 from ..approval_scope_support import (
     IneligibleApprovalScopeError,
     StaleApprovalScopeContractError,
     request_scope_contract_payload,
-    resolve_request_scope_selection,
 )
 from ..approvals import ApprovalRequestAlreadyResolvedError, ApprovalRequestNotFoundError, apply_approval_resolution
 from ..native_approval_scope import ApprovalScopeUnavailableError
 from ..native_daemon_route import NativeDaemonRouteError, native_resolve_request
 from ..native_resident_revival import native_route_unavailable_body
+from ..trusted_local_tools import LocalToolGrantUnavailableError
 from .background_diagnostics import failure_detail, record_background_event
 from .command_activity_api import handle_command_activity_feedback
+from .context_assistance_http import WRITE_PATHS as CONTEXT_ASSISTANCE_WRITE_PATHS
+from .context_assistance_http import respond as respond_context_assistance
 from .extension_control_api import ExtensionControlApiError
 from .harness_version_api import WRITE_PATHS as HARNESS_VERSION_WRITE_PATHS
 from .harness_version_api import handle_harness_version_write
 from .local_approval_continuation import apply_local_approval_continuation
 from .local_cli_http import handle_local_cli_post
 from .manager import repair_approval_center_locator
+from .plugin_updates_http import handle_plugin_updates_dismiss
 from .server_common import _now
+from .workspace_assessment_api import handle_workspace_assessment_post
 
 _AUDIT_REMEDIATION_ACTIONS = {"package_shim_path"}
 
@@ -67,6 +72,9 @@ class _ControlPostRoutes:
     """Control-plane route dispatch for the daemon handler."""
 
     def _dispatch_control_post(self, parsed: Any, path_parts: list[str], payload: dict[str, Any], route: Any) -> None:
+        if parsed.path in CONTEXT_ASSISTANCE_WRITE_PATHS:
+            respond_context_assistance(self, CONTEXT_ASSISTANCE_WRITE_PATHS[parsed.path], payload)
+            return
         if route.route_class == "extension_control":
             try:
                 if parsed.path.endswith("/test"):
@@ -120,12 +128,6 @@ class _ControlPostRoutes:
         if parsed.path == "/v1/command-activity/feedback":
             handle_command_activity_feedback(self, payload)
             return
-        if parsed.path == "/v1/clients/attach":
-            self._handle_client_attach(payload)
-            return
-        if parsed.path == "/v1/clients/heartbeat":
-            self._handle_client_heartbeat(payload)
-            return
         if parsed.path == "/v1/sessions/start":
             self._handle_session_start(payload)
             return
@@ -170,6 +172,12 @@ class _ControlPostRoutes:
             return
         if parsed.path == "/v1/cloud-review":
             self._handle_cloud_review_settings(payload)
+            return
+        if parsed.path == "/v1/cloud-actions/status":
+            # Loaded here so hook paths never import the sign-in modules.
+            from .cloud_actions_status_http import handle_cloud_actions_check
+
+            handle_cloud_actions_check(self, payload)
             return
         if parsed.path == "/v1/read-state":
             self._handle_read_state_update(payload)
@@ -220,6 +228,9 @@ class _ControlPostRoutes:
         if parsed.path == "/v1/update/reconnect/prepare":
             self._handle_dashboard_reconnect_prepare()
             return
+        if parsed.path == "/v1/plugins/updates/dismiss":
+            handle_plugin_updates_dismiss(self, payload)
+            return
         if parsed.path == "/v1/update/channel":
             self._handle_update_channel(payload)
             return
@@ -250,6 +261,8 @@ class _ControlPostRoutes:
                 self._run_package_firewall_mutation(action, handle_package_action)
             else:
                 handle_package_action()
+            return
+        if handle_workspace_assessment_post(self, parsed.path, payload):
             return
         if parsed.path == "/v1/supply-chain/choose-folder":
             self._handle_supply_chain_choose_folder()
@@ -343,7 +356,9 @@ class _ControlPostRoutes:
                 workspace=self._optional_string(payload.get("workspace")),
                 reason=self._optional_string(payload.get("reason")),
                 return_queue_result=True,
-                resolve_scope_matches=True,
+                # A link-opened session decides only the request it names, so its
+                # scoped decision must not also settle other pending requests.
+                resolve_scope_matches=not self._request_holds_link_bound_session(),
                 approval_gate_input=approval_gate_input_from_mapping(payload),
                 persist_policy=persist_policy,
                 scope_contract_version=scope_contract_version,
@@ -440,6 +455,13 @@ class _ControlPostRoutes:
         except ApprovalScopeUnavailableError:
             self._write_json(
                 {"resolved": False, "error": "native_approval_scope_unavailable"},
+                status=503,
+                extra_headers={"Cache-Control": "no-store"},
+            )
+            return
+        except LocalToolGrantUnavailableError as error:
+            self._write_json(
+                {"resolved": False, "error": str(error)},
                 status=503,
                 extra_headers={"Cache-Control": "no-store"},
             )

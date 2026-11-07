@@ -9,6 +9,13 @@ use std::path::{Component, Path};
 
 const MAX_OPERATIONS_BYTES: usize = 1024 * 1024;
 
+/// Public diagnostic defaults with an optional literal local VM selector.
+/// This does not read an operator's private configuration or start a VM.
+pub fn public_vm_operations(vm: Option<&str>) -> Result<Value, OperationsError> {
+    let overrides = vm.map_or_else(|| serde_json::json!({}), |vm| serde_json::json!({"vm":vm}));
+    load_operations_bytes(overrides.to_string().as_bytes())
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OperationsError {
     pub reason: String,

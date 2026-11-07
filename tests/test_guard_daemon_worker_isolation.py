@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from pathlib import Path
 
 import pytest
 
 from codex_plugin_scanner.guard.daemon import server as guard_daemon_module
 from codex_plugin_scanner.guard.native_guard_store import NativeGuardStoreUnavailable
+from codex_plugin_scanner.guard.runtime.cloud_policy_revision import (
+    cloud_policy_store_key,
+    observe_cloud_policy_revision,
+    reset_cloud_policy_revisions,
+)
 from codex_plugin_scanner.guard.store import GuardStore
 from tests.daemon_control_patching import patch_daemon_global
 
@@ -32,6 +38,82 @@ def test_daemon_headless_refresh_stops_cleanly(tmp_path: Path, monkeypatch: pyte
     assert synced.wait(timeout=1)
     daemon.stop()
 
+    assert daemon._headless_cloud_sync_thread is None
+
+
+@pytest.mark.daemon_headless_refresh
+def test_daemon_headless_refresh_syncs_at_once_when_cloud_policy_moves(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = GuardStore(tmp_path / "guard-home")
+    syncs: list[float] = []
+    first_sync = threading.Event()
+    second_sync = threading.Event()
+
+    def _fake_sync(*, store: GuardStore) -> dict[str, object]:
+        del store
+        syncs.append(time.monotonic())
+        (second_sync if first_sync.is_set() else first_sync).set()
+        return {"status": "synced"}
+
+    reset_cloud_policy_revisions()
+    patch_daemon_global(monkeypatch, "_run_headless_cloud_sync", _fake_sync)
+    daemon = guard_daemon_module.GuardDaemonServer(store, host="127.0.0.1", port=0, idle_timeout_seconds=60)
+    # Far longer than the test, so only the policy wake can start a second sync.
+    daemon._headless_cloud_sync_interval_seconds = 600
+
+    key = cloud_policy_store_key(store)
+    daemon.start()
+    try:
+        assert first_sync.wait(timeout=5)
+        # The first revision a lease reports is the baseline, and a response
+        # that repeats it changes nothing.
+        assert observe_cloud_policy_revision(key, {"item": None, "policyRevision": "v3@1000"}) is False
+        assert observe_cloud_policy_revision(key, {"item": None, "policyRevision": "v3@1000"}) is False
+        assert not second_sync.wait(timeout=0.3)
+
+        assert observe_cloud_policy_revision(key, {"item": None, "policyRevision": "v4@2000"}) is True
+        assert second_sync.wait(timeout=5)
+        assert len(syncs) == 2
+    finally:
+        daemon.stop()
+        reset_cloud_policy_revisions()
+
+    assert daemon._headless_cloud_sync_thread is None
+
+
+@pytest.mark.daemon_headless_refresh
+def test_daemon_shutdown_wakes_the_sync_loop_before_joining_workers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = GuardStore(tmp_path / "guard-home")
+    synced = threading.Event()
+
+    def _fake_sync(*, store: GuardStore) -> dict[str, object]:
+        del store
+        synced.set()
+        return {"status": "synced"}
+
+    patch_daemon_global(monkeypatch, "_run_headless_cloud_sync", _fake_sync)
+    daemon = guard_daemon_module.GuardDaemonServer(store, host="127.0.0.1", port=0, idle_timeout_seconds=60)
+    daemon._headless_cloud_sync_interval_seconds = 600
+    join_workers = daemon._join_service_background_threads
+    woken_before_join: list[bool] = []
+
+    def _join_after_slower_workers() -> bool:
+        # Earlier workers can use the whole join deadline, so the idle sync
+        # loop must already be on its way out when joining starts.
+        woken_before_join.append(daemon._headless_cloud_sync_wake.is_set())
+        return join_workers()
+
+    daemon._join_service_background_threads = _join_after_slower_workers
+    daemon.start()
+    try:
+        assert synced.wait(timeout=5)
+    finally:
+        daemon.stop()
+
+    assert woken_before_join == [True]
     assert daemon._headless_cloud_sync_thread is None
 
 
@@ -77,6 +159,11 @@ def test_daemon_start_composes_all_background_workers(
         lambda _self: started.append("headless"),
     )
     monkeypatch.setattr(
+        guard_daemon_module.GuardDaemonServer,
+        "_start_plugin_telemetry",
+        lambda _self: started.append("plugin-telemetry"),
+    )
+    monkeypatch.setattr(
         guard_daemon_module,
         "start_command_queue_worker",
         _start_command_queue,
@@ -95,7 +182,7 @@ def test_daemon_start_composes_all_background_workers(
 
     daemon.start()
     try:
-        assert started == ["headless", "bundle", "aibom", "command-queue", "cloud-review-sync"]
+        assert started == ["headless", "bundle", "aibom", "plugin-telemetry", "command-queue", "cloud-review-sync"]
     finally:
         daemon.stop()
 
@@ -113,6 +200,7 @@ def test_unmarked_daemon_does_not_start_background_workers(tmp_path: Path) -> No
         assert daemon._headless_cloud_sync_thread is None
         assert daemon._bundle_refresh_thread is None
         assert daemon._aibom_refresh_thread is None
+        assert daemon._plugin_telemetry_thread is None
         assert daemon._command_queue_worker is None
         assert daemon._cloud_review_sync_worker is None
     finally:

@@ -1,0 +1,21 @@
+[package]
+name = "gauntlet-mcp-service"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+description = "Bounded MCP dispatch for Rust-owned synthetic Gauntlet services"
+
+[dependencies]
+gauntlet-contracts = { path = "../gauntlet-contracts" }
+gauntlet-world = { path = "../gauntlet-world" }
+jsonschema = { version = "=0.33.0", default-features = false }
+serde_json = { version = "=1.0.151", features = ["arbitrary_precision"] }
+sha2 = "=0.10.9"
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "=1.1.5", features = ["event"] }
+
+[dev-dependencies]
+base64 = "=0.22.1"
+ring = "=0.17.14"
+rusqlite = { version = "=0.40.2", features = ["bundled"] }

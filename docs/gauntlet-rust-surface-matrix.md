@@ -7,6 +7,12 @@ This is a migration inventory for Python Gauntlet PR #5263 at `b4efd8171b06d0e13
 | Current entrypoint and commands | Current effect | Proposed Rust owner / phase |
 | --- | --- | --- |
 | `scripts/gauntlet up`, `down`, `doctor`, `status`, `agent`, `hold`, `resume` | Own the passive dashboard/observer lifecycle, VM readiness and admission hold. | Host controller, Phase 3. |
+| `gauntlet-vm-worker` fixed `inspect`, `progress`, `reconcile`, `run` | Rust-owned native dispatch with both leases, durable reservation/running/terminal state and fixed job/source/deployment/generation pins. No command or path selector. | `gauntlet-worker-state`, Phase 2. [Current-source apparatus lifecycle passes](gauntlet-rust-native-current-worker-vm-proof-20261026.md); all terminals remain invalid-evidence. The distinct [v2 hook transport](gauntlet-rust-native-hook-transport.md) is implemented and awaits its first live run. |
+| `gauntlet-host build source`, `run`, `read`, `repair`; existing source/run/result diagnostic entrypoints | Share source capture and the fixed host-bound build/read/recovery handler. Require exact pins, readiness before durable one-use launch, original VM binding and retained repair authorization. | `gauntlet-host-state`, `gauntlet-worker-state`, Phase 2. [Primary build command](gauntlet-rust-hostbound-candidate-build-proof.md#primary-host-build-command-and-merged-source-follow-up): 662 Mac tests and Mac/ARM Clippy pass; real active readback refuses without changing the host pin. Fresh merged-source build, completed primary readback and idle recovery readback are pending. All admission flags remain false. |
+| `gauntlet-host features` and compatibility `gauntlet-host-feature-audit`, fixed `record`, `run`, `read`, `repair`; `gauntlet-feature-worker` fixed initialize/capture/run/read/repair | Share one host command implementation, durably bind the private intent, return public recording pins, consume dispatch once, run the unprivileged 28-group executor and independently verify retained artifacts. Repair pins its executable before contacting the VM. | `gauntlet-host-state`, `gauntlet-worker-state` and `gauntlet-evidence`, Phases 2–3. [Feature worker](gauntlet-rust-feature-worker.md): corrected 3.59.0 audit `462a926cee8fcfff` retains 1,303 passes, zero failures/errors and one deliberate retired-Pi skip. Independent artifact replay, readback and cleanup match; status remains incomplete. Earlier failed audits and supervisor-crash repair are retained. Broader recovery, merged-source qualification and observer admission remain open. |
+| `gauntlet-native-actor-verify ACTOR OUTSIDE_SHA256` | Bounded inert ELF64/ARM64/glibc-loader and outside byte-hash inspection. No code execution or admission. | `gauntlet-evidence`; the factory repeats preflight before artifact creation and ARM CI checks its release artifact. |
+| `gauntlet-product-cell actor`, `exec-gate` (Rust preparation) | Run the UID/GID-10004 PID1 actor, eight private RPC operations, bounded child I/O and measured release gate with the pinned syscall floor. | [Native product-cell proof](gauntlet-rust-product-cell-native-proof.md), Phase 2 subset. Real ARM64 process interoperability passed; versioned VM artifacts, AppArmor/rootfs/supervisor integration and qualified effects remain open. |
+| `gauntlet-host init`, `configure`, `up`, `status`, `doctor`, `hold`, `resume`, `agent`, `down`, `enqueue-release` (isolated Rust preparation) | Own `rust-host-v1`, an immutable configuration, exact two-release discovery/queue, independent cancellable telemetry and public publication; `up` owns its loopback dashboard in the same process. Never dispatch VM work. | [Native observer proof](gauntlet-rust-observer-native-proof.md), Phase 3 subset, live port 8794. Python history import, repair, receipt reconciliation and production admission/cutover remain open. |
 | `scripts/gauntlet dashboard-rust-up`, `dashboard-rust-restore` (combined migration branch) | Switch only the loopback dashboard HTTP server between a state-keyed Rust container and the existing Python server. | Dashboard lifecycle handoff is exercised on port 8791; Python still owns the observer and jobs, Phase 3. |
 | `scripts/gauntlet repair`, `diagnose`, `reconcile`, `retry-staging`, `probe-runtime`, `audit-staging` | Repair an idle deployment, inspect retained failures, reconcile exact receipts, reuse a verified build, run bounded diagnostics. | Host controller plus fixed VM worker, Phases 2–3. Recovery must not replay an uncertain job. |
 | `scripts/gauntlet test-local`, `features-local` | Queue a clean exact-commit candidate and run source-bound product feature audit. | Host admission plus VM builder/stager, Phases 2–3. |
@@ -30,8 +36,10 @@ The `ci check` profile values are `deterministic`, `beta-e2e`, `feature-ai`, and
 | Linux ARM `limactl` guest, Podman builder, `slirp4netns`, AppArmor/seccomp, Bubblewrap and native runtime | VM executes candidate build and product cells under restricted identities, not in the Mac host or as Root. | Fixed Rust worker and negative isolation matrix, Phase 2. |
 | Bun/Node/OMP SDK and local Qwen/MLX provider | Actual agent/tool traffic, host-owned model process and lifetime quota. | Bounded external adapters supervised by Rust, Phase 4; no scripted inference substitute. |
 | Product pytest feature audit | 28 fixed contract groups on the exact wheel/source/native pairing. | Keep pytest as the external executor; Rust must verify its report provenance, Phase 2. |
+| Native job/report v1 and v2, `hol-gauntlet-native-hook-product-pins.v1` | Separate fixed apparatus and controller-generated hook-transport profiles; exact source/version/runtime/backend pins. | `gauntlet-worker-state` and `gauntlet-cell-rootfs`. No authenticated SDK or qualified verdict is inferred from these declarations. |
+| `adapters/native_guard_identity_v1.py`, `native_workspace_readiness_v1.py`, frozen success-test bytes | Explicit product-test adapters inside UID/GID-10004 isolation; one normal-client call or metadata probe. Rust owns orchestration, budgets and response checks. | Versioned external product-test dependency permitted by the migration contract. Adapter hashes are reported; no Root Python service/oracle or scoring authority is introduced. |
 
-The VM worker currently accepts only `inspect`, `progress`, `reconcile`, and identity/deployment-bound one-time `run`. The new Rust request and response syntax is specified in [the worker boundary](gauntlet-rust-worker-protocol.md); it does not yet install or dispatch a worker.
+The VM worker accepts only `inspect`, `progress`, `reconcile`, and identity/deployment-bound one-time `run`. The bounded syntax in [the worker boundary](gauntlet-rust-worker-protocol.md) remains separate from execution authority. The Rust native apparatus worker now dispatches and drains real owned-VM jobs under its fixed versioned profile; its receipts remain invalid-evidence. Full qualified deployment, SDK/Guard scoring, host authentication and operational cutover remain separate open exits.
 
 ## State, public status and receipts
 
@@ -44,5 +52,23 @@ The VM uses a Root-owned worker lease and a one-time `<job>.started.json` marker
 Local control-plane commands return `0` for success and `2` for caught operational errors. `ci check` returns its report's exit code: `0` for accepted local result, `1` for a computed failed gate, `2` for invalid execution, and `130` for interruption. Its report remains `qualification_eligible: false`, `trust_status: local-integrity-only`, and `production_ci_activated: false`. The Python worker also exits `2` on rejected requests. The legacy CLI's full exit-code matrix still needs a separate differential inventory; do not infer it from this row.
 
 ## Open inventory work
+
+The November 6 upstream import adds `approval_retry_persistent.py`,
+`docker_stub_fixtures.py` and `extension_allow_fixtures.py`. Their explicit
+disposition is Phase 5 `port_to_rust`: catalog/selection belongs to
+`gauntlet-contracts`, fixture execution to `gauntlet-worker-state` under the
+unprivileged product boundary, and approval/effect grading to
+`gauntlet-evidence`. Python remains the current implementation of these legacy
+cases. Their added source pins and focused regression tests do not establish
+Rust execution or grading parity.
+
+The subsequent import through `2b811b610` expands those existing Phase 5
+owners with persistent offline package approval under `NODE_OPTIONS`, an exact
+GitHub merge/read sequence after `cd`, Git-config key-pattern reads and a
+sibling Jest command filtered through `sed`. The ten changed Gauntlet files
+match upstream exactly. The source map remains 440 files, 78 changed and 20
+added; the fresh 409-file/420-entry controller plan hashes to `24926e43…`.
+It is not installed over the retained `e81a214c…` generation. These source
+pins do not establish Rust legacy execution, approval or effect parity.
 
 This table covers the named entrypoints and primary durable state boundaries. The 420-file [parity manifest](../ci/gauntlet-rs/parity-manifest.v1.json) still needs disposition-by-disposition review. In particular, enumerate every historical evidence schema, provider and controller journal format, public status field, external executable argument contract, and legacy exit code against a trusted Rust owner or retained Python reader. The checklist leaves that audit open until the matrix is exhaustive and its accept/refuse cases are frozen.

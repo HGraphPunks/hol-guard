@@ -187,6 +187,198 @@ pub(crate) fn write_host_anchor(
     Ok(digest)
 }
 
+/// Precreate and retain the exact container before starting its attached client.
+/// Client death alone cannot stop an OCI workload in its separate cgroup.
+pub(crate) struct CandidateContainer<'a> {
+    plan: &'a crate::BuilderRunPlan,
+    image: &'a str,
+    podman: &'a str,
+    binding: &'a str,
+    cid: Option<String>,
+}
+
+impl<'a> CandidateContainer<'a> {
+    pub(crate) fn new(
+        plan: &'a crate::BuilderRunPlan,
+        image: &'a str,
+        podman: &'a str,
+        binding: &'a str,
+    ) -> Result<Self, String> {
+        if !hex(&plan.job_id, 16)
+            || !hex(podman, 64)
+            || !hex(binding, 64)
+            || !image.strip_prefix("sha256:").is_some_and(|s| hex(s, 64))
+            || plan.execution_eligible
+            || plan.argv.first().map(String::as_str) != Some("/usr/bin/podman")
+            || plan.argv.get(1).map(String::as_str) != Some("run")
+        {
+            return Err("fixed candidate container pins required".into());
+        }
+        Ok(Self {
+            plan,
+            image,
+            podman,
+            binding,
+            cid: None,
+        })
+    }
+
+    fn identity(&self) -> Result<Option<String>, String> {
+        use crate::builder_candidate_process::{container_absent, container_id_absent};
+        if container_absent(&self.plan.job_id).map_err(|e| e.to_string())?
+            && self
+                .cid
+                .as_deref()
+                .map(container_id_absent)
+                .transpose()
+                .map_err(|e| e.to_string())?
+                .unwrap_or(true)
+        {
+            return Ok(None);
+        }
+        let target = self
+            .cid
+            .clone()
+            .unwrap_or_else(|| format!("hol-gauntlet-build-{}", self.plan.job_id));
+        let raw = crate::dependency_podman::run(
+            self.podman,
+            &["container".into(), "inspect".into(), target],
+        )?;
+        let rows: Vec<Value> = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
+        if rows.len() != 1 {
+            return Err("one candidate container required".into());
+        }
+        let cid = crate::dependency_podman::validated_container_identity(
+            &rows[0],
+            &self.plan.job_id,
+            self.image,
+            "hol-gauntlet.candidate-intent",
+            self.binding,
+        )?;
+        if self.cid.as_ref().is_some_and(|wanted| wanted != &cid) {
+            return Err("candidate full container identity changed".into());
+        }
+        Ok(Some(cid))
+    }
+
+    pub(crate) fn create(&mut self, slot: &OwnedFd) -> Result<crate::BuilderRunPlan, String> {
+        if self.identity()?.is_some() {
+            return Err("candidate container already exists".into());
+        }
+        let mut args = self.plan.argv[1..].to_vec();
+        args[0] = "create".into();
+        args.splice(
+            1..1,
+            [
+                "--pull=never".into(),
+                "--cgroup-parent=system.slice".into(),
+                "--label".into(),
+                format!("hol-gauntlet.candidate-intent={}", self.binding),
+            ],
+        );
+        let created = crate::dependency_podman::run(self.podman, &args);
+        self.cid = self.identity()?;
+        let raw = created?;
+        let cid = std::str::from_utf8(&raw)
+            .map_err(|_| "candidate CID encoding differs")?
+            .trim();
+        if self.cid.as_deref() != Some(cid) {
+            return Err("candidate create output differs from independent inspection".into());
+        }
+        write_root_canonical_job_file(
+            slot,
+            "candidate-container.v1.json",
+            &json!({
+                "schema":"hol-gauntlet-candidate-container.v1", "job_id":self.plan.job_id,
+                "container_id":cid, "binding_sha256":self.binding, "image_id":self.image,
+                "source_archive_sha256":self.plan.source_archive_sha256,
+                "execution_eligible":false,
+            }),
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(crate::BuilderRunPlan {
+            argv: vec![
+                "/usr/bin/podman".into(),
+                "start".into(),
+                "--attach".into(),
+                cid.into(),
+            ],
+            job_id: self.plan.job_id.clone(),
+            source_archive_sha256: self.plan.source_archive_sha256.clone(),
+            execution_eligible: false,
+        })
+    }
+
+    pub(crate) fn restore(
+        plan: &'a crate::BuilderRunPlan,
+        image: &'a str,
+        podman: &'a str,
+        binding: &'a str,
+        slot: &OwnedFd,
+    ) -> Result<Self, String> {
+        let mut owner = Self::new(plan, image, podman, binding)?;
+        let raw = crate::feature_files::required(
+            slot,
+            "candidate-container.v1.json",
+            (0, 0),
+            0o600,
+            8192,
+        )?;
+        let v = crate::feature_journal::canonical(&raw)?;
+        let cid = v["container_id"]
+            .as_str()
+            .filter(|s| hex(s, 64))
+            .ok_or("retained full candidate CID required")?;
+        if v.as_object().is_none_or(|v| v.len() != 7)
+            || v["schema"] != "hol-gauntlet-candidate-container.v1"
+            || v["job_id"] != plan.job_id
+            || v["image_id"] != image
+            || v["binding_sha256"] != binding
+            || v["source_archive_sha256"] != plan.source_archive_sha256
+            || v["execution_eligible"] != false
+        {
+            return Err("candidate container receipt differs from reserved request".into());
+        }
+        owner.cid = Some(cid.into());
+        owner.identity()?;
+        Ok(owner)
+    }
+
+    pub(crate) fn id(&self) -> Option<&str> {
+        self.cid.as_deref()
+    }
+
+    pub(crate) fn drain(&self) -> Result<(), String> {
+        if let Some(cid) = self.identity()? {
+            crate::dependency_podman::run(
+                self.podman,
+                &["rm".into(), "--force".into(), "--time=5".into(), cid],
+            )?;
+        }
+        self.verify_absent()
+    }
+
+    pub(crate) fn verify_absent(&self) -> Result<(), String> {
+        if self.identity()?.is_some() {
+            return Err("candidate container survived cleanup".into());
+        }
+        if let Some(cid) = &self.cid {
+            for parent in ["system.slice", "machine.slice"] {
+                for unit in [
+                    format!("libpod-{cid}.scope"),
+                    format!("libpod-conmon-{cid}.scope"),
+                ] {
+                    match std::fs::symlink_metadata(format!("/sys/fs/cgroup/{parent}/{unit}")) {
+                        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                        _ => return Err("candidate container cgroup exists or is uncertain".into()),
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

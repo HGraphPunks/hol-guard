@@ -1,14 +1,19 @@
 //! The approval link a reviewed `PreToolUse` answer carries.
 //!
-//! Mirrors `native_review_reason` (`approval_link_output.py`) and the signed
-//! dashboard session it attaches (`local_dashboard_session.py`): a loopback
-//! approval link gets a `#guard-token=` fragment holding an HMAC-SHA256
-//! session token keyed by the daemon auth token, so the browser opens signed
-//! in. Every function answers `None` for a link shape it does not reproduce
-//! byte for byte; the caller then leaves the answer to the daemon.
+//! Owns the review reason's approval link, signed with the dashboard session
+//! `local_dashboard_session.py` also issues: a loopback approval link gets a
+//! `#guard-token=` fragment holding an HMAC-SHA256 session token keyed by the
+//! daemon auth token, so the browser opens signed in. The vectors under
+//! `testdata/native_review_link` were recorded from the daemon's retired
+//! implementation and stay frozen. Every function answers `None` for a link
+//! shape it does not reproduce byte for byte; the caller then leaves the
+//! reason unlinked.
+
+use std::sync::LazyLock;
 
 use base64ct::{Base64UrlUnpadded, Encoding};
 use hmac::{Hmac, Mac};
+use regex::Regex;
 use sha2::Sha256;
 
 use crate::guard_store_json::py_strip;
@@ -25,8 +30,44 @@ pub(crate) const OPEN_GUARD: &str = "Open HOL Guard to approve or keep this bloc
 pub(crate) const SIGNED_LINK_UNAVAILABLE: &str =
     "HOL Guard could not create a signed approval link; open Inbox from Guard on this device, then retry.";
 const LOOPBACK_HOSTS: [&str; 3] = ["127.0.0.1", "::1", "localhost"];
-/// `auth_token_path(guard_home)` (`daemon/auth_token.py`).
-const AUTH_TOKEN_FILE: &str = "daemon-auth-token";
+
+static GUARD_TOKEN_FRAGMENT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)#guard-token=[A-Za-z0-9_~%+-]+(?:\.[A-Za-z0-9_~%+-]+)*")
+        .expect("guard token pattern compiles")
+});
+
+static HANDOFF_CODE: LazyLock<Regex> = LazyLock::new(|| {
+    // Ends where `carries_handoff_link` ends a code: at punctuation, space
+    // or the end of the reason, never mid-path.
+    Regex::new(r"(/requests/[0-9a-f]{32})/[0-9]{1,12}-[0-9a-f]{32}([^A-Za-z0-9/_-]|$)")
+        .expect("approval handoff pattern compiles")
+});
+
+/// True when `text` holds a short signed `/requests/<id>/<expires>-<mac>` link.
+pub(crate) fn has_handoff_code(text: &str) -> bool {
+    HANDOFF_CODE.is_match(text)
+}
+
+/// `text` with every link's session fragment and short code removed, so two
+/// copies of a reason that differ only in their signature compare equal.
+pub(crate) fn strip_review_link_codes(text: &str) -> String {
+    let unfragmented = GUARD_TOKEN_FRAGMENT.replace_all(text, "");
+    HANDOFF_CODE.replace_all(&unfragmented, "$1$2").into_owned()
+}
+
+/// `canonical_harness` (`hook_fail_closed.py`).
+pub(crate) fn canonical_harness(harness: &str) -> String {
+    py_strip(harness).to_lowercase().replace('_', "-")
+}
+
+/// UTC microseconds since the epoch, the clock a session token is signed at.
+pub(crate) fn now_micros() -> Option<i64> {
+    let micros = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_micros();
+    i64::try_from(micros).ok()
+}
 
 /// `build_local_dashboard_session_token(auth_token=..., surface=...)` at
 /// `now_micros` (UTC microseconds since the epoch).
@@ -111,8 +152,65 @@ fn browser_url(
     surface: &str,
     now_micros: i64,
 ) -> Option<String> {
+    if surface == APPROVAL_CENTER_SURFACE {
+        if let Some(short) = handoff_url(link.url, auth_token, now_micros) {
+            return Some(short);
+        }
+    }
     let token = session_token(auth_token, surface, now_micros)?;
     Some(format!("{}#guard-token={token}", link.url))
+}
+
+const HANDOFF_VERSION: &str = "guard-approval-link.v1";
+const HANDOFF_TTL_SECONDS: i64 = 12 * 60 * 60;
+const HANDOFF_MAC_BYTES: usize = 16;
+const HANDOFF_MAC_HEX: usize = HANDOFF_MAC_BYTES * 2;
+
+/// `build_approval_handoff_url`: `<origin>/requests/<id>/<expires>-<mac>` for
+/// a bare request link. Agents relay this whole; they drop the long session
+/// fragment. The daemon checks the MAC and redirects to the signed page.
+fn handoff_url(url: &str, auth_token: &str, now_micros: i64) -> Option<String> {
+    let request_id = crate::desktop_review_link::approval_request_id(url)?;
+    let rest = url
+        .strip_prefix("http://")
+        .or_else(|| url.strip_prefix("https://"))?;
+    let (_, path) = rest.split_once('/')?;
+    if path.strip_prefix("requests/") != Some(request_id) {
+        return None;
+    }
+    let expires = now_micros
+        .div_euclid(1_000_000)
+        .checked_add(HANDOFF_TTL_SECONDS)?;
+    let mut mac = <Hmac<Sha256>>::new_from_slice(auth_token.as_bytes()).ok()?;
+    mac.update(format!("{HANDOFF_VERSION}\n{request_id}\n{expires}").as_bytes());
+    let digest = mac.finalize().into_bytes();
+    let code = hex::encode(digest.get(..HANDOFF_MAC_BYTES)?);
+    Some(format!("{url}/{expires}-{code}"))
+}
+
+/// Whether `reason` already carries `review_url` as a short signed link:
+/// `<review_url>/<expires>-<32 hex mac>`, ending there. Any other path after
+/// the review link is not one, and still needs signing.
+pub(crate) fn carries_handoff_link(reason: &str, review_url: &str) -> bool {
+    let prefix = format!("{review_url}/");
+    reason
+        .match_indices(&prefix)
+        .any(|(at, _)| is_handoff_code(&reason.as_bytes()[at + prefix.len()..]))
+}
+
+fn is_handoff_code(rest: &[u8]) -> bool {
+    let digits = rest.iter().take_while(|byte| byte.is_ascii_digit()).count();
+    if !(1..=12).contains(&digits) || rest.get(digits) != Some(&b'-') {
+        return false;
+    }
+    let mac = &rest[digits + 1..];
+    mac.len() >= HANDOFF_MAC_HEX
+        && mac[..HANDOFF_MAC_HEX]
+            .iter()
+            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+        && !mac
+            .get(HANDOFF_MAC_HEX)
+            .is_some_and(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'-' | b'_'))
 }
 
 fn py_space(character: char) -> bool {
@@ -143,8 +241,8 @@ fn colon_before_period(text: &str) -> String {
     out
 }
 
-/// `_without_raw_approval_url(message, review_url)`.
-fn without_raw_url(message: &str, review_url: &str) -> String {
+/// The message with the raw review URL and its dangling separators removed.
+pub(crate) fn without_raw_url(message: &str, review_url: &str) -> String {
     let removed = message.replace(review_url, "");
     let joined = colon_before_period(py_strip(&removed));
     let mut trimmed = joined.trim_end_matches(py_space).to_owned();
@@ -155,14 +253,18 @@ fn without_raw_url(message: &str, review_url: &str) -> String {
     trimmed.trim_end_matches([' ', ':', ';', ',']).to_owned()
 }
 
-/// `with_approval_review_url(reason, {"approval_url": url}, guard_home=...)`
-/// where `auth_token` is what `load_guard_daemon_auth_token` read.
+/// The reason with the review URL linked, signed for a loopback link when
+/// `auth_token` holds the daemon auth token.
 fn with_review_url(
     stripped: &str,
     link: &ApprovalLink<'_>,
     auth_token: Option<&str>,
     now_micros: i64,
 ) -> Option<String> {
+    // A default-mode connector setup reason never carries a link.
+    if crate::blocked_request_mode::is_unlinked_connector_setup_reason(stripped) {
+        return Some(stripped.to_owned());
+    }
     let review_url = link.url;
     let live_url = match auth_token {
         Some(token) if link.loopback => {
@@ -170,6 +272,11 @@ fn with_review_url(
         }
         _ => review_url.to_owned(),
     };
+    // A short link already in the reason stays as written; prefixing a fresh
+    // code onto it would leave a two-code path the daemon cannot redeem.
+    if carries_handoff_link(stripped, review_url) {
+        return Some(stripped.to_owned());
+    }
     if live_url != review_url && stripped.contains(review_url) {
         return Some(stripped.replacen(review_url, &live_url, 1));
     }
@@ -177,22 +284,6 @@ fn with_review_url(
         return Some(stripped.to_owned());
     }
     Some(format!("{stripped} {OPEN_GUARD} {live_url}."))
-}
-
-/// Whether `live_approval_review_url(url, guard_home=...)`
-/// (`approval_hook_copy.py`) hands `url` back unchanged, whether or not the
-/// caller can import Guard: `guard_home` holds no daemon auth token file, so
-/// none is ever loaded, or `url` is a link this module reproduces whose host
-/// `is_loopback_approval_url` rejects. A token file that exists counts as a
-/// token, however it reads.
-pub(crate) fn review_url_stays_unsigned(url: &str, guard_home: &std::path::Path) -> bool {
-    if approval_link(url).is_some_and(|link| !link.loopback) {
-        return true;
-    }
-    matches!(
-        guard_home.join(AUTH_TOKEN_FILE).symlink_metadata(),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound
-    )
 }
 
 /// Whether `is_loopback_approval_url` may accept `url`: `urlparse`'s
@@ -315,7 +406,7 @@ pub(crate) fn native_review_reason(
         return Some(py_strip(&format!("{without} {SIGNED_LINK_UNAVAILABLE}")).to_owned());
     };
     let signed_url = browser_url(&link, token, APPROVAL_CENTER_SURFACE, now_micros)?;
-    if stripped.contains(&signed_url) {
+    if stripped.contains(&signed_url) || carries_handoff_link(stripped, approval_url) {
         return Some(stripped.to_owned());
     }
     if stripped.contains(approval_url) {

@@ -119,6 +119,81 @@ fn exchange(root: PublicRoot, request: &'static [u8]) -> Vec<u8> {
     response
 }
 
+#[test]
+fn accepted_nonblocking_socket_waits_for_the_complete_bounded_request() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = PublicRoot::open(dir.path()).unwrap();
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    let addr = listener.local_addr().unwrap();
+    let (ready, started) = std::sync::mpsc::channel();
+    let server = thread::spawn(move || {
+        let (stream, _) = listener.accept().unwrap();
+        // macOS accept can inherit O_NONBLOCK from the observer's listener.
+        // Set it explicitly so Linux exercises the same fragmented request.
+        stream.set_nonblocking(true).unwrap();
+        ready.send(()).unwrap();
+        http::handle(stream, &root).unwrap();
+    });
+    let mut client = TcpStream::connect(addr).unwrap();
+    client
+        .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+        .unwrap();
+    client.write_all(b"GET /healthz HTTP/1.1\r\n").unwrap();
+    started.recv().unwrap();
+    thread::sleep(std::time::Duration::from_millis(50));
+    client.write_all(b"Host: localhost\r\n\r\n").unwrap();
+    let mut response = Vec::new();
+    client.read_to_end(&mut response).unwrap();
+    server.join().unwrap();
+    assert!(
+        response.starts_with(b"HTTP/1.1 200 OK"),
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+}
+
+#[test]
+fn slow_partial_headers_cannot_extend_the_whole_request_deadline() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = PublicRoot::open(dir.path()).unwrap();
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    let addr = listener.local_addr().unwrap();
+    let (ready, started) = std::sync::mpsc::channel();
+    let (finished, result) = std::sync::mpsc::channel();
+    let server = thread::spawn(move || {
+        let (stream, _) = listener.accept().unwrap();
+        stream.set_nonblocking(true).unwrap();
+        ready.send(()).unwrap();
+        let started = std::time::Instant::now();
+        let outcome = http::handle(stream, &root);
+        finished.send((outcome, started.elapsed())).unwrap();
+    });
+    let mut client = TcpStream::connect(addr).unwrap();
+    client
+        .write_all(b"GET /healthz HTTP/1.1\r\nHost: localhost\r\nX-Slow: ")
+        .unwrap();
+    started.recv().unwrap();
+    let mut observed = None;
+    for _ in 0..22 {
+        if let Ok(outcome) = result.try_recv() {
+            observed = Some(outcome);
+            break;
+        }
+        let _ = client.write_all(b"x");
+        thread::sleep(std::time::Duration::from_millis(200));
+    }
+    // Always release and join the peer, including the pre-fix failure path.
+    let _ = client.shutdown(std::net::Shutdown::Both);
+    server.join().unwrap();
+    let (outcome, elapsed) = observed.expect("slow headers exceeded the request deadline");
+    let error = outcome.unwrap_err();
+    assert!(matches!(
+        error.kind(),
+        std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
+    ));
+    assert!(elapsed < std::time::Duration::from_secs(4));
+}
+
 fn body(response: &[u8]) -> Value {
     let offset = response
         .windows(4)

@@ -35,7 +35,7 @@ fn current_source_map() -> BTreeMap<String, String> {
             )
             .is_none());
     }
-    assert_eq!(files.len(), 427);
+    assert_eq!(files.len(), 440);
     files
 }
 
@@ -44,13 +44,17 @@ fn current_source_map_matches_python_bootstrap_tree_plan() {
     // Frozen independently from bootstrap.py's selection and bootstrap_guest.py's
     // 0755/0444 Root install modes, then Python canonical SHA-256 over the same
     // path/mode/uid/file-hash shape used by TreeKind::Controller. Recomputed
-    // from bootstrap.py's actual selection after merging main at 4a654ea8.
+    // from bootstrap.py's actual captured selection after main 394be6de4,
+    // including linked-worktree approvals, extension controls and the OMP
+    // approval-retry coverage lane. The installed e81a214c generation and
+    // its explicit host-crun signal-receive rule remain retained separately.
+    // Historical pins stay retained.
     let plan = plan_controller_install(&current_source_map()).unwrap();
-    assert_eq!(plan.installed_files.len(), 396);
-    assert_eq!(plan.entries, 407);
+    assert_eq!(plan.installed_files.len(), 409);
+    assert_eq!(plan.entries, 420);
     assert_eq!(
         plan.tree_digest,
-        "28fd562fa80d0ed626d9732da75590273a0a9b2c8b815df8fcabb228d1de2c8b"
+        "123024f4e315cd969571475eb6096a3f19f34e614f374c1d58fdadc2347469b5"
     );
     assert!(plan
         .installed_files

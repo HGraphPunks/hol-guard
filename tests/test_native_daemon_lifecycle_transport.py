@@ -239,11 +239,11 @@ def test_startup_and_retirement_bind_the_lifecycle_deadline(monkeypatch: pytest.
     monkeypatch.setattr(manager.time, "monotonic", lambda: clock["now"])
 
     def lifecycle(check: str, _query: object, **_kwargs: object) -> dict[str, object]:
-        seen.append((check, transport.daemon_lifecycle_deadline()))
+        seen.append((check, transport._DAEMON_LIFECYCLE_DEADLINE.get()))
         return {"default": 4.0, "post_update": 30.0}
 
     def live(*_args: object, **_kwargs: object) -> str:
-        seen.append(("live", transport.daemon_lifecycle_deadline()))
+        seen.append(("live", transport._DAEMON_LIFECYCLE_DEADLINE.get()))
         return "http://127.0.0.1:9"
 
     monkeypatch.setattr(manager, "native_daemon_lifecycle", lifecycle)
@@ -255,17 +255,17 @@ def test_startup_and_retirement_bind_the_lifecycle_deadline(monkeypatch: pytest.
     )
     assert url == "http://127.0.0.1:9"
     assert seen == [("start_timeouts", 1010.0), ("live", 1004.0)]
-    assert transport.daemon_lifecycle_deadline() is None
+    assert transport._DAEMON_LIFECYCLE_DEADLINE.get() is None
 
     def inventory(_home: Path) -> list[tuple[int, int]]:
-        seen.append(("inventory", transport.daemon_lifecycle_deadline()))
+        seen.append(("inventory", transport._DAEMON_LIFECYCLE_DEADLINE.get()))
         return []
 
     monkeypatch.setattr(manager, "_guard_daemon_process_inventory_for_guard_home", inventory)
     monkeypatch.setattr(manager, "reap_orphaned_daemon_workers", lambda **_kwargs: None)
     assert manager.retire_all_guard_daemons_for_home(tmp_path, deadline=50.0) == []
     assert seen[-1] == ("inventory", 50.0)
-    assert transport.daemon_lifecycle_deadline() is None
+    assert transport._DAEMON_LIFECYCLE_DEADLINE.get() is None
 
 
 def _answer(kwargs: dict[str, object], timeouts: list[float]) -> dict[str, object]:
@@ -341,7 +341,7 @@ def test_a_transient_capability_probe_miss_is_waited_out_before_the_resident_is_
         lambda **_kwargs: seen.append("asked") or {"schema": transport._RESULT_SCHEMA},
     )
 
-    transport._await_native_runtime(20.0)
+    transport.await_native_runtime(20.0)
 
     assert statuses == [statuses[0]]
     assert seen == []  # waiting never decides anything; the resident is asked afterwards
@@ -353,7 +353,7 @@ def test_a_host_with_no_runtime_is_not_waited_on(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(transport, "native_runtime_probe_missed", lambda: False)
     monkeypatch.setattr(transport.time, "sleep", lambda _seconds: calls.append("sleep"))
 
-    transport._await_native_runtime(20.0)
+    transport.await_native_runtime(20.0)
 
     assert calls == ["status"]
 
@@ -461,3 +461,24 @@ def test_a_stale_deadline_code_is_not_read_as_the_next_attempts_failure(monkeypa
     with pytest.raises(transport.NativeDaemonLifecycleError, match="runtime_unavailable:x"):
         transport._round_trip({"check": "live_state_gate"}, {}, Path("/home"), "posix", 30.0)
     assert len(calls) == 2
+
+
+def test_a_busy_client_lease_is_retried_inside_the_caller_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = [0.0]
+    monkeypatch.setattr(transport.time, "monotonic", lambda: clock[0])
+    timeouts: list[float] = []
+
+    def request(**kwargs):
+        if len(timeouts) < 1:
+            timeouts.append(kwargs["timeout_seconds"])
+            clock[0] += 1.0
+            return None
+        return _answer(kwargs, timeouts)
+
+    monkeypatch.setattr(transport, "_resident_request", request)
+    monkeypatch.setattr(transport, "native_resident_client_failure_code", lambda: "native_resident_lease_busy")
+
+    payload = transport._round_trip({"check": "live_state_gate"}, {}, Path("/home"), "posix", 30.0)
+
+    assert payload == {"ephemeral": False}
+    assert timeouts == [pytest.approx(30.0), pytest.approx(29.0)]

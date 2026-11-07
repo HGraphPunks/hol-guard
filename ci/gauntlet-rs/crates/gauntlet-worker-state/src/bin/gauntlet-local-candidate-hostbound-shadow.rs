@@ -4,7 +4,11 @@
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 fn run() -> Result<String, String> {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() != 19 {
+    let repair = args.get(1).is_some_and(|arg| arg == "--repair");
+    if repair && args.len() != 5 {
+        return Err("usage: gauntlet-local-candidate-hostbound-shadow --repair JOB_ID SOURCE_SHA HOST_ANCHOR_SHA256".into());
+    }
+    if !(args.len() == 19 && !repair || args.len() == 5 && repair) {
         return Err("usage: gauntlet-local-candidate-hostbound-shadow CONTROLLER_ROOT CONTROLLER_TREE_SHA256 JOB_ID UV_IMAGE_ID RUST_IMAGE_ID BUILDER_IMAGE_ID SOURCE_COMMIT SOURCE_ARCHIVE_SHA256 VERSION TAG PODMAN_SHA256 SLIRP_SHA256 APPARMOR_PARSER_SHA256 SECCOMP_SHA256 POLICY_SHA256 RESULT_READER_BINARY_SHA256 HOST_PIN_SHA256 HOST_NONCE_HEX".to_owned());
     }
     const PREFIX: &str = "/opt/hol-gauntlet/rust-candidate-run-hostbound-shadow-";
@@ -17,6 +21,15 @@ fn run() -> Result<String, String> {
                     .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
         })
         .ok_or("exact hashed Root runner path required")?;
+    if repair {
+        return gauntlet_worker_state::repair_hostbound_candidate_ineligible(
+            &args[2],
+            &args[3],
+            &args[4],
+            runner_sha256,
+        )
+        .map(|proof| proof.to_string());
+    }
     let runtime = gauntlet_worker_state::CandidateRuntimePins::parse(
         &args[11], &args[12], &args[13], &args[14],
     )

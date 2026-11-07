@@ -2,7 +2,8 @@
 
 A review held only because Guard does not know the connector it launches
 records a connector hint at queue time. This module re-checks that hint on
-every read against the stored connector (still ``unset``, same identity), the
+every read against the stored connector (same identity, and still ``unset`` or
+allowed only for an earlier version of its file), the
 extension-control authority and the approval gate, so the Inbox never offers a
 setup that no longer applies. It is read-only: setting the connector up still
 goes through the local-CLI preview, one-use proof and apply flow.
@@ -12,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+import time
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from urllib.parse import urlencode
@@ -27,6 +29,8 @@ CONNECTOR_RECOMMENDATION_SCHEMA = "guard.approval-connector-recommendation.v1"
 # scan that stops early is cautioned: unread rows are never treated as safe.
 _GROUP_PAGE_ROWS = 200
 _MAX_GROUP_SCAN_ROWS = 2000
+# Total resident budget for checking every sibling hint in one scan.
+_SIBLING_SCAN_BUDGET_SECONDS = 8.0
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,6 +44,20 @@ def _stored_connector(store: object, cli_id: str, identity_hash: str) -> Mapping
         if item.get("cli_id") == cli_id:
             return item if item.get("identity_hash") == identity_hash else None
     return None
+
+
+def _awaiting_setup(item: Mapping[str, object]) -> bool:
+    """No decision on this device yet, or a CLI allowed for an earlier version of its file.
+
+    A content-bound allow stops applying once the file changes, so the held
+    calls wait on the same setup as a connector never decided. A block stays a
+    decision: its held calls keep their normal review. A changed MCP server or
+    package.json can bring new tools or scripts, so it keeps its full review.
+    """
+
+    if item.get("state") == "unset":
+        return True
+    return item.get("state") == "allowed" and item.get("stale") is True and item.get("surface") == "cli"
 
 
 def pending_connector_group_rows(store: object, identity_hash: str) -> tuple[list[Mapping[str, object]], bool]:
@@ -81,10 +99,22 @@ def _group_risk_classes(
     current: list[str],
     read_hint: Callable[[str], object],
 ) -> tuple[set[str], bool]:
+    from ..native_runner_authority import NativeRunnerAuthorityError
+
     classes = set(current)
     rows, complete = pending_connector_group_rows(store, identity_hash)
+    # One budget for the whole scan: a slow resident cannot hold the approval
+    # read for a check per sibling. Checks past it fail without a resident call.
+    deadline = time.monotonic() + _SIBLING_SCAN_BUDGET_SECONDS
     for row in rows:
-        hint = validated_connector_setup_hint(read_hint(str(row.get("request_id", ""))))
+        try:
+            hint = validated_connector_setup_hint(
+                read_hint(str(row.get("request_id", ""))), strict=True, deadline_monotonic=deadline
+            )
+        except NativeRunnerAuthorityError:
+            # An unchecked sibling may carry a destructive class: not a full scan.
+            complete = False
+            continue
         if hint is not None and hint["identity_hash"] == identity_hash:
             classes.update(_strings(hint["risk_classes"]))
     return classes, complete
@@ -127,8 +157,7 @@ def build_approval_connector_recommendation(
     if any(layer.global_lockdown for layer in snapshot.layers):
         return None
     item = _stored_connector(store, cli_id, identity_hash)
-    # Only a connector this device still has no decision for is a setup.
-    if item is None or item.get("state") != "unset":
+    if item is None or not _awaiting_setup(item):
         return None
     surface = item.get("surface")
     if surface != hint["surface"]:

@@ -7,9 +7,9 @@ import sqlite3
 import sys
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from ..adapters.harness_mcp_discovery import (
     DiscoveredHarnessMcpServer,
@@ -45,14 +45,13 @@ from ..runtime.local_cli_commands import (
     LocalCliCommand,
     LocalCliCommandState,
     default_local_cli_commands,
-    is_local_cli_command_id,
 )
 from ..runtime.local_cli_help import (
     discover_local_cli_commands,
     help_invocation_for_command,
+    run_cli_help,
 )
 from ..runtime.local_cli_identity import (
-    LocalCliKind,
     UnlistedCliIdentity,
     is_local_cli_id,
     local_cli_recognition_candidates,
@@ -60,11 +59,13 @@ from ..runtime.local_cli_identity import (
 )
 from ..runtime.local_mcp_probe import (
     McpProbeError,
+    is_package_mcp_launcher,
     is_strict_package_mcp_launcher,
     looks_like_mcp_launch,
     mcp_launch_tokens,
     probe_stdio_mcp_server,
 )
+from ..runtime.local_mcp_source_evidence import script_may_serve_mcp
 from ..runtime.local_mcp_stdio import McpCatalogResult
 from ..runtime.local_skill_index import (
     LocalSkillRecord,
@@ -74,7 +75,7 @@ from ..runtime.local_skill_index import (
     public_skill_page,
 )
 from ..runtime.mcp_protection import build_mcp_server_identity
-from ..runtime.observed_local_clis import backfill_observed_local_clis
+from ..runtime.observed_local_clis import backfill_observed_local_clis, paused_launch_paths
 from ..runtime.observed_mcp_tools import discover_observed_mcp_tools
 from ..runtime.package_json_script_memory import (
     operator_working_directory,
@@ -103,6 +104,7 @@ from .local_cli_profiles_api import (
     seeded_profile_items,
 )
 from .local_cli_registry_setup import registry_setup as reviewed_registry_setup
+from .local_cli_reload import load_cli_commands, verified_cli_for_reload
 from .mcp_discovery_jobs import DiscoveryJobError, DiscoveryStageError, McpDiscoveryJobs
 from .mcp_registry_undo import RegistrySetupUndo
 
@@ -111,7 +113,6 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-_VALID_STATES = frozenset({"allowed", "blocked", "unset"})
 _DISCOVERY_TTL_SECONDS = 30.0
 # A failed host scan used to leave daemon.log empty, so a support bundle could
 # not say which of the stages below aborted the job. One event per stage names
@@ -135,6 +136,44 @@ def _client_discovery_job_id(payload: dict[str, object]) -> str | None:
     if not isinstance(value, str) or len(value) != 32 or any(c not in "0123456789abcdef" for c in value):
         raise LocalCliApiError(400, "invalid_discovery_job")
     return value
+
+
+# The request keys the native change-request check reads; an absent key stays absent.
+_CHANGE_REQUEST_KEYS = (
+    "cli_id",
+    "identity_hash",
+    "name",
+    "kind",
+    "state",
+    "example_label",
+    "interpreter_name",
+    "provider_actions",
+    "commands",
+)
+_CheckedRequest = dict[str, dict[str, object]]
+
+
+def _checked_change_request(payload: dict[str, object]) -> _CheckedRequest:
+    """Check a preview or apply request natively, once, before anything reads the store."""
+
+    from ..native_runner_authority import NativeRunnerAuthorityError, native_runner_authority
+
+    request = {key: payload[key] for key in _CHANGE_REQUEST_KEYS if key in payload}
+    try:
+        answer = native_runner_authority("local_cli_change_request", {"payload": request})
+    except NativeRunnerAuthorityError as error:
+        raise LocalCliApiError(
+            503, "local_cli_check_unavailable", "Guard could not check this change. Try again."
+        ) from error
+    return cast("_CheckedRequest", answer)
+
+
+def _checked_part(checked: _CheckedRequest, part: str) -> object:
+    entry = checked[part]
+    error = entry.get("error")
+    if isinstance(error, str):
+        raise LocalCliApiError(400, error)
+    return entry["value"]
 
 
 _FORGET_ERRORS: dict[str, tuple[int, str]] = {
@@ -436,6 +475,8 @@ class LocalCliApiService:
                     "Confirm starting this configured server to list tools.",
                 )
             item = next((item for item in self._store.list_local_cli_items() if item.get("cli_id") == cli_id), None)
+            if item is not None and item.get("surface") == "cli":
+                return self._start_cli_reload(item, payload)
             if item is None or item.get("surface") != "mcp":
                 raise LocalCliApiError(404, "mcp_refresh_unavailable")
 
@@ -459,6 +500,31 @@ class LocalCliApiService:
                 "discovery_unavailable": "Guard is stopping. Reopen Guard to try discovery again.",
             }
             raise LocalCliApiError(status, code, messages.get(code, "Could not start discovery.")) from error
+
+    def _start_cli_reload(self, item: dict[str, object], payload: dict[str, object]) -> dict[str, object]:
+        home_dir = Path.home()
+        target = verified_cli_for_reload(
+            item,
+            home_dir=home_dir,
+            path=payload.get("path"),
+            launched_paths=lambda: paused_launch_paths(self._store, item, home_dir=home_dir),
+        )
+
+        def reload(cancel: threading.Event) -> None:
+            load_cli_commands(
+                self._store,
+                target,
+                discover=_discover_from_command,
+                home_dir=home_dir,
+                guard_home=self._store.guard_home,
+                cancel=cancel,
+            )
+
+        return self._discovery_jobs.start(
+            target.identity.cli_id,
+            reload,
+            requested_job_id=_client_discovery_job_id(payload),
+        )
 
     def close_discovery(self) -> bool:
         return self._discovery_jobs.close()
@@ -686,7 +752,9 @@ class LocalCliApiService:
             )
         if identity is None:
             raise LocalCliApiError(400, code, message)
-        commands, help_status, source_path = _discover_from_command(command, identity, operator_cwd, home_dir)
+        commands, help_status, source_path = _discover_from_command(
+            command, identity, operator_cwd, home_dir, self._store.guard_home
+        )
         commands = merge_profile_commands(identity.name, commands)
         self._store.record_local_cli_observation(
             identity,
@@ -734,11 +802,29 @@ class LocalCliApiService:
             server_identity_hash=stored_server_hash if isinstance(stored_server_hash, str) else None,
             source_label=stored_source_label if isinstance(stored_source_label, str) else None,
         )
-        if selected_server is None and stored_observation is None and profiled_cli_package_launch(tokens):
+        if (
+            selected_server is None
+            and stored_observation is None
+            and profiled_cli_package_launch(tokens, guard_home=self._store.guard_home)
+        ):
             return None
         # A known connection remains MCP even when its script no longer exists.
         if selected_server is None and not looks_like_mcp_launch(
             tokens, command_text=command, cwd=home_dir, home_dir=home_dir
+        ):
+            return None
+        # A pasted script runs with its own arguments, so only its source can
+        # say it is a server; a known connection or package launcher can, and a
+        # stored one only for the launch it recorded.
+        stored_launch = isinstance(stored_observation, dict) and (
+            stored_observation.get("server_command"),
+            stored_observation.get("server_args_hash"),
+        ) == (launch_identity.command, launch_identity.args_hash)
+        if (
+            selected_server is None
+            and not stored_launch
+            and not is_package_mcp_launcher(tokens)
+            and not script_may_serve_mcp(command, cwd=home_dir, home_dir=home_dir, guard_home=self._store.guard_home)
         ):
             return None
         extra_env = extra_env_for_mcp_launch(
@@ -978,7 +1064,7 @@ class LocalCliApiService:
             code = reason if reason in HOST_FAILURE_CODES else "codex_host_invalid"
             record_discovery_stage_failure(code, error)
             raise DiscoveryStageError(code) from None
-        except (OSError, RuntimeError, TypeError, KeyError, UnicodeError, sqlite3.Error) as error:
+        except (OSError, RuntimeError, TypeError, KeyError, sqlite3.Error) as error:
             record_discovery_stage_failure("codex_host_unavailable", error)
             raise DiscoveryStageError("codex_host_unavailable") from None
 
@@ -1095,9 +1181,10 @@ class LocalCliApiService:
         }
 
     def preview(self, payload: dict[str, object]) -> dict[str, object]:
-        identity, state = self._mutation_from_payload(payload)
+        checked = _checked_change_request(payload)
+        identity, state = self._mutation_from_payload(payload, checked=checked)
         connector_group_request_id(payload, state)
-        self._provider_updates_from_payload(payload)
+        self._provider_updates_from_payload(payload, checked=checked)
         capabilities = capability_choices_from_payload(self._store, payload, cli_id=identity.cli_id, state=state)
         current = self._store.read_local_cli_revision()
         expected = self._required_int(payload, "previous_revision")
@@ -1116,9 +1203,10 @@ class LocalCliApiService:
         }
 
     def apply(self, payload: dict[str, object]) -> dict[str, object]:
-        identity, state = self._mutation_from_payload(payload)
+        checked = _checked_change_request(payload)
+        identity, state = self._mutation_from_payload(payload, checked=checked)
         group_request_id = connector_group_request_id(payload, state)
-        provider_updates = self._provider_updates_from_payload(payload)
+        provider_updates = self._provider_updates_from_payload(payload, checked=checked)
         capabilities = capability_choices_from_payload(self._store, payload, cli_id=identity.cli_id, state=state)
         expected = self._required_int(payload, "previous_revision")
         session_nonce = self._required_string(payload, "session_nonce")
@@ -1146,7 +1234,7 @@ class LocalCliApiService:
             )
         except ApprovalGateError as exc:
             raise LocalCliApiError(exc.status, exc.code, str(exc)) from exc
-        command_states = self._command_states_from_payload(payload)
+        command_states = self._command_states_from_payload(payload, checked=checked)
         catalog_seed = profile_catalog_seed(identity.cli_id, identity.name) if command_states else ()
         from ..native_policy_snapshot import local_cli_publication_status, notify_native_policy_mutation
 
@@ -1164,6 +1252,7 @@ class LocalCliApiService:
                 provider_updates=provider_updates,
                 catalog_seed=catalog_seed,
                 capabilities=capabilities,
+                reviewed_catalog_revision=self._optional_revision(payload, "mcp_catalog_revision"),
             )
         except LocalCliCapabilityError as exc:
             raise capability_api_error(exc) from exc
@@ -1212,79 +1301,36 @@ class LocalCliApiService:
         return {"schema_version": _LOCAL_CLI_API_SCHEMA, "status": "forgotten", "cli_id": cli_id}
 
     @staticmethod
-    def _provider_updates_from_payload(payload: dict[str, object]) -> tuple[tuple[str, str, int], ...]:
-        import re
-
-        raw = payload.get("provider_actions", [])
-        if not isinstance(raw, list) or len(raw) > 100:
-            raise LocalCliApiError(400, "invalid_provider_actions")
-        updates: list[tuple[str, str, int]] = []
-        for entry in raw:
-            if not isinstance(entry, dict) or set(entry) != {"tool_slug", "state", "revision"}:
-                raise LocalCliApiError(400, "invalid_provider_actions")
-            slug, state, revision = entry["tool_slug"], entry["state"], entry["revision"]
-            if (
-                not isinstance(slug, str)
-                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", slug)
-                or state not in ("review", "block")
-                or type(revision) is not int
-                or revision < 1
-            ):
-                raise LocalCliApiError(400, "invalid_provider_actions")
-            updates.append((slug, str(state), revision))
-        if len({slug for slug, _, _ in updates}) != len(updates):
-            raise LocalCliApiError(400, "invalid_provider_actions")
-        return tuple(updates)
-
-    def _mutation_from_payload(self, payload: dict[str, object]) -> tuple[UnlistedCliIdentity, str]:
-        cli_id = self._required_string(payload, "cli_id")
-        identity_hash = self._required_string(payload, "identity_hash")
-        name = self._required_string(payload, "name")
-        kind = self._required_string(payload, "kind")
-        state = self._required_string(payload, "state")
-        if not is_local_cli_id(cli_id):
-            raise LocalCliApiError(400, "invalid_cli_id")
-        if len(identity_hash) != 64 or any(character not in "0123456789abcdef" for character in identity_hash):
-            raise LocalCliApiError(400, "invalid_identity_hash")
-        typed_kind = _cli_kind(kind)
-        if typed_kind is None:
-            raise LocalCliApiError(400, "invalid_cli_kind")
-        if state not in _VALID_STATES:
-            raise LocalCliApiError(400, "invalid_cli_state")
-        example_label = payload.get("example_label")
-        interpreter_name = payload.get("interpreter_name")
-        if example_label is not None and not isinstance(example_label, str):
-            raise LocalCliApiError(400, "invalid_example_label")
-        if interpreter_name is not None and not isinstance(interpreter_name, str):
-            raise LocalCliApiError(400, "invalid_interpreter_name")
-        identity = UnlistedCliIdentity(
-            cli_id=cli_id,
-            name=name[:120],
-            kind=typed_kind,
-            identity_hash=identity_hash,
-            example_label=(example_label or name)[:160],
-            interpreter_name=interpreter_name,
+    def _provider_updates_from_payload(
+        payload: dict[str, object], *, checked: _CheckedRequest | None = None
+    ) -> tuple[tuple[str, str, int], ...]:
+        updates = cast(
+            "list[list[object]]", _checked_part(checked or _checked_change_request(payload), "provider_updates")
         )
-        return identity, state
+        return tuple((str(slug), str(state), cast(int, revision)) for slug, state, revision in updates)
 
-    def _command_states_from_payload(self, payload: dict[str, object]) -> dict[str, LocalCliCommandState]:
-        raw = payload.get("commands")
-        if raw is None:
-            return {}
-        if not isinstance(raw, list) or len(raw) > MAX_LOCAL_CLI_COMMANDS:
-            raise LocalCliApiError(400, "invalid_commands")
-        states: dict[str, LocalCliCommandState] = {}
-        for entry in raw:
-            if not isinstance(entry, dict):
-                raise LocalCliApiError(400, "invalid_commands")
-            command_id = entry.get("command_id")
-            state = entry.get("state")
-            if not isinstance(command_id, str) or not is_local_cli_command_id(command_id):
-                raise LocalCliApiError(400, "invalid_command_id")
-            if state != "inherit" and state != "allow" and state != "review" and state != "block":
-                raise LocalCliApiError(400, "invalid_command_state")
-            states[command_id] = state
-        return states
+    @staticmethod
+    def _mutation_from_payload(
+        payload: dict[str, object], *, checked: _CheckedRequest | None = None
+    ) -> tuple[UnlistedCliIdentity, str]:
+        mutation = cast("dict[str, object]", _checked_part(checked or _checked_change_request(payload), "mutation"))
+        interpreter_name = mutation["interpreter_name"]
+        identity = UnlistedCliIdentity(
+            cli_id=str(mutation["cli_id"]),
+            name=str(mutation["name"]),
+            kind="script" if mutation["kind"] == "script" else "executable",
+            identity_hash=str(mutation["identity_hash"]),
+            example_label=str(mutation["example_label"]),
+            interpreter_name=interpreter_name if isinstance(interpreter_name, str) else None,
+        )
+        return identity, str(mutation["state"])
+
+    @staticmethod
+    def _command_states_from_payload(
+        payload: dict[str, object], *, checked: _CheckedRequest | None = None
+    ) -> dict[str, LocalCliCommandState]:
+        states = cast("list[list[str]]", _checked_part(checked or _checked_change_request(payload), "command_states"))
+        return {command_id: cast("LocalCliCommandState", state) for command_id, state in states}
 
     def _required_string(self, payload: dict[str, object], key: str) -> str:
         value = payload.get(key)
@@ -1296,6 +1342,14 @@ class LocalCliApiService:
         value = payload.get(key)
         if type(value) is not int:
             raise LocalCliApiError(400, f"missing_{key}")
+        return value
+
+    def _optional_revision(self, payload: dict[str, object], key: str) -> int | None:
+        value = payload.get(key)
+        if value is None:
+            return None
+        if type(value) is not int or value < 0:
+            raise LocalCliApiError(400, f"invalid_{key}")
         return value
 
 
@@ -1329,7 +1383,7 @@ def _recognize_mcp_summary(name: str, help_status: str, tool_count: int) -> str:
 def _recognize_summary(name: str, help_status: str, command_count: int) -> str:
     if help_status == "ok":
         return (
-            f"Guard read {command_count} commands from {name} --help. "
+            f"Guard found {command_count} commands in {name}. "
             "Recommended keeps the usual review. Allow or block each command like a built-in tool."
         )
     if help_status == "empty":
@@ -1348,27 +1402,43 @@ def _discover_from_command(
     identity: UnlistedCliIdentity,
     cwd: Path,
     home_dir: Path,
+    guard_home: Path,
+    *,
+    cancel: threading.Event | None = None,
 ) -> tuple[tuple[LocalCliCommand, ...], str, str | None]:
+    """Discover ``identity``'s commands through ``guard_home``'s own resident.
+
+    ``guard_home`` is the daemon's store home, not the operator's home
+    directory. A daemon started on an overridden home must read help text
+    through the resident that home runs; the default home's resident may not
+    exist, and provisioning one there would touch an install this daemon does
+    not serve.
+
+    Once ``cancel`` is set, no further --help process starts.
+    """
+
+    def probe(argv: Sequence[str]) -> str:
+        return "" if cancel is not None and cancel.is_set() else run_cli_help(argv)
+
     source_path: str | None = None
-    for candidate in local_cli_recognition_candidates(command, cwd=cwd, home_dir=home_dir):
-        invocation = help_invocation_for_command(candidate, cwd=cwd, home_dir=home_dir)
+    for candidate in local_cli_recognition_candidates(command, cwd=cwd, home_dir=home_dir, guard_home=guard_home):
+        invocation = help_invocation_for_command(candidate, cwd=cwd, home_dir=home_dir, guard_home=guard_home)
         if invocation is None:
             continue
         matched, argv = invocation
-        if matched.cli_id != identity.cli_id:
+        if (
+            matched.cli_id != identity.cli_id
+            or matched.identity_hash != identity.identity_hash
+            or matched.kind != identity.kind
+            or matched.runner != identity.runner
+        ):
+            # Only the program the caller verified is run; one replaced since
+            # then shares its id but not its identity hash.
             continue
         tool_path = next(iter(argv), None)
         if tool_path is None:
             continue
         source_path = argv[1] if matched.kind == "script" and len(argv) >= 2 else tool_path
-        commands, help_status = discover_local_cli_commands(matched, argv)
+        commands, help_status = discover_local_cli_commands(matched, argv, runner=probe, guard_home=guard_home)
         return commands, help_status, source_path
     return default_local_cli_commands(identity.name), "failed", source_path
-
-
-def _cli_kind(value: str) -> LocalCliKind | None:
-    if value == "executable":
-        return "executable"
-    if value == "script":
-        return "script"
-    return None

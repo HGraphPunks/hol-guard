@@ -12,7 +12,8 @@
 //! extension-control mutation.
 //!
 //! A second query names which risk classes call for a caution, so the
-//! connector setup card and the extension card share one list.
+//! connector setup card and the extension card share one list. A third labels
+//! a stored coverage hint from the same catalog (`approval_extension_coverage`).
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -50,7 +51,7 @@ const TOO_MANY_RISK_CLASSES: &str =
     "native_approval_extension_recommendation_too_many_risk_classes";
 
 /// Longest free-text label, description or example a recommendation carries.
-const MAX_TEXT_CHARS: usize = 240;
+pub(crate) const MAX_TEXT_CHARS: usize = 240;
 const MAX_LABEL_CHARS: usize = 120;
 const MAX_EXAMPLE_CHARS: usize = 160;
 
@@ -98,9 +99,11 @@ fn evaluate_with_snapshot(
     // Bound and digest the request before any catalog work; an oversized
     // request has no digest to bind.
     let request_sha256 = bounded_digest(request)?;
-    // Only a recommend query reads a catalog; the caution list is constant.
+    // Only recommend and coverage queries read a catalog; the caution list is
+    // constant.
     let catalog = match request.query {
-        ApprovalExtensionRecommendationQueryV1::Recommend { .. } => {
+        ApprovalExtensionRecommendationQueryV1::Recommend { .. }
+        | ApprovalExtensionRecommendationQueryV1::Coverage { .. } => {
             admitted_catalog(read_snapshot())
         }
         ApprovalExtensionRecommendationQueryV1::CautionRiskClasses { .. } => None,
@@ -180,6 +183,12 @@ fn decide(
             let catalog = catalog.ok_or_else(|| CATALOG_UNAVAILABLE.to_owned())?;
             Ok(ApprovalExtensionRecommendationPayloadV1::Recommend {
                 recommendation: recommend(hint, registry_catalog_digest, snapshot, catalog)?,
+            })
+        }
+        ApprovalExtensionRecommendationQueryV1::Coverage { hint } => {
+            let catalog = catalog.ok_or_else(|| CATALOG_UNAVAILABLE.to_owned())?;
+            Ok(ApprovalExtensionRecommendationPayloadV1::Coverage {
+                coverage: crate::approval_extension_coverage::coverage(hint, catalog),
             })
         }
         ApprovalExtensionRecommendationQueryV1::CautionRiskClasses { risk_classes } => {
@@ -352,6 +361,11 @@ fn layer_states(layers: &[ExtensionControlLayer], kind: ControlLayerKind) -> Sta
         .collect()
 }
 
+/// Words an action class uses for an effect that destroys what is already
+/// there. A transfer that overwrites its destination is destructive even when
+/// the class never says the word, as `SCP overwrite command` does not.
+const DESTRUCTIVE_ACTION_WORDS: [&str; 2] = ["destructive", "overwrite"];
+
 /// Why an Allow deserves a caution, from the permission and the rules it gates.
 fn caution_reason(permission: &CatalogPermission, rules: &[&CatalogRule]) -> Option<&'static str> {
     if permission.risk_tier == "critical" || rules.iter().any(|rule| rule.severity == "critical") {
@@ -369,7 +383,11 @@ fn caution_reason(permission: &CatalogPermission, rules: &[&CatalogRule]) -> Opt
         .action_classes
         .iter()
         .chain(rules.iter().flat_map(|rule| rule.action_classes.iter()));
-    if action_classes.any(|action_class| action_class.contains("destructive")) {
+    if action_classes.any(|action_class| {
+        DESTRUCTIVE_ACTION_WORDS
+            .iter()
+            .any(|word| action_class.contains(word))
+    }) {
         return Some("destructive");
     }
     let mut risk_classes = rules.iter().flat_map(|rule| rule.risk_classes.iter());
@@ -382,7 +400,7 @@ fn caution_reason(permission: &CatalogPermission, rules: &[&CatalogRule]) -> Opt
 /// Display text with runs of whitespace collapsed (`" ".join(text.split())`,
 /// so the ASCII information separators count as whitespace) and cut to
 /// `limit` characters; `None` when nothing is left.
-fn bounded(text: &str, limit: usize) -> Option<String> {
+pub(crate) fn bounded(text: &str, limit: usize) -> Option<String> {
     let normalized = text
         .split(python_whitespace)
         .filter(|part| !part.is_empty())

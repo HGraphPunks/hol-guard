@@ -14,6 +14,7 @@ from ..store_evidence import (
     export_evidence_json,
     list_evidence,
 )
+from .approval_handoff_route import approval_handoff_location
 from .command_activity_api import (
     handle_command_activity_analytics,
     handle_command_activity_diagnostics,
@@ -21,6 +22,7 @@ from .command_activity_api import (
     handle_command_extensions,
 )
 from .managed_controls_api import managed_policy_rows
+from .request_resolution_wait import requested_resolution_wait_seconds, wait_for_request_resolution
 from .server_common import _ServerProxy
 
 m = _ServerProxy()
@@ -54,6 +56,9 @@ class _DashboardRecordsReadRoutes:
             return True
         if len(path_parts) == 3 and path_parts[:2] == ["v1", "requests"]:
             approval = store.get_approval_request(path_parts[2])
+            wait_seconds = requested_resolution_wait_seconds(parsed.query)
+            if approval is not None and wait_seconds > 0:
+                approval = wait_for_request_resolution(store, path_parts[2], approval, wait_seconds)
             if approval is None and not self._is_hosted_dashboard_origin():
                 from .business_review_queue import NativeBusinessReviewQueueReadError, native_request_detail
 
@@ -193,22 +198,21 @@ class _DashboardRecordsReadRoutes:
                 limit_v = min(max(int(limit_q), 1), 500)
             except (ValueError, TypeError):
                 limit_v = 100
-            with store._connect() as conn:
-                records = list_evidence(
-                    conn,
-                    harness=harness_q if isinstance(harness_q, str) else None,
-                    category=category_q if isinstance(category_q, str) else None,
-                    severity=severity_q if isinstance(severity_q, str) else None,
-                    before_cursor=before_q if isinstance(before_q, str) else None,
-                    limit=limit_v,
-                    include_details=False,
-                )
-                total = count_evidence(
-                    conn,
-                    harness=harness_q if isinstance(harness_q, str) else None,
-                    category=category_q if isinstance(category_q, str) else None,
-                    severity=severity_q if isinstance(severity_q, str) else None,
-                )
+            records = list_evidence(
+                store,
+                harness=harness_q if isinstance(harness_q, str) else None,
+                category=category_q if isinstance(category_q, str) else None,
+                severity=severity_q if isinstance(severity_q, str) else None,
+                before_cursor=before_q if isinstance(before_q, str) else None,
+                limit=limit_v,
+                include_details=False,
+            )
+            total = count_evidence(
+                store,
+                harness=harness_q if isinstance(harness_q, str) else None,
+                category=category_q if isinstance(category_q, str) else None,
+                severity=severity_q if isinstance(severity_q, str) else None,
+            )
             self._write_json(
                 {
                     "items": [evidence_record_to_dict(record) for record in records],
@@ -219,16 +223,15 @@ class _DashboardRecordsReadRoutes:
         if parsed.path == "/v1/evidence/export":
             query = parse_qs(parsed.query)
             format_q = query.get("format", ["json"])[-1]
-            with store._connect() as conn:
-                if format_q == "json":
-                    export_body = export_evidence_json(conn, limit=10_000)
-                    content_type = "application/json"
-                elif format_q == "csv":
-                    export_body = export_evidence_csv(conn, limit=10_000)
-                    content_type = "text/csv; charset=utf-8"
-                else:
-                    self._write_json({"error": "invalid_export_format"}, status=400)
-                    return True
+            if format_q == "json":
+                export_body = export_evidence_json(store, limit=10_000)
+                content_type = "application/json"
+            elif format_q == "csv":
+                export_body = export_evidence_csv(store, limit=10_000)
+                content_type = "text/csv; charset=utf-8"
+            else:
+                self._write_json({"error": "invalid_export_format"}, status=400)
+                return True
             self.send_response(200)
             self.send_header("Content-Type", content_type)
             self.end_headers()
@@ -249,13 +252,24 @@ class _DashboardRecordsReadRoutes:
         if parsed.path == "/v1/read-state":
             self._write_json({"ids": store.get_read_state()})
             return True
-        if parsed.path in m._ROOT_STATIC_FILES:
+        if m._is_public_static_path(parsed.path):
             self._write_static_asset(parsed.path.removeprefix("/"))
             return True
-        if parsed.path.startswith("/assets/") or parsed.path.startswith("/brand/"):
-            self._write_static_asset(parsed.path.removeprefix("/"))
+        if self._serve_approval_handoff(parsed.path):
             return True
         if self._is_dashboard_route(parsed.path):
             self._write_dashboard_shell()
             return True
         return False
+
+    def _serve_approval_handoff(self, path: str) -> bool:
+        location = approval_handoff_location(path, auth_token=self.server.auth_token)
+        if location is None:
+            return False
+        self.send_response(303)
+        self.send_header("Location", location)
+        self.send_header("Cache-Control", "no-store, max-age=0")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+        return True

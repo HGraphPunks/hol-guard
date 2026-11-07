@@ -1,0 +1,14 @@
+import subprocess
+import time
+import unittest
+
+DETACHED = HOL_DETACHED_CODE_JSON
+
+
+class Lifecycle(unittest.TestCase):
+    def test_detached_lifecycle(self):
+        child = subprocess.Popen(["/usr/bin/python3", "-I", "-B", "-c", DETACHED],
+                                 start_new_session=True, stdin=subprocess.DEVNULL,
+                                 stdout=subprocess.DEVNULL)
+        time.sleep(60)
+        child.wait(timeout=5)

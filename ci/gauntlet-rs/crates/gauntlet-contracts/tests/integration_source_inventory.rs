@@ -30,10 +30,12 @@ fn merged_gauntlet_source_matches_the_explicit_pinned_delta() {
         .collect();
     let changed = delta["changed"].as_array().unwrap();
     let added = delta["added"].as_array().unwrap();
-    // Main through 4a654ea8 updates the catalog, metadata probes and CI docs.
+    // Native-cell adapters and reviewed upstream fixture/judge coverage update
+    // these bytes; the 420-file oracle is immutable.
+    // Upstream now includes the OMP approval-retry lane in lane_coverage.py.
     // Every tracked byte is still checked against the reviewed source map.
-    assert_eq!(changed.len(), 58);
-    assert_eq!(added.len(), 7);
+    assert_eq!(changed.len(), 79);
+    assert_eq!(added.len(), 20);
     for entry in changed {
         let path = entry["path"].as_str().unwrap();
         assert_eq!(expected.get(path), entry["base_sha256"].as_str().as_ref());

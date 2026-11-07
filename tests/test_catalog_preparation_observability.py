@@ -28,7 +28,9 @@ def prepared(tmp_path, monkeypatch):
     """Isolated discovery module state that starts no background IO of its own."""
 
     home = (tmp_path / "home").absolute()
-    for field, value in dict(_home=home, _worker=None, _handle=None, _retry_after=0.0, _failures=0).items():
+    for field, value in dict(
+        _home=home, _worker=None, _handle=None, _retry_after=0.0, _failures=0, _noted_engine_mismatch=None
+    ).items():
         monkeypatch.setattr(discovery, field, value)
     monkeypatch.setattr(discovery, "_cached", None)
     monkeypatch.setattr(discovery, "request_refresh", lambda *_args, **_kwargs: None)
