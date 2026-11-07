@@ -206,6 +206,7 @@ pub fn read_repaired_native_dependencies(
 fn reclaim(
     intent: &DependencyRunIntent,
     still_owned: &impl Fn() -> Result<(), String>,
+    phase: &mut &str,
 ) -> Result<(), String> {
     use crate::builder_candidate_preflight::{verify_candidate_runtime, CandidateRuntimePins};
     let p = &intent.pins;
@@ -218,9 +219,11 @@ fn reclaim(
         p.text("seccomp_sha256"),
     )
     .map_err(|e| e.to_string())?;
+    *phase = "runtime-pins";
     verify_candidate_runtime(&runtime).map_err(|e| e.to_string())?;
     let slot =
         crate::builder_candidate_source::open_fixed_build_slot(job).map_err(|e| e.to_string())?;
+    *phase = "retained-cgroup";
     // Missing historical kernel custody cannot authorize adopting an active group.
     crate::feature_files::required(
         &slot,
@@ -231,8 +234,10 @@ fn reclaim(
     )?;
     let mut group =
         crate::builder_cgroup::OwnedCandidateCgroup::reopen_candidate(&slot, job, &digest)?;
+    *phase = "retained-container";
     let cid = container_identity(&slot, &digest)?;
     let container = crate::dependency_podman::DependencyContainer::restore(intent, &cid)?;
+    *phase = "retained-policy";
     let profile = format!("hol-gauntlet-build-{job}");
     let policy = if crate::builder_policy::profile_absent(&profile).map_err(|e| e.to_string())? {
         None
@@ -244,19 +249,24 @@ fn reclaim(
         ))
     };
     still_owned()?;
+    *phase = "client-kill";
     if let Some(group) = &group {
         group.kill().map_err(|e| e.to_string())?;
     }
     still_owned()?;
+    *phase = "container-drain";
     container.drain()?;
+    *phase = "client-drain";
     if let Some(group) = &mut group {
         group.drain_and_remove().map_err(|e| e.to_string())?;
     }
     crate::dependency_state::client_group_absent(job)?;
+    *phase = "policy-remove";
     if let Some(policy) = policy {
         still_owned()?;
         crate::builder_policy::run_parser("--remove", &policy).map_err(|e| e.to_string())?;
     }
+    *phase = "resource-absence";
     crate::dependency_podman::verify_completed_absent(intent, &cid)
 }
 
@@ -329,26 +339,116 @@ fn repair(
     if read_only {
         return Err("dependency has no retained repair; read never authorizes cleanup".into());
     }
+    let mut phase = "recovery-preflight";
+    let result: Result<Vec<u8>, String> = (|| {
+        if owned {
+            reclaim(&intent, &still_owned, &mut phase)?;
+        }
+        phase = "quiescent-body";
+        let raw = canonicalize(
+            body(&journal, &intent, repair_generation, owned)?
+                .to_string()
+                .as_bytes(),
+        )
+        .map_err(|e| e.to_string())?;
+        still_owned()?;
+        phase = "repair-commit";
+        crate::terminal::create_durable(
+            &journal.root,
+            &format!("{job}.dependency-repair.json"),
+            &raw,
+        )
+        .map_err(|e| e.to_string())?;
+        phase = "repair-readback";
+        let observed =
+            verified(&journal, &intent)?.ok_or("dependency recovery commit unavailable")?;
+        if observed != raw {
+            return Err("dependency recovery changed after commit".into());
+        }
+        still_owned()?;
+        Ok(raw)
+    })();
     if owned {
-        reclaim(&intent, &still_owned)?;
+        if let Err(error) = &result {
+            still_owned()?;
+            retain_failure(&intent, expected_started, repair_generation, phase, error)
+                .map_err(|e| format!("{error}; private repair diagnostic unavailable: {e}"))?;
+            still_owned()?;
+        }
     }
-    let raw = canonicalize(
-        body(&journal, &intent, repair_generation, owned)?
-            .to_string()
-            .as_bytes(),
-    )
-    .map_err(|e| e.to_string())?;
-    still_owned()?;
-    crate::terminal::create_durable(
-        &journal.root,
-        &format!("{job}.dependency-repair.json"),
+    result
+}
+
+fn error_detail(error: &str) -> Value {
+    let end = (0..=error.len().min(1024))
+        .rev()
+        .find(|n| error.is_char_boundary(*n))
+        .unwrap_or(0);
+    json!({"sha256":format!("{:x}",Sha256::digest(error.as_bytes())),
+        "bytes":error.len(),"prefix":&error[..end],"truncated":end<error.len()})
+}
+
+fn retain_failure(
+    intent: &DependencyRunIntent,
+    started: &str,
+    generation: &str,
+    phase: &str,
+    error: &str,
+) -> Result<(), String> {
+    use ring::rand::{SecureRandom, SystemRandom};
+    let mut random = [0u8; 8];
+    SystemRandom::new()
+        .fill(&mut random)
+        .map_err(|_| "repair diagnostic identity unavailable")?;
+    let attempt: String = random.iter().map(|b| format!("{b:02x}")).collect();
+    let job = intent.pins.text("job_id");
+    let slot =
+        crate::builder_candidate_source::open_fixed_build_slot(job).map_err(|e| e.to_string())?;
+    let value = json!({"schema":"hol-gauntlet-private-dependency-repair-failure.v1",
+        "job_id":job,"source_sha":intent.pins.text("source_sha"),"intent_sha256":intent.digest()?,
+        "worker_generation":intent.pins.text("runner_binary_sha256"),"repair_generation":generation,
+        "started_marker_sha256":started,"attempt_id":attempt,"phase":phase,"error":error_detail(error),
+        "status":"unknown","exit_code":null,"artifact_admitted":false,"execution_eligible":false,
+        "qualification_eligible":false,"guard_causality_verified":false,"model_requests":0,"model_tokens":0});
+    let raw = canonicalize(value.to_string().as_bytes()).map_err(|e| e.to_string())?;
+    if raw.len() > 8192 {
+        return Err("private repair diagnostic exceeds bound".into());
+    }
+    // Private diagnostics never enter the public repair/read protocol.
+    crate::feature_files::write(
+        &slot,
+        &format!("dependency-repair-error-{attempt}.json"),
         &raw,
+        (0, 0),
+        0o600,
     )
-    .map_err(|e| e.to_string())?;
-    let observed = verified(&journal, &intent)?.ok_or("dependency recovery commit unavailable")?;
-    if observed != raw {
-        return Err("dependency recovery changed after commit".into());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn private_error_prefix_is_utf8_bounded_and_hashes_the_entire_error() {
+        for error in [
+            "😀".repeat(2048),
+            "\u{0000}".repeat(8192),
+            "a".repeat(1023) + "😀",
+        ] {
+            let v = error_detail(&error);
+            assert!(v["prefix"].as_str().unwrap().len() <= 1024);
+            assert!(error.starts_with(v["prefix"].as_str().unwrap()));
+            assert_eq!(v["bytes"], error.len());
+            assert_eq!(
+                v["sha256"],
+                format!("{:x}", Sha256::digest(error.as_bytes()))
+            );
+            assert_eq!(v["truncated"], true);
+            assert!(canonicalize(v.to_string().as_bytes()).unwrap().len() < 8192);
+        }
+        let a = error_detail(&("a".repeat(1024) + "original"));
+        let b = error_detail(&("a".repeat(1024) + "different"));
+        assert_eq!(a["prefix"], b["prefix"]);
+        assert_ne!(a["sha256"], b["sha256"]);
+        assert_eq!(error_detail("short")["truncated"], false);
     }
-    still_owned()?;
-    Ok(raw)
 }

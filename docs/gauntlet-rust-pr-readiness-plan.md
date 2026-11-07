@@ -18,6 +18,13 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
+- The existing repair module now retains bounded private failure diagnostics
+  under verified leases without exposing worker stderr in the host protocol.
+  All 675 Mac tests, formatting, Mac/ARM Clippy and builds pass; source manifest
+  `e26d1003…` and local validation `246e8d1c…` bind this followup. Freeze the
+  committed binaries, run the ARM boundary/secure-file tests, then launch fresh
+  job `d16ae4c3b72509f8` to capture the first repair failure immediately. Its
+  inputs are prepared; it has not launched. No new repository file is added.
 - Continue `codex/gauntlet-rust-finish-20261105`. Dependency recovery is
   implemented at `54cda0b80`; upstream `e43ca02cf` is merged as `efa6f05e3`.
   [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5) stays draft.

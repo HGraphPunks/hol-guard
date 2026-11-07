@@ -281,6 +281,11 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
   - [ ] Diagnose the first active dependency repair refusal and complete
   pre-CID/partial-state recovery. The first job's delayed active check also
   remains a retained failure. Qualification stays open; no parent exit closes.
+    - [x] Add private phase/error diagnostics to the existing 454-line repair
+    module, with exclusive durable writes under verified leases, bounded UTF-8
+    prefixes and full-error hashes. Public protocol and admission stay unchanged.
+    All 675 Mac tests, formatting, Mac/ARM Clippy and builds pass; ARM execution
+    and fresh reproduction are pending. See [diagnostics](gauntlet-rust-hostbound-candidate-build-proof.md#private-repair-failure-diagnostics).
   - [x] Add fixed dependency reconciliation to the primary host and existing
   diagnostic, reusing original intent/VM bindings, terminal verification and
   the inert ZIP reader. The Root path acquires four leases and addresses only

@@ -566,6 +566,29 @@ nonces. Earlier bundles and failures remain immutable; remote delivery and
 independent review remain open. Broader partial-state recovery, first-call
 failure diagnosis and every qualification exit remain open; no parent closes.
 
+### Private repair failure diagnostics
+
+The repair path now retains a separate Root-owned 0600 diagnostic when an
+authorized cleanup or receipt step fails under the four verified leases.
+It binds the job, original intent/reservation and worker/repair generations,
+records the failing phase, and hashes the complete error while bounding its
+UTF-8 prefix to 1,024 bytes. A fresh exclusive filename preserves each attempt.
+The canonical record is capped at 8,192 bytes, reports unknown/null-exit state
+and carries no admission authority. It is never returned by public read/repair.
+Diagnostic-write failure also refuses; it cannot turn cleanup into a success.
+
+Only the existing repair module changes, remaining at 454 lines. No repository
+file, crate, binary target or dependency is added. All 675 Mac tests,
+formatting, Mac/ARM warnings-denied Clippy and builds pass. The ARM test ELF
+adds UTF-8/control-byte boundary coverage and full-error hashing; its execution
+and fresh interruption reproduction remain pending at this checkpoint.
+Source manifest `dependency-repair-diagnostic-20261107-source-001.json` hashes
+to `e26d1003c450fe11220b3ab72358f35e4aa424d980e177e4a54d6aac215287a2`.
+Local validation `dependency-repair-diagnostic-20261107-validation-001.json`
+binds seven records/six logs and hashes to
+`246e8d1c81deeff36f5b35000d6b29474a26022fa2fa2a5eb7a64b4c526d7f99`.
+The first active repair refusal is still unexplained; old evidence is unchanged.
+
 ## Dependency reconciliation without relaunch
 
 `gauntlet-host dependencies run|read` and the existing dependency diagnostic
