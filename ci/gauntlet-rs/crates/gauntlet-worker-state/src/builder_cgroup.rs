@@ -53,6 +53,33 @@ impl OwnedBuilderCgroup {
 }
 
 impl OwnedCandidateCgroup {
+    pub(crate) fn retain_candidate(
+        &self,
+        slot: &OwnedFd,
+        job: &str,
+        binding: &str,
+    ) -> Result<(), String> {
+        if !hex(job, 16)
+            || !hex(binding, 64)
+            || self.path() != format!("/system.slice/hol-gauntlet-rust-candidate-{job}")
+        {
+            return Err("candidate cgroup differs from reserved request".into());
+        }
+        let identity = self.inner.identity().map_err(|e| e.to_string())?;
+        crate::builder_candidate_receipt::write_root_canonical_job_file(
+            slot,
+            "candidate-client-cgroup.v1.json",
+            &json!({"schema":"hol-gauntlet-candidate-client-cgroup.v1",
+                "job_id":job,"binding_sha256":binding,"cgroup":self.path(),
+                "boot_id":boot_id()?,"device":identity.0,"inode":identity.1}),
+        )
+        .map_err(|e| e.to_string())?;
+        if self.inner.identity().map_err(|e| e.to_string())? != identity {
+            return Err("candidate cgroup changed during identity commit".into());
+        }
+        Ok(())
+    }
+
     pub(crate) fn retain_feature(
         &self,
         slot: &OwnedFd,
@@ -73,6 +100,43 @@ impl OwnedCandidateCgroup {
             return Err("feature cgroup changed during identity commit".into());
         }
         Ok(())
+    }
+
+    pub(crate) fn reopen_candidate(
+        slot: &OwnedFd,
+        job: &str,
+        binding: &str,
+    ) -> Result<Option<Self>, String> {
+        if !hex(job, 16) || !hex(binding, 64) {
+            return Err("fixed candidate cgroup identity required".into());
+        }
+        let raw = crate::feature_files::read(
+            slot,
+            "candidate-client-cgroup.v1.json",
+            (0, 0),
+            0o600,
+            2048,
+        )?;
+        let retained = raw
+            .as_deref()
+            .map(|raw| group_identity(raw, job, binding, false))
+            .transpose()?;
+        let name = format!("hol-gauntlet-rust-candidate-{job}");
+        let path = format!("/system.slice/{name}");
+        match std::fs::symlink_metadata(format!("/sys/fs/cgroup{path}")) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(e.to_string()),
+            Ok(_) => {}
+        }
+        let (boot, device, inode) =
+            retained.ok_or("active candidate cgroup lacks retained kernel identity")?;
+        if boot != boot_id()? {
+            return Err("candidate cgroup boot identity differs".into());
+        }
+        Ok(Some(Self {
+            inner: OwnedProbeGroup::reopen_named(name, path, (device, inode))
+                .map_err(|e| e.to_string())?,
+        }))
     }
 
     pub(crate) fn reopen_feature(
@@ -186,7 +250,31 @@ fn boot_id() -> Result<String, String> {
     Ok(text.into())
 }
 fn feature_identity(raw: &[u8], intent: &FeatureRunIntent) -> Result<(String, u64, u64), String> {
+    group_identity(raw, intent.pins().audit_id(), &intent.digest()?, true)
+}
+
+fn group_identity(
+    raw: &[u8],
+    id: &str,
+    binding: &str,
+    feature: bool,
+) -> Result<(String, u64, u64), String> {
     let v: Value = crate::feature_journal::canonical(raw)?;
+    let (schema, id_key, binding_key, kind) = if feature {
+        (
+            "hol-gauntlet-native-feature-client-cgroup.v1",
+            "audit_id",
+            "intent_sha256",
+            "feature",
+        )
+    } else {
+        (
+            "hol-gauntlet-candidate-client-cgroup.v1",
+            "job_id",
+            "binding_sha256",
+            "candidate",
+        )
+    };
     let boot = v["boot_id"]
         .as_str()
         .filter(|s| valid_boot_id(s))
@@ -199,16 +287,12 @@ fn feature_identity(raw: &[u8], intent: &FeatureRunIntent) -> Result<(String, u6
         .filter(|n| *n != 0)
         .ok_or("feature cgroup inode missing")?;
     if v.as_object().is_none_or(|v| v.len() != 7)
-        || v["schema"] != "hol-gauntlet-native-feature-client-cgroup.v1"
-        || v["audit_id"] != intent.pins().audit_id()
-        || v["intent_sha256"] != intent.digest()?
-        || v["cgroup"]
-            != format!(
-                "/system.slice/hol-gauntlet-rust-feature-{}",
-                intent.pins().audit_id()
-            )
+        || v["schema"] != schema
+        || v[id_key] != id
+        || v[binding_key] != binding
+        || v["cgroup"] != format!("/system.slice/hol-gauntlet-rust-{kind}-{id}")
     {
-        return Err("feature cgroup receipt differs from reserved intent".into());
+        return Err("cgroup receipt differs from reserved intent".into());
     }
     Ok((boot.into(), device, inode))
 }
@@ -252,6 +336,36 @@ mod tests {
     }
 
     #[test]
+    fn candidate_kernel_receipt_refuses_foreign_and_ambiguous_bindings() {
+        let job = "0123456789abcdef";
+        let binding = "b".repeat(64);
+        let v = json!({"schema":"hol-gauntlet-candidate-client-cgroup.v1",
+            "job_id":job,"binding_sha256":binding,
+            "cgroup":format!("/system.slice/hol-gauntlet-rust-candidate-{job}"),
+            "boot_id":"01234567-89ab-cdef-0123-456789abcdef","device":29,"inode":42});
+        for (key, wrong) in [
+            (
+                "schema",
+                json!("hol-gauntlet-native-feature-client-cgroup.v1"),
+            ),
+            ("job_id", json!("f".repeat(16))),
+            ("binding_sha256", json!("f".repeat(64))),
+            ("cgroup", json!("/system.slice/foreign")),
+            ("boot_id", json!("bad")),
+            ("device", json!(29.0)),
+            ("inode", json!(0)),
+            ("extra", json!(null)),
+        ] {
+            let raw = gauntlet_contracts::canonicalize(v.to_string().as_bytes()).unwrap();
+            assert_eq!(group_identity(&raw, job, &binding, false).unwrap().2, 42);
+            let mut bad = v.clone();
+            bad[key] = wrong;
+            let raw = gauntlet_contracts::canonicalize(bad.to_string().as_bytes()).unwrap();
+            assert!(group_identity(&raw, job, &binding, false).is_err(), "{key}");
+        }
+    }
+
+    #[test]
     #[ignore = "requires the owned Linux VM, Root and both worker leases"]
     fn feature_recovery_reopens_only_the_original_kernel_group() {
         use std::os::unix::fs::PermissionsExt;
@@ -262,81 +376,102 @@ mod tests {
         .unwrap();
         let lease = main.acquire_active_lease().unwrap();
         let legacy = crate::builder_image_context::python_worker_lock().unwrap();
-        let mut v: Value =
-            serde_json::from_slice(&crate::feature_journal::tests::fixture().bytes().unwrap())
-                .unwrap();
-        let id = format!("f1{:014x}", std::process::id());
-        v["pins"]["executor_spec"]["audit_id"] = json!(id);
-        let intent = FeatureRunIntent::parse(
-            &gauntlet_contracts::canonicalize(v.to_string().as_bytes()).unwrap(),
-        )
-        .unwrap();
-        let temp = tempfile::tempdir().unwrap();
-        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
-        let slot = rustix::fs::open(
-            temp.path(),
-            rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::DIRECTORY,
-            rustix::fs::Mode::empty(),
-        )
-        .unwrap();
-        let group = OwnedCandidateCgroup::create_feature(&id).unwrap();
-        assert!(OwnedCandidateCgroup::reopen_feature(Some(&slot), &intent).is_err());
-        group.retain_feature(&slot, &intent).unwrap();
-        let receipt_path = temp.path().join("feature-client-cgroup.v1.json");
-        let original = std::fs::read(&receipt_path).unwrap();
-        let spawn = |group: &OwnedCandidateCgroup| {
-            let mut command = Command::new("/bin/sh");
-            command.args(["-c", "/usr/bin/sleep 30 & wait"]);
-            group.attach_child(&mut command).unwrap();
-            let child = command.spawn().unwrap();
-            let until = std::time::Instant::now() + std::time::Duration::from_secs(2);
-            while group.inner.tasks().unwrap() < 2 {
-                assert!(
-                    std::time::Instant::now() < until,
-                    "child and descendant were not both observed"
-                );
-                std::thread::sleep(std::time::Duration::from_millis(10));
-            }
-            child
-        };
-        let mut child = spawn(&group);
-        for (key, wrong) in [
-            ("inode", json!(u64::MAX)),
-            ("boot_id", json!("00000000-0000-0000-0000-000000000000")),
-        ] {
-            let mut changed: Value = serde_json::from_slice(&original).unwrap();
-            changed[key] = wrong;
-            std::fs::write(
-                &receipt_path,
-                gauntlet_contracts::canonicalize(changed.to_string().as_bytes()).unwrap(),
+        for feature in [true, false] {
+            let mut v: Value =
+                serde_json::from_slice(&crate::feature_journal::tests::fixture().bytes().unwrap())
+                    .unwrap();
+            let id = format!("f1{:014x}", std::process::id());
+            v["pins"]["executor_spec"]["audit_id"] = json!(id);
+            let intent = FeatureRunIntent::parse(
+                &gauntlet_contracts::canonicalize(v.to_string().as_bytes()).unwrap(),
             )
             .unwrap();
-            assert!(OwnedCandidateCgroup::reopen_feature(Some(&slot), &intent).is_err());
-            assert!(child.try_wait().unwrap().is_none());
-        }
-        std::fs::write(&receipt_path, b"{").unwrap();
-        assert!(OwnedCandidateCgroup::reopen_feature(Some(&slot), &intent).is_err());
-        assert!(child.try_wait().unwrap().is_none());
-        std::fs::write(&receipt_path, original).unwrap();
-        let mut reopened = OwnedCandidateCgroup::reopen_feature(Some(&slot), &intent)
-            .unwrap()
+            let temp = tempfile::tempdir().unwrap();
+            std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+            let slot = rustix::fs::open(
+                temp.path(),
+                rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::DIRECTORY,
+                rustix::fs::Mode::empty(),
+            )
             .unwrap();
-        reopened.kill().unwrap();
-        assert_eq!(child.wait().unwrap().signal(), Some(libc::SIGKILL));
-        reopened.drain_and_remove().unwrap();
-        assert!(OwnedCandidateCgroup::reopen_feature(Some(&slot), &intent)
-            .unwrap()
-            .is_none());
-        let mut replacement = OwnedCandidateCgroup::create_feature(&id).unwrap();
-        let mut replacement_child = spawn(&replacement);
-        assert!(OwnedCandidateCgroup::reopen_feature(Some(&slot), &intent).is_err());
-        assert!(replacement_child.try_wait().unwrap().is_none());
-        replacement.kill().unwrap();
-        assert_eq!(
-            replacement_child.wait().unwrap().signal(),
-            Some(libc::SIGKILL)
-        );
-        replacement.drain_and_remove().unwrap();
+            let binding = intent.digest().unwrap();
+            let create = || {
+                if feature {
+                    OwnedCandidateCgroup::create_feature(&id)
+                } else {
+                    OwnedCandidateCgroup::create(&id)
+                }
+            };
+            let reopen = || {
+                if feature {
+                    OwnedCandidateCgroup::reopen_feature(Some(&slot), &intent)
+                } else {
+                    OwnedCandidateCgroup::reopen_candidate(&slot, &id, &binding)
+                }
+            };
+            let group = create().unwrap();
+            assert!(reopen().is_err());
+            if feature {
+                group.retain_feature(&slot, &intent).unwrap();
+            } else {
+                group.retain_candidate(&slot, &id, &binding).unwrap();
+            }
+            let receipt_path = temp.path().join(if feature {
+                "feature-client-cgroup.v1.json"
+            } else {
+                "candidate-client-cgroup.v1.json"
+            });
+            let original = std::fs::read(&receipt_path).unwrap();
+            let spawn = |group: &OwnedCandidateCgroup| {
+                let mut command = Command::new("/bin/sh");
+                command.args(["-c", "/usr/bin/sleep 30 & wait"]);
+                group.attach_child(&mut command).unwrap();
+                let child = command.spawn().unwrap();
+                let until = std::time::Instant::now() + std::time::Duration::from_secs(2);
+                while group.inner.tasks().unwrap() < 2 {
+                    assert!(
+                        std::time::Instant::now() < until,
+                        "child and descendant were not both observed"
+                    );
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                child
+            };
+            let mut child = spawn(&group);
+            for (key, wrong) in [
+                ("inode", json!(u64::MAX)),
+                ("boot_id", json!("00000000-0000-0000-0000-000000000000")),
+            ] {
+                let mut changed: Value = serde_json::from_slice(&original).unwrap();
+                changed[key] = wrong;
+                std::fs::write(
+                    &receipt_path,
+                    gauntlet_contracts::canonicalize(changed.to_string().as_bytes()).unwrap(),
+                )
+                .unwrap();
+                assert!(reopen().is_err());
+                assert!(child.try_wait().unwrap().is_none());
+            }
+            std::fs::write(&receipt_path, b"{").unwrap();
+            assert!(reopen().is_err());
+            assert!(child.try_wait().unwrap().is_none());
+            std::fs::write(&receipt_path, original).unwrap();
+            let mut reopened = reopen().unwrap().unwrap();
+            reopened.kill().unwrap();
+            assert_eq!(child.wait().unwrap().signal(), Some(libc::SIGKILL));
+            reopened.drain_and_remove().unwrap();
+            assert!(reopen().unwrap().is_none());
+            let mut replacement = create().unwrap();
+            let mut replacement_child = spawn(&replacement);
+            assert!(reopen().is_err());
+            assert!(replacement_child.try_wait().unwrap().is_none());
+            replacement.kill().unwrap();
+            assert_eq!(
+                replacement_child.wait().unwrap().signal(),
+                Some(libc::SIGKILL)
+            );
+            replacement.drain_and_remove().unwrap();
+        }
         lease.verify(&main.root).unwrap();
         crate::builder_image_context::verify_python_lock(&legacy).unwrap();
     }

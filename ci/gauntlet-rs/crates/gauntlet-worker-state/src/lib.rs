@@ -211,6 +211,8 @@ pub use native_runtime_publish::publish_native_runtime;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_runtime_receipt::NativeRuntimePins;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod candidate_repair;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_result_read;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_shadow_assets;
@@ -577,6 +579,8 @@ pub use candidate_prefix_clone::{
     clone_captured_candidate_prefix_ineligible, CandidatePrefixCloneError,
     CandidatePrefixClonePins, CandidatePrefixCloneProof,
 };
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use candidate_repair::repair_hostbound_candidate_ineligible;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_result_read::{
     read_fixed_candidate_result_ineligible, read_fixed_hostbound_candidate_result_ineligible,

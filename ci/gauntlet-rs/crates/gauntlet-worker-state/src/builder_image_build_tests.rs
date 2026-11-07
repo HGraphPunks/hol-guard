@@ -151,6 +151,26 @@ fn candidate_timeout_stops_its_container_and_refuses_a_foreign_binding() {
         Ok(())
     };
     let observe = |_, group: &str| {
+        // The Root identity must be durable before the first child callback.
+        let retained = crate::feature_files::required(
+            &slot,
+            "candidate-client-cgroup.v1.json",
+            (0, 0),
+            0o600,
+            2048,
+        )
+        .unwrap();
+        let retained: Value = serde_json::from_slice(&retained).unwrap();
+        assert_eq!(retained["binding_sha256"], binding);
+        assert_eq!(retained["job_id"], job);
+        assert!(
+            crate::builder_cgroup::OwnedCandidateCgroup::reopen_candidate(
+                &slot,
+                &job,
+                &foreign_binding,
+            )
+            .is_err()
+        );
         assert_eq!(
             group,
             format!("/system.slice/hol-gauntlet-rust-candidate-{job}")
@@ -207,6 +227,7 @@ fn candidate_timeout_stops_its_container_and_refuses_a_foreign_binding() {
         candidate_timeout_probe(
             &attached,
             &slot,
+            &binding,
             &still_owned,
             &|| owned
                 .drain()

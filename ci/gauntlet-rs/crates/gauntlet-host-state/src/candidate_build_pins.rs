@@ -289,6 +289,11 @@ fn same_directory(left: &Stat, right: &Stat) -> bool {
 }
 
 impl HostCandidateBuildPinJournal {
+    pub(crate) fn directory(&self) -> Result<&OwnedFd, HostCandidateBuildPinError> {
+        self.stable_directory()?;
+        Ok(&self.directory)
+    }
+
     /// Open a caller-created 0700 directory outside the Python observer's
     /// state. A journal here cannot itself prove a launch happened afterward.
     pub fn open(path: &Path) -> Result<Self, HostCandidateBuildPinError> {

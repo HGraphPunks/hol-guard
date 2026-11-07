@@ -309,6 +309,45 @@ impl<'a> CandidateContainer<'a> {
         })
     }
 
+    pub(crate) fn restore(
+        plan: &'a crate::BuilderRunPlan,
+        image: &'a str,
+        podman: &'a str,
+        binding: &'a str,
+        slot: &OwnedFd,
+    ) -> Result<Self, String> {
+        let mut owner = Self::new(plan, image, podman, binding)?;
+        let raw = crate::feature_files::required(
+            slot,
+            "candidate-container.v1.json",
+            (0, 0),
+            0o600,
+            8192,
+        )?;
+        let v = crate::feature_journal::canonical(&raw)?;
+        let cid = v["container_id"]
+            .as_str()
+            .filter(|s| hex(s, 64))
+            .ok_or("retained full candidate CID required")?;
+        if v.as_object().is_none_or(|v| v.len() != 7)
+            || v["schema"] != "hol-gauntlet-candidate-container.v1"
+            || v["job_id"] != plan.job_id
+            || v["image_id"] != image
+            || v["binding_sha256"] != binding
+            || v["source_archive_sha256"] != plan.source_archive_sha256
+            || v["execution_eligible"] != false
+        {
+            return Err("candidate container receipt differs from reserved request".into());
+        }
+        owner.cid = Some(cid.into());
+        owner.identity()?;
+        Ok(owner)
+    }
+
+    pub(crate) fn id(&self) -> Option<&str> {
+        self.cid.as_deref()
+    }
+
     pub(crate) fn drain(&self) -> Result<(), String> {
         if let Some(cid) = self.identity()? {
             crate::dependency_podman::run(
@@ -316,6 +355,10 @@ impl<'a> CandidateContainer<'a> {
                 &["rm".into(), "--force".into(), "--time=5".into(), cid],
             )?;
         }
+        self.verify_absent()
+    }
+
+    pub(crate) fn verify_absent(&self) -> Result<(), String> {
         if self.identity()?.is_some() {
             return Err("candidate container survived cleanup".into());
         }

@@ -6,6 +6,7 @@ use crate::fixed_process::{run_fixed, FixedProcessError};
 use crate::{load_operations_bytes, HostCandidateBuildPinJournal, HostCandidateBuildPinRecord};
 use gauntlet_contracts::canonicalize;
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::fmt;
 use std::time::Duration;
 
@@ -20,6 +21,235 @@ pub enum VmHostBoundCandidateResultError {
     Unavailable,
     TimedOut,
     TooLarge,
+}
+
+/// Explicit recovery of the exact host-reserved build. Its durable authorization
+/// permits cleanup and an aborted/null-exit receipt, never a workload retry.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VmHostBoundCandidateRepairPlan {
+    argv: Vec<String>,
+    record: HostCandidateBuildPinRecord,
+    anchor_sha256: String,
+    generation: String,
+}
+
+fn digest(raw: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(raw))
+}
+
+impl VmHostBoundCandidateRepairPlan {
+    pub fn new(
+        operations: &Value,
+        journal: &HostCandidateBuildPinJournal,
+        job: &str,
+        generation: &str,
+    ) -> Result<Self, String> {
+        if !lower_hex(job, 16) || !lower_hex(generation, 64) {
+            return Err("exact candidate repair job and binary pins required".into());
+        }
+        let config =
+            load_operations_bytes(operations.to_string().as_bytes()).map_err(|e| e.to_string())?;
+        let record = journal.read(job).map_err(|e| e.to_string())?;
+        let limactl = config["limactl"]
+            .as_str()
+            .ok_or("candidate repair transport missing")?;
+        let vm = config["vm"].as_str().ok_or("candidate repair VM missing")?;
+        if config["release_build_backend"] != "local-vm"
+            || record
+                .vm_target
+                .as_ref()
+                .is_none_or(|(l, v)| l != limactl || v != vm)
+        {
+            return Err("candidate repair requires the original host-reserved VM".into());
+        }
+        let p = &record.pins;
+        let anchor = json!({"schema":"hol-gauntlet-candidate-host-anchor.v2",
+            "job_id":p.job_id,"source_sha":p.source_sha,"source_archive_sha256":p.source_archive_sha256,
+            "version":p.version,"tag":p.tag,"controller_tree_sha256":p.controller_tree_sha256,
+            "image_id":p.builder_image_id,"policy_sha256":p.policy_sha256,
+            "runtime_pins":{"podman_sha256":p.podman_sha256,"slirp4netns_sha256":p.slirp4netns_sha256,
+                "apparmor_parser_sha256":p.apparmor_parser_sha256,"seccomp_sha256":p.seccomp_sha256},
+            "runner_binary_sha256":p.runner_binary_sha256,"result_reader_binary_sha256":p.result_reader_binary_sha256,
+            "host_pin_sha256":record.raw_sha256,"host_nonce_hex":record.host_nonce_hex,
+            "pre_candidate_run":true,"artifact_admitted":false,"execution_eligible":false});
+        let anchor_sha256 =
+            digest(&canonicalize(anchor.to_string().as_bytes()).map_err(|e| e.to_string())?);
+        let argv = vec![
+            limactl.into(),
+            "shell".into(),
+            vm.into(),
+            "--".into(),
+            "sudo".into(),
+            "-n".into(),
+            format!("/opt/hol-gauntlet/rust-candidate-run-hostbound-shadow-{generation}"),
+            "--repair".into(),
+            job.into(),
+            p.source_sha.clone(),
+            anchor_sha256.clone(),
+        ];
+        Ok(Self {
+            argv,
+            record,
+            anchor_sha256,
+            generation: generation.into(),
+        })
+    }
+
+    pub fn argv(&self) -> &[String] {
+        &self.argv
+    }
+
+    pub fn parse_response(&self, stdout: &[u8]) -> Result<Value, String> {
+        if stdout.len() > 8193 {
+            return Err("candidate repair response exceeds boundary".into());
+        }
+        let raw = stdout
+            .strip_suffix(b"\n")
+            .filter(|v| !v.is_empty() && !v.contains(&b'\n'))
+            .ok_or("one candidate repair frame required")?;
+        if canonicalize(raw).map_err(|e| e.to_string())? != raw {
+            return Err("canonical candidate repair frame required".into());
+        }
+        let mut v: Value =
+            serde_json::from_slice(raw).map_err(|_| "candidate repair JSON invalid")?;
+        let p = &self.record.pins;
+        let fields = [
+            "schema",
+            "job_id",
+            "source_sha",
+            "host_anchor_sha256",
+            "host_pin_sha256",
+            "runner_binary_sha256",
+            "repair_generation",
+            "container_id",
+            "client_cgroup_receipt_sha256",
+            "status",
+            "exit_code",
+            "quiescent",
+            "artifact_admitted",
+            "execution_eligible",
+            "qualification_eligible",
+            "guard_causality_verified",
+            "model_requests",
+            "model_tokens",
+            "repair_receipt_sha256",
+        ];
+        if v.as_object()
+            .is_none_or(|v| v.len() != fields.len() || fields.iter().any(|k| !v.contains_key(*k)))
+            || v["schema"] != "hol-gauntlet-candidate-build-repair.v1"
+            || v["job_id"] != p.job_id
+            || v["source_sha"] != p.source_sha
+            || v["host_anchor_sha256"] != self.anchor_sha256
+            || v["host_pin_sha256"] != self.record.raw_sha256
+            || v["runner_binary_sha256"] != p.runner_binary_sha256
+            || v["repair_generation"] != self.generation
+            || v["container_id"].as_str().is_none_or(|s| !lower_hex(s, 64))
+            || !(v["client_cgroup_receipt_sha256"].is_null()
+                || v["client_cgroup_receipt_sha256"]
+                    .as_str()
+                    .is_some_and(|s| lower_hex(s, 64)))
+            || v["status"] != "aborted"
+            || !v["exit_code"].is_null()
+            || v["quiescent"] != true
+            || [
+                "artifact_admitted",
+                "execution_eligible",
+                "qualification_eligible",
+                "guard_causality_verified",
+            ]
+            .iter()
+            .any(|k| v[k] != false)
+            || v["model_requests"] != 0
+            || v["model_tokens"] != 0
+        {
+            return Err("candidate repair differs from retained outside pins".into());
+        }
+        let receipt = v
+            .as_object_mut()
+            .unwrap()
+            .remove("repair_receipt_sha256")
+            .ok_or("candidate repair receipt missing")?;
+        if receipt != digest(&canonicalize(v.to_string().as_bytes()).map_err(|e| e.to_string())?) {
+            return Err("candidate repair receipt digest differs".into());
+        }
+        v["repair_receipt_sha256"] = receipt;
+        Ok(v)
+    }
+
+    pub fn execute_repair(&self, journal: &HostCandidateBuildPinJournal) -> Result<Value, String> {
+        let current = || {
+            if journal
+                .read(&self.record.pins.job_id)
+                .map_err(|e| e.to_string())?
+                != self.record
+            {
+                return Err("candidate host pin changed before recovery".to_owned());
+            }
+            Ok(())
+        };
+        current()?;
+        let auth = canonicalize(
+            json!({"schema":"hol-gauntlet-host-candidate-repair-authorization.v1",
+            "job_id":self.record.pins.job_id,"host_pin_sha256":self.record.raw_sha256,
+            "host_anchor_sha256":self.anchor_sha256,"repair_generation":self.generation,
+            "retry_allowed":false,"execution_eligible":false})
+            .to_string()
+            .as_bytes(),
+        )
+        .map_err(|e| e.to_string())?;
+        self.commit(journal, "authorization", &auth)?;
+        current()?;
+        let raw =
+            run_fixed(&self.argv, Duration::from_secs(120), 8193, 2048, &[]).map_err(|e| {
+                format!("candidate recovery uncertain; reconcile without workload retry: {e:?}")
+            })?;
+        let result = self.parse_response(&raw)?;
+        current()?;
+        self.commit(
+            journal,
+            "result",
+            &canonicalize(result.to_string().as_bytes()).map_err(|e| e.to_string())?,
+        )?;
+        Ok(result)
+    }
+
+    fn commit(
+        &self,
+        journal: &HostCandidateBuildPinJournal,
+        suffix: &str,
+        raw: &[u8],
+    ) -> Result<(), String> {
+        use rustix::fs::{fchmod, fsync, openat, Mode, OFlags};
+        use std::io::Write;
+        let dir = journal.directory().map_err(|e| e.to_string())?;
+        let name = format!("{}.candidate-repair-{suffix}.json", self.record.pins.job_id);
+        let fd = match openat(
+            dir,
+            name.as_str(),
+            OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::RUSR | Mode::WUSR,
+        ) {
+            Ok(fd) => Some(fd),
+            Err(rustix::io::Errno::EXIST) => None,
+            Err(_) => return Err("candidate repair host commit unavailable".into()),
+        };
+        if let Some(fd) = fd {
+            fchmod(&fd, Mode::RUSR | Mode::WUSR).map_err(|e| e.to_string())?;
+            let mut file = std::fs::File::from(fd);
+            file.write_all(raw)
+                .and_then(|_| file.sync_all())
+                .map_err(|_| "candidate repair host commit uncertain")?;
+            fsync(dir).map_err(|e| e.to_string())?;
+        }
+        if crate::private_jobs::read_regular_bytes(dir, &name, rustix::process::geteuid().as_raw())
+            .map_err(|e| e.to_string())?
+            != raw
+        {
+            return Err("candidate repair authorization or result differs".into());
+        }
+        journal.directory().map_err(|e| e.to_string())?;
+        Ok(())
+    }
 }
 
 impl fmt::Display for VmHostBoundCandidateResultError {

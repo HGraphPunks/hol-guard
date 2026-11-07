@@ -343,7 +343,7 @@ model requests/tokens and no parent-exit credit.
 
 ### Fresh audit through the primary host command
 
-Audit `462a926cee8fcfff` is running the complete 28-group/52-selector schedule
+Audit `462a926cee8fcfff` completes the 28-group/52-selector schedule
 from fixture-corrected source `8920be8bd`, after successful build
 `9ca1b850e63fd247` and fresh dependency/prefix publication. The frozen primary
 host executable is `6a2d8b61…`, built from `79e061662`; Root worker `32135d91…`
@@ -367,8 +367,33 @@ Subsequent pidfd/ELF observation confirms the original Root supervisor and
 executor remain live under the same container; receipt SHA-256 is
 `185c1f263c882dab18346c46c97290d0e87ae6825892439b7573d70ee1b664db`.
 
-These records live in external `feature-worker-current359-host-20261106-002`.
-No terminal audit result is claimed yet. The earlier failed audit stays intact;
-latest merged-source qualification, independent authority, observer integration
-and broader recovery remain open. Every eligibility/causality flag stays false,
-with zero model requests/tokens and no parent-exit credit.
+The 3,322.508-second run retains **1,303 passing tests, zero failures/errors and
+one deliberate Pi skip** for the retired Python composition path. All 27 other
+groups pass. Independent Python baseline/JUnit testcase counts and the pinned
+Rust host reader agree on all 28 groups, 52 selectors and 56 XML/log artifacts.
+The audit remains `incomplete`/`invalid-evidence`, with workload exit one;
+successful host transport does not convert it to a passing audit.
+
+Primary retained-result readback matches. Intentional consumed dispatch refuses
+with all four host records unchanged. Independent checks under all four leases
+verify actual container/client/conmon/profile absence, original process death
+and unchanged metadata for all 333 older records, without reading their private
+bytes. The fresh 62-member, 307,200-byte public export excludes the actual
+private nonce and hashes to
+`0ccc6f2432ac06d8e16dd6b0c032f0b43519b34ad21a224d9c61564fb81f3669`.
+
+These records live in external `feature-worker-current359-host-20261106-002`:
+
+| Record | SHA-256 |
+| --- | --- |
+| Root canonical result | `e094a20365d22d72f1acdae6e4bd3615771ae4db21dbf3ae94f5eca39395b90a` |
+| `outside-completion-001.json` | `4cdc49ad3fa9df8b78df60b4484a66e81701f37d07ee296e1360d0cba93c71e3` |
+| `terminal-read-001.json` | `e657a85f68bf74546bcb397f08367002ade920eabb77023ef8dc5d0805f0b6b8` |
+| `terminal-replay-refusal-001.json` | `854df24de6d0c533d0fb9347f49776c1f3a06692c961f1faaf91b2125ea4595d` |
+| `independent-public-readback-001.json` | `c8a2725b58a518a89efde7b76ccd68f5f33bfc3f2b44682c4d9444478b87f36c` |
+
+The report is `e8cfb8f9…`; its independently recomputed readback is `7b551bbe…`.
+The earlier failed audits stay intact. This product source predates the latest
+upstream merge; merged-source qualification, independent authority, observer
+integration and broader recovery remain open. Every eligibility/causality flag
+stays false, with zero model requests/tokens and no parent-exit credit.

@@ -27,7 +27,7 @@ with evidence. Code volume and checked substeps do not establish completion.
 - The source map has 440 files, 78 changed and 20 added against the unchanged
   baseline. After thirteen more upstream commits, actual Python selection and
   Rust agree on 409 files, 420 entries and digest `24926e43…`. The installed
-  Root controller remains `e81a214c…` for retained/current running jobs. All 658
+  Root controller remains `e81a214c…` for retained jobs. All 658
   Mac migration tests, Mac/ARM Native library/CLI compilation, formatting and
   Mac/ARM warnings-denied Clippy pass on the merge;
   all ten changed Gauntlet files match upstream and 39 changed Python files
@@ -41,17 +41,21 @@ with evidence. Code volume and checked substeps do not establish completion.
   publication complete: 4,316 prefix entries, six aliases, 62 distributions and
   all 21 requirements, including 11 active and satisfied. Independent completion
   verifies cleanup and all 333 historical records' unchanged metadata; host
-  retained-result readback matches. New-generation inventory reconstruction is
-  pending while the audit holds its leases. See the
+  retained-result readback matches. Independent reconstruction verifies all four
+  trees, every wheel/dependency byte, six aliases and all 21 requirements;
+  the new public runtime export is `a0659ab3…`. See the
   [build/runtime pins](gauntlet-rust-hostbound-candidate-build-proof.md#fixture-corrected-3590-and-primary-host-dispatch).
-- Audit `462a926cee8fcfff` is running all 28 groups/52 selectors through
+- Audit `462a926cee8fcfff` completes all 28 groups/52 selectors through
   `gauntlet-host features`, with frozen host `6a2d8b61…`, Root worker
   `32135d91…` and executor `5c353aee…`. Outside observation verifies actual
   executor/argv, four read-only inputs, Root/init pidfds and confinement;
   receipt SHA-256 is `fd3dc46b0b7b4fb3c7bfcf12c72985f750d507429afd4e28d4ad12cc29a2c9ee`.
-  Active readback and intentional consumed-run checks refuse with unchanged
-  records and the original owner still live. Terminal readback, artifact replay
-  and complete cleanup remain required. See the
+  Active readback and intentional consumed-run checks refuse. Terminal readback
+  and independent Rust/Python artifact recomputation agree: 1,303 passes,
+  zero failures/errors and one deliberate retired-Pi skip. Status remains
+  incomplete, with no eligibility. Four-lease outside checks verify cleanup and
+  unchanged metadata for all 333 older records. Public export is `0ccc6f24…`.
+  See the
   [live command proof](gauntlet-rust-feature-worker.md#fresh-audit-through-the-primary-host-command).
 - Prior source `023e0b641`, build `97bef577d8beb254` and dependency job
   `b20e4bd21efb86e9` retain independently replayed runtime inventories. Its full
@@ -61,13 +65,28 @@ with evidence. Code volume and checked substeps do not establish completion.
   Failed build `d5a9c18e3bf20764`, unknown `b937d2e04a16c85f`, earlier audit
   `6fb9d42a017c83e5` and automatic repair `c42a9e3b701fd865` remain retained.
   The [feature proof](gauntlet-rust-feature-worker.md) records their claim limits
-  and sanitized review bundle; newest exports and remote delivery remain open.
-- Next finish broader recovery and all twelve staging/installed roles.
-  Explicit `gauntlet-host features record/run/read/repair` now reuses the
+  and sanitized review bundle; current exports are local and remote delivery
+  remains open.
+- Candidate recovery now retains boot/device/inode custody before launching a
+  child and uses the existing host/guest diagnostic executables. Fresh job
+  `ea0ef712724b4957` survives a verified supervisor SIGKILL with its original
+  candidate init live. Wrong-anchor repair refuses; Rust recovery completes in
+  40.274 seconds with an aborted/null-exit receipt, exact resource cleanup and
+  unchanged historical metadata. The rebuilt host reopens the same repair;
+  consumed build readiness refuses. Root runner is `19bc3896…`, final host
+  `58853cbb…`. All 660 Mac all-feature tests, Mac/ARM warnings-denied Clippy,
+  formatting and four selected ARM cases pass. Validation aggregate
+  `candidate-recovery-20261107-validation-002.json` hashes to
+  `c66d038edc7a30c2d183d3b624ce3d55991770ab401f5a3cca6ce6ef7b4ecb03`.
+  One necessary 278-line recovery module is added; no crate, executable target
+  or dependency is added. See the
+  [recovery proof](gauntlet-rust-hostbound-candidate-build-proof.md#interrupted-candidate-build-recovery).
+- Next finish the broader interruption matrix and all twelve staging/installed
+  roles. Explicit `gauntlet-host features record/run/read/repair` reuses the
   existing journal and diagnostic caller implementation. Both entrypoints
   return versioned public recording pins, keeping the nonce private. Primary
-  recording, dispatch and active refusals are observed; completed readback and
-  observer admission remain open. The host command slice adds no repository
+  recording, dispatch, active refusals and completed readback are observed;
+  observer admission remains open. The host command slice adds no repository
   file, crate, target or dependency.
   [Native reply checks](gauntlet-rust-native-operation-reply-bindings.md) still
   leave atomic wire bytes, request semantics and actual effect writers
@@ -76,8 +95,9 @@ with evidence. Code volume and checked substeps do not establish completion.
   parent exit.
 - Owned VM `hol-gauntlet-rust-build-20261026-001` is running at 2 CPUs,
   16 GiB and 48 GiB. Inspect retained jobs, all leases and actual resources
-  before installing or dispatching a worker. Audit `462a926cee8fcfff` is active;
-  serialize VM mutations behind it. Never replay a consumed ID.
+  before installing or dispatching a worker. The completed audit and repaired
+  candidate have no owned resources remaining. Serialize VM mutations and never
+  replay a consumed ID.
 
 ## Keep the implementation small
 

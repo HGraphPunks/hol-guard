@@ -96,7 +96,7 @@ mod vm_candidate_result;
 pub use vm_candidate_result::{VmCandidateResultError, VmCandidateResultPlan};
 mod vm_candidate_result_hostbound;
 pub use vm_candidate_result_hostbound::{
-    VmHostBoundCandidateResultError, VmHostBoundCandidateResultPlan,
+    VmHostBoundCandidateRepairPlan, VmHostBoundCandidateResultError, VmHostBoundCandidateResultPlan,
 };
 mod vm_candidate_build;
 pub use vm_candidate_build::{

@@ -366,7 +366,7 @@ fn run_fixed_local_candidate_inner(
         let attached = container
             .create(&job)
             .map_err(|_| CandidateProcessError::ContainerUnknown)?;
-        run_candidate_process(&attached, &job, &still_owned, &|| {
+        run_candidate_process(&attached, &job, &binding, &still_owned, &|| {
             container
                 .drain()
                 .map_err(|_| CandidateProcessError::CleanupUncertain)

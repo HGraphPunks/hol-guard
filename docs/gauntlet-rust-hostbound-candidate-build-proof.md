@@ -232,12 +232,80 @@ The publication receipt is `97fad4b5bfbea6b1695ec159b52a0fd627f54ead91414291314e
 
 Evidence remains in external `native-current359-build-host-state-20261106-004`
 and `native-current359-dependency-host-state-20261106-003`. Independent host
-inventory reconstruction is pending for this generation while fresh audit
-`462a926cee8fcfff` runs through the primary host command; see the
+reconstruction verifies all four trees, every wheel/dependency byte, 4,316
+published-prefix entries and six console scripts without importing either
+export. The 19-member, 48,025,600-byte public runtime archive hashes to
+`a0659ab3d5931cf46e8b6aa47853031822775173bd58dd1ad90ccc79fe34264a`.
+In the build journal, `independent-runtime-readback-001.json` hashes to
+`bf13b836ae3605c85e4df7ff6fc69c555aa5d82adc6b4fc8dc576f78c4378ea4`;
+the independent Python requirement oracle matches all 21 requirements and
+hashes to `a8bda70470a4035017812acf86da191acae9b8d53dea6b2a767bdc1a7f1a26c2`.
+Audit `462a926cee8fcfff` completes through the primary host command with
+1,303 passes, zero failures/errors and one deliberate Pi skip; see the
 [live command proof](gauntlet-rust-feature-worker.md#fresh-audit-through-the-primary-host-command).
 This source predates the latest upstream reconciliation. Fresh merged-source
 validation, conformance and all eligibility/causality flags remain open or false;
 model requests/tokens remain zero and no parent exit closes.
+
+## Interrupted candidate build recovery
+
+A host-bound build now fsyncs its client cgroup's boot/device/inode identity
+before launching a child. The existing candidate runner and host retained-result
+diagnostic gain explicit `--repair` modes. The host durably authorizes the exact
+original VM, pin, anchor and repair binary. Under all four leases, Rust reopens
+only the retained kernel group and full intent-bound CID, drains both before
+unloading the exact policy, and records `aborted` with a null candidate exit.
+Existing normal results, partial records and replaced/foreign identities refuse;
+repair never starts or admits a workload.
+
+Fresh job `ea0ef712724b4957` uses source `8920be8bd`, Root runner SHA-256
+`19bc3896686351438654515f5e2d5d39e8c62a54989e62b807e2bb0c24e715ce`
+and the retained controller/image. Outside observation binds the actual Root
+supervisor, Podman client, UID-65532 init, original argv hashes, read-only source,
+full CID and retained kernel identity. The container has 12 GiB, zero swap,
+512 PIDs, two CPUs and enforced confinement. A verified pidfd SIGKILL stops
+only the supervisor; the original candidate init remains live. The host preserves
+an uncertain result, and a wrong-anchor repair refuses without changing its pins.
+
+Rust recovery completes in 40.274 seconds without outside client/container
+rescue. Independent four-lease checks verify all original processes and owned
+resources absent, unchanged source/anchor/CID/cgroup/policy bytes, and unchanged
+metadata for all 333 historical worker records. No normal build result is
+created. The canonical 871-byte aborted receipt hashes to
+`14c40b3cd99094edccc805e875a4a1f019ac51b20fd9ee2e1ac06494b570efa9`.
+The rebuilt host repeats the same retained repair in 22.953 seconds with all
+four host records unchanged; consumed build readiness refuses before dispatch.
+
+All 660 Mac all-feature tests, formatting and warnings-denied Mac/ARM Clippy
+pass. Four selected ARM tests also pass, including both candidate/feature
+kernel replacement and descendant-drain cases and the real confined-container
+timeout/foreign-binding probe. A new refusal test first exposes a nullable-field
+substitution gap; the final host requires every response key, including explicit
+null fields. The initial failing test and older artifacts remain retained.
+One necessary 278-line recovery module is added; it and the changed cgroup and
+host-response modules stay below 500 lines. No crate, executable target or
+dependency is added.
+
+Evidence is in external `candidate-recovery-20261107-host-001`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `outside-kernel-001.json` | `8f71b0faf4d54d16e9b8c4e791f523d2b44a64353a846e79fb44028aee62b9e3` |
+| `supervisor-crash-001.json` | `58e12404f7d823fd87e634d1f7b7fb5cbe82c8ce1766024d359284a83f9a02ba` |
+| `host-repair-001.json` | `0d7483f27a94cca1a14e824fa92ebe0b96d11e8dab634eb6e997fe39da0fca4f` |
+| `outside-repair-completion-001.json` | `b2a918bb05690c332926c918d00e033aea3a06af90abb1e297a75864c0f959a3` |
+| `host-repair-repeat-002.json` | `e96776f3fa16b54a9a1a7219590de1917e1773e140e7392bb45d609453fbde21` |
+| `consumed-run-refusal-001.json` | `15279ec6d8198fd1395ae15305079fb6d9182846167d0c01b50be2b7ed510755` |
+
+The external aggregate `candidate-recovery-20261107-validation-002.json`
+hashes to `c66d038edc7a30c2d183d3b624ce3d55991770ab401f5a3cca6ce6ef7b4ecb03`.
+Its final host executable is `58853cbb…`; ARM test binary is `f29338a8…`.
+This proves one new-generation interruption case. Historical unknown job
+`b937d2e04a16c85f` remains retained. Active groups without kernel identity and
+jobs without a retained full CID refuse. Broader cancellation/transport/partial-record recovery,
+independent review, merged-source qualification and merge gates remain open.
+All admission/qualification/causality flags stay false, with zero model use;
+no parent exit closes.
 
 ## Retained 3.59.0 dependencies for `83f079b5c`
 

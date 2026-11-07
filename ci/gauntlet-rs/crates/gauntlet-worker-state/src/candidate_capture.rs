@@ -147,6 +147,10 @@ pub(crate) fn inactive(job_id: &str) -> Result<(), CandidateCaptureError> {
     if profile_is_loaded(&profile) != Ok(false) {
         return Err(CandidateCaptureError::ProfileLoaded);
     }
+    inactive_client_groups(job_id)
+}
+
+pub(crate) fn inactive_client_groups(job_id: &str) -> Result<(), CandidateCaptureError> {
     let parent = Path::new("/sys/fs/cgroup/system.slice");
     if !parent.is_dir() || !Path::new("/sys/fs/cgroup/cgroup.controllers").is_file() {
         return Err(CandidateCaptureError::CgroupUncertain);

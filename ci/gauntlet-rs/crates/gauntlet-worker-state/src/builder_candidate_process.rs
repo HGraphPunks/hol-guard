@@ -190,6 +190,7 @@ fn cleanup(
 pub(crate) fn run_candidate_process(
     plan: &BuilderRunPlan,
     job: &OwnedFd,
+    binding: &str,
     still_owned: &impl Fn() -> Result<(), CandidateProcessError>,
     drain_container: &impl Fn() -> Result<(), CandidateProcessError>,
 ) -> Result<CandidateProcessObservation, CandidateProcessError> {
@@ -197,10 +198,10 @@ pub(crate) fn run_candidate_process(
         plan,
         job,
         still_owned,
-        RunKind::Candidate,
+        RunKind::Candidate(binding),
         drain_container,
         &|_, _| Ok(()),
-        RunKind::Candidate.deadline(),
+        RunKind::Candidate(binding).deadline(),
     )
 }
 
@@ -208,6 +209,7 @@ pub(crate) fn run_candidate_process(
 pub(crate) fn candidate_timeout_probe(
     plan: &BuilderRunPlan,
     job: &OwnedFd,
+    binding: &str,
     still_owned: &impl Fn() -> Result<(), CandidateProcessError>,
     drain_container: &impl Fn() -> Result<(), CandidateProcessError>,
     observe: &impl Fn(crate::ProcessIdentity, &str) -> Result<(), CandidateProcessError>,
@@ -216,7 +218,7 @@ pub(crate) fn candidate_timeout_probe(
         plan,
         job,
         still_owned,
-        RunKind::Candidate,
+        RunKind::Candidate(binding),
         drain_container,
         observe,
         Duration::from_millis(100),
@@ -262,21 +264,21 @@ pub(crate) fn run_precreated_feature_process(
 
 #[derive(Clone, Copy)]
 enum RunKind<'a> {
-    Candidate,
+    Candidate(&'a str),
     Dependency,
     Feature(&'a gauntlet_contracts::FeatureRunIntent),
 }
 impl RunKind<'_> {
     fn log_names(self) -> (&'static str, &'static str) {
         match self {
-            Self::Candidate => ("candidate-run.stdout.log", "candidate-run.stderr.log"),
+            Self::Candidate(_) => ("candidate-run.stdout.log", "candidate-run.stderr.log"),
             Self::Dependency => ("dependency-run.stdout.log", "dependency-run.stderr.log"),
             Self::Feature(_) => ("feature-run.stdout.log", "feature-run.stderr.log"),
         }
     }
     fn deadline(self) -> Duration {
         Duration::from_secs(match self {
-            Self::Candidate => gauntlet_contracts::CANDIDATE_BUILD_TIMEOUT_SECONDS,
+            Self::Candidate(_) => gauntlet_contracts::CANDIDATE_BUILD_TIMEOUT_SECONDS,
             Self::Dependency => 2100,
             Self::Feature(_) => 14400,
         })
@@ -309,16 +311,19 @@ fn run_process(
         OwnedCandidateCgroup::create(&plan.job_id)
     })
     .map_err(|_| CandidateProcessError::CgroupUnavailable)?;
-    if let RunKind::Feature(intent) = kind {
-        if group.retain_feature(job, intent).is_err() {
-            group
-                .kill()
-                .map_err(|_| CandidateProcessError::CleanupUncertain)?;
-            group
-                .drain_and_remove()
-                .map_err(|_| CandidateProcessError::CleanupUncertain)?;
-            return Err(CandidateProcessError::CgroupUnavailable);
-        }
+    let retained = match kind {
+        RunKind::Candidate(binding) => group.retain_candidate(job, &plan.job_id, binding),
+        RunKind::Feature(intent) => group.retain_feature(job, intent),
+        RunKind::Dependency => Ok(()),
+    };
+    if retained.is_err() {
+        group
+            .kill()
+            .map_err(|_| CandidateProcessError::CleanupUncertain)?;
+        group
+            .drain_and_remove()
+            .map_err(|_| CandidateProcessError::CleanupUncertain)?;
+        return Err(CandidateProcessError::CgroupUnavailable);
     }
     let mut command = podman_command();
     command.args(&plan.argv[1..]);
