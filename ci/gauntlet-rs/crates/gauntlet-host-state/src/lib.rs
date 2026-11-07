@@ -59,12 +59,14 @@ pub use controller_key_pins::{
 };
 pub use native_control_readback::{HostNativeControlReadback, NativeControlReadbackError};
 mod candidate_build_pins;
+mod candidate_command;
 mod dependency_intent;
 mod feature_intent;
 pub use candidate_build_pins::{
     HostCandidateBuildPinError, HostCandidateBuildPinJournal, HostCandidateBuildPinRecord,
     HostCandidateBuildPins,
 };
+pub use candidate_command::{run_candidate_build_command, CANDIDATE_BUILD_USAGE};
 pub use dependency_intent::{read_dependency_run_pins, DependencyIntentJournal};
 pub use feature_intent::{
     read_feature_run_pins, run_feature_audit_command, FeatureIntentJournal, FEATURE_AUDIT_USAGE,

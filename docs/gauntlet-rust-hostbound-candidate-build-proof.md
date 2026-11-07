@@ -307,6 +307,55 @@ independent review, merged-source qualification and merge gates remain open.
 All admission/qualification/causality flags stay false, with zero model use;
 no parent exit closes.
 
+## Primary host build command and merged-source follow-up
+
+`gauntlet-host build source|run|read|repair` now shares its command handler with
+the existing source producer, host-bound runner and result/repair entrypoints.
+The 89-line command module replaces their separate parsing and dispatch code;
+no crate, executable target or dependency is added. Source capture remains
+local Git-object capture without checkout or candidate execution. Run still
+requires a pinned readiness executable before recording its private one-use
+intent. Read and repair retain the original VM binding and existing response
+verification. The nonce stays private; all admission flags remain false.
+
+All 662 Mac workspace tests pass, including both source entrypoints capturing
+an older commit without running a checkout hook, immutable consumed-job refusal,
+both runner entrypoints refusing an unpinned readiness executable before any
+record, and all four read/repair forms refusing a different VM without changing
+the host journal. Formatting and warnings-denied Mac/ARM Clippy pass. Frozen
+primary executable SHA-256 is
+`9e856cfb28cf60151976ac180353481a8a9ba8b0610f59ba3e749226269efed2`.
+The eight-file source manifest hashes to
+`dee3db830879bc3654e458266d6dcf0df06cf502ffceb1610077a8c69b94b108`.
+
+Merge `53c64ae960b1c373b18816fdc6ba1491bbbd06c6` incorporates upstream
+`394be6de4a075d01a79b54e2a773cbbcc4eef775`. All 153 incoming files outside
+the three Native merge points match upstream exactly; the migration's completion
+operations and capabilities remain present. Seventy incoming Python files parse
+without imports. The refreshed map has 440 files, 79 changed and 20 added; the
+420-file baseline is unchanged. Actual Python selection and Rust agree on
+409 installed files, 420 entries and tree `123024f4…`. Two stale count/digest
+test failures remain retained. The new expected digest comes from independent
+Python recomputation. Mac/ARM Native library and CLI compilation pass.
+
+Fresh build `b7f0b85b31df49cc` is running from that exact merge, archive
+`c5c88fe8940e2ea5171818064c9202e1962e9e1a918408841b3e97ad1cbe6d1b`
+(63,115,844 bytes), Root runner `19bc3896…` and retained controller `e81a214c…`.
+Outside observation verifies actual supervisor/client ELF and argv bindings,
+retained boot/device/inode, UID/GID 65532, empty capabilities, enforced policy,
+read-only archive, separate namespaces and effective limits. The primary host
+command refuses active readback with exit 2, preserving its host pin and emitting
+no nonce. Terminal readback, cleanup, fresh dependency/runtime/audit validation
+and idle primary recovery readback remain pending; no outcome is inferred.
+
+The external aggregate `host-build-command-20261107-validation-001.json`
+hashes to `1a36c2e9d0f6dec20d2d930db0b07c8f3fc1445f733340f2586bc373a0d6f2a9`.
+The active outside kernel receipt hashes to
+`f83cbba1cc2d7a752d244b18d0608defa7b0ccb017a9c0393184632595c09408`;
+primary active-read refusal hashes to
+`f255bd29b2be34b6c062ff1989ee923272c0846ebd12b0b19f5a15cb0bc405e2`.
+Model requests/tokens remain zero; no parent exit closes.
+
 ## Retained 3.59.0 dependencies for `83f079b5c`
 
 Fresh dependency job `5ea8b3c2907df614` independently captures the same exact

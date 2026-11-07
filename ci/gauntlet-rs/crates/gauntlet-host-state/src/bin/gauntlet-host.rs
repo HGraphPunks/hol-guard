@@ -1,4 +1,4 @@
-//! Passive lifecycle and explicit one-use feature diagnostics.
+//! Passive lifecycle and explicit one-use build and feature operations.
 
 use gauntlet_host_state::{
     collect_observer_once, compose_observer_snapshot, open_observer_store,
@@ -40,15 +40,28 @@ fn run() -> Result<(), String> {
             "gauntlet-host features {}",
             gauntlet_host_state::FEATURE_AUDIT_USAGE
         );
+        println!(
+            "gauntlet-host build {}",
+            gauntlet_host_state::CANDIDATE_BUILD_USAGE
+        );
         return Ok(());
     }
-    if command == "features" {
+    if matches!(command.as_str(), "features" | "build") {
         let args: Vec<String> = args.collect();
+        let usage = if command == "features" {
+            gauntlet_host_state::FEATURE_AUDIT_USAGE
+        } else {
+            gauntlet_host_state::CANDIDATE_BUILD_USAGE
+        };
         if matches!(args.as_slice(), [arg] if matches!(arg.as_str(), "--help" | "-h")) {
-            println!("{}", gauntlet_host_state::FEATURE_AUDIT_USAGE);
+            println!("{usage}");
             return Ok(());
         }
-        let value = gauntlet_host_state::run_feature_audit_command(&args)?;
+        let value = if command == "features" {
+            gauntlet_host_state::run_feature_audit_command(&args)?
+        } else {
+            gauntlet_host_state::run_candidate_build_command(&args)?
+        };
         println!("{value}");
         return Ok(());
     }

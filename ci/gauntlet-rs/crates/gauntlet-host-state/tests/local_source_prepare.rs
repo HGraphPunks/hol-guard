@@ -106,6 +106,60 @@ fn exact_older_commit_is_captured_without_checkout_or_hook_execution_and_replay_
         fs::read(slot.join("source-preparation.v1.json")).unwrap(),
         receipt
     );
+    for (binary, prefix, id) in [
+        (
+            env!("CARGO_BIN_EXE_gauntlet-host"),
+            vec!["build", "source"],
+            "ecc175ad14890002",
+        ),
+        (
+            env!("CARGO_BIN_EXE_gauntlet-host-prepare-local-source"),
+            vec![],
+            "ecc175ad14890003",
+        ),
+    ] {
+        let capture = |sha: &str| {
+            Command::new(binary)
+                .args(&prefix)
+                .arg(&state)
+                .arg(id)
+                .arg(&repository)
+                .arg(sha)
+                .output()
+                .unwrap()
+        };
+        let output = capture(&first);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(report["source_sha"], first);
+        assert_eq!(report["git_graph_verified"], true);
+        assert_eq!(report["candidate_executed"], false);
+        assert_eq!(report["execution_eligible"], false);
+        let slot = state.join("private/local-builds").join(id);
+        let archive = fs::read(slot.join("source.tar.gz")).unwrap();
+        let receipt = fs::read(slot.join("source-preparation.v1.json")).unwrap();
+        let proof = verify_retained_source_archive_commit(
+            &state,
+            id,
+            report["source_archive_sha256"].as_str().unwrap(),
+            &first,
+            &format!("refs/heads/local-{first}"),
+        )
+        .unwrap();
+        assert!(proof.git_graph_verified());
+        assert_eq!(capture(&newest).status.code(), Some(2));
+        assert_eq!(fs::read(slot.join("source.tar.gz")).unwrap(), archive);
+        assert_eq!(
+            fs::read(slot.join("source-preparation.v1.json")).unwrap(),
+            receipt
+        );
+        assert_eq!(git(&repository, &["rev-parse", "HEAD"]), newest);
+        assert!(!root.join("hook-ran").exists());
+    }
 }
 
 #[test]

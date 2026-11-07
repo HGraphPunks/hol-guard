@@ -1,6 +1,6 @@
 # Finish the Gauntlet Rust migration
 
-Updated: 2026-11-06. Executor: **GPT-6.1 Sol, Max reasoning**.
+Updated: 2026-11-07. Executor: **GPT-6.1 Sol, Max reasoning**.
 
 ## Mission and completion rule
 
@@ -19,24 +19,36 @@ with evidence. Code volume and checked substeps do not establish completion.
 ## Resume from this checkpoint
 
 - Continue `codex/gauntlet-rust-finish-20261105`, preserving preparation and the
-  merge of upstream `634eafea1bb6ce91fc58f13d1c8d0646d3d18fcb`.
+  merge `53c64ae96` of upstream `394be6de4a075d01a79b54e2a773cbbcc4eef775`.
   [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5) stays draft.
   Fork integration remains `f143f9ac`; PR #3 is open and upstream PR #5402
   has conflicts. Fork dispatch still returns HTTP 422, Actions disabled.
   Obtain all five current-head checks before any authorized integration merge.
-- The source map remains 440 files, 78 changed and 20 added against the unchanged
+- The source map is 440 files, 79 changed and 20 added against the unchanged
   baseline. Actual Python selection and Rust agree on 409 files, 420 entries
-  and digest `24926e43…`; installed Root controller remains `e81a214c…`.
-  Merge `18f5de5f1` adds five upstream commits through `634eafea1`, preserving
-  the migration's Native completion bridge. All 23 incoming files match
-  upstream exactly and 12 Python files parse without imports. The Gauntlet
-  source/workspace is unchanged from recovery commit `f2d70d192`; all 660 Mac
-  all-feature tests pass again, as does Mac/ARM Native library/CLI compilation.
-  Formatting and warnings-denied Mac/ARM Gauntlet Clippy remain verified on the
-  same workspace bytes. Validation record `upstream-20261107-merge-validation-001.json`
-  hashes to `7e93a47ae5906abe916438829662141abbc6c3e56e8f482418b55da0038cc814`.
-  Fresh merged-source runtime validation remains open.
+  and digest `123024f4…`; installed Root controller remains `e81a214c…`.
+  All 153 incoming files outside the three Native merge points match upstream
+  exactly, with migration operations/capabilities preserved. Seventy Python
+  files parse without imports. Mac/ARM Native library/CLI compilation passes.
+  Two stale count/digest test failures remain retained; independent Python
+  recomputation supplies the refreshed expected tree pin.
+  Primary `gauntlet-host build source/run/read/repair` now shares its parser
+  with existing diagnostics through one 89-line module, with no new crate,
+  executable or dependency. All 662 Mac all-feature tests, formatting and
+  warnings-denied Mac/ARM Clippy pass. Aggregate
+  `host-build-command-20261107-validation-001.json` hashes to
+  `1a36c2e9d0f6dec20d2d930db0b07c8f3fc1445f733340f2586bc373a0d6f2a9`.
   Formal security review remains incomplete because its tool excludes `ci/`.
+- Fresh merged-source build `b7f0b85b31df49cc` is active on exact source
+  `53c64ae96`, archive `c5c88fe8…`, Root runner `19bc3896…`. Outside kernel
+  observation verifies actual ELF/argv, retained boot/device/inode and all
+  confinement limits; receipt hashes to `f83cbba1…`. Frozen primary host
+  `9e856cfb…` refuses active readback with exit 2, unchanged host pin and no
+  nonce output. Finish terminal readback, four-lease cleanup, dependency/runtime
+  composition and audit without replaying this job. Then verify idle recovery
+  readback through the primary command. The exact-Git controller transfer
+  archive `8fc74743…` is prepared locally; it is not installed. See
+  [primary build follow-up](gauntlet-rust-hostbound-candidate-build-proof.md#primary-host-build-command-and-merged-source-follow-up).
 - Fixture-corrected 3.59.0 source `8920be8bd` completes fresh build
   `9ca1b850e63fd247`: four selected checks and all 185 contained contracts pass.
   Dependency job `22b1bd1ca737f37a`, inert staging, composition and local immutable
