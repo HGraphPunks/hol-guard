@@ -112,6 +112,18 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
   No controller is installed over retained `e81a214c…` jobs. Fresh merged-source
   product/legacy execution, independent review and required cloud checks remain
   open. No parent exit closes and no model request is made.
+  - [x] Reconcile four upstream commits through `e43ca02cf` as merge
+  `efa6f05e3`, preserving all fourteen incoming files exactly. Twelve Python
+  files parse without imports; all 297 old scenarios remain unchanged beside
+  two new Git Allow cases. Refresh the existing 440-file map and independently
+  derive controller `39bde055…` from Python's actual selector and Rust's Git
+  reader. All 672 Mac tests, formatting, Mac/ARM Clippy and Native library/CLI
+  compilation pass; imported Guard command tests compile on Mac. Retain the
+  stale-pin failure, existing ARM warning, immutable 420-file baseline and all
+  older installed/live generations. Aggregate `a77e2a86…` verifies eleven
+  records and eight logs. The new controller is not installed; fresh product
+  qualification, required CI and review remain open. See the
+  [upstream followup](gauntlet-rust-hostbound-candidate-build-proof.md#upstream-followup-after-dependency-recovery).
 - [x] Enumerate the three Python CLI entrypoints, primary command/profile surfaces, operational job states, public snapshot boundary, file/tree asset roles and major journals with proposed Rust phase owners. Evidence: [command and state ownership matrix](gauntlet-rust-surface-matrix.md). Historical schemas, every status field, legacy exit codes and the 420-file dispositions still need the exhaustive audit below.
 - [ ] Audit every manifest disposition and enumerate each CLI command, profile, schema/version, external executable, artifact role, public status field, exit code, journal and state transition with an owning Rust component.
 - [x] Freeze Python-produced canonical JSON vectors, seven accepted runner declarations, and valid/incomplete, complete synthetic, and signed hostile public bundles. Evidence: Rust fixture tests under `ci/gauntlet-rs/crates/`.

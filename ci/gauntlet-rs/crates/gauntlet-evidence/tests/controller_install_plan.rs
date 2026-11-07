@@ -44,9 +44,9 @@ fn current_source_map_matches_python_bootstrap_tree_plan() {
     // Frozen independently from bootstrap.py's selection and bootstrap_guest.py's
     // 0755/0444 Root install modes, then Python canonical SHA-256 over the same
     // path/mode/uid/file-hash shape used by TreeKind::Controller. Recomputed
-    // from bootstrap.py's actual captured selection after main 394be6de4,
-    // including linked-worktree approvals, extension controls and the OMP
-    // approval-retry coverage lane. The installed e81a214c generation and
+    // from bootstrap.py's actual captured selection after main e43ca02cf,
+    // including the config-pattern and routed-refresh Git Allow cases.
+    // The installed 123024f4 and e81a214c generations and
     // its explicit host-crun signal-receive rule remain retained separately.
     // Historical pins stay retained.
     let plan = plan_controller_install(&current_source_map()).unwrap();
@@ -54,7 +54,7 @@ fn current_source_map_matches_python_bootstrap_tree_plan() {
     assert_eq!(plan.entries, 420);
     assert_eq!(
         plan.tree_digest,
-        "123024f4e315cd969571475eb6096a3f19f34e614f374c1d58fdadc2347469b5"
+        "39bde055e24a959da3b3fd19c9411c687da2122306a2cf56d2ef82183181afef"
     );
     assert!(plan
         .installed_files

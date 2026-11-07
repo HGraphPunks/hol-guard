@@ -537,6 +537,39 @@ and tokens are zero. This proves recovery of a retained dependency result;
 broader interruption, admission and independent authority exits remain open,
 and no parent exit closes.
 
+## Upstream followup after dependency recovery
+
+After the recovery checkpoint, four commits advance upstream from `394be6de4`
+to `e43ca02cfb5178ad4276d9ffd4e8f9d4a575f1ab`. Merge `efa6f05e3` preserves
+all fourteen incoming files exactly, including drain-lane writer tracking,
+single runtime-status resolution, retry regressions and two Git Allow cases.
+Twelve Python files parse without imports. All 297 existing scenario objects
+are unchanged. The 440-file source map updates only the fixture/catalog hashes;
+the immutable 420-file baseline remains byte-identical.
+
+Python's actual, source-pinned bootstrap selector and Rust's exact Git reader
+independently agree on controller
+`39bde055e24a959da3b3fd19c9411c687da2122306a2cf56d2ef82183181afef`:
+409 selected files, 420 entries and 3,978,211 file bytes. The first workspace
+run correctly fails its stale `123024f4…` expectation. That failure remains;
+the updated pin follows the independent Python result. The new generation is
+not installed, and the retained live runtime/audit still belong to `53c64ae96`
+and installed controller `123024f4…`.
+
+All 672 Mac workspace tests, formatting, warnings-denied Mac/ARM Clippy and
+Mac/ARM Native library/CLI compilation pass. Imported Guard command tests
+compile on Mac; they are not executed on the host. The existing ARM musl
+`libc::time_t` warning stays visible. Source custody `35e3c338…`, Python plan
+`dc4cc3fd…` and Rust Git readback `d32a9125…` agree. Aggregate
+`upstream-followup-20261107-validation-001.json` verifies eleven records and
+eight logs, SHA-256
+`a77e2a86f0852434e79c3fedd2e61ac1459e5efa9abfe98ebdbaab21e7ad6432`.
+The original failed step counted successful batches only; the aggregate
+reconstructs its complete 300 passes and one failure from the retained log.
+No new repository file, crate, target or dependency is added by this followup.
+Fresh product execution, independent review and required current-head CI
+remain open; all eligibility flags remain false and model use remains zero.
+
 ## Retained 3.59.0 dependencies for `83f079b5c`
 
 Fresh dependency job `5ea8b3c2907df614` independently captures the same exact

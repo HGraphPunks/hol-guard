@@ -478,6 +478,15 @@ retained; corrected version 002 replayers pass. The earlier complete 3.59.0
 bundle below retains its own source generation. Remote delivery and independent
 review remain open; the new bundle supplies no admission or parent-exit credit.
 
+The subsequent upstream followup is retained separately in
+`gauntlet-rust-review-upstream-20261107-001.tar`, 23 members and 317,440 bytes,
+SHA-256 `3ec2903aa3337420832d5d51939eecd657c0952f58fc719539fc8389ba14e266`;
+manifest `8e0ae7621fcd738b4f6ab6e4eeb1758c92bd82984cdc0dcfe1b1e5726f372444`.
+It includes all eleven validation records, eight logs and the two updated
+map/test source files, with all members reverified and six actual private
+nonces excluded. It references bundle 005 without copying it and keeps the
+new, uninstalled controller plan separate from older live product evidence.
+
 ### Reviewer replay of the corrected-source evidence
 
 The fresh external bundle `gauntlet-rust-review-evidence-20261107-003.tar`

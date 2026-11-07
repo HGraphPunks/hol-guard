@@ -18,13 +18,22 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
-- Continue `codex/gauntlet-rust-finish-20261105`. Implementation
-  `cfdbf6a9f504afd456f63082445ab1d8737c7d58` includes upstream
-  `394be6de4a075d01a79b54e2a773cbbcc4eef775` through product merge
-  `53c64ae96`. [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5)
+- Continue `codex/gauntlet-rust-finish-20261105`. Upstream
+  `e43ca02cfb5178ad4276d9ffd4e8f9d4a575f1ab` is merged as `efa6f05e3`.
+  The dependency implementation remains `cfdbf6a9f`; live product evidence
+  retains exact source `53c64ae96`. [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5)
   stays draft. Integration remains `f143f9ac`; PR #3 is open and upstream
   PR #5402 has conflicts. Fork Actions dispatch returns HTTP 422. Obtain all
   five current-head jobs before any authorized integration merge.
+- The four-commit upstream followup preserves all 14 incoming files exactly
+  and parses 12 Python files without imports. All 297 existing scenarios are
+  unchanged; two Git Allow cases are added. The 440-file map and immutable
+  420-file baseline agree. Python/Rust derive controller `39bde055…`, 409 files
+  and 420 entries; this generation is not installed. All 672 Mac tests,
+  formatting, Mac/ARM Clippy and Native library/CLI compilation pass; Guard
+  command tests compile on Mac. The stale controller-pin failure is retained.
+  Validation `a77e2a86…` verifies eleven records and eight logs. See the
+  [upstream followup](gauntlet-rust-hostbound-candidate-build-proof.md#upstream-followup-after-dependency-recovery).
 - The dependency reconciliation slice has **672 Mac all-feature tests**,
   formatting and warnings-denied Mac/ARM Clippy passing. Primary
   `gauntlet-host dependencies run/read` shares the existing diagnostic handler.
@@ -79,6 +88,9 @@ with evidence. Code volume and checked substeps do not establish completion.
   review remain open. The formal security scan excludes `ci/` and is incomplete.
   Full pins, earlier bundles and failed attempts remain in the
   [feature proof](gauntlet-rust-feature-worker.md#review-bundle-for-the-merged-source).
+  A separate 23-member, 317,440-byte upstream addendum (`3ec2903a…`) binds the
+  newer map, independent controller plan and compile/test checks without
+  relabelling the retained live product proof.
 - Next finish broader interruption coverage and all twelve staging/installed
   roles, then independent request/decision/effect authority and conformance.
   Native copied replies still do not prove atomic wire bytes, request semantics
