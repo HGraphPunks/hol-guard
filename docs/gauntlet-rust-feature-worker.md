@@ -337,8 +337,9 @@ members, SHA-256
 It preserves the frozen earlier bundle, current runtime/audit exports, replay
 programs and separate diagnosis/correction evidence. Its explicit public-file
 allowlist and comparison with three current private nonce sources pass; private
-intent/key files are excluded. Remote delivery, independent review and fresh
-full audit remain open. Every eligibility/causality flag stays false, with zero
+intent/key files are excluded. That bundle predates the corrected-source audit
+below. Remote delivery and independent review remain open. Every
+eligibility/causality flag stays false, with zero
 model requests/tokens and no parent-exit credit.
 
 ### Fresh audit through the primary host command
@@ -397,3 +398,29 @@ The earlier failed audits stay intact. This product source predates the latest
 upstream merge; merged-source qualification, independent authority, observer
 integration and broader recovery remain open. Every eligibility/causality flag
 stays false, with zero model requests/tokens and no parent-exit credit.
+
+### Reviewer replay of the corrected-source evidence
+
+The fresh external bundle `gauntlet-rust-review-evidence-20261107-003.tar`
+contains 40 allowlisted public files and is 50,493,440 bytes. SHA-256 is
+`ecab45773704989587c11abb9e779950c1d7a6ef19397c00134ccff23f812b2b`;
+its manifest hashes to
+`4f49af128efc431fbaf0410e557c6444f1454dfc8022950b06e4fcec60db9b6e`.
+It includes the new runtime/audit exports, independently recomputed results,
+recovery/cleanup records, retained regression failure and pinned Mac Rust
+reader. The older bundle stays immutable and is referenced without recursively
+copying it. Explicit file selection and scans against all four current private
+nonces, in hex and raw encodings, pass; private intent/key files are excluded.
+
+Three public replayers accept a full repository and public evidence directory.
+Their hashes are `b42c4799…` (runtime), `fe52f7f2…` (Python requirements), and
+`96f19bd9…` (audit; additionally takes the pinned Rust reader and a fresh output
+directory). All reproduce the retained public results without importing a
+candidate or exported dependency. The audit summary intentionally omits
+per-invocation reader diagnostics; the first overbroad comparison is retained,
+and exact comparison of every public summary field passes in
+`feature-public-replay-comparison-003.json`, SHA-256
+`0eee6d2dcb55e23b554a421694b9f8a1694bad26fe6b911e5fdf6b05d7285fbf`.
+This bundle records implementation `f2d70d192` and product source `8920be8bd`.
+Remote delivery and independent review remain open; it supplies no new
+admission, qualification, causality or model-use credit.

@@ -19,20 +19,22 @@ with evidence. Code volume and checked substeps do not establish completion.
 ## Resume from this checkpoint
 
 - Continue `codex/gauntlet-rust-finish-20261105`, preserving preparation and the
-  merge of upstream `2b811b610f0bd52e182c1e9ba3592fcc7fbfd98e`.
+  merge of upstream `634eafea1bb6ce91fc58f13d1c8d0646d3d18fcb`.
   [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5) stays draft.
   Fork integration remains `f143f9ac`; PR #3 is open and upstream PR #5402
   has conflicts. Fork dispatch still returns HTTP 422, Actions disabled.
   Obtain all five current-head checks before any authorized integration merge.
-- The source map has 440 files, 78 changed and 20 added against the unchanged
-  baseline. After thirteen more upstream commits, actual Python selection and
-  Rust agree on 409 files, 420 entries and digest `24926e43…`. The installed
-  Root controller remains `e81a214c…` for retained jobs. All 658
-  Mac migration tests, Mac/ARM Native library/CLI compilation, formatting and
-  Mac/ARM warnings-denied Clippy pass on the merge;
-  all ten changed Gauntlet files match upstream and 39 changed Python files
-  parse without imports. Validation record `upstream-20261106-merge-validation-002.json`
-  hashes to `888fa5de417b065f5c0eb051b4c99b432c394bb38c9b1b8977732d9fe1744b35`.
+- The source map remains 440 files, 78 changed and 20 added against the unchanged
+  baseline. Actual Python selection and Rust agree on 409 files, 420 entries
+  and digest `24926e43…`; installed Root controller remains `e81a214c…`.
+  Merge `18f5de5f1` adds five upstream commits through `634eafea1`, preserving
+  the migration's Native completion bridge. All 23 incoming files match
+  upstream exactly and 12 Python files parse without imports. The Gauntlet
+  source/workspace is unchanged from recovery commit `f2d70d192`; all 660 Mac
+  all-feature tests pass again, as does Mac/ARM Native library/CLI compilation.
+  Formatting and warnings-denied Mac/ARM Gauntlet Clippy remain verified on the
+  same workspace bytes. Validation record `upstream-20261107-merge-validation-001.json`
+  hashes to `7e93a47ae5906abe916438829662141abbc6c3e56e8f482418b55da0038cc814`.
   Fresh merged-source runtime validation remains open.
   Formal security review remains incomplete because its tool excludes `ci/`.
 - Fixture-corrected 3.59.0 source `8920be8bd` completes fresh build
@@ -65,8 +67,10 @@ with evidence. Code volume and checked substeps do not establish completion.
   Failed build `d5a9c18e3bf20764`, unknown `b937d2e04a16c85f`, earlier audit
   `6fb9d42a017c83e5` and automatic repair `c42a9e3b701fd865` remain retained.
   The [feature proof](gauntlet-rust-feature-worker.md) records their claim limits
-  and sanitized review bundle; current exports are local and remote delivery
-  remains open.
+  and prior review bundle. The fresh 40-file public bundle is
+  `gauntlet-rust-review-evidence-20261107-003.tar`, SHA-256 `ecab4577…`;
+  saved runtime, requirement and audit replayers reproduce the public results.
+  All four current private nonces are excluded. Remote delivery remains open.
 - Candidate recovery now retains boot/device/inode custody before launching a
   child and uses the existing host/guest diagnostic executables. Fresh job
   `ea0ef712724b4957` survives a verified supervisor SIGKILL with its original
