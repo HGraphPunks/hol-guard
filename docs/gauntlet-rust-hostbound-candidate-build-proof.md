@@ -435,7 +435,7 @@ All **669 Mac workspace tests** pass, with zero failures or ignores, including
 the actual bounded-process concurrency, transport failure, restart, upgrade,
 linked/partial-record, private-output and malformed-response regressions.
 Formatting and warnings-denied Mac/ARM all-feature Clippy pass. Six existing
-files change; all remain within 500 lines. No repository file, crate,
+implementation/test files change; all remain within 500 lines. No repository file, crate,
 executable target or dependency is added.
 
 Both original repeat-dispatch regressions fail before the fix. The initial
@@ -443,12 +443,28 @@ dependency fixture's invalid transport basename and a subsequent trait-import
 compile error remain retained alongside the corrected regression and passing
 checks. Source manifest `host-dispatch-20261107-source-001.json` hashes to
 `2dd47a8bf0269725dec0983bd3e1088d347af03faebae82377f6a8f6beda0e22`;
-validation aggregate `host-dispatch-20261107-validation-001.json` verifies 16
+validation aggregate `host-dispatch-20261107-validation-002.json` verifies 23
 records and hashes to
-`007926b395f300303161fb531071e33ad3a24f6dca98d1e9cf83cbcf156451b3`.
-Fresh VM job `ce76a18b95d042ef` is prepared for observing the changed host
-dependency result path; execution and outside cleanup remain pending. These
-local process checks supply no new VM qualification or parent-exit credit.
+`cfde5d70adb296e534504aa55c8863e1ffcf1aabf1fbcd58f11ac3aec224d9cd`.
+
+Fresh VM job `ce76a18b95d042ef` exercises the changed dependency result path
+through frozen host `00a37dd2…`, source `58ee4c3f2`. It exits zero in 24.746
+seconds while retaining `invalid-evidence`. Actual exporter/argv/input/kernel
+observation and four-lease cleanup pass. The 880-byte public stdout excludes
+the actual nonce; the canonical private reply matches Root digest `c92d5d46…`.
+An intentional consumed launch refuses with all five host records unchanged.
+Independent export verifies all 2,290 dependency files and 51,318,588 decoded
+bytes, matching the previously verified entry digest `b01fe0d3…`.
+
+The new 16,690,635-byte public dependency ZIP hashes to
+`53a414df5e48ba0ee70746e3f1ca840ea253dcba7d79f50fffda999a22b08a21`.
+Its independent export record is `d07068a3…`; outside kernel, completion and
+replay receipts are `27ae4954…`, `763772a7…` and `184846b8…` in external
+`native-merged359-dependency-host-state-20261107-002`. All 333 historical
+records' metadata and their lock remain unchanged. Frozen primary host
+`58d56497…` also reopens the original audit result without changing its four
+records (`aca343c8…`). Broader interruption coverage, independent authority,
+qualification and admission remain open; no parent exit closes.
 
 ## Retained 3.59.0 dependencies for `83f079b5c`
 

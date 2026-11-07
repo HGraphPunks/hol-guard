@@ -452,6 +452,31 @@ authority, conformance and admission remain open. Every
 admission/qualification/causality flag remains false, with zero model
 requests/tokens and no parent-exit credit.
 
+### Review bundle for the merged source
+
+External `gauntlet-rust-review-evidence-20261107-004.tar` contains 55 public
+files and is 67,338,240 bytes. SHA-256 is
+`238dba5f7b4881d6c692fc0cf2125696909bb3b74a7f05d42f7e2b8f3bbf85fe`;
+manifest SHA-256 is
+`ed143b85cc9b30cd80ea1db1116f7e86002bd0e144b1644743aa37bf698ef784`.
+It binds implementation `58ee4c3f2`, product source `53c64ae96`, the new runtime
+and audit, current controller installation, host dispatch validation and fresh
+dependency job `ce76a18b95d042ef`. Earlier bundles and failed attempts remain
+immutable. Explicit selection, actual nonce scans over nested decoded archives
+and complete post-write member verification pass; all five current private
+nonces are excluded.
+
+Runtime replay `d48782f9…`, Python requirement replay `71cf9979…` and audit
+replay `6451de39…` accept repository/public-input/fresh-output paths, plus the
+pinned Rust reader for the audit. All three reproduce the retained result JSON
+byte for byte without importing candidate code or exported dependencies.
+Comparison record `merged359-public-replay-comparison-001.json` hashes to
+`f2e2e1bb9008d9bad0bf0a89f13cd1d25746fbd95fa69287e9b5913bd3347234`.
+The first runtime pin minimization and audit output-variable mistakes remain
+retained; corrected version 002 replayers pass. The earlier complete 3.59.0
+bundle below retains its own source generation. Remote delivery and independent
+review remain open; the new bundle supplies no admission or parent-exit credit.
+
 ### Reviewer replay of the corrected-source evidence
 
 The fresh external bundle `gauntlet-rust-review-evidence-20261107-003.tar`

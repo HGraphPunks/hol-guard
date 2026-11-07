@@ -254,12 +254,16 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
   Private dependency replies are retained at 0600 and projected into a versioned
   public result with typed nullable fields and no private intent or nonce.
   All 669 Mac tests, formatting and warnings-denied Mac/ARM Clippy pass. The
-  six changed existing files stay within 500 lines; no file, crate, executable
-  target or dependency is added. Aggregate `host-dispatch-20261107-validation-001.json`
-  hashes to `007926b395f300303161fb531071e33ad3a24f6dca98d1e9cf83cbcf156451b3`.
+  six changed implementation/test files stay within 500 lines; no file, crate,
+  executable target or dependency is added. Fresh VM job `ce76a18b95d042ef`
+  verifies the new public/private result path, actual kernel confinement,
+  cleanup, consumed-run refusal and all 2,290 exported dependency files.
+  The upgraded primary host reopens the earlier audit with unchanged records.
+  Aggregate `host-dispatch-20261107-validation-002.json` hashes to
+  `cfde5d70adb296e534504aa55c8863e1ffcf1aabf1fbcd58f11ac3aec224d9cd`.
   See [durable host dispatch](gauntlet-rust-hostbound-candidate-build-proof.md#durable-host-dispatch-and-private-dependency-results).
-  Fresh VM dependency verification, broader interruption coverage and admission
-  remain open; no parent exit closes.
+  Broader interruption coverage, independent authority and admission remain
+  open; no parent exit closes.
   - [x] Share `gauntlet-host build source/run/read/repair` with the existing source,
   run and result/repair entrypoints through one 89-line module, adding no crate,
   executable target or dependency. All 662 Mac tests, formatting and
