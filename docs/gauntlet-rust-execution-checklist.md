@@ -255,8 +255,14 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
   idempotent. All 672 Mac tests, formatting and Mac/ARM warnings-denied Clippy
   pass; the new Root executable builds. No file, crate, target or dependency
   is added. See [dependency reconciliation](gauntlet-rust-hostbound-candidate-build-proof.md#dependency-reconciliation-without-relaunch).
-  Actual VM readback and host interruption remain pending; all qualification
-  and causality flags stay false and no parent exit closes.
+  Separately installed reader `96215aa2…` reconciles both retained generations
+  through both host commands. Fresh job `f02a618c39de745b` recovers its Root
+  terminal after actual host SIGKILL, preserving the original unknown attempt
+  and absent local result. Repeated reads match; a consumed launch refuses.
+  Independent decoding verifies all 2,290 files; four-lease cleanup verifies
+  all resources absent and 333 historical metadata rows plus the lock unchanged.
+  Live validation `3adedd4a…` binds 29 records. Broader interruption and all
+  qualification/causality exits remain open; no parent exit closes.
   - [x] Commit host build/dependency dispatch before contacting Lima, preserving
   one-use behavior after concurrent callers, uncertain transport and journal
   restart. Linked/partial dispatch records refuse without contacting transport;

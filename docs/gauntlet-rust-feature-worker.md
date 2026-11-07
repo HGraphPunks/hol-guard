@@ -454,16 +454,17 @@ requests/tokens and no parent-exit credit.
 
 ### Review bundle for the merged source
 
-External `gauntlet-rust-review-evidence-20261107-004.tar` contains 55 public
-files and is 67,338,240 bytes. SHA-256 is
-`238dba5f7b4881d6c692fc0cf2125696909bb3b74a7f05d42f7e2b8f3bbf85fe`;
+External `gauntlet-rust-review-evidence-20261107-005.tar` contains 90 public
+files and is 84,275,200 bytes. SHA-256 is
+`9e18b11da1ea9e04b5879036c99576cbe0eb2c769f8d6e9f389051a83cae7a55`;
 manifest SHA-256 is
-`ed143b85cc9b30cd80ea1db1116f7e86002bd0e144b1644743aa37bf698ef784`.
-It binds implementation `58ee4c3f2`, product source `53c64ae96`, the new runtime
+`8b1837e86a1b89b9bc74dc761984378807bdbab074e99d25436a625ab0c0ba94`.
+It binds implementation `cfdbf6a9f`, product source `53c64ae96`, the new runtime
 and audit, current controller installation, host dispatch validation and fresh
-dependency job `ce76a18b95d042ef`. Earlier bundles and failed attempts remain
+dependency job `ce76a18b95d042ef`, retained dependency reads and actual host-loss
+recovery of `f02a618c39de745b`. Earlier bundle 004 (`238dba5f…`) and failed attempts remain
 immutable. Explicit selection, actual nonce scans over nested decoded archives
-and complete post-write member verification pass; all five current private
+and complete post-write member verification pass; all six current private
 nonces are excluded.
 
 Runtime replay `d48782f9…`, Python requirement replay `71cf9979…` and audit

@@ -496,9 +496,46 @@ Source manifest `dependency-reconcile-20261107-source-001.json` hashes to
 Validation `dependency-reconcile-20261107-validation-001.json` verifies nine
 records, SHA-256
 `02f76021214425352f0edc31a111452f3865967c4c85ed5754693a32e9638823`.
-The new Root executable is `96215aa2…`; it is not yet installed. Actual VM
-reconciliation and host-interruption evidence remain pending. All eligibility
-and causality flags remain false; no parent exit closes.
+Implementation `cfdbf6a9f` freezes Root reader `96215aa2…`, primary host
+`2d985d12…` and compatibility host `fa1bd085…`. The new reader is installed
+separately at its full digest path, Root-owned, single-linked and mode 0500;
+older executables remain unchanged. Install receipt `8f39e2f7…` holds all four
+leases and checks the historical metadata without reading old record contents.
+
+Both host entry points reconcile retained jobs `f7a1bf6e9d3482c0` and
+`ce76a18b95d042ef`. Original intent/result/authorization/dispatch records are
+unchanged, repeated reads are identical, and the historical intent still has
+no launch authorization. Each read verifies all 2,290 exported files and
+51,318,588 decoded bytes. The combined retained-read receipt is `a9ebcb0c…`.
+
+Fresh job `f02a618c39de745b` tests actual host loss. After the independent
+kernel snapshot observes the confined UID/GID 65532 exporter and the original
+Root supervisor, the harness sends SIGKILL only to its owned Rust host child.
+The host exits -9 after 25.496 seconds, with empty stdout/stderr and no local
+private result. That original attempt remains unknown at the interruption;
+the guest processes are not signalled or relaunched. A read attempt while the
+worker lease is held refuses. Read-only reconciliation subsequently recovers
+the Root terminal, exit zero and `invalid-evidence` report. Both command forms
+return identical public results, and a consumed launch refuses.
+
+The recovered 16,690,636-byte dependency ZIP hashes to
+`f6f21e3bd4bc4183df445a8024546c22edd13c5bd274de8780af10bd0e7d4c6a`.
+Independent host decoding matches every file and entry digest `b01fe0d3…`;
+no exported dependency is imported. External journal
+`native-merged359-dependency-host-state-20261107-003` retains kernel receipt
+`29c8ac45…`, interruption `180290ed…`, reconciliation `04b9cf39…`, independent
+export `695297b6…` and cleanup `7a609fb6…`. Cleanup verifies containers,
+conmon/client/builder cgroups, profiles and original processes absent, with
+all 333 historical records and their lock metadata unchanged.
+
+Live validation `dependency-reconcile-20261107-validation-002.json` verifies
+29 records, SHA-256
+`3adedd4a3c8263435368a447cc2cefad4284bae45bd6a2db57c58f5a4387d2c1`.
+The two harness setup errors occurred before any transport and remain recorded.
+All admission, qualification and causality flags remain false; model requests
+and tokens are zero. This proves recovery of a retained dependency result;
+broader interruption, admission and independent authority exits remain open,
+and no parent exit closes.
 
 ## Retained 3.59.0 dependencies for `83f079b5c`
 

@@ -19,20 +19,23 @@ with evidence. Code volume and checked substeps do not establish completion.
 ## Resume from this checkpoint
 
 - Continue `codex/gauntlet-rust-finish-20261105`. Implementation
-  `58ee4c3f22e608a99703904295d94dace73c6a23` includes upstream
+  `cfdbf6a9f504afd456f63082445ab1d8737c7d58` includes upstream
   `394be6de4a075d01a79b54e2a773cbbcc4eef775` through product merge
   `53c64ae96`. [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5)
   stays draft. Integration remains `f143f9ac`; PR #3 is open and upstream
   PR #5402 has conflicts. Fork Actions dispatch returns HTTP 422. Obtain all
   five current-head jobs before any authorized integration merge.
-- The next dependency reconciliation slice has **672 Mac all-feature tests**,
+- The dependency reconciliation slice has **672 Mac all-feature tests**,
   formatting and warnings-denied Mac/ARM Clippy passing. Primary
   `gauntlet-host dependencies run/read` shares the existing diagnostic handler.
   Its fixed Root reader verifies the original intent, terminal, cleanup and
   captured ZIP under four leases, without scanning unrelated worker records or
-  starting a workload. Source manifest is `34a6a356…`, validation `02f76021…`.
-  Root executable `96215aa2…` is built but not installed. Finish actual VM
-  readback and host interruption without replaying an intent. See the
+  starting a workload. Source manifest is `34a6a356…`, live validation
+  `3adedd4a…` verifies 29 records. Separately installed Root reader `96215aa2…`
+  reconciles both retained generations through both host commands. Fresh
+  job `f02a618c39de745b` recovers after actual host SIGKILL, with no local
+  result or relaunch; repeat reads and consumed-run refusal pass. Independent
+  ZIP decoding and four-lease cleanup pass, receipt `04b9cf39…`. See the
   [readback proof](gauntlet-rust-hostbound-candidate-build-proof.md#dependency-reconciliation-without-relaunch).
 - The preceding live-proved slice has **669 Mac all-feature tests**, formatting and warnings-denied Mac/ARM
   Clippy pass. Merged Native library/CLI compilation also passes. The source
@@ -68,10 +71,11 @@ with evidence. Code volume and checked substeps do not establish completion.
   Earlier supervisor-SIGKILL job `ea0ef712724b4957` retains its observed
   40.274-second Rust recovery and aborted/null-exit receipt. See the
   [dispatch/recovery proof](gauntlet-rust-hostbound-candidate-build-proof.md#durable-host-dispatch-and-private-dependency-results).
-- Current review bundle `gauntlet-rust-review-evidence-20261107-004.tar`
-  contains 55 public files, 67,338,240 bytes, SHA-256 `238dba5f…`.
+- Current review bundle `gauntlet-rust-review-evidence-20261107-005.tar`
+  contains 90 public files, 84,275,200 bytes, SHA-256 `9e18b11d…`.
   Runtime, requirement and audit replayers reproduce the retained JSON exactly;
-  five actual private nonces are excluded. Remote delivery and independent
+  six actual private nonces are excluded. It includes the actual host-loss
+  recovery and retained readback. Remote delivery and independent
   review remain open. The formal security scan excludes `ci/` and is incomplete.
   Full pins, earlier bundles and failed attempts remain in the
   [feature proof](gauntlet-rust-feature-worker.md#review-bundle-for-the-merged-source).
