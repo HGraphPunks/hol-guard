@@ -612,8 +612,34 @@ All 675 Mac tests, formatting, Mac/ARM Clippy and executable builds pass for
 that final source. Local validation `dependency-repair-diagnostic-20261107-validation-002.json`
 binds eight records/seven logs, SHA-256
 `e5d4389fd0d86d0543ce49599254c126dbeaf500c9d5869f08fba1cf7f144db4`.
-The final Root test's execution and compatibility readback remain pending at
-this source checkpoint.
+Final implementation `951f57ad5b7549e4a3d118cab019e84e3a5b01fb` freezes worker
+`e728b58f…` and ARM test ELF `5ee0ffea…`; host binaries remain unchanged.
+All four selected ARM tests pass: the UTF-8/full-hash case and two secure-file
+cases run as UID/GID 65532, and the explicitly selected ignored Root fixture
+runs as Root. It creates only temporary apparatus data and proves private 0600,
+single-link durable records, unchanged prior bytes, distinct attempt names and
+oversized-record refusal without another file. This is not product execution.
+
+The first harness's over-escaped count regex rejects the successful Rust test
+output. Its unchanged failure receipt remains retained; data-only readback
+verifies all four passes without rerunning tests. Corrected readback
+`dependency-repair-diagnostic-20261107-host-002/arm-units-002.json` hashes to
+`07e49282cfa6438aef7f4a93fe8ebb795546eb08ad886c1019ed903126f13694`.
+Final-worker reads through both host commands match the two retained repair
+results after changing only reader generation. All seven original host records
+per job remain unchanged; no workload or cleanup is relaunched.
+
+Live validation `dependency-repair-diagnostic-20261107-validation-003.json`
+binds 56 records, SHA-256
+`e437160f417f406ec1dd92b58e5fb28fe818c347f8d025754b6dae0305aab967`.
+Public addendum `gauntlet-rust-review-repair-diagnostics-20261107-001.tar`
+contains 84 members/952,320 bytes, SHA-256
+`bb7206c9f3e5af057c42df23d953f87e9367d0de0d2b756bb394f080c123fb8c`.
+Every member reopens and twelve actual private nonces are excluded. Old
+attempts, bundles and the parser failure remain intact. Remote delivery and
+independent review remain open. The original active refusal remains unexplained;
+partial-state recovery and qualification are still incomplete, with no parent
+exit closed and zero product model requests/tokens.
 
 ## Dependency reconciliation without relaunch
 

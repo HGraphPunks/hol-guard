@@ -18,15 +18,18 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
-- Private diagnostics at `b64ae753b` pass three ARM boundary/secure-file cases
-  as UID/GID 65532. Fresh jobs `d16ae4c3b72509f8` and `e72bc0934fa81d56`
-  verify actual supervisor loss, active wrong-pin noninterference and first-call
-  repair success in 3.756/5.372 seconds, plus cleanup and restart reads. The old
-  first-call error is not reproduced and remains unexplained. Final source
-  manifest `2129982f…` adds an explicit Root-only private-writer fixture in the
-  same 490-line module. All 675 Mac tests, formatting, Mac/ARM Clippy and builds
-  pass (`e5d4389f…`). Freeze the final tools, execute the Root test and verify
-  retained reads; no repository file, crate, target or dependency is added.
+- Private diagnostics at final implementation `951f57ad5` keep the existing
+  module at 490 lines, with no new file, crate, target or dependency. All 675
+  Mac tests, formatting, Mac/ARM Clippy, builds and four selected ARM cases pass,
+  including one explicit Root-only temporary fixture. Final reader `e728b58f…`
+  reopens both retained repairs without changing seven original host records
+  per job. Fresh jobs `d16ae4c3b72509f8` and `e72bc0934fa81d56` verify actual
+  supervisor loss, active wrong-pin noninterference and first-call repair in
+  3.756/5.372 seconds, plus cleanup/restart. The old first-call error is not
+  reproduced and stays unexplained. Validation `e437160f…` binds 56 records;
+  84-member addendum `bb7206c9…` excludes twelve actual nonces. The failed count
+  parser and data-only correction are preserved. Continue partial-state recovery
+  and diagnose the old refusal when reproducible; all qualification stays open.
 - Continue `codex/gauntlet-rust-finish-20261105`. Dependency recovery is
   implemented at `54cda0b80`; upstream `e43ca02cf` is merged as `efa6f05e3`.
   [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5) stays draft.
