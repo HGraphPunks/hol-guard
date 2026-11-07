@@ -466,6 +466,40 @@ records' metadata and their lock remain unchanged. Frozen primary host
 records (`aca343c8…`). Broader interruption coverage, independent authority,
 qualification and admission remain open; no parent exit closes.
 
+## Dependency reconciliation without relaunch
+
+`gauntlet-host dependencies run|read` and the existing dependency diagnostic
+share their handler. The historical run argument shape remains supported.
+Read always uses the original intent's transport and VM; a different explicit
+VM refuses before transport. It sends that private intent only over the
+bounded management pipe to an outside-pinned Rust reader.
+
+The fixed Root read operation acquires all four leases and addresses only the
+requested dependency job, without scanning unrelated worker records. It checks
+the original retained intent and inputs, the terminal/report binding, actual
+container/client/conmon/profile absence and every captured ZIP path, byte and
+CRC. It starts no workload, imports no package and changes no VM job record.
+The shared codec rejects foreign, malformed, missing or authoritative frames
+before returning a typed public result without the private intent or nonce.
+The host retains a per-reader public reconciliation record; repeated matching
+reads are idempotent and historical intents gain no dispatch authorization.
+
+All 672 Mac workspace tests pass with zero failures or ignores, including
+actual fixed-process legacy read/reopen and both CLI forms refusing a different
+VM. Formatting and warnings-denied Mac/ARM Clippy pass; the ARM worker builds.
+No file, crate, executable target or dependency is added. The existing worker
+module aggregator gains two export lines; all changed domain/test files stay
+within 500 lines. The initial Clippy boolean simplification failure is retained.
+
+Source manifest `dependency-reconcile-20261107-source-001.json` hashes to
+`34a6a356c1e97b39a797bd3f63b5180e762d5c6e8196a7f61788659ebf8205bb`.
+Validation `dependency-reconcile-20261107-validation-001.json` verifies nine
+records, SHA-256
+`02f76021214425352f0edc31a111452f3865967c4c85ed5754693a32e9638823`.
+The new Root executable is `96215aa2…`; it is not yet installed. Actual VM
+reconciliation and host-interruption evidence remain pending. All eligibility
+and causality flags remain false; no parent exit closes.
+
 ## Retained 3.59.0 dependencies for `83f079b5c`
 
 Fresh dependency job `5ea8b3c2907df614` independently captures the same exact

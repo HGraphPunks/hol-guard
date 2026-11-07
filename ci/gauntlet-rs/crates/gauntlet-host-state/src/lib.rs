@@ -67,7 +67,10 @@ pub use candidate_build_pins::{
     HostCandidateBuildPins,
 };
 pub use candidate_command::{run_candidate_build_command, CANDIDATE_BUILD_USAGE};
-pub use dependency_intent::{read_dependency_run_pins, DependencyIntentJournal};
+pub use dependency_intent::{
+    read_dependency_run_pins, run_dependency_command, DependencyIntentJournal,
+    DEPENDENCY_COMMAND_USAGE,
+};
 pub use feature_intent::{
     read_feature_run_pins, run_feature_audit_command, FeatureIntentJournal, FEATURE_AUDIT_USAGE,
 };

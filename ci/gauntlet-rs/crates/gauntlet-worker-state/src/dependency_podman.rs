@@ -310,10 +310,20 @@ pub(crate) fn verify_completed_absent(
     {
         return Err("completed dependency container name exists".into());
     }
-    let path = format!("/sys/fs/cgroup/system.slice/libpod-{cid}.scope");
-    match std::fs::symlink_metadata(path) {
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        _ => return Err("completed dependency container cgroup exists or is unknown".into()),
+    for parent in ["system.slice", "machine.slice"] {
+        for unit in [
+            format!("libpod-{cid}.scope"),
+            format!("libpod-conmon-{cid}.scope"),
+        ] {
+            match std::fs::symlink_metadata(format!("/sys/fs/cgroup/{parent}/{unit}")) {
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                _ => {
+                    return Err(
+                        "completed dependency container/conmon cgroup exists or is unknown".into(),
+                    )
+                }
+            }
+        }
     }
     crate::dependency_state::client_group_absent(intent.pins.text("job_id"))?;
     if !crate::builder_policy::profile_absent(&format!(

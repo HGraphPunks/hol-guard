@@ -1,4 +1,4 @@
-//! Passive lifecycle and explicit one-use build and feature operations.
+//! Passive lifecycle and explicit build, dependency and feature operations.
 
 use gauntlet_host_state::{
     collect_observer_once, compose_observer_snapshot, open_observer_store,
@@ -44,23 +44,27 @@ fn run() -> Result<(), String> {
             "gauntlet-host build {}",
             gauntlet_host_state::CANDIDATE_BUILD_USAGE
         );
+        println!(
+            "gauntlet-host dependencies {}",
+            gauntlet_host_state::DEPENDENCY_COMMAND_USAGE
+        );
         return Ok(());
     }
-    if matches!(command.as_str(), "features" | "build") {
+    if matches!(command.as_str(), "features" | "build" | "dependencies") {
         let args: Vec<String> = args.collect();
-        let usage = if command == "features" {
-            gauntlet_host_state::FEATURE_AUDIT_USAGE
-        } else {
-            gauntlet_host_state::CANDIDATE_BUILD_USAGE
+        let usage = match command.as_str() {
+            "features" => gauntlet_host_state::FEATURE_AUDIT_USAGE,
+            "dependencies" => gauntlet_host_state::DEPENDENCY_COMMAND_USAGE,
+            _ => gauntlet_host_state::CANDIDATE_BUILD_USAGE,
         };
         if matches!(args.as_slice(), [arg] if matches!(arg.as_str(), "--help" | "-h")) {
             println!("{usage}");
             return Ok(());
         }
-        let value = if command == "features" {
-            gauntlet_host_state::run_feature_audit_command(&args)?
-        } else {
-            gauntlet_host_state::run_candidate_build_command(&args)?
+        let value = match command.as_str() {
+            "features" => gauntlet_host_state::run_feature_audit_command(&args)?,
+            "dependencies" => gauntlet_host_state::run_dependency_command(&args)?,
+            _ => gauntlet_host_state::run_candidate_build_command(&args)?,
         };
         println!("{value}");
         return Ok(());

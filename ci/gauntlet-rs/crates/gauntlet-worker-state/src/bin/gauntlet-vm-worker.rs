@@ -81,7 +81,12 @@ fn run() -> Result<(), String> {
         println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
         return Ok(());
     }
-    if args.len() == 5 && args[1] == "--prepare-native-dependencies" {
+    if args.len() == 5
+        && matches!(
+            args[1].as_str(),
+            "--prepare-native-dependencies" | "--read-native-dependencies"
+        )
+    {
         use std::os::fd::AsRawFd;
         gauntlet_cell_rootfs::require_outside_root()?;
         gauntlet_worker_state::verify_running_binary(&args[4]).map_err(|e| e.to_string())?;
@@ -98,7 +103,11 @@ fn run() -> Result<(), String> {
             count,
             &args[2],
         )?;
-        let raw = gauntlet_worker_state::run_native_dependencies(&raw, &args[2], &args[4])?;
+        let raw = if args[1] == "--read-native-dependencies" {
+            gauntlet_worker_state::read_native_dependencies(&raw, &args[2], &args[4])?
+        } else {
+            gauntlet_worker_state::run_native_dependencies(&raw, &args[2], &args[4])?
+        };
         println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
         return Ok(());
     }

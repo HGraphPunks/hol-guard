@@ -25,7 +25,16 @@ with evidence. Code volume and checked substeps do not establish completion.
   stays draft. Integration remains `f143f9ac`; PR #3 is open and upstream
   PR #5402 has conflicts. Fork Actions dispatch returns HTTP 422. Obtain all
   five current-head jobs before any authorized integration merge.
-- **669 Mac all-feature tests**, formatting and warnings-denied Mac/ARM
+- The next dependency reconciliation slice has **672 Mac all-feature tests**,
+  formatting and warnings-denied Mac/ARM Clippy passing. Primary
+  `gauntlet-host dependencies run/read` shares the existing diagnostic handler.
+  Its fixed Root reader verifies the original intent, terminal, cleanup and
+  captured ZIP under four leases, without scanning unrelated worker records or
+  starting a workload. Source manifest is `34a6a356…`, validation `02f76021…`.
+  Root executable `96215aa2…` is built but not installed. Finish actual VM
+  readback and host interruption without replaying an intent. See the
+  [readback proof](gauntlet-rust-hostbound-candidate-build-proof.md#dependency-reconciliation-without-relaunch).
+- The preceding live-proved slice has **669 Mac all-feature tests**, formatting and warnings-denied Mac/ARM
   Clippy pass. Merged Native library/CLI compilation also passes. The source
   map has 440 files, 79 changed and 20 added against the immutable 420-file
   baseline. Independent Python/Rust agree on the separately installed

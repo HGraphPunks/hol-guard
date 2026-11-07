@@ -270,3 +270,135 @@ fn malformed_dependency_public_fields_refuse_and_keep_the_attempt_consumed() {
         assert!(journal.execute_once(&intent).is_err(), "replayed {field}");
     }
 }
+
+fn retained_reply(intent: &DependencyRunIntent) -> serde_json::Value {
+    let report = private_reply(intent);
+    let raw = canonicalize(report.to_string().as_bytes()).unwrap();
+    let public = gauntlet_contracts::verify_dependency_run_result(intent, &raw).unwrap();
+    json!({"schema":"hol-gauntlet-native-dependency-read.v1","reader_generation":"8".repeat(64),
+        "intent_sha256":intent.digest().unwrap(),"report_sha256":public["private_result_sha256"],
+        "terminal_sha256":"9".repeat(64),"report":report,
+        "archive_proof":{"schema":"hol-gauntlet-native-dependency-archive-readback.v1","files":1,
+            "directories":0,"decoded_bytes":1234,"entry_bytes_sha256":"a".repeat(64),
+            "archive_sha256":"d".repeat(64),"dependency_imported":false,
+            "artifact_admitted":false,"execution_eligible":false},
+        "artifact_admitted":false,"execution_eligible":false,"qualification_eligible":false,
+        "guard_causality_verified":false,"model_requests":0,"model_tokens":0})
+}
+
+#[test]
+fn dependency_reconciliation_reads_legacy_intents_without_authorizing_dispatch() {
+    let (_temp, root, journal, intent) = transport_fixture();
+    std::fs::remove_file(root.join("0123456789abcdef.dependency-authorized.json")).unwrap();
+    let original = intent.bytes().unwrap();
+    let reply = retained_reply(&intent);
+    let raw = canonicalize(reply.to_string().as_bytes()).unwrap();
+    let script = format!(
+        "#!/bin/sh\numask 077\n/bin/cat > \"$0.input\"\n/bin/cat <<'REPLY'\n{}\nREPLY\n",
+        String::from_utf8(raw).unwrap()
+    );
+    std::fs::write(root.join("limactl"), script).unwrap();
+    let reader = "8".repeat(64);
+    for vm in ["different-vm", "../bad", "--flag"] {
+        assert!(journal
+            .reconcile_read_only("0123456789abcdef", &reader, Some(vm))
+            .is_err());
+        assert!(!root.join("limactl.input").exists());
+    }
+    let public = journal
+        .reconcile_read_only("0123456789abcdef", &reader, None)
+        .unwrap();
+    assert_eq!(std::fs::read(root.join("limactl.input")).unwrap(), original);
+    assert_eq!(
+        public["schema"],
+        "hol-gauntlet-host-dependency-reconciled.v1"
+    );
+    assert_eq!(public["retained_result_reconciled"], true);
+    assert_eq!(public["execution_eligible"], false);
+    assert!(!public.to_string().contains(&intent.nonce));
+    assert!(public.get("report").is_none());
+    let name = format!("0123456789abcdef.dependency-reconciled-{reader}.json");
+    let retained = std::fs::read(root.join(&name)).unwrap();
+    assert_eq!(
+        DependencyIntentJournal::open(&root)
+            .unwrap()
+            .reconcile_read_only("0123456789abcdef", &reader, Some(&intent.vm))
+            .unwrap(),
+        public
+    );
+    assert_eq!(std::fs::read(root.join(&name)).unwrap(), retained);
+    assert!(!root
+        .join("0123456789abcdef.dependency-dispatch.json")
+        .exists());
+    assert!(journal.execute_once(&intent).is_err());
+    assert_eq!(journal.read("0123456789abcdef").unwrap(), intent);
+}
+
+#[test]
+fn dependency_read_codec_refuses_foreign_missing_or_authoritative_frames() {
+    let (_temp, _root, _journal, intent) = transport_fixture();
+    let original = retained_reply(&intent);
+    for field in [
+        "schema",
+        "reader_generation",
+        "intent_sha256",
+        "report_sha256",
+        "terminal_sha256",
+        "report-intent",
+        "archive-hash",
+        "archive-extra",
+        "archive-count",
+        "archive-authority",
+        "extra",
+        "missing",
+        "qualification_eligible",
+        "model_tokens",
+    ] {
+        let mut bad = original.clone();
+        match field {
+            "report-intent" => bad["report"]["intent"]["vm"] = json!("foreign"),
+            "archive-hash" => bad["archive_proof"]["archive_sha256"] = json!("f".repeat(64)),
+            "archive-extra" => bad["archive_proof"]["nonce"] = json!(intent.nonce),
+            "archive-count" => bad["archive_proof"]["files"] = json!(true),
+            "archive-authority" => bad["archive_proof"]["execution_eligible"] = json!(true),
+            "missing" => {
+                bad.as_object_mut().unwrap().remove("report_sha256");
+            }
+            "qualification_eligible" => bad[field] = json!(true),
+            "model_tokens" => bad[field] = json!(1),
+            _ => bad[field] = json!("invalid"),
+        }
+        let raw = canonicalize(bad.to_string().as_bytes()).unwrap();
+        assert!(
+            gauntlet_contracts::verify_dependency_read_response(&intent, &"8".repeat(64), &raw)
+                .is_err(),
+            "{field}"
+        );
+    }
+}
+
+#[test]
+fn both_dependency_read_entrypoints_refuse_foreign_vm_before_transport() {
+    let (_temp, root, journal, intent) = transport_fixture();
+    let original = intent.bytes().unwrap();
+    for (binary, prefix) in [
+        (env!("CARGO_BIN_EXE_gauntlet-host"), vec!["dependencies"]),
+        (env!("CARGO_BIN_EXE_gauntlet-host-run-dependencies"), vec![]),
+    ] {
+        let result = std::process::Command::new(binary)
+            .args(prefix)
+            .arg("read")
+            .arg(&root)
+            .args(["0123456789abcdef", &"8".repeat(64), "--vm", "foreign-vm"])
+            .output()
+            .unwrap();
+        assert_eq!(result.status.code(), Some(2));
+        assert!(result.stdout.is_empty());
+        assert!(!root.join("limactl.calls").exists());
+        assert_eq!(journal.read("0123456789abcdef").unwrap(), intent);
+        assert_eq!(
+            std::fs::read(root.join("0123456789abcdef.dependency-intent.json")).unwrap(),
+            original
+        );
+    }
+}

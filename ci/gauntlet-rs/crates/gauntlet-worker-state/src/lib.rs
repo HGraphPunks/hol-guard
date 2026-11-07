@@ -131,6 +131,8 @@ mod native_dependency_capture;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use dependency_run::{receive_native_dependency_intent, run_native_dependencies};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use dependency_state::read_native_dependencies;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_dependency_export;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_dependency_inputs;

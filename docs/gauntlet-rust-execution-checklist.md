@@ -247,6 +247,16 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
 
   The [retained VM controller audit](gauntlet-rust-controller-source-audit.md) found that the older active Python controller tree is neither the exact 420-file baseline nor this PR's integration tree. A separate [current source-matched tree](gauntlet-rust-current-head-controller-install-proof.md) is now installed inertly, but no reviewed outside install pin or deployment points to it. A Rust worker may not launch either tree until that trust and deployment binding is established.
 - [ ] Port exact Git/archive provenance and the unprivileged, bounded Podman builder, retaining UID, AppArmor, seccomp, capability and `slirp4netns` controls.
+  - [x] Add fixed dependency reconciliation to the primary host and existing
+  diagnostic, reusing original intent/VM bindings, terminal verification and
+  the inert ZIP reader. The Root path acquires four leases and addresses only
+  the requested job; public responses exclude the private intent and nonce.
+  Legacy reads authorize no retry, and repeated matching host readback is
+  idempotent. All 672 Mac tests, formatting and Mac/ARM warnings-denied Clippy
+  pass; the new Root executable builds. No file, crate, target or dependency
+  is added. See [dependency reconciliation](gauntlet-rust-hostbound-candidate-build-proof.md#dependency-reconciliation-without-relaunch).
+  Actual VM readback and host interruption remain pending; all qualification
+  and causality flags stay false and no parent exit closes.
   - [x] Commit host build/dependency dispatch before contacting Lima, preserving
   one-use behavior after concurrent callers, uncertain transport and journal
   restart. Linked/partial dispatch records refuse without contacting transport;

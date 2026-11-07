@@ -139,3 +139,126 @@ pub(crate) fn client_group_absent(job: &str) -> Result<(), String> {
         _ => Err("dependency client cgroup absence uncertain".into()),
     }
 }
+
+/// Read only the original host-reserved dependency attempt. The private reply
+/// travels over the bounded management pipe; the host projects public fields.
+/// No admission scan opens unrelated worker records, and no workload starts.
+pub fn read_native_dependencies(
+    raw: &[u8],
+    expected_intent: &str,
+    generation: &str,
+) -> Result<Vec<u8>, String> {
+    use sha2::{Digest, Sha256};
+    gauntlet_cell_rootfs::require_outside_root()?;
+    crate::verify_running_binary(generation).map_err(|e| e.to_string())?;
+    let intent = DependencyRunIntent::parse(raw)?;
+    if intent.digest()? != expected_intent {
+        return Err("dependency reconciliation intent differs".into());
+    }
+    let p = &intent.pins;
+    let job = p.text("job_id");
+    let main =
+        RunReservationJournal::open_root_owned(Path::new(crate::builder_image_context::RUST_STATE))
+            .map_err(|e| e.to_string())?;
+    let main_lease = main.acquire_active_lease().map_err(|e| e.to_string())?;
+    let legacy = crate::builder_image_context::python_worker_lock().map_err(|e| e.to_string())?;
+    let features = RunReservationJournal::open_root_owned(Path::new(crate::feature_state::STATE))
+        .map_err(|e| e.to_string())?;
+    let feature_lease = features.acquire_active_lease().map_err(|e| e.to_string())?;
+    let journal =
+        RunReservationJournal::open_root_owned(Path::new(STATE)).map_err(|e| e.to_string())?;
+    let lease = journal.acquire_active_lease().map_err(|e| e.to_string())?;
+    let stable = || -> Result<(), String> {
+        main_lease.verify(&main.root).map_err(|e| e.to_string())?;
+        crate::builder_image_context::verify_python_lock(&legacy).map_err(|e| e.to_string())?;
+        feature_lease
+            .verify(&features.root)
+            .map_err(|e| e.to_string())?;
+        lease.verify(&journal.root).map_err(|e| e.to_string())
+    };
+    if crate::dependency_repair::intent_for_job(job, expected_intent)? != intent {
+        return Err("dependency reconciliation differs from retained host intent".into());
+    }
+    let terminal = journal
+        .terminal(
+            job,
+            p.text("source_sha"),
+            expected_intent,
+            p.text("runner_binary_sha256"),
+        )
+        .map_err(|e| e.to_string())?
+        .ok_or("dependency attempt has no terminal; never retry it")?;
+    if terminal.status != TerminalOutcome::InvalidEvidence
+        || terminal.controller_public_key_hex.is_some()
+    {
+        return Err("dependency terminal is outside this protocol".into());
+    }
+    let report = crate::dependency_io::read(
+        &journal.root,
+        &format!("{job}.report.json"),
+        0,
+        0o600,
+        16384,
+    )?;
+    let public = gauntlet_contracts::verify_dependency_run_result(&intent, &report)?;
+    if public["private_result_sha256"] != terminal.report_sha256
+        || public["exit_code"].as_i64() != Some(i64::from(terminal.exit_code))
+    {
+        return Err("dependency retained report differs from terminal".into());
+    }
+    let value: Value = serde_json::from_slice(&report).map_err(|e| e.to_string())?;
+    let cid = value["container_id"]
+        .as_str()
+        .filter(|s| crate::hex(s, 64))
+        .ok_or("dependency report container identity missing")?;
+    crate::dependency_podman::verify_completed_absent(&intent, cid)?;
+    let slot =
+        crate::builder_candidate_source::open_fixed_build_slot(job).map_err(|e| e.to_string())?;
+    let archive = if let Some(hash) = public["captured_dependencies_sha256"].as_str() {
+        let bytes =
+            crate::dependency_io::read(&slot, "dependencies.zip", 0, 0o444, 256 * 1024 * 1024)?;
+        if public["captured_dependencies_bytes"].as_u64() != Some(bytes.len() as u64) {
+            return Err("dependency retained export length differs".into());
+        }
+        Some(
+            crate::inspect_dependency_archive(
+                &bytes,
+                &crate::DependencyArchivePins {
+                    job_id: job,
+                    source_sha: p.text("source_sha"),
+                    archive_sha256: hash,
+                    pyproject_sha256: p.text("pyproject_sha256"),
+                    uv_lock_sha256: p.text("uv_lock_sha256"),
+                },
+            )?
+            .to_json(),
+        )
+    } else {
+        match statat(&slot, "dependencies.zip", AtFlags::SYMLINK_NOFOLLOW) {
+            Err(rustix::io::Errno::NOENT) => None,
+            _ => return Err("unreported dependency export needs separate inspection".into()),
+        }
+    };
+    stable()?;
+    if crate::dependency_io::read(
+        &journal.root,
+        &format!("{job}.report.json"),
+        0,
+        0o600,
+        16384,
+    )? != report
+    {
+        return Err("dependency report changed while reconciling".into());
+    }
+    let response = serde_json::json!({"schema":"hol-gauntlet-native-dependency-read.v1",
+        "reader_generation":generation,"intent_sha256":expected_intent,
+        "report_sha256":format!("{:x}",Sha256::digest(&report)),"terminal_sha256":terminal.sha256,
+        "report":value,"archive_proof":archive,"artifact_admitted":false,"execution_eligible":false,
+        "qualification_eligible":false,"guard_causality_verified":false,"model_requests":0,"model_tokens":0});
+    let encoded = canonicalize(response.to_string().as_bytes()).map_err(|e| e.to_string())?;
+    if encoded.len() > 32768 {
+        return Err("dependency reconciliation response exceeds bound".into());
+    }
+    stable()?;
+    Ok(encoded)
+}

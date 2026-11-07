@@ -1,8 +1,5 @@
-//! Data-only JSON boundary for the Gauntlet Rust migration.
-//!
-//! These limits and canonical bytes follow `ci/gauntlet/benchmark/json_data.py`
-//! at the separately reviewed Gauntlet source revision. No candidate code is
-//! imported or executed to interpret a record.
+//! Data-only JSON matching the separately reviewed `ci/gauntlet/benchmark/json_data.py`.
+//! Candidate code is never imported or executed to interpret a record.
 
 use sha2::{Digest, Sha256};
 use std::borrow::Cow;
@@ -16,7 +13,10 @@ pub use feature_run::{
     FEATURE_INTENT_LIMIT,
 };
 mod effect_file_handle;
-pub use dependency_run::{DependencyRunIntent, DependencyRunPins, DEPENDENCY_INTENT_LIMIT};
+pub use dependency_run::{
+    verify_dependency_read_response, verify_dependency_run_result, DependencyRunIntent,
+    DependencyRunPins, DEPENDENCY_INTENT_LIMIT,
+};
 mod effect_writer_image;
 mod feature_catalog;
 mod feature_spec;

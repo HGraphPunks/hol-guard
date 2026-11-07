@@ -3,10 +3,9 @@ use crate::fixed_process::run_fixed_intent;
 use crate::private_jobs::{read_regular_bytes, state_root, write_private_once};
 use gauntlet_contracts::{DependencyRunIntent, DependencyRunPins};
 use ring::rand::{SecureRandom, SystemRandom};
-use rustix::fs::{fchmod, fstat, fsync, openat, Mode, OFlags};
+use rustix::fs::{fchmod, fstat, fsync, openat, statat, AtFlags, Mode, OFlags};
 use rustix::process::geteuid;
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
 use std::fs::File;
 use std::io::Write;
 use std::os::fd::OwnedFd;
@@ -189,49 +188,7 @@ impl DependencyIntentJournal {
         let frame = raw
             .strip_suffix(b"\n")
             .ok_or("canonical dependency response required")?;
-        if gauntlet_contracts::canonicalize(frame).map_err(|e| e.to_string())? != frame {
-            return Err("dependency response is ambiguous".into());
-        }
-        let result: Value = serde_json::from_slice(frame).map_err(|e| e.to_string())?;
-        let empty_export = result
-            .get("captured_dependencies_bytes")
-            .is_some_and(Value::is_null)
-            && result
-                .get("captured_dependencies_sha256")
-                .is_some_and(Value::is_null);
-        let captured_export = result["captured_dependencies_bytes"]
-            .as_u64()
-            .is_some_and(|n| n > 0 && n <= 256 * 1024 * 1024)
-            && result["captured_dependencies_sha256"]
-                .as_str()
-                .is_some_and(|s| {
-                    s.len() == 64
-                        && s.bytes()
-                            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-                });
-        if result["schema"] != "hol-gauntlet-native-dependency-result.v1"
-            || result["intent_sha256"] != digest
-            || result["job_id"] != intent.pins.text("job_id")
-            || result["source_sha"] != intent.pins.text("source_sha")
-            || result["worker_generation"] != generation
-            || result["intent"]
-                != serde_json::from_slice::<Value>(&intent.bytes()?).map_err(|e| e.to_string())?
-            || result["status"] != "invalid-evidence"
-            || result["guard_causality_verified"] != false
-            || !result
-                .get("exit_code")
-                .is_some_and(|v| v.is_null() || v.as_u64().is_some_and(|n| n <= 255))
-            || !(empty_export || captured_export)
-            || result["execution_eligible"] != false
-            || result["artifact_admitted"] != false
-            || result["model_requests"] != 0
-            || result["container_absent"] != true
-            || result["container_cgroup_absent"] != true
-            || result["client_cgroup_drained"] != true
-            || result["build_profile_removed"] != true
-        {
-            return Err("dependency response differs from prelaunch intent".into());
-        }
+        let public = gauntlet_contracts::verify_dependency_run_result(intent, frame)?;
         if self.read(intent.pins.text("job_id"))? != *intent {
             return Err("dependency intent changed during execution".into());
         }
@@ -243,20 +200,101 @@ impl DependencyIntentJournal {
             frame,
         )?;
         self.stable()?;
-        let public = json!({"schema":"hol-gauntlet-host-dependency-run-claim.v1",
-            "job_id":intent.pins.text("job_id"),"source_sha":intent.pins.text("source_sha"),
-            "intent_sha256":digest,"worker_generation":generation,"status":"invalid-evidence",
-            "exit_code":result["exit_code"],"captured_dependencies_bytes":result["captured_dependencies_bytes"],
-            "captured_dependencies_sha256":result["captured_dependencies_sha256"],
-            "private_result_sha256":format!("{:x}", Sha256::digest(frame)),
-            "container_absent":true,"container_cgroup_absent":true,"client_cgroup_drained":true,
-            "build_profile_removed":true,"retained_result_reconciled":false,
-            "artifact_admitted":false,"execution_eligible":false,"qualification_eligible":false,
-            "guard_causality_verified":false,"model_requests":0,"model_tokens":0});
-        if public.to_string().contains(&intent.nonce) {
-            return Err("private dependency intent value appeared in public fields".into());
+        Ok(public)
+    }
+    /// Reconcile only the original VM and intent. This never records a fresh
+    /// launch authorization or consumes another dispatch.
+    pub fn reconcile_read_only(
+        &self,
+        job: &str,
+        generation: &str,
+        vm: Option<&str>,
+    ) -> Result<Value, String> {
+        if generation.len() != 64
+            || !generation
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
+            return Err("exact dependency reader binary SHA-256 required".into());
+        }
+        let intent = self.read(job)?;
+        if vm.is_some_and(|v| v != intent.vm) {
+            return Err("dependency read requires the original VM".into());
+        }
+        let digest = intent.digest()?;
+        let argv = vec![
+            intent.limactl.clone(),
+            "shell".into(),
+            intent.vm.clone(),
+            "--".into(),
+            "sudo".into(),
+            "-n".into(),
+            format!("/opt/hol-gauntlet/rust-native-dependency-worker-{generation}"),
+            "--read-native-dependencies".into(),
+            digest,
+            intent.bytes()?.len().to_string(),
+            generation.into(),
+        ];
+        let raw = run_fixed_intent(
+            &argv,
+            &intent.bytes()?,
+            Duration::from_secs(120),
+            32769,
+            8192,
+        )
+        .map_err(|e| {
+            format!("dependency retained read unavailable; workload cannot retry: {e:?}")
+        })?;
+        let frame = raw
+            .strip_suffix(b"\n")
+            .ok_or("one dependency read frame required")?;
+        let public =
+            gauntlet_contracts::verify_dependency_read_response(&intent, generation, frame)?;
+        if self.read(job)? != intent {
+            return Err("dependency intent changed during reconciliation".into());
+        }
+        let encoded = gauntlet_contracts::canonicalize(public.to_string().as_bytes())
+            .map_err(|e| e.to_string())?;
+        let name = format!("{job}.dependency-reconciled-{generation}.json");
+        match statat(&self.root, name.as_str(), AtFlags::SYMLINK_NOFOLLOW) {
+            Err(rustix::io::Errno::NOENT) => write_private_once(&self.root, &name, &encoded)?,
+            Err(e) => return Err(e.to_string()),
+            Ok(_) => {
+                if read_regular_bytes(&self.root, &name, self.owner).map_err(|e| e.to_string())?
+                    != encoded
+                {
+                    return Err("retained dependency reconciliation differs".into());
+                }
+            }
+        }
+        self.stable()?;
+        if self.read(job)? != intent {
+            return Err("dependency intent changed after reconciliation".into());
         }
         Ok(public)
+    }
+}
+
+pub const DEPENDENCY_COMMAND_USAGE:&str="dependency commands:\nrun PRIVATE_INTENT_DIR PRIVATE_RUN_PINS_JSON [--vm VM_NAME]\nread PRIVATE_INTENT_DIR JOB_ID READER_BINARY_SHA256 [--vm VM_NAME]\nRead preserves the original intent and never authorizes installation or execution admission.";
+
+pub fn run_dependency_command(args: &[String]) -> Result<Value, String> {
+    match (args.first().map(String::as_str), args.len()) {
+        (Some("run"), 3) | (Some("run"), 5) if args.len() == 3 || args[3] == "--vm" => {
+            let pins = read_dependency_run_pins(Path::new(&args[2]))?;
+            let operations = crate::public_vm_operations(args.get(4).map(String::as_str))
+                .map_err(|e| e.to_string())?;
+            let journal = DependencyIntentJournal::open(Path::new(&args[1]))?;
+            let intent = journal.record(pins, &operations)?;
+            journal.execute_once(&intent)
+        }
+        (Some("read"), 4) | (Some("read"), 6) if args.len() == 4 || args[4] == "--vm" => {
+            DependencyIntentJournal::open(Path::new(&args[1]))?.reconcile_read_only(
+                &args[2],
+                &args[3],
+                args.get(5).map(String::as_str),
+            )
+        }
+        _ => Err(DEPENDENCY_COMMAND_USAGE.into()),
     }
 }
 
