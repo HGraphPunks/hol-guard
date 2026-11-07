@@ -18,15 +18,26 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
-- Early dependency creator custody now prepares and durably retains the client
-  cgroup before policy load or container creation, then places both mutating
-  helpers before exec and passes the same held group to the client. Five existing
-  Rust files change; no file, crate, target or dependency is added. Source manifest
-  `dependency-early-owner-20261107-source-001.json` is `57891010…`.
-  All 675 Mac tests, formatting, Mac/ARM Clippy and builds pass; local validation
-  is `9ec3b3b2…`. The explicit Root placement fixture is pending. Next prove actual interruption
-  after the full CID receipt but before client startup, then a normal control.
-  Missing-CID/partial records and all parent exits remain open.
+- Upstream advances to `59ff1696b`, merged without conflicts as `dbd3073ac`.
+  All eighteen incoming files match upstream; ten Python files parse without
+  imports. The 440-file Gauntlet map and immutable 420-file baseline are
+  unchanged, as are all five early-custody Rust files. Native library/CLI checks
+  pass on Mac/ARM; Guard-command tests compile without execution. Validation
+  `e220ad84…` binds four records/three logs; the nine-member addendum is
+  `7b2f5a33…`. Source custody is `8ee29741…`; live product evidence
+  still belongs to `53c64ae96`, not this newer product generation.
+- Early creator custody at `9ec64a005` retains one group before policy load or
+  container creation and passes it to both mutating helpers and the client.
+  All 675 Mac tests, formatting, Mac/ARM Clippy/builds and the explicit Root
+  placement fixture pass, with no new migration file, crate, target or dependency.
+  Fresh direct-SIGKILL job `a4d1927e63bc805f` proves full-CID/pre-client repair
+  in 6.110 seconds without outside rescue, then cleanup/restart and refusals.
+  Normal `90d7b6a4c21e385f` exits zero in 58.699 seconds; all 2,290 files and
+  51,318,588 bytes match. Validation `a27350b9…` binds 108 records; bundle
+  `07ec7eaa…` has 115 members and excludes fifteen actual private nonces.
+  The earlier SIGSTOP fixture's stopped sudo monitor, failed cleanup observation
+  and verified transport continuation remain retained. Missing-CID/partial-state
+  recovery and the original active repair refusal remain open; no parent closes.
 - Private diagnostics at final implementation `951f57ad5` keep the existing
   module at 490 lines, with no new file, crate, target or dependency. All 675
   Mac tests, formatting, Mac/ARM Clippy, builds and four selected ARM cases pass,

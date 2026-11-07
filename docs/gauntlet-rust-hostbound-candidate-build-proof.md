@@ -660,15 +660,68 @@ All 675 Mac tests, formatting, Mac/ARM warnings-denied Clippy and builds pass.
 Local validation `dependency-early-owner-20261107-validation-001.json` binds
 eight records/seven logs, SHA-256
 `9ec3b3b2e5240dc375605e6f1cac6abbf9911630d33e8e4afc0a50d664773111`.
-The explicit Root fixture remains pending at this checkpoint. The fixture stops
-inert children before their helper executables run, verifies placement through
-the production command constructors, and includes an unplaced control. It is
-apparatus evidence, not an observation of actual helper binary execution.
+Implementation `9ec64a00555045363f093a013943fa037ad76302` freezes worker
+`3112ffc2…` and ARM test ELF `0208f437…`. The explicitly selected Root placement
+fixture passes under all four leases, preserving metadata for all 333 historical
+records and their lock. It stops inert children before their helper executables
+run, verifies placement through the production command constructors, and includes
+an unplaced control. Held pidfds, parent/start identity and executable inodes
+bind its child signals. It is apparatus evidence, not an observation of actual
+helper binary execution. External `dependency-early-owner-20261107-host-001/arm-units-001.json`
+hashes to `1f8949e76869abfdbc417cd038aa69786d0d038deec2fae627e6303bf6e706a9`.
+The first install receipt's stale source annotation remains intact; a separate
+hash-verified readback corrects it without reinstalling or rewriting evidence.
 
-Next prove actual interruption after the complete CID receipt and before client
-startup, then independently verify Rust repair and a normal export. Missing-CID
-and malformed/partial records remain unknown; this change does not authorize
-adopting a missing or foreign identity. Every qualification exit stays open.
+Fresh job `a4d1927e63bc805f` watches the CID receipt's close-write before host
+launch. The outside watcher holds the exact original supervisor pidfd and sends
+SIGKILL at that event. It verifies the complete intent-bound CID, the retained
+group/ready receipts, an empty client group, no running marker, container state
+`created`, and init PID zero. The original host call returns uncertain/exit 2;
+that is not a workload exit. Both read commands agree on unknown/null state.
+Wrong reservation repair refuses before authorization, and outside observation
+confirms the created container, empty group and enforced policy remain intact.
+
+Rust repair succeeds on its first call in 6.110 seconds, recording aborted/null
+state without a running marker or captured export. Independent four-lease checks
+verify original supervisor, container/name, all client/builder/libpod/conmon
+groups and policy absent. No outside cleanup or transport rescue is required.
+The original intent, authorization, dispatch and unknown records remain unchanged.
+Six restart/read/repeat-repair/different-pin/consumed cases pass. External
+`native-merged359-dependency-host-state-20261107-010/outside-completion-001.json`
+hashes to `66f962c0a789cc201139385986ddc2015db1a38bbb9a84eb4e17970e3da98210`;
+restart readback is `d3eb445eaa98bf2c44343548d2325b5745d2c7cb9c3df279a4bbeaacebf0cf4a`.
+
+Normal job `90d7b6a4c21e385f` exits zero in 58.699 seconds with the same worker.
+Outside observation verifies the real UID/GID-65532 exporter, pinned executable
+and inputs, read-only mounts, empty capabilities, enforced policy and fixed
+kernel limits. Cleanup and both retained-result commands pass; consumed launch
+and completed-job repair refuse without cleanup authorization. Independent inert
+ZIP decoding verifies all 2,290 files/51,318,588 bytes and entry digest
+`b01fe0d3806503226d77118a977594ee5603025ed6412ea1d24ae6a0daf5f866`.
+Its 16,690,636-byte ZIP is `27d5ca75241a854ad87631f200abb7f31a3c9781ca0b373a9c200beb5b472120`;
+independent export record is `1fed3cf112e8d39159ad8ec4a596f6145e00f278b30939c1f8ece73da86a03b2`.
+The live product remains exact source `53c64ae96` and controller `123024f4…`.
+
+The preceding SIGSTOP/SIGKILL fixture `f68d20a9b7c4315e` is retained separately.
+It reaches the same pre-client boundary and Rust removes its resources in 4.812
+seconds, but SIGSTOP also stops the original sudo monitor. The supervisor stays
+a zombie, the outer host-wrapper wait expires, and the first absence check fails.
+Outside code continues only that verified monitor through its held pidfd to reap
+the original process; subsequent cleanup/restart checks pass. Its caller exit is
+unobserved, and it does not prove unassisted full completion. The oversized SSH
+watcher failure and bounded management-pipe correction also remain retained.
+This explains that fixture's failure, not the original active repair refusal.
+
+Live validation `dependency-early-owner-20261107-validation-002.json` binds 108
+records, SHA-256 `a27350b9443632b5ce6f83b7d92bdd38280f83d3a42a87416b0fe0301a3b497d`.
+Public bundle `gauntlet-rust-review-dependency-early-owner-20261107-001.tar`
+contains 115 members/17,500,160 bytes, SHA-256
+`07ec7eaa3688c4942f7de6f27a8f0083976f9f7096865c23f8ddf1432f76147d`.
+All members reopen and fifteen actual private nonces are excluded, including
+decoded ZIP contents. Remote delivery and independent review remain open.
+Missing-CID and malformed/partial records remain unknown; this change does not
+authorize adopting missing or foreign identity. All parent exits remain 24/62,
+all eligibility flags stay false and product model requests/tokens remain zero.
 
 ## Dependency reconciliation without relaunch
 
@@ -773,6 +826,38 @@ reconstructs its complete 300 passes and one failure from the retained log.
 No new repository file, crate, target or dependency is added by this followup.
 Fresh product execution, independent review and required current-head CI
 remain open; all eligibility flags remain false and model use remains zero.
+
+## Upstream runtime followup after early creator custody
+
+Three further commits advance upstream to
+`59ff1696b7dd9b57bc6db1554e46ce5c78d82f68`. Merge
+`dbd3073ac1d1892fcf8c1ca659b6a9b1aa3efa19` has no conflicts and preserves all
+eighteen incoming files exactly. Ten Python files parse without imports; no
+product code runs on the host. The new gateway retry-delay module and enlarged
+runtime cache logic stay upstream-identical and remain an explicit Rust ownership
+review question. Neither approval choice is changed by the migration work.
+
+The immutable 420-file baseline and 440-file Gauntlet source map are byte-identical
+to the early-custody checkpoint, retaining 79 changed and 20 added Gauntlet files
+against that baseline. The merge changes no Gauntlet source, so no delta refresh
+is needed. All five early-custody Rust files still match manifest `57891010…`;
+the 675-test/Clippy evidence and live proof are not relabelled as product execution
+of the newer generation. No new controller is installed. Source custody
+`upstream-runtime-followup-20261107-source-001.json` hashes to
+`8ee297414285f6f4d6b6f5ac9c255372d183918631c6d1b75f140f4c3094bf43`.
+Mac/ARM Native library/CLI compilation and Mac Guard-command test compilation
+pass; the product tests are not executed on the host. The existing ARM musl
+`libc::time_t` deprecation warning stays visible. Aggregate
+`upstream-runtime-followup-20261107-validation-001.json` binds four records and
+three logs, SHA-256
+`e220ad84e8a409f13bde9f3d8ca452e9bb8589ba3570b035d4dd1d945065334b`.
+The nine-member/30,720-byte public addendum
+`gauntlet-rust-review-runtime-followup-20261107-001.tar` hashes to
+`7b2f5a33ecaf9bf63bbd0e16a0168612a00bfaa13fe544c4086c70770e5e60df`.
+Every member reopens and fifteen actual private nonces are excluded. Fresh
+current-product execution, remote delivery, independent review and all five
+required current-head CI jobs remain open. Parent exits remain 24/62, all
+authority flags stay false and product model requests/tokens remain zero.
 
 ## Retained 3.59.0 dependencies for `83f079b5c`
 

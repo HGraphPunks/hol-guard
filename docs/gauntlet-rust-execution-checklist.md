@@ -290,11 +290,16 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
     The old refusal is not reproduced. Validation `e437160f…` binds 56 records;
     the count-parser failure and data-only correction stay retained. No file,
     crate, target or dependency is added. See [diagnostics](gauntlet-rust-hostbound-candidate-build-proof.md#private-repair-failure-diagnostics).
-    - [ ] Verify early dependency creator custody through the existing parser,
+    - [x] Verify early dependency creator custody through the existing parser,
     Podman and client paths, then actual full-CID/pre-client interruption and a
     normal control. The implementation uses five existing Rust files with no
     new dependency or target. All 675 Mac tests, formatting, Mac/ARM Clippy and
-    builds pass; the Root placement fixture remains pending. See
+    builds pass, plus the explicit inert Root placement fixture. Direct-SIGKILL
+    job `a4d1927e63bc805f` repairs in 6.110 seconds without outside rescue;
+    cleanup, six restart/refusal cases and normal export/readback pass. All
+    2,290 files/51,318,588 bytes match. Validation `a27350b9…` binds 108 records;
+    the SIGSTOP/sudo fixture failure and transport recovery remain retained.
+    Missing-CID/partial states and the parent exit stay open. See
     [early creator custody](gauntlet-rust-hostbound-candidate-build-proof.md#early-dependency-creator-custody).
   - [x] Add fixed dependency reconciliation to the primary host and existing
   diagnostic, reusing original intent/VM bindings, terminal verification and
