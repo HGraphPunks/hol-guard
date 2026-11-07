@@ -123,7 +123,9 @@ pub use feature_run::{receive_native_feature_intent, run_native_features};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod dependency_state;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-pub use dependency_repair::repair_native_dependencies;
+pub use dependency_repair::{
+    read_repaired_native_dependencies, repair_native_dependencies, repair_owned_native_dependencies,
+};
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_dependency_archive;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

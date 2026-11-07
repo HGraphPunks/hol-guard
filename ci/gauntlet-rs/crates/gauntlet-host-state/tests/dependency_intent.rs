@@ -61,6 +61,100 @@ fn write_reply(root: &std::path::Path, private: &serde_json::Value) -> Vec<u8> {
     raw
 }
 
+fn repair_reply(intent: &DependencyRunIntent) -> serde_json::Value {
+    json!({"schema":"hol-gauntlet-native-dependency-repair.v2","job_id":intent.pins.text("job_id"),
+        "source_sha":intent.pins.text("source_sha"),"intent_sha256":intent.digest().unwrap(),
+        "worker_generation":intent.pins.text("runner_binary_sha256"),"repair_generation":"d".repeat(64),
+        "started_marker_sha256":"e".repeat(64),"running_marker_sha256":"f".repeat(64),
+        "container_id":"1".repeat(64),"client_cgroup_receipt_sha256":"2".repeat(64),
+        "captured_dependencies_bytes":null,"captured_dependencies_sha256":null,"status":"aborted","exit_code":null,
+        "quiescent":true,"artifact_admitted":false,"execution_eligible":false,"qualification_eligible":false,
+        "guard_causality_verified":false,"model_requests":0,"model_tokens":0})
+}
+
+#[test]
+fn dependency_repair_is_authorized_before_transport_and_reopens_without_launch() {
+    let (_temp, root, journal, intent) = transport_fixture();
+    let job = intent.pins.text("job_id");
+    let generation = "d".repeat(64);
+    let started = "e".repeat(64);
+    let auth = root.join(format!("{job}.dependency-repair-authorized.json"));
+    assert!(journal
+        .repair(job, &started, &generation, Some("foreign-vm"))
+        .is_err());
+    assert!(!auth.exists() && !root.join("limactl.calls").exists());
+    let outside = root.join("repair-authorization-target");
+    let authorization=canonicalize(json!({"schema":"hol-gauntlet-host-dependency-repair-authorization.v1","job_id":job,
+        "intent_sha256":intent.digest().unwrap(),"started_marker_sha256":started,"repair_generation":generation}).to_string().as_bytes()).unwrap();
+    std::fs::write(&outside, &authorization).unwrap();
+    std::fs::set_permissions(&outside, std::fs::Permissions::from_mode(0o600)).unwrap();
+    for linked in [false, true] {
+        if linked {
+            std::fs::hard_link(&outside, &auth).unwrap();
+        } else {
+            symlink(&outside, &auth).unwrap();
+        }
+        assert!(journal.repair(job, &started, &generation, None).is_err());
+        assert!(!root.join("limactl.calls").exists());
+        assert_eq!(std::fs::read(&outside).unwrap(), authorization);
+        std::fs::remove_file(&auth).unwrap();
+    }
+    std::fs::write(&auth, b"{").unwrap();
+    std::fs::set_permissions(&auth, std::fs::Permissions::from_mode(0o600)).unwrap();
+    assert!(journal.repair(job, &started, &generation, None).is_err());
+    assert!(!root.join("limactl.calls").exists());
+    std::fs::remove_file(&auth).unwrap();
+    assert!(journal.execute_once(&intent).is_err());
+    let original = intent.bytes().unwrap();
+    let reply = canonicalize(repair_reply(&intent).to_string().as_bytes()).unwrap();
+    let unknown=canonicalize(json!({"schema":"hol-gauntlet-native-dependency-unknown.v1","job_id":job,"source_sha":intent.pins.text("source_sha"),"intent_sha256":intent.digest().unwrap(),
+        "worker_generation":intent.pins.text("runner_binary_sha256"),"reader_generation":generation,"started_marker_sha256":started,
+        "running_marker_sha256":null,"retained_client_cgroup_receipt_sha256":null,"status":"unknown","exit_code":null,
+        "artifact_admitted":false,"execution_eligible":false,"qualification_eligible":false,"guard_causality_verified":false,"model_requests":0,"model_tokens":0}).to_string().as_bytes()).unwrap();
+    std::fs::write(root.join("limactl"),format!("#!/bin/sh\n/bin/cat >/dev/null\ncase \"$*\" in *--read-native-dependencies*) if [ ! -e \"$0.repaired\" ]; then\n/bin/cat <<'OBSERVED'\n{}\nOBSERVED\nexit 0\nfi\nexit 7;; *--repair-owned-native-dependencies*) : > \"$0.repaired\";; esac\n/bin/cat <<'REPLY'\n{}\nREPLY\n",String::from_utf8(unknown).unwrap(),String::from_utf8(reply).unwrap())).unwrap();
+    assert!(journal
+        .repair(job, &"a".repeat(64), &generation, None)
+        .is_err());
+    assert!(!auth.exists() && !root.join("limactl.repaired").exists());
+    let public = journal.repair(job, &started, &generation, None).unwrap();
+    assert!(public["exit_code"].is_null());
+    assert_eq!(public["status"], "aborted");
+    assert!(!public.to_string().contains(&intent.nonce));
+    let authorization = std::fs::read(&auth).unwrap();
+    assert_eq!(
+        std::fs::metadata(&auth).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+    let reopened = DependencyIntentJournal::open(&root).unwrap();
+    assert_eq!(
+        reopened.repair(job, &started, &generation, None).unwrap(),
+        public
+    );
+    let read = reopened
+        .reconcile_read_only(job, &generation, None)
+        .unwrap();
+    assert_eq!(
+        read["private_result_sha256"],
+        public["private_result_sha256"]
+    );
+    assert_eq!(read["retained_result_reconciled"], true);
+    assert_eq!(
+        reopened
+            .reconcile_read_only(job, &generation, None)
+            .unwrap(),
+        read
+    );
+    assert!(reopened
+        .repair(job, &"f".repeat(64), &generation, None)
+        .is_err());
+    assert!(reopened
+        .repair(job, &started, &"a".repeat(64), None)
+        .is_err());
+    assert_eq!(std::fs::read(auth).unwrap(), authorization);
+    assert_eq!(reopened.read(job).unwrap().bytes().unwrap(), original);
+    assert!(reopened.execute_once(&intent).is_err());
+}
+
 #[test]
 fn dependency_intent_survives_restart_and_replay_preserves_exact_target_pins() {
     let temp = tempfile::tempdir().unwrap();

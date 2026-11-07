@@ -259,6 +259,18 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
 
   The [retained VM controller audit](gauntlet-rust-controller-source-audit.md) found that the older active Python controller tree is neither the exact 420-file baseline nor this PR's integration tree. A separate [current source-matched tree](gauntlet-rust-current-head-controller-install-proof.md) is now installed inertly, but no reviewed outside install pin or deployment points to it. A Rust worker may not launch either tree until that trust and deployment binding is established.
 - [ ] Port exact Git/archive provenance and the unprivileged, bounded Podman builder, retaining UID, AppArmor, seccomp, capability and `slirp4netns` controls.
+  - [x] Retain dependency client kernel custody before launch and connect explicit
+  host-authorized repair to the existing commands. Typed unknown reads supply
+  reservation pins without cleanup authority; wrong pins refuse before durable
+  authorization. Recovery binds the original intent, full CID and kernel group
+  under four leases, preserving the original consumed attempt and null exit.
+  All 675 Mac tests, formatting, Mac/ARM Clippy and executable builds pass;
+  live validation remains pending. One shared contract module is added without
+  a new crate, executable or dependency. See [supervisor recovery](gauntlet-rust-hostbound-candidate-build-proof.md#dependency-supervisor-recovery).
+  - [ ] Prove active dependency-supervisor loss and Rust repair on a fresh job,
+  independently verify full cleanup, then complete a fresh normal control with
+  unchanged source-bound dependency bytes. Broader partial-state recovery and
+  qualification remain open; no parent exit closes.
   - [x] Add fixed dependency reconciliation to the primary host and existing
   diagnostic, reusing original intent/VM bindings, terminal verification and
   the inert ZIP reader. The Root path acquires four leases and addresses only

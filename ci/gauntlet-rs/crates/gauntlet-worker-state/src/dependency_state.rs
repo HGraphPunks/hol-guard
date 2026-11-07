@@ -186,8 +186,62 @@ pub fn read_native_dependencies(
             expected_intent,
             p.text("runner_binary_sha256"),
         )
-        .map_err(|e| e.to_string())?
-        .ok_or("dependency attempt has no terminal; never retry it")?;
+        .map_err(|e| e.to_string())?;
+    if terminal.is_some()
+        && !matches!(
+            statat(
+                &journal.root,
+                format!("{job}.dependency-repair.json"),
+                AtFlags::SYMLINK_NOFOLLOW
+            ),
+            Err(rustix::io::Errno::NOENT)
+        )
+    {
+        return Err("dependency has ambiguous terminal and repair records".into());
+    }
+    let Some(terminal) = terminal else {
+        let result = if let Some(repair) = crate::dependency_repair::verified(&journal, &intent)? {
+            repair
+        } else {
+            let started = journal
+                .started(
+                    job,
+                    p.text("source_sha"),
+                    expected_intent,
+                    p.text("runner_binary_sha256"),
+                )
+                .map_err(|e| e.to_string())?
+                .ok_or("dependency reservation missing; never retry it")?;
+            if started.controller_public_key_hex.is_some() {
+                return Err("keyed job is outside dependency observation".into());
+            }
+            let running = journal
+                .running_marker(
+                    job,
+                    p.text("source_sha"),
+                    expected_intent,
+                    p.text("runner_binary_sha256"),
+                )
+                .map_err(|e| e.to_string())?;
+            let slot = crate::builder_candidate_source::open_fixed_build_slot(job)
+                .map_err(|e| e.to_string())?;
+            let group = crate::feature_files::read(
+                &slot,
+                "candidate-client-cgroup.v1.json",
+                (0, 0),
+                0o600,
+                2048,
+            )?;
+            canonicalize(serde_json::json!({"schema":"hol-gauntlet-native-dependency-unknown.v1","job_id":job,"source_sha":p.text("source_sha"),
+                "intent_sha256":expected_intent,"worker_generation":p.text("runner_binary_sha256"),"reader_generation":generation,
+                "started_marker_sha256":started.sha256,"running_marker_sha256":running.map(|r|r.sha256),
+                "retained_client_cgroup_receipt_sha256":group.as_deref().map(|raw|format!("{:x}",Sha256::digest(raw))),
+                "status":"unknown","exit_code":null,"artifact_admitted":false,"execution_eligible":false,"qualification_eligible":false,
+                "guard_causality_verified":false,"model_requests":0,"model_tokens":0}).to_string().as_bytes()).map_err(|e|e.to_string())?
+        };
+        stable()?;
+        return Ok(result);
+    };
     if terminal.status != TerminalOutcome::InvalidEvidence
         || terminal.controller_public_key_hex.is_some()
     {

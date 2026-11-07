@@ -74,10 +74,22 @@ fn run() -> Result<(), String> {
         println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
         return Ok(());
     }
-    if args.len() == 7 && args[1] == "--repair-native-dependencies" {
-        let raw = gauntlet_worker_state::repair_native_dependencies(
-            &args[2], &args[3], &args[4], &args[5], &args[6],
-        )?;
+    if args.len() == 7
+        && matches!(
+            args[1].as_str(),
+            "--repair-native-dependencies"
+                | "--repair-owned-native-dependencies"
+                | "--read-native-dependency-repair"
+        )
+    {
+        let operation = match args[1].as_str() {
+            "--repair-native-dependencies" => gauntlet_worker_state::repair_native_dependencies,
+            "--repair-owned-native-dependencies" => {
+                gauntlet_worker_state::repair_owned_native_dependencies
+            }
+            _ => gauntlet_worker_state::read_repaired_native_dependencies,
+        };
+        let raw = operation(&args[2], &args[3], &args[4], &args[5], &args[6])?;
         println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
         return Ok(());
     }

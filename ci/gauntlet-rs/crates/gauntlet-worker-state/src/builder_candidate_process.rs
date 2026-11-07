@@ -228,6 +228,7 @@ pub(crate) fn candidate_timeout_probe(
 pub(crate) fn run_precreated_dependency_process(
     plan: &BuilderRunPlan,
     job: &OwnedFd,
+    binding: &str,
     still_owned: &impl Fn() -> Result<(), CandidateProcessError>,
     drain_container: &impl Fn() -> Result<(), CandidateProcessError>,
     record_running: &impl Fn(crate::ProcessIdentity, &str) -> Result<(), CandidateProcessError>,
@@ -236,10 +237,10 @@ pub(crate) fn run_precreated_dependency_process(
         plan,
         job,
         still_owned,
-        RunKind::Dependency,
+        RunKind::Dependency(binding),
         drain_container,
         record_running,
-        RunKind::Dependency.deadline(),
+        RunKind::Dependency(binding).deadline(),
     )
 }
 
@@ -265,21 +266,21 @@ pub(crate) fn run_precreated_feature_process(
 #[derive(Clone, Copy)]
 enum RunKind<'a> {
     Candidate(&'a str),
-    Dependency,
+    Dependency(&'a str),
     Feature(&'a gauntlet_contracts::FeatureRunIntent),
 }
 impl RunKind<'_> {
     fn log_names(self) -> (&'static str, &'static str) {
         match self {
             Self::Candidate(_) => ("candidate-run.stdout.log", "candidate-run.stderr.log"),
-            Self::Dependency => ("dependency-run.stdout.log", "dependency-run.stderr.log"),
+            Self::Dependency(_) => ("dependency-run.stdout.log", "dependency-run.stderr.log"),
             Self::Feature(_) => ("feature-run.stdout.log", "feature-run.stderr.log"),
         }
     }
     fn deadline(self) -> Duration {
         Duration::from_secs(match self {
             Self::Candidate(_) => gauntlet_contracts::CANDIDATE_BUILD_TIMEOUT_SECONDS,
-            Self::Dependency => 2100,
+            Self::Dependency(_) => 2100,
             Self::Feature(_) => 14400,
         })
     }
@@ -312,9 +313,10 @@ fn run_process(
     })
     .map_err(|_| CandidateProcessError::CgroupUnavailable)?;
     let retained = match kind {
-        RunKind::Candidate(binding) => group.retain_candidate(job, &plan.job_id, binding),
+        RunKind::Candidate(binding) | RunKind::Dependency(binding) => {
+            group.retain_candidate(job, &plan.job_id, binding)
+        }
         RunKind::Feature(intent) => group.retain_feature(job, intent),
-        RunKind::Dependency => Ok(()),
     };
     if retained.is_err() {
         group

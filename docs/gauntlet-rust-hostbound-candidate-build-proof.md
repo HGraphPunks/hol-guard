@@ -466,6 +466,46 @@ records' metadata and their lock remain unchanged. Frozen primary host
 records (`aca343c8…`). Broader interruption coverage, independent authority,
 qualification and admission remain open; no parent exit closes.
 
+## Dependency supervisor recovery
+
+The existing primary and compatibility dependency commands now accept explicit
+`repair DIR JOB STARTED_SHA REPAIR_SHA`. Read-only reconciliation returns a
+closed, canonical `unknown` observation for a reserved job without a terminal.
+It exposes the reservation digest without authorizing cleanup or a new launch.
+The host verifies that digest before durably committing separate cleanup
+authorization; an incorrect pin leaves authorization unconsumed.
+
+Dependency launch reuses the candidate cgroup owner to retain boot/device/inode
+custody before spawning the attached client. Explicit recovery acquires all
+four leases, binds the original intent and executable generation, reopens only
+that kernel group, and verifies the full retained container ID, name, image,
+UID and intent label before teardown. It drains the client, container and
+conmon groups before removing the policy. Historical numeric PIDs are never
+signalled. Missing custody, contradictory records, partial reports and keyed
+jobs refuse this recovery path.
+
+The separate v2 Root repair receipt records `aborted`, a null workload exit,
+actual quiescence and all authority flags false. The original host attempt,
+intent and consumed dispatch remain intact. Repeated repair/read operations
+must match retained authorization and evidence; they cannot relaunch work.
+The historical v1 quiescent repair and completed-result protocols remain.
+
+All 675 Mac workspace tests pass without failures or ignores, including closed
+schema tampering, fixed transport, wrong-pin, linked/partial authorization,
+restart, repeat-read and consumed-launch cases. Formatting and warnings-denied
+Mac/ARM Clippy pass; the ARM release worker and both Mac host
+executables build. The fresh supervisor-loss/normal-control VM proof remains
+pending at this implementation checkpoint. Source manifest
+`dependency-active-repair-20261107-source-001.json` has SHA-256
+`84d5ff64a5233a221d766280c7b3ba3cb0242c68230da2252d1ea90e6e45538e`.
+Local validation `dependency-active-repair-20261107-validation-001.json`
+verifies eleven records and ten logs, SHA-256
+`fbda5f9c399f404939bdb53c4f1c5b5240d9c36d98bafbe7fa928058047a689c`.
+One necessary shared contract module is added, with no new crate, executable
+target or dependency. Domain/test files remain within 500 lines; the existing
+worker module aggregator only gains exports. Parent completion stays 24/62,
+and model requests/tokens remain zero.
+
 ## Dependency reconciliation without relaunch
 
 `gauntlet-host dependencies run|read` and the existing dependency diagnostic

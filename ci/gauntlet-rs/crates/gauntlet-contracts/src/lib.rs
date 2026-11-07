@@ -1,12 +1,12 @@
-//! Data-only JSON matching the separately reviewed `ci/gauntlet/benchmark/json_data.py`.
-//! Candidate code is never imported or executed to interpret a record.
-
+//! Data-only JSON contracts; candidate code is never imported to interpret records.
 use sha2::{Digest, Sha256};
-use std::borrow::Cow;
-use std::collections::BTreeMap;
-use std::fmt;
-
+use std::{borrow::Cow, collections::BTreeMap, fmt};
+mod dependency_repair;
 mod dependency_run;
+pub use dependency_repair::{
+    dependency_repair_authorization, parse_dependency_repair_authorization,
+    verify_dependency_repair_result, verify_dependency_unknown_result,
+};
 mod feature_run;
 pub use feature_run::{
     verify_feature_repair_result, verify_feature_run_result, FeatureRunIntent, FeatureRunPins,

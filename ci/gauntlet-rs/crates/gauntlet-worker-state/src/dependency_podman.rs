@@ -142,6 +142,17 @@ impl<'a> DependencyContainer<'a> {
     pub(crate) fn new(intent: &'a DependencyRunIntent) -> Self {
         Self { intent, cid: None }
     }
+    pub(crate) fn restore(intent: &'a DependencyRunIntent, cid: &str) -> Result<Self, String> {
+        if !crate::hex(cid, 64) {
+            return Err("full retained dependency CID required".into());
+        }
+        let container = Self {
+            intent,
+            cid: Some(cid.into()),
+        };
+        container.identity()?;
+        Ok(container)
+    }
     fn pin(&self) -> &str {
         self.intent.pins.text("podman_sha256")
     }
@@ -229,16 +240,22 @@ impl<'a> DependencyContainer<'a> {
             return Err("dependency container survived cleanup".into());
         }
         if let Some(cid) = &self.cid {
-            let path = format!("/sys/fs/cgroup/system.slice/libpod-{cid}.scope");
+            let paths = ["system.slice", "machine.slice"]
+                .into_iter()
+                .flat_map(|parent| {
+                    [
+                        format!("/sys/fs/cgroup/{parent}/libpod-{cid}.scope"),
+                        format!("/sys/fs/cgroup/{parent}/libpod-conmon-{cid}.scope"),
+                    ]
+                })
+                .collect::<Vec<_>>();
             let started = Instant::now();
             loop {
-                match std::fs::symlink_metadata(&path) {
-                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => break,
-                    Ok(_) if started.elapsed() < Duration::from_secs(10) => {
-                        std::thread::sleep(Duration::from_millis(25))
-                    }
-                    _ => return Err("dependency container cgroup absence uncertain".into()),
+                if paths.iter().all(|path| matches!(std::fs::symlink_metadata(path),Err(e) if e.kind()==std::io::ErrorKind::NotFound)) {break;}
+                if started.elapsed() >= Duration::from_secs(10) {
+                    return Err("dependency container/conmon cgroup absence uncertain".into());
                 }
+                std::thread::sleep(Duration::from_millis(25));
             }
         }
         Ok(())

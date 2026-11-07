@@ -18,6 +18,13 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
+- Dependency supervisor recovery is implemented in the existing commands and
+  worker, with one shared contract module and no new crate, target or dependency.
+  All 675 Mac tests, formatting, Mac/ARM Clippy and executable builds pass.
+  Freeze the committed tools, then prove actual supervisor loss, wrong-pin refusal,
+  explicit repair/restart/readback and a fresh normal control in the owned VM.
+  Fresh job `a6840d15c928fe37` has captured inputs but has not launched.
+  See [recovery checkpoint](gauntlet-rust-hostbound-candidate-build-proof.md#dependency-supervisor-recovery).
 - Continue `codex/gauntlet-rust-finish-20261105`. Upstream
   `e43ca02cfb5178ad4276d9ffd4e8f9d4a575f1ab` is merged as `efa6f05e3`.
   The dependency implementation remains `cfdbf6a9f`; live product evidence

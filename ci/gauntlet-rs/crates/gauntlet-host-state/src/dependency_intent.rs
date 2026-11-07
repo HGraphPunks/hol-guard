@@ -202,8 +202,148 @@ impl DependencyIntentJournal {
         self.stable()?;
         Ok(public)
     }
-    /// Reconcile only the original VM and intent. This never records a fresh
-    /// launch authorization or consumes another dispatch.
+    fn repair_pins(
+        &self,
+        intent: &DependencyRunIntent,
+    ) -> Result<Option<(String, String)>, String> {
+        let name = format!(
+            "{}.dependency-repair-authorized.json",
+            intent.pins.text("job_id")
+        );
+        match statat(&self.root, name.as_str(), AtFlags::SYMLINK_NOFOLLOW) {
+            Err(rustix::io::Errno::NOENT) => return Ok(None),
+            Err(e) => return Err(e.to_string()),
+            Ok(_) => {}
+        }
+        let raw = read_regular_bytes(&self.root, &name, self.owner).map_err(|e| e.to_string())?;
+        gauntlet_contracts::parse_dependency_repair_authorization(intent, &raw).map(Some)
+    }
+
+    fn repaired(
+        &self,
+        intent: &DependencyRunIntent,
+        reader: &str,
+        read: bool,
+    ) -> Result<Value, String> {
+        let (started, generation) = self
+            .repair_pins(intent)?
+            .ok_or("dependency cleanup has no outside authorization")?;
+        gauntlet_contracts::dependency_repair_authorization(intent, &started, reader)?;
+        let argv = vec![
+            intent.limactl.clone(),
+            "shell".into(),
+            intent.vm.clone(),
+            "--".into(),
+            "sudo".into(),
+            "-n".into(),
+            format!("/opt/hol-gauntlet/rust-native-dependency-worker-{reader}"),
+            if read {
+                "--read-native-dependency-repair".into()
+            } else {
+                "--repair-owned-native-dependencies".into()
+            },
+            intent.pins.text("job_id").into(),
+            intent.digest()?,
+            started.clone(),
+            intent.pins.text("runner_binary_sha256").into(),
+            reader.into(),
+        ];
+        let raw =
+            run_fixed_intent(&argv, &[], Duration::from_secs(120), 8193, 8192).map_err(|e| {
+                format!("dependency recovery unavailable; workload cannot retry: {e:?}")
+            })?;
+        let frame = raw
+            .strip_suffix(b"\n")
+            .ok_or("canonical dependency recovery response required")?;
+        let mut public = gauntlet_contracts::verify_dependency_repair_result(
+            intent,
+            &started,
+            &generation,
+            frame,
+        )?;
+        self.stable()?;
+        if self.read(intent.pins.text("job_id"))? != *intent
+            || self.repair_pins(intent)? != Some((started.clone(), generation.clone()))
+        {
+            return Err("dependency recovery authorization or intent changed".into());
+        }
+        if read {
+            public["retained_result_reconciled"] = json!(true);
+            public["reader_generation"] = json!(reader);
+            if public.to_string().contains(&intent.nonce) {
+                return Err("private dependency value appeared in readback".into());
+            }
+        } else {
+            self.retain_view(
+                &format!(
+                    "{}.dependency-repair-result.json",
+                    intent.pins.text("job_id")
+                ),
+                &public,
+            )?;
+        }
+        if self.read(intent.pins.text("job_id"))? != *intent
+            || self.repair_pins(intent)? != Some((started, generation))
+        {
+            return Err("dependency recovery pins changed after readback".into());
+        }
+        Ok(public)
+    }
+
+    fn retain_view(&self, name: &str, value: &Value) -> Result<(), String> {
+        let encoded = gauntlet_contracts::canonicalize(value.to_string().as_bytes())
+            .map_err(|e| e.to_string())?;
+        match statat(&self.root, name, AtFlags::SYMLINK_NOFOLLOW) {
+            Err(rustix::io::Errno::NOENT) => write_private_once(&self.root, name, &encoded)?,
+            Err(e) => return Err(e.to_string()),
+            Ok(_) => {
+                if read_regular_bytes(&self.root, name, self.owner).map_err(|e| e.to_string())?
+                    != encoded
+                {
+                    return Err("retained dependency reconciliation differs".into());
+                }
+            }
+        }
+        self.stable()
+    }
+
+    pub fn repair(
+        &self,
+        job: &str,
+        started: &str,
+        generation: &str,
+        vm: Option<&str>,
+    ) -> Result<Value, String> {
+        let intent = self.read(job)?;
+        if vm.is_some_and(|v| v != intent.vm) {
+            return Err("dependency repair requires the original VM".into());
+        }
+        let encoded =
+            gauntlet_contracts::dependency_repair_authorization(&intent, started, generation)?;
+        match self.repair_pins(&intent)? {
+            None => {
+                let observed = self.reconcile_read_only(job, generation, vm)?;
+                if observed["status"] != "unknown" || observed["started_marker_sha256"] != started {
+                    return Err("dependency reservation differs or is already complete; cleanup not authorized".into());
+                }
+                write_private_once(
+                    &self.root,
+                    &format!("{job}.dependency-repair-authorized.json"),
+                    &encoded,
+                )?;
+            }
+            Some(pins) => {
+                if pins != (started.into(), generation.into()) {
+                    return Err("retained dependency repair authorization differs".into());
+                }
+            }
+        }
+        if self.repair_pins(&intent)? != Some((started.into(), generation.into())) {
+            return Err("dependency repair authorization commit uncertain".into());
+        }
+        self.repaired(&intent, generation, false)
+    }
+    /// Reconcile the original VM and intent without authorizing a new launch.
     pub fn reconcile_read_only(
         &self,
         job: &str,
@@ -235,50 +375,97 @@ impl DependencyIntentJournal {
             intent.bytes()?.len().to_string(),
             generation.into(),
         ];
-        let raw = run_fixed_intent(
+        let response = run_fixed_intent(
             &argv,
             &intent.bytes()?,
             Duration::from_secs(120),
             32769,
             8192,
-        )
-        .map_err(|e| {
-            format!("dependency retained read unavailable; workload cannot retry: {e:?}")
-        })?;
+        );
+        let raw = match response {
+            Ok(raw) => raw,
+            Err(_) if self.repair_pins(&intent)?.is_some() => {
+                let public = self.repaired(&intent, generation, true)?;
+                self.retain_view(
+                    &format!("{job}.dependency-reconciled-{generation}.json"),
+                    &public,
+                )?;
+                if self.read(job)? != intent
+                    || self.repair_pins(&intent)?.is_none_or(|(started, repair)| {
+                        public["started_marker_sha256"] != started
+                            || public["repair_generation"] != repair
+                    })
+                {
+                    return Err("dependency readback pins changed after retention".into());
+                }
+                return Ok(public);
+            }
+            Err(e) => {
+                return Err(format!(
+                    "dependency retained read unavailable; workload cannot retry: {e:?}"
+                ))
+            }
+        };
         let frame = raw
             .strip_suffix(b"\n")
             .ok_or("one dependency read frame required")?;
-        let public =
-            gauntlet_contracts::verify_dependency_read_response(&intent, generation, frame)?;
+        let schema: Value =
+            serde_json::from_slice(frame).map_err(|_| "dependency read response JSON required")?;
+        let public = match schema["schema"].as_str() {
+            Some("hol-gauntlet-native-dependency-unknown.v1") => {
+                gauntlet_contracts::verify_dependency_unknown_result(&intent, generation, frame)?
+            }
+            Some("hol-gauntlet-native-dependency-repair.v2") => {
+                let (started, repair) = self
+                    .repair_pins(&intent)?
+                    .ok_or("retained dependency cleanup was not authorized")?;
+                let mut public = gauntlet_contracts::verify_dependency_repair_result(
+                    &intent, &started, &repair, frame,
+                )?;
+                public["reader_generation"] = json!(generation);
+                public["retained_result_reconciled"] = json!(true);
+                public
+            }
+            _ => gauntlet_contracts::verify_dependency_read_response(&intent, generation, frame)?,
+        };
+        if public.to_string().contains(&intent.nonce) {
+            return Err("private dependency value appeared in readback".into());
+        }
         if self.read(job)? != intent {
             return Err("dependency intent changed during reconciliation".into());
         }
-        let encoded = gauntlet_contracts::canonicalize(public.to_string().as_bytes())
-            .map_err(|e| e.to_string())?;
-        let name = format!("{job}.dependency-reconciled-{generation}.json");
-        match statat(&self.root, name.as_str(), AtFlags::SYMLINK_NOFOLLOW) {
-            Err(rustix::io::Errno::NOENT) => write_private_once(&self.root, &name, &encoded)?,
-            Err(e) => return Err(e.to_string()),
-            Ok(_) => {
-                if read_regular_bytes(&self.root, &name, self.owner).map_err(|e| e.to_string())?
-                    != encoded
-                {
-                    return Err("retained dependency reconciliation differs".into());
-                }
-            }
-        }
+        let name = if public["status"] == "unknown" {
+            format!("{job}.dependency-unknown-{generation}.json")
+        } else {
+            format!("{job}.dependency-reconciled-{generation}.json")
+        };
+        self.retain_view(&name, &public)?;
         self.stable()?;
-        if self.read(job)? != intent {
-            return Err("dependency intent changed after reconciliation".into());
+        if self.read(job)? != intent
+            || (public["schema"] == "hol-gauntlet-host-dependency-repair.v1"
+                && self.repair_pins(&intent)?.is_none_or(|(started, repair)| {
+                    public["started_marker_sha256"] != started
+                        || public["repair_generation"] != repair
+                }))
+        {
+            return Err("dependency pins changed after reconciliation".into());
         }
         Ok(public)
     }
 }
 
-pub const DEPENDENCY_COMMAND_USAGE:&str="dependency commands:\nrun PRIVATE_INTENT_DIR PRIVATE_RUN_PINS_JSON [--vm VM_NAME]\nread PRIVATE_INTENT_DIR JOB_ID READER_BINARY_SHA256 [--vm VM_NAME]\nRead preserves the original intent and never authorizes installation or execution admission.";
+pub const DEPENDENCY_COMMAND_USAGE:&str="dependency commands:\nrun PRIVATE_INTENT_DIR PRIVATE_RUN_PINS_JSON [--vm VM_NAME]\nread PRIVATE_INTENT_DIR JOB_ID READER_BINARY_SHA256 [--vm VM_NAME]\nrepair PRIVATE_INTENT_DIR JOB_ID STARTED_MARKER_SHA256 REPAIR_BINARY_SHA256 [--vm VM_NAME]\nRead never authorizes cleanup or a new launch. Repair preserves the original unknown attempt and supplies no execution admission.";
 
 pub fn run_dependency_command(args: &[String]) -> Result<Value, String> {
     match (args.first().map(String::as_str), args.len()) {
+        (Some("repair"), 5) | (Some("repair"), 7) if args.len() == 5 || args[5] == "--vm" => {
+            DependencyIntentJournal::open(Path::new(&args[1]))?.repair(
+                &args[2],
+                &args[3],
+                &args[4],
+                args.get(6).map(String::as_str),
+            )
+        }
         (Some("run"), 3) | (Some("run"), 5) if args.len() == 3 || args[3] == "--vm" => {
             let pins = read_dependency_run_pins(Path::new(&args[2]))?;
             let operations = crate::public_vm_operations(args.get(4).map(String::as_str))

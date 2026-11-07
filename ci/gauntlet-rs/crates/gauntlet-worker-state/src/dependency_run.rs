@@ -164,6 +164,7 @@ pub fn run_native_dependencies(
         run_precreated_dependency_process(
             &plan,
             &slot,
+            &digest,
             &still_owned,
             &|| {
                 container
