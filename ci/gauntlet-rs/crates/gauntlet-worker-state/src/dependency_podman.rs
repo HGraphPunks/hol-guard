@@ -178,6 +178,9 @@ impl<'a> DependencyContainer<'a> {
         self.intent.pins.text("podman_sha256")
     }
     fn identity(&self) -> Result<Option<String>, String> {
+        self.identity_in_phase(false)
+    }
+    fn identity_in_phase(&self, before_client: bool) -> Result<Option<String>, String> {
         let job = self.intent.pins.text("job_id");
         if crate::builder_candidate_process::container_absent(job).map_err(|e| e.to_string())?
             && self
@@ -204,10 +207,35 @@ impl<'a> DependencyContainer<'a> {
             .first()
             .ok_or("dependency container missing")?;
         let cid = validated_identity(v, self.intent)?;
+        if before_client
+            && (v["State"]["Status"] != "created"
+                || v["State"]["Running"] != false
+                || v["State"]["Pid"].as_u64() != Some(0))
+        {
+            return Err("missing CID conflicts with container execution".into());
+        }
         if self.cid.as_ref().is_some_and(|wanted| wanted != &cid) {
             return Err("dependency CID changed".into());
         }
         Ok(Some(cid))
+    }
+    /// Used only after the retained creator group has been drained and removed.
+    pub(crate) fn recover_created(
+        intent: &'a DependencyRunIntent,
+        cid: Option<&str>,
+    ) -> Result<Self, String> {
+        if cid.is_some_and(|s| !crate::hex(s, 64)) {
+            return Err("full recovered dependency CID required".into());
+        }
+        let mut container = Self {
+            intent,
+            cid: cid.map(str::to_owned),
+        };
+        let observed = container.identity_in_phase(true)?;
+        if container.cid.is_none() {
+            container.cid = observed;
+        }
+        Ok(container)
     }
     pub(crate) fn create(
         &mut self,
@@ -374,6 +402,33 @@ pub(crate) fn verify_completed_absent(
     .map_err(|e| e.to_string())?
     {
         return Err("completed dependency profile still exists".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn verify_recovered_absent(
+    intent: &DependencyRunIntent,
+    cid: Option<&str>,
+) -> Result<(), String> {
+    if let Some(cid) = cid {
+        return verify_completed_absent(intent, cid);
+    }
+    verify_file(
+        "/usr/bin/podman",
+        intent.pins.text("podman_sha256"),
+        true,
+        64 * 1024 * 1024,
+    )
+    .map_err(|e| e.to_string())?;
+    let job = intent.pins.text("job_id");
+    if !crate::builder_candidate_process::container_absent(job).map_err(|e| e.to_string())? {
+        return Err("recovered dependency container name is present".into());
+    }
+    crate::dependency_state::client_group_absent(job)?;
+    if !crate::builder_policy::profile_absent(&format!("hol-gauntlet-build-{job}"))
+        .map_err(|e| e.to_string())?
+    {
+        return Err("recovered dependency profile is present".into());
     }
     Ok(())
 }

@@ -18,6 +18,18 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
+- Pre-CID recovery is in progress: explicit native v3 / host v2 receipts bind
+  original creator readiness, incomplete CID bytes and separate per-attempt
+  witnesses. Creator/client drain now precedes Podman runtime queries, and
+  v3 completion uses atomic no-replace publication. The new ARM-only module
+  is 438 lines; existing repair/I/O owners stay below 500. Source manifest
+  `dependency-creator-recovery-20261107-source-002.json` is `05299afc…`.
+  All 676 Mac tests and Mac Clippy pass for the unchanged effective Mac source.
+  Formatting, final ARM Clippy/release/test builds and default host builds also
+  pass. Local validation `8a4835e7…` binds eight records/seven logs and the final
+  tool hashes. Root fixtures and real missing-CID interruption, recovery
+  interruption and normal-control proofs remain pending. No parent
+  exit closes; partial intent/reservation/report reconciliation remains open.
 - Upstream advances to `59ff1696b`, merged without conflicts as `dbd3073ac`.
   All eighteen incoming files match upstream; ten Python files parse without
   imports. The 440-file Gauntlet map and immutable 420-file baseline are

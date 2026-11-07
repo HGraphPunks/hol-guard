@@ -281,6 +281,13 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
   - [ ] Diagnose the first active dependency repair refusal and complete
   pre-CID/partial-state recovery. The first job's delayed active check also
   remains a retained failure. Qualification stays open; no parent exit closes.
+    - [ ] Prove native v3 pre-CID recovery with retained creator custody,
+    separate per-attempt CID witnesses, atomic completion, interrupted repair
+    and normal controls. The implementation adds one necessary ARM-only module
+    within the existing crate. All 676 Mac tests, formatting, Mac/ARM Clippy and
+    final builds pass; ARM execution remains pending. Local validation is
+    `8a4835e7…`. Original incomplete/failed records
+    are preserved, and no new schema grants admission or invents an exit.
     - [x] Add private phase/error diagnostics within the existing 490-line
     repair module, with exclusive durable writes, bounded UTF-8 prefixes and
     full-error hashes. All 675 Mac tests, formatting, Mac/ARM Clippy, builds and

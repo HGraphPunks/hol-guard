@@ -4,8 +4,11 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
 fn hash(v: &Value) -> bool {
+    hex(v, 64)
+}
+fn hex(v: &Value, length: usize) -> bool {
     v.as_str().is_some_and(|s| {
-        s.len() == 64
+        s.len() == length
             && s.bytes()
                 .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
     })
@@ -118,7 +121,8 @@ pub fn verify_dependency_repair_result(
         return Err("bounded canonical dependency repair required".into());
     }
     let v: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;
-    let fields = [
+    let creator = v["schema"] == "hol-gauntlet-native-dependency-repair.v3";
+    let mut fields = vec![
         "schema",
         "job_id",
         "source_sha",
@@ -141,6 +145,14 @@ pub fn verify_dependency_repair_result(
         "qualification_eligible",
         "client_cgroup_receipt_sha256",
     ];
+    if creator {
+        fields.extend([
+            "creators_ready_sha256",
+            "prior_container_receipt_sha256",
+            "creator_recovery_attempt_id",
+            "creator_recovery_receipt_sha256",
+        ]);
+    }
     let empty =
         v["captured_dependencies_bytes"].is_null() && v["captured_dependencies_sha256"].is_null();
     let captured = v["captured_dependencies_bytes"]
@@ -149,7 +161,7 @@ pub fn verify_dependency_repair_result(
         && hash(&v["captured_dependencies_sha256"]);
     if v.as_object()
         .is_none_or(|o| o.len() != fields.len() || fields.iter().any(|k| !o.contains_key(*k)))
-        || v["schema"] != "hol-gauntlet-native-dependency-repair.v2"
+        || !(creator || v["schema"] == "hol-gauntlet-native-dependency-repair.v2")
         || v["job_id"] != intent.pins.text("job_id")
         || v["source_sha"] != intent.pins.text("source_sha")
         || v["intent_sha256"] != intent.digest()?
@@ -158,10 +170,18 @@ pub fn verify_dependency_repair_result(
         || v["started_marker_sha256"] != started
         || !hash(&json!(generation))
         || v["repair_generation"] != generation
-        || !hash(&v["container_id"])
+        || !(hash(&v["container_id"]) || creator && v["container_id"].is_null())
         || !hash(&v["client_cgroup_receipt_sha256"])
         || !(v["running_marker_sha256"].is_null() || hash(&v["running_marker_sha256"]))
         || !(empty || captured)
+        || creator
+            && (!empty
+                || !v["running_marker_sha256"].is_null()
+                || !hash(&v["creators_ready_sha256"])
+                || !(v["prior_container_receipt_sha256"].is_null()
+                    || hash(&v["prior_container_receipt_sha256"]))
+                || !hex(&v["creator_recovery_attempt_id"], 16)
+                || !hash(&v["creator_recovery_receipt_sha256"]))
         || v["status"] != "aborted"
         || !v["exit_code"].is_null()
         || v["quiescent"] != true
@@ -181,7 +201,11 @@ pub fn verify_dependency_repair_result(
         );
     }
     let mut public = v;
-    public["schema"] = json!("hol-gauntlet-host-dependency-repair.v1");
+    public["schema"] = json!(if creator {
+        "hol-gauntlet-host-dependency-repair.v2"
+    } else {
+        "hol-gauntlet-host-dependency-repair.v1"
+    });
     public["private_result_sha256"] = json!(format!("{:x}", Sha256::digest(raw)));
     public["retained_result_reconciled"] = json!(false);
     if public.to_string().contains(&intent.nonce) {
@@ -295,6 +319,7 @@ mod tests {
             ("qualification_eligible", json!(true)),
             ("quiescent", json!(false)),
             ("container_id", json!("short")),
+            ("container_id", json!(null)),
             ("captured_dependencies_sha256", json!(intent.nonce)),
             ("extra", json!(0)),
         ] {
@@ -309,5 +334,66 @@ mod tests {
             &canonicalize(value.to_string().as_bytes()).unwrap()
         )
         .is_err());
+    }
+
+    #[test]
+    fn creator_recovery_requires_its_own_closed_protocol_and_never_claims_client_execution() {
+        let intent = DependencyRunIntent::new(
+            pins("0123456789abcdef"),
+            "/usr/bin/limactl",
+            "fixture-vm",
+            &"0".repeat(64),
+        )
+        .unwrap();
+        let mut value = repair_reply(&intent);
+        value["schema"] = json!("hol-gauntlet-native-dependency-repair.v3");
+        value["running_marker_sha256"] = Value::Null;
+        value["container_id"] = Value::Null;
+        value["creators_ready_sha256"] = json!("3".repeat(64));
+        value["prior_container_receipt_sha256"] = Value::Null;
+        value["creator_recovery_attempt_id"] = json!("4".repeat(16));
+        value["creator_recovery_receipt_sha256"] = json!("5".repeat(64));
+        let verify = |v: &Value| {
+            verify_dependency_repair_result(
+                &intent,
+                &"e".repeat(64),
+                &"d".repeat(64),
+                &canonicalize(v.to_string().as_bytes()).unwrap(),
+            )
+        };
+        let public = verify(&value).unwrap();
+        assert_eq!(public["schema"], "hol-gauntlet-host-dependency-repair.v2");
+        assert!(public["container_id"].is_null() && public["exit_code"].is_null());
+        for cid in [Value::Null, json!("6".repeat(64))] {
+            for prior in [Value::Null, json!("7".repeat(64))] {
+                let mut reply = value.clone();
+                reply["container_id"] = cid.clone();
+                reply["prior_container_receipt_sha256"] = prior;
+                assert!(verify(&reply).is_ok());
+            }
+        }
+        for key in value.as_object().unwrap().keys() {
+            let mut bad = value.clone();
+            bad.as_object_mut().unwrap().remove(key);
+            assert!(verify(&bad).is_err(), "{key}");
+        }
+        for (key, v) in [
+            ("schema", json!("hol-gauntlet-native-dependency-repair.v2")),
+            ("running_marker_sha256", json!("8".repeat(64))),
+            ("captured_dependencies_bytes", json!(123)),
+            ("captured_dependencies_sha256", json!("9".repeat(64))),
+            ("creators_ready_sha256", Value::Null),
+            ("prior_container_receipt_sha256", json!("foreign")),
+            ("creator_recovery_attempt_id", json!("A".repeat(16))),
+            ("creator_recovery_receipt_sha256", json!(intent.nonce)),
+            ("container_id", json!(false)),
+            ("model_tokens", json!(1)),
+            ("extra", json!(false)),
+            ("qualification_eligible", json!(true)),
+        ] {
+            let mut bad = value.clone();
+            bad[key] = v;
+            assert!(verify(&bad).is_err(), "{key}");
+        }
     }
 }

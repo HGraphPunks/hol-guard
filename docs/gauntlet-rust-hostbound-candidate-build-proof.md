@@ -723,6 +723,49 @@ Missing-CID and malformed/partial records remain unknown; this change does not
 authorize adopting missing or foreign identity. All parent exits remain 24/62,
 all eligibility flags stay false and product model requests/tokens remain zero.
 
+### Missing dependency container receipt recovery
+
+An explicit native v3 / public host v2 protocol now covers a missing CID receipt
+or an EOF prefix of the exact canonical original receipt. Other malformed,
+foreign or noncanonical records refuse. Recovery requires the original durable
+creator readiness and retained boot/device/inode cgroup custody, the exact
+intent/reservation/worker and repair generations, explicit host authorization
+and all four leases. A retained running marker, client log or export refuses
+this pre-client path. Original incomplete bytes are never repaired in place.
+
+Pinned runtime files are checked before killing and draining the retained
+creator group. Podman runtime queries and container lookup happen only after
+that group is absent, so a stopped creator cannot retain its storage lock
+across reconciliation. Any discovered container must match the exact full CID,
+name, image, UID and intent label and still be `created`, stopped, with PID zero.
+A new exclusive Root-0600 attempt witness is durable before removal. Repeated
+attempts must agree on identity; partial witnesses remain retained without
+authority. A prior absence witness cannot authorize adopting a later container.
+
+The separate v3 completion binds the ready receipt, original incomplete bytes
+and selected witness. It reports aborted/null-exit, no running marker or export,
+zero model requests/tokens and all eligibility flags false. It is published by
+durable staging in the job slot and atomic no-replace rename into the journal;
+the original attempt and any torn staging bytes remain intact. Historical
+protocols retain their existing readers and write behavior.
+
+One necessary ARM-only 438-line module is added within the existing crate;
+eight existing Rust files also change, with no new crate, executable target or
+dependency. Source manifest `dependency-creator-recovery-20261107-source-002.json`
+hashes to `05299afc5aa84e973f847a98660659926a289c77f79a40708c4457416cf72627`.
+All 676 Mac tests, formatting, warnings-denied Mac/ARM Clippy, final ARM worker
+and test-ELF builds and default host builds pass. The Mac checks precede the
+final ARM-only ordering/cfg correction; the source manifest proves the effective
+Mac source unchanged. Local validation
+`dependency-creator-recovery-20261107-validation-003.json` binds eight records
+and seven logs, SHA-256
+`8a4835e7c73cf36db191cb6891aa0e0ed72a35699ac865b37a46a1b1d85dc292`.
+Worker `2db25c38…`, test ELF `5d40e14a…`, host `ff7cc50e…` and compatibility
+command `f96d76c2…` are built; ARM execution and live missing/partial-CID,
+interrupted-repair and normal-control evidence are still pending. Partial
+intent/reservation/report recovery and qualification remain open. No parent
+exit closes and no new receipt grants admission.
+
 ## Dependency reconciliation without relaunch
 
 `gauntlet-host dependencies run|read` and the existing dependency diagnostic

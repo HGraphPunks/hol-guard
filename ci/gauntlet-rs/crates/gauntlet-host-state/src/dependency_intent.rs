@@ -350,11 +350,7 @@ impl DependencyIntentJournal {
         generation: &str,
         vm: Option<&str>,
     ) -> Result<Value, String> {
-        if generation.len() != 64
-            || !generation
-                .bytes()
-                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-        {
+        if generation.len() != 64 || !generation.bytes().all(|b| b"0123456789abcdef".contains(&b)) {
             return Err("exact dependency reader binary SHA-256 required".into());
         }
         let intent = self.read(job)?;
@@ -415,7 +411,10 @@ impl DependencyIntentJournal {
             Some("hol-gauntlet-native-dependency-unknown.v1") => {
                 gauntlet_contracts::verify_dependency_unknown_result(&intent, generation, frame)?
             }
-            Some("hol-gauntlet-native-dependency-repair.v2") => {
+            Some(
+                "hol-gauntlet-native-dependency-repair.v2"
+                | "hol-gauntlet-native-dependency-repair.v3",
+            ) => {
                 let (started, repair) = self
                     .repair_pins(&intent)?
                     .ok_or("retained dependency cleanup was not authorized")?;

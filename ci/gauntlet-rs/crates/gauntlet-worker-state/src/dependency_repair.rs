@@ -1,5 +1,6 @@
 //! Dependency recovery retains an aborted attempt with unknown exit. Live
 //! cleanup uses the retained CID/kernel group; historical PIDs are never signalled.
+use crate::dependency_io::{captured, error_detail};
 use crate::{read_bounded_regular, RunReservationJournal};
 use gauntlet_contracts::{canonicalize, DependencyRunIntent};
 use rustix::fs::{statat, AtFlags};
@@ -21,36 +22,9 @@ pub(crate) fn intent_for_job(job: &str, expected: &str) -> Result<DependencyRunI
 }
 
 fn container_identity(slot: &OwnedFd, digest: &str) -> Result<String, String> {
-    let raw = crate::dependency_io::read(slot, "dependency-container.v1.json", 0, 0o600, 2048)?;
-    if canonicalize(&raw).map_err(|e| e.to_string())? != raw {
-        return Err("dependency CID receipt is ambiguous".into());
-    }
-    let v: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
-    let cid = v["container_id"]
-        .as_str()
-        .filter(|s| crate::hex(s, 64))
-        .ok_or("dependency CID receipt missing")?;
-    if v.as_object().is_none_or(|o| o.len() != 3)
-        || v["schema"] != "hol-gauntlet-native-dependency-container.v1"
-        || v["intent_sha256"] != digest
-    {
-        return Err("dependency CID receipt differs".into());
-    }
-    Ok(cid.into())
-}
-
-fn captured(slot: &OwnedFd) -> Result<Option<(u64, String)>, String> {
-    match statat(slot, "dependencies.zip", AtFlags::SYMLINK_NOFOLLOW) {
-        Err(rustix::io::Errno::NOENT) => Ok(None),
-        Err(e) => Err(e.to_string()),
-        Ok(_) => {
-            let raw =
-                crate::dependency_io::read(slot, "dependencies.zip", 0, 0o444, 256 * 1024 * 1024)?;
-            Ok(Some((
-                raw.len() as u64,
-                format!("{:x}", Sha256::digest(raw)),
-            )))
-        }
+    match crate::dependency_creator_recovery::original(slot, digest)? {
+        crate::dependency_creator_recovery::OriginalCid::Retained(cid) => Ok(cid),
+        _ => Err("retained dependency CID required".into()),
     }
 }
 
@@ -60,6 +34,11 @@ fn body(
     repair: &str,
     owned: bool,
 ) -> Result<Value, String> {
+    if owned {
+        if let Some(value) = crate::dependency_creator_recovery::body(journal, intent, repair)? {
+            return Ok(value);
+        }
+    }
     let p = &intent.pins;
     let job = p.text("job_id");
     let digest = intent.digest()?;
@@ -154,7 +133,9 @@ pub(crate) fn verified(
         .ok_or("dependency repair executable pin missing")?;
     let owned = match value["schema"].as_str() {
         Some("hol-gauntlet-native-dependency-repair.v1") => false,
-        Some("hol-gauntlet-native-dependency-repair.v2") => true,
+        Some(
+            "hol-gauntlet-native-dependency-repair.v2" | "hol-gauntlet-native-dependency-repair.v3",
+        ) => true,
         _ => return Err("unsupported dependency repair version".into()),
     };
     if value != body(journal, intent, generation, owned)? {
@@ -204,11 +185,16 @@ pub fn read_repaired_native_dependencies(
 }
 
 fn reclaim(
+    journal: &RunReservationJournal,
     intent: &DependencyRunIntent,
+    started: &str,
+    generation: &str,
     still_owned: &impl Fn() -> Result<(), String>,
     phase: &mut &str,
 ) -> Result<(), String> {
-    use crate::builder_candidate_preflight::{verify_candidate_runtime, CandidateRuntimePins};
+    use crate::builder_candidate_preflight::{
+        verify_candidate_runtime_files, CandidateRuntimePins,
+    };
     let p = &intent.pins;
     let job = p.text("job_id");
     let digest = intent.digest()?;
@@ -220,7 +206,7 @@ fn reclaim(
     )
     .map_err(|e| e.to_string())?;
     *phase = "runtime-pins";
-    verify_candidate_runtime(&runtime).map_err(|e| e.to_string())?;
+    verify_candidate_runtime_files(&runtime).map_err(|e| e.to_string())?;
     let slot =
         crate::builder_candidate_source::open_fixed_build_slot(job).map_err(|e| e.to_string())?;
     *phase = "retained-cgroup";
@@ -234,9 +220,22 @@ fn reclaim(
     )?;
     let mut group =
         crate::builder_cgroup::OwnedCandidateCgroup::reopen_candidate(&slot, job, &digest)?;
+    if matches!(
+        crate::dependency_creator_recovery::original(&slot, &digest)?,
+        crate::dependency_creator_recovery::OriginalCid::Incomplete(_)
+    ) {
+        return crate::dependency_creator_recovery::reclaim(
+            journal,
+            intent,
+            started,
+            generation,
+            &mut group,
+            still_owned,
+            phase,
+        );
+    }
     *phase = "retained-container";
     let cid = container_identity(&slot, &digest)?;
-    let container = crate::dependency_podman::DependencyContainer::restore(intent, &cid)?;
     *phase = "retained-policy";
     let profile = format!("hol-gauntlet-build-{job}");
     let policy = if crate::builder_policy::profile_absent(&profile).map_err(|e| e.to_string())? {
@@ -254,13 +253,17 @@ fn reclaim(
         group.kill().map_err(|e| e.to_string())?;
     }
     still_owned()?;
-    *phase = "container-drain";
-    container.drain()?;
     *phase = "client-drain";
     if let Some(group) = &mut group {
         group.drain_and_remove().map_err(|e| e.to_string())?;
     }
     crate::dependency_state::client_group_absent(job)?;
+    *phase = "runtime-info";
+    crate::builder_candidate_preflight::verify_candidate_runtime_info()
+        .map_err(|e| e.to_string())?;
+    still_owned()?;
+    *phase = "container-drain";
+    crate::dependency_podman::DependencyContainer::restore(intent, &cid)?.drain()?;
     *phase = "policy-remove";
     if let Some(policy) = policy {
         still_owned()?;
@@ -316,7 +319,7 @@ fn repair(
         )
         .map_err(|e| e.to_string())?
         .ok_or("dependency job was not reserved")?;
-    if started.sha256 != expected_started {
+    if started.sha256 != expected_started || started.controller_public_key_hex.is_some() {
         return Err("outside dependency reservation differs".into());
     }
     for suffix in ["report.json", "terminal.json", "controller-key.json"] {
@@ -342,7 +345,14 @@ fn repair(
     let mut phase = "recovery-preflight";
     let result: Result<Vec<u8>, String> = (|| {
         if owned {
-            reclaim(&intent, &still_owned, &mut phase)?;
+            reclaim(
+                &journal,
+                &intent,
+                expected_started,
+                repair_generation,
+                &still_owned,
+                &mut phase,
+            )?;
         }
         phase = "quiescent-body";
         let raw = canonicalize(
@@ -353,12 +363,7 @@ fn repair(
         .map_err(|e| e.to_string())?;
         still_owned()?;
         phase = "repair-commit";
-        crate::terminal::create_durable(
-            &journal.root,
-            &format!("{job}.dependency-repair.json"),
-            &raw,
-        )
-        .map_err(|e| e.to_string())?;
+        crate::dependency_creator_recovery::commit(&journal, &intent, &raw)?;
         phase = "repair-readback";
         let observed =
             verified(&journal, &intent)?.ok_or("dependency recovery commit unavailable")?;
@@ -377,15 +382,6 @@ fn repair(
         }
     }
     result
-}
-
-fn error_detail(error: &str) -> Value {
-    let end = (0..=error.len().min(1024))
-        .rev()
-        .find(|n| error.is_char_boundary(*n))
-        .unwrap_or(0);
-    json!({"sha256":format!("{:x}",Sha256::digest(error.as_bytes())),
-        "bytes":error.len(),"prefix":&error[..end],"truncated":end<error.len()})
 }
 
 fn retain_failure(

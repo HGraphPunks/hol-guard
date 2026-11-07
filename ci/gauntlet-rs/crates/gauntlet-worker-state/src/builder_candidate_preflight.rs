@@ -183,10 +183,21 @@ pub(crate) fn podman_info() -> Result<Value, CandidatePreflightError> {
 pub(crate) fn verify_candidate_runtime(
     pins: &CandidateRuntimePins,
 ) -> Result<(), CandidatePreflightError> {
+    verify_candidate_runtime_files(pins)?;
+    verify_candidate_runtime_info()
+}
+
+pub(crate) fn verify_candidate_runtime_files(
+    pins: &CandidateRuntimePins,
+) -> Result<(), CandidatePreflightError> {
     verify_file(PODMAN, &pins.podman_sha256, true, MAX_BINARY)?;
     verify_file(SLIRP, &pins.slirp_sha256, true, MAX_BINARY)?;
     verify_file(APPARMOR, &pins.apparmor_sha256, true, MAX_BINARY)?;
     verify_file(SECCOMP, &pins.seccomp_sha256, false, MAX_SECCOMP)?;
+    Ok(())
+}
+
+pub(crate) fn verify_candidate_runtime_info() -> Result<(), CandidatePreflightError> {
     let info = podman_info()?;
     if info["host"]["arch"] != "arm64"
         || info["host"]["os"] != "linux"

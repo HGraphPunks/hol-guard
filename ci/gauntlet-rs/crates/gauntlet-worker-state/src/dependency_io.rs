@@ -12,6 +12,15 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::os::fd::OwnedFd;
 
+pub(crate) fn error_detail(error: &str) -> serde_json::Value {
+    let end = (0..=error.len().min(1024))
+        .rev()
+        .find(|n| error.is_char_boundary(*n))
+        .unwrap_or(0);
+    serde_json::json!({"sha256":format!("{:x}",Sha256::digest(error.as_bytes())),
+        "bytes":error.len(),"prefix":&error[..end],"truncated":end<error.len()})
+}
+
 pub(crate) fn read(
     dir: &OwnedFd,
     name: &str,
@@ -95,6 +104,20 @@ pub(crate) fn verify_inputs(job: &OwnedFd, intent: &DependencyRunIntent) -> Resu
         return Err("dependency input directory replaced".into());
     }
     Ok(())
+}
+
+pub(crate) fn captured(job: &OwnedFd) -> Result<Option<(u64, String)>, String> {
+    match statat(job, "dependencies.zip", AtFlags::SYMLINK_NOFOLLOW) {
+        Err(rustix::io::Errno::NOENT) => Ok(None),
+        Err(e) => Err(e.to_string()),
+        Ok(_) => {
+            let raw = read(job, "dependencies.zip", 0, 0o444, 256 * 1024 * 1024)?;
+            Ok(Some((
+                raw.len() as u64,
+                format!("{:x}", Sha256::digest(raw)),
+            )))
+        }
+    }
 }
 
 pub(crate) fn capture_output(job: &OwnedFd) -> Result<(u64, String), String> {
@@ -219,6 +242,37 @@ mod tests {
         let mut group = prepare_creators(&slot, &intent, &started).unwrap();
         let receipt = read(&slot, "candidate-client-cgroup.v1.json", 0, 0o600, 2048).unwrap();
         let ready = read(&slot, "dependency-creators-ready.v1.json", 0, 0o600, 2048).unwrap();
+        let recovered =
+            crate::dependency_creator_recovery::ready(&slot, &intent, &started).unwrap();
+        assert_eq!(recovered.0, format!("{:x}", Sha256::digest(&ready)));
+        assert_eq!(recovered.1, format!("{:x}", Sha256::digest(&receipt)));
+        assert!(
+            crate::dependency_creator_recovery::ready(&slot, &intent, &"e".repeat(64)).is_err()
+        );
+        // A torn staging file is preserved and cannot replace completion.
+        let partial = "dependency-repair-staging-interrupted.json";
+        crate::feature_files::write(&slot, partial, b"{", (0, 0), 0o600).unwrap();
+        let journal_dir = tempfile::tempdir().unwrap();
+        let journal = crate::RunReservationJournal::open(journal_dir.path()).unwrap();
+        let body = gauntlet_contracts::canonicalize(
+            br#"{"schema":"hol-gauntlet-native-dependency-repair.v3","fixture":true}"#,
+        )
+        .unwrap();
+        crate::dependency_creator_recovery::commit(&journal, &intent, &body).unwrap();
+        let published = format!("{id}.dependency-repair.json");
+        assert_eq!(
+            crate::feature_files::required(&journal.root, &published, (0, 0), 0o600, 8192).unwrap(),
+            body
+        );
+        assert!(crate::dependency_creator_recovery::commit(&journal, &intent, &body).is_err());
+        assert_eq!(
+            crate::feature_files::required(&journal.root, &published, (0, 0), 0o600, 8192).unwrap(),
+            body
+        );
+        assert_eq!(
+            crate::feature_files::required(&slot, partial, (0, 0), 0o600, 8192).unwrap(),
+            b"{"
+        );
         let v: serde_json::Value = serde_json::from_slice(&ready).unwrap();
         assert_eq!(v["intent_sha256"], intent.digest().unwrap());
         assert_eq!(v["started_marker_sha256"], started);

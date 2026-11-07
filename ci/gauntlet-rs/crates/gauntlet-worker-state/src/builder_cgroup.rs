@@ -236,7 +236,7 @@ fn valid_boot_id(text: &str) -> bool {
             }
         })
 }
-fn boot_id() -> Result<String, String> {
+pub(crate) fn boot_id() -> Result<String, String> {
     let mut raw = String::new();
     std::fs::File::open("/proc/sys/kernel/random/boot_id")
         .map_err(|e| e.to_string())?
