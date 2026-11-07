@@ -72,6 +72,14 @@ with evidence. Code volume and checked substeps do not establish completion.
   primary readback, consumed-run refusal and cleanup agree. Worker
   `32135d91…` and executor `5c353aee…` are unchanged; public export is
   `d5485322…`. The upgraded primary host reopens the same result unchanged.
+- Fresh audit `ed40a9c721e3685b` observes the retained-source executor still
+  alive after its verified Root supervisor's pidfd SIGKILL. Primary Rust repair
+  completes in 10.288 seconds and preserves an aborted/null-exit receipt;
+  independent four-lease cleanup, wrong-pin/consumed refusals and identical
+  restart/repeat readback pass. All historical metadata is unchanged.
+  Validation `70e0c017…` verifies 15 records; public recovery addendum
+  `49aa292a…` contains 19 members/61,440 bytes and excludes seven actual private
+  nonces. See [feature recovery](gauntlet-rust-feature-worker.md#feature-supervisor-interruption-and-rust-recovery).
 - Fresh dependency job `ce76a18b95d042ef` verifies host `00a37dd2…` from
   `58ee4c3f2`: actual kernel confinement, the new public/private response,
   cleanup, consumed-run refusal and all 2,290 exported file bytes pass.

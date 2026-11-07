@@ -629,6 +629,17 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
   - [x] Recover the retained failed native apparatus job through an explicit Rust quiescent repair: wrong pins refuse; original marker/stream/journal bytes remain unchanged; only the verified owned image lease is released. A separate one-use `aborted` receipt has unknown exit status and no eligibility/model credit, survives reopen, and lets fresh jobs proceed while the old job ID stays consumed. Failed execution and two proof-adapter attempts remain preserved. See [worker VM proof](gauntlet-rust-native-worker-vm-proof-20261026.md). This does not implement general live/unknown-job repair or infer an ordinary terminal.
   - [x] Initialize a fresh VM's fixed native storage directly in Rust under both worker leases, with no Python control-plane installer. Source `bff9ed0d` passes wrong-pin refusal before mutation, exact modes under 0077, competing Rust/legacy leases and immutable receipt reopen on the separate pinned build VM. Its historical v1 build-parent mode was incompatible with the candidate reader; explicit layout v2 at `c80ac788` now requires 0700 and refuses the existing loose directory. A measured, empty v1 directory and receipt were retained under both leases before Rust created v2. The actual Root suite passes 122 tests with 24 existing fixture-specific ignores separate. No job is adopted or eligibility/model credit supplied. See [historical initialization proof](gauntlet-rust-native-initialization-vm-proof-20261026.md) and [v2/source proof](gauntlet-rust-native-source-vm-proof-20261026.md).
 - [ ] Prove failure containment for moved tags, wrong archive/wheel/prefix, symlinks, replay, stale PID, timeout, cancellation, surviving descendants and uncertain cleanup.
+  - [x] Exercise actual feature-supervisor loss on fresh audit
+  `ed40a9c721e3685b` against retained exact product `53c64ae96`. Held pidfds
+  verify supervisor SIGKILL and the surviving unprivileged executor; the host
+  keeps the unknown attempt. Primary Rust repair completes in 10.288 seconds,
+  records aborted/null-exit state, and independently leaves all exact owned
+  resources/processes absent. Wrong intent/generation and consumed launch
+  refuse; restart read/repeat repair match with four host records unchanged.
+  Four-lease cleanup preserves 333 historical records plus lock metadata.
+  Validation `70e0c017…` binds 15 records; no new runtime code, model use,
+  qualification or parent-exit credit is claimed. See
+  [feature recovery](gauntlet-rust-feature-worker.md#feature-supervisor-interruption-and-rust-recovery).
 - [ ] Run fresh exact-commit ARM VM conformance at 2 vCPU/16 GiB RAM/48 GiB disk with zero model requests and retained source-bound reports; keep the v3.48/v3.49 missing-capability finding visible.
 
 ## 3. Mac host, release observer, and dashboard

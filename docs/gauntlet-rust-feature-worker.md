@@ -452,6 +452,50 @@ authority, conformance and admission remain open. Every
 admission/qualification/causality flag remains false, with zero model
 requests/tokens and no parent-exit credit.
 
+### Feature supervisor interruption and Rust recovery
+
+Fresh audit `ed40a9c721e3685b` uses the retained exact-source build
+`b7f0b85b31df49cc` at `53c64ae96`, controller `123024f4…`, worker `32135d91…`
+and executor `5c353aee…`. Frozen primary host `2d985d12…` comes from
+`cfdbf6a9f`. This exercises recovery against that explicit retained product,
+without claiming execution of the newer upstream merge.
+
+An outside observer checks the actual executor/argv, four read-only input
+hashes, capabilities, UID/GID 65532, namespaces, policy and resource limits.
+It also binds the Root supervisor and Podman client to the fresh intent/CID.
+Holding pidfds, it sends SIGKILL only to the original supervisor, observes its
+death and verifies the executor remains alive afterward. The host returns
+transport exit two after 16.965 seconds, with no terminal stdout; the attempt
+remains unknown. Kernel/fault receipt is `4c008cdc…`.
+
+A wrong intent refuses before creating repair authorization; read refuses to
+invent a terminal, and a consumed launch refuses. Primary `features repair`
+durably pins its executable and completes in **10.288 seconds**. It drains
+the owned container and client group and retains `aborted`, explicit null exit,
+and no eligibility. Root/host repair bytes match digest
+`3bb5030e01b7a00c29a0fddd5cb587f44e0479f302fa46622f196cfca162d899`.
+The original unknown attempt remains retained; no workload is relaunched and
+the harness performs no manual container cleanup.
+
+Independent four-lease cleanup verifies full CID/name, client/libpod/conmon
+cgroups, profile and original supervisor/init/client absent, with all 333
+historical records and their lock metadata unchanged. Restart readback and
+repeat repair match; wrong repair generation and consumed launch refuse with
+all four original host records' metadata/bytes unchanged. Cleanup receipt is
+`6951e931…`; restart proof is `0e0cc443…`.
+
+External `feature-supervisor-recovery-20261107-validation-001.json` binds 15
+records, SHA-256
+`70e0c017835b52cc4a46fa51e58bb2a02e4d525ae76b4cdabcb35c22baea028f`.
+Public addendum `gauntlet-rust-review-recovery-20261107-001.tar` contains 19
+members and 61,440 bytes, SHA-256
+`49aa292a83c65ebb8abe870b5bdaf779471000bf51f29f2720d151d990342f06`;
+manifest `4e569111bc6dcf326ff59119c44e6cf72e064a4bdd7c2c992192c48edaa330f2`.
+All members reverify and exclude seven actual private nonces. Existing code
+handles the recovery; no repository source, file or dependency is added by
+this proof. The VM is idle, model use is zero, and broader failure, authority,
+conformance and admission exits remain open. No parent exit closes.
+
 ### Review bundle for the merged source
 
 External `gauntlet-rust-review-evidence-20261107-005.tar` contains 90 public
