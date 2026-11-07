@@ -766,6 +766,29 @@ interrupted-repair and normal-control evidence are still pending. Partial
 intent/reservation/report recovery and qualification remain open. No parent
 exit closes and no new receipt grants admission.
 
+The first ARM run passes the classifier, private-error hashing and both secure
+file cases as UID/GID 65532. The explicit Root fixture then fails because it
+calls the fixed-slot opener while using a temporary slot. Its failed record
+`dependency-creator-recovery-20261107-host-001/arm-units-001.json` remains
+`eb4cf11f…`. Independent four-lease inspection finds its one empty leaf group;
+after pinning device 31/inode 53756, cleanup removes only that empty fixture
+directory, with no signals, containers or policies changed. Inspection and
+cleanup are retained separately as `bbbe2c33…` and `6d8e2884…`; all 334 historical
+metadata rows remain unchanged. This is apparatus cleanup, not product recovery.
+
+The correction extracts the unchanged atomic publication primitive for use with
+temporary directory descriptors and runs those assertions before creating a
+group. Production commit still opens the fixed Root slot before calling it.
+The final module is 441 lines and I/O owner 403. Source manifest
+`dependency-creator-recovery-20261107-source-003.json` is
+`d571bceeaf5934ad6fd03c280e795f87bbedadbe9ef4d63d16f6000076e5058f`;
+local validation `dependency-creator-recovery-20261107-validation-005.json` is
+`c08a5bd336dec32e62a16f7e37f21fec09483a566a606f435a40225c07b16d43`.
+Final formatting/ARM Clippy and builds pass; the effective Mac source and host
+build remain unchanged. Final worker `7b595c69…` and test ELF `d9f98bc3…`
+supersede the earlier binaries for subsequent execution. The corrected Root
+fixture and live fault cases remain pending; no failed evidence is replaced.
+
 ## Dependency reconciliation without relaunch
 
 `gauntlet-host dependencies run|read` and the existing dependency diagnostic

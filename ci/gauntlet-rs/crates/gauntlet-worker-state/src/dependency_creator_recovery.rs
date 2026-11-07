@@ -373,18 +373,21 @@ pub(crate) fn commit(
     }
     let slot = crate::builder_candidate_source::open_fixed_build_slot(intent.pins.text("job_id"))
         .map_err(|e| e.to_string())?;
+    publish(journal, &slot, &name, raw)
+}
+
+pub(crate) fn publish(
+    journal: &RunReservationJournal,
+    slot: &OwnedFd,
+    name: &str,
+    raw: &[u8],
+) -> Result<(), String> {
     let staging = format!("dependency-repair-staging-{}.json", attempt()?);
-    feature_files::write(&slot, &staging, raw, (0, 0), 0o600)?;
-    renameat_with(
-        &slot,
-        &staging,
-        &journal.root,
-        &name,
-        RenameFlags::NOREPLACE,
-    )
-    .map_err(|e| e.to_string())?;
+    feature_files::write(slot, &staging, raw, (0, 0), 0o600)?;
+    renameat_with(slot, &staging, &journal.root, name, RenameFlags::NOREPLACE)
+        .map_err(|e| e.to_string())?;
     fsync(&journal.root)
-        .and_then(|_| fsync(&slot))
+        .and_then(|_| fsync(slot))
         .map_err(|e| e.to_string())
 }
 

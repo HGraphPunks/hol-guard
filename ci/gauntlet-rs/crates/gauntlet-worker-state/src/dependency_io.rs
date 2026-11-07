@@ -239,16 +239,6 @@ mod tests {
         )
         .unwrap();
         let started = "d".repeat(64);
-        let mut group = prepare_creators(&slot, &intent, &started).unwrap();
-        let receipt = read(&slot, "candidate-client-cgroup.v1.json", 0, 0o600, 2048).unwrap();
-        let ready = read(&slot, "dependency-creators-ready.v1.json", 0, 0o600, 2048).unwrap();
-        let recovered =
-            crate::dependency_creator_recovery::ready(&slot, &intent, &started).unwrap();
-        assert_eq!(recovered.0, format!("{:x}", Sha256::digest(&ready)));
-        assert_eq!(recovered.1, format!("{:x}", Sha256::digest(&receipt)));
-        assert!(
-            crate::dependency_creator_recovery::ready(&slot, &intent, &"e".repeat(64)).is_err()
-        );
         // A torn staging file is preserved and cannot replace completion.
         let partial = "dependency-repair-staging-interrupted.json";
         crate::feature_files::write(&slot, partial, b"{", (0, 0), 0o600).unwrap();
@@ -258,13 +248,16 @@ mod tests {
             br#"{"schema":"hol-gauntlet-native-dependency-repair.v3","fixture":true}"#,
         )
         .unwrap();
-        crate::dependency_creator_recovery::commit(&journal, &intent, &body).unwrap();
         let published = format!("{id}.dependency-repair.json");
+        crate::dependency_creator_recovery::publish(&journal, &slot, &published, &body).unwrap();
         assert_eq!(
             crate::feature_files::required(&journal.root, &published, (0, 0), 0o600, 8192).unwrap(),
             body
         );
-        assert!(crate::dependency_creator_recovery::commit(&journal, &intent, &body).is_err());
+        assert!(
+            crate::dependency_creator_recovery::publish(&journal, &slot, &published, &body)
+                .is_err()
+        );
         assert_eq!(
             crate::feature_files::required(&journal.root, &published, (0, 0), 0o600, 8192).unwrap(),
             body
@@ -272,6 +265,16 @@ mod tests {
         assert_eq!(
             crate::feature_files::required(&slot, partial, (0, 0), 0o600, 8192).unwrap(),
             b"{"
+        );
+        let mut group = prepare_creators(&slot, &intent, &started).unwrap();
+        let receipt = read(&slot, "candidate-client-cgroup.v1.json", 0, 0o600, 2048).unwrap();
+        let ready = read(&slot, "dependency-creators-ready.v1.json", 0, 0o600, 2048).unwrap();
+        let recovered =
+            crate::dependency_creator_recovery::ready(&slot, &intent, &started).unwrap();
+        assert_eq!(recovered.0, format!("{:x}", Sha256::digest(&ready)));
+        assert_eq!(recovered.1, format!("{:x}", Sha256::digest(&receipt)));
+        assert!(
+            crate::dependency_creator_recovery::ready(&slot, &intent, &"e".repeat(64)).is_err()
         );
         let v: serde_json::Value = serde_json::from_slice(&ready).unwrap();
         assert_eq!(v["intent_sha256"], intent.digest().unwrap());

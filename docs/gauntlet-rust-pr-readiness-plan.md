@@ -22,12 +22,16 @@ with evidence. Code volume and checked substeps do not establish completion.
   original creator readiness, incomplete CID bytes and separate per-attempt
   witnesses. Creator/client drain now precedes Podman runtime queries, and
   v3 completion uses atomic no-replace publication. The new ARM-only module
-  is 438 lines; existing repair/I/O owners stay below 500. Source manifest
-  `dependency-creator-recovery-20261107-source-002.json` is `05299afc…`.
+  is 441 lines; existing repair/I/O owners stay below 500. Final source manifest
+  `dependency-creator-recovery-20261107-source-003.json` is `d571bcee…`.
   All 676 Mac tests and Mac Clippy pass for the unchanged effective Mac source.
   Formatting, final ARM Clippy/release/test builds and default host builds also
-  pass. Local validation `8a4835e7…` binds eight records/seven logs and the final
-  tool hashes. Root fixtures and real missing-CID interruption, recovery
+  pass. Local validation `c08a5bd3…` binds eight records/seven logs and the final
+  tool hashes. Four unprivileged ARM cases pass; the Root fixture's initial
+  fixed-path mistake is retained and corrected to use the same publication
+  primitive with temporary directories. Its empty group is separately removed
+  under four leases without signals or container changes. The corrected Root
+  fixture and real missing-CID interruption, recovery
   interruption and normal-control proofs remain pending. No parent
   exit closes; partial intent/reservation/report reconciliation remains open.
 - Upstream advances to `59ff1696b`, merged without conflicts as `dbd3073ac`.

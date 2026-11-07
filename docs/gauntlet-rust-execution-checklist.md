@@ -286,7 +286,10 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
     and normal controls. The implementation adds one necessary ARM-only module
     within the existing crate. All 676 Mac tests, formatting, Mac/ARM Clippy and
     final builds pass; ARM execution remains pending. Local validation is
-    `8a4835e7…`. Original incomplete/failed records
+    `c08a5bd3…`. Four unprivileged ARM cases pass. The initial Root fixture
+    failed by reopening a fixed slot; its failure and empty-group cleanup stay
+    retained. The corrected temporary-directory fixture awaits execution.
+    Original incomplete/failed records
     are preserved, and no new schema grants admission or invents an exit.
     - [x] Add private phase/error diagnostics within the existing 490-line
     repair module, with exclusive durable writes, bounded UTF-8 prefixes and
