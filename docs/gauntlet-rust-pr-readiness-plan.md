@@ -18,105 +18,65 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
-- Dependency supervisor recovery is implemented in the existing commands and
-  worker, with one shared contract module and no new crate, target or dependency.
-  All 675 Mac tests, formatting, Mac/ARM Clippy and executable builds pass.
-  Freeze the committed tools, then prove actual supervisor loss, wrong-pin refusal,
-  explicit repair/restart/readback and a fresh normal control in the owned VM.
-  Fresh job `a6840d15c928fe37` has captured inputs but has not launched.
-  See [recovery checkpoint](gauntlet-rust-hostbound-candidate-build-proof.md#dependency-supervisor-recovery).
-- Continue `codex/gauntlet-rust-finish-20261105`. Upstream
-  `e43ca02cfb5178ad4276d9ffd4e8f9d4a575f1ab` is merged as `efa6f05e3`.
-  The dependency implementation remains `cfdbf6a9f`; live product evidence
-  retains exact source `53c64ae96`. [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5)
-  stays draft. Integration remains `f143f9ac`; PR #3 is open and upstream
-  PR #5402 has conflicts. Fork Actions dispatch returns HTTP 422. Obtain all
-  five current-head jobs before any authorized integration merge.
-- The four-commit upstream followup preserves all 14 incoming files exactly
-  and parses 12 Python files without imports. All 297 existing scenarios are
-  unchanged; two Git Allow cases are added. The 440-file map and immutable
-  420-file baseline agree. Python/Rust derive controller `39bde055…`, 409 files
-  and 420 entries; this generation is not installed. All 672 Mac tests,
-  formatting, Mac/ARM Clippy and Native library/CLI compilation pass; Guard
-  command tests compile on Mac. The stale controller-pin failure is retained.
-  Validation `a77e2a86…` verifies eleven records and eight logs. See the
-  [upstream followup](gauntlet-rust-hostbound-candidate-build-proof.md#upstream-followup-after-dependency-recovery).
-- The dependency reconciliation slice has **672 Mac all-feature tests**,
-  formatting and warnings-denied Mac/ARM Clippy passing. Primary
-  `gauntlet-host dependencies run/read` shares the existing diagnostic handler.
-  Its fixed Root reader verifies the original intent, terminal, cleanup and
-  captured ZIP under four leases, without scanning unrelated worker records or
-  starting a workload. Source manifest is `34a6a356…`, live validation
-  `3adedd4a…` verifies 29 records. Separately installed Root reader `96215aa2…`
-  reconciles both retained generations through both host commands. Fresh
-  job `f02a618c39de745b` recovers after actual host SIGKILL, with no local
-  result or relaunch; repeat reads and consumed-run refusal pass. Independent
-  ZIP decoding and four-lease cleanup pass, receipt `04b9cf39…`. See the
-  [readback proof](gauntlet-rust-hostbound-candidate-build-proof.md#dependency-reconciliation-without-relaunch).
-- The preceding live-proved slice has **669 Mac all-feature tests**, formatting and warnings-denied Mac/ARM
-  Clippy pass. Merged Native library/CLI compilation also passes. The source
-  map has 440 files, 79 changed and 20 added against the immutable 420-file
-  baseline. Independent Python/Rust agree on the separately installed
-  409-file/420-entry controller `123024f4…`; old `e81a214c…` is preserved.
-- Primary `gauntlet-host build source/run/read/repair` and
-  `features record/run/read/repair` share existing handlers. Candidate and
-  dependency dispatch are durably consumed before transport; concurrent calls,
-  uncertainty and restart cannot repeat them. Historical dependency intents
-  without a fresh authorization stay read-only. Canonical dependency replies
-  remain private at 0600; public stdout is typed and excludes the intent/nonce.
-  This last implementation chunk changes six existing files, all within 500
-  lines, and adds no repository file, crate, target or dependency.
-- Product build `b7f0b85b31df49cc` at exact source `53c64ae96`, archive
-  `c5c88fe8…`, passes four selected checks and 185 contained contracts.
-  Dependency job `f7a1bf6e9d3482c0` and immutable local publication complete.
-  Independent reconstruction verifies four trees, 4,327 prefix entries, six
-  aliases, 62 distributions and all 21 requirements (11 active and satisfied).
-  Runtime export is `831a469f…`. See the
-  [build/runtime proof](gauntlet-rust-hostbound-candidate-build-proof.md#primary-host-build-command-and-merged-source-follow-up).
-- Audit `a38df7e1b26c4905` completes all 28 groups/52 selectors with
-  **1,303 passes, zero failures/errors and one deliberate retired-Pi skip**.
-  Status stays incomplete. Independent Python/JUnit and Rust recomputation,
-  primary readback, consumed-run refusal and cleanup agree. Worker
-  `32135d91…` and executor `5c353aee…` are unchanged; public export is
-  `d5485322…`. The upgraded primary host reopens the same result unchanged.
-- Fresh audit `ed40a9c721e3685b` observes the retained-source executor still
-  alive after its verified Root supervisor's pidfd SIGKILL. Primary Rust repair
-  completes in 10.288 seconds and preserves an aborted/null-exit receipt;
-  independent four-lease cleanup, wrong-pin/consumed refusals and identical
-  restart/repeat readback pass. All historical metadata is unchanged.
-  Validation `70e0c017…` verifies 15 records; public recovery addendum
-  `49aa292a…` contains 19 members/61,440 bytes and excludes seven actual private
-  nonces. See [feature recovery](gauntlet-rust-feature-worker.md#feature-supervisor-interruption-and-rust-recovery).
-- Fresh dependency job `ce76a18b95d042ef` verifies host `00a37dd2…` from
-  `58ee4c3f2`: actual kernel confinement, the new public/private response,
-  cleanup, consumed-run refusal and all 2,290 exported file bytes pass.
-  Validation `host-dispatch-20261107-validation-002.json` verifies 23 records,
-  SHA-256 `cfde5d70adb296e534504aa55c8863e1ffcf1aabf1fbcd58f11ac3aec224d9cd`.
-  Earlier supervisor-SIGKILL job `ea0ef712724b4957` retains its observed
-  40.274-second Rust recovery and aborted/null-exit receipt. See the
-  [dispatch/recovery proof](gauntlet-rust-hostbound-candidate-build-proof.md#durable-host-dispatch-and-private-dependency-results).
-- Current review bundle `gauntlet-rust-review-evidence-20261107-005.tar`
-  contains 90 public files, 84,275,200 bytes, SHA-256 `9e18b11d…`.
-  Runtime, requirement and audit replayers reproduce the retained JSON exactly;
-  six actual private nonces are excluded. It includes the actual host-loss
-  recovery and retained readback. Remote delivery and independent
-  review remain open. The formal security scan excludes `ci/` and is incomplete.
-  Full pins, earlier bundles and failed attempts remain in the
-  [feature proof](gauntlet-rust-feature-worker.md#review-bundle-for-the-merged-source).
-  A separate 23-member, 317,440-byte upstream addendum (`3ec2903a…`) binds the
-  newer map, independent controller plan and compile/test checks without
-  relabelling the retained live product proof.
-- Next finish broader interruption coverage and all twelve staging/installed
-  roles, then independent request/decision/effect authority and conformance.
-  Native copied replies still do not prove atomic wire bytes, request semantics
-  or actual effect writers. Observer admission, real workflows, legacy parity
-  and rollout remain open. Every admission/qualification/causality flag stays
-  false; model use is zero. Unknown `b937d2e04a16c85f` stays unknown.
-- Owned VM `hol-gauntlet-rust-build-20261026-001` is idle at 2 CPUs,
-  16 GiB and 48 GiB. Completed jobs have no owned resources remaining; all
-  333 historical records' metadata and their lock are unchanged. Inspect exact
-  pins, leases and resources before the next operation; serialize mutations
-  and never replay a consumed ID.
+- Continue `codex/gauntlet-rust-finish-20261105`. Dependency recovery is
+  implemented at `54cda0b80`; upstream `e43ca02cf` is merged as `efa6f05e3`.
+  [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5) stays draft.
+  Integration remains `f143f9ac`; PR #3 is open and upstream PR #5402 has
+  conflicts. Fork Actions is disabled; the last dispatch returned HTTP 422.
+  Require all five current-head jobs before any integration merge.
+- All **675 Mac all-feature tests**, formatting, warnings-denied Mac/ARM Clippy
+  and executable builds pass. Frozen worker `c7b09e2d…`, primary host
+  `6937e43b…` and compatibility host `690520de…` bind implementation
+  `54cda0b80`. The new worker is installed separately; older generations stay
+  intact. One necessary shared contract module is added, with no new crate,
+  executable target or dependency. Local validation is `fbda5f9c…`.
+- Dependency jobs `a6840d15c928fe37` and `c95ad2e6018bf743` verify actual
+  supervisor pidfd SIGKILL and the surviving unprivileged exporter. Typed
+  unknown reads authorize no cleanup; wrong reservation pins leave authorization
+  absent. The second job verifies its container remains active after refusal.
+  Its first repair fails; a Rust retry with the same authorization succeeds.
+  Aborted/null exits, original unknown attempts and consumed dispatch remain
+  intact. Restart/repeat reads and different-pin/consumed refusals pass.
+  **Diagnose that first repair failure next**; its Root error detail was not
+  retained by the bounded host error. The first job's delayed active check
+  also remains a failure. No manual resource cleanup or workload replay occurs.
+- Normal control `b8c32a6f519d470e` exits zero in 76.099 seconds. Independent
+  decoding verifies all 2,290 dependency files, 51,318,588 decoded bytes and
+  entry digest `b01fe0d3…`. Completed-job repair refuses before authorization.
+  Both older completed generations remain readable through both commands.
+  All three fresh jobs have independent four-lease cleanup and unchanged
+  metadata for 333 historical records plus their lock. Live validation
+  `af4f2bce…` binds 62 records. See the [dependency recovery proof](gauntlet-rust-hostbound-candidate-build-proof.md#dependency-supervisor-recovery).
+- Live product evidence retains exact source `53c64ae96`, controller
+  `123024f4…`, source archive `c5c88fe8…` and build `b7f0b85b31df49cc`:
+  four selected checks and 185 contained contracts pass. Runtime reconstruction
+  verifies four inventories, 4,327 entries, six aliases, 62 distributions and
+  all 21 requirements. Audit `a38df7e1b26c4905` has 1,303 passes, no failures
+  or errors and one deliberate retired-Pi skip across 28 groups/52 selectors;
+  status stays incomplete. Candidate `ea0ef712724b4957` and feature
+  `ed40a9c721e3685b` retain their proved supervisor-loss recovery.
+- The upstream followup preserves all fourteen incoming files exactly and the
+  immutable 420-file baseline. The 440-file map has 79 changed and 20 added
+  files. Python/Rust agree on uninstalled controller plan `39bde055…`,
+  409 files/420 entries. Native library/CLI compilation passes on Mac/ARM;
+  Guard command tests compile on Mac without product execution. Validation
+  `a77e2a86…` binds those checks; older live evidence is not relabelled.
+- Public evidence stays outside Git. Main bundle `9e18b11d…` has 90 members;
+  upstream and feature-recovery addenda are `3ec2903a…` and `49aa292a…`.
+  The dependency-recovery addendum `5af77dcb…` has 86 members/17,121,280 bytes,
+  reverified with ten actual private nonces excluded, including decoded ZIP
+  contents. All failures and older bundles remain immutable. Remote delivery
+  and independent review remain open; the formal scan excludes CI and is
+  incomplete. Full pins are in the existing proof documents.
+- After diagnosing active repair, cover pre-CID/partial records, then finish
+  all twelve staging/installed roles and independent request/decision/effect
+  authority. Native copied replies do not prove atomic wire bytes, request
+  semantics or actual effect writers. Admission, real model workflows, legacy
+  parity and rollout stay open. All authority flags are false; product model
+  requests/tokens are zero. Unknown `b937d2e04a16c85f` remains unknown.
+- The owned ARM VM is idle at 2 CPUs/16 GiB/48 GiB. Inspect exact pins, leases
+  and resources before each operation, serialize mutations and never replay a
+  consumed job. Never read the historical records' private bytes or keys.
 
 ## Keep the implementation small
 

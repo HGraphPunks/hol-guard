@@ -265,12 +265,22 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
   authorization. Recovery binds the original intent, full CID and kernel group
   under four leases, preserving the original consumed attempt and null exit.
   All 675 Mac tests, formatting, Mac/ARM Clippy and executable builds pass;
-  live validation remains pending. One shared contract module is added without
-  a new crate, executable or dependency. See [supervisor recovery](gauntlet-rust-hostbound-candidate-build-proof.md#dependency-supervisor-recovery).
-  - [ ] Prove active dependency-supervisor loss and Rust repair on a fresh job,
-  independently verify full cleanup, then complete a fresh normal control with
-  unchanged source-bound dependency bytes. Broader partial-state recovery and
-  qualification remain open; no parent exit closes.
+  live recovery and normal-control evidence are retained below. One shared
+  contract module is added without a new crate, executable or dependency.
+  See [supervisor recovery](gauntlet-rust-hostbound-candidate-build-proof.md#dependency-supervisor-recovery).
+  - [x] Prove actual dependency-supervisor SIGKILL on `a6840d15c928fe37` and
+  `c95ad2e6018bf743`, typed unknown readback, wrong-pin refusal before cleanup
+  authorization and matching-authorization Rust repair without relaunch.
+  The second job has independent active-container observation after refusal;
+  its first repair error is retained and the same-authorized Rust retry succeeds.
+  Both jobs pass restarted read/repeat repair and consumed/different-pin refusals.
+  Normal control `b8c32a6f519d470e` exits zero in 76.099 seconds; independent
+  decoding matches all 2,290 files. Four-lease cleanup verifies all resources
+  absent and historical metadata unchanged. Validation `af4f2bce…` binds 62
+  records. Older completed generations remain readable through both commands.
+  - [ ] Diagnose the first active dependency repair refusal and complete
+  pre-CID/partial-state recovery. The first job's delayed active check also
+  remains a retained failure. Qualification stays open; no parent exit closes.
   - [x] Add fixed dependency reconciliation to the primary host and existing
   diagnostic, reusing original intent/VM bindings, terminal verification and
   the inert ZIP reader. The Root path acquires four leases and addresses only

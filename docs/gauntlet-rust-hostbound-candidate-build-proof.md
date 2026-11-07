@@ -494,8 +494,7 @@ All 675 Mac workspace tests pass without failures or ignores, including closed
 schema tampering, fixed transport, wrong-pin, linked/partial authorization,
 restart, repeat-read and consumed-launch cases. Formatting and warnings-denied
 Mac/ARM Clippy pass; the ARM release worker and both Mac host
-executables build. The fresh supervisor-loss/normal-control VM proof remains
-pending at this implementation checkpoint. Source manifest
+executables build. Source manifest
 `dependency-active-repair-20261107-source-001.json` has SHA-256
 `84d5ff64a5233a221d766280c7b3ba3cb0242c68230da2252d1ea90e6e45538e`.
 Local validation `dependency-active-repair-20261107-validation-001.json`
@@ -505,6 +504,67 @@ One necessary shared contract module is added, with no new crate, executable
 target or dependency. Domain/test files remain within 500 lines; the existing
 worker module aggregator only gains exports. Parent completion stays 24/62,
 and model requests/tokens remain zero.
+
+Implementation `54cda0b8037c5e1c37bfad48d1bfcb00bc959f8e` freezes worker
+`c7b09e2d…`, primary host `6937e43b…` and compatibility host `690520de…`.
+The worker is installed separately at its full digest path, Root-owned,
+single-linked and mode 0500. All live jobs below retain product source
+`53c64ae96` and controller `123024f4…`; they do not qualify the newer upstream
+controller plan. The frozen-tools and install receipts bind the full hashes.
+
+Fresh job `a6840d15c928fe37` verifies the original Root supervisor's pidfd
+SIGKILL and surviving UID/GID-65532 exporter. The host retains its consumed
+unknown attempt. Both command forms read identical typed unknown observations;
+a wrong reservation refuses without recording cleanup authorization. Repair
+completes in 2.373 seconds, retaining aborted/null-exit state. Its delayed
+active-container check fails and remains preserved, so this attempt alone does
+not prove active-container teardown.
+
+Fresh job `c95ad2e6018bf743` runs the observations and recovery consecutively.
+After supervisor SIGKILL, the wrong-pin refusal leaves the original container,
+client group and profile active under independent observation. The first
+correctly authorized repair returns an error and stays retained; the bounded
+host error does not expose the Root failure detail. A fixed Rust repair call
+with the same verified authorization then succeeds, and host reconciliation
+retains Root receipt `ef6d50d1…`. No workload is relaunched and no resource is
+manually removed. Restarted reads through both commands match, repeat repair
+is identical, and changed reservation/generation pins and consumed launches
+refuse on both repaired jobs. The initial active repair refusal still needs
+diagnosis; a successful retry does not establish its cause.
+
+Normal control `b8c32a6f519d470e` completes in 76.099 seconds with exit zero.
+Outside observation verifies actual exporter bytes, arguments, read-only
+inputs, empty capabilities, namespaces, enforced profile and resource limits.
+Independent decoding verifies all 2,290 dependency files and 51,318,588 decoded
+bytes, matching entry digest `b01fe0d3…`. The 16,690,636-byte ZIP has SHA-256
+`05b182f2ffed4e7720e3ebfe586a5c6203c422d621a09466a418d0aa2f33af5e`.
+Both command forms return identical retained reads; consumed launch and repair
+of the completed job refuse, with no cleanup authorization added. The new
+reader also verifies both older completed generations without changing their
+original host records or authorizing another launch.
+
+For all three jobs, independent checks under four leases verify original
+supervisor/client/init death, full CID/name, client/builder/libpod/conmon groups
+and profile absence, and unchanged metadata for the 333 historical worker
+records plus their lock. Their private record contents are not read by the
+proof. Original unknown attempts, intents, dispatch and separate repair records
+remain intact. Every admission, qualification and causality flag stays false.
+
+| Evidence in the external evidence directory | SHA-256 |
+| --- | --- |
+| `dependency-active-repair-20261107-validation-002.json`, 62 verified records | `af4f2bce447806386585469dffec2253ea43c39500556881f7ce1e09d28f23fe` |
+| `native-merged359-dependency-host-state-20261107-006/wrong-pin-noninterference-001.json` | `5dc3bc90d1941344d82a2ec7cf9fde8d6236d28cf81096f505e5b82802939f67` |
+| Same directory, `outside-completion-001.json` | `a8e5bd2d1db052b45ce5a3b2cf4c70e325477618f8da76c4bece48293afb2934` |
+| `native-merged359-dependency-host-state-20261107-005/independent-dependency-export-001.json` | `0686c7e68073a007c39cb1d8a70c40a537cacdc7c166e4b5a6ec4c20a748f770` |
+| `dependency-active-repair-20261107-legacy-readback-001.json` | `d9b9efe2fceff1117736cfd259faa35f9936834a6812d70b9d61753879cd7257` |
+
+Public addendum `gauntlet-rust-review-dependency-recovery-20261107-001.tar`
+contains 86 members and 17,121,280 bytes, SHA-256
+`5af77dcb8e126482664194256c3d84acb41f98afaf2c601efae8ec395b3550ec`.
+All members reverify. Raw and decoded ZIP scans exclude ten actual private
+nonces. Earlier bundles and failures remain immutable; remote delivery and
+independent review remain open. Broader partial-state recovery, first-call
+failure diagnosis and every qualification exit remain open; no parent closes.
 
 ## Dependency reconciliation without relaunch
 
