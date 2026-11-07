@@ -24,8 +24,15 @@ fn drain(fd: &OwnedFd, bytes: &mut Vec<u8>) -> Result<bool, String> {
 }
 
 pub(crate) fn run(pin: &str, args: &[String]) -> Result<Vec<u8>, String> {
-    verify_file("/usr/bin/podman", pin, true, 64 * 1024 * 1024).map_err(|e| e.to_string())?;
-    let mut child = Command::new("/usr/bin/podman")
+    run_placed(pin, args, None)
+}
+
+pub(crate) fn helper_command(
+    args: &[String],
+    group: Option<&crate::builder_cgroup::OwnedCandidateCgroup>,
+) -> Result<Command, String> {
+    let mut command = Command::new("/usr/bin/podman");
+    command
         .args(args)
         .env_clear()
         .env("HOME", "/root")
@@ -33,9 +40,23 @@ pub(crate) fn run(pin: &str, args: &[String]) -> Result<Vec<u8>, String> {
         .env("TMPDIR", "/var/tmp")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| e.to_string())?;
+        .stderr(Stdio::piped());
+    if let Some(group) = group {
+        group
+            .attach_child(&mut command)
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(command)
+}
+
+fn run_placed(
+    pin: &str,
+    args: &[String],
+    group: Option<&crate::builder_cgroup::OwnedCandidateCgroup>,
+) -> Result<Vec<u8>, String> {
+    verify_file("/usr/bin/podman", pin, true, 64 * 1024 * 1024).map_err(|e| e.to_string())?;
+    let mut command = helper_command(args, group)?;
+    let mut child = command.spawn().map_err(|e| e.to_string())?;
     let out: OwnedFd = child
         .stdout
         .take()
@@ -188,7 +209,10 @@ impl<'a> DependencyContainer<'a> {
         }
         Ok(Some(cid))
     }
-    pub(crate) fn create(&mut self) -> Result<BuilderRunPlan, String> {
+    pub(crate) fn create(
+        &mut self,
+        group: &crate::builder_cgroup::OwnedCandidateCgroup,
+    ) -> Result<BuilderRunPlan, String> {
         if self.identity()?.is_some() {
             return Err("dependency container already exists".into());
         }
@@ -196,7 +220,7 @@ impl<'a> DependencyContainer<'a> {
         if info["host"]["cgroupManager"] != "systemd" || info["host"]["cgroupVersion"] != "v2" {
             return Err("fixed dependency cgroup manager required".into());
         }
-        let result = run(self.pin(), &arguments(self.intent));
+        let result = run_placed(self.pin(), &arguments(self.intent), Some(group));
         let observed = self.identity()?;
         self.cid = observed;
         let raw = result?;

@@ -8,7 +8,9 @@ use crate::builder_image_build::{free_bytes, inspect_result};
 use crate::builder_image_context::{
     python_worker_lock, verify_existing_context, verify_python_lock, RUST_STATE,
 };
-use crate::builder_policy::{profile_absent, profile_is_loaded, read_policy, run_parser};
+use crate::builder_policy::{
+    profile_absent, profile_is_loaded, read_policy, run_parser, run_parser_owned,
+};
 use crate::dependency_podman::DependencyContainer;
 use crate::{RunReservationJournal, TerminalOutcome};
 use gauntlet_contracts::{canonicalize, DependencyRunIntent, WorkerRequest};
@@ -141,8 +143,11 @@ pub fn run_native_dependencies(
     if crate::native_worker::cancellation_requested() {
         return Err("dependency job cancelled after reservation; reconcile retained state".into());
     }
-    let loaded = run_parser("--replace", &policy);
+    let mut group = crate::dependency_io::prepare_creators(&slot, &intent, &started.sha256)?;
+    let loaded = run_parser_owned("--replace", &policy, &group);
     if loaded.is_err() || profile_is_loaded(&profile) != Ok(true) {
+        group.kill().map_err(|e| e.to_string())?;
+        group.drain_and_remove().map_err(|e| e.to_string())?;
         let _ = run_parser("--remove", &policy);
         return Err("dependency policy load failed; reconcile reserved job".into());
     }
@@ -160,11 +165,19 @@ pub fn run_native_dependencies(
     };
     let mut container = DependencyContainer::new(&intent);
     let execution = (|| {
-        let plan = container.create()?;
+        let plan = match container.create(&group) {
+            Ok(plan) => plan,
+            Err(error) => {
+                group.kill().map_err(|e| e.to_string())?;
+                group.drain_and_remove().map_err(|e| e.to_string())?;
+                return Err(error);
+            }
+        };
         run_precreated_dependency_process(
             &plan,
             &slot,
             &digest,
+            group,
             &still_owned,
             &|| {
                 container

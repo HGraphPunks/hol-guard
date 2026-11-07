@@ -229,6 +229,7 @@ pub(crate) fn run_precreated_dependency_process(
     plan: &BuilderRunPlan,
     job: &OwnedFd,
     binding: &str,
+    group: OwnedCandidateCgroup,
     still_owned: &impl Fn() -> Result<(), CandidateProcessError>,
     drain_container: &impl Fn() -> Result<(), CandidateProcessError>,
     record_running: &impl Fn(crate::ProcessIdentity, &str) -> Result<(), CandidateProcessError>,
@@ -237,10 +238,10 @@ pub(crate) fn run_precreated_dependency_process(
         plan,
         job,
         still_owned,
-        RunKind::Dependency(binding),
+        RunKind::Dependency(binding, Some(group)),
         drain_container,
         record_running,
-        RunKind::Dependency(binding).deadline(),
+        Duration::from_secs(2100),
     )
 }
 
@@ -263,28 +264,27 @@ pub(crate) fn run_precreated_feature_process(
     )
 }
 
-#[derive(Clone, Copy)]
 enum RunKind<'a> {
     Candidate(&'a str),
-    Dependency(&'a str),
+    Dependency(&'a str, Option<OwnedCandidateCgroup>),
     Feature(&'a gauntlet_contracts::FeatureRunIntent),
 }
 impl RunKind<'_> {
-    fn log_names(self) -> (&'static str, &'static str) {
+    fn log_names(&self) -> (&'static str, &'static str) {
         match self {
             Self::Candidate(_) => ("candidate-run.stdout.log", "candidate-run.stderr.log"),
-            Self::Dependency(_) => ("dependency-run.stdout.log", "dependency-run.stderr.log"),
+            Self::Dependency(_, _) => ("dependency-run.stdout.log", "dependency-run.stderr.log"),
             Self::Feature(_) => ("feature-run.stdout.log", "feature-run.stderr.log"),
         }
     }
-    fn deadline(self) -> Duration {
+    fn deadline(&self) -> Duration {
         Duration::from_secs(match self {
             Self::Candidate(_) => gauntlet_contracts::CANDIDATE_BUILD_TIMEOUT_SECONDS,
-            Self::Dependency(_) => 2100,
+            Self::Dependency(_, _) => 2100,
             Self::Feature(_) => 14400,
         })
     }
-    fn log_limit(self) -> u64 {
+    fn log_limit(&self) -> u64 {
         if matches!(self, Self::Feature(_)) {
             128 * 1024
         } else {
@@ -297,7 +297,7 @@ fn run_process(
     plan: &BuilderRunPlan,
     job: &OwnedFd,
     still_owned: &impl Fn() -> Result<(), CandidateProcessError>,
-    kind: RunKind,
+    mut kind: RunKind,
     drain_container: &impl Fn() -> Result<(), CandidateProcessError>,
     record_running: &impl Fn(crate::ProcessIdentity, &str) -> Result<(), CandidateProcessError>,
     deadline: Duration,
@@ -306,17 +306,35 @@ fn run_process(
     let stdout = create_log(job, out_name)?;
     let stderr = create_log(job, err_name)?;
     fsync(job).map_err(|_| CandidateProcessError::LogUnavailable)?;
-    let mut group = (if matches!(kind, RunKind::Feature(_)) {
-        OwnedCandidateCgroup::create_feature(&plan.job_id)
+    let precreated = if let RunKind::Dependency(_, group) = &mut kind {
+        Some(
+            group
+                .take()
+                .ok_or(CandidateProcessError::CgroupUnavailable)?,
+        )
     } else {
-        OwnedCandidateCgroup::create(&plan.job_id)
-    })
-    .map_err(|_| CandidateProcessError::CgroupUnavailable)?;
-    let retained = match kind {
-        RunKind::Candidate(binding) | RunKind::Dependency(binding) => {
-            group.retain_candidate(job, &plan.job_id, binding)
-        }
+        None
+    };
+    let mut group = if let Some(group) = precreated {
+        group
+    } else {
+        (if matches!(kind, RunKind::Feature(_)) {
+            OwnedCandidateCgroup::create_feature(&plan.job_id)
+        } else {
+            OwnedCandidateCgroup::create(&plan.job_id)
+        })
+        .map_err(|_| CandidateProcessError::CgroupUnavailable)?
+    };
+    let retained = match &kind {
+        RunKind::Candidate(binding) => group.retain_candidate(job, &plan.job_id, binding),
         RunKind::Feature(intent) => group.retain_feature(job, intent),
+        RunKind::Dependency(binding, _) => {
+            OwnedCandidateCgroup::reopen_candidate(job, &plan.job_id, binding).and_then(|g| {
+                g.filter(|g| g.path() == group.path())
+                    .map(|_| ())
+                    .ok_or("prepared dependency cgroup differs".into())
+            })
+        }
     };
     if retained.is_err() {
         group

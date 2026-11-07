@@ -641,6 +641,35 @@ independent review remain open. The original active refusal remains unexplained;
 partial-state recovery and qualification are still incomplete, with no parent
 exit closed and zero product model requests/tokens.
 
+### Early dependency creator custody
+
+The dependency runner now creates and retains its client cgroup before loading
+the job policy or creating its container. The policy-load parser and mutating
+Podman create command enter that held group in pre-exec; the later client uses
+the same group without replacing its receipt. A separate private, durable
+`dependency-creators-ready.v1.json` binds the original intent, reservation,
+worker generation and cgroup receipt before either mutating helper starts.
+Cleanup drains that group before policy removal on ordinary helper failures.
+Existing public status, repair and reservation protocols are unchanged.
+
+Only five existing Rust files change, all within the source-line guideline;
+no repository file, crate, target or dependency is added. Source manifest
+`dependency-early-owner-20261107-source-001.json` hashes to
+`5789101097e76846ae3f49f512835ea1ed8ac4eb5e42860377f5c2297283b294`.
+All 675 Mac tests, formatting, Mac/ARM warnings-denied Clippy and builds pass.
+Local validation `dependency-early-owner-20261107-validation-001.json` binds
+eight records/seven logs, SHA-256
+`9ec3b3b2e5240dc375605e6f1cac6abbf9911630d33e8e4afc0a50d664773111`.
+The explicit Root fixture remains pending at this checkpoint. The fixture stops
+inert children before their helper executables run, verifies placement through
+the production command constructors, and includes an unplaced control. It is
+apparatus evidence, not an observation of actual helper binary execution.
+
+Next prove actual interruption after the complete CID receipt and before client
+startup, then independently verify Rust repair and a normal export. Missing-CID
+and malformed/partial records remain unknown; this change does not authorize
+adopting a missing or foreign identity. Every qualification exit stays open.
+
 ## Dependency reconciliation without relaunch
 
 `gauntlet-host dependencies run|read` and the existing dependency diagnostic

@@ -1,5 +1,6 @@
 //! Descriptor-bound inert inputs and one-use output capture. No package byte
 //! is imported or executed while Root reads or publishes these files.
+//! The same retained group owns dependency resource creators and the client.
 use crate::builder_candidate_source::same_file;
 use gauntlet_contracts::DependencyRunIntent;
 use rustix::fs::{
@@ -151,4 +152,195 @@ pub(crate) fn capture_output(job: &OwnedFd) -> Result<(u64, String), String> {
         return Err("published dependency output changed".into());
     }
     Ok((raw.len() as u64, digest))
+}
+
+/// Retain helper custody before loading policy or creating a container.
+pub(crate) fn prepare_creators(
+    job: &OwnedFd,
+    intent: &DependencyRunIntent,
+    started: &str,
+) -> Result<crate::builder_cgroup::OwnedCandidateCgroup, String> {
+    let id = intent.pins.text("job_id");
+    let binding = intent.digest()?;
+    let mut group =
+        crate::builder_cgroup::OwnedCandidateCgroup::create(id).map_err(|e| e.to_string())?;
+    let retained = (|| {
+        group.retain_candidate(job, id, &binding)?;
+        let raw = read(job, "candidate-client-cgroup.v1.json", 0, 0o600, 2048)?;
+        crate::builder_candidate_receipt::write_root_canonical_job_file(job, "dependency-creators-ready.v1.json",
+            &serde_json::json!({"schema":"hol-gauntlet-native-dependency-creators-ready.v1","job_id":id,
+              "intent_sha256":binding,"started_marker_sha256":started,"worker_generation":intent.pins.text("runner_binary_sha256"),
+              "client_cgroup_receipt_sha256":format!("{:x}",Sha256::digest(raw))})).map(|_|()).map_err(|e|e.to_string())
+    })();
+    if let Err(error) = retained {
+        group.kill().map_err(|e| e.to_string())?;
+        group.drain_and_remove().map_err(|e| e.to_string())?;
+        return Err(error);
+    }
+    Ok(group)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gauntlet_contracts::DependencyRunPins;
+    use ring::rand::{SecureRandom, SystemRandom};
+    use std::os::unix::fs::MetadataExt;
+    use std::os::unix::process::CommandExt;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    #[ignore = "requires outside Root and delegated cgroup v2; inert pre-exec helpers only"]
+    fn prepared_helpers_join_retained_group_before_exec() {
+        gauntlet_cell_rootfs::require_outside_root().unwrap();
+        let mut random = [0u8; 8];
+        SystemRandom::new().fill(&mut random).unwrap();
+        let id: String = random.iter().map(|b| format!("{b:02x}")).collect();
+        let pins=DependencyRunPins::from_value(serde_json::json!({
+          "job_id":id,"source_sha":"a".repeat(40),"source_archive_sha256":"b".repeat(64),
+          "capsule_sha256":"c".repeat(64),"capsule_bytes":1551712,"pyproject_sha256":"d".repeat(64),
+          "uv_lock_sha256":"e".repeat(64),"exporter_sha256":"f".repeat(64),"capture_worker_sha256":"1".repeat(64),
+          "capture_receipt_sha256":"2".repeat(64),"controller_root":"/opt/hol-gauntlet/controller-0123456789abcdef",
+          "controller_tree_sha256":"3".repeat(64),"uv_base_image_id":"4".repeat(64),"rust_base_image_id":"5".repeat(64),
+          "builder_image_id":format!("sha256:{}","6".repeat(64)),"policy_sha256":"7".repeat(64),"podman_sha256":"8".repeat(64),
+          "slirp4netns_sha256":"9".repeat(64),"apparmor_parser_sha256":"a".repeat(64),"seccomp_sha256":"b".repeat(64),"runner_binary_sha256":"c".repeat(64)
+        })).unwrap();
+        let intent =
+            DependencyRunIntent::new(pins, "/usr/bin/limactl", "fixture-vm", &"0".repeat(64))
+                .unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        let slot = rustix::fs::open(
+            temp.path(),
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .unwrap();
+        let started = "d".repeat(64);
+        let mut group = prepare_creators(&slot, &intent, &started).unwrap();
+        let receipt = read(&slot, "candidate-client-cgroup.v1.json", 0, 0o600, 2048).unwrap();
+        let ready = read(&slot, "dependency-creators-ready.v1.json", 0, 0o600, 2048).unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&ready).unwrap();
+        assert_eq!(v["intent_sha256"], intent.digest().unwrap());
+        assert_eq!(v["started_marker_sha256"], started);
+        assert_eq!(
+            v["client_cgroup_receipt_sha256"],
+            format!("{:x}", Sha256::digest(&receipt))
+        );
+        assert!(
+            crate::builder_cgroup::OwnedCandidateCgroup::reopen_candidate(
+                &slot,
+                &id,
+                &"e".repeat(64)
+            )
+            .is_err()
+        );
+        let commands = [
+            (
+                crate::builder_policy::parser_command(
+                    "--replace",
+                    "/nonexistent/inert-policy",
+                    Some(&group),
+                )
+                .unwrap(),
+                true,
+            ),
+            (
+                crate::dependency_podman::helper_command(
+                    &["create".into(), "--help".into()],
+                    Some(&group),
+                )
+                .unwrap(),
+                true,
+            ),
+            (
+                crate::builder_policy::parser_command(
+                    "--replace",
+                    "/nonexistent/inert-policy",
+                    None,
+                )
+                .unwrap(),
+                false,
+            ),
+        ];
+        for (mut command, expected_placement) in commands {
+            use std::os::fd::AsRawFd;
+            let (mut receiver, sender) = std::os::unix::net::UnixStream::pair().unwrap();
+            receiver
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            // SAFETY: only stack bytes and async-signal-safe getpid/write/kill after placement.
+            unsafe {
+                command.pre_exec(move || {
+                    let pid = libc::getpid();
+                    let raw = pid.to_ne_bytes();
+                    if libc::write(sender.as_raw_fd(), raw.as_ptr().cast(), raw.len())
+                        != raw.len() as isize
+                    {
+                        return Err(std::io::Error::last_os_error());
+                    }
+                    if libc::kill(pid, libc::SIGSTOP) == 0 {
+                        Ok(())
+                    } else {
+                        Err(std::io::Error::last_os_error())
+                    }
+                });
+            }
+            let child =
+                std::thread::spawn(move || command.spawn().and_then(|mut child| child.wait()));
+            let mut raw_pid = [0u8; 4];
+            let received = receiver.read_exact(&mut raw_pid);
+            if received.is_err() {
+                let _ = group.kill();
+                let _ = child.join();
+                panic!("inert child handshake failed: {received:?}");
+            }
+            let pid = i32::from_ne_bytes(raw_pid);
+            let held = rustix::process::pidfd_open(
+                rustix::process::Pid::from_raw(pid).unwrap(),
+                rustix::process::PidfdFlags::empty(),
+            )
+            .unwrap();
+            let deadline = Instant::now() + Duration::from_secs(5);
+            let observed = loop {
+                let raw = std::fs::read(format!("/proc/{pid}/stat")).unwrap();
+                let stat = crate::linux_process::parse_proc_stat(&raw, pid as u32).unwrap();
+                if stat.state == 'T' || Instant::now() >= deadline {
+                    break stat;
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            };
+            let own_image = std::fs::metadata("/proc/self/exe").unwrap();
+            let child_image = std::fs::metadata(format!("/proc/{pid}/exe")).unwrap();
+            assert_eq!(observed.parent_pid, std::process::id());
+            assert_eq!(
+                (own_image.dev(), own_image.ino()),
+                (child_image.dev(), child_image.ino())
+            );
+            let raw = std::fs::read(format!("/proc/{pid}/stat")).unwrap();
+            let repeated = crate::linux_process::parse_proc_stat(&raw, pid as u32).unwrap();
+            assert_eq!(repeated.start_ticks, observed.start_ticks);
+            assert_eq!(repeated.parent_pid, std::process::id());
+            let actual = std::fs::read_to_string(format!("/proc/{pid}/cgroup")).unwrap();
+            let placed = actual == format!("0::{}\n", group.path());
+            if placed {
+                group.kill().unwrap();
+            } else {
+                rustix::process::pidfd_send_signal(&held, rustix::process::Signal::KILL).unwrap();
+            }
+            let status = child.join().unwrap();
+            assert_eq!(observed.state, 'T');
+            assert_eq!(placed, expected_placement);
+            assert!(status.is_err() || !status.unwrap().success());
+            assert_eq!(
+                receipt,
+                read(&slot, "candidate-client-cgroup.v1.json", 0, 0o600, 2048).unwrap()
+            );
+            assert_eq!(
+                ready,
+                read(&slot, "dependency-creators-ready.v1.json", 0, 0o600, 2048).unwrap()
+            );
+        }
+        group.drain_and_remove().unwrap();
+        assert!(!std::path::Path::new(&format!("/sys/fs/cgroup{}", group.path())).exists());
+    }
 }

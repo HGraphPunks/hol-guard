@@ -157,6 +157,22 @@ pub(crate) fn profile_absent(name: &str) -> Result<bool, BuilderPolicyError> {
 }
 
 pub(crate) fn run_parser(action: &str, policy_path: &str) -> Result<(), BuilderPolicyError> {
+    run_parser_placed(action, policy_path, None)
+}
+
+pub(crate) fn run_parser_owned(
+    action: &str,
+    policy_path: &str,
+    group: &crate::builder_cgroup::OwnedCandidateCgroup,
+) -> Result<(), BuilderPolicyError> {
+    run_parser_placed(action, policy_path, Some(group))
+}
+
+pub(crate) fn parser_command(
+    action: &str,
+    policy_path: &str,
+    group: Option<&crate::builder_cgroup::OwnedCandidateCgroup>,
+) -> Result<Command, BuilderPolicyError> {
     let mut command = Command::new(PARSER);
     command.args([action, policy_path]);
     command.env_clear();
@@ -166,6 +182,20 @@ pub(crate) fn run_parser(action: &str, policy_path: &str) -> Result<(), BuilderP
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    if let Some(group) = group {
+        group.attach_child(&mut command).map_err(|_| {
+            BuilderPolicyError::ParserFailed("owned parser cgroup unavailable".into())
+        })?;
+    }
+    Ok(command)
+}
+
+fn run_parser_placed(
+    action: &str,
+    policy_path: &str,
+    group: Option<&crate::builder_cgroup::OwnedCandidateCgroup>,
+) -> Result<(), BuilderPolicyError> {
+    let mut command = parser_command(action, policy_path, group)?;
     let mut child = command
         .spawn()
         .map_err(|_| BuilderPolicyError::ParserFailed("spawn failed".to_owned()))?;

@@ -18,6 +18,15 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
+- Early dependency creator custody now prepares and durably retains the client
+  cgroup before policy load or container creation, then places both mutating
+  helpers before exec and passes the same held group to the client. Five existing
+  Rust files change; no file, crate, target or dependency is added. Source manifest
+  `dependency-early-owner-20261107-source-001.json` is `57891010…`.
+  All 675 Mac tests, formatting, Mac/ARM Clippy and builds pass; local validation
+  is `9ec3b3b2…`. The explicit Root placement fixture is pending. Next prove actual interruption
+  after the full CID receipt but before client startup, then a normal control.
+  Missing-CID/partial records and all parent exits remain open.
 - Private diagnostics at final implementation `951f57ad5` keep the existing
   module at 490 lines, with no new file, crate, target or dependency. All 675
   Mac tests, formatting, Mac/ARM Clippy, builds and four selected ARM cases pass,
