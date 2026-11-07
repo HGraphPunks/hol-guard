@@ -399,6 +399,40 @@ upstream merge; merged-source qualification, independent authority, observer
 integration and broader recovery remain open. Every eligibility/causality flag
 stays false, with zero model requests/tokens and no parent-exit credit.
 
+### Merged-source audit checkpoint
+
+Fresh audit `a38df7e1b26c4905` is running from source
+`53c64ae960b1c373b18816fdc6ba1491bbbd06c6`, after completed build
+`b7f0b85b31df49cc` and independently reconstructed runtime publication. It
+uses separate installed controller `123024f4…`, frozen primary host
+`9e856cfb…` from `4245fcd136335617da84de8a9ce1f27cc7540079`, and the unchanged
+Root worker `32135d91…` and executor `5c353aee…`. The retained builder image
+and its three context files match the completed build; controller installation
+does not replace the older generation. The exact catalog digest is
+`1955516522cccd5235c565498a7e28c8871e31361609d52f0bdebb6e0b91677f`.
+
+Outside observation verifies actual supervisor/executor ELF and argv, pidfds,
+all four input hashes and read-only mounts, UID/GID 65532, empty capabilities,
+no-new-privileges, seccomp, enforced AppArmor, separate namespaces and limits of
+12 GiB, zero swap, 2,048 PIDs and two CPUs. Primary active readback and an
+intentional consumed-run attempt both refuse with exit two, leaving the three
+host records unchanged and emitting no nonce. The second attempt refuses
+locally before any workload dispatch.
+
+Records are in external `feature-worker-merged359-host-20261107-001`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `record-command-001.json` | `63dac3885b3676e67120f0b896114cee2ddcc6c7051775837710ce219d91abec` |
+| `outside-kernel-001.json` | `1aaa66dc71be5dc72c30990dbefad0dcd65368ffd6168ba45a37b2101c0f27f8` |
+| `active-read-refusal-001.json` | `db6419e30a5c23afbcf81925e0bfab26a7fc614b025217b7e8b4e6d38aa95072` |
+| `active-consumed-run-refusal-001.json` | `8a360dbfe61f3b1d1db1bc88bf959291ac3cf49456ba36fee7a798db8a30990c` |
+
+Terminal JUnit/report recomputation, retained readback, four-lease cleanup and
+public export remain pending. The active job owns the VM leases; do not replay
+it or mutate the VM alongside it. Every admission/qualification/causality flag
+remains false, with zero model requests/tokens and no parent-exit credit.
+
 ### Reviewer replay of the corrected-source evidence
 
 The fresh external bundle `gauntlet-rust-review-evidence-20261107-003.tar`

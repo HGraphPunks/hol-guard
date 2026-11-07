@@ -338,23 +338,75 @@ without imports. The refreshed map has 440 files, 79 changed and 20 added; the
 test failures remain retained. The new expected digest comes from independent
 Python recomputation. Mac/ARM Native library and CLI compilation pass.
 
-Fresh build `b7f0b85b31df49cc` is running from that exact merge, archive
+Fresh build `b7f0b85b31df49cc` completes from that exact merge, archive
 `c5c88fe8940e2ea5171818064c9202e1962e9e1a918408841b3e97ad1cbe6d1b`
 (63,115,844 bytes), Root runner `19bc3896…` and retained controller `e81a214c…`.
 Outside observation verifies actual supervisor/client ELF and argv bindings,
 retained boot/device/inode, UID/GID 65532, empty capabilities, enforced policy,
-read-only archive, separate namespaces and effective limits. The primary host
-command refuses active readback with exit 2, preserving its host pin and emitting
-no nonce. Terminal readback, cleanup, fresh dependency/runtime/audit validation
-and idle primary recovery readback remain pending; no outcome is inferred.
+read-only archive, separate namespaces and effective limits. Its normal
+1,492.129-second execution exits zero: four selected checks and all 185
+contained contracts pass. Outside completion under four leases verifies the
+original processes, container, cgroups, conmon and profile are absent, with
+unchanged metadata for all 333 historical records and their lock.
 
-The external aggregate `host-build-command-20261107-validation-001.json`
-hashes to `1a36c2e9d0f6dec20d2d930db0b07c8f3fc1445f733340f2586bc373a0d6f2a9`.
-The active outside kernel receipt hashes to
-`f83cbba1cc2d7a752d244b18d0608defa7b0ccb017a9c0393184632595c09408`;
-primary active-read refusal hashes to
-`f255bd29b2be34b6c062ff1989ee923272c0846ebd12b0b19f5a15cb0bc405e2`.
-Model requests/tokens remain zero; no parent exit closes.
+The primary command refuses early readback with exit two and preserves the
+host pin. Terminal readback first refuses because trusted artifact capture has
+not occurred; that attempt is retained. After capture, the primary reader
+matches the exact result and leaves the pin unchanged. An intentional consumed
+run refuses before recording or execution. Primary `build repair` also reopens
+the earlier `ea0ef712724b4957` aborted/null-exit receipt without changing its
+four host records. These observations use frozen host `9e856cfb…`; the build
+itself used the historical runner entrypoint.
+
+Fresh dependency job `f7a1bf6e9d3482c0` uses the same source/archive and a
+retained input capsule only after checking its project/lock bytes against that
+exact Git commit. Its actual Rust exporter, argv, read-only inputs and kernel
+limits are independently observed. The 40.872-second export exits zero and
+retains `invalid-evidence`; outside cleanup passes. Rust verifies the wheel,
+stages both inert inputs and publishes an immutable local runtime. Independent
+host reconstruction verifies every byte and all four tree inventories without
+importing candidate code or dependencies: 1,637 wheel files, 2,290 dependency
+files, 4,327 prefix entries, 124,187,688 bytes and six launchers. The exact
+Python requirement loop agrees with Rust on 62 distributions and all 21
+requirements, including 11 active and satisfied and MCP 1.30.0.
+
+The separate `/opt/hol-gauntlet/controller-53c64ae960b1c373` generation is
+installed under four leases using exact Git source and frozen Rust tools.
+All 440 source blobs match; the installer selects 409 files and 420 entries.
+Separate Rust verification and an independent Python byte/metadata walk agree
+on `123024f4e315cd969571475eb6096a3f19f34e614f374c1d58fdadc2347469b5`.
+The prior `e81a214c…` tree and all 333 historical records' metadata remain
+unchanged. No controller or candidate is imported by these installation
+checks. This isolated generation does not activate production admission.
+
+Public records are outside Git in
+`gauntlet-rust-pr-ready-evidence-20261026`. Build records are under
+`native-merged359-build-host-state-20261107-001`; controller records are under
+`merged-controller-20261107-host-001`.
+
+| Record or artifact | SHA-256 |
+| --- | --- |
+| `outside-kernel-001.json` | `f83cbba1cc2d7a752d244b18d0608defa7b0ccb017a9c0393184632595c09408` |
+| `outside-completion-001.json` | `a3c4a47d766a8856092b04e5ab76e360f30af8429e38969b8de235551e165b35` |
+| `primary-host-result-readback-002.json` | `67482889047f8a39d376343fcd26dabdf0a815551ed8710564ebd3e8e7d3f529` |
+| Candidate ZIP, 29,294,462 bytes | `1c7d05cfb86fcb57bcd2d78467df2f7ac04030305253b94b710629e1c79d4999` |
+| Wheel, 29,544,604 bytes | `a4d9f0415ed5d3209720d2e13ef4c42a13456380b65f68a5909ea2d14a3a9d26` |
+| Actual Native ELF, 47,434,216 bytes | `8ff2b0994daa8734d79ebd5dc60543536940991ca1f784d6309ab45cc42ce440` |
+| Published prefix tree | `4efb2be25c6173715338bfde5945be2de1d216887b18c3ba73233a8c8e373639` |
+| `runtime-public-export-001.tar`, 48,097,280 bytes, 19 members | `831a469fe3807bfc3edcb44ce0aa67704c48fa1e7f463cd3959bf36907367056` |
+| `independent-runtime-readback-001.json` | `d9593adccff02e4c789a09ca059366f3fe9a5fcc5bf96a25fa320daf944da8de` |
+| `independent-python-requirements-001.json` | `015e92c74f897fc2f0282310fd6093e94eee6ffed75fc5287e9e5d4f3b67106d` |
+| `guest-controller-install-001.json` | `8306790db6dc2a3941c9ff89e8a837be103e01797ce53abf0f0498ace4580e46` |
+| `independent-controller-install-001.json` | `0a4c63c156f2503f741f7852b83b8f19482c7199bd380a9d01aa1e73b5695795` |
+
+The updated external aggregate
+`host-build-command-20261107-validation-002.json` verifies 41 retained records
+and hashes to `ed6d8d183bead6608808ee35a490f86d1d103249e1395715e09a4ae58ce40401`.
+The earlier pending checkpoint stays immutable. Fresh merged-source audit
+`a38df7e1b26c4905` is running against the new controller; its terminal outcome,
+broader recovery, independent authority and qualification remain open. All
+admission/qualification/causality flags remain false, with zero model requests
+or tokens and no parent-exit credit.
 
 ## Retained 3.59.0 dependencies for `83f079b5c`
 

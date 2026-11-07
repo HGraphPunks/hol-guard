@@ -26,7 +26,8 @@ with evidence. Code volume and checked substeps do not establish completion.
   Obtain all five current-head checks before any authorized integration merge.
 - The source map is 440 files, 79 changed and 20 added against the unchanged
   baseline. Actual Python selection and Rust agree on 409 files, 420 entries
-  and digest `123024f4…`; installed Root controller remains `e81a214c…`.
+  and digest `123024f4…`. That separate Root controller is now installed and
+  independently verified; retained `e81a214c…` remains unchanged.
   All 153 incoming files outside the three Native merge points match upstream
   exactly, with migration operations/capabilities preserved. Seventy Python
   files parse without imports. Mac/ARM Native library/CLI compilation passes.
@@ -36,19 +37,33 @@ with evidence. Code volume and checked substeps do not establish completion.
   with existing diagnostics through one 89-line module, with no new crate,
   executable or dependency. All 662 Mac all-feature tests, formatting and
   warnings-denied Mac/ARM Clippy pass. Aggregate
-  `host-build-command-20261107-validation-001.json` hashes to
-  `1a36c2e9d0f6dec20d2d930db0b07c8f3fc1445f733340f2586bc373a0d6f2a9`.
+  `host-build-command-20261107-validation-002.json` verifies 41 retained records
+  and hashes to
+  `ed6d8d183bead6608808ee35a490f86d1d103249e1395715e09a4ae58ce40401`.
   Formal security review remains incomplete because its tool excludes `ci/`.
-- Fresh merged-source build `b7f0b85b31df49cc` is active on exact source
+- Fresh merged-source build `b7f0b85b31df49cc` completes on exact source
   `53c64ae96`, archive `c5c88fe8…`, Root runner `19bc3896…`. Outside kernel
   observation verifies actual ELF/argv, retained boot/device/inode and all
-  confinement limits; receipt hashes to `f83cbba1…`. Frozen primary host
-  `9e856cfb…` refuses active readback with exit 2, unchanged host pin and no
-  nonce output. Finish terminal readback, four-lease cleanup, dependency/runtime
-  composition and audit without replaying this job. Then verify idle recovery
-  readback through the primary command. The exact-Git controller transfer
-  archive `8fc74743…` is prepared locally; it is not installed. See
+  confinement limits. The 1,492.129-second build passes four selected checks
+  and all 185 contained contracts. Four-lease cleanup, primary retained-result
+  readback and consumed-run refusal pass. Primary repair reopens the earlier
+  aborted job without changing its records. Fresh dependency job
+  `f7a1bf6e9d3482c0` and immutable runtime publication complete. Independent
+  host reconstruction verifies four inventories, 4,327 prefix entries, six
+  aliases, 62 distributions and all 21 requirements, including 11 active and
+  satisfied; public runtime export is `831a469f…`. Exact-source controller
+  installation and separate Rust/Python whole-tree checks agree on `123024f4…`,
+  preserving the old generation and all 333 historical records' metadata. See
   [primary build follow-up](gauntlet-rust-hostbound-candidate-build-proof.md#primary-host-build-command-and-merged-source-follow-up).
+- Fresh merged-source audit `a38df7e1b26c4905` is running through frozen
+  primary host `9e856cfb…` against the new controller. Outside observation
+  verifies the actual Root supervisor/executor, four read-only input hashes,
+  UID/GID 65532, empty capabilities, enforced policy and resource limits;
+  receipt is `1aaa66dc…`. Active readback and consumed-run probes refuse with
+  unchanged records and no nonce output. Leave this job running; finish its
+  terminal artifact recomputation, readback, cleanup and public export when it
+  completes. Do not replay it. See the
+  [merged-source audit checkpoint](gauntlet-rust-feature-worker.md#merged-source-audit-checkpoint).
 - Fixture-corrected 3.59.0 source `8920be8bd` completes fresh build
   `9ca1b850e63fd247`: four selected checks and all 185 contained contracts pass.
   Dependency job `22b1bd1ca737f37a`, inert staging, composition and local immutable
@@ -111,8 +126,9 @@ with evidence. Code volume and checked substeps do not establish completion.
   parent exit.
 - Owned VM `hol-gauntlet-rust-build-20261026-001` is running at 2 CPUs,
   16 GiB and 48 GiB. Inspect retained jobs, all leases and actual resources
-  before installing or dispatching a worker. The completed audit and repaired
-  candidate have no owned resources remaining. Serialize VM mutations and never
+  before installing or dispatching a worker. Audit `a38df7e1b26c4905` currently
+  owns the leases; only read-only observation may run alongside it. The prior
+  jobs have no owned resources remaining. Serialize VM mutations and never
   replay a consumed ID.
 
 ## Keep the implementation small
