@@ -1,7 +1,7 @@
 //! Host-owned, one-use intent record for a future candidate builder handoff.
 //! This journal does not execute a build or authenticate a VM result.
 
-use crate::private_jobs::{same_file, state_root};
+use crate::private_jobs::{same_file, state_root, write_private_once};
 use gauntlet_contracts::{canonicalize, is_git_sha};
 use gauntlet_evidence::valid_package_version;
 use ring::rand::{SecureRandom, SystemRandom};
@@ -292,6 +292,33 @@ impl HostCandidateBuildPinJournal {
     pub(crate) fn directory(&self) -> Result<&OwnedFd, HostCandidateBuildPinError> {
         self.stable_directory()?;
         Ok(&self.directory)
+    }
+
+    pub(crate) fn consume_dispatch(
+        &self,
+        record: &HostCandidateBuildPinRecord,
+    ) -> Result<(), String> {
+        let current = || {
+            if self.read(&record.pins.job_id).as_ref() != Ok(record) {
+                return Err("candidate host pin changed before dispatch".to_owned());
+            }
+            Ok(())
+        };
+        current()?;
+        let raw = canonicalize(
+            json!({"schema":"hol-gauntlet-host-candidate-dispatch.v1",
+            "job_id":record.pins.job_id,"host_pin_sha256":record.raw_sha256,
+            "retry_allowed":false,"execution_eligible":false})
+            .to_string()
+            .as_bytes(),
+        )
+        .map_err(|e| e.to_string())?;
+        write_private_once(
+            &self.directory,
+            &format!("{}.candidate-build-dispatch.json", record.pins.job_id),
+            &raw,
+        )?;
+        current()
     }
 
     /// Open a caller-created 0700 directory outside the Python observer's

@@ -403,10 +403,52 @@ The updated external aggregate
 `host-build-command-20261107-validation-002.json` verifies 41 retained records
 and hashes to `ed6d8d183bead6608808ee35a490f86d1d103249e1395715e09a4ae58ce40401`.
 The earlier pending checkpoint stays immutable. Fresh merged-source audit
-`a38df7e1b26c4905` is running against the new controller; its terminal outcome,
-broader recovery, independent authority and qualification remain open. All
+`a38df7e1b26c4905` completes against the new controller with independently
+recomputed 1,303 passes, zero failures/errors and one deliberate retired-Pi
+skip; readback and cleanup match. Its status remains incomplete. Broader
+recovery, independent authority and qualification remain open. All
 admission/qualification/causality flags remain false, with zero model requests
 or tokens and no parent-exit credit.
+
+## Durable host dispatch and private dependency results
+
+Candidate and dependency host APIs now commit a distinct dispatch record
+before contacting Lima. Exclusive creation, file/directory fsync and stable
+descriptor readback make a partial write, concurrent caller or transport loss
+consume the attempt. Existing Root journals continue to enforce their own
+one-use boundary. Eight simultaneous callers produce one transport attempt;
+reopening the host journal or cloning an invocation cannot dispatch it again.
+Partial, symlinked and hardlinked dispatch entries refuse without contacting
+transport or changing the linked target.
+
+New dependency intents also require a fresh, immutable host authorization.
+Historical v1 intents remain readable; a missing authorization keeps them
+read-only after upgrade. The Root v1 protocol is unchanged. Its reply contains
+the private intent, so the host retains those canonical bytes in the 0600
+`JOB.dependency-result.json` and returns the versioned
+`hol-gauntlet-host-dependency-run-claim.v1` public projection. It checks the
+complete original intent and typed exit/export fields, excludes arbitrary
+reply fields and refuses any actual nonce in public values. Unknown exits
+and absent exports remain null; they never become a successful result.
+
+All **669 Mac workspace tests** pass, with zero failures or ignores, including
+the actual bounded-process concurrency, transport failure, restart, upgrade,
+linked/partial-record, private-output and malformed-response regressions.
+Formatting and warnings-denied Mac/ARM all-feature Clippy pass. Six existing
+files change; all remain within 500 lines. No repository file, crate,
+executable target or dependency is added.
+
+Both original repeat-dispatch regressions fail before the fix. The initial
+dependency fixture's invalid transport basename and a subsequent trait-import
+compile error remain retained alongside the corrected regression and passing
+checks. Source manifest `host-dispatch-20261107-source-001.json` hashes to
+`2dd47a8bf0269725dec0983bd3e1088d347af03faebae82377f6a8f6beda0e22`;
+validation aggregate `host-dispatch-20261107-validation-001.json` verifies 16
+records and hashes to
+`007926b395f300303161fb531071e33ad3a24f6dca98d1e9cf83cbcf156451b3`.
+Fresh VM job `ce76a18b95d042ef` is prepared for observing the changed host
+dependency result path; execution and outside cleanup remain pending. These
+local process checks supply no new VM qualification or parent-exit credit.
 
 ## Retained 3.59.0 dependencies for `83f079b5c`
 

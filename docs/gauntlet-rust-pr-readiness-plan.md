@@ -41,6 +41,17 @@ with evidence. Code volume and checked substeps do not establish completion.
   and hashes to
   `ed6d8d183bead6608808ee35a490f86d1d103249e1395715e09a4ae58ce40401`.
   Formal security review remains incomplete because its tool excludes `ci/`.
+- Host build/dependency APIs now consume a durable dispatch before transport.
+  Concurrent callers, transport loss and restart cannot repeat it; historical
+  dependency intents without a fresh authorization remain read-only. Root v1
+  dependency replies stay in a 0600 private record while public stdout uses
+  a typed projection without the private intent or nonce. All 669 Mac tests,
+  formatting and warnings-denied Mac/ARM Clippy pass. This chunk changes six
+  existing files, all within 500 lines, and adds no repository file or dependency.
+  Aggregate `host-dispatch-20261107-validation-001.json` is `007926b3…`.
+  Fresh VM dependency job `ce76a18b95d042ef` is prepared; finish outside
+  execution/cleanup verification without replay. See the
+  [dispatch proof](gauntlet-rust-hostbound-candidate-build-proof.md#durable-host-dispatch-and-private-dependency-results).
 - Fresh merged-source build `b7f0b85b31df49cc` completes on exact source
   `53c64ae96`, archive `c5c88fe8…`, Root runner `19bc3896…`. Outside kernel
   observation verifies actual ELF/argv, retained boot/device/inode and all
@@ -55,14 +66,16 @@ with evidence. Code volume and checked substeps do not establish completion.
   installation and separate Rust/Python whole-tree checks agree on `123024f4…`,
   preserving the old generation and all 333 historical records' metadata. See
   [primary build follow-up](gauntlet-rust-hostbound-candidate-build-proof.md#primary-host-build-command-and-merged-source-follow-up).
-- Fresh merged-source audit `a38df7e1b26c4905` is running through frozen
+- Fresh merged-source audit `a38df7e1b26c4905` completes through frozen
   primary host `9e856cfb…` against the new controller. Outside observation
   verifies the actual Root supervisor/executor, four read-only input hashes,
   UID/GID 65532, empty capabilities, enforced policy and resource limits;
-  receipt is `1aaa66dc…`. Active readback and consumed-run probes refuse with
-  unchanged records and no nonce output. Leave this job running; finish its
-  terminal artifact recomputation, readback, cleanup and public export when it
-  completes. Do not replay it. See the
+  receipt is `1aaa66dc…`. Independent Python/JUnit and Rust checks agree on
+  1,303 passes, zero failures/errors and one deliberate retired-Pi skip across
+  all 28 groups/52 selectors. Status remains incomplete. Terminal readback,
+  consumed-run refusal, four-lease cleanup and all 333 historical records'
+  unchanged metadata verify. The public export is `d5485322…`; independent
+  readback hashes to `4be533de…`. Do not replay the job. See the
   [merged-source audit checkpoint](gauntlet-rust-feature-worker.md#merged-source-audit-checkpoint).
 - Fixture-corrected 3.59.0 source `8920be8bd` completes fresh build
   `9ca1b850e63fd247`: four selected checks and all 185 contained contracts pass.
@@ -126,10 +139,9 @@ with evidence. Code volume and checked substeps do not establish completion.
   parent exit.
 - Owned VM `hol-gauntlet-rust-build-20261026-001` is running at 2 CPUs,
   16 GiB and 48 GiB. Inspect retained jobs, all leases and actual resources
-  before installing or dispatching a worker. Audit `a38df7e1b26c4905` currently
-  owns the leases; only read-only observation may run alongside it. The prior
-  jobs have no owned resources remaining. Serialize VM mutations and never
-  replay a consumed ID.
+  before installing or dispatching a worker. The completed audit, candidate
+  and dependency jobs have no owned resources remaining. Serialize VM mutations
+  and never replay a consumed ID.
 
 ## Keep the implementation small
 

@@ -1,6 +1,4 @@
-//! One-use host plan for a future host-bound candidate compile. Constructing
-//! the invocation durably records the outside pins before a caller can spawn
-//! the fixed guest binary. This module does not execute or admit a build.
+//! Durable one-use candidate dispatch; retained result claims never admit a build.
 
 use crate::fixed_process::{run_fixed, FixedProcessError};
 use crate::{
@@ -46,6 +44,7 @@ impl std::error::Error for VmCandidateBuildError {}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VmCandidateBuildLaunchError {
     HostPinChanged,
+    DispatchUnavailable,
     GuestUncertain,
     TimedOut,
     TooLarge,
@@ -56,6 +55,7 @@ impl fmt::Display for VmCandidateBuildLaunchError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::HostPinChanged => "prelaunch host candidate pin changed",
+            Self::DispatchUnavailable => "candidate dispatch consumed; reconcile without retry",
             Self::GuestUncertain => "candidate VM execution uncertain; reconcile without retry",
             Self::TimedOut => "candidate VM transport timed out; reconcile without retry",
             Self::TooLarge => "candidate VM terminal output exceeded bound",
@@ -310,16 +310,9 @@ impl VmCandidateBuildInvocation {
     }
 
     pub fn to_json(&self) -> Value {
-        json!({
-            "schema":"hol-gauntlet-vm-candidate-build-invocation-shadow.v1",
-            "job_id":self.record.pins.job_id,
-            "source_sha":self.record.pins.source_sha,
-            "host_pin_sha256":self.record.raw_sha256,
-            "host_pin_durable":true,
-            "vm_started":false,
-            "artifact_admitted":false,
-            "execution_eligible":false,
-        })
+        json!({"schema":"hol-gauntlet-vm-candidate-build-invocation-shadow.v1",
+            "job_id":self.record.pins.job_id,"source_sha":self.record.pins.source_sha,"host_pin_sha256":self.record.raw_sha256,
+            "host_pin_durable":true,"vm_started":false,"artifact_admitted":false,"execution_eligible":false})
     }
 
     pub fn parse_terminal_claim(
@@ -464,26 +457,20 @@ impl VmCandidateBuildInvocation {
         if value["result_sha256"] != format!("{:x}", Sha256::digest(&raw)) {
             return Err(VmCandidateBuildLaunchError::InvalidTerminal);
         }
-        Ok(json!({
-            "schema":"hol-gauntlet-host-candidate-run-claim-shadow.v1",
-            "job_id":pins.job_id,
-            "source_sha":pins.source_sha,
-            "status":value["status"],
-            "exit_code":value["exit_code"],
+        Ok(
+            json!({"schema":"hol-gauntlet-host-candidate-run-claim-shadow.v1",
+            "job_id":pins.job_id,"source_sha":pins.source_sha,
+            "status":value["status"],"exit_code":value["exit_code"],
             "result_sha256":value["result_sha256"],
             "unadmitted_export_sha256":value["unadmitted_export_sha256"],
             "host_pin_sha256":self.record.raw_sha256,
-            "host_pin_journal_match":true,
-            "retained_result_reconciled":false,
-            "artifact_admitted":false,
-            "execution_eligible":false,
-        }))
+            "host_pin_journal_match":true,"retained_result_reconciled":false,
+            "artifact_admitted":false,"execution_eligible":false}),
+        )
     }
 
-    /// Spawn the fixed Lima command only after re-reading the durable host
-    /// record. Any post-spawn failure leaves this one-use job unresolved.
-    /// A zero transport exit is merely a guest claim; use the v2 result reader
-    /// before even describing the retained files as reconciled.
+    /// Consume dispatch before Lima. Any transport failure stays unresolved;
+    /// a zero exit still requires independent retained-result reconciliation.
     pub fn execute_once(
         &self,
         journal: &HostCandidateBuildPinJournal,
@@ -491,6 +478,9 @@ impl VmCandidateBuildInvocation {
         if journal.read(&self.record.pins.job_id).ok() != Some(self.record.clone()) {
             return Err(VmCandidateBuildLaunchError::HostPinChanged);
         }
+        journal
+            .consume_dispatch(&self.record)
+            .map_err(|_| VmCandidateBuildLaunchError::DispatchUnavailable)?;
         let output = run_fixed(
             &self.argv,
             Duration::from_secs(gauntlet_contracts::CANDIDATE_BUILD_TIMEOUT_SECONDS + 120),

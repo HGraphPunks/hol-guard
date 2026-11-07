@@ -17,6 +17,85 @@ use tempfile::tempdir;
 const JOB: &str = "c04e7f93a2b15d68";
 
 #[test]
+fn uncertain_build_transport_stays_consumed_across_invocation_clones_and_restart() {
+    let dir = tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
+    let transport = root.join("transport");
+    fs::write(
+        &transport,
+        b"#!/bin/sh\nprintf 'attempt\\n' >> \"$0.calls\"\nexit 7\n",
+    )
+    .unwrap();
+    fs::set_permissions(&transport, fs::Permissions::from_mode(0o700)).unwrap();
+    let mut config = operations();
+    config["limactl"] = json!(transport);
+    let journal = HostCandidateBuildPinJournal::open(&root).unwrap();
+    let invocation = VmCandidateBuildPlan::new(&config, pins())
+        .unwrap()
+        .record_before_launch(&journal)
+        .unwrap();
+    let duplicate = invocation.clone();
+    std::thread::scope(|scope| {
+        let attempts: Vec<_> = (0..8)
+            .map(|_| scope.spawn(|| invocation.clone().execute_once(&journal)))
+            .collect();
+        for attempt in attempts {
+            assert!(attempt.join().unwrap().is_err());
+        }
+    });
+    let original = fs::read(root.join(format!("{JOB}.candidate-build-pin.json"))).unwrap();
+    drop(journal);
+    let journal = HostCandidateBuildPinJournal::open(&root).unwrap();
+    assert!(duplicate.execute_once(&journal).is_err());
+    assert_eq!(
+        fs::read(root.join("transport.calls")).unwrap(),
+        b"attempt\n"
+    );
+    assert_eq!(
+        fs::read(root.join(format!("{JOB}.candidate-build-pin.json"))).unwrap(),
+        original
+    );
+}
+
+#[test]
+fn partial_or_linked_build_dispatch_records_never_contact_transport() {
+    for kind in ["partial", "symlink", "hardlink"] {
+        let dir = tempdir().unwrap();
+        let root = dir.path().canonicalize().unwrap();
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
+        let transport = root.join("transport");
+        fs::write(&transport, b"#!/bin/sh\nprintf 'called' > \"$0.calls\"\n").unwrap();
+        fs::set_permissions(&transport, fs::Permissions::from_mode(0o700)).unwrap();
+        let mut config = operations();
+        config["limactl"] = json!(transport);
+        let journal = HostCandidateBuildPinJournal::open(&root).unwrap();
+        let invocation = VmCandidateBuildPlan::new(&config, pins())
+            .unwrap()
+            .record_before_launch(&journal)
+            .unwrap();
+        let marker = root.join(format!("{JOB}.candidate-build-dispatch.json"));
+        let outside = root.join("retained");
+        fs::write(&outside, b"retained").unwrap();
+        match kind {
+            "partial" => fs::write(&marker, b"").unwrap(),
+            "symlink" => std::os::unix::fs::symlink(&outside, &marker).unwrap(),
+            _ => fs::hard_link(&outside, &marker).unwrap(),
+        }
+        assert!(invocation.execute_once(&journal).is_err());
+        assert!(!root.join("transport.calls").exists());
+        assert_eq!(fs::read(&outside).unwrap(), b"retained");
+        assert_eq!(
+            fs::symlink_metadata(&marker)
+                .unwrap()
+                .file_type()
+                .is_symlink(),
+            kind == "symlink"
+        );
+    }
+}
+
+#[test]
 fn new_launch_pins_transport_and_vm_and_reconciliation_refuses_other_targets() {
     let dir = tempdir().unwrap();
     let root = dir.path().canonicalize().unwrap();

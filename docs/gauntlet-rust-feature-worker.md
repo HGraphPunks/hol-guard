@@ -401,7 +401,7 @@ stays false, with zero model requests/tokens and no parent-exit credit.
 
 ### Merged-source audit checkpoint
 
-Fresh audit `a38df7e1b26c4905` is running from source
+Fresh audit `a38df7e1b26c4905` completes from source
 `53c64ae960b1c373b18816fdc6ba1491bbbd06c6`, after completed build
 `b7f0b85b31df49cc` and independently reconstructed runtime publication. It
 uses separate installed controller `123024f4…`, frozen primary host
@@ -427,11 +427,30 @@ Records are in external `feature-worker-merged359-host-20261107-001`:
 | `outside-kernel-001.json` | `1aaa66dc71be5dc72c30990dbefad0dcd65368ffd6168ba45a37b2101c0f27f8` |
 | `active-read-refusal-001.json` | `db6419e30a5c23afbcf81925e0bfab26a7fc614b025217b7e8b4e6d38aa95072` |
 | `active-consumed-run-refusal-001.json` | `8a360dbfe61f3b1d1db1bc88bf959291ac3cf49456ba36fee7a798db8a30990c` |
+| Root canonical result | `2a1988ff3d7d444a438f3c8dbd8124d5a2ff7a25012ffef0fdc52e24f2f4cf31` |
+| `outside-completion-001.json` | `3c9a4669df8bae3655e92b7a9be4b74f0654d64c73d0727ef0a43f9b3afe1997` |
+| `terminal-read-001.json` | `52daf0a83fd8fb5043c409a8d4edc28385cde00f47af64c4bce197f618128600` |
+| `terminal-replay-refusal-001.json` | `0a1eb7b39be8200e77c8fc072fb282093904e4b884ec8162802751b4485f4c2c` |
+| `independent-public-readback-001.json` | `4be533de9fb12f8ed1a1b449a146a3582afcbc01bb42bb7822fc82db03af8473` |
 
-Terminal JUnit/report recomputation, retained readback, four-lease cleanup and
-public export remain pending. The active job owns the VM leases; do not replay
-it or mutate the VM alongside it. Every admission/qualification/causality flag
-remains false, with zero model requests/tokens and no parent-exit credit.
+The 1,484.827-second run retains **1,303 passes, zero failures/errors and one
+deliberate retired-Pi skip** across all 28 groups and 52 selectors. Independent
+Python source/JUnit testcase counts and the pinned Rust reader agree on all
+56 artifacts: 27 groups pass and one remains incomplete. The exact report is
+`8c978719f47433878736216f001ba762cb2e88459ca8b02d33b96be4fa90b168`;
+readback is `3f6d8d5f7674f22b5801d9dc0e7731156682e5d9ee105e53105ae4a16eb6e61a`.
+Successful host transport preserves workload exit one and incomplete status.
+
+Primary retained readback matches; consumed dispatch refuses with all four
+host records unchanged. Outside checks under all four leases verify actual
+process/container/cgroup/conmon/profile absence and unchanged metadata for all
+333 historical records and their lock. The 62-member, 307,200-byte public
+export excludes the actual private nonce and hashes to
+`d54853221ec2341c47cd32721fb4e90e89a3d21328cd4d56f839e12f5c77f37f`.
+The audit has no owned resources remaining. Broader recovery, independent
+authority, conformance and admission remain open. Every
+admission/qualification/causality flag remains false, with zero model
+requests/tokens and no parent-exit credit.
 
 ### Reviewer replay of the corrected-source evidence
 

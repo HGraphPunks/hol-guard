@@ -247,6 +247,19 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
 
   The [retained VM controller audit](gauntlet-rust-controller-source-audit.md) found that the older active Python controller tree is neither the exact 420-file baseline nor this PR's integration tree. A separate [current source-matched tree](gauntlet-rust-current-head-controller-install-proof.md) is now installed inertly, but no reviewed outside install pin or deployment points to it. A Rust worker may not launch either tree until that trust and deployment binding is established.
 - [ ] Port exact Git/archive provenance and the unprivileged, bounded Podman builder, retaining UID, AppArmor, seccomp, capability and `slirp4netns` controls.
+  - [x] Commit host build/dependency dispatch before contacting Lima, preserving
+  one-use behavior after concurrent callers, uncertain transport and journal
+  restart. Linked/partial dispatch records refuse without contacting transport;
+  historical dependency intents remain readable without authorizing a retry.
+  Private dependency replies are retained at 0600 and projected into a versioned
+  public result with typed nullable fields and no private intent or nonce.
+  All 669 Mac tests, formatting and warnings-denied Mac/ARM Clippy pass. The
+  six changed existing files stay within 500 lines; no file, crate, executable
+  target or dependency is added. Aggregate `host-dispatch-20261107-validation-001.json`
+  hashes to `007926b395f300303161fb531071e33ad3a24f6dca98d1e9cf83cbcf156451b3`.
+  See [durable host dispatch](gauntlet-rust-hostbound-candidate-build-proof.md#durable-host-dispatch-and-private-dependency-results).
+  Fresh VM dependency verification, broader interruption coverage and admission
+  remain open; no parent exit closes.
   - [x] Share `gauntlet-host build source/run/read/repair` with the existing source,
   run and result/repair entrypoints through one 89-line module, adding no crate,
   executable target or dependency. All 662 Mac tests, formatting and
@@ -264,9 +277,11 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
   `host-build-command-20261107-validation-002.json` hashes to
   `ed6d8d183bead6608808ee35a490f86d1d103249e1395715e09a4ae58ce40401`.
   See [primary build command](gauntlet-rust-hostbound-candidate-build-proof.md#primary-host-build-command-and-merged-source-follow-up).
-  Merged-source audit `a38df7e1b26c4905` is running; its outside kernel/input
-  observation and active read/consumed-run refusals pass, but no terminal result
-  is inferred. Broader recovery, qualification and admission remain open; all
+  Merged-source audit `a38df7e1b26c4905` completes with independently recomputed
+  1,303 passes, zero failures/errors and one deliberate retired-Pi skip. Exact
+  terminal readback, consumed-run refusal and four-lease cleanup match, with
+  all historical metadata unchanged. Its status remains incomplete. Broader
+  recovery, qualification and admission remain open; all
   eligibility/causality flags stay false and no parent exit closes.
   - [x] Bind and retain the full candidate container ID before start, then verify CID/name/image/UID/request binding before teardown. The first 3.59.0 attempt exposed a no-op timeout drain and stays consumed/unknown. A real Root ARM timeout/foreign-binding probe now passes; all 656 Mac tests and Mac/ARM warnings-denied Clippy pass. The fixed two-hour candidate budget covers release LTO; dependency/feature budgets and the frozen Python vector are unchanged. Full attempt `d5a9c18e3bf20764` preserves 183 contract passes and two stale-import failures, with independently verified complete cleanup and unchanged metadata for all 333 prior records. The one-line test import fix preserves both assertions. Fresh job `97bef577d8beb254` completes corrected source `023e0b641`: four selected checks and all 185 contained contracts pass. Fresh dependency job `b20e4bd21efb86e9`, inert staging, composition and immutable publication also complete. Independent reconstruction matches all four inventories, 4,316 prefix entries and six aliases; the exact Python source loop and Rust agree on 62 distributions and all 21 requirements, including 11 active and satisfied. Fresh 28-group/52-selector audit `df0cc730b3b23ef5` completes with 1,300 passing tests, three failures and one deliberately retired Pi skip. Rust/Python artifact replay and independent cleanup agree; the two Cline reason assertions and missing Kimi import remain retained failures. Focused reproduction identifies mock-guard EPIPE; existing-helper reuse and the missing TOML import fix preserve all 186 assertions and pass 173 unprivileged ARM executions. These separate diagnostics do not replace a fresh full audit. See [current build and runtime evidence](gauntlet-rust-hostbound-candidate-build-proof.md#corrected-3590-build-and-immutable-runtime). Audit outcome, broader recovery, conformance and admission remain open; no parent exit closes.
   - [x] Execute frozen dependency installation through a distinct Rust host intent and native Root supervisor on two fresh jobs at `62aa7ba7`. Independent observation of actual exporter bytes, UID/GID, capabilities, no-new-privileges, seccomp, enforced AppArmor and effective cgroup limits passes; cleanup and eight source/capsule/image/runtime/generation/lease/replay refusals preserve original records. Quiescent repair of the first missing-marker attempt records aborted/null-exit state without inventing a running marker or terminal. Host readback verifies all 80 evidence members and all 2,302 file bytes in each of three ZIPs, with 62 distributions and MCP 1.30.0. See [dependency run proof](gauntlet-rust-native-dependency-run-vm-proof-20261026.md). Broader interruption recovery, inert prefix composition and complete candidate requirements remain open; no artifact or execution is admitted.

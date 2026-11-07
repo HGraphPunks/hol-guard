@@ -1,9 +1,10 @@
-//! Passive, bounded reader for Python's private host job files. The returned
-//! records are historical data, not execution authority or a coherent lease.
+//! Private file custody for isolated Rust journals and bounded historical
+//! Python job readers. Historical rows never confer execution authority.
 
 use crate::load_operations_bytes;
 use rustix::fs::{
-    flock, fstat, open, openat, statat, AtFlags, Dir, FileType, FlockOperation, Mode, OFlags, Stat,
+    fchmod, flock, fstat, fsync, open, openat, statat, AtFlags, Dir, FileType, FlockOperation,
+    Mode, OFlags, Stat,
 };
 use rustix::io::Errno;
 use rustix::process::geteuid;
@@ -203,6 +204,41 @@ pub(crate) fn read_regular_bytes(
         return Err(PrivateJobError::Changed);
     }
     Ok(bytes)
+}
+
+/// Commit an isolated host record before dispatch. Any existing or partial
+/// entry consumes the name; callers must never repair it into a fresh attempt.
+pub(crate) fn write_private_once(dir: &OwnedFd, name: &str, raw: &[u8]) -> Result<(), String> {
+    use std::io::Write;
+    let owner = geteuid().as_raw();
+    if raw.is_empty()
+        || raw.len() as u64 > MAX_JOB_BYTES
+        || name.is_empty()
+        || matches!(name, "." | "..")
+        || !name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-'))
+        || !private_directory(&fstat(dir).map_err(|e| e.to_string())?, owner)
+    {
+        return Err("private host commit boundary invalid".into());
+    }
+    let fd = openat(
+        dir,
+        name,
+        OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::RUSR | Mode::WUSR,
+    )
+    .map_err(|_| "host dispatch already consumed or unavailable")?;
+    fchmod(&fd, Mode::RUSR | Mode::WUSR).map_err(|e| e.to_string())?;
+    let mut file = File::from(fd);
+    file.write_all(raw)
+        .and_then(|_| file.sync_all())
+        .map_err(|_| "host dispatch commit uncertain; reconcile without retry")?;
+    fsync(dir).map_err(|_| "host dispatch directory commit uncertain; reconcile without retry")?;
+    if read_regular_bytes(dir, name, owner).map_err(|e| e.to_string())? != raw {
+        return Err("host dispatch record changed after commit".into());
+    }
+    Ok(())
 }
 
 fn read_one(dir: &OwnedFd, name: &str, owner: u32) -> Result<(Value, u64), PrivateJobError> {

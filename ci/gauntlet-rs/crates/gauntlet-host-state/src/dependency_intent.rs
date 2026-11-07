@@ -1,11 +1,12 @@
 //! Private one-use dependency intent, durably committed before VM execution.
 use crate::fixed_process::run_fixed_intent;
-use crate::private_jobs::{read_regular_bytes, state_root};
+use crate::private_jobs::{read_regular_bytes, state_root, write_private_once};
 use gauntlet_contracts::{DependencyRunIntent, DependencyRunPins};
 use ring::rand::{SecureRandom, SystemRandom};
 use rustix::fs::{fchmod, fstat, fsync, openat, Mode, OFlags};
 use rustix::process::geteuid;
-use serde_json::Value;
+use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::fs::File;
 use std::io::Write;
 use std::os::fd::OwnedFd;
@@ -62,6 +63,18 @@ impl DependencyIntentJournal {
         Ok(intent)
     }
 
+    fn launch_authorization(intent: &DependencyRunIntent) -> Result<Vec<u8>, String> {
+        gauntlet_contracts::canonicalize(
+            json!({
+            "schema":"hol-gauntlet-host-dependency-launch-authorization.v1",
+            "job_id":intent.pins.text("job_id"),"intent_sha256":intent.digest()?,
+            "retry_allowed":false,"execution_eligible":false})
+            .to_string()
+            .as_bytes(),
+        )
+        .map_err(|e| e.to_string())
+    }
+
     pub fn record(
         &self,
         pins: DependencyRunPins,
@@ -105,6 +118,17 @@ impl DependencyIntentJournal {
         if self.read(intent.pins.text("job_id"))? != intent {
             return Err("dependency intent changed after write".into());
         }
+        // Older intents remain readable; absence of this fresh reservation
+        // must never be interpreted as an undispatched attempt after upgrade.
+        write_private_once(
+            &self.root,
+            &format!("{}.dependency-authorized.json", intent.pins.text("job_id")),
+            &Self::launch_authorization(&intent)?,
+        )?;
+        self.stable()?;
+        if self.read(intent.pins.text("job_id"))? != intent {
+            return Err("dependency intent changed after authorization".into());
+        }
         Ok(intent)
     }
 
@@ -115,6 +139,29 @@ impl DependencyIntentJournal {
             return Err("dependency prelaunch intent changed".into());
         }
         let digest = intent.digest()?;
+        let authorization = Self::launch_authorization(intent)?;
+        let name = format!("{}.dependency-authorized.json", intent.pins.text("job_id"));
+        let authorized = || {
+            if read_regular_bytes(&self.root, &name, self.owner)
+                .ok()
+                .as_deref()
+                != Some(authorization.as_slice())
+            {
+                return Err("dependency launch authorization missing or changed; retained intent is read-only".to_owned());
+            }
+            Ok(())
+        };
+        authorized()?;
+        write_private_once(
+            &self.root,
+            &format!("{}.dependency-dispatch.json", intent.pins.text("job_id")),
+            &authorization,
+        )?;
+        self.stable()?;
+        if self.read(intent.pins.text("job_id"))? != *intent {
+            return Err("dependency intent changed before transport".into());
+        }
+        authorized()?;
         let generation = intent.pins.text("runner_binary_sha256");
         let argv = vec![
             intent.limactl.clone(),
@@ -146,11 +193,35 @@ impl DependencyIntentJournal {
             return Err("dependency response is ambiguous".into());
         }
         let result: Value = serde_json::from_slice(frame).map_err(|e| e.to_string())?;
+        let empty_export = result
+            .get("captured_dependencies_bytes")
+            .is_some_and(Value::is_null)
+            && result
+                .get("captured_dependencies_sha256")
+                .is_some_and(Value::is_null);
+        let captured_export = result["captured_dependencies_bytes"]
+            .as_u64()
+            .is_some_and(|n| n > 0 && n <= 256 * 1024 * 1024)
+            && result["captured_dependencies_sha256"]
+                .as_str()
+                .is_some_and(|s| {
+                    s.len() == 64
+                        && s.bytes()
+                            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+                });
         if result["schema"] != "hol-gauntlet-native-dependency-result.v1"
             || result["intent_sha256"] != digest
             || result["job_id"] != intent.pins.text("job_id")
             || result["source_sha"] != intent.pins.text("source_sha")
             || result["worker_generation"] != generation
+            || result["intent"]
+                != serde_json::from_slice::<Value>(&intent.bytes()?).map_err(|e| e.to_string())?
+            || result["status"] != "invalid-evidence"
+            || result["guard_causality_verified"] != false
+            || !result
+                .get("exit_code")
+                .is_some_and(|v| v.is_null() || v.as_u64().is_some_and(|n| n <= 255))
+            || !(empty_export || captured_export)
             || result["execution_eligible"] != false
             || result["artifact_admitted"] != false
             || result["model_requests"] != 0
@@ -164,7 +235,28 @@ impl DependencyIntentJournal {
         if self.read(intent.pins.text("job_id"))? != *intent {
             return Err("dependency intent changed during execution".into());
         }
-        Ok(result)
+        // The Root v1 reply embeds the private intent. Preserve it privately
+        // and return only typed public fields through the operator CLI.
+        write_private_once(
+            &self.root,
+            &format!("{}.dependency-result.json", intent.pins.text("job_id")),
+            frame,
+        )?;
+        self.stable()?;
+        let public = json!({"schema":"hol-gauntlet-host-dependency-run-claim.v1",
+            "job_id":intent.pins.text("job_id"),"source_sha":intent.pins.text("source_sha"),
+            "intent_sha256":digest,"worker_generation":generation,"status":"invalid-evidence",
+            "exit_code":result["exit_code"],"captured_dependencies_bytes":result["captured_dependencies_bytes"],
+            "captured_dependencies_sha256":result["captured_dependencies_sha256"],
+            "private_result_sha256":format!("{:x}", Sha256::digest(frame)),
+            "container_absent":true,"container_cgroup_absent":true,"client_cgroup_drained":true,
+            "build_profile_removed":true,"retained_result_reconciled":false,
+            "artifact_admitted":false,"execution_eligible":false,"qualification_eligible":false,
+            "guard_causality_verified":false,"model_requests":0,"model_tokens":0});
+        if public.to_string().contains(&intent.nonce) {
+            return Err("private dependency intent value appeared in public fields".into());
+        }
+        Ok(public)
     }
 }
 
