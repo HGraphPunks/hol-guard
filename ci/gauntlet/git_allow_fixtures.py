@@ -26,10 +26,13 @@ import os
 import subprocess
 from pathlib import Path
 
+from .extension_allow_fixtures import EXTENSION_ALLOW_WORKTREE_CASE
 from .fast_forward_fixtures import add_fast_forward_origin
 
 GIT_ALLOW_MERGE_CASE = "git-allow-merge-fast-forward-then-reads"
 GIT_ALLOW_STASH_CASE = "git-allow-stash-around-fast-forward"
+# The same refresh run from outside the checkout, every step carrying `-C`.
+GIT_ALLOW_ROUTED_MERGE_CASE = "git-allow-routed-merge-then-reads"
 # Reads the git extension has no permission for, after a step it allows.
 GIT_ALLOW_REF_READS_CASE = "git-allow-ref-reads-after-checkout"
 # A checkout and a pathspec named after Guard are the user's work, not Guard.
@@ -53,6 +56,7 @@ GIT_ALLOW_CASES = frozenset(
     {
         GIT_ALLOW_MERGE_CASE,
         GIT_ALLOW_STASH_CASE,
+        GIT_ALLOW_ROUTED_MERGE_CASE,
         GIT_ALLOW_REF_READS_CASE,
         GIT_ALLOW_NAMED_CHECKOUT_CASE,
         GIT_ALLOW_WORKTREE_CASE,
@@ -64,6 +68,10 @@ GIT_ALLOW_CASES = frozenset(
     }
 )
 GIT_EXTENSION_ID = "command.git"
+# The contributed-extension worktree case builds its worktree from the same
+# offline origin, but enables its own controls, so it joins the fixture shape
+# without joining the set whose controls this module signs.
+GIT_ORIGIN_SHAPE_CASES = GIT_ALLOW_CASES | {EXTENSION_ALLOW_WORKTREE_CASE}
 
 STASH_FILE = "src/settings.ts"
 STASH_COMMITTED = "export const retryLimit = 3;\n"
@@ -104,7 +112,7 @@ def add_git_allow_shape(workspace: Path, environment: dict[str, str], scenario_i
     synthetic upstream commit never touches it and ``git stash pop`` restores
     cleanly after the fast-forward.
     """
-    if scenario_id not in GIT_ALLOW_CASES:
+    if scenario_id not in GIT_ORIGIN_SHAPE_CASES:
         return
     environment = {**environment, **_IDENTITY}
     if scenario_id == GIT_ALLOW_NAMED_CHECKOUT_CASE:

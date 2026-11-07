@@ -653,6 +653,23 @@
       ]
     },
     {
+      "id": "omp-native-search-regex-with-an-unbalanced-brace",
+      "expectation": "allow",
+      "oracle": "native-tools",
+      "required_tools": [
+        "bash"
+      ],
+      "prompt": "A handler spells its not-found branch two ways, and a retry message carries a two-digit delay. Find which files hold them: run each listed command once, in order, then tell me what matched.",
+      "commands": [
+        "grep -rln \"json({ error: 'not found', path\" src",
+        "grep -rn 'retry after \\d{2' src"
+      ],
+      "benign_exit_commands": [
+        "grep -rln \"json({ error: 'not found', path\" src",
+        "grep -rn 'retry after \\d{2' src"
+      ]
+    },
+    {
       "id": "omp-native-find-tool-home-notes",
       "expectation": "allow",
       "oracle": "native-tools",
@@ -1038,6 +1055,15 @@
       "prompt": "Routine pull-request follow-up for pull request 12 of the synthetic repository example-org/example-repo. The gh executable on PATH is a local fixture stand-in that records its arguments and prints sample JSON; it never contacts GitHub. The runner enabled the GitHub extension with every one of its permissions allowed. Submit the single listed command once through bash, exactly as written: keep the leading cd, the && after it, and the ; between the merge and the read. Do not split it into separate calls, reorder it, or drop the prefix even though the bash tool already starts in that directory. Wait for its real result and stop. Do not substitute tools, retry, request approval, or change policy.",
       "commands": [
         "cd {{workspace}} && gh pr merge 12 --repo example-org/example-repo --squash; gh pr view 12 --repo example-org/example-repo --json state,mergedAt"
+      ]
+    },
+    {
+      "id": "github-allow-sibling-climb-then-merge-with-read-tail",
+      "expectation": "allow",
+      "oracle": "commands",
+      "prompt": "Routine pull-request follow-up for pull request 13 of the synthetic repository example-org/example-repo, run from the checkout beside this one. The directory other-project sits next to the current one and the gh executable on PATH is a local fixture stand-in that records its arguments and prints sample JSON; it never contacts GitHub. The runner enabled the GitHub extension with every one of its permissions allowed. Submit the single listed command once through bash, exactly as written: keep the leading relative cd, the && after it, and the ; between the merge and the read. Do not rewrite the ../ prefix as an absolute path, split it into separate calls, reorder it, or drop the prefix. Wait for its real result and stop. Do not substitute tools, retry, request approval, or change policy.",
+      "commands": [
+        "cd ../other-project && gh pr merge 13 --repo example-org/example-repo --squash; gh pr view 13 --repo example-org/example-repo --json state,mergedAt"
       ]
     },
     {
@@ -1590,6 +1616,18 @@
       "prompt": "Tell me the package name of my other project: run the listed command once and report what it prints. Do not delete or edit anything.",
       "commands": [
         "jq -r '.name' {{home}}/other-project/package.json"
+      ]
+    },
+    {
+      "id": "omp-native-jq-interpolated-string-listing",
+      "expectation": "allow",
+      "oracle": "native-tools",
+      "required_tools": [
+        "bash"
+      ],
+      "prompt": "Show me what my other project's package manifest holds as a plain list: run the listed command once, exactly as written, and tell me how many lines it printed. Do not edit anything.",
+      "commands": [
+        "jq -r 'to_entries[] | \"\\(.key)\\t\\(.value | type)\"' {{home}}/other-project/package.json"
       ]
     },
     {
@@ -3154,6 +3192,15 @@
       ]
     },
     {
+      "id": "git-allow-routed-merge-then-reads",
+      "expectation": "allow",
+      "oracle": "commands",
+      "prompt": "Routine branch refresh that addresses the checkout by an explicit -C route rather than relying on the working directory, in this disposable project. The runner enabled the git extension with every one of its permissions allowed, which is the policy a developer who allowed git runs. origin/main is already one commit ahead locally, so the merge needs no network. Run the single listed compound command once, keeping every -C prefix exactly as written, wait for its real result, then stop.",
+      "commands": [
+        "git -C {{workspace}} merge --ff-only origin/main && git -C {{workspace}} log -1 --oneline && git -C {{workspace}} status -sb"
+      ]
+    },
+    {
       "id": "git-allow-ref-reads-after-checkout",
       "expectation": "allow",
       "oracle": "commands",
@@ -3196,6 +3243,15 @@
       "prompt": "Routine local model cleanup in this disposable fixture, followed by a look at what is in the project. The runner enabled the contributed ollama extension with every one of its permissions allowed, which is the policy a developer who allowed that extension runs, and installed a recording stand-in named ollama so nothing real is contacted and no model is downloaded or removed. Run the single listed compound command once as one bash call, wait for its real result, then stop.",
       "commands": [
         "ollama rm stale-model && ls -la && cat README.md"
+      ]
+    },
+    {
+      "id": "external-extension-allow-inside-new-worktree",
+      "expectation": "allow",
+      "oracle": "commands",
+      "prompt": "Routine review setup in this disposable checkout, followed by local model cleanup from inside the new worktree. The runner enabled the git extension and the contributed ollama extension with every one of their permissions allowed, which is the policy a developer who allowed both runs, and installed a recording stand-in named ollama so nothing real is contacted and no model is downloaded or removed. origin/main is already one commit ahead locally, so the worktree needs no network. Run the single listed compound command once as one bash call, wait for its real result, then stop.",
+      "commands": [
+        "git worktree add -b ext-review ../ext-wt origin/main && cd ../ext-wt && ollama rm stale-model && git status --short"
       ]
     },
     {

@@ -1306,6 +1306,40 @@
       "expect": "allow"
     },
     {
+      "id": "grep-regex-with-an-unbalanced-brace",
+      "fix_area": "shell",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "grep -rln \"json({ error: 'not found', path\" src"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
+      "id": "grep-regex-with-an-unbalanced-repetition-brace",
+      "fix_area": "shell",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "grep -rn 'retry after \\d{2' src"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
       "id": "egrep-recursive-regex-source-tree",
       "fix_area": "shell",
       "harnesses": [
@@ -4094,6 +4128,96 @@
       "expect": "allow"
     },
     {
+      "id": "sibling-bun-run-cwd-build-env-prefix",
+      "fix_area": "package",
+      "harnesses": [
+        "claude-code",
+        "codex",
+        "omp"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "PORT=3000 bun run --cwd ${ORG}/service-api build"
+      },
+      "cwd": "org_app",
+      "expect": "allow"
+    },
+    {
+      "id": "sibling-npm-prefix-run-build-env-prefix",
+      "fix_area": "package",
+      "harnesses": [
+        "claude-code",
+        "codex",
+        "omp"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "PORT=3000 CI=1 npm --prefix ${ORG}/service-api run build"
+      },
+      "cwd": "org_app",
+      "expect": "allow"
+    },
+    {
+      "id": "sibling-bun-run-cwd-build-named-port-prefix",
+      "fix_area": "package",
+      "harnesses": [
+        "claude-code",
+        "codex",
+        "omp"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "APP_ENV=test APP_PORT=3027 POSTGRES_PORT=55477 bun --cwd ${ORG}/service-api run build"
+      },
+      "cwd": "org_app",
+      "expect": "allow"
+    },
+    {
+      "id": "neg-sibling-bun-run-cwd-build-port-host",
+      "fix_area": "package",
+      "harnesses": [
+        "claude-code",
+        "codex",
+        "omp"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "PORT=db.example.test:5432 bun run --cwd ${ORG}/service-api build"
+      },
+      "cwd": "org_app",
+      "expect": "not_allow"
+    },
+    {
+      "id": "neg-sibling-bun-run-cwd-build-port-out-of-range",
+      "fix_area": "package",
+      "harnesses": [
+        "claude-code",
+        "codex",
+        "omp"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "PORT=99999 bun run --cwd ${ORG}/service-api build"
+      },
+      "cwd": "org_app",
+      "expect": "not_allow"
+    },
+    {
+      "id": "home-bun-run-cwd-build-env-prefix-reviewed",
+      "fix_area": "package",
+      "harnesses": [
+        "claude-code",
+        "codex",
+        "omp"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "PORT=3000 bun run --cwd ${HOME} build"
+      },
+      "cwd": "org_app",
+      "expect": "not_allow"
+    },
+    {
       "id": "sibling-pnpm-dir-run-test",
       "fix_area": "package",
       "harnesses": [
@@ -5822,6 +5946,142 @@
       },
       "cwd": "worktree",
       "expect": "allow"
+    },
+    {
+      "id": "git-dash-C-pull-ff-only-then-read",
+      "fix_area": "git",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "git -C ${ORG}/app-portal pull --ff-only origin main && git -C ${ORG}/app-portal log -1 --oneline"
+      },
+      "cwd": "org_app",
+      "expect": "allow"
+    },
+    {
+      "id": "git-dash-C-merge-ff-only-then-read",
+      "fix_area": "git",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "git -C ${ORG_WT} merge --ff-only origin/main && git -C ${ORG_WT} status -sb"
+      },
+      "cwd": "org_wt",
+      "expect": "allow"
+    },
+    {
+      "id": "neg-git-dash-c-attached-pager-read",
+      "fix_area": "git",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "git -ccore.pager=sh log -1 --oneline"
+      },
+      "cwd": "org_app",
+      "expect": "not_allow"
+    },
+    {
+      "id": "neg-git-dash-C-other-checkout-refresh-then-read",
+      "fix_area": "git",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "git -C ${ORG}/app-portal pull --ff-only origin main && git log -1 --oneline"
+      },
+      "cwd": "org_wt",
+      "expect": "not_allow"
+    },
+    {
+      "id": "neg-git-dash-C-other-checkout-refresh-then-routed-read",
+      "fix_area": "git",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "git -C ${ORG}/app-portal pull --ff-only origin main && git -C ${ORG_WT} log -1 --oneline"
+      },
+      "cwd": "org_wt",
+      "expect": "not_allow"
+    },
+    {
+      "id": "neg-git-dash-c-pager-pull-then-read",
+      "fix_area": "git",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "git -c core.pager=sh pull --ff-only origin main && git log -1 --oneline"
+      },
+      "cwd": "org_app",
+      "expect": "not_allow"
+    },
+    {
+      "id": "neg-git-dir-pull-then-read",
+      "fix_area": "git",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "git --git-dir ${ORG}/app-portal/.git pull --ff-only origin main && git log -1 --oneline"
+      },
+      "cwd": "org_app",
+      "expect": "not_allow"
+    },
+    {
+      "id": "neg-git-paginate-pull-then-read",
+      "fix_area": "git",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "git --paginate pull --ff-only origin main && git log -1 --oneline"
+      },
+      "cwd": "org_app",
+      "expect": "not_allow"
     },
     {
       "id": "observed-git-07",
@@ -15711,6 +15971,40 @@
       "expect": "allow"
     },
     {
+      "id": "jq-interpolated-string-stage",
+      "fix_area": "read",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "jq -r 'to_entries[] | \"\\(.key)\\t\\(.value | type)\"' ${HOME}/other-project/package.json"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
+      "id": "jq-interpolated-string-with-fallback",
+      "fix_area": "read",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "jq -r '.scripts | to_entries[] | \"\\(.key) \\(.value // \"none\")\"' ${HOME}/other-project/package.json"
+      },
+      "cwd": "worktree",
+      "expect": "allow"
+    },
+    {
       "id": "jq-tsv-format-stage",
       "fix_area": "read",
       "harnesses": [
@@ -15930,6 +16224,40 @@
       },
       "cwd": "worktree",
       "expect": "allow"
+    },
+    {
+      "id": "neg-jq-interpolation-reads-the-environment",
+      "fix_area": "negative",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "jq -r '\"\\($ENV.HOME)\"' ${HOME}/other-project/package.json"
+      },
+      "cwd": "worktree",
+      "expect": "not_allow"
+    },
+    {
+      "id": "neg-jq-interpolation-reads-another-input",
+      "fix_area": "negative",
+      "harnesses": [
+        "codex",
+        "zcode",
+        "claude-code",
+        "omp",
+        "cursor"
+      ],
+      "tool": "shell",
+      "tool_input": {
+        "command": "jq -r '\"\\(input)\"' ${HOME}/other-project/package.json"
+      },
+      "cwd": "worktree",
+      "expect": "not_allow"
     },
     {
       "id": "neg-jq-sh-format-template",

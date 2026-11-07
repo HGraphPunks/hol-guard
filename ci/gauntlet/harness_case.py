@@ -21,7 +21,7 @@ from .approval_retry_marker import CASE as APPROVAL_MARKER_CASE
 from .approval_retry_marker import collect as collect_approval_marker
 from .approval_retry_marker import stage as stage_approval_marker
 from .approval_retry_persistent import CASE as APPROVAL_PERSISTENT_CASE
-from .approval_retry_persistent import PACKAGE_CASE as APPROVAL_PERSISTENT_PACKAGE_CASE
+from .approval_retry_persistent import PACKAGE_CASES as APPROVAL_PERSISTENT_PACKAGE_CASES
 from .approval_retry_persistent import case_environment as approval_persistent_environment
 from .approval_retry_persistent import collect as collect_approval_persistent
 from .approval_retry_persistent import stage as stage_approval_persistent
@@ -192,7 +192,7 @@ def run_harness_case(
         "transcript": {"calls": [], "terminal": False},
     }
     stage_approval_marker(fixture.workspace, scenario.id, case)
-    stage_approval_persistent(fixture.workspace, scenario.id, case)
+    stage_approval_persistent(fixture.workspace, scenario.id, case, fixture.protected)
     daemon = None
     connector = None
     seed: CredentialSeed | None = None
@@ -233,7 +233,7 @@ def run_harness_case(
                 # the subprocess floor the shell cases raise never reaches a file tool.
                 case["review_policy"] = (
                     write_package_review_config(guard_home)
-                    if scenario.id == APPROVAL_PERSISTENT_PACKAGE_CASE
+                    if scenario.id in APPROVAL_PERSISTENT_PACKAGE_CASES
                     else write_review_config(
                         guard_home,
                         file_tool="bash" not in scenario.required_tools,
@@ -259,7 +259,7 @@ def run_harness_case(
             if scenario.id in GIT_ALLOW_CASES:
                 case["extension_control"] = configure_git_allow_controls(daemon, guard_home)
             if scenario.id in EXTENSION_ALLOW_CASES:
-                case["extension_control"] = configure_extension_allow_controls(daemon, guard_home)
+                case["extension_control"] = configure_extension_allow_controls(daemon, guard_home, scenario.id)
             if scenario.id in BUSINESS_CASES:
                 case["business_policy"] = install_business_policy(daemon, guard_home)
             # Native-tools cases run first-contact, with no pre-bound workspace policy, like a fresh install.
