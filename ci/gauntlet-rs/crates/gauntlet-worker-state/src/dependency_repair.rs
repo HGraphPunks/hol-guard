@@ -395,33 +395,34 @@ fn retain_failure(
     phase: &str,
     error: &str,
 ) -> Result<(), String> {
-    use ring::rand::{SecureRandom, SystemRandom};
-    let mut random = [0u8; 8];
-    SystemRandom::new()
-        .fill(&mut random)
-        .map_err(|_| "repair diagnostic identity unavailable")?;
-    let attempt: String = random.iter().map(|b| format!("{b:02x}")).collect();
     let job = intent.pins.text("job_id");
     let slot =
         crate::builder_candidate_source::open_fixed_build_slot(job).map_err(|e| e.to_string())?;
     let value = json!({"schema":"hol-gauntlet-private-dependency-repair-failure.v1",
         "job_id":job,"source_sha":intent.pins.text("source_sha"),"intent_sha256":intent.digest()?,
         "worker_generation":intent.pins.text("runner_binary_sha256"),"repair_generation":generation,
-        "started_marker_sha256":started,"attempt_id":attempt,"phase":phase,"error":error_detail(error),
+        "started_marker_sha256":started,"phase":phase,"error":error_detail(error),
         "status":"unknown","exit_code":null,"artifact_admitted":false,"execution_eligible":false,
         "qualification_eligible":false,"guard_causality_verified":false,"model_requests":0,"model_tokens":0});
+    write_failure(&slot, value).map(|_| ())
+}
+
+fn write_failure(slot: &OwnedFd, mut value: Value) -> Result<String, String> {
+    use ring::rand::{SecureRandom, SystemRandom};
+    let mut random = [0u8; 8];
+    SystemRandom::new()
+        .fill(&mut random)
+        .map_err(|_| "repair diagnostic identity unavailable")?;
+    let attempt: String = random.iter().map(|b| format!("{b:02x}")).collect();
+    value["attempt_id"] = json!(attempt);
     let raw = canonicalize(value.to_string().as_bytes()).map_err(|e| e.to_string())?;
     if raw.len() > 8192 {
         return Err("private repair diagnostic exceeds bound".into());
     }
     // Private diagnostics never enter the public repair/read protocol.
-    crate::feature_files::write(
-        &slot,
-        &format!("dependency-repair-error-{attempt}.json"),
-        &raw,
-        (0, 0),
-        0o600,
-    )
+    let name = format!("dependency-repair-error-{attempt}.json");
+    crate::feature_files::write(slot, &name, &raw, (0, 0), 0o600)?;
+    Ok(name)
 }
 
 #[cfg(test)]
@@ -450,5 +451,40 @@ mod tests {
         assert_eq!(a["prefix"], b["prefix"]);
         assert_ne!(a["sha256"], b["sha256"]);
         assert_eq!(error_detail("short")["truncated"], false);
+    }
+
+    #[test]
+    #[ignore = "requires outside Root; writes only an isolated temporary fixture"]
+    fn private_failure_records_are_durable_exclusive_and_bounded() {
+        use std::os::unix::fs::MetadataExt;
+        gauntlet_cell_rootfs::require_outside_root().unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        let slot = rustix::fs::open(
+            temp.path(),
+            rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::DIRECTORY,
+            rustix::fs::Mode::empty(),
+        )
+        .unwrap();
+        let value = json!({"status":"unknown","exit_code":null,"error":error_detail("private fixture error")});
+        let first = write_failure(&slot, value.clone()).unwrap();
+        let before = std::fs::read(temp.path().join(&first)).unwrap();
+        let second = write_failure(&slot, value).unwrap();
+        assert_ne!(first, second);
+        assert_eq!(before, std::fs::read(temp.path().join(&first)).unwrap());
+        for name in [first, second] {
+            let m = std::fs::symlink_metadata(temp.path().join(&name)).unwrap();
+            assert_eq!(
+                (m.uid(), m.gid(), m.nlink(), m.mode() & 0o7777),
+                (0, 0, 1, 0o600)
+            );
+            let raw = crate::feature_files::required(&slot, &name, (0, 0), 0o600, 8192).unwrap();
+            assert_eq!(canonicalize(&raw).unwrap(), raw);
+            let v: Value = serde_json::from_slice(&raw).unwrap();
+            assert!(name.contains(v["attempt_id"].as_str().unwrap()));
+            assert_eq!(v["status"], "unknown");
+            assert!(v["exit_code"].is_null());
+        }
+        assert!(write_failure(&slot, json!({"oversized":"x".repeat(8192)})).is_err());
+        assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), 2);
     }
 }

@@ -577,7 +577,7 @@ The canonical record is capped at 8,192 bytes, reports unknown/null-exit state
 and carries no admission authority. It is never returned by public read/repair.
 Diagnostic-write failure also refuses; it cannot turn cleanup into a success.
 
-Only the existing repair module changes, remaining at 454 lines. No repository
+At `b64ae753b`, only the existing repair module changes, remaining at 454 lines. No repository
 file, crate, binary target or dependency is added. All 675 Mac tests,
 formatting, Mac/ARM warnings-denied Clippy and builds pass. The ARM test ELF
 adds UTF-8/control-byte boundary coverage and full-error hashing; its execution
@@ -588,6 +588,32 @@ Local validation `dependency-repair-diagnostic-20261107-validation-001.json`
 binds seven records/six logs and hashes to
 `246e8d1c81deeff36f5b35000d6b29474a26022fa2fa2a5eb7a64b4c526d7f99`.
 The first active repair refusal is still unexplained; old evidence is unchanged.
+
+That generation's ARM ELF `cb0d3e67…` passes the UTF-8/full-hash case and both
+secure-file cases as UID/GID 65532. Descriptor-bound execution, four leases and
+unchanged historical metadata are verified by `arm-units-001.json` in external
+`dependency-repair-diagnostic-20261107-host-001`, SHA-256
+`c1ea6a5be6dbe34c757a0181aefc87a717e2fba1b7d6c2ccbadcf753c2ab88ed`.
+
+Fresh jobs `d16ae4c3b72509f8` and `e72bc0934fa81d56` kill the original
+`c7b09e2d…` supervisor and verify that wrong-pin refusal leaves the container
+active. Repair generation `58be99ad…` succeeds on the first call in 3.756 and
+5.372 seconds. Both remain aborted/null-exit, with no diagnostic error record
+expected on success. Independent four-lease cleanup and restart/repeat reads
+pass; original host records remain intact. The original first-call refusal is
+not reproduced, so these successes do not establish its cause.
+
+The final followup keeps the same module within 490 lines and adds an explicit
+Root-only temporary-fixture test for durable private records, exclusive names
+and oversized-record refusal before file creation. Its source manifest is
+`dependency-repair-diagnostic-20261107-source-002.json`, SHA-256
+`2129982fd14fae798121a498205727b72a6d96d541e7a0280fd0fe6a507da45c`.
+All 675 Mac tests, formatting, Mac/ARM Clippy and executable builds pass for
+that final source. Local validation `dependency-repair-diagnostic-20261107-validation-002.json`
+binds eight records/seven logs, SHA-256
+`e5d4389fd0d86d0543ce49599254c126dbeaf500c9d5869f08fba1cf7f144db4`.
+The final Root test's execution and compatibility readback remain pending at
+this source checkpoint.
 
 ## Dependency reconciliation without relaunch
 
