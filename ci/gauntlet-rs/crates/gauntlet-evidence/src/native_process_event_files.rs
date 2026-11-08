@@ -7,6 +7,9 @@ use crate::{verify_native_process_events, EvidenceError, Result};
 use serde_json::Value;
 use std::path::Path;
 
+#[path = "native_pipe_events.rs"]
+pub(crate) mod native_pipe_events;
+
 pub(crate) fn read(path: &Path, pin: &str, limit: usize) -> Result<Vec<u8>> {
     require(hex(pin, 64))?;
     let parent = path.parent().ok_or(EvidenceError::Invalid(
@@ -31,5 +34,34 @@ pub fn verify_native_process_event_files(
 ) -> Result<Value> {
     let raw = read(journal, journal_sha256, 64 * 1024 * 1024)?;
     let checkpoint = parse(&read(checkpoint, checkpoint_sha256, 8192)?)?;
-    verify_native_process_events(&raw, &checkpoint)
+    if checkpoint["schema"] != "hol-gauntlet-native-pipe-replay.v1" {
+        return verify_native_process_events(&raw, &checkpoint);
+    }
+    require(
+        crate::payload::exact_keys(
+            &checkpoint,
+            &[
+                "schema",
+                "process_journal",
+                "process_checkpoint",
+                "pipe_binding",
+                "native_wire_config",
+                "connector_sha256",
+            ],
+        ) && crate::payload::exact_keys(&checkpoint["process_journal"], &["path", "sha256"]),
+    )?;
+    let process = &checkpoint["process_journal"];
+    let process_raw = read(
+        Path::new(crate::native_diagnostic_artifacts::text(process, "path")?),
+        crate::native_diagnostic_artifacts::text(process, "sha256")?,
+        64 * 1024 * 1024,
+    )?;
+    native_pipe_events::verify(
+        &raw,
+        &process_raw,
+        &checkpoint["process_checkpoint"],
+        &checkpoint["pipe_binding"],
+        &checkpoint["native_wire_config"],
+        crate::native_diagnostic_artifacts::text(&checkpoint, "connector_sha256")?,
+    )
 }

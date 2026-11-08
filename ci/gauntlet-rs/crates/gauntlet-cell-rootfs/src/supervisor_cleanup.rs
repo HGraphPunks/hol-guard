@@ -102,6 +102,9 @@ impl NativeCell {
         if let Err(error) = self.close_process_events() {
             failures.push(error);
         }
+        if let Err(error) = self.close_native_wire() {
+            failures.push(error);
+        }
         let cgroup_absent = absent(&self.cgroup)?;
         if !cgroup_absent {
             failures.push("owned product cgroup survived stop".into());

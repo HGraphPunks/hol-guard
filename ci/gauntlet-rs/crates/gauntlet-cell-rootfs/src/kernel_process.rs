@@ -229,6 +229,23 @@ fn executable(proc: &OwnedFd, expected: &str) -> Result<()> {
 }
 
 impl HeldCellProcess {
+    pub(crate) fn network_namespace(&self) -> Result<OwnedFd> {
+        self.recheck()?;
+        let fd = openat(
+            &self.proc,
+            "ns/net",
+            OFlags::RDONLY | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| e.to_string())?;
+        let info = fstat(&fd).map_err(|e| e.to_string())?;
+        if self.observation["namespaces"]["net"] != format!("{}:{}", info.st_dev, info.st_ino) {
+            return Err("held product network namespace changed".into());
+        }
+        self.recheck()?;
+        Ok(fd)
+    }
+
     pub fn observe(pid: u32, expected: CellProcessExpectation) -> Result<Self> {
         let proc_root = root_proc()?;
         expected.validate()?;

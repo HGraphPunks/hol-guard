@@ -10,6 +10,7 @@ mod actor_process;
 mod actor_start;
 mod exec_gate;
 mod layout;
+mod native_wire;
 mod network;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod root_input;
@@ -19,8 +20,11 @@ mod seccomp_library;
 
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use actor_start::run_actor;
-pub use exec_gate::{run_exec_gate, validate_product_argv, READY};
+pub use exec_gate::{run_exec_gate, run_native_gate, validate_product_argv, READY};
 pub use layout::{load_root_layout, parse_layout, CellLayout};
+pub use native_wire::{
+    run_native_wrapper, NativeWireConfig, NATIVE_WIRE_CONFIG, NATIVE_WIRE_MARKER,
+};
 pub use network::{observe_private_loopback, validate_private_topology};
 pub use seccomp::{
     install_product_filter, validate_product_seccomp, NetworkProfile, LIBRARY_SHA256,

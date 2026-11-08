@@ -18,6 +18,7 @@ pub(crate) struct Inputs {
     pub image: OwnedFd,
     pub prefix: OwnedFd,
     pub public: OwnedFd,
+    pub native_wire: Option<Vec<u8>>,
 }
 
 fn identity(info: &Stat, device: u64, inode: u64) -> bool {
@@ -164,6 +165,23 @@ pub(crate) fn load(spec: RootfsSpec) -> Result<Inputs> {
     ] {
         crate::fs_input::read(&system.root.join("etc").join(name), 2 * 1024 * 1024)?;
     }
+    let native_wire = spec
+        .native_wire_sha256
+        .as_deref()
+        .map(|pin| -> Result<Vec<u8>> {
+            let raw = pinned(&spec.stage.join("native-wire.v1.json"), 4096, pin)?;
+            let config =
+                gauntlet_product_cell::NativeWireConfig::parse(&raw).map_err(|e| e.to_string())?;
+            if std::path::Path::new(&config.native_program)
+                != runtime.prefix.join(
+                    "lib/python3.12/site-packages/codex_plugin_scanner/_native/hol-guard-runtime",
+                )
+            {
+                return Err("Native wire program must belong to the exact installed prefix".into());
+            }
+            Ok(raw)
+        })
+        .transpose()?;
     root_metadata(&fstat(&stage).map_err(|e| e.to_string())?, true)?;
     Ok(Inputs {
         spec,
@@ -174,6 +192,7 @@ pub(crate) fn load(spec: RootfsSpec) -> Result<Inputs> {
         image,
         prefix,
         public,
+        native_wire,
     })
 }
 
@@ -224,6 +243,7 @@ mod tests {
             idmap_runtime: "ubuntu2404-controller-v1".into(),
             state: StateProfile::Memory,
             network: NetworkProfile::UnixOnly,
+            native_wire_sha256: None,
         };
         assert_ne!(std::process::id(), 1);
         assert_eq!(

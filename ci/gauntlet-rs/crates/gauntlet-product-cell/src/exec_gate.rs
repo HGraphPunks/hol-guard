@@ -58,8 +58,7 @@ fn release(fd: &impl AsFd, deadline: Instant) -> Result<()> {
     }
 }
 
-pub fn run_exec_gate(argv: &[String]) -> Result<Infallible> {
-    validate_product_argv(argv)?;
+pub(crate) fn product_identity() -> Result<()> {
     if !cfg!(all(target_os = "linux", target_arch = "aarch64"))
         || rustix::process::getuid().as_raw() != 10004
         || rustix::process::geteuid().as_raw() != 10004
@@ -70,11 +69,17 @@ pub fn run_exec_gate(argv: &[String]) -> Result<Infallible> {
             "native Linux ARM64 UID/GID 10004 product gate required",
         ));
     }
-    let layout = load_root_layout()?;
     #[cfg(target_os = "linux")]
     if unsafe { libc::prctl(libc::PR_SET_DUMPABLE, 0, 0, 0, 0) } != 0 {
         return Err(CellError("product gate dumpability lock failed"));
     }
+    Ok(())
+}
+
+pub fn run_exec_gate(argv: &[String]) -> Result<Infallible> {
+    validate_product_argv(argv)?;
+    product_identity()?;
+    let layout = load_root_layout()?;
     let mut stdout = std::io::stdout().lock();
     stdout
         .write_all(READY)
@@ -95,6 +100,36 @@ pub fn run_exec_gate(argv: &[String]) -> Result<Infallible> {
         .env("MALLOC_ARENA_MAX", "2")
         .exec();
     Err(CellError("released product exec failed"))
+}
+
+/// A separate inherited control socket keeps Native stdin/stdout byte exact.
+/// Environment and working directory are those selected by the Python caller.
+pub fn run_native_gate(argv: &[std::ffi::OsString]) -> Result<Infallible> {
+    crate::native_wire::validate_native_argv(argv)?;
+    product_identity()?;
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    {
+        use std::os::fd::FromRawFd;
+        let config = crate::native_wire::load()?;
+        if argv[0] != std::ffi::OsStr::new(&config.native_program) {
+            return Err(CellError(
+                "Native gate program differs from Root configuration",
+            ));
+        }
+        // Descriptor 3 was duplicated from the connector's private socketpair
+        // by its async-signal-safe pre_exec hook. It cannot reach Native exec.
+        let mut control = unsafe { std::os::unix::net::UnixStream::from_raw_fd(3) };
+        control
+            .set_write_timeout(Some(Duration::from_secs(5)))
+            .and_then(|_| control.write_all(b"G"))
+            .map_err(|_| CellError("Native gate readiness unavailable"))?;
+        release(&control, Instant::now() + Duration::from_secs(5))?;
+        drop(control);
+        let _error = Command::new(&argv[0]).args(&argv[1..]).exec();
+        Err(CellError("released Native exec failed"))
+    }
+    #[cfg(not(all(target_os = "linux", target_arch = "aarch64")))]
+    Err(CellError("Native gate requires Linux ARM64"))
 }
 
 #[cfg(test)]

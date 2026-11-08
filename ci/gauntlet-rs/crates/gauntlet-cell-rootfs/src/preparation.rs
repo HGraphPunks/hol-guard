@@ -190,10 +190,31 @@ pub fn prepare_and_start(
     }
     let system_sha256 = declaration(&spec.stage.join("system.json"), &system)?;
     let parent_network = std::fs::read_link("/proc/self/ns/net").map_err(|e| e.to_string())?;
-    let rootfs = json!({"schema":"hol-gauntlet-product-rootfs.v1","stage":spec.stage,
+    let mut rootfs = json!({"schema":"hol-gauntlet-product-rootfs.v1","stage":spec.stage,
         "initializer_sha256":spec.initializer_sha256,"artifact_manifest_sha256":spec.artifact_manifest_sha256,
         "system_spec_sha256":system_sha256,"task_spec_sha256":task_sha256,"runtime_spec_sha256":runtime_sha256,
         "idmap_runtime":"ubuntu2404-controller-v1","state":"persistent-v1","network_profile":"private-loopback-v1","parent_network_namespace":parent_network});
+    if launch.native_pipe_transport {
+        let config = gauntlet_product_cell::NativeWireConfig {
+            endpoint: format!("hol-native-wire-{}", crate::nonce()?),
+            native_program: spec
+                .runtime_prefix
+                .join("lib/python3.12/site-packages/codex_plugin_scanner/_native/hol-guard-runtime")
+                .to_string_lossy()
+                .into_owned(),
+            native_sha256: launch
+                .native_stdio_sha256
+                .clone()
+                .ok_or("Native pipe executable pin required")?,
+        };
+        gauntlet_product_cell::NativeWireConfig::parse(config.to_json().to_string().as_bytes())
+            .map_err(|e| e.to_string())?;
+        rootfs["schema"] = json!("hol-gauntlet-product-rootfs.v2");
+        rootfs["native_wire_sha256"] = json!(declaration(
+            &spec.stage.join("native-wire.v1.json"),
+            &config.to_json()
+        )?);
+    }
     let rootfs_sha256 = declaration(&spec.stage.join("native-rootfs.v1.json"), &rootfs)?;
     RootfsSpec::parse(
         &fs_input::pinned(

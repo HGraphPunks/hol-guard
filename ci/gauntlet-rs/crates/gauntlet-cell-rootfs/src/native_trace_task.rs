@@ -42,6 +42,46 @@ fn number(fields: &BTreeMap<String, String>, key: &str) -> Result<u32> {
 }
 
 impl Task {
+    pub(crate) fn local_pid(&self) -> Result<u32> {
+        status(&self.proc)?
+            .get("NSpid")
+            .and_then(|v| v.split_ascii_whitespace().last())
+            .and_then(|v| v.parse().ok())
+            .ok_or_else(|| "Native child namespace PID unavailable".into())
+    }
+    pub(crate) fn holds_pipe(&self, pipes: &[(u64, u64)]) -> Result<bool> {
+        use std::os::fd::AsRawFd;
+        let fd_directory = openat(
+            &self.proc,
+            "fd",
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| e.to_string())?;
+        let mut count = 0;
+        for entry in std::fs::read_dir(format!("/proc/self/fd/{}", fd_directory.as_raw_fd()))
+            .map_err(|e| e.to_string())?
+        {
+            let name = entry.map_err(|e| e.to_string())?.file_name();
+            count += 1;
+            if count > 256 {
+                return Err("Native connector descriptor bound".into());
+            }
+            let fd = openat(
+                &fd_directory,
+                &name,
+                OFlags::PATH | OFlags::CLOEXEC,
+                Mode::empty(),
+            )
+            .map_err(|e| e.to_string())?;
+            let info = fstat(&fd).map_err(|e| e.to_string())?;
+            if pipes.contains(&(info.st_dev, info.st_ino)) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     /// O_PATH retains only the pipe object; it adds no reader or writer and
     /// therefore cannot suppress the real transport's EOF or SIGPIPE.
     pub(super) fn stdio_pipe(&self, descriptor: u8) -> Result<OwnedFd> {

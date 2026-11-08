@@ -26,6 +26,7 @@ pub struct RootfsSpec {
     pub idmap_runtime: String,
     pub state: StateProfile,
     pub network: NetworkProfile,
+    pub native_wire_sha256: Option<String>,
 }
 
 pub(crate) fn literal_path(raw: &str) -> Result<PathBuf> {
@@ -61,7 +62,7 @@ impl RootfsSpec {
         }
         let canonical = canonicalize(raw).map_err(|_| "invalid bounded rootfs JSON")?;
         let value: Value = serde_json::from_slice(&canonical).map_err(|_| "invalid rootfs JSON")?;
-        let keys = [
+        let mut keys = vec![
             "schema",
             "stage",
             "initializer_sha256",
@@ -74,9 +75,13 @@ impl RootfsSpec {
             "network_profile",
             "parent_network_namespace",
         ];
+        let wire = value["schema"] == "hol-gauntlet-product-rootfs.v2";
+        if wire {
+            keys.push("native_wire_sha256");
+        }
         if value.as_object().is_none_or(|object| {
             object.len() != keys.len() || keys.iter().any(|key| !object.contains_key(*key))
-        }) || value["schema"] != "hol-gauntlet-product-rootfs.v1"
+        }) || (!wire && value["schema"] != "hol-gauntlet-product-rootfs.v1")
         {
             return Err("exact native rootfs declaration required".into());
         }
@@ -135,6 +140,9 @@ impl RootfsSpec {
             idmap_runtime,
             state,
             network,
+            native_wire_sha256: wire
+                .then(|| field(&value, "native_wire_sha256"))
+                .transpose()?,
         })
     }
 }
@@ -201,5 +209,22 @@ mod tests {
         }
         let raw = b"{\"schema\":\"x\",\"schema\":\"y\"}";
         assert!(RootfsSpec::parse(raw, &hash(raw)).is_err());
+    }
+
+    #[test]
+    fn pipe_configuration_needs_a_separate_pinned_rootfs_version() {
+        let mut value = fixture();
+        value["schema"] = json!("hol-gauntlet-product-rootfs.v2");
+        assert!(parse(&value).is_err());
+        value["native_wire_sha256"] = json!("c".repeat(64));
+        assert_eq!(
+            parse(&value).unwrap().native_wire_sha256.as_deref(),
+            Some("c".repeat(64).as_str())
+        );
+        value["schema"] = json!("hol-gauntlet-product-rootfs.v1");
+        assert!(parse(&value).is_err());
+        value["schema"] = json!("hol-gauntlet-product-rootfs.v2");
+        value["native_wire_sha256"] = json!(true);
+        assert!(parse(&value).is_err());
     }
 }

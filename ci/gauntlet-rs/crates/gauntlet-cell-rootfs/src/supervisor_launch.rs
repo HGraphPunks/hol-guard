@@ -182,6 +182,7 @@ impl NativeCell {
         }
         self.journal.append("resource-ceilings",json!({"memory_max":1073741824,"pids_max":128,"cpu_max":"100000 100000","cpu":self.cpu}))?;
         self.start_process_events()?;
+        self.start_native_wire()?;
         let boot = String::from_utf8(kernel_file(
             Path::new("/proc/sys/kernel/random/boot_id"),
             128,

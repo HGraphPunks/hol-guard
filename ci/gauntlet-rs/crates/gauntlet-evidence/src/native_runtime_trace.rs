@@ -25,7 +25,7 @@ fn identifier(value: &Value) -> Result<u64> {
         .ok_or(EvidenceError::Invalid("bounded traced task ID required"))
 }
 
-fn command_bytes(image: &Value) -> Result<Vec<u8>> {
+pub(crate) fn command_bytes(image: &Value) -> Result<Vec<u8>> {
     let raw = STANDARD
         .decode(text(image, "argv_base64")?)
         .map_err(|_| EvidenceError::Invalid("traced Native argv unavailable"))?;
@@ -47,7 +47,7 @@ fn command(bytes: &[u8]) -> Result<Vec<String>> {
         .collect()
 }
 
-fn floors(task: &Value) -> Result<()> {
+pub(crate) fn floors(task: &Value) -> Result<()> {
     let status = &task["status"];
     for field in ["Uid", "Gid"] {
         let ids = text(status, field)?

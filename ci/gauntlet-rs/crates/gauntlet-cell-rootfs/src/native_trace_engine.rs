@@ -36,6 +36,7 @@ pub(super) struct Engine {
     abort: Arc<AtomicBool>,
     expected_actor: Option<Value>,
     stdio: Option<crate::native_stdio_recorder::Recorder>,
+    images: crate::native_trace::ProcessImages,
 }
 
 impl Engine {
@@ -46,6 +47,7 @@ impl Engine {
         abort: Arc<AtomicBool>,
         expected_actor: Option<Value>,
         stdio: Option<crate::native_stdio_recorder::Recorder>,
+        images: crate::native_trace::ProcessImages,
     ) -> Self {
         Self {
             journal,
@@ -61,6 +63,7 @@ impl Engine {
             abort,
             expected_actor,
             stdio,
+            images,
         }
     }
 
@@ -266,6 +269,8 @@ impl Engine {
                 }
                 let task = self.active.remove(&tid).ok_or("final task disappeared")?;
                 self.final_waits += 1;
+                self.images
+                    .final_wait(tid, task.task.start, final_value(event)?)?;
                 self.append("task-final-wait",json!({"id":id,"tid":tid,"tgid":task.task.tgid,
                     "start_ticks":task.task.start,"status":final_value(event)?,"death_observed":true}))
             }
@@ -414,6 +419,7 @@ impl Engine {
         if let Some(stdio) = &mut self.stdio {
             stdio.consider(&task, &image, id, self.journal.events() - 1)?;
         }
+        self.images.exec(&task, &image, self.journal.events() - 1)?;
         self.active.insert(tid, Entry { id, task });
         self.execs += 1;
         self.resume(tid, 0)

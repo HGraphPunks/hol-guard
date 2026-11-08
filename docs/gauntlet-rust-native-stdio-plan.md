@@ -15,6 +15,127 @@ The latest owned-VM worker baseline has 333 records, preserving all earlier
 326 records, SHA-256
 `f7e44a5879bfbd8bd19097fc5b81927dfe93103b8db330813266bf25ad327a9d`.
 
+## Root-owned pipe transport checkpoint, November 8
+
+An opt-in launch-v5 component now relays actual kernel pipe bytes through
+Root, separately from the historical launch-v4 memory snapshots. Its retained
+live job has 43 complete sessions, 317,818 read bytes and five framed Native
+clients: 154 complete requests and 154 complete responses. Independent Mac
+and ARM Rust replay produces the same 87,064-byte summary, SHA-256
+`d04c8102d1bff5043fc5a88542a61f5e0cdcffa0b4bb546bd161a57710cf7aaf`.
+The other 38 sessions remain opaque one-shot exchanges. This closes no parent
+exit: signed custody, source/preparation admission, exclusive physical writers,
+complete operation semantics and request/decision/effect grading remain open.
+
+The live producer is working-source-013, SHA-256
+`2a356cc395e3641a2ca1a49fbcefb8f7f8755b16121ed5d28e63469569354dfd`,
+over `c03764adb869628a56264d9da954ae20ec29197c`. The installed product is still
+3.59.0 at `74d8d00814bfb281e4cf8a8823b083b3656db9bb`, Native SHA-256
+`1d37eae8106ba062dcf2963cd3b386cce945e899873695356e2a52401ed07be1`.
+It predates the current repository source. Working-source-015 additionally
+preserves signal-handler errno, leaves shell launches alone in the thin
+adapter and aligns the independent reader's path bound. Its exact source
+manifest is listed below; the live job must not borrow that later source pin.
+
+### Ownership and closed contracts
+
+Launch `hol-gauntlet-cell-supervisor.v5` requires
+`outside-root-native-pipes.v1`, `outside-root-ptrace.v1` and the actual Native
+digest. Rootfs v2 pins a separate Root-owned configuration at
+`/etc/hol-native-wire.v1.json`; hook-plane v4 reports the separate pipe journal
+and launch-adapter digest. The older launch, rootfs, snapshot and SDK contracts
+keep their behavior and false authority flags.
+
+The unprivileged connector runs in the existing product-cell executable. It
+hands Root exactly four anonymous pipe descriptors, waits for acknowledgment,
+closes every sender copy and releases a separately measured Native exec gate.
+Root binds inside the held product network namespace and authenticates actual
+UID/GID 10004 peer credentials, executable images, ancestry, task generations,
+cgroup, namespaces, enforcing profile and pipe objects. The endpoint name is
+not an authentication secret. Root independently checks sender descriptor
+closure before changing shared open-description flags or forwarding bytes.
+
+Python retains automatic bundled Native selection, its manifest and the actual
+Core digest used for policy snapshots. A small unprivileged adapter routes only
+direct subprocess launches of the exact configured Core through the connector;
+it does not implement policy, hashing, durable state, grading or publication.
+Selecting the connector as the Native identity was tried and correctly refused
+by Native's policy-snapshot digest check; that failed history is retained.
+
+The Root pump bounds active sessions at 16 and total sessions at 1,024, uses
+64-KiB buffers per direction and a 32-MiB source-byte limit per session, and
+honors cancellation and deadlines. Every read, accepted write prefix and real
+read-zero EOF is journaled. Input forwarding requires the original live target.
+Already-read output can drain after exit while retaining the exec-generation
+check; buffered output does not require a still-live `/proc` task. The shared
+descriptor primitive also replaces the legacy SDK handoff's duplicated code.
+
+### Independent replay and retained failure
+
+The existing `gauntlet-native-process-events-verify` executable accepts a closed
+`hol-gauntlet-native-pipe-replay.v1` input through its existing four arguments:
+
+```text
+gauntlet-native-process-events-verify PIPE PIPE_SHA256 REPLAY_INPUT REPLAY_INPUT_SHA256
+```
+
+The pinned replay input contains the process-journal path/digest, complete
+process checkpoint, pipe binding, expected wire configuration and connector
+digest. Replay checks canonical hash chains, exact session phases, all selected
+Native client exec joins, privilege floors, pipe objects, accepted byte prefixes,
+offsets, drained EOFs and independently recomputed counts. Framing retains
+partial or malformed streams explicitly. An empty owner grants no byte credit.
+Public pins alone grant no observer, signing-key or preparation admission.
+Full v5 integration into the signed control-artifact readers remains open.
+
+The complete hook/sink control is **failed**, not passed. Its actual Pre response
+requires `python-eval-readonly-v1`; the old one-use ledger requires
+`workspace-contained-v1`. No sink, Post, physical effect or utility success is
+credited. Supporting the current Native containment contract without changing
+its decision or weakening the fixture is the next control-plane obligation.
+
+All five live attempts remain immutable under the owned VM's
+`/var/lib/hol-gauntlet-rust/native-wire-live-20261108-001` through `005`:
+
+| Job | Retained result |
+| --- | --- |
+| `001` | Debug constructor missed the unchanged startup deadline; no Native exec or pipe-session credit. Checked quiescent recovery removed its retained image lease. |
+| `002` | Automatic selection ignored the executable override; identity refused, zero pipe sessions. Normal cleanup verified. |
+| `003` | Override reached 38 complete sessions, then actual Native rejected wrapper-bound policy snapshots. Normal cleanup verified. |
+| `004` | Bundled identity and readiness passed; late live-task checking rejected buffered output during Native exit. Checked recovery removed the image lease without altering failure history. |
+| `005` | All 43 sessions and complete process history close; the full control refuses the read-only profile mismatch. Normal cleanup verified independently. |
+
+No failed job is replayed or relabeled. Four Root leases serialize VM work.
+Independent readback finds job 005's cgroup, rootfs mount, AppArmor profile,
+image mount and active image pointer absent. All 333 historical worker records
+and their lock retain their metadata; custom wrappers read none of their bytes
+or keys. Current verification passes 692 Mac workspace tests, zero failed or
+ignored, warnings-denied Mac/ARM Clippy and 15 measured Linux tests. The ARM
+reader's exact executable and UID were measured at its post-exec stop before
+its first instruction. Its replay scope drains without forced cleanup.
+
+Evidence remains in the existing external directory under
+`native-wire-20261108-tools-001/`; raw private pipe payloads are not reproduced
+in this document. The later public-reader source manifest binds five necessary
+new source files, no new crate, binary target or external dependency, and one
+direct edge to the existing bridge crate. Existing test files are reused; all
+changed Rust files remain below 500 lines.
+
+| Evidence | SHA-256 |
+| --- | --- |
+| `working-source-015.json` | `5c3c907e5a0b46c206254d3b7b6d17b4098f4eac5b5694a75fd2f87ad3072e5c` |
+| `mac-tests-002.json` | `688b7f140c2adb9b85a2e4629e02e87bfdd144d696f0da4555206feac9b8fbef` |
+| `mac-clippy-003.log` | `b53e652d247680d6bc1ef025da7676f59a70e48542b0f82107943dd0e1e84fa7` |
+| `arm-clippy-015.log` | `2148d8109a1b0cfe22ffea578204b1d1906d33a5e1a6a0b8497c29f4fcaf5b80` |
+| `arm-unit-tests-005.json` | `2ba101945acef4198ecf67532cd66c5a3d0eaf6e5610c740af1ac01ec3ef4117` |
+| `independent-pipe-replay-001/host-replay-002.json` | `edc5d46c3d77321546373b46cd282cd2a13cc28532ca697a377aa921b40f7079` |
+| `arm-reader-replay-001.json` | `f685a3c635b01072785f379b8ec4fe0bd8b39fa389c8ceef50cfdfa58caee69a` |
+| `live-closed-readback-005.json` | `1e2a4c7fac9998bc4d3c793206115e8ca07408c10a6dce57a05f566cf16d0b28` |
+
+Model use and quota changes are zero. Remote evidence delivery, independent
+review and all five current-head CI jobs remain required. The parent count
+stays 24/62; neither the gate nor the observer cutover is enabled.
+
 ## Scope and implementation order
 
 Capture the actual stdin/stdout pipe exchanges of source-pinned Native

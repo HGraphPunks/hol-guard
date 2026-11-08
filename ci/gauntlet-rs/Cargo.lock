@@ -474,6 +474,7 @@ name = "gauntlet-worker-state"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "gauntlet-agent-bridge",
  "gauntlet-cell-rootfs",
  "gauntlet-contracts",
  "gauntlet-evidence",

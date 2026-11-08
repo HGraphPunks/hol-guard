@@ -25,18 +25,11 @@ pub struct NativeLifecycleExecution {
 
 impl NativeCell {
     pub(crate) fn product_python_command(&self, args: &[&str]) -> Vec<String> {
-        [
-            vec![
-                self.runtime_prefix()
-                    .join("bin/python")
-                    .to_string_lossy()
-                    .into_owned(),
-                "-I".into(),
-                "-B".into(),
-            ],
-            args.iter().map(|s| (*s).into()).collect(),
-        ]
-        .concat()
+        crate::native_guard_probe::python_command(
+            self.runtime_prefix(),
+            args,
+            self.spec.native_pipe_transport,
+        )
     }
     pub(crate) fn guard_command(&self, args: &[&str]) -> Vec<String> {
         let mut command = self.product_python_command(&["-m", "codex_plugin_scanner.cli", "guard"]);
@@ -387,6 +380,12 @@ impl NativeHookPlane {
                 "hol-gauntlet-native-hook-plane.v2"
             });
             observation["process_events"] = events;
+        }
+        if let Some(wire) = self.cell.native_wire_observation() {
+            observation["schema"] = json!("hol-gauntlet-native-hook-plane.v4");
+            observation["native_pipe_bytes"] = wire;
+            observation["native_launch_adapter_sha256"] =
+                json!(hash(crate::native_guard_probe::PIPE_LAUNCH.as_bytes()));
         }
         observation
     }

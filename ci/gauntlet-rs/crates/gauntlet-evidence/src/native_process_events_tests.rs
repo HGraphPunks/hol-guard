@@ -248,3 +248,231 @@ fn reused_numeric_pid_cannot_borrow_a_previous_generation_final_status() {
     rows[6].1["start_ticks"] = json!(8);
     assert!(check(&rows).is_err());
 }
+
+mod pipes {
+    use super::*;
+    use crate::native_process_event_files::native_pipe_events;
+    const CORE: &str = "/opt/hol-gauntlet/candidates/pinned/prefix/lib/python3.12/site-packages/codex_plugin_scanner/_native/hol-guard-runtime";
+    const WRAPPER: &str = "/public/gauntlet-product-cell";
+    type Rows = Vec<(&'static str, Value)>;
+
+    fn shaped(tid: u64, start: u64, parent: u64, argv: &[&str], native: bool) -> Value {
+        let mut value = image_value(tid, tid, start);
+        let raw = format!("{}\0", argv.join("\0"));
+        value["task"]["parent_pid"] = json!(parent);
+        value["argv_base64"] = json!(STANDARD.encode(raw.as_bytes()));
+        value["argv_sha256"] = json!(sha256(raw.as_bytes()));
+        if native {
+            value["executable"]["sha256"] = json!("b".repeat(64));
+        }
+        value
+    }
+    fn fixture() -> (Rows, Rows, Value) {
+        let actor = shaped(42, 7, 1, &[WRAPPER, "actor"], false);
+        let wrapper = shaped(
+            43,
+            8,
+            42,
+            &[
+                WRAPPER,
+                "resident-client-stream",
+                "--stdin",
+                "/product/guard/native-runtime",
+            ],
+            false,
+        );
+        let gate = shaped(
+            44,
+            9,
+            43,
+            &[
+                WRAPPER,
+                "native-gate",
+                CORE,
+                "resident-client-stream",
+                "--stdin",
+                "/product/guard/native-runtime",
+            ],
+            false,
+        );
+        let native = shaped(
+            44,
+            9,
+            43,
+            &[
+                CORE,
+                "resident-client-stream",
+                "--stdin",
+                "/product/guard/native-runtime",
+            ],
+            true,
+        );
+        let mut first = start();
+        first.1["actor"] = actor.clone();
+        let mut process = vec![first];
+        for (id, parent_id, tid, parent_tid, ticks, image) in [
+            (1, 0, 43, 42, 8, wrapper.clone()),
+            (2, 1, 44, 43, 9, gate.clone()),
+        ] {
+            let mut task = task_value(tid, tid, ticks);
+            task["parent_pid"] = json!(parent_tid);
+            process.push(("kernel-creation", json!({"parent_id":parent_id,"parent_tid":parent_tid,"child_tid":tid,"creation":"fork"})));
+            process.push(("task-created", json!({"id":id,"parent_id":parent_id,"parent_tid":parent_tid,"creation":"fork","task":task})));
+            process.push((
+                "task-exec",
+                json!({"id":id,"old_tid":tid,"old_start_ticks":ticks,"retired":[],"image":image}),
+            ));
+        }
+        process.push((
+            "task-exec",
+            json!({"id":2,"old_tid":44,"old_start_ticks":9,"retired":[],"image":native.clone()}),
+        ));
+        process.extend([
+            final_wait(2, 44, 9),
+            final_wait(1, 43, 8),
+            final_wait(0, 42, 7),
+            complete(3, 3, 0, 3),
+        ]);
+        let config = json!({"schema":"product-cell-native-wire.v1","endpoint":format!("hol-native-wire-{}", "c".repeat(32)),"native_program":CORE,"native_sha256":"b".repeat(64)});
+        let owner = json!({"pid":42,"start_ticks":7,"cgroup":actor["task"]["cgroup"],"executable_sha256":actor["executable"]["sha256"],"namespaces":actor["namespaces"],"lsm_label":actor["lsm_label"],"status":actor["task"]["status"],"argv":[WRAPPER,"actor"]});
+        let input = [7u32.to_be_bytes().as_slice(), br#"{"x":1}"#].concat();
+        let output = [7u32.to_be_bytes().as_slice(), br#"{"y":2}"#].concat();
+        let byte = |kind: &str, direction, offset, raw: &[u8]| json!({"session":0,"kind":kind,"direction":direction,"offset":offset,"bytes_base64":STANDARD.encode(raw)});
+        let rows = vec![
+            (
+                "native-pipe-owner-started",
+                json!({"schema":"hol-gauntlet-native-pipes.v1","config":config,"actor":owner,"kernel_pipe_bytes":true,"execution_eligible":false,"exclusive_product_authorship_verified":false}),
+            ),
+            (
+                "native-pipe-handoff",
+                json!({"session":0,"wrapper":wrapper,"gate":gate,"wrapper_exec_event":3,"gate_exec_event":6,"pipes":[[1,10],[1,11],[1,12],[1,13]],"execution_eligible":false}),
+            ),
+            (
+                "native-pipe-sender-closed",
+                json!({"session":0,"all_four_sender_copies_absent":true}),
+            ),
+            (
+                "native-pipe-exec-bound",
+                json!({"session":0,"process":native,"stdio_pipes":[[1,11],[1,12]],"exec_event":7}),
+            ),
+            ("native-pipe-bytes", byte("read", 0, 0, &input)),
+            ("native-pipe-bytes", byte("write", 0, 0, &input[..2])),
+            ("native-pipe-bytes", byte("write", 0, 2, &input[2..])),
+            ("native-pipe-bytes", byte("read", 1, 0, &output)),
+            ("native-pipe-bytes", byte("write", 1, 0, &output)),
+            (
+                "native-pipe-bytes",
+                json!({"session":0,"kind":"eof","direction":0,"bytes":input.len()}),
+            ),
+            (
+                "native-pipe-bytes",
+                json!({"session":0,"kind":"eof","direction":1,"bytes":output.len()}),
+            ),
+            (
+                "native-pipe-complete",
+                json!({"session":0,"read":[input.len(),output.len()],"written":[input.len(),output.len()],"execution_eligible":false,"exclusive_product_authorship_verified":false}),
+            ),
+            (
+                "native-pipe-owner-closed",
+                json!({"sessions":1,"execution_eligible":false}),
+            ),
+        ];
+        (process, rows, config)
+    }
+    fn read(process: &Rows, pipe: &Rows, config: &Value) -> Result<Value> {
+        let (process, checkpoint) = pack(process);
+        let (pipe, binding) = pack(pipe);
+        native_pipe_events::verify(
+            &pipe,
+            &process,
+            &checkpoint,
+            &binding["journal"],
+            config,
+            &"a".repeat(64),
+        )
+    }
+    #[test]
+    fn exact_pipe_prefixes_eof_and_all_selected_native_execs_are_recomputed_without_admission() {
+        let (process, pipe, config) = fixture();
+        let value = read(&process, &pipe, &config).unwrap();
+        assert_eq!(value["native_client_streams"], 1);
+        assert_eq!(
+            value["sessions"][0]["native_frames"]["request"]["complete_frames"],
+            1
+        );
+        for key in [
+            "outside_preparation_joined",
+            "outside_observer_admitted",
+            "exclusive_product_authorship_verified",
+            "request_semantics_verified",
+            "execution_eligible",
+        ] {
+            assert_eq!(value[key], false);
+        }
+        for (index, field, value) in [
+            (2, "all_four_sender_copies_absent", json!(false)),
+            (3, "exec_event", json!(6)),
+            (3, "stdio_pipes", json!([[1, 99], [1, 12]])),
+            (4, "offset", json!(1)),
+            (5, "bytes_base64", json!(STANDARD.encode(b"XX"))),
+            (9, "bytes", json!(1)),
+            (11, "read", json!([100, 11])),
+            (11, "exclusive_product_authorship_verified", json!(true)),
+            (12, "sessions", json!(2)),
+        ] {
+            let mut changed = pipe.clone();
+            changed[index].1[field] = value;
+            assert!(
+                read(&process, &changed, &config).is_err(),
+                "{index}/{field}"
+            );
+        }
+        for missing in [2, 6, 9, 11, 12] {
+            let mut changed = pipe.clone();
+            changed.remove(missing);
+            assert!(
+                read(&process, &changed, &config).is_err(),
+                "missing {missing}"
+            );
+        }
+        let mut duplicate = pipe.clone();
+        duplicate.insert(10, pipe[9].clone());
+        assert!(read(&process, &duplicate, &config).is_err());
+        let mut late = pipe.clone();
+        late.push(pipe[4].clone());
+        assert!(read(&process, &late, &config).is_err());
+        let mut wrong_floor = process.clone();
+        wrong_floor[7].1["image"]["task"]["status"]["Uid"] = json!("0 0 0 0");
+        let mut matching = pipe.clone();
+        matching[3].1["process"] = wrong_floor[7].1["image"].clone();
+        assert!(read(&wrong_floor, &matching, &config).is_err());
+        let mut missing = vec![pipe[0].clone(), pipe[12].clone()];
+        missing[1].1["sessions"] = json!(0);
+        assert!(read(&process, &missing, &config).is_err());
+    }
+    #[test]
+    fn an_empty_owner_is_not_observed_bytes_and_a_partial_frame_is_not_completed() {
+        let (mut process, pipe, config) = fixture();
+        process[7].1["image"] = shaped(44, 9, 43, &[CORE, "capabilities"], true);
+        let mut empty = vec![pipe[0].clone(), pipe[12].clone()];
+        empty[1].1["sessions"] = json!(0);
+        let value = read(&process, &empty, &config).unwrap();
+        assert_eq!(value["actual_pipe_byte_rows_present"], false);
+        assert_eq!(value["session_count"], 0);
+        let (process, mut pipe, config) = fixture();
+        let partial = [7u32.to_be_bytes().as_slice(), br#"{"y":2"#].concat();
+        for i in [7, 8] {
+            pipe[i].1["bytes_base64"] = json!(STANDARD.encode(&partial));
+        }
+        pipe[10].1["bytes"] = json!(partial.len());
+        for key in ["read", "written"] {
+            pipe[11].1[key][1] = json!(partial.len());
+        }
+        let value = read(&process, &pipe, &config).unwrap();
+        assert_eq!(
+            value["sessions"][0]["native_frames"]["response"]["status"],
+            "partial-payload"
+        );
+        assert_eq!(value["request_semantics_verified"], false);
+    }
+}

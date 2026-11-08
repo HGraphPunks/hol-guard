@@ -51,6 +51,18 @@ replies have only structural checks, and the final drain is unanswered. The
 complete 135-test evidence library and affected Mac/ARM Clippy
 pass. Operation effects, atomic wire bytes and all parent exits stay open.
 
+The opt-in [Root-owned pipe component](gauntlet-rust-native-stdio-plan.md#root-owned-pipe-transport-checkpoint-november-8)
+now observes 43 actual Native sessions, 317,818 read bytes and 154 complete
+request/response frame pairs. Independent Mac/ARM Rust replay is byte-identical;
+692 Mac workspace tests, 15 measured Linux tests and Mac/ARM Clippy pass.
+Historical snapshots keep their old limits. The live product remains the
+explicitly older `74d8d008` generation. The full hook/sink control still fails:
+Native requires `python-eval-readonly-v1`, while the old ledger accepts only
+`workspace-contained-v1`. No sink, Post, physical effect or full-control success
+is credited. All failed attempts, checked recoveries and the 333 historical
+worker records remain intact. Signed v5 artifact integration, source/preparation
+admission, operation effects, physical writers and all parent exits remain open.
+
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
 ```

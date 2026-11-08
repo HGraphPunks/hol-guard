@@ -172,6 +172,9 @@ pub(crate) fn run(inputs: Inputs) -> Result<()> {
         .map_err(|e| e.to_string())?;
     layout.push(b'\n');
     write(&new, "etc/hol-cell-layout.json", &layout)?;
+    if let Some(raw) = &inputs.native_wire {
+        write(&new, "etc/hol-native-wire.v1.json", raw)?;
+    }
     if matches!(inputs.spec.network, NetworkProfile::PrivateLoopback { .. }) {
         write(
             &new,

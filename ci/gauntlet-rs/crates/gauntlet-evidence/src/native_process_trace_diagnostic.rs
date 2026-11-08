@@ -21,7 +21,7 @@ fn unique<'a>(events: &'a [Value], kind: &str) -> Result<(usize, &'a Value)> {
     Ok((rows[0].0, &rows[0].1["data"]))
 }
 
-fn matches_image(image: &Value, identity: &Value, tracer: u64) -> Result<()> {
+pub(crate) fn matches_image(image: &Value, identity: &Value, tracer: u64) -> Result<()> {
     require(
         image["task"]["tid"] == identity["pid"]
             && image["task"]["tgid"] == identity["pid"]

@@ -25,6 +25,7 @@ pub struct SupervisorSpec {
     pub outside_observer_sha256: Option<String>,
     pub process_events: bool,
     pub native_stdio_sha256: Option<String>,
+    pub native_pipe_transport: bool,
 }
 
 pub const HOST_HELPERS: &[&str] = &[
@@ -66,10 +67,12 @@ impl SupervisorSpec {
         let value = object(raw, 8192, &fields, "hol-gauntlet-cell-supervisor.v1")
             .or_else(|_| object(raw, 8192, &pinned_fields, "hol-gauntlet-cell-supervisor.v2"))
             .or_else(|_| object(raw, 8192, &traced_fields, "hol-gauntlet-cell-supervisor.v3"))
-            .or_else(|_| object(raw, 8192, &stdio_fields, "hol-gauntlet-cell-supervisor.v4"))?;
-        let stdio = value["schema"] == "hol-gauntlet-cell-supervisor.v4";
+            .or_else(|_| object(raw, 8192, &stdio_fields, "hol-gauntlet-cell-supervisor.v4"))
+            .or_else(|_| object(raw, 8192, &stdio_fields, "hol-gauntlet-cell-supervisor.v5"))?;
+        let native_pipe_transport = value["schema"] == "hol-gauntlet-cell-supervisor.v5";
+        let stdio = native_pipe_transport || value["schema"] == "hol-gauntlet-cell-supervisor.v4";
         let process_events = stdio || value["schema"] == "hol-gauntlet-cell-supervisor.v3";
-        let process_mode = if stdio {
+        let process_mode = if stdio && !native_pipe_transport {
             "outside-root-ptrace.v2"
         } else {
             "outside-root-ptrace.v1"
@@ -79,7 +82,12 @@ impl SupervisorSpec {
         }
         let native_stdio_sha256 = if stdio {
             let pin = text(&value, "native_runtime_sha256")?;
-            if value["native_stdio"] != "outside-root-native-stdio.v1" || !hex(pin, 64) {
+            let mode = if native_pipe_transport {
+                "outside-root-native-pipes.v1"
+            } else {
+                "outside-root-native-stdio.v1"
+            };
+            if value["native_stdio"] != mode || !hex(pin, 64) {
                 return Err("fixed Native stdio mode and exact ELF digest required".into());
             }
             Some(pin.to_owned())
@@ -159,6 +167,7 @@ impl SupervisorSpec {
             outside_observer_sha256,
             process_events,
             native_stdio_sha256,
+            native_pipe_transport,
         })
     }
 
@@ -346,6 +355,29 @@ mod tests {
         for key in ["native_stdio", "native_runtime_sha256", "process_events"] {
             let mut changed = value.clone();
             changed.as_object_mut().unwrap().remove(key);
+            assert!(parse(&changed).is_err());
+        }
+    }
+
+    #[test]
+    fn actual_pipe_mode_requires_v5_and_cannot_relabel_copied_buffer_evidence() {
+        let mut value = fixture();
+        value["schema"] = json!("hol-gauntlet-cell-supervisor.v5");
+        value["image_interpreter_sha256"] = json!("a".repeat(64));
+        value["outside_observer_sha256"] = json!("b".repeat(64));
+        value["process_events"] = json!("outside-root-ptrace.v1");
+        value["native_stdio"] = json!("outside-root-native-pipes.v1");
+        value["native_runtime_sha256"] = json!("c".repeat(64));
+        let parsed = parse(&value).unwrap();
+        assert!(parsed.process_events && parsed.native_pipe_transport);
+        for (key, bad) in [
+            ("schema", json!("hol-gauntlet-cell-supervisor.v4")),
+            ("native_stdio", json!("outside-root-native-stdio.v1")),
+            ("process_events", json!("outside-root-ptrace.v2")),
+            ("native_runtime_sha256", json!(true)),
+        ] {
+            let mut changed = value.clone();
+            changed[key] = bad;
             assert!(parse(&changed).is_err());
         }
     }

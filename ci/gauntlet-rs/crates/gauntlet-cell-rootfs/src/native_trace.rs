@@ -4,6 +4,7 @@ use crate::native_trace_task::Task;
 use crate::supervisor_journal::Journal;
 use crate::{HeldCellProcess, Result};
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -14,6 +15,84 @@ use std::time::{Duration, Instant};
 
 type SharedResult = Arc<Mutex<Option<Result<Value>>>>;
 
+/// Only the recorder thread publishes these images, while the task is at its
+/// actual exec stop. Readers cannot substitute a live /proc sample for an exec.
+#[derive(Clone)]
+pub(crate) struct PipeProcessImage {
+    pub(crate) image: Value,
+    pub(crate) event: u64,
+    pub(crate) pipes: Option<[(u64, u64); 2]>,
+    pub(crate) final_wait: Option<Value>,
+    bytes: usize,
+}
+#[derive(Default)]
+struct ImageRows {
+    rows: BTreeMap<(u32, u64), PipeProcessImage>,
+    bytes: usize,
+}
+type SharedImages = Arc<Mutex<ImageRows>>;
+#[derive(Clone, Default)]
+pub(crate) struct ProcessImages(Option<SharedImages>);
+impl ProcessImages {
+    fn enabled() -> Self {
+        Self(Some(Arc::new(Mutex::new(ImageRows::default()))))
+    }
+    pub(crate) fn get(&self, pid: u32, start: u64) -> Result<Option<PipeProcessImage>> {
+        Ok(self
+            .0
+            .as_ref()
+            .ok_or("process image join not enabled")?
+            .lock()
+            .map_err(|_| "process image join poisoned")?
+            .rows
+            .get(&(pid, start))
+            .cloned())
+    }
+    pub(crate) fn exec(&self, task: &Task, image: &Value, event: u64) -> Result<()> {
+        let Some(rows) = &self.0 else {
+            return Ok(());
+        };
+        let pipes = (|| {
+            let input = rustix::fs::fstat(task.stdio_pipe(0).ok()?).ok()?;
+            let output = rustix::fs::fstat(task.stdio_pipe(1).ok()?).ok()?;
+            Some([(input.st_dev, input.st_ino), (output.st_dev, output.st_ino)])
+        })();
+        let mut rows = rows.lock().map_err(|_| "process image join poisoned")?;
+        let key = (task.tid, task.start);
+        let bytes = image.to_string().len();
+        let total = rows.bytes - rows.rows.get(&key).map_or(0, |v| v.bytes) + bytes;
+        if (rows.rows.len() >= 2048 && !rows.rows.contains_key(&key)) || total > 32 * 1024 * 1024 {
+            return Err("bounded process image join exhausted".into());
+        }
+        rows.bytes = total;
+        rows.rows.insert(
+            (task.tid, task.start),
+            PipeProcessImage {
+                image: image.clone(),
+                event,
+                pipes,
+                final_wait: None,
+                bytes,
+            },
+        );
+        Ok(())
+    }
+    pub(crate) fn final_wait(&self, pid: u32, start: u64, status: Value) -> Result<()> {
+        let Some(rows) = &self.0 else {
+            return Ok(());
+        };
+        if let Some(row) = rows
+            .lock()
+            .map_err(|_| "process image join poisoned")?
+            .rows
+            .get_mut(&(pid, start))
+        {
+            row.final_wait = Some(status);
+        }
+        Ok(())
+    }
+}
+
 /// Dropping a live recorder requests failure and leaves EXITKILL in force.
 /// Success requires the kernel's final statuses or explicit exec replacements
 /// for all recorded tasks. This API grants no image or benchmark admission.
@@ -22,18 +101,28 @@ pub struct NativeProcessEvents {
     result: SharedResult,
     thread: Option<JoinHandle<()>>,
     tracer_tid: u32,
+    pub(crate) images: ProcessImages,
 }
 
 impl NativeProcessEvents {
     pub fn start(actor: &HeldCellProcess, stage: &Path) -> Result<Self> {
-        Self::start_mode(actor, stage, None)
+        Self::start_mode(actor, stage, None, false)
     }
 
     pub fn start_with_stdio(actor: &HeldCellProcess, stage: &Path, native: &str) -> Result<Self> {
-        Self::start_mode(actor, stage, Some(native))
+        Self::start_mode(actor, stage, Some(native), false)
     }
 
-    fn start_mode(actor: &HeldCellProcess, stage: &Path, native: Option<&str>) -> Result<Self> {
+    pub(crate) fn start_with_pipes(actor: &HeldCellProcess, stage: &Path) -> Result<Self> {
+        Self::start_mode(actor, stage, None, true)
+    }
+
+    fn start_mode(
+        actor: &HeldCellProcess,
+        stage: &Path,
+        native: Option<&str>,
+        wire: bool,
+    ) -> Result<Self> {
         actor.recheck()?;
         let expected = actor.observation().clone();
         if expected["argv"] != serde_json::json!(["/public/gauntlet-product-cell", "actor"]) {
@@ -55,7 +144,7 @@ impl NativeProcessEvents {
         let stdio = native
             .map(|pin| crate::native_stdio_recorder::Recorder::create(stage, pin))
             .transpose()?;
-        Self::launch(pid, start, cgroup, stage, Some(expected), stdio)
+        Self::launch(pid, start, cgroup, stage, Some(expected), stdio, wire)
     }
 
     fn launch(
@@ -65,6 +154,7 @@ impl NativeProcessEvents {
         stage: &Path,
         expected: Option<Value>,
         stdio: Option<crate::native_stdio_recorder::Recorder>,
+        wire: bool,
     ) -> Result<Self> {
         crate::kernel_process::root_proc()?;
         let journal = Journal::create_process_events(stage)?;
@@ -73,12 +163,18 @@ impl NativeProcessEvents {
         let (sender, receiver) = mpsc::sync_channel(1);
         let thread_abort = abort.clone();
         let thread_result = result.clone();
+        let images = if wire {
+            ProcessImages::enabled()
+        } else {
+            ProcessImages::default()
+        };
+        let thread_images = images.clone();
         let thread=std::thread::Builder::new().name("gauntlet-cell-events".into()).spawn(move||{
             let outcome=std::panic::catch_unwind(std::panic::AssertUnwindSafe(||{
                 let task=Task::open(pid,&cgroup)?;
                 if task.start!=start {return Err("actor generation changed before trace attachment".into());}
                 if expected.is_some() {task.initial_actor(start,&cgroup)?;}
-                let mut engine=Engine::new(task,cgroup,journal,thread_abort,expected,stdio);
+                let mut engine=Engine::new(task,cgroup,journal,thread_abort,expected,stdio,thread_images);
                 let outcome=engine.run(&sender);
                 if let Err(error)=&outcome {
                     engine.fail_stdio(error);
@@ -96,6 +192,7 @@ impl NativeProcessEvents {
             result,
             thread: Some(thread),
             tracer_tid: 0,
+            images,
         };
         match receiver.recv_timeout(Duration::from_secs(6)) {
             Ok(Ok(tid)) => {
@@ -171,7 +268,7 @@ impl NativeProcessEvents {
     #[cfg(all(test, feature = "owned-process-trace-fixture"))]
     pub(crate) fn start_fixture(pid: u32, cgroup: String, stage: &Path) -> Result<Self> {
         let task = Task::open(pid, &cgroup)?;
-        Self::launch(pid, task.start, cgroup, stage, None, None)
+        Self::launch(pid, task.start, cgroup, stage, None, None, false)
     }
 
     #[cfg(all(test, feature = "owned-process-trace-fixture"))]
@@ -183,7 +280,7 @@ impl NativeProcessEvents {
     ) -> Result<Self> {
         let task = Task::open(pid, &cgroup)?;
         let stdio = crate::native_stdio_recorder::Recorder::create_fixture(stage, native)?;
-        Self::launch(pid, task.start, cgroup, stage, None, Some(stdio))
+        Self::launch(pid, task.start, cgroup, stage, None, Some(stdio), false)
     }
 }
 

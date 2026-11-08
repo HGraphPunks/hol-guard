@@ -73,6 +73,10 @@ pub mod native_stdio_syscall;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_stdio_task;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_wire;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_stdio_task::{relay_native_pipe_bytes, NativePipeCounts, NativePipeEvent};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_trace;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_trace_engine;

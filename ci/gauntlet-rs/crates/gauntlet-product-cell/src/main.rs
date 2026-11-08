@@ -1,4 +1,6 @@
-use gauntlet_product_cell::{run_actor, run_exec_gate, CellError};
+use gauntlet_product_cell::{
+    run_actor, run_exec_gate, run_native_gate, run_native_wrapper, CellError,
+};
 
 fn run() -> Result<(), CellError> {
     let mut args = std::env::args_os().skip(1);
@@ -9,10 +11,18 @@ fn run() -> Result<(), CellError> {
         }
         return run_actor();
     }
+    if action.as_deref() == Some(std::ffi::OsStr::new("native-gate")) {
+        return match run_native_gate(&args.collect::<Vec<_>>()) {
+            Ok(never) => match never {},
+            Err(error) => Err(error),
+        };
+    }
     if action.as_deref() != Some(std::ffi::OsStr::new("exec-gate")) {
-        return Err(CellError(
-            "usage: gauntlet-product-cell actor | exec-gate ABSOLUTE_PRODUCT_PROGRAM [ARGUMENTS]",
-        ));
+        let argv = action.into_iter().chain(args).collect::<Vec<_>>();
+        return match run_native_wrapper(&argv) {
+            Ok(never) => match never {},
+            Err(error) => Err(error),
+        };
     }
     let argv = args
         .map(|arg| {

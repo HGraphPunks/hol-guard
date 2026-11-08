@@ -41,6 +41,8 @@ pub struct NativeCell {
     pub(crate) process_events: Option<crate::NativeProcessEvents>,
     pub(crate) process_events_result: Option<Result<Value>>,
     pub(crate) process_events_journaled: bool,
+    pub(crate) native_wire: Option<crate::native_wire::NativeWire>,
+    pub(crate) native_wire_result: Option<Result<Value>>,
     declaration_sha256: String,
     actor_sha256: String,
 }
@@ -68,6 +70,13 @@ fn selected_cpu(profile: CpuProfile) -> Result<Option<u32>> {
 impl NativeCell {
     pub fn runtime_prefix(&self) -> &Path {
         &self.inputs.runtime.prefix
+    }
+    pub(crate) fn native_interface_sha256(&self) -> Option<&str> {
+        if self.spec.native_pipe_transport {
+            Some(&self.actor_sha256)
+        } else {
+            self.spec.native_stdio_sha256.as_deref()
+        }
     }
     pub fn workspace_path(&self) -> &str {
         &self.inputs.system.workspace
@@ -122,6 +131,18 @@ impl NativeCell {
             return Err("rootfs declaration must belong to its exact owned stage".into());
         }
         let inputs = crate::inputs::load(rootfs)?;
+        if spec.native_pipe_transport != inputs.native_wire.is_some() {
+            return Err(
+                "Native pipe launch requires its exact versioned rootfs configuration".into(),
+            );
+        }
+        if let Some(raw) = &inputs.native_wire {
+            let config =
+                gauntlet_product_cell::NativeWireConfig::parse(raw).map_err(|e| e.to_string())?;
+            if Some(&config.native_sha256) != spec.native_stdio_sha256.as_ref() {
+                return Err("Native pipe configuration and supervisor ELF pins differ".into());
+            }
+        }
         let image_interpreter = spec
             .image_interpreter_sha256
             .as_deref()
@@ -184,6 +205,8 @@ impl NativeCell {
             process_events: None,
             process_events_result: None,
             process_events_journaled: false,
+            native_wire: None,
+            native_wire_result: None,
             declaration_sha256: expected_sha256.into(),
             actor_sha256,
         };
