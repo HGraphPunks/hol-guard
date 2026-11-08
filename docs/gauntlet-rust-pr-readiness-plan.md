@@ -74,11 +74,19 @@ with evidence. Code volume and checked substeps do not establish completion.
   feature only on Linux. No package, lockfile entry or source file is added.
 - Corrected Native library/CLI/test compilation passes on Mac (0.654 seconds)
   and ARM musl (149.486 seconds); no product executes on Host or Root.
-- **Next:** commit the fix and checkpoints, then merge fetched upstream
-  `ba94c2f00` and refresh its source-map/controller pins and affected validation.
-  Build that exact merged source
-  in a fresh one-use unprivileged job and publish its inert runtime before
-  Native control `011`. Actual fixed-runtime utility/write refusal remains
+- Fix commit `d3c86f1d3` is preserved, and upstream `ba94c2f00` merges cleanly
+  as `8a4266be7`, preserving all 31 incoming files. The refreshed 440-file map
+  still has 79 changed/20 added files; the immutable baseline stays untouched.
+  Independent Python/Rust selection agrees on controller tree `7ae10140…`
+  (409 files/420 entries). All 703 Mac tests, formatting, warnings-denied
+  Mac/ARM Clippy and Native library/CLI/test compilation on both platforms
+  pass. Validation `mount-fix-merged-validation-001.json` (`217f5705…`) binds
+  35 source files and ten evidence records; no product executes on Host/Root.
+- **Next:** commit the refreshed pins/checkpoints and push the branch. Build
+  that exact source in fresh job `05c2c0c7904fd554`, whose Host state is reserved
+  under `native-mount-fix-build-host-state-20261108-001` but has no dispatch.
+  Publish its inert runtime before Native control `011`.
+  Actual fixed-runtime utility/write refusal remains
   unproved. Never replay pipe jobs `001`–`010`. Job `006` used older product `74d8d008`
   and failed with exit 126 before tests; its 65 closed sessions, 470,846 bytes
   and 525 task histories are component evidence, not current-source qualification.

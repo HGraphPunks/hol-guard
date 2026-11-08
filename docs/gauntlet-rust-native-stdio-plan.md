@@ -368,9 +368,18 @@ source `mount-fix-source-002.json`, SHA-256
 uses the existing `nix` dependency's safe wrapper with Linux-only `sched`.
 It adds no file, crate, target, dependency package or lockfile entry.
 Corrected Native library/CLI/test compilation passes on Mac and ARM musl in
-0.654/149.486 seconds, without product execution. Fetched upstream `ba94c2f00`
-must be merged and its source pins/validation refreshed before a fresh isolated
-build/runtime followed by control `011`; the fix has no live success yet.
+0.654/149.486 seconds, without product execution. Fix `d3c86f1d3` is preserved
+by clean upstream merge `8a4266be7` of `ba94c2f00`, retaining all 31 incoming
+files. The refreshed source map remains 440 files/79 changed/20 added. Independent
+Python/Rust selection agrees on controller tree `7ae10140…`, still 409 files/
+420 entries. All 703 Mac tests, formatting, warnings-denied Mac/ARM Clippy and
+Native compilation on both platforms pass at the merged source (Native compile
+204.638/133.541 seconds). Validation `mount-fix-merged-validation-001.json`,
+SHA-256 `217f5705b705713572533ffa9ee78f0373f1a68a55f8ea166b30e2469b4c4cbd`,
+binds 35 source files and ten evidence records. Fresh isolated build job
+`05c2c0c7904fd554` is reserved with no dispatch, under
+`native-mount-fix-build-host-state-20261108-001`. Its exact committed source
+must be built and published before control `011`; the fix has no live success yet.
 Never replay any consumed build or pipe job.
 
 All 334 historical metadata rows are unchanged; their bytes/keys and private

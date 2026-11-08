@@ -150,9 +150,15 @@ direct unsafe syscall; the corrected source uses the safe `nix` wrapper with
 its existing dependency's Linux-only `sched` feature. Source record `4e62d792…`
 adds no file, crate, target, dependency package or lockfile entry. Corrected
 Native library/CLI/test compilation passes on Mac and ARM musl (0.654/149.486
-seconds), without product execution. Merge fetched upstream `ba94c2f00`, refresh
-pins and validate the merged source before a fresh isolated build and Native
-control `011`. Fixed-runtime utility remains unproved.
+seconds), without product execution. Fix `d3c86f1d3` is then preserved by clean
+upstream merge `8a4266be7` of `ba94c2f00`, with all 31 incoming files retained.
+The refreshed source map remains 440 files/79 changed/20 added; independent
+Python/Rust selection agrees on controller tree `7ae10140…`. All 703 Mac tests,
+formatting, warnings-denied Mac/ARM Clippy and Native compilation on both
+platforms pass at that merged source. Validation `217f5705…` binds 35 source
+files and ten records. Fresh isolated build `05c2c0c7904fd554` is reserved,
+without dispatch, before runtime publication and Native control `011`.
+Fixed-runtime utility remains unproved.
 No causality or parent-exit success is claimed; parent exits remain 24/62.
 
 ```text
