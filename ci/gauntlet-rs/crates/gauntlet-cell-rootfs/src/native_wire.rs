@@ -1,5 +1,5 @@
-//! Root-owned actual pipe relay. The private journal records kernel pipe bytes;
-//! complete operation/effect grading and exclusive authorship remain separate.
+//! Root-owned pipe relay and measured socket-helper handoff. Socket bytes,
+//! operation/effect grading and exclusive authorship remain unverified.
 use crate::native_trace::{PipeProcessImage, ProcessImages};
 use crate::native_trace_task::Task;
 use crate::supervisor_journal::Journal;
@@ -17,6 +17,11 @@ use std::sync::{
 };
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
+
+#[path = "native_wire_socket.rs"]
+mod socket_helper;
+
+pub(crate) const SCHEMA: &str = "hol-gauntlet-native-transports.v2";
 
 pub(crate) struct NativeWire {
     stop: Arc<AtomicBool>,
@@ -157,6 +162,12 @@ fn session(mut socket: UnixStream, context: Context, id: u64) -> Result<()> {
         || argv.first().map(Vec::as_slice) != Some(b"/public/gauntlet-product-cell")
     {
         return Err("measured Native wrapper command differs".into());
+    }
+    if gauntlet_product_cell::native_socket_helper(&argv)
+        .map_err(|e| e.to_string())?
+        .is_some()
+    {
+        return socket_helper::session(socket, context, id, wrapper, image, argv);
     }
     let endpoints: [OwnedFd; 4] = gauntlet_agent_bridge::receive_fd_frame(
         &socket,
@@ -337,7 +348,7 @@ impl NativeWire {
                 let address = SocketAddr::from_abstract_name(context.config.endpoint.as_bytes()).map_err(|e| e.to_string())?;
                 let listener = UnixListener::bind_addr(&address).map_err(|e| e.to_string())?;
                 listener.set_nonblocking(true).map_err(|e| e.to_string())?;
-                context.append("native-pipe-owner-started", json!({"schema":"hol-gauntlet-native-pipes.v1","config":context.config.to_json(),
+                context.append("native-pipe-owner-started", json!({"schema":SCHEMA,"config":context.config.to_json(),
                     "actor":context.actor,"kernel_pipe_bytes":true,"execution_eligible":false,"exclusive_product_authorship_verified":false}))?;
                 ready_tx.send(Ok(())).map_err(|_| "Native pipe owner startup receiver lost")?;
                 let mut threads: Vec<JoinHandle<Result<()>>> = Vec::new();

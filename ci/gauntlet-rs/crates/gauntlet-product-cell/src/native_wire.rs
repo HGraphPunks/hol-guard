@@ -7,6 +7,7 @@ use std::os::unix::ffi::OsStrExt;
 
 pub const NATIVE_WIRE_CONFIG: &str = "/etc/hol-native-wire.v1.json";
 pub const NATIVE_WIRE_MARKER: u8 = b'W';
+pub const NATIVE_SOCKET_MARKER: u8 = b'S';
 const INVALID: CellError = CellError("invalid fixed Native wire configuration");
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -227,6 +228,36 @@ mod linux {
         let mut argv = vec![OsString::from(&config.native_program)];
         argv.extend_from_slice(args);
         validate_native_argv(&argv)?;
+        if let Some(helper) = crate::native_socket_helper(
+            &argv
+                .iter()
+                .map(|v| v.as_bytes().to_vec())
+                .collect::<Vec<_>>(),
+        )? {
+            if unsafe { libc::getppid() } as u32 != helper.parent_pid {
+                return Err(CellError("Native socket helper parent changed"));
+            }
+            let input = unsafe { BorrowedFd::borrow_raw(0) };
+            let output = unsafe { BorrowedFd::borrow_raw(1) };
+            crate::inspect_native_socket_stdio(&input, &output)?;
+            let mut owner = connect(config.endpoint.as_bytes())?;
+            root_peer(&owner)?;
+            let deadline = Instant::now() + Duration::from_secs(5);
+            gauntlet_agent_bridge::send_fd_frame(
+                &owner,
+                NATIVE_SOCKET_MARKER,
+                &[input, output],
+                deadline,
+                &AtomicBool::new(false),
+            )
+            .map_err(|_| CellError("Native socket helper handoff refused"))?;
+            expect(&mut owner, 1, deadline)?;
+            drop(owner);
+            // Exec in place: Python's Popen PID, parent relation and the two
+            // original socket descriptors must survive without a relay.
+            let _error = Command::new(&config.native_program).args(args).exec();
+            return Err(CellError("released Native socket helper exec failed"));
+        }
         let mut owner = connect(config.endpoint.as_bytes())?;
         root_peer(&owner)?;
         let deadline = Instant::now() + Duration::from_secs(5);

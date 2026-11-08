@@ -156,9 +156,25 @@ The refreshed source map remains 440 files/79 changed/20 added; independent
 Python/Rust selection agrees on controller tree `7ae10140…`. All 703 Mac tests,
 formatting, warnings-denied Mac/ARM Clippy and Native compilation on both
 platforms pass at that merged source. Validation `217f5705…` binds 35 source
-files and ten records. Fresh isolated build `05c2c0c7904fd554` is reserved,
-without dispatch, before runtime publication and Native control `011`.
-Fixed-runtime utility remains unproved.
+files and ten records. Source `53eed6482` then completes isolated build
+`05c2c0c7904fd554` (1,544.537 seconds, 1,641 wheel entries, 185 reported Python
+contract passes) and dependency export `44e9605c6aab249e`. Independent live
+kernel observation measures the exporter and verifies cleanup; Rust publishes
+inert runtime tree `98490c7d…`, Native ELF `71a09662…`. The namespace-failure
+ordering regression passes as UID 65532 on ARM. Control `011` then fails before
+utility tests because `daemon-edge` inherits listening/health sockets instead
+of pipes. Existing Rust recovery passes; closed readback `9a000a92…` verifies
+resource absence and all 334 unchanged metadata rows. The separate measured
+socket handoff then passes twelve ARM boundary/trace checks. New control `012`
+passes in 130.443 seconds; independent closed readback `38109c0a…` checks the
+read-only utility/denied-write result, 64 pipe sessions, one socket helper,
+528 task lifetimes/final waits and complete cleanup. Native executes only as
+UID/GID 10004. Validation `d6f4b44a…` retains separate product `53eed6482` and
+Gauntlet source/tool pins, plus earlier transfer and fixture-selection failures.
+All 705 Mac tests and warnings-denied Mac/ARM Clippy pass with all features.
+The v2 schema grants no socket-byte ownership; historical v1 readers refuse it,
+and independent Rust v2 replay/signed acceptance remains open. The necessary
+boundary uses one focused Rust module and no new crate, binary or dependency.
 No causality or parent-exit success is claimed; parent exits remain 24/62.
 
 ```text

@@ -33,7 +33,7 @@ fn captured(rows: &[Value], direction: &str) -> Vec<u8> {
         .collect()
 }
 
-fn start(mode: &str, wrong: bool) -> (PathBuf, Fixture, NativeProcessEvents) {
+pub(super) fn start(mode: &str, wrong: bool) -> (PathBuf, Fixture, NativeProcessEvents) {
     let stage = stage(&format!("native-{mode}"));
     let fixture = Fixture::start(mode);
     let native = if wrong {
@@ -51,7 +51,7 @@ fn start(mode: &str, wrong: bool) -> (PathBuf, Fixture, NativeProcessEvents) {
     (stage, fixture, recorder)
 }
 
-fn save(stage: &Path, result: &Value) {
+pub(super) fn save(stage: &Path, result: &Value) {
     let mut file = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -62,7 +62,7 @@ fn save(stage: &Path, result: &Value) {
     file.sync_all().unwrap();
 }
 
-fn gone(fixture: &Fixture) {
+pub(super) fn gone(fixture: &Fixture) {
     let deadline = Instant::now() + Duration::from_secs(5);
     while crate::kernel_process::alive(&fixture.pidfd).unwrap() {
         assert!(Instant::now() < deadline, "owned stdio fixture still alive");

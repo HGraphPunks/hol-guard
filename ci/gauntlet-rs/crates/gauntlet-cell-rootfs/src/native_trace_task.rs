@@ -42,6 +42,9 @@ fn number(fields: &BTreeMap<String, String>, key: &str) -> Result<u32> {
 }
 
 impl Task {
+    pub(crate) fn parent_pid(&self) -> Result<u32> {
+        number(&status(&self.proc)?, "PPid")
+    }
     pub(crate) fn local_pid(&self) -> Result<u32> {
         status(&self.proc)?
             .get("NSpid")
@@ -85,6 +88,20 @@ impl Task {
     /// O_PATH retains only the pipe object; it adds no reader or writer and
     /// therefore cannot suppress the real transport's EOF or SIGPIPE.
     pub(super) fn stdio_pipe(&self, descriptor: u8) -> Result<OwnedFd> {
+        self.stdio_object(descriptor, rustix::fs::FileType::Fifo, "pipe")
+    }
+
+    /// O_PATH holds socket identity without duplicating its live endpoint.
+    pub(super) fn stdio_socket(&self, descriptor: u8) -> Result<OwnedFd> {
+        self.stdio_object(descriptor, rustix::fs::FileType::Socket, "socket")
+    }
+
+    fn stdio_object(
+        &self,
+        descriptor: u8,
+        kind: rustix::fs::FileType,
+        prefix: &str,
+    ) -> Result<OwnedFd> {
         if descriptor > 1 {
             return Err("only selected Native stdin/stdout descriptors permitted".into());
         }
@@ -99,11 +116,11 @@ impl Task {
         let info = fstat(&fd).map_err(|e| e.to_string())?;
         let link =
             rustix::fs::readlinkat(&self.proc, &name, Vec::new()).map_err(|e| e.to_string())?;
-        if rustix::fs::FileType::from_raw_mode(info.st_mode) != rustix::fs::FileType::Fifo
+        if rustix::fs::FileType::from_raw_mode(info.st_mode) != kind
             || info.st_ino == 0
-            || link.as_bytes() != format!("pipe:[{}]", info.st_ino).as_bytes()
+            || link.as_bytes() != format!("{prefix}:[{}]", info.st_ino).as_bytes()
         {
-            return Err("anonymous Native transport pipe required".into());
+            return Err(format!("anonymous Native transport {prefix} required"));
         }
         Ok(fd)
     }

@@ -376,11 +376,67 @@ Python/Rust selection agrees on controller tree `7ae10140…`, still 409 files/
 Native compilation on both platforms pass at the merged source (Native compile
 204.638/133.541 seconds). Validation `mount-fix-merged-validation-001.json`,
 SHA-256 `217f5705b705713572533ffa9ee78f0373f1a68a55f8ea166b30e2469b4c4cbd`,
-binds 35 source files and ten evidence records. Fresh isolated build job
-`05c2c0c7904fd554` is reserved with no dispatch, under
-`native-mount-fix-build-host-state-20261108-001`. Its exact committed source
-must be built and published before control `011`; the fix has no live success yet.
-Never replay any consumed build or pipe job.
+binds 35 source files and ten evidence records. Source `53eed6482` then completes
+fresh isolated build `05c2c0c7904fd554` in 1,544.537 seconds, under
+`native-mount-fix-build-host-state-20261108-001`. Primary Rust readback verifies
+all 1,641 inert wheel entries, Native ELF `71a09662…`, and 185 reported Python
+contract passes. Dependency export `44e9605c6aab249e` completes with independent
+live exporter measurement and terminal cleanup, under
+`native-mount-fix-dependency-host-state-20261108-001`. Rust publishes inert prefix
+tree `98490c7d…`; runtime-publication record `d1b2e484…` supplies custody only.
+The namespace-failure ordering test passes in an unprivileged ARM container.
+
+Control `011` fails before utility tests when upstream's `daemon-edge` supplies
+a TCP listener as stdin and an unnamed Unix health socket as stdout. Its exact
+argv and measured exec history explain the strict anonymous-pipe refusal.
+The existing Rust quiescent recovery succeeds without replay. Closed readback
+`mount-fix-live-closed-002.json` (`9a000a92…`) verifies the original failure,
+resource absence and unchanged historical metadata. No live mount-fix utility
+or denied-write success is credited.
+
+The implemented socket helper uses a distinct two-descriptor Root handoff and
+in-place exec, preserving Python's Popen PID, actual parent and inherited socket
+objects. Root binds both actor and Native exec stops, validates loopback/listening
+and connected unnamed health sockets, and drops live duplicates before ACK.
+The exec recorder retains the stopped task before fallible observers and reports
+failed capture as incomplete. One necessary Rust module holds the transport
+boundary; existing crates, targets, dependencies and test files are reused.
+Mixed transport schema `hol-gauntlet-native-transports.v2` reports no observed
+socket bytes or exclusive authorship. Historical v1 pipe readers refuse it.
+
+All 705 Mac tests, formatting and warnings-denied Mac/ARM Clippy pass with all
+features enabled, along with twelve ARM boundary/trace checks. The first tool-transfer wrapper fails in
+its frame loader before installation; a fresh preflight proves all destinations
+absent before correction. Seven checks pass before a new failure fixture misses
+its measured leaf. Correcting that fixture leaves runtime source unchanged;
+the five remaining checks then pass. Both failed attempts remain immutable.
+The scopes drain without forced cleanup and all 334 metadata rows are preserved.
+
+Fresh control `012` passes in 130.443 seconds with product `53eed6482`, Native
+`71a09662…`, actor `a6604708…` and observer `04a6b6db…`. Independent closed
+readback verifies the utility/denied-write result, 64 complete pipe sessions,
+one socket helper, 81 observed Native execs and all 528 task lifetimes/final
+waits. It joins both helper exec images by event, PID/start ticks, parent and
+socket objects, checks journal chains/report bindings, and verifies the cgroup,
+profile, mounts and active pointer absent. No forced cleanup or replay occurs.
+This remains component evidence: independent Rust v2 replay and signed artifact
+acceptance are next, with all outside-admission/causality flags false.
+
+| Evidence in `native-wire-20261108-tools-001/` | SHA-256 |
+| --- | --- |
+| `socket-source-002.json` | `d80190245a24de20b41dfc1a0eb1e2b84f4502b65b458e4acc6a06e26a5fb35e` |
+| `socket-frozen-tools-003.json` | `6ace7c87301a250a7f6ea6e687eae4d77d6d5d3af40b9decda0749c8c321ece3` |
+| `socket-arm-unit-002.json` | `773a798fc48df2a3008b1be9c640d96b5efc035f679eed380852829798865c84` |
+| `socket-arm-live-001.json` | `06cc2613d8a40e4c192c80cea2944351805c49d270f31944ec84a1028c842506` |
+| `socket-live-closed-readback-001.json` | `38109c0a0d534856962d4a7d31a6d5e5648f1abcc500450d0b218c193ab0b69a` |
+| `socket-validation-002.json` | `d6f4b44a1ca703be08f1f1d859e880c2ed24d6aa57885c654e44d034ad78d5e3` |
+
+The source/tool manifests retain the initial compiled runtime source separately
+from the corrected test-fixture source; runtime files are byte-identical between
+them. No consumed build or pipe job is replayed. New upstream `34701a036` adds
+token-authenticated reads over the same health socket; its merge and fresh-source
+validation remain pending. The handoff must preserve those bytes without reading
+or journaling them.
 
 All 334 historical metadata rows are unchanged; their bytes/keys and private
 Root build argv are not read. No product runs on Host or Root. All admission/

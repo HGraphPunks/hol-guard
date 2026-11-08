@@ -82,12 +82,36 @@ with evidence. Code volume and checked substeps do not establish completion.
   Mac/ARM Clippy and Native library/CLI/test compilation on both platforms
   pass. Validation `mount-fix-merged-validation-001.json` (`217f5705…`) binds
   35 source files and ten evidence records; no product executes on Host/Root.
-- **Next:** commit the refreshed pins/checkpoints and push the branch. Build
-  that exact source in fresh job `05c2c0c7904fd554`, whose Host state is reserved
-  under `native-mount-fix-build-host-state-20261108-001` but has no dispatch.
-  Publish its inert runtime before Native control `011`.
-  Actual fixed-runtime utility/write refusal remains
-  unproved. Never replay pipe jobs `001`–`010`. Job `006` used older product `74d8d008`
+- Source `53eed6482` is pushed. Build `05c2c0c7904fd554` completes in
+  1,544.537 seconds; primary readback verifies all 1,641 wheel entries and
+  records 185 Python contract passes. Dependency job `44e9605c6aab249e`
+  completes with independently observed exporter isolation and cleanup.
+  Rust publishes the inert prefix, tree `98490c7d…`, Native ELF `71a09662…`.
+  The namespace-failure ordering test also passes as UID 65532 on ARM.
+- Control `011` fails before utility tests: upstream's `daemon-edge` inherits
+  a TCP listener and Unix health socket, which the pipe-only connector refuses.
+  The existing Rust quiescent recovery succeeds; closed readback `9a000a92…`
+  verifies resource absence and all 334 unchanged historical metadata rows.
+  The failure stays failed. The mount fix still has no live utility credit.
+- The distinct measured socket-helper handoff now preserves in-place exec PID,
+  parent and socket objects, and drops Root duplicates before ACK. Twelve ARM
+  boundary/trace checks pass, with earlier transfer and fixture-selection
+  failures retained. Mixed transport v2 grants no socket-byte or authorship
+  claim; historical v1 readers refuse it. One necessary Rust module is added;
+  existing crates, targets, dependencies and test files are reused.
+- **Control `012` passes in 130.443 seconds.** Closed readback `38109c0a…`
+  verifies the read-only utility/denied-write result, 64 pipe sessions, one
+  helper exec, 528 task lifetimes/final waits and cleanup. Native executes as
+  UID/GID 10004; no product runs on Host/Root. The component still uses product
+  `53eed6482`; validation `d6f4b44a…` binds its separate Gauntlet source/tool
+  generations, all 705 Mac tests and warnings-denied Mac/ARM Clippy with all
+  features enabled. All 334 historical metadata rows remain unchanged.
+- **Next:** finish independent Rust v2 replay before signed artifact acceptance.
+  Commit this boundary, reconcile upstream `34701a036` (two new commits, including
+  the edge's token handshake), refresh current-source validation and push.
+  Preserve health-socket bytes without reading or journaling them. Never replay
+  consumed pipe jobs `001`–`012`.
+  Job `006` used older product `74d8d008`
   and failed with exit 126 before tests; its 65 closed sessions, 470,846 bytes
   and 525 task histories are component evidence, not current-source qualification.
   Full SDK role modes still refuse the read-only preparation.

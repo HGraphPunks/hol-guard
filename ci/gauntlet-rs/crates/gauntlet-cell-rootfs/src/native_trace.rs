@@ -22,6 +22,7 @@ pub(crate) struct PipeProcessImage {
     pub(crate) image: Value,
     pub(crate) event: u64,
     pub(crate) pipes: Option<[(u64, u64); 2]>,
+    pub(crate) sockets: Option<[(u64, u64); 2]>,
     pub(crate) final_wait: Option<Value>,
     bytes: usize,
 }
@@ -57,6 +58,11 @@ impl ProcessImages {
             let output = rustix::fs::fstat(task.stdio_pipe(1).ok()?).ok()?;
             Some([(input.st_dev, input.st_ino), (output.st_dev, output.st_ino)])
         })();
+        let sockets = (|| {
+            let input = rustix::fs::fstat(task.stdio_socket(0).ok()?).ok()?;
+            let output = rustix::fs::fstat(task.stdio_socket(1).ok()?).ok()?;
+            Some([(input.st_dev, input.st_ino), (output.st_dev, output.st_ino)])
+        })();
         let mut rows = rows.lock().map_err(|_| "process image join poisoned")?;
         let key = (task.tid, task.start);
         let bytes = image.to_string().len();
@@ -71,6 +77,7 @@ impl ProcessImages {
                 image: image.clone(),
                 event,
                 pipes,
+                sockets,
                 final_wait: None,
                 bytes,
             },
@@ -169,24 +176,45 @@ impl NativeProcessEvents {
             ProcessImages::default()
         };
         let thread_images = images.clone();
-        let thread=std::thread::Builder::new().name("gauntlet-cell-events".into()).spawn(move||{
-            let outcome=std::panic::catch_unwind(std::panic::AssertUnwindSafe(||{
-                let task=Task::open(pid,&cgroup)?;
-                if task.start!=start {return Err("actor generation changed before trace attachment".into());}
-                if expected.is_some() {task.initial_actor(start,&cgroup)?;}
-                let mut engine=Engine::new(task,cgroup,journal,thread_abort,expected,stdio,thread_images);
-                let outcome=engine.run(&sender);
-                if let Err(error)=&outcome {
-                    engine.fail_stdio(error);
-                    let _=engine.journal.append("trace-failed",serde_json::json!({"error":error,"complete":false,"execution_eligible":false}));
+        let thread = std::thread::Builder::new()
+            .name("gauntlet-cell-events".into())
+            .spawn(move || {
+                let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let task = Task::open(pid, &cgroup)?;
+                    if task.start != start {
+                        return Err("actor generation changed before trace attachment".into());
+                    }
+                    if expected.is_some() {
+                        task.initial_actor(start, &cgroup)?;
+                    }
+                    let mut engine = Engine::new(
+                        task,
+                        cgroup,
+                        journal,
+                        thread_abort,
+                        expected,
+                        stdio,
+                        thread_images,
+                    );
+                    let outcome = engine.run(&sender);
+                    if let Err(error) = &outcome {
+                        engine.fail(error);
+                    }
+                    outcome
+                }))
+                .unwrap_or_else(|_| {
+                    Err("owned process recorder panicked; history incomplete".into())
+                });
+                if let Ok(mut slot) = thread_result.lock() {
+                    *slot = Some(outcome.clone());
                 }
-                outcome
-            })).unwrap_or_else(|_|Err("owned process recorder panicked; history incomplete".into()));
-            if let Ok(mut slot)=thread_result.lock() {*slot=Some(outcome.clone());}
-            if let Err(error)=outcome {let _=sender.try_send(Err(error));}
-            // Exiting this very tracer thread keeps PTRACE_O_EXITKILL effective
-            // on every surviving tracee. No detach or foreign signal is used.
-        }).map_err(|e|e.to_string())?;
+                if let Err(error) = outcome {
+                    let _ = sender.try_send(Err(error));
+                }
+                // Exiting this very tracer thread keeps PTRACE_O_EXITKILL effective
+                // on every surviving tracee. No detach or foreign signal is used.
+            })
+            .map_err(|e| e.to_string())?;
         let mut recorder = Self {
             abort,
             result,

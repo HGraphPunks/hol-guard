@@ -13,6 +13,121 @@ use std::time::{Duration, Instant};
 
 pub const READY: &[u8] = b"HOL_PRODUCT_EXEC_READY_V1\n";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeSocketHelper {
+    pub upstream_port: u16,
+    pub parent_pid: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeSocketStdio {
+    pub listener: std::net::SocketAddr,
+    pub objects: [(u64, u64); 2],
+}
+
+/// This helper consumes a listening socket and a liveness socket, not bytes
+/// from a Native request pipe. No other command can select this handoff.
+pub fn native_socket_helper(argv: &[Vec<u8>]) -> Result<Option<NativeSocketHelper>> {
+    if argv.get(1).map(Vec::as_slice) != Some(b"daemon-edge") {
+        return Ok(None);
+    }
+    let invalid = CellError("exact bounded Native socket helper arguments required");
+    if argv.len() != 6 || argv[2] != b"--upstream-port" || argv[4] != b"--parent-pid" {
+        return Err(invalid);
+    }
+    let decimal = |raw: &[u8]| -> Result<u32> {
+        let text = std::str::from_utf8(raw).map_err(|_| invalid)?;
+        let value: u32 = text.parse().map_err(|_| invalid)?;
+        if value.to_string() != text {
+            return Err(invalid);
+        }
+        Ok(value)
+    };
+    let port = decimal(&argv[3])?;
+    let parent = decimal(&argv[5])?;
+    if !(1..=u32::from(u16::MAX)).contains(&port) || !(2..=i32::MAX as u32).contains(&parent) {
+        return Err(invalid);
+    }
+    Ok(Some(NativeSocketHelper {
+        upstream_port: port as u16,
+        parent_pid: parent,
+    }))
+}
+
+/// Inspect duplicates briefly, without reading, writing, changing flags, or
+/// retaining a socket reference that could postpone the real liveness EOF.
+pub fn inspect_native_socket_stdio(
+    input: &impl AsFd,
+    output: &impl AsFd,
+) -> Result<NativeSocketStdio> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (input, output);
+        Err(CellError("Native socket inspection requires Linux"))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::fd::AsRawFd;
+        let invalid =
+            CellError("loopback listener and connected unnamed Native liveness socket required");
+        let option = |fd: BorrowedFd<'_>, name| -> Result<libc::c_int> {
+            let mut value: libc::c_int = 0;
+            let mut size = std::mem::size_of_val(&value) as libc::socklen_t;
+            // SAFETY: the borrowed descriptor remains open; both output pointers
+            // refer to correctly sized initialized local values.
+            if unsafe {
+                libc::getsockopt(
+                    fd.as_raw_fd(),
+                    libc::SOL_SOCKET,
+                    name,
+                    (&mut value as *mut libc::c_int).cast(),
+                    &mut size,
+                )
+            } != 0
+                || size as usize != std::mem::size_of_val(&value)
+            {
+                return Err(invalid);
+            }
+            Ok(value)
+        };
+        if option(input.as_fd(), libc::SO_TYPE)? != libc::SOCK_STREAM
+            || option(output.as_fd(), libc::SO_TYPE)? != libc::SOCK_STREAM
+            || option(input.as_fd(), libc::SO_ACCEPTCONN)? != 1
+            || option(output.as_fd(), libc::SO_ACCEPTCONN)? != 0
+        {
+            return Err(invalid);
+        }
+        let listener =
+            std::net::TcpListener::from(input.as_fd().try_clone_to_owned().map_err(|_| invalid)?);
+        let address = listener.local_addr().map_err(|_| invalid)?;
+        if !address.ip().is_loopback() || address.port() == 0 {
+            return Err(invalid);
+        }
+        let health = std::os::unix::net::UnixStream::from(
+            output.as_fd().try_clone_to_owned().map_err(|_| invalid)?,
+        );
+        if !health.local_addr().map_err(|_| invalid)?.is_unnamed()
+            || !health.peer_addr().map_err(|_| invalid)?.is_unnamed()
+        {
+            return Err(invalid);
+        }
+        let objects = [input.as_fd(), output.as_fd()].map(|fd| {
+            let info = rustix::fs::fstat(fd).map_err(|_| invalid)?;
+            if rustix::fs::FileType::from_raw_mode(info.st_mode) != rustix::fs::FileType::Socket
+                || info.st_ino == 0
+            {
+                return Err(invalid);
+            }
+            Ok((info.st_dev, info.st_ino))
+        });
+        let [input, output] = objects;
+        Ok(NativeSocketStdio {
+            listener: address,
+            objects: [input?, output?],
+        })
+    }
+}
+
 pub fn validate_product_argv(argv: &[String]) -> Result<()> {
     if !(1..=128).contains(&argv.len())
         || !argv[0].starts_with('/')
@@ -136,6 +251,106 @@ pub fn run_native_gate(argv: &[std::ffi::OsString]) -> Result<Infallible> {
 mod tests {
     use super::*;
     use std::os::unix::net::UnixStream;
+    #[cfg(target_os = "linux")]
+    use std::{
+        io::Read,
+        os::fd::{AsRawFd, FromRawFd, OwnedFd},
+    };
+    #[test]
+    fn only_exact_bounded_daemon_edge_arguments_select_socket_handoff() {
+        let argv = |args: &[&str]| {
+            args.iter()
+                .map(|s| s.as_bytes().to_vec())
+                .collect::<Vec<_>>()
+        };
+        let valid = argv(&[
+            "/native",
+            "daemon-edge",
+            "--upstream-port",
+            "65535",
+            "--parent-pid",
+            "2147483647",
+        ]);
+        assert_eq!(
+            native_socket_helper(&valid).unwrap(),
+            Some(NativeSocketHelper {
+                upstream_port: 65535,
+                parent_pid: i32::MAX as u32
+            })
+        );
+        assert_eq!(
+            native_socket_helper(&argv(&["/native", "resident-client-stream"])).unwrap(),
+            None
+        );
+        for (index, value) in [
+            (2, "--parent-pid"),
+            (3, "0"),
+            (3, "65536"),
+            (3, "01"),
+            (3, "+1"),
+            (3, "1\0"),
+            (4, "--upstream-port"),
+            (5, "1"),
+            (5, "2147483648"),
+            (5, "02"),
+            (5, "-1"),
+        ] {
+            let mut changed = valid.clone();
+            changed[index] = value.as_bytes().to_vec();
+            assert!(native_socket_helper(&changed).is_err(), "{index}: {value}");
+        }
+        let mut extra = valid.clone();
+        extra.push(b"--parent-pid".to_vec());
+        assert!(native_socket_helper(&extra).is_err());
+        assert!(native_socket_helper(&valid[..5]).is_err());
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn socket_inspection_preserves_flags_objects_and_real_health_eof() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let (health, mut parent) = UnixStream::pair().unwrap();
+        health.set_nonblocking(true).unwrap();
+        parent
+            .set_read_timeout(Some(Duration::from_millis(200)))
+            .unwrap();
+        let flags = |fd| unsafe { libc::fcntl(fd, libc::F_GETFL) };
+        let before = [flags(listener.as_raw_fd()), flags(health.as_raw_fd())];
+        let inspected = inspect_native_socket_stdio(&listener, &health).unwrap();
+        assert_eq!(inspected.listener, listener.local_addr().unwrap());
+        assert_eq!(
+            inspected.objects,
+            [listener.as_fd(), health.as_fd()].map(|fd| {
+                let s = rustix::fs::fstat(fd).unwrap();
+                (s.st_dev, s.st_ino)
+            })
+        );
+        assert_eq!(
+            before,
+            [flags(listener.as_raw_fd()), flags(health.as_raw_fd())]
+        );
+        drop(health);
+        assert_eq!(parent.read(&mut [0]).unwrap(), 0);
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn wildcard_listener_wrong_socket_roles_and_unconnected_health_refuse() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let wildcard = std::net::TcpListener::bind("0.0.0.0:0").unwrap();
+        let udp = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+        let (health, _parent) = UnixStream::pair().unwrap();
+        let raw = unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_STREAM, 0) };
+        assert!(raw >= 0);
+        let unconnected = unsafe { OwnedFd::from_raw_fd(raw) };
+        assert!(inspect_native_socket_stdio(&wildcard, &health).is_err());
+        assert!(inspect_native_socket_stdio(&udp, &health).is_err());
+        assert!(inspect_native_socket_stdio(&health, &listener).is_err());
+        assert!(inspect_native_socket_stdio(&listener, &listener).is_err());
+        assert!(inspect_native_socket_stdio(&listener, &unconnected).is_err());
+        assert!(inspect_native_socket_stdio(&tempfile::tempfile().unwrap(), &health).is_err());
+    }
     #[test]
     fn argv_boundaries_refuse_unbounded_relative_and_nul_commands() {
         assert!(validate_product_argv(&["/bin/echo".into(), "".into()]).is_ok());

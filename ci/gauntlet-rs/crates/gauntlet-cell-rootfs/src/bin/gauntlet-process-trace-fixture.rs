@@ -55,10 +55,22 @@ mod fixture {
         gate();
         match args[1].as_str() {
             "stdio-scalar" | "stdio-vector" | "stdio-partial" | "stdio-rebind" | "stdio-linger"
-            | "stdio-oversize" => {
+            | "stdio-oversize" | "stdio-socket" => {
+                use std::os::fd::AsRawFd;
                 use std::os::unix::process::CommandExt;
+                let sockets = (args[1] == "stdio-socket")
+                    .then(|| std::os::unix::net::UnixStream::pair().unwrap());
+                if let Some((health, _)) = &sockets {
+                    assert_eq!(unsafe { libc::dup2(health.as_raw_fd(), 1) }, 1);
+                }
                 let error = std::process::Command::new("/proc/self/exe")
-                    .arg(format!("{}-leaf", args[1]))
+                    // Select an existing measured leaf; socket stdout must
+                    // refuse at its exec stop before that leaf can read.
+                    .arg(if args[1] == "stdio-socket" {
+                        "stdio-scalar-leaf".to_owned()
+                    } else {
+                        format!("{}-leaf", args[1])
+                    })
                     .exec();
                 panic!("owned stdio fixture exec: {error}");
             }

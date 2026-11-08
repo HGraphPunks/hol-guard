@@ -94,10 +94,23 @@ impl Engine {
         }
     }
 
-    pub(super) fn fail_stdio(&mut self, error: &str) {
+    pub(super) fn fail(&mut self, error: &str) {
         if let Some(stdio) = &mut self.stdio {
             stdio.fail(error);
         }
+        let owned = self
+            .active
+            .values()
+            .map(|entry| {
+                json!({"id":entry.id,
+            "tid":entry.task.tid,"start_ticks":entry.task.start})
+            })
+            .collect::<Vec<_>>();
+        let _ = self.append(
+            "trace-failed",
+            json!({"error":error,"complete":false,
+            "owned_tasks":owned,"execs":self.execs,"execution_eligible":false}),
+        );
     }
 
     pub(super) fn run(&mut self, ready: &SyncSender<Result<u32>>) -> Result<Value> {
@@ -386,7 +399,6 @@ impl Engine {
         if task.tgid != tid {
             return Err("exec did not leave a single group leader".into());
         }
-        let image = task.exec_image(&self.cgroup)?;
         let group = self
             .active
             .iter()
@@ -394,10 +406,7 @@ impl Engine {
             .map(|(t, _)| *t)
             .collect::<Vec<_>>();
         let mut retired = Vec::new();
-        for other in group {
-            if let Some(stdio) = &mut self.stdio {
-                stdio.end(other, "exec-replacement")?;
-            }
+        for &other in &group {
             let entry = self.active.remove(&other).ok_or("exec group changed")?;
             if entry.id != id {
                 retired.push(
@@ -408,20 +417,29 @@ impl Engine {
                 self.exec_retirements += 1;
             }
         }
+        // Keep the stopped exec generation accounted even if a journal or
+        // observer below refuses it. Refusal must never orphan a trace task.
+        self.active.insert(tid, Entry { id, task });
+        self.execs += 1;
+        for other in group {
+            if let Some(stdio) = &mut self.stdio {
+                stdio.end(other, "exec-replacement")?;
+            }
+        }
         if self.retired.len() > 65536 {
             return Err("retired exec task bound exceeded".into());
         }
+        let image = self.active[&tid].task.exec_image(&self.cgroup)?;
         self.append(
             "task-exec",
             json!({"id":id,"old_tid":old,"old_start_ticks":old_start,
             "retired":retired,"image":image}),
         )?;
+        let task = &self.active[&tid].task;
         if let Some(stdio) = &mut self.stdio {
-            stdio.consider(&task, &image, id, self.journal.events() - 1)?;
+            stdio.consider(task, &image, id, self.journal.events() - 1)?;
         }
-        self.images.exec(&task, &image, self.journal.events() - 1)?;
-        self.active.insert(tid, Entry { id, task });
-        self.execs += 1;
+        self.images.exec(task, &image, self.journal.events() - 1)?;
         self.resume(tid, 0)
     }
 }

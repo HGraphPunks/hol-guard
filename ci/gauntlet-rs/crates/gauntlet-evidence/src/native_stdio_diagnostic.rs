@@ -268,6 +268,13 @@ mod tests {
         }
     }
     #[test]
+    fn historical_pipe_reader_refuses_the_mixed_socket_transport_schema() {
+        let (mut control, prep, files) = pipe_fixture();
+        control["plane"]["native_pipe_bytes"]["schema"] =
+            json!("hol-gauntlet-native-transports.v2");
+        assert!(read(&control, &prep, &files).is_err());
+    }
+    #[test]
     fn missing_declarations_or_journals_cannot_borrow_a_reported_complete_pipe_owner() {
         let (control, prep, files) = pipe_fixture();
         for name in files.keys().filter(|p| p.as_str() != "results.sha256.json") {

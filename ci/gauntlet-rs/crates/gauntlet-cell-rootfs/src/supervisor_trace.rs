@@ -77,7 +77,7 @@ impl NativeCell {
         self.native_wire = Some(owner);
         self.journal.append(
             "native-pipe-owner-ready",
-            json!({"schema":"hol-gauntlet-native-pipes.v1","execution_eligible":false}),
+            json!({"schema":crate::native_wire::SCHEMA,"execution_eligible":false}),
         )
     }
 
@@ -169,13 +169,13 @@ impl NativeCell {
             return None;
         }
         Some(match &self.native_wire_result {
-            Some(Ok(binding)) => json!({"schema":"hol-gauntlet-native-pipes.v1","available":true,
+            Some(Ok(binding)) => json!({"schema":crate::native_wire::SCHEMA,"available":true,
                 "binding":binding,"execution_eligible":false,"exclusive_product_authorship_verified":false}),
             Some(Err(error)) => {
-                json!({"schema":"hol-gauntlet-native-pipes.v1","available":false,"error":error,"execution_eligible":false})
+                json!({"schema":crate::native_wire::SCHEMA,"available":false,"error":error,"execution_eligible":false})
             }
             None => {
-                json!({"schema":"hol-gauntlet-native-pipes.v1","available":false,"error":"pipe owner not closed","execution_eligible":false})
+                json!({"schema":crate::native_wire::SCHEMA,"available":false,"error":"pipe owner not closed","execution_eligible":false})
             }
         })
     }

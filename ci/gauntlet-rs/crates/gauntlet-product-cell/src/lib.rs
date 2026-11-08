@@ -20,10 +20,14 @@ mod seccomp_library;
 
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use actor_start::run_actor;
+pub use exec_gate::{
+    inspect_native_socket_stdio, native_socket_helper, NativeSocketHelper, NativeSocketStdio,
+};
 pub use exec_gate::{run_exec_gate, run_native_gate, validate_product_argv, READY};
 pub use layout::{load_root_layout, parse_layout, CellLayout};
 pub use native_wire::{
-    run_native_wrapper, NativeWireConfig, NATIVE_WIRE_CONFIG, NATIVE_WIRE_MARKER,
+    run_native_wrapper, NativeWireConfig, NATIVE_SOCKET_MARKER, NATIVE_WIRE_CONFIG,
+    NATIVE_WIRE_MARKER,
 };
 pub use network::{observe_private_loopback, validate_private_topology};
 pub use seccomp::{

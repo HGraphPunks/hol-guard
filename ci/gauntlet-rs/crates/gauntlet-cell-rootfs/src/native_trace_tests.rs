@@ -12,6 +12,39 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
+#[test]
+fn refused_socket_exec_retains_stopped_task_and_never_reports_complete_history() {
+    let (stage, mut fixture, mut recorder) = stdio::start("stdio-socket", false);
+    fixture.release();
+    let error = recorder.finish(Duration::from_secs(5)).unwrap_err();
+    assert!(
+        error.contains("anonymous Native transport pipe required"),
+        "{error}"
+    );
+    stdio::gone(&fixture);
+    let rows = records(&stage);
+    let exec = rows.iter().find(|row| row["kind"] == "task-exec").unwrap();
+    let failed = rows
+        .iter()
+        .find(|row| row["kind"] == "trace-failed")
+        .unwrap();
+    assert_eq!(failed["data"]["complete"], false);
+    assert_eq!(failed["data"]["execs"], 1);
+    assert_eq!(
+        failed["data"]["owned_tasks"],
+        serde_json::json!([{
+            "id":exec["data"]["id"],"tid":exec["data"]["image"]["task"]["tid"],
+            "start_ticks":exec["data"]["image"]["task"]["start_ticks"]
+        }])
+    );
+    assert!(!rows.iter().any(|row| row["kind"] == "trace-complete"));
+    stdio::save(
+        &stage,
+        &serde_json::json!({"error":error,"complete":false,
+        "candidate_executed":false,"execution_eligible":false}),
+    );
+}
+
 struct Fixture {
     child: Child,
     reader: BufReader<std::process::ChildStdout>,
