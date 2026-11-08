@@ -415,6 +415,31 @@ fn root_native_pipe_live_hook_preserves_normal_product_execution() {
         true
     );
     assert_eq!(report.report["cell_cleanup_complete"], true);
+    if preparation.control_profile() == gauntlet_evidence::NativeContainmentRoute::PythonReadonlyV1
+    {
+        assert_eq!(
+            report.report["schema"],
+            "hol-gauntlet-native-hook-transport.v2"
+        );
+        assert_eq!(
+            report.report["fixture"]["schema"],
+            "hol-gauntlet-native-contained-fixture.v7"
+        );
+        assert_eq!(report.report["effect"]["write_probe_absent"], true);
+        assert_eq!(
+            report.report["measurements"]["unprotected_write_positive"]["retired"],
+            true
+        );
+        assert_eq!(
+            report.report["plane"]["containment_contract"]["required_execution_profile"],
+            "python-eval-readonly-v1"
+        );
+    } else {
+        assert_eq!(
+            report.report["schema"],
+            "hol-gauntlet-native-hook-transport.v1"
+        );
+    }
     assert_eq!(report.report["execution_eligible"], false);
     assert_eq!(report.report["model_requests"], 0);
 }

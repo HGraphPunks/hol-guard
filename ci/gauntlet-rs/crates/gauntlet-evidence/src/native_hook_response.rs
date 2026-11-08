@@ -12,6 +12,43 @@ const DECISION: EvidenceError =
 const MEDIATION: EvidenceError =
     EvidenceError::Invalid("normal OMP structured mediation response malformed");
 
+/// A normal Native denial may request its own contained sink. This is a route
+/// contract, never an approval, policy decision or qualification assertion.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum NativeContainmentRoute {
+    #[default]
+    WorkspaceV1,
+    PythonReadonlyV1,
+}
+impl NativeContainmentRoute {
+    pub fn profile(self) -> &'static str {
+        match self {
+            Self::WorkspaceV1 => "workspace-contained-v1",
+            Self::PythonReadonlyV1 => "python-eval-readonly-v1",
+        }
+    }
+    pub fn reason(self) -> &'static str {
+        match self {
+            Self::WorkspaceV1 => "native_workspace_containment_required",
+            Self::PythonReadonlyV1 => "native_python_eval_readonly_containment_required",
+        }
+    }
+    pub fn from_response(value: &Value) -> Option<Self> {
+        if value["decision"] != "deny"
+            || value["policy_action"] != "sandbox-required"
+            || !matches!(value.get("observe_mode"), None | Some(Value::Bool(false)))
+        {
+            return None;
+        }
+        [Self::WorkspaceV1, Self::PythonReadonlyV1]
+            .into_iter()
+            .find(|route| {
+                value["reason_code"] == route.reason()
+                    && value["required_execution_profile"] == route.profile()
+            })
+    }
+}
+
 /// Match the frozen Python response reader, including a nonzero valid denial.
 /// The transport must separately bound its input, event and kernel exit status.
 /// The original bytes must remain retained alongside the normalized value.
@@ -98,4 +135,39 @@ fn verify_mediation(value: &Value) -> Result<()> {
         return Err(MEDIATION);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod route_tests {
+    use super::*;
+    #[test]
+    fn only_exact_terminal_reason_profile_pairs_supply_a_native_route() {
+        for route in [
+            NativeContainmentRoute::WorkspaceV1,
+            NativeContainmentRoute::PythonReadonlyV1,
+        ] {
+            let value = json!({"decision":"deny","policy_action":"sandbox-required",
+                "reason_code":route.reason(),"required_execution_profile":route.profile()});
+            assert_eq!(NativeContainmentRoute::from_response(&value), Some(route));
+            for (key, bad) in [
+                ("decision", json!("allow")),
+                ("decision", json!("review")),
+                ("policy_action", json!("require-reapproval")),
+                ("policy_action", json!("block")),
+                ("reason_code", json!("other")),
+                ("reason_code", json!(null)),
+                ("required_execution_profile", json!("other")),
+                ("observe_mode", json!(true)),
+                ("observe_mode", json!("false")),
+            ] {
+                let mut changed = value.clone();
+                changed[key] = bad;
+                assert_eq!(
+                    NativeContainmentRoute::from_response(&changed),
+                    None,
+                    "{key}"
+                );
+            }
+        }
+    }
 }

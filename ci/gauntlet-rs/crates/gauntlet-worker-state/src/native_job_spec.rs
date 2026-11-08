@@ -207,6 +207,11 @@ impl NativeJobSpec {
     /// declaration cannot substitute a different job's mutable task or slice.
     pub fn preparation(&self, raw: &[u8]) -> Result<CellPreparation, String> {
         let spec = CellPreparation::parse(raw, &self.preparation_sha256)?;
+        if spec.control_profile() == gauntlet_evidence::NativeContainmentRoute::PythonReadonlyV1
+            && !matches!(&self.execution, NativeJobExecution::HookTransport(_))
+        {
+            return Err("read-only preparation requires hook transport; SDK role fixtures retain their historical contract".into());
+        }
         let root = self.job_root();
         let workspace = &spec.task_mounts["workspace"];
         if spec.stage != root.join("cell")

@@ -1,6 +1,7 @@
 //! A preparation declaration selects pinned data and fixed launch profiles.
 use crate::declarations::{object, overlap};
 use crate::{hash, hex, spec::literal_path, Result, SupervisorSpec};
+use gauntlet_evidence::NativeContainmentRoute;
 use serde_json::{json, Value};
 use std::path::PathBuf;
 
@@ -16,9 +17,13 @@ pub struct CellPreparation {
     pub podman_sha256: String,
     pub task_mounts: Value,
     launch: Value,
+    control_profile: NativeContainmentRoute,
 }
 
 impl CellPreparation {
+    pub fn control_profile(&self) -> NativeContainmentRoute {
+        self.control_profile
+    }
     pub fn job_slice(&self) -> Option<&str> {
         self.launch["job_slice"].as_str()
     }
@@ -35,24 +40,37 @@ impl CellPreparation {
         if !hex(expected, 64) || hash(raw) != expected {
             return Err("cell preparation differs from outside pin".into());
         }
-        let value = object(
-            raw,
-            49152,
-            &[
-                "schema",
-                "stage",
-                "artifacts",
-                "artifact_manifest_sha256",
-                "initializer_sha256",
-                "runtime_prefix",
-                "runtime_tree_digest",
-                "image_id",
-                "podman_sha256",
-                "task_mounts",
-                "launch",
-            ],
-            "hol-gauntlet-cell-preparation.v1",
-        )?;
+        let mut fields = vec![
+            "schema",
+            "stage",
+            "artifacts",
+            "artifact_manifest_sha256",
+            "initializer_sha256",
+            "runtime_prefix",
+            "runtime_tree_digest",
+            "image_id",
+            "podman_sha256",
+            "task_mounts",
+            "launch",
+        ];
+        let value =
+            object(raw, 49152, &fields, "hol-gauntlet-cell-preparation.v1").or_else(|_| {
+                fields.push("control_profile");
+                object(raw, 49152, &fields, "hol-gauntlet-cell-preparation.v2")
+            })?;
+        let control_profile = if value["schema"] == "hol-gauntlet-cell-preparation.v2" {
+            if value["control_profile"] != "python-readonly.v1"
+                || value["launch"]["schema"] != "hol-gauntlet-cell-supervisor.v5"
+            {
+                return Err(
+                    "v2 preparation requires the fixed read-only control and v5 Native pipe launch"
+                        .into(),
+                );
+            }
+            NativeContainmentRoute::PythonReadonlyV1
+        } else {
+            NativeContainmentRoute::WorkspaceV1
+        };
         let text = |key: &str| {
             value[key]
                 .as_str()
@@ -147,6 +165,7 @@ impl CellPreparation {
             podman_sha256,
             task_mounts: value["task_mounts"].clone(),
             launch,
+            control_profile,
         };
         parsed.supervisor(&"0".repeat(64))?;
         let runtime = crate::declarations::Runtime::parse(parsed.runtime().to_string().as_bytes())?;
@@ -253,6 +272,33 @@ mod tests {
         assert!(parse(&value).is_err());
     }
 
+    #[test]
+    fn readonly_preparation_is_explicit_and_cannot_reuse_a_legacy_launch() {
+        let mut value = fixture();
+        assert_eq!(
+            parse(&value).unwrap().control_profile(),
+            NativeContainmentRoute::WorkspaceV1
+        );
+        value["control_profile"] = json!("python-readonly.v1");
+        assert!(parse(&value).is_err());
+        value["schema"] = json!("hol-gauntlet-cell-preparation.v2");
+        assert!(parse(&value).is_err());
+        value["launch"]["schema"] = json!("hol-gauntlet-cell-supervisor.v5");
+        value["launch"]["process_events"] = json!("outside-root-ptrace.v1");
+        value["launch"]["native_stdio"] = json!("outside-root-native-pipes.v1");
+        value["launch"]["native_runtime_sha256"] = json!("c".repeat(64));
+        value["launch"]["image_interpreter_sha256"] = json!("a".repeat(64));
+        value["launch"]["outside_observer_sha256"] = json!("b".repeat(64));
+        assert_eq!(
+            parse(&value).unwrap().control_profile(),
+            NativeContainmentRoute::PythonReadonlyV1
+        );
+        for bad in [json!("workspace-effects.v1"), json!("other"), json!(true)] {
+            let mut changed = value.clone();
+            changed["control_profile"] = bad;
+            assert!(parse(&changed).is_err());
+        }
+    }
     #[test]
     fn traced_preparation_preserves_the_mandatory_v3_recorder_and_both_pins() {
         let mut value = fixture();

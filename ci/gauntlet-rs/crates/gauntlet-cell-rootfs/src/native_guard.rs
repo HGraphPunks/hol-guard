@@ -3,6 +3,7 @@
 use crate::native_hook_calls::NativeHookCalls;
 use crate::native_request::NativeRequest;
 use crate::{hash, NativeCell, NativeGuardPins, Result};
+use gauntlet_evidence::NativeContainmentRoute;
 use serde_json::{json, Value};
 use std::time::{Duration, Instant};
 
@@ -40,6 +41,18 @@ impl NativeCell {
 
 impl NativeHookPlane {
     pub fn new(cell: NativeCell, pins: NativeGuardPins, session: &str) -> Result<Self> {
+        Self::with_profile(cell, pins, session, NativeContainmentRoute::WorkspaceV1)
+    }
+
+    pub fn with_profile(
+        cell: NativeCell,
+        pins: NativeGuardPins,
+        session: &str,
+        profile: NativeContainmentRoute,
+    ) -> Result<Self> {
+        if profile == NativeContainmentRoute::PythonReadonlyV1 && !cell.spec.native_pipe_transport {
+            return Err("read-only control requires its versioned Native pipe launch".into());
+        }
         if session.is_empty() || session.len() > 256 {
             return Err("bounded fixed Native controller session required".into());
         }
@@ -58,12 +71,16 @@ impl NativeHookPlane {
             session: session.into(),
             ready: false,
             prompt: None,
-            calls: NativeHookCalls::default(),
+            calls: NativeHookCalls::with_profile(profile),
             observations: Vec::new(),
             hooks: Vec::new(),
             executions: Vec::new(),
             lifecycle_witness: None,
         })
+    }
+
+    pub fn can_route_contained(&self, response: &Value) -> bool {
+        self.calls.can_route(response)
     }
 
     pub fn start(&mut self) -> Result<()> {
@@ -386,6 +403,10 @@ impl NativeHookPlane {
             observation["native_pipe_bytes"] = wire;
             observation["native_launch_adapter_sha256"] =
                 json!(hash(crate::native_guard_probe::PIPE_LAUNCH.as_bytes()));
+        }
+        if self.calls.profile() == NativeContainmentRoute::PythonReadonlyV1 {
+            observation["containment_contract"] = json!({"schema":"hol-gauntlet-native-containment-contract.v2",
+                "required_execution_profile":self.calls.profile().profile(),"reason_code":self.calls.profile().reason()});
         }
         observation
     }

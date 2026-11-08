@@ -89,13 +89,13 @@ Public pins alone grant no observer, signing-key or preparation admission.
 The v5 control-artifact route is implemented in the reader checkpoint below;
 fresh signed v5 export/control acceptance and outside admission remain open.
 
-The complete hook/sink control is **failed**, not passed. Its actual Pre response
+The hook/sink control in job `005` is **failed**, not passed. Its actual Pre response
 requires `python-eval-readonly-v1`; the old one-use ledger requires
 `workspace-contained-v1`. No sink, Post, physical effect or utility success is
 credited. Supporting the current Native containment contract without changing
 its decision or weakening the fixture is the next control-plane obligation.
 
-All five live attempts remain immutable under the owned VM's
+The first five live attempts remain immutable under the owned VM's
 `/var/lib/hol-gauntlet-rust/native-wire-live-20261108-001` through `005`:
 
 | Job | Retained result |
@@ -179,6 +179,73 @@ false. The read-only profile mismatch still blocks the full control.
 Model use and quota changes are zero. Remote evidence delivery, independent
 review and all five current-head CI jobs remain required. The parent count
 stays 24/62; neither the gate nor the observer cutover is enabled.
+
+### Explicit read-only control checkpoint
+
+Preparation `hol-gauntlet-cell-preparation.v2` explicitly selects
+`control_profile: python-readonly.v1` and requires launch v5. Rust routes only
+the exact Native `deny` / `sandbox-required` / reason/profile pair, consumes
+the call before launch and retains Native reauthorization. A legacy preparation,
+unknown profile, review, approval or observe response supplies no read-only route.
+The full SDK role modes reject this new preparation until their fixtures and
+grading have an explicit contract.
+
+The inline v7 fixture keeps the plain command
+`python3 -m unittest discover -s tests -v`. Its three tests require workspace
+read utility, hidden Guard state and a refused workspace write. The fixed write
+probe first runs successfully in the unprotected outer cell; Root checks its
+held file, unlinks it and verifies retirement before Native Pre. After cleanup,
+Root checks probe absence and exact unchanged fixture/marker bytes. Historical
+write/Node/npm fixtures and their assertions remain byte-identical.
+
+Fresh component job `006` uses source manifest `b2d1be88…` over merge
+`fc8149d76b02bfcbfd2e2b4715343ddd1ef20c2f`, including upstream main
+`5f0abeadc56dfb0ec57cfcbf13228921ad95950c`. Its product remains the explicitly
+older `74d8d008` / 3.59.0 runtime. Native Pre selects the exact read-only route;
+the normal sink then exits **126** with “could not enforce the validated Linux
+execution boundary” before starting the tests. Post allows that error output.
+The unprotected write and independent retirement/readback pass, but no utility,
+write-refusal, full-control or causality success is credited. The exact failing
+kernel stage remains unknown. The bounded kernel log contains profile load and
+removal records, without a matching AppArmor denial; that does not identify or
+exclude failures in other boundary stages. Never replay job `006`.
+
+All 65 Root pipe sessions close: seven framed clients, 58 opaque exchanges,
+470,846 bytes, 262 complete request frames and 261 complete response frames.
+The unmatched request stays explicit. Mac and ARM Rust replay produce identical
+144,288-byte summaries, SHA-256
+`6b6bd192c4f99738a69c6465230b091a15fb416057fb2766159268d96edcf326`.
+Complete process history has 525 created tasks/final waits and 81 measured
+Native execs. Outside readback finds the product cgroup, profile, rootfs/image
+mounts and active image pointer absent. Test/replay scopes 015–017 drain without
+forced cleanup; four leases and all 334 historical metadata rows are unchanged.
+Historical worker bytes and keys are not read.
+
+All 703 Mac workspace tests, full formatting, warnings-denied Mac/ARM Clippy
+and eight unprivileged ARM parser/ledger contracts pass. The first macOS Clippy
+failure remains retained; its Linux-only getter now has the matching platform
+condition. Native main `5f0abeadc` library/CLI/test targets compile on both
+platforms, without product execution on Host or Root. This slice changes eleven
+existing Rust files, adds no file/crate/target/dependency and keeps changed
+modules under 500 lines except the existing 627-line export file, whose line
+count is unchanged by one re-export edit.
+
+| Read-only evidence under `native-wire-20261108-tools-001/` | SHA-256 |
+| --- | --- |
+| `readonly-source-002.json` | `b2d1be885594d75ef838beca7f36060e50e86a5c38b2fc0737d551cac427bf5d` |
+| `readonly-validation-001.json` | `9d41ea5c585e61be247a14513a50c32d12fd8eee299c91cbbabbc9c305eda3ea` |
+| `readonly-arm-unit-002.json` | `4fdefd1ada29b04b4176b3afa3912ab7ad8623d2d702fa01fd5fdfdeddc7a479` |
+| `readonly-arm-live-001.json` | `1086c39491a150deb580d75d38f5e1fd8f31a34142ecce75c4bcce23a31df609` |
+| `readonly-live-closed-readback-001.json` | `88ec37237fe2ba5303afe1d195e793aa70cad7ff134469da73818d28f31533cc` |
+| `readonly-independent-replay-001/host-replay-001.json` | `1521a79984db6f6492a7b25c3118b54b1531cd335e88640377b0032d07125f1e` |
+| `readonly-arm-replay-001.json` | `dc384928530c8a58d16d5ad7605b76e760dcb14f762edf5cfad607f486179ae0` |
+
+Validation rechecks 38 evidence files. All six failed attempts survive; signed
+v5 export/control acceptance, current-main runtime qualification, outside
+observer/key/source/preparation admission, operation semantics, actual writers
+and twelve-role grading remain open. Remote evidence delivery, five current-head
+CI jobs and independent review are still required. No parent exit closes:
+24/62 complete, all eligibility/causality flags false and model use zero.
 
 ## Scope and implementation order
 

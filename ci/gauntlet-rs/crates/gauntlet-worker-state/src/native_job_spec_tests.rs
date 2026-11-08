@@ -269,6 +269,25 @@ fn valid_preparations_cannot_borrow_another_jobs_workspace_stage_or_slice() {
     let raw = value.to_string();
     job.preparation_sha256 = format!("{:x}", Sha256::digest(raw.as_bytes()));
     assert!(job.preparation(raw.as_bytes()).is_ok());
+    let mut readonly = value.clone();
+    readonly["schema"] = json!("hol-gauntlet-cell-preparation.v2");
+    readonly["control_profile"] = json!("python-readonly.v1");
+    readonly["launch"]["schema"] = json!("hol-gauntlet-cell-supervisor.v5");
+    readonly["launch"]["process_events"] = json!("outside-root-ptrace.v1");
+    readonly["launch"]["native_stdio"] = json!("outside-root-native-pipes.v1");
+    readonly["launch"]["native_runtime_sha256"] = json!("b".repeat(64));
+    readonly["launch"]["image_interpreter_sha256"] = json!("a".repeat(64));
+    readonly["launch"]["outside_observer_sha256"] = json!("c".repeat(64));
+    let raw = readonly.to_string();
+    job.preparation_sha256 = format!("{:x}", Sha256::digest(raw.as_bytes()));
+    assert!(job.preparation(raw.as_bytes()).is_err());
+    job.execution = NativeJobExecution::HookTransport(NativeGuardPins {
+        source_sha: "a".repeat(40),
+        package_version: "3.59.0".into(),
+        native_sha256: "b".repeat(64),
+        bwrap_sha256: "c".repeat(64),
+    });
+    assert!(job.preparation(raw.as_bytes()).is_ok());
     for (pointer, bad) in [
         (
             "/stage",

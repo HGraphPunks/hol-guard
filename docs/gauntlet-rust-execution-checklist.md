@@ -77,6 +77,25 @@ tests and historical replay; fresh signed v5 export/control acceptance, outside
 admission, request semantics and physical writers remain open. Parent exits
 remain 24/62.
 
+Explicit read-only preparation v2 now requires launch v5 and the exact Native
+reason/profile pair; other decisions and legacy workspace preparations cannot
+borrow that route. Historical write/Node/npm fixtures remain unchanged. Source
+`readonly-source-002.json` (`b2d1be88…`) passes 703 Mac workspace tests, full
+formatting, warnings-denied Mac/ARM Clippy and eight unprivileged ARM contracts.
+Fresh component job `006` reaches the Native sink, which exits 126 during Linux
+boundary setup before tests start. Post allows the captured error; this is a
+failed control with no utility or denied-write success credit. Root independently
+verifies the unprotected write, its retirement, unchanged fixture and cleanup.
+Mac/ARM replay agrees on 65 sessions, 470,846 bytes and 525 complete task histories.
+Validation `readonly-validation-001.json` hashes to
+`9d41ea5c585e61be247a14513a50c32d12fd8eee299c91cbbabbc9c305eda3ea`.
+No new file, crate, target or dependency is added. Main `5f0abeadc` is merged as
+`fc8149d76` and compiles on Mac/ARM; live evidence still uses older `74d8d008`.
+See the [read-only checkpoint](gauntlet-rust-native-stdio-plan.md#explicit-read-only-control-checkpoint).
+Full SDK roles, signed export, outside admission, semantics and actual writers
+remain open. All six failed attempts and 334 historical metadata rows survive;
+parent exits remain 24/62 and model use is zero.
+
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
 ```

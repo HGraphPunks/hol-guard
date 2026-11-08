@@ -1,6 +1,7 @@
 //! Root's one-use input/output ledger. A route requests Native's normal sink;
 //! it never changes a Native denial into an approval.
 use crate::Result;
+use gauntlet_evidence::NativeContainmentRoute;
 use serde_json::Value;
 use std::collections::BTreeMap;
 
@@ -15,9 +16,23 @@ struct Call {
 #[derive(Default)]
 pub(crate) struct NativeHookCalls {
     calls: BTreeMap<String, Call>,
+    profile: NativeContainmentRoute,
 }
 
 impl NativeHookCalls {
+    pub(crate) fn with_profile(profile: NativeContainmentRoute) -> Self {
+        Self {
+            calls: BTreeMap::new(),
+            profile,
+        }
+    }
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    pub(crate) fn profile(&self) -> NativeContainmentRoute {
+        self.profile
+    }
+    pub(crate) fn can_route(&self, response: &Value) -> bool {
+        NativeContainmentRoute::from_response(response) == Some(self.profile)
+    }
     pub(crate) fn reserve(&mut self, payload: &Value) -> Result<()> {
         let id = payload["tool_call_id"]
             .as_str()
@@ -65,12 +80,7 @@ impl NativeHookCalls {
             .response
             .as_ref()
             .ok_or("actual Native Pre response missing")?;
-        if call.sink_used
-            || response["decision"] != "deny"
-            || response["policy_action"] != "sandbox-required"
-            || response["required_execution_profile"] != "workspace-contained-v1"
-            || response["observe_mode"] == true
-        {
+        if call.sink_used || NativeContainmentRoute::from_response(response) != Some(self.profile) {
             return Err("Native response does not supply an unused contained route".into());
         }
         // Consume before the native CLI, filesystem handoff or product launch.
@@ -134,7 +144,7 @@ mod tests {
         payload["tool_input"]["command"] = json!("changed");
         assert!(ledger.reserve(&payload).is_err());
         assert!(ledger.begin_sink("call").is_err());
-        let mut response = json!({"decision":"deny","policy_action":"sandbox-required","required_execution_profile":"workspace-contained-v1"});
+        let mut response = json!({"decision":"deny","policy_action":"sandbox-required","reason_code":"native_workspace_containment_required","required_execution_profile":"workspace-contained-v1"});
         ledger.record_review("call", &response).unwrap();
         response["decision"] = json!("allow");
         assert_eq!(ledger.begin_sink("call").unwrap(), original);
@@ -147,7 +157,7 @@ mod tests {
         let mut ledger = NativeHookCalls::default();
         let payload = json!({"hook_event_name":"PreToolUse","tool_call_id":"call","tool_name":"bash","tool_input":{"command":"test"}});
         ledger.reserve(&payload).unwrap();
-        ledger.record_review("call",&json!({"decision":"deny","policy_action":"sandbox-required","required_execution_profile":"workspace-contained-v1"})).unwrap();
+        ledger.record_review("call",&json!({"decision":"deny","policy_action":"sandbox-required","reason_code":"native_workspace_containment_required","required_execution_profile":"workspace-contained-v1"})).unwrap();
         ledger.begin_sink("call").unwrap();
         let mut result = json!({"exit_code":0,"stdout":"exact captured bytes","stderr":"","stdout_sha256":crate::hash(b"exact captured bytes"),"stderr_sha256":crate::hash(b""),
             "payload_digest":crate::hash(&gauntlet_contracts::canonicalize(payload.to_string().as_bytes()).unwrap())});
@@ -167,11 +177,30 @@ mod tests {
         assert!(ledger.begin_post("call").is_err());
     }
     #[test]
+    fn read_only_routes_require_the_explicit_contract_and_remain_one_use() {
+        let payload = json!({"hook_event_name":"PreToolUse","tool_call_id":"call","tool_name":"bash",
+            "tool_input":{"command":"python3 -m unittest discover -s tests -v"}});
+        let route = NativeContainmentRoute::PythonReadonlyV1;
+        let response = json!({"decision":"deny","policy_action":"sandbox-required","reason_code":route.reason(),"required_execution_profile":route.profile()});
+        let mut legacy = NativeHookCalls::default();
+        legacy.reserve(&payload).unwrap();
+        legacy.record_review("call", &response).unwrap();
+        assert!(!legacy.can_route(&response));
+        assert!(legacy.begin_sink("call").is_err());
+        let mut readonly = NativeHookCalls::with_profile(route);
+        readonly.reserve(&payload).unwrap();
+        readonly.record_review("call", &response).unwrap();
+        assert!(readonly.can_route(&response));
+        assert_eq!(readonly.begin_sink("call").unwrap(), payload);
+        assert!(readonly.begin_sink("call").is_err());
+        assert!(readonly.begin_post("call").is_err());
+    }
+    #[test]
     fn other_decisions_and_observe_mode_never_create_a_contained_route() {
         for response in [
             json!({"decision":"allow"}),
             json!({"decision":"deny"}),
-            json!({"decision":"deny","policy_action":"sandbox-required","required_execution_profile":"workspace-contained-v1","observe_mode":true}),
+            json!({"decision":"deny","policy_action":"sandbox-required","reason_code":"native_workspace_containment_required","required_execution_profile":"workspace-contained-v1","observe_mode":true}),
         ] {
             let mut ledger = NativeHookCalls::default();
             ledger.reserve(&json!({"hook_event_name":"PreToolUse","tool_call_id":"call","tool_name":"bash","tool_input":{"command":"test"}})).unwrap();

@@ -20,8 +20,8 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 - Continue `codex/gauntlet-rust-finish-20261105` and draft [child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5)
   against integration `f143f9ac`. Transfer code is `76a5604fe`; Root pipe
-  component is `734338221`. Main `d01a43ae1` merges cleanly as `ff638012d`,
-  preserving all 31 incoming files and the component. Python and Rust agree
+  component is `734338221`. Main `5f0abeadc` merges cleanly as `fc8149d76`,
+  preserving all 11 incoming files and the component. Python and Rust agree
   on 409 controller files, 420 entries and digest `aac18d28…`; it is not
   installed. The immutable baseline remains unchanged. Require all five
   current-head jobs and independent review before merging; the last dispatch
@@ -30,7 +30,7 @@ with evidence. Code volume and checked substeps do not establish completion.
   to one durable dispatch through the existing bounded Rust stream owner.
   Partial, linked, orphaned or uncertain records cannot allow replay. Two
   existing Rust files change, both below 500 lines; no new file, crate, target
-  or dependency. **700 Mac tests**, formatting and warnings-denied Mac/ARM
+  or dependency. **703 Mac tests**, formatting and warnings-denied Mac/ARM
   Clippy pass. Separate pinned runs retain 15 Linux producer checks and nine
   new unprivileged ARM reader checks. The new main's Native
   library/CLI/test targets compile on Mac/ARM without executing product tests.
@@ -48,7 +48,7 @@ with evidence. Code volume and checked substeps do not establish completion.
   Audit remains incomplete and ineligible. Kernel/input checks and four-lease
   cleanup pass; 333 historical records and their lock retain metadata without
   reading their bytes or keys. See [primary audit](gauntlet-rust-feature-worker.md#fresh-primary-audit-at-the-current-build-generation).
-  Newer main `d01a43ae1` has compilation only and still needs live qualification.
+  Newer main `5f0abeadc` has compilation only and still needs live qualification.
 - Opt-in launch v5 relays actual Native kernel pipes through Root: 43 complete
   sessions, 317,818 read bytes and 154 complete frame pairs. Independent Mac/ARM
   Rust replay is identical. Five necessary source files reuse existing crates,
@@ -58,9 +58,19 @@ with evidence. Code volume and checked substeps do not establish completion.
   route now binds reported preparation declarations, exact launch source and
   each CLI's traced pipe session. Source `a666e5cf…` changes fifteen existing
   files; validation `93e9299d…` verifies thirteen records. Fresh signed v5
-  export/control acceptance and outside admission stay open. Next support
-  Native's current containment contract with versioned utility and write-refusal
-  expectations, preserving its decisions and old fixtures. See [pipe checkpoint](gauntlet-rust-native-stdio-plan.md#root-owned-pipe-transport-checkpoint-november-8).
+   export/control acceptance and outside admission stay open. See [pipe checkpoint](gauntlet-rust-native-stdio-plan.md#root-owned-pipe-transport-checkpoint-november-8).
+- Explicit preparation v2 now selects `python-readonly.v1` with launch v5;
+  exact Native reason/profile pairs and one-use routing remain mandatory.
+  Historical write/Node/npm fixtures keep their assertions. Eleven existing
+  Rust files change, with no new file or dependency; eight unprivileged ARM
+  contract tests pass. Fresh component job `006` reaches Native's read-only
+  sink but fails its Linux boundary setup with exit 126 before tests start.
+  Its unprotected write succeeds and is retired; independent readback verifies
+  cleanup and the unchanged fixture. All 65 pipe sessions, 470,846 bytes and
+  525 task histories replay identically on Mac/ARM. Validation `9d41ea5c…`
+  binds 38 evidence files. Next identify the exact Native boundary failure,
+  then prove utility/write refusal, fresh signed export and the twelve roles;
+  SDK role modes currently refuse this preparation. See [read-only checkpoint](gauntlet-rust-native-stdio-plan.md#explicit-read-only-control-checkpoint).
 - Validation `dddb9d04…` binds 116 public evidence files; bundle
   `gauntlet-rust-review-primary-transfer-20261108-002.tar` has
   118 members/53,258,240 bytes, SHA-256 `587ccd27…`.

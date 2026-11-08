@@ -147,11 +147,7 @@ impl NativeSdkRouter {
                     self.originals.push(hook.clone());
                     let response =
                         plane.review_before_input(&hook.call_id, &hook.input, &hook.environment)?;
-                    if response["decision"] == "deny"
-                        && response["policy_action"] == "sandbox-required"
-                        && response["required_execution_profile"] == "workspace-contained-v1"
-                        && response["observe_mode"] != true
-                    {
+                    if plane.can_route_contained(&response) {
                         let mut random = [0; 32];
                         SystemRandom::new()
                             .fill(&mut random)

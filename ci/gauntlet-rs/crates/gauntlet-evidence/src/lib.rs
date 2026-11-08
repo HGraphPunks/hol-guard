@@ -181,7 +181,7 @@ pub use native_control_envelope::{
     AuthenticatedNativeControlReport, NativeControlReportPins, NATIVE_CONTROL_ENVELOPE_LIMIT,
 };
 pub use native_hook_diagnostic::verify_native_hook_diagnostic;
-pub use native_hook_response::normalize_native_hook_response;
+pub use native_hook_response::{normalize_native_hook_response, NativeContainmentRoute};
 pub use native_mcp_diagnostic::verify_native_mcp_diagnostic;
 pub use native_process_diagnostic::verify_native_process_diagnostic;
 pub use native_process_event_files::verify_native_process_event_files;
