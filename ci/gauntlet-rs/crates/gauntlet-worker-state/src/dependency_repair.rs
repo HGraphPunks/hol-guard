@@ -17,7 +17,7 @@ fn container_identity(slot: &OwnedFd, digest: &str) -> Result<String, String> {
     }
 }
 
-fn body(
+pub(crate) fn body(
     journal: &RunReservationJournal,
     intent: &DependencyRunIntent,
     repair: &str,
@@ -95,6 +95,9 @@ pub(crate) fn verified(
     journal: &RunReservationJournal,
     intent: &DependencyRunIntent,
 ) -> Result<Option<Vec<u8>>, String> {
+    if let Some(raw) = crate::dependency_completion::verified(journal, intent)? {
+        return Ok(Some(raw));
+    }
     if let Some(raw) = crate::dependency_preparation::verified(journal, intent)? {
         return Ok(Some(raw));
     }
@@ -287,9 +290,14 @@ fn repair(
     if intent.pins.text("runner_binary_sha256") != original_generation {
         return Err("original dependency generation differs".into());
     }
-    if let Some(raw) = crate::dependency_preparation::verified(journal, &intent)? {
+    if let Some(raw) = crate::dependency_preparation::verified(journal, &intent)?
+        .or(crate::dependency_completion::verified(journal, &intent)?)
+    {
         let v: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
-        if v["expected_started_marker_sha256"] != expected_started {
+        if v.get("expected_started_marker_sha256")
+            .unwrap_or(&v["started_marker_sha256"])
+            != expected_started
+        {
             return Err("retired preparation reservation differs".into());
         }
         if !read_only {

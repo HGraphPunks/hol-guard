@@ -89,6 +89,10 @@ pub use dependency_archive_read::{
     inspect_dependency_archive, DependencyArchivePins, DependencyArchiveProof,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod dependency_completion;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use dependency_completion::retire_native_dependency_completion;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod dependency_creator_recovery;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod dependency_io;

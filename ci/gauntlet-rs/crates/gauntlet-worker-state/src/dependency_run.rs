@@ -350,6 +350,9 @@ pub(crate) fn require_idle() -> Result<(), String> {
             )
             .map_err(|e| e.to_string())?
             .ok_or("dependency start differs")?;
+        if crate::dependency_completion::verified(&journal, &intent)?.is_some() {
+            continue;
+        }
         let terminal = journal
             .terminal(
                 &job,

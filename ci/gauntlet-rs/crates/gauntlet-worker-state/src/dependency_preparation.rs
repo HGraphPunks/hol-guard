@@ -82,7 +82,7 @@ pub(crate) fn intent_for_job(job: &str, expected: &str) -> Result<DependencyRunI
     Ok(intent)
 }
 
-fn metadata(s: &Stat) -> String {
+pub(crate) fn metadata(s: &Stat) -> String {
     let raw = json!([
         s.st_dev,
         s.st_ino,
@@ -98,7 +98,11 @@ fn metadata(s: &Stat) -> String {
     ]);
     format!("{:x}", Sha256::digest(raw.to_string().as_bytes()))
 }
-fn retained(dir: &OwnedFd, name: &str, bound: usize) -> Result<Option<(Vec<u8>, String)>, String> {
+pub(crate) fn retained(
+    dir: &OwnedFd,
+    name: &str,
+    bound: usize,
+) -> Result<Option<(Vec<u8>, String)>, String> {
     let before = match statat(dir, name, AtFlags::SYMLINK_NOFOLLOW) {
         Ok(s) => s,
         Err(rustix::io::Errno::NOENT) => return Ok(None),

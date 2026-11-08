@@ -49,6 +49,12 @@ pub fn read_native_dependencies(
     if crate::dependency_repair::intent_for_job(job, expected_intent)? != intent {
         return Err("dependency reconciliation differs from retained host intent".into());
     }
+    if let Some(raw) = crate::dependency_completion::verified(journal, &intent)?.or(
+        crate::dependency_completion::observe(journal, &intent, generation)?,
+    ) {
+        stable()?;
+        return Ok(raw);
+    }
     let report_pending = present(journal, &format!("{job}.report.json"))?
         && !present(journal, &format!("{job}.terminal.json"))?;
     let terminal = if report_pending {
@@ -236,6 +242,20 @@ fn retained_completion(
         running,
         exit,
     })
+}
+
+pub(crate) fn expected_terminal(
+    journal: &RunReservationJournal,
+    intent: &DependencyRunIntent,
+) -> Result<Vec<u8>, String> {
+    use sha2::{Digest, Sha256};
+    let r = retained_completion(journal, intent)?;
+    canonicalize(serde_json::json!({"schema":"hol-gauntlet-worker-terminal.v1",
+        "source_sha":r.started.source_sha,"job_id":r.started.job_id,
+        "deployment_digest":r.started.deployment_digest,"worker_generation":r.started.worker_generation,
+        "started_marker_sha256":r.started.sha256,"report_sha256":format!("{:x}",Sha256::digest(&r.parts.raw)),
+        "pid":r.running.process.pid,"process_start_ticks":r.running.process.start_ticks,
+        "exit_code":r.exit,"status":"invalid-evidence"}).to_string().as_bytes()).map_err(|e|e.to_string())
 }
 
 /// Explicit recovery completes a full retained report without re-running it.

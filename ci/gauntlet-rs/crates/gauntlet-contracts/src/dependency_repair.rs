@@ -26,36 +26,6 @@ pub fn dependency_repair_authorization(
         "intent_sha256":intent.digest()?,"started_marker_sha256":started,"repair_generation":generation}).to_string().as_bytes()).map_err(|e|e.to_string())
 }
 
-pub fn parse_dependency_repair_authorization(
-    intent: &DependencyRunIntent,
-    raw: &[u8],
-) -> Result<(String, String), String> {
-    let v: Value =
-        serde_json::from_slice(raw).map_err(|_| "dependency repair authorization is partial")?;
-    let started = v["started_marker_sha256"]
-        .as_str()
-        .ok_or("dependency reservation pin missing")?;
-    let generation = v["repair_generation"]
-        .as_str()
-        .ok_or("dependency repair executable pin missing")?;
-    let expected = if v["schema"] == "hol-gauntlet-host-dependency-repair-authorization.v2" {
-        crate::dependency_preparation_authorization(
-            intent,
-            started,
-            generation,
-            v["preparation_state_sha256"]
-                .as_str()
-                .ok_or("preparation state pin missing")?,
-        )?
-    } else {
-        dependency_repair_authorization(intent, started, generation)?
-    };
-    if raw != expected {
-        return Err("dependency repair authorization differs".into());
-    }
-    Ok((started.into(), generation.into()))
-}
-
 /// A reservation observation enables explicit recovery; it never authorizes it.
 pub fn verify_dependency_unknown_result(
     intent: &DependencyRunIntent,
@@ -66,7 +36,13 @@ pub fn verify_dependency_unknown_result(
         return Err("bounded canonical dependency observation required".into());
     }
     let mut v: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;
-    if v["schema"] == "hol-gauntlet-native-dependency-unknown.v2" {
+    if matches!(
+        v["schema"].as_str(),
+        Some(
+            "hol-gauntlet-native-dependency-unknown.v2"
+                | "hol-gauntlet-native-dependency-unknown.v3"
+        )
+    ) {
         return crate::dependency_recovery::verify_preparation_unknown(intent, reader, raw);
     }
     let fields = [
@@ -136,7 +112,12 @@ pub fn verify_dependency_repair_result(
         return Err("bounded canonical dependency repair required".into());
     }
     let v: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;
-    if v["schema"] == "hol-gauntlet-native-dependency-repair.v4" {
+    if matches!(
+        v["schema"].as_str(),
+        Some(
+            "hol-gauntlet-native-dependency-repair.v4" | "hol-gauntlet-native-dependency-repair.v5"
+        )
+    ) {
         return crate::dependency_recovery::verify_preparation_repair(
             intent, started, generation, raw,
         );

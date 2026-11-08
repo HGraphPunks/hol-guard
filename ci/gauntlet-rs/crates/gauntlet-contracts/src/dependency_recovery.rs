@@ -185,12 +185,56 @@ pub fn dependency_preparation_authorization_state(
     Ok(v["preparation_state_sha256"].as_str().map(str::to_owned))
 }
 
+pub fn parse_dependency_repair_authorization(
+    intent: &DependencyRunIntent,
+    raw: &[u8],
+) -> Result<(String, String), String> {
+    let v: Value =
+        serde_json::from_slice(raw).map_err(|_| "dependency repair authorization is partial")?;
+    let started = v["started_marker_sha256"]
+        .as_str()
+        .ok_or("dependency reservation pin missing")?;
+    let generation = v["repair_generation"]
+        .as_str()
+        .ok_or("dependency repair executable pin missing")?;
+    let expected = match v["schema"].as_str() {
+        Some("hol-gauntlet-host-dependency-repair-authorization.v2") => {
+            dependency_preparation_authorization(
+                intent,
+                started,
+                generation,
+                v["preparation_state_sha256"]
+                    .as_str()
+                    .ok_or("preparation state pin missing")?,
+            )?
+        }
+        Some("hol-gauntlet-host-dependency-repair-authorization.v3") => {
+            crate::dependency_completion_authorization(
+                intent,
+                started,
+                generation,
+                v["completion_state_sha256"]
+                    .as_str()
+                    .ok_or("completion state pin missing")?,
+            )?
+        }
+        _ => dependency_repair_authorization(intent, started, generation)?,
+    };
+    if raw != expected {
+        return Err("dependency repair authorization differs".into());
+    }
+    Ok((started.into(), generation.into()))
+}
+
 pub(crate) fn verify_preparation_unknown(
     intent: &DependencyRunIntent,
     reader: &str,
     raw: &[u8],
 ) -> Result<Value, String> {
     let v: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;
+    if v["schema"] == "hol-gauntlet-native-dependency-unknown.v3" {
+        return crate::dependency_completion::verify(intent, reader, None, raw);
+    }
     let state = DependencyPreparationState::observed(intent, &v)?;
     if state.unknown(intent, reader)? != raw {
         return Err("closed canonical preparation observation required".into());
@@ -209,6 +253,9 @@ pub(crate) fn verify_preparation_repair(
     raw: &[u8],
 ) -> Result<Value, String> {
     let v: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;
+    if v["schema"] == "hol-gauntlet-native-dependency-repair.v5" {
+        return crate::dependency_completion::verify(intent, generation, Some(started), raw);
+    }
     let state = DependencyPreparationState::observed(intent, &v)?;
     if started != state.expected_started_sha256 || state.retired(intent, generation)? != raw {
         return Err("preparation retirement differs from original intent or authorization".into());

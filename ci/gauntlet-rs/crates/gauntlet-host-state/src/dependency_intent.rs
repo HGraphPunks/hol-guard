@@ -285,12 +285,14 @@ impl DependencyIntentJournal {
         let public = match schema["schema"].as_str() {
             Some(
                 "hol-gauntlet-native-dependency-unknown.v1"
-                | "hol-gauntlet-native-dependency-unknown.v2",
+                | "hol-gauntlet-native-dependency-unknown.v2"
+                | "hol-gauntlet-native-dependency-unknown.v3",
             ) => gauntlet_contracts::verify_dependency_unknown_result(&intent, generation, frame)?,
             Some(
                 "hol-gauntlet-native-dependency-repair.v2"
                 | "hol-gauntlet-native-dependency-repair.v3"
-                | "hol-gauntlet-native-dependency-repair.v4",
+                | "hol-gauntlet-native-dependency-repair.v4"
+                | "hol-gauntlet-native-dependency-repair.v5",
             ) => {
                 let auth = authorization
                     .as_ref()
@@ -328,7 +330,7 @@ impl DependencyIntentJournal {
     }
 }
 
-pub const DEPENDENCY_COMMAND_USAGE:&str="dependency commands:\nrun PRIVATE_INTENT_DIR PRIVATE_RUN_PINS_JSON [--vm VM_NAME]\nread PRIVATE_INTENT_DIR JOB_ID READER_BINARY_SHA256 [--vm VM_NAME]\nrepair PRIVATE_INTENT_DIR JOB_ID EXPECTED_STARTED_MARKER_SHA256 REPAIR_BINARY_SHA256 [--vm VM_NAME]\nFor partial preparation, use the expected reservation hash from read. Read never authorizes cleanup or a new launch. Repair preserves the original unknown attempt and supplies no execution admission.";
+pub const DEPENDENCY_COMMAND_USAGE:&str="dependency commands:\nrun PRIVATE_INTENT_DIR PRIVATE_RUN_PINS_JSON [--vm VM_NAME]\nread PRIVATE_INTENT_DIR JOB_ID READER_BINARY_SHA256 [--vm VM_NAME]\nrepair PRIVATE_INTENT_DIR JOB_ID EXPECTED_STARTED_MARKER_SHA256 REPAIR_BINARY_SHA256 [--vm VM_NAME]\nFor partial preparation, use the expected reservation hash from read. Incomplete completion retirement preserves original files and has unknown exit. Read never authorizes cleanup or a new launch. Repair supplies no execution admission.";
 
 pub fn run_dependency_command(args: &[String]) -> Result<Value, String> {
     match (args.first().map(String::as_str), args.len()) {
