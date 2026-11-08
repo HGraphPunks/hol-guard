@@ -1,4 +1,4 @@
-//! Reauthenticate a v7 completion against the host's durable prelaunch record.
+//! Reauthenticate an explicitly selected completion against the host's durable pin.
 //! A signed controller diagnostic remains separate from independent scoring.
 use crate::{HostControllerKeyPinJournal, HostKeyPinError, HostPrelaunchIdentity};
 use gauntlet_contracts::{canonicalize, PrelaunchPrepared, NATIVE_HOST_PINNED_COMPLETION_LIMIT};
@@ -67,6 +67,20 @@ impl HostControllerKeyPinJournal {
         preparation_sha256: &str,
         role: &str,
     ) -> Result<HostNativeControlReadback> {
+        let readonly = role == "readonly-utility";
+        let (completion, report_schema, profile) = if readonly {
+            (
+                "hol-gauntlet-native-host-pinned-completion.v2",
+                "hol-gauntlet-native-worker-report.v8",
+                "native-host-pinned-readonly-hook-v1",
+            )
+        } else {
+            (
+                "hol-gauntlet-native-host-pinned-completion.v1",
+                "hol-gauntlet-native-worker-report.v7",
+                "native-host-pinned-control-v1",
+            )
+        };
         if raw.is_empty() || raw.len() > NATIVE_HOST_PINNED_COMPLETION_LIMIT {
             return Err(NativeControlReadbackError::InvalidFrame);
         }
@@ -86,7 +100,7 @@ impl HostControllerKeyPinJournal {
             .map_err(|_| NativeControlReadbackError::InvalidFrame)?;
         require(
             frame.as_object().is_some_and(|o| o.len() == 9)
-                && frame["schema"] == "hol-gauntlet-native-host-pinned-completion.v1"
+                && frame["schema"] == completion
                 && frame["execution_eligible"] == false
                 && frame["guard_causality_verified"] == false
                 && frame["model_requests"].as_u64() == Some(0),
@@ -117,7 +131,7 @@ impl HostControllerKeyPinJournal {
             started["schema"] == "hol-gauntlet-worker-started.v2"
                 && pin["schema"] == "hol-gauntlet-controller-key-pin.v1"
                 && terminal["schema"] == "hol-gauntlet-worker-terminal.v2"
-                && report["schema"] == "hol-gauntlet-native-worker-report.v7",
+                && report["schema"] == report_schema,
         )?;
         for value in [started, pin, terminal, report] {
             require(
@@ -149,7 +163,7 @@ impl HostControllerKeyPinJournal {
                 && terminal["exit_code"] == report["exit_code"]
                 && terminal["pid"] == report["controller"]["pid"]
                 && terminal["process_start_ticks"] == report["controller"]["start_ticks"]
-                && report["profile"] == "native-host-pinned-control-v1"
+                && report["profile"] == profile
                 && report["preparation_sha256"] == preparation_sha256
                 && report["execution_eligible"] == false
                 && report["guard_causality_verified"] == false
@@ -194,17 +208,23 @@ impl HostControllerKeyPinJournal {
             "controller_cgroup_drained",
             "product_slice_absent",
             "image_lease_absent",
-            "sdk_agent_absent",
-            "sdk_profile_absent",
-            "mcp_agent_absent",
-            "mcp_profile_absent",
         ] {
             require(report[name] == true)?;
+        }
+        if !readonly {
+            for name in [
+                "sdk_agent_absent",
+                "sdk_profile_absent",
+                "mcp_agent_absent",
+                "mcp_profile_absent",
+            ] {
+                require(report[name] == true)?;
+            }
         }
         Ok(HostNativeControlReadback {
             diagnostic: authenticated.report().clone(),
             observation: json!({
-            "schema":"hol-gauntlet-host-native-control-readback.v1","job_id":p.job_id,"source_sha":p.source_sha,
+            "schema":if readonly {"hol-gauntlet-host-native-control-readback.v2"}else{"hol-gauntlet-host-native-control-readback.v1"},"job_id":p.job_id,"source_sha":p.source_sha,
             "deployment_digest":p.deployment_digest,"worker_generation":p.worker_generation,
             "host_pin_sha256":record.raw_sha256,"report_sha256":terminal["report_sha256"],"terminal_sha256":frame["terminal_sha256"],
             "controller_signature":authenticated.observation(),"host_prelaunch_tuple_bound":true,

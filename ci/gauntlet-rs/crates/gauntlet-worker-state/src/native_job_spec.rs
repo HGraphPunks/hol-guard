@@ -16,6 +16,7 @@ pub(crate) const ACTIVE_SECONDS: u64 = 300;
 pub enum NativeJobExecution {
     Apparatus(NativeCase),
     HookTransport(NativeGuardPins),
+    HostPinnedReadonlyHook(NativeGuardPins),
     McpTransport(NativeGuardPins),
     SdkTransport {
         guard: NativeGuardPins,
@@ -63,8 +64,11 @@ impl NativeJobSpec {
         }
         let canonical = canonicalize(raw).map_err(|_| "ambiguous native run declaration")?;
         let value: Value = serde_json::from_slice(&canonical).map_err(|_| "native run JSON")?;
-        let hook = value["schema"] == "hol-gauntlet-native-worker-job.v2"
-            && value["profile"] == "native-hook-transport-v1";
+        let readonly_hook = value["schema"] == "hol-gauntlet-native-worker-job.v8"
+            && value["profile"] == "native-host-pinned-readonly-hook-v1";
+        let hook = readonly_hook
+            || (value["schema"] == "hol-gauntlet-native-worker-job.v2"
+                && value["profile"] == "native-hook-transport-v1");
         let sdk = value["schema"] == "hol-gauntlet-native-worker-job.v3"
             && value["profile"] == "native-sdk-transport-v1";
         let mcp = value["schema"] == "hol-gauntlet-native-worker-job.v4"
@@ -149,6 +153,8 @@ impl NativeJobSpec {
                 }
             } else if mcp {
                 NativeJobExecution::McpTransport(pins)
+            } else if readonly_hook {
+                NativeJobExecution::HostPinnedReadonlyHook(pins)
             } else {
                 NativeJobExecution::HookTransport(pins)
             }
@@ -173,6 +179,7 @@ impl NativeJobSpec {
         match self.execution {
             NativeJobExecution::Apparatus(_) => "native-apparatus-v1",
             NativeJobExecution::HookTransport(_) => "native-hook-transport-v1",
+            NativeJobExecution::HostPinnedReadonlyHook(_) => "native-host-pinned-readonly-hook-v1",
             NativeJobExecution::McpTransport(_) => "native-mcp-transport-v1",
             NativeJobExecution::SdkTransport { .. } => "native-sdk-transport-v1",
             NativeJobExecution::SdkMcpTransport { .. } => "native-sdk-mcp-transport-v1",
@@ -185,6 +192,7 @@ impl NativeJobSpec {
         match self.execution {
             NativeJobExecution::Apparatus(case) => case.as_str(),
             NativeJobExecution::HookTransport(_) => "native-hook-transport",
+            NativeJobExecution::HostPinnedReadonlyHook(_) => "readonly-utility",
             NativeJobExecution::McpTransport(_) => "native-mcp-transport",
             NativeJobExecution::SdkTransport { .. } => "native-sdk-transport",
             NativeJobExecution::SdkMcpTransport { .. } => "native-sdk-mcp-transport",
@@ -193,7 +201,11 @@ impl NativeJobSpec {
         }
     }
     pub fn requires_host_pin(&self) -> bool {
-        matches!(self.execution, NativeJobExecution::HostPinnedControl { .. })
+        matches!(
+            self.execution,
+            NativeJobExecution::HostPinnedControl { .. }
+                | NativeJobExecution::HostPinnedReadonlyHook(_)
+        )
     }
 
     pub fn job_root(&self) -> PathBuf {
@@ -207,8 +219,22 @@ impl NativeJobSpec {
     /// declaration cannot substitute a different job's mutable task or slice.
     pub fn preparation(&self, raw: &[u8]) -> Result<CellPreparation, String> {
         let spec = CellPreparation::parse(raw, &self.preparation_sha256)?;
+        if matches!(
+            &self.execution,
+            NativeJobExecution::HostPinnedReadonlyHook(_)
+        ) && spec.control_profile()
+            != gauntlet_evidence::NativeContainmentRoute::PythonReadonlyV1
+        {
+            return Err(
+                "host-pinned read-only hook requires explicit read-only preparation".into(),
+            );
+        }
         if spec.control_profile() == gauntlet_evidence::NativeContainmentRoute::PythonReadonlyV1
-            && !matches!(&self.execution, NativeJobExecution::HookTransport(_))
+            && !matches!(
+                &self.execution,
+                NativeJobExecution::HookTransport(_)
+                    | NativeJobExecution::HostPinnedReadonlyHook(_)
+            )
         {
             return Err("read-only preparation requires hook transport; SDK role fixtures retain their historical contract".into());
         }

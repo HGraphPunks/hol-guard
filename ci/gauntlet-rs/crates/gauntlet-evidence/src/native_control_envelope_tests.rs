@@ -135,3 +135,56 @@ fn duplicate_fields_oversize_and_claimed_qualification_are_refused() {
     report["control_role"] = json!("injection");
     assert!(native_control_signing_record(&report, &pins).is_err());
 }
+
+#[test]
+fn readonly_hook_requires_explicit_v2_pins_and_cannot_be_a_six_role_report() {
+    let (mut pins, mut report, key) = fixture();
+    pins.role = "readonly-utility".into();
+    report["schema"] = json!("hol-gauntlet-native-hook-transport.v2");
+    report["pins"] = report
+        .as_object_mut()
+        .unwrap()
+        .remove("guard_pins")
+        .unwrap();
+    report.as_object_mut().unwrap().remove("control_role");
+    report["sdk_exercised"] = json!(false);
+    report["artifact_admitted"] = json!(false);
+    let raw = signed(&report, &pins, &key);
+    let verified = verify_native_control_envelope(&raw, &pins).unwrap();
+    assert_eq!(verified.report(), &report);
+    assert_eq!(
+        verified.observation()["schema"],
+        "hol-gauntlet-authenticated-native-controller-record.v2"
+    );
+    assert_eq!(verified.observation()["independent_effects_scored"], false);
+    let mut old = pins.clone();
+    old.role = "success".into();
+    assert!(verify_native_control_envelope(&raw, &old).is_err());
+    for (pointer, value) in [
+        ("/schema", json!("hol-gauntlet-native-hook-transport.v1")),
+        ("/pins/source_sha", json!("8".repeat(40))),
+        ("/job_id", json!("8".repeat(16))),
+        ("/preparation_sha256", json!("8".repeat(64))),
+        ("/sdk_exercised", json!(true)),
+        ("/artifact_admitted", json!(true)),
+        ("/execution_eligible", json!(true)),
+        ("/guard_causality_verified", json!(true)),
+        ("/qualified_role_complete", json!(true)),
+    ] {
+        let mut changed = report.clone();
+        *changed.pointer_mut(pointer).unwrap() = value;
+        assert!(
+            native_control_signing_record(&changed, &pins).is_err(),
+            "{pointer}"
+        );
+    }
+    let mut changed: Value = serde_json::from_slice(&raw).unwrap();
+    changed["record"]["schema"] = json!("hol-gauntlet-native-controller-record.v1");
+    changed["signature"] = json!(STANDARD.encode(
+        key.sign(&canonical_value(&changed["record"]).unwrap())
+            .as_ref()
+    ));
+    assert!(verify_native_control_envelope(&canonical_value(&changed).unwrap(), &pins).is_err());
+    report["control_role"] = json!("success");
+    assert!(native_control_signing_record(&report, &pins).is_err());
+}

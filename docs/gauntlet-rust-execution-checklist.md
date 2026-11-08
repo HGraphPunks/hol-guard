@@ -189,6 +189,26 @@ test file or proof script is added. Both scopes drain without forced cleanup;
 replay inputs return to Root-only access and all 334 metadata rows are unchanged.
 Signed v2 acceptance, newer-product VM qualification and all admission/writer
 obligations remain open.
+The explicit signed read-only hook profile then reuses prelaunch key custody
+without changing the six SDK roles. Caller-selected `readonly-utility` binds
+worker job v8 to controller/completion v2; version substitutions refuse. Source
+`d82873ba…` and validation `fcc4f16a…` bind 713 Mac tests, the strengthened path
+rerun, warnings-denied Mac/ARM Clippy and six actual ARM checks, including two
+Root-only sealed-key/ack tests. Scope `029` drains without forced cleanup;
+all 334 historical metadata rows remain unchanged. Eleven existing Rust files
+change, with no new file, crate, binary or dependency. Signed VM acceptance,
+artifact/observer admission and independent effects remain open.
+
+Product `e0145e09b` completes build `60e7a7a17e642363` in 1,811.658 seconds.
+Primary readback and independent wheel reading verify its retained Host pin,
+cleanup, all 1,643 entries and Native ELF `2476dd16…`; logs report 185 Python
+contract passes. Dependency job `6ca5d18106dcac22` completes in 39.694 seconds
+with independently measured execution and reconciled cleanup. Rust publishes
+inert tree `09e21bf7…`: 4,333 entries, six console scripts and active requirements
+satisfied against 62 distributions. Validation `f9340f8d…` binds 34 records.
+Fresh GNU compilation reproduces actor `a6604708…`; binding `59fd037e…` reuses
+its exact retained bytes. Never replay either completed job or infer a Native
+control pass or qualification from this inert publication.
 No causality or parent-exit success is claimed; parent exits remain 24/62.
 
 ```text

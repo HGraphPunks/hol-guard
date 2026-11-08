@@ -120,6 +120,23 @@ with evidence. Code volume and checked substeps do not establish completion.
   health handshake/activity bytes and real EOF are preserved. One additional
   Rust module holds this independent verification boundary; no crate, target,
   dependency, test file or proof script is added. All authority flags stay false.
+- The explicit signed read-only hook profile now reuses the durable prelaunch
+  key/acknowledgment path. It selects worker job v8, controller/completion v2
+  and the separate `readonly-utility` role; six SDK roles keep their existing
+  contract. Validation `fcc4f16a…` binds 713 Mac tests, the strengthened path
+  rerun, warnings-denied Mac/ARM Clippy and six actual ARM checks (four
+  unprivileged, two Root-only key tests). No file, crate, binary or dependency
+  is added. Fresh signed VM acceptance and all authority obligations remain open.
+- Product `e0145e09b` completes isolated build `60e7a7a17e642363` in 1,811.658
+  seconds. Primary readback and independent reading verify cleanup, the retained
+  Host pin, all 1,643 wheel entries and Native ELF `2476dd16…`; logs report 185
+  Python contract passes. Dependency export `6ca5d18106dcac22` completes in
+  39.694 seconds with measured unprivileged execution and reconciled cleanup.
+  Rust publishes inert tree `09e21bf7…` (4,333 entries, six console scripts,
+  requirements satisfied against 62 distributions); validation `f9340f8d…`
+  binds 34 records. Fresh GNU compilation reproduces actor `a6604708…` without
+  another binary copy. Neither completed job may be replayed. No current-source
+  Native control pass or qualification is inferred from inert publication.
 - **Next:** finish signed v2 artifact acceptance and fresh isolated qualification
   of the merged product, then source/preparation/observer admission and actual
   writer attribution in the dependency order below. Keep captured private

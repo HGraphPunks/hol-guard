@@ -490,6 +490,49 @@ All 334 historical metadata rows are unchanged; their bytes/keys and private
 Root build argv are not read. No product runs on Host or Root. All admission/
 causality flags stay false, model use is zero and parent exits remain 24/62.
 
+### Signed read-only hook preparation
+
+The explicit `hol-gauntlet-native-worker-job.v8` profile
+`native-host-pinned-readonly-hook-v1` binds the read-only hook diagnostic to the
+existing durable prelaunch key/acknowledgment path. It requires read-only
+preparation and the caller-selected `readonly-utility` role. The Root controller
+consumes its sealed key before starting unprivileged children. Controller record
+v2 and completion v2 remain distinct from the six-role record/completion v1;
+cross-version substitutions refuse. SDK role fixtures retain their contract.
+Signature custody supplies no independent effects, artifact admission or verdict.
+
+Source `d82873ba…` changes eleven existing Rust files, with no new file, crate,
+binary or dependency. All 713 Mac workspace tests pass; the strengthened valid
+read-only path test is rerun separately. Warnings-denied Mac/ARM Clippy passes
+with all targets/features. Six ARM checks pass: four as UID 65532 with no
+capabilities/NNP, plus two Root-only sealed-key/acknowledgment tests. Each actual
+ELF is measured before its first test instruction. Scope `029` drains without
+forced cleanup and all 334 historical metadata rows remain unchanged. The first
+tool preflight's stale retained-directory assertion remains preserved; the
+corrected preflight installs only fresh measured tools.
+
+| Evidence in the same external directory | SHA-256 |
+| --- | --- |
+| `socket-keyed-source-002.json` | `d82873bace18efb6b3607b8a27a2338e5ff22f62beccfa43d6c8f30a23f5a0f5` |
+| `socket-keyed-frozen-tools-001.json` | `1c27b080276cf681525ea15b0bd40297bc8abf7b6c8cbeae8b1b9513a593bf88` |
+| `socket-keyed-arm-unit-001.json` | `f8c43a0cd466cad90dee7a264e3c9f70ff4280fe27697e1496050f2861b1bff5` |
+| `socket-keyed-validation-002.json` | `fcc4f16a3f223699ac43b9db03bf39aefa3286bbba75b22e09f8a0c7466a400f` |
+
+Separately, product source `e0145e09b` completes isolated build
+`60e7a7a17e642363` in 1,811.658 seconds. Primary readback binds its retained Host
+pin and cleanup; independent wheel reading verifies all 1,643 entries and Native
+ELF `2476dd16…`. Logs report 185 passing Python contracts. Inert wheel staging
+passes. Dependency job `6ca5d18106dcac22` completes in 39.694 seconds; independent
+live observation and terminal reconciliation bind its exporter, intent and
+cleanup. Rust composes and publishes inert runtime tree `09e21bf7…`, with 4,333
+entries, six console scripts and all active requirements satisfied against 62
+distributions. Runtime validation `f9340f8d…` binds 34 records and the retained
+context/progress refusals. The fresh GNU actor build (68.691 seconds) reproduces
+the existing `a6604708…` bytes; source binding `59fd037e…` avoids another binary
+copy. No candidate is imported or executed as Root during these operations.
+Fresh signed Native acceptance remains pending. Never replay either completed
+build/export job or infer qualification from this inert publication.
+
 ## Scope and implementation order
 
 Capture the actual stdin/stdout pipe exchanges of source-pinned Native

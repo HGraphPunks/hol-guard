@@ -130,7 +130,13 @@ fn run() -> Result<(), String> {
         || !hex(preparation, 64)
         || !matches!(
             role,
-            "success" | "input-binding" | "injection" | "boundary" | "timeout" | "cancel"
+            "success"
+                | "input-binding"
+                | "injection"
+                | "boundary"
+                | "timeout"
+                | "cancel"
+                | "readonly-utility"
         )
     {
         return Err("closed native host operation and exact outside pins required".into());

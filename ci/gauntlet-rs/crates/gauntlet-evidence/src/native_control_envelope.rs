@@ -8,7 +8,6 @@ use serde_json::{json, Value};
 pub const NATIVE_CONTROL_ENVELOPE_LIMIT: usize = 1024 * 1024;
 const INVALID: EvidenceError =
     EvidenceError::Invalid("native controller report differs from prelaunch pins");
-const SCHEMA: &str = "hol-gauntlet-native-controller-record.v1";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeControlReportPins {
@@ -32,13 +31,23 @@ pub fn native_control_signing_record(
     pins: &NativeControlReportPins,
 ) -> Result<Value> {
     let prepared = pins.prelaunch.to_bytes().map_err(|_| INVALID)?;
+    let readonly = pins.role == "readonly-utility";
+    let profile_matches = if readonly {
+        report["schema"] == "hol-gauntlet-native-hook-transport.v2"
+            && report["pins"]["source_sha"] == pins.prelaunch.source_sha
+            && report["sdk_exercised"] == false
+            && report["artifact_admitted"] == false
+            && report.get("control_role").is_none()
+    } else {
+        role(&pins.role)
+            && report["schema"] == "hol-gauntlet-native-deterministic-control.v1"
+            && report["control_role"] == pins.role
+            && report["guard_pins"]["source_sha"] == pins.prelaunch.source_sha
+    };
     if !is_sha256(&pins.preparation_sha256)
-        || !role(&pins.role)
-        || report["schema"] != "hol-gauntlet-native-deterministic-control.v1"
+        || !profile_matches
         || report["job_id"] != pins.prelaunch.job_id
         || report["preparation_sha256"] != pins.preparation_sha256
-        || report["control_role"] != pins.role
-        || report["guard_pins"]["source_sha"] != pins.prelaunch.source_sha
         || report["execution_eligible"] != false
         || report["guard_causality_verified"] != false
         || report["qualified_role_complete"] != false
@@ -56,7 +65,7 @@ pub fn native_control_signing_record(
     {
         return Err(INVALID);
     }
-    let record = json!({"schema":SCHEMA,
+    let record = json!({"schema":if readonly {"hol-gauntlet-native-controller-record.v2"}else{"hol-gauntlet-native-controller-record.v1"},
         "prelaunch":serde_json::from_slice::<Value>(&prepared).map_err(|_|INVALID)?,
         "preparation_sha256":pins.preparation_sha256,"control_role":pins.role,"controller_report":report});
     // Leave room for the envelope keys and base64 Ed25519 signature.
@@ -79,7 +88,7 @@ impl AuthenticatedNativeControlReport {
         &self.report
     }
     pub fn observation(&self) -> Value {
-        json!({"schema":"hol-gauntlet-authenticated-native-controller-record.v1",
+        json!({"schema":if self.report["schema"]=="hol-gauntlet-native-hook-transport.v2" {"hol-gauntlet-authenticated-native-controller-record.v2"}else{"hol-gauntlet-authenticated-native-controller-record.v1"},
             "record_sha256":self.record_sha256,"envelope_sha256":self.envelope_sha256,
             "signature_verified":true,"reported_status":self.report["status"],
             "independent_effects_scored":false,"qualified_role_complete":false,

@@ -12,6 +12,10 @@ fn refresh(frame: &mut Value) {
     frame["terminal_sha256"] = json!(digest(&frame["terminal"]).unwrap());
 }
 fn fixture() -> (tempfile::TempDir, HostPrelaunchIdentity, String, Value) {
+    fixture_for("timeout")
+}
+fn fixture_for(role: &str) -> (tempfile::TempDir, HostPrelaunchIdentity, String, Value) {
+    let readonly = role == "readonly-utility";
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().canonicalize().unwrap();
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
@@ -49,20 +53,31 @@ fn fixture() -> (tempfile::TempDir, HostPrelaunchIdentity, String, Value) {
     let (retained, ack) = journal
         .accept_prepared(&prepared.to_bytes().unwrap(), &expected)
         .unwrap();
-    let diagnostic = json!({"schema":"hol-gauntlet-native-deterministic-control.v1","job_id":expected.job_id,"preparation_sha256":preparation,
+    let mut diagnostic = json!({"schema":"hol-gauntlet-native-deterministic-control.v1","job_id":expected.job_id,"preparation_sha256":preparation,
         "control_role":"timeout","guard_pins":{"source_sha":expected.source_sha},"status":"passed","error":null,
         "controller_identity":{"pid":241,"start_ticks":32},"execution_eligible":false,"guard_causality_verified":false,"qualified_role_complete":false,"model_requests":0});
+    if readonly {
+        diagnostic["schema"] = json!("hol-gauntlet-native-hook-transport.v2");
+        diagnostic["pins"] = diagnostic
+            .as_object_mut()
+            .unwrap()
+            .remove("guard_pins")
+            .unwrap();
+        diagnostic.as_object_mut().unwrap().remove("control_role");
+        diagnostic["sdk_exercised"] = json!(false);
+        diagnostic["artifact_admitted"] = json!(false);
+    }
     let pins = NativeControlReportPins {
         prelaunch: prepared.clone(),
         preparation_sha256: preparation.clone(),
-        role: "timeout".into(),
+        role: role.into(),
     };
     let record = native_control_signing_record(&diagnostic, &pins).unwrap();
     let envelope =
         json!({"signature":STANDARD.encode(key.sign(&bytes(&record)).as_ref()),"record":record});
     let envelope_raw = String::from_utf8(bytes(&envelope)).unwrap() + "\n";
     let verified = verify_native_control_envelope(envelope_raw.as_bytes(), &pins).unwrap();
-    let report = json!({"schema":"hol-gauntlet-native-worker-report.v7","profile":"native-host-pinned-control-v1",
+    let mut report = json!({"schema":"hol-gauntlet-native-worker-report.v7","profile":"native-host-pinned-control-v1",
         "source_sha":expected.source_sha,"job_id":expected.job_id,"deployment_digest":expected.deployment_digest,"worker_generation":expected.worker_generation,
         "started_marker_sha256":started_sha,"preparation_sha256":preparation,"controller":{"pid":241,"start_ticks":32},
         "controller_report":diagnostic,"controller_envelope_utf8":envelope_raw,
@@ -72,11 +87,23 @@ fn fixture() -> (tempfile::TempDir, HostPrelaunchIdentity, String, Value) {
             "host_ack_received_before_controller_spawn":true,"acknowledgement_sha256":format!("{:x}",Sha256::digest(&ack))},
         "exit_code":0,"status":"invalid-evidence","execution_eligible":false,"guard_causality_verified":false,"model_requests":0,
         "controller_cgroup_drained":true,"product_slice_absent":true,"image_lease_absent":true,"sdk_agent_absent":true,"sdk_profile_absent":true,"mcp_agent_absent":true,"mcp_profile_absent":true});
+    if readonly {
+        report["schema"] = json!("hol-gauntlet-native-worker-report.v8");
+        report["profile"] = json!("native-host-pinned-readonly-hook-v1");
+        for field in [
+            "sdk_agent_absent",
+            "sdk_profile_absent",
+            "mcp_agent_absent",
+            "mcp_profile_absent",
+        ] {
+            report.as_object_mut().unwrap().remove(field);
+        }
+    }
     let terminal = json!({"schema":"hol-gauntlet-worker-terminal.v2","source_sha":expected.source_sha,"job_id":expected.job_id,
         "deployment_digest":expected.deployment_digest,"worker_generation":expected.worker_generation,"started_marker_sha256":started_sha,
         "controller_public_key_hex":public,"controller_key_pin_sha256":pin_sha,"report_sha256":digest(&report).unwrap(),
         "pid":241,"process_start_ticks":32,"exit_code":0,"status":"invalid-evidence"});
-    let frame = json!({"schema":"hol-gauntlet-native-host-pinned-completion.v1","started":started,"controller_key_pin":pin,
+    let frame = json!({"schema":if readonly {"hol-gauntlet-native-host-pinned-completion.v2"}else{"hol-gauntlet-native-host-pinned-completion.v1"},"started":started,"controller_key_pin":pin,
         "terminal_sha256":digest(&terminal).unwrap(),"terminal":terminal,"report":report,
         "execution_eligible":false,"guard_causality_verified":false,"model_requests":0});
     assert_eq!(journal.read(&expected.job_id).unwrap(), retained);
@@ -170,4 +197,51 @@ fn missing_terminal_duplicate_fields_and_qualification_claims_refuse() {
     assert!(journal
         .verify_native_completion(duplicate.as_bytes(), &expected, &prep, "timeout")
         .is_err());
+}
+
+#[test]
+fn readonly_hook_completion_is_bound_to_explicit_host_role_and_version() {
+    let (directory, expected, prep, frame) = fixture_for("readonly-utility");
+    let journal =
+        HostControllerKeyPinJournal::open(&directory.path().canonicalize().unwrap()).unwrap();
+    let result = journal
+        .verify_native_completion(&bytes(&frame), &expected, &prep, "readonly-utility")
+        .unwrap();
+    assert_eq!(
+        result.observation()["schema"],
+        "hol-gauntlet-host-native-control-readback.v2"
+    );
+    assert_eq!(result.diagnostic()["sdk_exercised"], false);
+    assert_eq!(result.observation()["execution_eligible"], false);
+    assert!(journal
+        .verify_native_completion(&bytes(&frame), &expected, &prep, "success")
+        .is_err());
+    for (pointer, value) in [
+        (
+            "/schema",
+            json!("hol-gauntlet-native-host-pinned-completion.v1"),
+        ),
+        (
+            "/report/schema",
+            json!("hol-gauntlet-native-worker-report.v7"),
+        ),
+        ("/report/profile", json!("native-host-pinned-control-v1")),
+        ("/report/controller_report/sdk_exercised", json!(true)),
+        ("/report/controller/pid", json!(242)),
+        (
+            "/report/prelaunch_custody/acknowledgement_sha256",
+            json!("0".repeat(64)),
+        ),
+        ("/report/product_slice_absent", json!(false)),
+    ] {
+        let mut changed = frame.clone();
+        *changed.pointer_mut(pointer).unwrap() = value;
+        refresh(&mut changed);
+        assert!(
+            journal
+                .verify_native_completion(&bytes(&changed), &expected, &prep, "readonly-utility")
+                .is_err(),
+            "{pointer}"
+        );
+    }
 }

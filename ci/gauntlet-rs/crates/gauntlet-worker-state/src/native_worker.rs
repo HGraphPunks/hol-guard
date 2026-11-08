@@ -294,6 +294,7 @@ fn dispatch_native_worker_inner(
     let report_schema = match spec.execution {
         NativeJobExecution::Apparatus(_) => "hol-gauntlet-native-worker-report.v1",
         NativeJobExecution::HookTransport(_) => "hol-gauntlet-native-worker-report.v2",
+        NativeJobExecution::HostPinnedReadonlyHook(_) => "hol-gauntlet-native-worker-report.v8",
         NativeJobExecution::SdkTransport { .. } => "hol-gauntlet-native-worker-report.v3",
         NativeJobExecution::McpTransport(_) => "hol-gauntlet-native-worker-report.v4",
         NativeJobExecution::SdkMcpTransport { .. } => "hol-gauntlet-native-worker-report.v5",
@@ -303,6 +304,7 @@ fn dispatch_native_worker_inner(
     let unavailable_reason = match spec.execution {
         NativeJobExecution::Apparatus(_) => "native apparatus profile has no independently scored Guard controls or host signing-key pin",
         NativeJobExecution::HookTransport(_) => "native hook transport has no authenticated SDK calls, independently scored Guard controls or host signing-key pin",
+        NativeJobExecution::HostPinnedReadonlyHook(_) => "host-pinned read-only hook diagnostic has no authenticated SDK, independently scored effects or qualified current-source suite",
         NativeJobExecution::SdkTransport { .. } => "native SDK Bash transport has no MCP, independently scored Guard controls, six-role conformance or host signing-key pin",
         NativeJobExecution::McpTransport(_) => "native MCP diagnostic has no actual SDK composition, combined builtin/MCP budget, independent Guard decision/effect scoring or outside signing-key admission",
         NativeJobExecution::SdkMcpTransport { .. } => "native SDK/MCP/Bash diagnostic has no independent Guard request/decision/effect scoring, six-role conformance or outside signing-key admission",

@@ -119,12 +119,15 @@ pub fn execute_native_controller(
             true,
             cancellation,
         ),
-        NativeJobExecution::HookTransport(pins) => gauntlet_cell_rootfs::run_native_hook_transport(
-            &spec.preparation_path(),
-            &spec.preparation_sha256,
-            pins,
-            cancellation,
-        ),
+        NativeJobExecution::HookTransport(pins)
+        | NativeJobExecution::HostPinnedReadonlyHook(pins) => {
+            gauntlet_cell_rootfs::run_native_hook_transport(
+                &spec.preparation_path(),
+                &spec.preparation_sha256,
+                pins,
+                cancellation,
+            )
+        }
         NativeJobExecution::SdkTransport { guard, sdk } => {
             crate::native_sdk_control::run_native_sdk_transport(&spec, guard, sdk, cancellation)
         }
@@ -146,6 +149,13 @@ pub fn execute_native_controller(
     let mut result = result?;
     if let Some((pins, key)) = signing {
         use base64::{engine::general_purpose::STANDARD, Engine};
+        if matches!(
+            spec.execution,
+            NativeJobExecution::HostPinnedReadonlyHook(_)
+        ) {
+            result.report["job_id"] = json!(spec.job_id);
+            result.report["qualified_role_complete"] = json!(false);
+        }
         result.report["controller_identity"] =
             json!({"pid":running.process.pid,"start_ticks":running.process.start_ticks});
         let record = gauntlet_evidence::native_control_signing_record(&result.report, &pins)

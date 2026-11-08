@@ -43,6 +43,27 @@ fn hook_transport_is_a_distinct_closed_version_and_cannot_borrow_product_identit
         spec.execution,
         NativeJobExecution::HookTransport(_)
     ));
+    assert!(!spec.requires_host_pin());
+    let mut keyed = value.clone();
+    keyed["schema"] = json!("hol-gauntlet-native-worker-job.v8");
+    keyed["profile"] = json!("native-host-pinned-readonly-hook-v1");
+    let parsed = parse(&keyed).unwrap();
+    assert!(parsed.requires_host_pin());
+    assert_eq!(parsed.case(), "readonly-utility");
+    assert!(matches!(
+        parsed.execution,
+        NativeJobExecution::HostPinnedReadonlyHook(_)
+    ));
+    for (field, bad) in [
+        ("schema", json!("hol-gauntlet-native-worker-job.v2")),
+        ("profile", json!("native-hook-transport-v1")),
+        ("sdk", json!({})),
+        ("role", json!("success")),
+    ] {
+        let mut changed = keyed.clone();
+        changed[field] = bad;
+        assert!(parse(&changed).is_err(), "{field}");
+    }
     let mut mcp = value.clone();
     mcp["schema"] = json!("hol-gauntlet-native-worker-job.v4");
     mcp["profile"] = json!("native-mcp-transport-v1");
@@ -288,6 +309,14 @@ fn valid_preparations_cannot_borrow_another_jobs_workspace_stage_or_slice() {
         bwrap_sha256: "c".repeat(64),
     });
     assert!(job.preparation(raw.as_bytes()).is_ok());
+    let NativeJobExecution::HookTransport(pins) = &job.execution else {
+        panic!("hook fixture required")
+    };
+    job.execution = NativeJobExecution::HostPinnedReadonlyHook(pins.clone());
+    assert!(job.preparation(raw.as_bytes()).is_ok());
+    let legacy = value.to_string();
+    job.preparation_sha256 = format!("{:x}", Sha256::digest(legacy.as_bytes()));
+    assert!(job.preparation(legacy.as_bytes()).is_err());
     for (pointer, bad) in [
         (
             "/stage",
@@ -298,13 +327,13 @@ fn valid_preparations_cannot_borrow_another_jobs_workspace_stage_or_slice() {
             json!("holgauntletrustfedcba9876543210.slice"),
         ),
     ] {
-        let mut changed = value.clone();
+        let mut changed = readonly.clone();
         *changed.pointer_mut(pointer).unwrap() = bad;
         let raw = changed.to_string();
         job.preparation_sha256 = format!("{:x}", Sha256::digest(raw.as_bytes()));
         assert!(job.preparation(raw.as_bytes()).is_err(), "{pointer}");
     }
-    let mut changed = value;
+    let mut changed = readonly;
     changed["task_mounts"]["workspace"]["source"] =
         json!("/var/lib/hol-gauntlet-rust/native-jobs/fedcba9876543210/workspace");
     changed["task_mounts"]["workspace"]["custody_root"] =

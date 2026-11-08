@@ -8,6 +8,16 @@ fn fixture() -> Option<(
     NativeJobSpec,
     WorkerRequest,
 )> {
+    fixture_for(false)
+}
+fn fixture_for(
+    readonly: bool,
+) -> Option<(
+    tempfile::TempDir,
+    RunReservationJournal,
+    NativeJobSpec,
+    WorkerRequest,
+)> {
     if unsafe { libc::geteuid() } != 0 {
         return None;
     }
@@ -18,13 +28,19 @@ fn fixture() -> Option<(
     std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
     let journal = RunReservationJournal::open_root_owned(temp.path()).unwrap();
     let source = "a".repeat(40);
-    let spec=NativeJobSpec {source_sha:source.clone(),job_id:"0123456789abcdef".into(),
+    let mut spec=NativeJobSpec {source_sha:source.clone(),job_id:"0123456789abcdef".into(),
         worker_generation:"c".repeat(64),preparation_sha256:"d".repeat(64),
         execution:NativeJobExecution::HostPinnedControl {
             guard:NativeGuardPins::parse(&json!({"schema":"hol-gauntlet-native-hook-product-pins.v1",
                 "source_sha":source,"package_version":"3.57.0","native_sha256":"e".repeat(64),"bwrap_sha256":"f".repeat(64)})).unwrap(),
             sdk:NativeSdkPins{sdk_tree_sha256:"1".repeat(64),bun_sha256:"2".repeat(64),publication_sha256:"3".repeat(64)},
             role:NativeControlRole::Success}};
+    if readonly {
+        let NativeJobExecution::HostPinnedControl { guard, .. } = spec.execution else {
+            unreachable!()
+        };
+        spec.execution = NativeJobExecution::HostPinnedReadonlyHook(guard);
+    }
     let request = WorkerRequest::parse(
         json!({"schema":"hol-gauntlet-worker-request.v1","action":"run",
         "source_sha":source,"job_id":spec.job_id,"deployment_digest":"b".repeat(64)})
@@ -51,14 +67,18 @@ fn no_controller(temp: &tempfile::TempDir) {
 }
 #[test]
 fn host_ack_is_checked_after_durable_key_pin_and_key_is_closed_on_failure() {
-    for fault in [
-        "wrong-ack",
-        "oversized",
-        "lost-ack",
-        "cancelled-after-ack",
-        "deadline-after-ack",
-    ] {
-        let Some((temp, journal, spec, request)) = fixture() else {
+    for (readonly, fault) in [false, true].into_iter().flat_map(|readonly| {
+        [
+            "wrong-ack",
+            "oversized",
+            "lost-ack",
+            "cancelled-after-ack",
+            "deadline-after-ack",
+        ]
+        .into_iter()
+        .map(move |fault| (readonly, fault))
+    }) {
+        let Some((temp, journal, spec, request)) = fixture_for(readonly) else {
             return;
         };
         let lease = journal.acquire_active_lease().unwrap();

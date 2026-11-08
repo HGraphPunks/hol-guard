@@ -56,8 +56,17 @@ pub(crate) fn read_completion(
         16 * 1024 * 1024,
         &terminal.report_sha256,
     )?;
-    if report["schema"] != "hol-gauntlet-native-worker-report.v7"
-        || report["source_sha"] != source
+    let completion = match (report["schema"].as_str(), report["profile"].as_str()) {
+        (Some("hol-gauntlet-native-worker-report.v7"), Some("native-host-pinned-control-v1")) => {
+            "hol-gauntlet-native-host-pinned-completion.v1"
+        }
+        (
+            Some("hol-gauntlet-native-worker-report.v8"),
+            Some("native-host-pinned-readonly-hook-v1"),
+        ) => "hol-gauntlet-native-host-pinned-completion.v2",
+        _ => return Err("native keyed report version/profile differs".into()),
+    };
+    if report["source_sha"] != source
         || report["job_id"] != job
         || report["worker_generation"] != generation
         || report["deployment_digest"] != deployment
@@ -67,7 +76,7 @@ pub(crate) fn read_completion(
     {
         return Err("native host-pinned report identity differs".into());
     }
-    let frame = json!({"schema":"hol-gauntlet-native-host-pinned-completion.v1",
+    let frame = json!({"schema":completion,
         "started":value(journal,&format!("{job}.started.json"),1024,&started.sha256)?,
         "controller_key_pin":value(journal,&format!("{job}.controller-key.json"),1024,&pin.raw_sha256)?,
         "terminal":value(journal,&format!("{job}.terminal.json"),2048,&terminal.sha256)?,
