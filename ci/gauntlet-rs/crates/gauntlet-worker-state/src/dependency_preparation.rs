@@ -347,7 +347,7 @@ mod tests {
         gauntlet_cell_rootfs::require_outside_root().unwrap();
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path().canonicalize().unwrap();
-        let journal = RunReservationJournal::open_root_owned(&root).unwrap();
+        let journal = RunReservationJournal::open(&root).unwrap();
         let slot_temp = tempfile::tempdir().unwrap();
         let slot = rustix::fs::open(
             slot_temp.path(),
