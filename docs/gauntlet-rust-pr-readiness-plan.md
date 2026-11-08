@@ -19,8 +19,15 @@ with evidence. Code volume and checked substeps do not establish completion.
 ## Resume from this checkpoint
 
 - Continue `codex/gauntlet-rust-finish-20261105` and draft [child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5),
-  based on integration `f143f9ac`. Upstream `311d63cb2` merges cleanly as
-  `99c233ad4`, preserving thirteen incoming files. Diagnostic commit
+  based on integration `f143f9ac`. Artifact verification `a779925b9` is preserved
+  by clean merge `abcd8b624` of upstream `5042340cc`: all thirteen incoming
+  files and 1,471 Gauntlet blobs are preserved. Native library/CLI/tests compile
+  on Mac/ARM without execution (345.565/291.98 seconds). Validation `08473b20…`
+  binds this merge and the earlier 715-test Gauntlet source. Same-author security
+  scan `c46e3566…` reviews all nine artifact-patch files and shared callers with
+  no reportable findings; it does not replace independent PR approval.
+- Earlier upstream `311d63cb2` merges cleanly as `99c233ad4`, preserving
+  thirteen incoming files. Diagnostic commit
   `6a764d42b0a566697c75c9a7ce768bfede92a555` preserves Native's generic
   failure line and exit 126, then prints its existing fixed boundary error.
   It adds no execution path, file, crate, target or dependency. All **703 Mac

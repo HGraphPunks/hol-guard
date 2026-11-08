@@ -241,6 +241,14 @@ admission, physical writers and eligibility remain open/false. **24/62 parent
 exits complete, 38 open.**
 No causality or parent-exit success is claimed; parent exits remain 24/62.
 
+Verifier `a779925b9` is preserved by clean merge `abcd8b624` of upstream
+`5042340cc`. All thirteen incoming files are retained and all 1,471 Gauntlet
+blobs are unchanged by the merge. Merged Native library/CLI/tests compile on
+Mac/ARM without execution. Validation `08473b20…` also binds same-author
+security scan `c46e3566…` over all nine artifact-patch files and shared callers,
+with no reportable findings. Independent PR review, current-head CI and live
+qualification of the newer merged product remain open.
+
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
 ```

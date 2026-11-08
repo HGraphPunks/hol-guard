@@ -602,6 +602,16 @@ Private payload delivery, source/preparation/observer admission, operation
 semantics and physical writer attribution remain open. All eligibility and
 causality flags stay false; parent exits remain 24/62.
 
+Artifact-verifier commit `a779925b9` is preserved by clean upstream merge
+`abcd8b624` of `5042340cc`, with all thirteen incoming files and all 1,471
+Gauntlet blobs unchanged by the merge. The merged Native library/CLI/tests
+compile on Mac/ARM without execution (345.565/291.98 seconds); this does not
+qualify the newer product with job `015`'s older source. Validation `08473b20…`
+binds the merge and completed same-author security scan `c46e3566…`: all nine
+patch files and shared callers are reviewed, with no reportable findings.
+The scan records its empty workbench inventory and explicit nine-file Git
+review. Independent PR review and all five exact-head CI jobs remain open.
+
 ## Scope and implementation order
 
 Capture the actual stdin/stdout pipe exchanges of source-pinned Native
