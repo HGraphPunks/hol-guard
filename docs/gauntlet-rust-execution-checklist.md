@@ -281,6 +281,21 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
   - [ ] Diagnose the first active dependency repair refusal and complete
   pre-CID/partial-state recovery. The first job's delayed active check also
   remains a retained failure. Qualification stays open; no parent exit closes.
+    - [x] Retire incomplete dependency completion records at `792a64ab5`.
+    Outside snapshot authorization preserves a real 64-byte report and a full
+    report with 32-byte terminal. Explicit recovery requires absent resources,
+    fsyncs originals and publishes an aborted receipt with unknown exit.
+    Repairs finish in 7.022/12.598 seconds. All 682 Mac tests, Mac/ARM checks,
+    nine selected ARM tests, twenty restart/refusal cases, seven historical
+    reader cases and direct Root reuse refusal pass. Normal
+    `84267ae7556a6101` matches all 2,290 files/51,318,588 bytes. Validation
+    `bfa7c278…` binds 145 records; bundle `1e58a24a…` excludes thirty actual
+    nonces. Two necessary modules separate contracts and Root recovery; no
+    crate, target, dependency, proof script or document is added. Failed
+    prelaunch/export/setup fixtures remain retained. Missing-custody gaps,
+    the original active refusal, review, delivery, CI and qualification remain
+    open; no parent closes. See
+    [completion retirement](gauntlet-rust-hostbound-candidate-build-proof.md#interrupted-dependency-completion-retirement).
     - [x] Prove interrupted preparation recovery at `70206a42c`, with the
     inert Root fixture corrected at `7bfc15a8c`. Typed snapshot observations
     and explicit original-worker authorization preserve absent/empty reservation

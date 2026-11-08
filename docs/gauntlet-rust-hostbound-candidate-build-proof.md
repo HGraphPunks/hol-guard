@@ -1239,3 +1239,115 @@ All 680 merged-head Gauntlet tests and Mac/ARM checks pass. Latest source
 reconciliation is `629cd780f98d15006427ba177f9d0edcd599627e0d50a34cc360b4bee980a8b1`.
 Live product evidence remains pinned to `53c64ae96`; neither newer
 product generation is qualified by these compilation checks.
+
+## Interrupted dependency completion retirement
+
+Source `792a64ab544cdd83012d596c861a6f3e22fa58a4` adds conservative
+retirement of a partial Root report or terminal. Thirteen Rust files change;
+two necessary modules separate shared protocol from privileged recovery.
+Existing commands and publication helpers are reused. No crate, executable,
+dependency, proof script or document is added.
+
+Unknown v3 binds the original unkeyed reservation, running identity, retained
+CID/cgroup custody, captured archive, and content/metadata hashes of both
+completion files. Host authorization v3 freezes that outside snapshot before
+transport. A terminal fragment must match the exact prefix derived from an
+independently verified full report. A partial report permits no terminal.
+Complete historical terminals retain their existing validation path.
+
+Explicit retirement holds four leases, verifies original intent and input
+custody, and requires process, container, cgroup and profile absence. It adopts
+or signals no resource. It fsyncs the preserved originals, rechecks the snapshot,
+then uses the existing durable staging and no-replace rename. Native repair v5
+projects to host repair v4: `aborted`, unknown exit, all eligibility flags false,
+zero model requests/tokens. It reconstructs neither file nor terminal. Full-report
+finalization with an absent terminal remains a separate supported path.
+
+### Source and validation
+
+| Artifact | Pin |
+| --- | --- |
+| Source manifest, thirteen files | `aa1988986939c9949dcbc8e5099b31a923e3c9fd8ef563a2662a17766576aa49` |
+| ARM worker, 10,435,704 bytes | `d71ca8b295d5a40d0d0240ea9e4df48bcb2d65c6df069af13e52fb6f2d202f59` |
+| Primary host | `fde7281c444ce3bcad43136f5a32f13f2a2f38b229500037822749a6d49ca8a5` |
+| Compatibility host | `ea4024ac8ea5724225d9455487f0bbb0dbe983088a3638e45c45030ff1bf9f4f` |
+| ARM test executable | `5ca51afc04c4446a263c7dc2d23f0269b11778c8cb592524696bd4baaa710c97` |
+| Frozen tool record | `4305227a6ea6dba1065e084c0dd16f1cf42969c65b49d7cefc584ea75aedf6fa` |
+| Validation, 145 records | `bfa7c27803e2eaaa3f4012039632b1ac001fea54ad2caaeabff5c2b1af2c5fd6` |
+
+All 682 Mac workspace tests, formatting, warnings-denied Mac/ARM Clippy and
+final builds pass. Nine selected ARM tests pass, including three explicit Root
+fixtures for helper placement, preserved preparation metadata and completion
+fsync. Other selected tests run as UID/GID 65532 with groups cleared. The first
+unused-import failure and initial Cargo-invocation error remain retained.
+
+### Live partial writes and normal control
+
+The observer binds the original supervisor's executable, exact invocation,
+parent and held pidfd. At the original journal-file open, it limits only that
+supervisor's file size; the actual writer performs a short write. The observer
+then kills the held supervisor without editing records or registers.
+
+| Job | Preserved completion | Retirement |
+| --- | --- | --- |
+| `6147ab2733bb774d` | 64-byte report; terminal absent | 7.022 seconds; native receipt `aa62b279…` |
+| `f44a167f33be73b5` | Full 3,017-byte report; 32-byte terminal | 12.598 seconds; native receipt `0d9bdaa0…` |
+
+Both commands first return identical unknown observations. Wrong reservation,
+VM and Root snapshot pins refuse. Twenty restart/refusal cases preserve original
+host bytes and metadata. Direct Root reuse refuses in 36.750 seconds. Seven
+historical-reader cases pass across prior v2/v3/v4 repairs and completed/finalized
+v1 reports; the prior worker reads the new normal v1 result. Older unsupported
+readers safely refuse the new receipt. Older mutator admission and rollback
+remain unqualified.
+
+Normal `84267ae7556a6101` exits zero in 65.823 seconds after both retirements.
+Independent kernel observations verify UID/GID 65532, empty capabilities,
+separate namespaces, read-only inputs, seccomp, no-new-privileges and the job
+profile. Its public ZIP has 16,690,637 bytes, SHA-256
+`778a86de0e4cc67eb0df11c8b1a2955628551da6caa4468fb988ead56f5af8d5`.
+Independent decoding matches all 2,290 files/51,318,588 bytes and entry digest
+`b01fe0d3806503226d77118a977594ee5603025ed6412ea1d24ae6a0daf5f866`.
+Both host read routes and consumed-run refusal pass. Final four-lease snapshots
+match earlier snapshots byte-for-byte for both repairs and the normal control;
+all resources are absent and 333 historical records plus their lock metadata
+are unchanged. Custom proof wrappers read no historical worker record bytes.
+
+Failed prelaunch control `de145dd6f485a69f` remains a failed fixture: its wrapper
+compared fresh inputs with the preceding job's hash before invoking the CLI.
+Independent inspection confirms no intent, dispatch, runtime reservation,
+creator receipt or resource. Its inert prepared slot remains; the ID is never
+replayed. Two export-wrapper failures (syntax and a changed comparison path)
+also remain retained; the corrected read-only export succeeds without workload
+replay.
+
+This is process-loss recovery and point-in-time custody. It proves no power-loss
+qualification, VM attestation or Guard causality. Live product execution remains
+at `53c64ae96`; newer product sources need fresh qualification. Missing-custody
+gaps and the original unexplained active refusal remain open. So do independent
+authority, real workflows, legacy qualification, review, remote evidence delivery,
+required CI and cutover. Parent exits stay **24/62**.
+
+The final public completion bundle `gauntlet-rust-review-dependency-completion-20261108-002.tar`
+has 177 members/18,503,680 bytes, SHA-256
+`1e58a24a4386671f16586c46ee403955b957c15e4c397005be88c7a2c6b19625`.
+Its external manifest SHA-256 is
+`5415f91ea3a242649697d4660222aabd4f68992f661b56cf30afbc76951ab044`.
+It includes the upstream follow-up below; the earlier 001 bundle is retained.
+Every member reopens and all thirty actual nonces are excluded from raw and
+decoded ZIP bytes. It remains local in the existing evidence directory.
+
+### Upstream direct-evidence drain follow-up
+
+Main `84ba6e4daa9d2e11ced491fa046c42690b06b4da` merges cleanly as
+`ddc21cd6cea8f7c156d2062d55371ec3bbe72fbd`. All six incoming files match
+upstream, including its empty-page cursor behavior; changed Python sources parse
+without imports. The thirteen recovery-source hashes, immutable baseline,
+440-file map and controller plan remain unchanged. Matching Native library/CLI/test-target compilation passes on Mac
+(114.832 seconds) and ARM (103.017 seconds). All 682 merged-head Mac Gauntlet
+tests pass in 72.387 seconds. Independent AST/data-only controller oracle
+`9c8fb8882177e1b530c037b9bed4f2510e5484622d52e54297591dff5fea6869`
+reproduces the unchanged `52da7281…` plan. Follow-up validation SHA-256 is
+`03ccfb7af35b5fb8bbdd2ba5dfcaba5882b960e3bdefe5c0e3e9d583934ba4a0`.
+No product tests run on the host, and this newer product source remains
+unqualified by the retained live execution.

@@ -18,57 +18,54 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
-- Continue `codex/gauntlet-rust-finish-20261105`. Preparation recovery is
-  implemented at `70206a42c`; the inert Root fixture is corrected at
-  `7bfc15a8c`. Main `0b8fa932d` merges cleanly as `65989a195`.
-  [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5) remains draft,
-  targeting integration `f143f9ac`. Require all five current-head jobs before
-  its merge. Actions was disabled at the preceding checkpoint. No override or
-  repository-setting change is authorized; merging into upstream main and
-  release publication require separate authorization.
-- Rust now observes missing or exact-prefix reservation/intent files and
-  explicitly retires a quiescent preparation under an outside snapshot pin.
-  Original bytes and metadata remain intact. Preparation retirement requires
-  the original pinned executable; newer readers may reopen its receipt.
-  Missing kernel custody never authorizes resource adoption or cleanup.
-  Three necessary modules separate shared contracts, host authorization and
-  Root recovery; no crate, binary target, dependency, proof script or document
-  is added. See [preparation recovery](gauntlet-rust-hostbound-candidate-build-proof.md#interrupted-dependency-preparation-recovery).
-- Frozen worker `703d59ca…`, host `4c32654b…` and compatibility host
-  `ac2b450f…` bind source `7bfc15a8c`. All 680 merged-head Mac tests,
-  formatting, warnings-denied Mac/ARM Clippy, builds and seven selected ARM
-  cases pass. Native library/CLI/test targets compile on Mac and ARM.
-  Source manifest `b4cb2ebe…` and validation `6431c966…` bind 227 records.
-- Live cases `e3b06f7a914d52c8`, `c6a72e04d8915fb3` and
-  `7190d4ab3ce826f5` cover absent preparation, empty reservation and empty
-  intent. The third also survives interruption before atomic repair publication;
-  unchanged authorization retries in 2.220 seconds, preserving its staged receipt.
-  Fifty restart/refusal and six historical-reader cases pass. Direct Root reuse
-  refuses. Normal `f2058c9d17b64e30` exits zero in 84.004 seconds and matches
-  all 2,290 files/51,318,588 bytes. Failed observer jobs `83e5a9c2b71640df`
-  and `6d12a8e47bc0935f` remain failed fixtures with separate verified
-  retirement. **All six IDs are consumed; never replay them.**
-- Public bundle `b0b82810…` has 277 members/18,708,480 bytes, with all
-  twenty-seven actual nonces excluded, including decoded ZIPs. It remains
-  local; remote delivery and independent review stay open. Five required cloud
-  jobs remain mandatory. The immutable 420-file baseline, 440-file map
-  (79 changed/20 added) and controller plan `52da7281…` are unchanged.
-  All 47 newer incoming files match upstream. Live product execution still
-  belongs to `53c64ae96`; newer-source qualification is unproved.
-- Next finish partial report/terminal reconciliation, retaining unprovable
-  custody gaps as unknown, then the twelve staging/installed roles and
-  independent request/decision/effect authority. Preserve old unknown
-  `b937d2e04a16c85f` and the unexplained original active repair refusal.
-  Copied Native replies do not prove atomic wire bytes, concurrent memory,
-  request semantics or actual effect writers. Real workflows, legacy parity,
-  reviewed cutover/rollback and admission remain open. No parent closes:
-  **24/62**. Model requests/tokens are zero; this goal grants no new quota.
-- The owned ARM VM is idle at 2 CPUs/16 GiB/48 GiB. Final four-lease observations
-  verify process/resource absence, unchanged original recovery records and all
-  333 historical records plus their lock metadata. Inspect exact pins, leases
-  and resources before each operation; serialize VM mutations and never read
-  historical worker record bytes or keys. Earlier checkpoints remain in Git
-  and the existing proof documents.
+- Continue `codex/gauntlet-rust-finish-20261105`. Completion retirement is
+  committed at `792a64ab5`; current main `84ba6e4da` merges cleanly as
+  `ddc21cd6c`, preserving all six incoming files. [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5)
+  remains draft against integration `f143f9ac`. Obtain all five current-head
+  jobs before its merge. Actions was disabled at the preceding checkpoint.
+  No override or settings change is authorized; upstream main merge and release
+  publication remain separate.
+- Missing/exact-prefix preparation and partial completion now have explicit
+  snapshot-bound retirement. Original files remain intact; completion retirement
+  fsyncs them and requires absent resources without adoption or signals. It
+  retains `aborted` with unknown exit and no eligibility. Full-report/absent-
+  terminal finalization remains supported. See [completion retirement](gauntlet-rust-hostbound-candidate-build-proof.md#interrupted-dependency-completion-retirement)
+  and the preceding preparation proof. Two necessary modules are added within
+  existing crates, with no crate, binary, dependency, proof script or document.
+- Worker `d71ca8b2…`, host `fde7281c…` and compatibility host `ea4024ac…`
+  bind source `792a64ab5`. All 682 Mac workspace tests, formatting,
+  warnings-denied Mac/ARM Clippy, final builds and nine selected ARM tests pass.
+  Matching Native library/CLI/test targets compile on Mac/ARM; all 682 tests
+  pass again at merged head `ddc21cd6c`.
+  Validation `bfa7c278…` binds 145 records; source manifest is `aa198898…`.
+- Live `6147ab2733bb774d` preserves a 64-byte report and retires in
+  7.022 seconds. `f44a167f33be73b5` preserves a full report and 32-byte
+  terminal and retires in 12.598 seconds. Twenty restart/refusal and seven
+  historical-reader cases pass; direct Root reuse refuses. Normal
+  `84267ae7556a6101` exits zero in 65.823 seconds and matches all 2,290
+  files/51,318,588 bytes. Failed prelaunch `de145dd6f485a69f` has no
+  intent/dispatch/runtime reservation or resource; its inert slot and failure
+  remain. **Never replay any of these four IDs.** Export/setup failures remain.
+- Bundle `1e58a24a…` has 177 members/18,503,680 bytes and excludes all
+  thirty actual nonces, including decoded ZIPs. Remote delivery, independent
+  review and five required cloud jobs remain open. The immutable 420-file
+  baseline, 440-file map (79 changed/20 added) and controller plan `52da7281…`
+  are unchanged. Live product evidence remains at `53c64ae96`; newer main
+  is not execution-qualified.
+- Next finish the fresh candidate and 28-group/52-selector audit at the required
+  generations, then the twelve staging/installed roles with independent
+  request/decision/effect authority. Keep unprovable custody gaps unknown.
+  Preserve old unknown `b937d2e04a16c85f` and the unexplained first active
+  refusal. Copied Native replies do not prove atomic wire bytes, concurrent
+  memory, semantics or actual effect writers. Real workflows, legacy parity,
+  reviewed cutover/rollback and admission remain open. **24/62** parent exits;
+  model requests/tokens are zero. This goal grants no quota.
+- The owned ARM VM is idle at 2 CPUs/16 GiB/48 GiB. Final four-lease snapshots
+  match earlier recovery/control snapshots exactly and verify resource absence
+  plus unchanged metadata for 333 historical records and their lock. Inspect
+  exact pins, leases and resources before every operation; serialize VM changes
+  and never read historical worker bytes or keys. Earlier checkpoints remain
+  in Git and the existing proof documents.
 
 ## Keep the implementation small
 
