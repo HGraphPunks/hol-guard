@@ -41,7 +41,18 @@ with evidence. Code volume and checked substeps do not establish completion.
   No parent exit closes; partial intent/reservation/report reconciliation,
   independent review and qualification remain open. See the
   [live missing-receipt proof](gauntlet-rust-hostbound-candidate-build-proof.md#missing-dependency-container-receipt-recovery).
-- Upstream advances to `59ff1696b`, merged without conflicts as `dbd3073ac`.
+- Latest upstream is `380cf0e4f`, merged without conflicts as `c935f19a9`.
+  All seven incoming files match upstream; the one Python change is documentation
+  and parses without imports. Native library/CLI/test targets compile on Mac/ARM.
+  The broader ARM check exposes a branch-local macOS cancellation-test import;
+  `04bf61d72` adds four test-only platform gates, retaining the generic Linux
+  worker tests. The failed check and existing musl warning remain retained.
+  The effective Mac source, production code and all nine Gauntlet recovery source
+  hashes are unchanged by that correction. Validation `b3846a2d…` binds six
+  records/four logs; the thirteen-member addendum is `e7167740…`. The immutable
+  420-file baseline and 440-file source map are unchanged. Product execution
+  still belongs to `53c64ae96`; newer-source qualification remains open.
+- Prior upstream `59ff1696b` merged without conflicts as `dbd3073ac`.
   All eighteen incoming files match upstream; ten Python files parse without
   imports. The 440-file Gauntlet map and immutable 420-file baseline are
   unchanged, as are all five early-custody Rust files. Native library/CLI checks

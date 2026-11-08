@@ -1011,6 +1011,42 @@ current-product execution, remote delivery, independent review and all five
 required current-head CI jobs remain open. Parent exits remain 24/62, all
 authority flags stay false and product model requests/tokens remain zero.
 
+## Upstream MCP notice followup
+
+Upstream `380cf0e4f747b16d219605b6a1aa110b98137f5b` advances the resident's
+queued-approval notification path and is merged without conflicts as
+`c935f19a9ca1656cfb3c8880628c555ee472847b`. All seven incoming files match
+upstream exactly. The Python change is documentation only and parses without
+import or execution. Source custody `upstream-mcp-notice-20261107-source-001.json`
+is `15dc7460…`. The immutable 420-file Python baseline and 440-file Gauntlet map
+are byte-identical, as are the nine recovery files in source manifest `d571bcee…`.
+
+The Mac Native library/CLI/test-target check passes. The broader ARM test-target
+check initially fails because the existing branch-local worker-budget test
+imports macOS-only Bash cancellation support on Linux. The failed record
+`85f95fb5…` and complete diagnostics remain retained. Fix
+`04bf61d723504746b92ee0a2c79071bce5d7dec4` adds four macOS cfg attributes only to
+that import, fixture, Drop implementation and cancellation test. The two generic
+worker queue/drain tests remain enabled on Linux. Production source and effective
+Mac source are unchanged; source manifest `ff9ece6f…` verifies that removing just
+those four test attributes recovers the exact previously compiled bytes.
+
+Targeted formatting and the repeated ARM Native library/CLI/test-target check
+pass. Native tests are compiled, not executed on the host. The existing musl
+`libc::time_t` warning remains visible. Validation
+`upstream-mcp-notice-20261107-validation-001.json` binds six records/four logs,
+SHA-256 `b3846a2dbb90fc444ba62613080f58a66df01897044040f7d7b9002a4bdf335d`.
+All Gauntlet checks and live recovery evidence retain their exact earlier source
+hashes; no product execution is relabelled to this newer generation.
+
+Public addendum `gauntlet-rust-review-mcp-notice-20261107-001.tar` contains thirteen
+members/40,960 bytes, SHA-256
+`e71677405d482021ea8e282fc70e05bc76195aaca95eadd5a2c8879256ed950c`.
+Every member reopens and nineteen actual private nonces are excluded. No file,
+crate, binary target or dependency is added by this followup. Independent review,
+remote evidence delivery, newer-source qualification and the previously open
+parent exits remain open; product model requests/tokens stay zero.
+
 ## Retained 3.59.0 dependencies for `83f079b5c`
 
 Fresh dependency job `5ea8b3c2907df614` independently captures the same exact
