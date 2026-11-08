@@ -281,6 +281,22 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
   - [ ] Diagnose the first active dependency repair refusal and complete
   pre-CID/partial-state recovery. The first job's delayed active check also
   remains a retained failure. Qualification stays open; no parent exit closes.
+    - [x] Prove interrupted preparation recovery at `70206a42c`, with the
+    inert Root fixture corrected at `7bfc15a8c`. Typed snapshot observations
+    and explicit original-worker authorization preserve absent/empty reservation
+    and intent files. Three verified live boundaries, interrupted no-replace
+    publication and same-authorized retry in 2.220 seconds pass. Two failed
+    observers remain failed fixtures with separate verified retirement. Fifty
+    restart/refusal and six historical-reader cases pass; direct Root reuse
+    refuses. Normal `f2058c9d17b64e30` exits zero in 84.004 seconds and matches
+    all 2,290 files/51,318,588 bytes. All 680 merged Mac tests, Mac/ARM checks
+    and seven selected ARM cases pass. Validation `6431c966…` binds 227 records;
+    bundle `b0b82810…` has 277 members and excludes twenty-seven actual
+    nonces. Three necessary modules are added within existing crates, without
+    a crate, executable, dependency, proof script or document. Nonempty live
+    short writes, partial reports/terminals, missing-custody gaps, independent
+    review, remote delivery and qualification remain open; no parent closes.
+    See [preparation recovery](gauntlet-rust-hostbound-candidate-build-proof.md#interrupted-dependency-preparation-recovery).
     - [x] Prove full-report finalization at `e3619c0e3`, preserving the original
     Root report, unknown host observations and one-use dispatch. Fresh
     `e6d3098a47cb125f` is interrupted before terminal creation and again before

@@ -18,153 +18,57 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
-- Full retained-report finalization at `e3619c0e3` reuses existing Rust owners,
-  without a new source file, crate or target. Read stays unknown; explicit
-  repair binds original report/process/CID/archive and resource absence, then
-  retains a witness and atomically publishes an invalid-evidence terminal.
-  Job `e6d3098a47cb125f` proves original terminal interruption, interrupted
-  finalization and same-authorized retry in 3.812 seconds, preserving report
-  and staging bytes. Eight restart/refusal and five compatibility cases pass.
-  Normal `b4a9f07e13d2865c` exits zero in 116.467 seconds and matches all 2,290
-  files. All 677 Mac tests, Mac/ARM Clippy/builds and six selected ARM cases pass.
-  Validation `c131cef9…` binds 111 records; bundle `a9d352ef…` has 129 members
-  and excludes twenty-one actual nonces. Partial records, independent review,
-  remote delivery and qualification remain open. See
-  [retained-report recovery](gauntlet-rust-hostbound-candidate-build-proof.md#retained-dependency-report-finalization).
-- Latest upstream `7ac2d7a90` merges without conflicts as `425a921c9`.
-  Twenty incoming files match upstream. Two reviewed Gauntlet hashes refresh;
-  the immutable 420-file baseline and 440-file inventory remain. An independent
-  data-only oracle derives controller digest `52da7281…`; `85814edab` updates
-  the expected test pin. The stale-oracle failure stays retained. All 677 merged
-  Mac tests, formatting, Mac/ARM Clippy/default host builds and Mac/ARM Native
-  library/CLI/test-target compilation pass. Validation `3ae79738…` binds
-  nineteen records included in the recovery bundle. Newer-product execution
-  and qualification remain open.
-- Pre-CID recovery is implemented at `b2983a6cd`, with the Root fixture corrected
-  at `c9aaa25ce`. Explicit native v3 / host v2 receipts bind
-  original creator readiness, incomplete CID bytes and separate per-attempt
-  witnesses. Creator/client drain now precedes Podman runtime queries, and
-  v3 completion uses atomic no-replace publication. The new ARM-only module
-  is 441 lines; existing repair/I/O owners stay below 500. Final source manifest
-  `dependency-creator-recovery-20261107-source-003.json` is `d571bcee…`.
-  All 676 Mac tests and Mac Clippy pass for the unchanged effective Mac source.
-  Formatting, final ARM Clippy/release/test builds and default host builds also
-  pass. Local validation `c08a5bd3…` binds eight records/seven logs and the final
-  tool hashes. All five selected ARM cases pass. Fresh missing-CID job
-  `c43e7a1580bd269f` leaves an actual stopped creator; first-call Rust repair
-  succeeds in 3.246 seconds. Job `7e04b9c128a36df5` retains its original writer's
-  32-byte receipt. Repair is killed after its durable witness and resumes with
-  unchanged authorization in 3.971 seconds; both witnesses and original bytes
-  survive. Normal `a180c5e9742bd36f` exits zero in 64.422 seconds and matches all
-  2,290 files/51,318,588 bytes. Cleanup and restart/refusal checks pass. The failed
-  Root fixture and missed-window job `9b72e063a5d148cf` remain retained, including
-  their separate cleanup. Validation `1e2228e6…` binds 168 records; bundle
-  `130feaed…` has 179 members and excludes nineteen actual private nonces.
-  No parent exit closes; partial intent/reservation/report reconciliation,
-  independent review and qualification remain open. See the
-  [live missing-receipt proof](gauntlet-rust-hostbound-candidate-build-proof.md#missing-dependency-container-receipt-recovery).
-- Prior upstream is `380cf0e4f`, merged without conflicts as `c935f19a9`.
-  All seven incoming files match upstream; the one Python change is documentation
-  and parses without imports. Native library/CLI/test targets compile on Mac/ARM.
-  The broader ARM check exposes a branch-local macOS cancellation-test import;
-  `04bf61d72` adds four test-only platform gates, retaining the generic Linux
-  worker tests. The failed check and existing musl warning remain retained.
-  The effective Mac source, production code and all nine Gauntlet recovery source
-  hashes are unchanged by that correction. Validation `b3846a2d…` binds six
-  records/four logs; the thirteen-member addendum is `e7167740…`. The immutable
-  420-file baseline and 440-file source map are unchanged. Product execution
-  still belongs to `53c64ae96`; newer-source qualification remains open.
-- Prior upstream `59ff1696b` merged without conflicts as `dbd3073ac`.
-  All eighteen incoming files match upstream; ten Python files parse without
-  imports. The 440-file Gauntlet map and immutable 420-file baseline are
-  unchanged, as are all five early-custody Rust files. Native library/CLI checks
-  pass on Mac/ARM; Guard-command tests compile without execution. Validation
-  `e220ad84…` binds four records/three logs; the nine-member addendum is
-  `7b2f5a33…`. Source custody is `8ee29741…`; live product evidence
-  still belongs to `53c64ae96`, not this newer product generation.
-- Early creator custody at `9ec64a005` retains one group before policy load or
-  container creation and passes it to both mutating helpers and the client.
-  All 675 Mac tests, formatting, Mac/ARM Clippy/builds and the explicit Root
-  placement fixture pass, with no new migration file, crate, target or dependency.
-  Fresh direct-SIGKILL job `a4d1927e63bc805f` proves full-CID/pre-client repair
-  in 6.110 seconds without outside rescue, then cleanup/restart and refusals.
-  Normal `90d7b6a4c21e385f` exits zero in 58.699 seconds; all 2,290 files and
-  51,318,588 bytes match. Validation `a27350b9…` binds 108 records; bundle
-  `07ec7eaa…` has 115 members and excludes fifteen actual private nonces.
-  The earlier SIGSTOP fixture's stopped sudo monitor, failed cleanup observation
-  and verified transport continuation remain retained. Missing-CID/partial-state
-  recovery and the original active repair refusal remain open; no parent closes.
-- Private diagnostics at final implementation `951f57ad5` keep the existing
-  module at 490 lines, with no new file, crate, target or dependency. All 675
-  Mac tests, formatting, Mac/ARM Clippy, builds and four selected ARM cases pass,
-  including one explicit Root-only temporary fixture. Final reader `e728b58f…`
-  reopens both retained repairs without changing seven original host records
-  per job. Fresh jobs `d16ae4c3b72509f8` and `e72bc0934fa81d56` verify actual
-  supervisor loss, active wrong-pin noninterference and first-call repair in
-  3.756/5.372 seconds, plus cleanup/restart. The old first-call error is not
-  reproduced and stays unexplained. Validation `e437160f…` binds 56 records;
-  84-member addendum `bb7206c9…` excludes twelve actual nonces. The failed count
-  parser and data-only correction are preserved. Continue partial-state recovery
-  and diagnose the old refusal when reproducible; all qualification stays open.
-- Continue `codex/gauntlet-rust-finish-20261105`. Dependency recovery is
-  implemented at `54cda0b80`; upstream `e43ca02cf` is merged as `efa6f05e3`.
-  [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5) stays draft.
-  Integration remains `f143f9ac`; PR #3 is open and upstream PR #5402 has
-  conflicts. Fork Actions is disabled; the last dispatch returned HTTP 422.
-  Require all five current-head jobs before any integration merge.
-- All **675 Mac all-feature tests**, formatting, warnings-denied Mac/ARM Clippy
-  and executable builds pass. Frozen worker `c7b09e2d…`, primary host
-  `6937e43b…` and compatibility host `690520de…` bind implementation
-  `54cda0b80`. The new worker is installed separately; older generations stay
-  intact. One necessary shared contract module is added, with no new crate,
-  executable target or dependency. Local validation is `fbda5f9c…`.
-- Dependency jobs `a6840d15c928fe37` and `c95ad2e6018bf743` verify actual
-  supervisor pidfd SIGKILL and the surviving unprivileged exporter. Typed
-  unknown reads authorize no cleanup; wrong reservation pins leave authorization
-  absent. The second job verifies its container remains active after refusal.
-  Its first repair fails; a Rust retry with the same authorization succeeds.
-  Aborted/null exits, original unknown attempts and consumed dispatch remain
-  intact. Restart/repeat reads and different-pin/consumed refusals pass.
-  **Diagnose that first repair failure next**; its Root error detail was not
-  retained by the bounded host error. The first job's delayed active check
-  also remains a failure. No manual resource cleanup or workload replay occurs.
-- Normal control `b8c32a6f519d470e` exits zero in 76.099 seconds. Independent
-  decoding verifies all 2,290 dependency files, 51,318,588 decoded bytes and
-  entry digest `b01fe0d3…`. Completed-job repair refuses before authorization.
-  Both older completed generations remain readable through both commands.
-  All three fresh jobs have independent four-lease cleanup and unchanged
-  metadata for 333 historical records plus their lock. Live validation
-  `af4f2bce…` binds 62 records. See the [dependency recovery proof](gauntlet-rust-hostbound-candidate-build-proof.md#dependency-supervisor-recovery).
-- Live product evidence retains exact source `53c64ae96`, controller
-  `123024f4…`, source archive `c5c88fe8…` and build `b7f0b85b31df49cc`:
-  four selected checks and 185 contained contracts pass. Runtime reconstruction
-  verifies four inventories, 4,327 entries, six aliases, 62 distributions and
-  all 21 requirements. Audit `a38df7e1b26c4905` has 1,303 passes, no failures
-  or errors and one deliberate retired-Pi skip across 28 groups/52 selectors;
-  status stays incomplete. Candidate `ea0ef712724b4957` and feature
-  `ed40a9c721e3685b` retain their proved supervisor-loss recovery.
-- The upstream followup preserves all fourteen incoming files exactly and the
-  immutable 420-file baseline. The 440-file map has 79 changed and 20 added
-  files. Python/Rust agree on uninstalled controller plan `39bde055…`,
-  409 files/420 entries. Native library/CLI compilation passes on Mac/ARM;
-  Guard command tests compile on Mac without product execution. Validation
-  `a77e2a86…` binds those checks; older live evidence is not relabelled.
-- Public evidence stays outside Git. Main bundle `9e18b11d…` has 90 members;
-  upstream and feature-recovery addenda are `3ec2903a…` and `49aa292a…`.
-  The dependency-recovery addendum `5af77dcb…` has 86 members/17,121,280 bytes,
-  reverified with ten actual private nonces excluded, including decoded ZIP
-  contents. All failures and older bundles remain immutable. Remote delivery
-  and independent review remain open; the formal scan excludes CI and is
-  incomplete. Full pins are in the existing proof documents.
-- After diagnosing active repair, cover pre-CID/partial records, then finish
-  all twelve staging/installed roles and independent request/decision/effect
-  authority. Native copied replies do not prove atomic wire bytes, request
-  semantics or actual effect writers. Admission, real model workflows, legacy
-  parity and rollout stay open. All authority flags are false; product model
-  requests/tokens are zero. Unknown `b937d2e04a16c85f` remains unknown.
-- The owned ARM VM is idle at 2 CPUs/16 GiB/48 GiB. Inspect exact pins, leases
-  and resources before each operation, serialize mutations and never replay a
-  consumed job. Never read the historical records' private bytes or keys.
+- Continue `codex/gauntlet-rust-finish-20261105`. Preparation recovery is
+  implemented at `70206a42c`; the inert Root fixture is corrected at
+  `7bfc15a8c`. Main `0b8fa932d` merges cleanly as `65989a195`.
+  [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5) remains draft,
+  targeting integration `f143f9ac`. Require all five current-head jobs before
+  its merge. Actions was disabled at the preceding checkpoint. No override or
+  repository-setting change is authorized; merging into upstream main and
+  release publication require separate authorization.
+- Rust now observes missing or exact-prefix reservation/intent files and
+  explicitly retires a quiescent preparation under an outside snapshot pin.
+  Original bytes and metadata remain intact. Preparation retirement requires
+  the original pinned executable; newer readers may reopen its receipt.
+  Missing kernel custody never authorizes resource adoption or cleanup.
+  Three necessary modules separate shared contracts, host authorization and
+  Root recovery; no crate, binary target, dependency, proof script or document
+  is added. See [preparation recovery](gauntlet-rust-hostbound-candidate-build-proof.md#interrupted-dependency-preparation-recovery).
+- Frozen worker `703d59ca…`, host `4c32654b…` and compatibility host
+  `ac2b450f…` bind source `7bfc15a8c`. All 680 merged-head Mac tests,
+  formatting, warnings-denied Mac/ARM Clippy, builds and seven selected ARM
+  cases pass. Native library/CLI/test targets compile on Mac and ARM.
+  Source manifest `b4cb2ebe…` and validation `6431c966…` bind 227 records.
+- Live cases `e3b06f7a914d52c8`, `c6a72e04d8915fb3` and
+  `7190d4ab3ce826f5` cover absent preparation, empty reservation and empty
+  intent. The third also survives interruption before atomic repair publication;
+  unchanged authorization retries in 2.220 seconds, preserving its staged receipt.
+  Fifty restart/refusal and six historical-reader cases pass. Direct Root reuse
+  refuses. Normal `f2058c9d17b64e30` exits zero in 84.004 seconds and matches
+  all 2,290 files/51,318,588 bytes. Failed observer jobs `83e5a9c2b71640df`
+  and `6d12a8e47bc0935f` remain failed fixtures with separate verified
+  retirement. **All six IDs are consumed; never replay them.**
+- Public bundle `b0b82810…` has 277 members/18,708,480 bytes, with all
+  twenty-seven actual nonces excluded, including decoded ZIPs. It remains
+  local; remote delivery and independent review stay open. Five required cloud
+  jobs remain mandatory. The immutable 420-file baseline, 440-file map
+  (79 changed/20 added) and controller plan `52da7281…` are unchanged.
+  All 47 newer incoming files match upstream. Live product execution still
+  belongs to `53c64ae96`; newer-source qualification is unproved.
+- Next finish partial report/terminal reconciliation, retaining unprovable
+  custody gaps as unknown, then the twelve staging/installed roles and
+  independent request/decision/effect authority. Preserve old unknown
+  `b937d2e04a16c85f` and the unexplained original active repair refusal.
+  Copied Native replies do not prove atomic wire bytes, concurrent memory,
+  request semantics or actual effect writers. Real workflows, legacy parity,
+  reviewed cutover/rollback and admission remain open. No parent closes:
+  **24/62**. Model requests/tokens are zero; this goal grants no new quota.
+- The owned ARM VM is idle at 2 CPUs/16 GiB/48 GiB. Final four-lease observations
+  verify process/resource absence, unchanged original recovery records and all
+  333 historical records plus their lock metadata. Inspect exact pins, leases
+  and resources before each operation; serialize VM mutations and never read
+  historical worker record bytes or keys. Earlier checkpoints remain in Git
+  and the existing proof documents.
 
 ## Keep the implementation small
 

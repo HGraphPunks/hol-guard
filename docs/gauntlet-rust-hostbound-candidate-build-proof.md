@@ -1101,3 +1101,141 @@ Live validation `dependency-report-finalization-20261108-validation-006.json` bi
 Main `7ac2d7a90d270f71bb45032c77ccb8c5edfada19` merges as `425a921c9aadbf17f0b4eb79ef74d612ae89b082` without conflicts. All twenty incoming files match upstream. The reviewed Git fixture and scenario update two source hashes; the immutable 420-file Python baseline and 440-file inventory remain. The first merged suite rejects a stale controller-tree expectation. Independent data-only oracle `3e0971d2…` checks bootstrap's unchanged selection and all 409 file hashes/eleven directory modes, deriving `52da7281…` without importing or executing controller code. `85814edab` updates the source delta and expected test pin.
 
 All 677 merged Mac tests, formatting, Mac/ARM Clippy and default host builds pass. Native library/CLI/test targets compile on Mac and ARM; Native product tests are not executed on the host. The existing musl warning stays visible. Validation `upstream-receipt-recovery-20261108-validation-005.json` binds nineteen records, SHA-256 `3ae79738f0da291f5ea9fe16e3e7a3294f0c33e1d2a50357a733474ff58d83a6`. Recovery source hashes remain unchanged. Live product execution still belongs to `53c64ae96`; newer-source qualification stays open.
+
+## Interrupted dependency preparation recovery
+
+Source `70206a42cfb144ed471063cd0a9288c7a94ce07b` adds explicit retirement
+for an interrupted reservation/intent write. Test correction
+`7bfc15a8ceeb782f2172330f93e8932dab4c9079` uses the existing inert journal
+constructor for a Root temporary-file fixture. Twelve Rust files change,
+including three necessary modules: contracts (424 lines), host authorization
+(300) and Root preparation recovery (411). Existing repair owners remain at
+494/491 lines. No crate, executable target, dependency, proof script or Markdown
+file is added.
+
+The original outside intent derives an **expected** unkeyed started marker.
+Retained files must be absent or exact byte prefixes of those canonical bytes.
+Reads preserve actual content and metadata hashes separately from the expected
+marker hash. The snapshot binds device, inode, mode, UID/GID, link count, size,
+mtime and ctime with nanoseconds; atime is excluded. No original marker or
+intent is reconstructed or replaced.
+
+Native unknown v2 / host unknown v2 records grant no cleanup or execution.
+Host authorization v2 pins the snapshot and original executable. The explicit
+mutator holds all four leases, checks input custody and refuses any progressed
+running/report/terminal/key, CID, creator-ready, cgroup-receipt or exported-ZIP
+state. It verifies client-group absence before runtime queries and verifies
+container/profile absence. Missing kernel custody cannot authorize adoption or
+signals. Preparation retirement requires the original executable; newer readers
+may verify a retained receipt.
+
+Native repair v4 privately retains the full original intent and publishes an
+aborted/null-exit receipt through the existing atomic no-replace publisher.
+Host repair v3 removes the private intent. Normal admission checks v4 before
+requiring a complete started marker, and both host and Root refuse reuse.
+Readers retain v1/v2/v3 support. Older readers safely refuse the new preparation
+format; this is not proof of rollback to an older mutator.
+
+Source manifest `dependency-preparation-recovery-20261108-source-003.json`
+hashes to `b4cb2ebe1f3e43b16b42ae6bc6ad924cb91e27b3419c0ed88f2fdc140b7aa046`.
+Frozen record `dependency-preparation-recovery-20261108-host-002/frozen-tools-001.json`
+is `15cc261c0de69cfbe5632945b080f96bf4edc3d1299a62a577c78eee030dada5`.
+
+| Tool | SHA-256 |
+| --- | --- |
+| ARM worker, 10,405,600 bytes | `703d59cae16a777aab0e779aba272345593e4250d5eb7366cfea8a914428c168` |
+| ARM tests, 18,554,832 bytes | `71aa9637b50f835f0ec554104e8d2dfe24b74963ef596904b7f0395c05c2bb84` |
+| Primary host | `4c32654bfd00d875506368e12c96d74492ce334bf1c8f184303c39ebebe0a560` |
+| Compatibility host | `ac2b450fefabe6da3c387fc3ff16470dfd8dc3bdc51b12343e65fe447bb43283` |
+
+All 680 merged-head Mac tests, formatting, warnings-denied Mac/ARM Clippy and
+builds pass. Seven selected ARM cases pass: five unprivileged cases and two
+explicit Root inert fixtures. The first compile type error, wrapper newline
+error, stale installer length and Root fixture failure stay retained.
+The fixture correction reproduces the identical production worker bytes.
+
+Fresh fault observers bind the outside intent hash, original executable,
+argv hash, parent, start ticks and held pidfd. Signals are forwarded before
+syscall tracing begins at the current input receipt's close. An inert fork
+preflight verifies SIGCHLD forwarding. The observers stop at actual ARM
+openat entry/exit and send SIGKILL through that original pidfd; they edit no
+record bytes or syscall/register values.
+
+| Job | Observed preparation | Explicit retirement |
+| --- | --- | --- |
+| `e3b06f7a914d52c8` | Stopped before reservation creation; both files absent | 3.950 s |
+| `c6a72e04d8915fb3` | Empty started file; intent absent | 3.933 s |
+| `7190d4ab3ce826f5` | Complete 301-byte started marker; empty intent | Interrupted publication, then same-authorized retry in 2.220 s |
+
+For the third job, a separate pinned observer stops the repair at renameat2
+entry with NOREPLACE, after the complete private receipt is staged. It kills
+that repair supervisor before publication. Both read commands still return the
+identical unknown observation. Retry publishes the same receipt hash
+`f2bd485c18b1d91423df46874453fbebc3468da39a8a9f455144e1b5b490985e`
+and preserves the interrupted staging file's bytes and metadata. Final outside
+completion is `bb67b43b32d97a65665a9fb8d9cfed0f7afa7d5e23d310b0ccf8feebcd869eb4`.
+
+Two earlier observers failed: `83e5a9c2b71640df` compared mutable process
+state as identity; `6d12a8e47bc0935f` stalled on a child-exit signal. Their
+bounded cleanup and unknown host attempts remain retained as failed fixtures.
+Separate four-lease observations verify original invocation/resource absence
+and missing preparation, followed by explicit retirement in 3.910/4.117 seconds.
+Those observations do not replace the missing successful pidfd/target proofs.
+
+All five retirements pass fifty restarted repair/read/refusal cases. Wrong
+reservation, mutator, VM and consumed host dispatch refuse; older host/Root
+readers refuse v4 safely. A direct verified-FD Root invocation of the retired
+missing-reservation job refuses with the consumed-job error in 42.709 seconds.
+Six historical compatibility reads pass: the new reader opens old native v2/v3,
+completed and finalized v1 records, while an older reader opens the new normal
+v1 completion. Original host records and metadata remain intact.
+
+Normal control `f2058c9d17b64e30` exits zero in 84.004 seconds after all
+five v4 retirements. Independent observation verifies the UID/GID-65532 exporter
+and existing isolation controls. Its 16,690,636-byte archive is
+`a335f43a82198291e53851d06fcd0d8fefaabd788c1de564b2238b2450b0659e`.
+Inert independent decoding matches all 2,290 files/51,318,588 bytes and entry
+digest `b01fe0d3806503226d77118a977594ee5603025ed6412ea1d24ae6a0daf5f866`.
+Final cleanup/readback repeats preserve its completion and all five recovery
+receipts. Every final four-lease observation preserves the 333 historical
+records and their lock metadata; no historical private bytes or keys are read.
+
+Live validation `dependency-preparation-recovery-20261108-validation-006.json`
+binds 227 records, SHA-256
+`6431c9668fec3de3e71af59497c1376ecc8ca0e0d4fd672364f945553a5eea24`.
+Public `gauntlet-rust-review-dependency-preparation-20261108-001.tar` has
+277 members/18,708,480 bytes, SHA-256
+`b0b82810781b4b7c140c674882adcd0f89562150fe5ec67595dcfb3d720c4bed`.
+Manifest SHA-256 is
+`16ad00623d894789c7f1f6eeeb980e12924c4ac9e8fe1c841714f34c618c4eeb`.
+Every member reopens and twenty-seven actual nonces are excluded from raw
+and decoded ZIP bytes. The archive remains outside Git in the existing
+`gauntlet-rust-pr-ready-evidence-20261026` directory; remote delivery and
+independent review remain open.
+
+Live prefix faults cover absent/empty files. Every exact nonempty byte prefix
+is exercised by the codec, with separate inert Root file-custody evidence;
+there is no claim of a live nonempty short write. Partial report/terminal
+reconciliation, missing-custody gaps, authority, qualification, required CI and
+cutover remain open. Parent exits stay 24/62. Model requests/tokens are zero,
+and all artifact/admission/qualification/causality flags remain false.
+
+### Upstream cloud-action, warm-client and package-receipt followups
+
+Main `968f88d24ccdfed3607d4a015426bbba305771c2` merges cleanly as
+`e8b6130e961f3844ace67dd997fc16cbb6636dae`; all eighteen incoming files match.
+Newer `0b8fa932d975f6e6eefa027e3355905d2acf2858` merges as
+`65989a1951baab7525fbd09415f181e4d36bcdd3`, preserving all 47 incoming
+files exactly. Changed Python sources parse without imports. Mac/ARM Native
+library/CLI/test-target checks pass for both generations; product tests are not
+executed on the host. The existing musl warning remains visible.
+
+The twelve recovery-source hashes, immutable 420-file baseline and 440-file
+map (79 changed/20 added) remain unchanged. Independent AST/data-only oracle
+`92979c1c62ab084c1d2633698ac0f333f5ed83c7df655ef4dc7b1571fb8e564a`
+reproduces controller digest
+`52da7281d075c8d323a2a00c97d1dd080ca09bd71b73fc80c95a86aab489322e`.
+All 680 merged-head Gauntlet tests and Mac/ARM checks pass. Latest source
+reconciliation is `629cd780f98d15006427ba177f9d0edcd599627e0d50a34cc360b4bee980a8b1`.
+Live product evidence remains pinned to `53c64ae96`; neither newer
+product generation is qualified by these compilation checks.
