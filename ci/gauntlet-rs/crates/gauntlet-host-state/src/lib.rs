@@ -61,6 +61,7 @@ pub use native_control_readback::{HostNativeControlReadback, NativeControlReadba
 mod candidate_build_pins;
 mod candidate_command;
 mod dependency_intent;
+mod dependency_repair;
 mod feature_intent;
 pub use candidate_build_pins::{
     HostCandidateBuildPinError, HostCandidateBuildPinJournal, HostCandidateBuildPinRecord,

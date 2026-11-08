@@ -5,7 +5,6 @@ use gauntlet_contracts::canonicalize;
 use gauntlet_contracts::DependencyRunIntent;
 use rustix::fs::{statat, AtFlags};
 use serde_json::Value;
-use std::path::Path;
 
 pub(crate) const STATE: &str = "/var/lib/hol-gauntlet-rust/dependency-state";
 
@@ -36,32 +35,24 @@ pub fn read_native_dependencies(
     }
     let p = &intent.pins;
     let job = p.text("job_id");
-    let main =
-        RunReservationJournal::open_root_owned(Path::new(crate::builder_image_context::RUST_STATE))
-            .map_err(|e| e.to_string())?;
-    let main_lease = main.acquire_active_lease().map_err(|e| e.to_string())?;
-    let legacy = crate::builder_image_context::python_worker_lock().map_err(|e| e.to_string())?;
-    let features = RunReservationJournal::open_root_owned(Path::new(crate::feature_state::STATE))
-        .map_err(|e| e.to_string())?;
-    let feature_lease = features.acquire_active_lease().map_err(|e| e.to_string())?;
-    let journal =
-        RunReservationJournal::open_root_owned(Path::new(STATE)).map_err(|e| e.to_string())?;
-    let lease = journal.acquire_active_lease().map_err(|e| e.to_string())?;
-    let stable = || -> Result<(), String> {
-        main_lease.verify(&main.root).map_err(|e| e.to_string())?;
-        crate::builder_image_context::verify_python_lock(&legacy).map_err(|e| e.to_string())?;
-        feature_lease
-            .verify(&features.root)
-            .map_err(|e| e.to_string())?;
-        lease.verify(&journal.root).map_err(|e| e.to_string())
-    };
+    let held = crate::dependency_preparation::DependencyLeases::acquire()?;
+    let journal = &held.journal;
+    let stable = || held.verify();
+    if let Some(raw) = crate::dependency_preparation::verified(journal, &intent)? {
+        stable()?;
+        return Ok(raw);
+    }
+    if let Some(raw) = crate::dependency_preparation::observe(journal, &intent, generation)? {
+        stable()?;
+        return Ok(raw);
+    }
     if crate::dependency_repair::intent_for_job(job, expected_intent)? != intent {
         return Err("dependency reconciliation differs from retained host intent".into());
     }
-    let report_pending = present(&journal, &format!("{job}.report.json"))?
-        && !present(&journal, &format!("{job}.terminal.json"))?;
+    let report_pending = present(journal, &format!("{job}.report.json"))?
+        && !present(journal, &format!("{job}.terminal.json"))?;
     let terminal = if report_pending {
-        retained_completion(&journal, &intent)?;
+        retained_completion(journal, &intent)?;
         None
     } else {
         journal
@@ -86,7 +77,7 @@ pub fn read_native_dependencies(
         return Err("dependency has ambiguous terminal and repair records".into());
     }
     let Some(terminal) = terminal else {
-        let result = if let Some(repair) = crate::dependency_repair::verified(&journal, &intent)? {
+        let result = if let Some(repair) = crate::dependency_repair::verified(journal, &intent)? {
             repair
         } else {
             let started = journal
@@ -128,7 +119,7 @@ pub fn read_native_dependencies(
         stable()?;
         return Ok(result);
     };
-    completed_response(&journal, &intent, generation, &terminal, &stable)
+    completed_response(journal, &intent, generation, &terminal, &stable)
 }
 
 struct ReportParts {

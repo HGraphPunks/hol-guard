@@ -74,6 +74,30 @@ fn run() -> Result<(), String> {
         println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
         return Ok(());
     }
+    if args.len() == 9 && args[1] == "--repair-owned-native-dependencies" {
+        use std::os::fd::AsRawFd;
+        gauntlet_cell_rootfs::require_outside_root()?;
+        gauntlet_worker_state::verify_running_binary(&args[6]).map_err(|e| e.to_string())?;
+        let count = args[8]
+            .parse::<u64>()
+            .map_err(|_| "exact dependency intent byte count required")?;
+        let mut raw = Vec::new();
+        gauntlet_worker_state::receive_native_dependency_intent(
+            std::io::stdin().as_raw_fd(),
+            &mut raw,
+            count,
+            &args[3],
+        )?;
+        let intent = gauntlet_contracts::DependencyRunIntent::parse(&raw)?;
+        if intent.pins.text("job_id") != args[2] {
+            return Err("preparation recovery job differs from outside intent".into());
+        }
+        let raw = gauntlet_worker_state::retire_native_dependency_preparation(
+            &raw, &args[3], &args[4], &args[5], &args[6], &args[7],
+        )?;
+        println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
+        return Ok(());
+    }
     if args.len() == 7
         && matches!(
             args[1].as_str(),

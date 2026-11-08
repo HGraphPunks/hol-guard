@@ -95,7 +95,11 @@ mod dependency_io;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod dependency_podman;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod dependency_preparation;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod dependency_repair;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use dependency_preparation::retire_native_dependency_preparation;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod dependency_run;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

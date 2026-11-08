@@ -119,6 +119,14 @@ pub fn run_native_dependencies(
     let journal = RunReservationJournal::open_root_owned(Path::new(crate::dependency_state::STATE))
         .map_err(|e| e.to_string())?;
     let job_lease = journal.acquire_active_lease().map_err(|e| e.to_string())?;
+    match statat(
+        &journal.root,
+        format!("{job}.dependency-repair.json"),
+        AtFlags::SYMLINK_NOFOLLOW,
+    ) {
+        Err(rustix::io::Errno::NOENT) => {}
+        _ => return Err("dependency job is consumed by recovery; never rerun it".into()),
+    }
     let request = WorkerRequest::parse(
         json!({"schema":"hol-gauntlet-worker-request.v1","action":"run","job_id":job,
         "source_sha":p.text("source_sha"),"deployment_digest":digest})
@@ -312,17 +320,22 @@ pub(crate) fn require_idle() -> Result<(), String> {
             let raw = read_bounded_regular(&journal.root, name, 1024)
                 .map_err(|e| e.to_string())?
                 .ok_or("dependency start disappeared")?;
-            if canonicalize(&raw).map_err(|e| e.to_string())? != raw {
-                return Err("ambiguous dependency start".into());
-            }
-            let value: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
-            starts.insert(job.to_owned(), value);
+            starts.insert(job.to_owned(), raw);
         }
     }
     for job in jobs {
-        let start = starts
+        if let Some(intent) = crate::dependency_preparation::intent_from_receipt(&journal, &job)? {
+            crate::dependency_preparation::verified(&journal, &intent)?
+                .ok_or("preparation retirement unavailable")?;
+            continue;
+        }
+        let raw = starts
             .get(&job)
             .ok_or("orphan dependency sidecar blocks execution")?;
+        if canonicalize(raw).map_err(|e| e.to_string())? != *raw {
+            return Err("ambiguous dependency start".into());
+        }
+        let start: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;
         let digest = start["deployment_digest"]
             .as_str()
             .ok_or("dependency start lacks intent")?;

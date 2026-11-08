@@ -7,19 +7,8 @@ use rustix::fs::{statat, AtFlags};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::os::fd::OwnedFd;
-use std::path::Path;
 
-pub(crate) fn intent_for_job(job: &str, expected: &str) -> Result<DependencyRunIntent, String> {
-    let slot =
-        crate::builder_candidate_source::open_fixed_build_slot(job).map_err(|e| e.to_string())?;
-    let raw = crate::dependency_io::read(&slot, "dependency-intent.v1.json", 0, 0o600, 8192)?;
-    let intent = DependencyRunIntent::parse(&raw)?;
-    if intent.pins.text("job_id") != job || intent.digest()? != expected {
-        return Err("retained dependency intent differs".into());
-    }
-    crate::dependency_io::verify_inputs(&slot, &intent)?;
-    Ok(intent)
-}
+pub(crate) use crate::dependency_preparation::intent_for_job;
 
 fn container_identity(slot: &OwnedFd, digest: &str) -> Result<String, String> {
     match crate::dependency_creator_recovery::original(slot, digest)? {
@@ -106,6 +95,9 @@ pub(crate) fn verified(
     journal: &RunReservationJournal,
     intent: &DependencyRunIntent,
 ) -> Result<Option<Vec<u8>>, String> {
+    if let Some(raw) = crate::dependency_preparation::verified(journal, intent)? {
+        return Ok(Some(raw));
+    }
     let name = format!("{}.dependency-repair.json", intent.pins.text("job_id"));
     let Some(raw) = read_bounded_regular(&journal.root, &name, 8192).map_err(|e| e.to_string())?
     else {
@@ -287,28 +279,29 @@ fn repair(
     if !crate::hex(expected_started, 64) || !crate::hex(original_generation, 64) {
         return Err("outside dependency recovery pins required".into());
     }
-    let main =
-        RunReservationJournal::open_root_owned(Path::new(crate::builder_image_context::RUST_STATE))
-            .map_err(|e| e.to_string())?;
-    let lease = main.acquire_active_lease().map_err(|e| e.to_string())?;
-    let legacy = crate::builder_image_context::python_worker_lock().map_err(|e| e.to_string())?;
-    let features = RunReservationJournal::open_root_owned(Path::new(crate::feature_state::STATE))
-        .map_err(|e| e.to_string())?;
-    let feature_lease = features.acquire_active_lease().map_err(|e| e.to_string())?;
-    let journal = RunReservationJournal::open_root_owned(Path::new(crate::dependency_state::STATE))
-        .map_err(|e| e.to_string())?;
-    let job_lease = journal.acquire_active_lease().map_err(|e| e.to_string())?;
-    let still_owned = || -> Result<(), String> {
-        lease.verify(&main.root).map_err(|e| e.to_string())?;
-        feature_lease
-            .verify(&features.root)
-            .map_err(|e| e.to_string())?;
-        job_lease.verify(&journal.root).map_err(|e| e.to_string())?;
-        crate::builder_image_context::verify_python_lock(&legacy).map_err(|e| e.to_string())
-    };
+    let held = crate::dependency_preparation::DependencyLeases::acquire()?;
+    let journal = &held.journal;
+    let job_lease = &held.job;
+    let still_owned = || held.verify();
     let intent = intent_for_job(job, digest)?;
     if intent.pins.text("runner_binary_sha256") != original_generation {
         return Err("original dependency generation differs".into());
+    }
+    if let Some(raw) = crate::dependency_preparation::verified(journal, &intent)? {
+        let v: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
+        if v["expected_started_marker_sha256"] != expected_started {
+            return Err("retired preparation reservation differs".into());
+        }
+        if !read_only {
+            gauntlet_contracts::verify_dependency_repair_result(
+                &intent,
+                expected_started,
+                repair_generation,
+                &raw,
+            )?;
+        }
+        still_owned()?;
+        return Ok(raw);
     }
     let started = journal
         .started(
@@ -324,8 +317,8 @@ fn repair(
     }
     if owned {
         if let Some(frame) = crate::dependency_state::finalize_report(
-            &journal,
-            &job_lease,
+            journal,
+            job_lease,
             &intent,
             repair_generation,
             read_only,
@@ -347,7 +340,7 @@ fn repair(
             ),
         }
     }
-    if let Some(raw) = verified(&journal, &intent)? {
+    if let Some(raw) = verified(journal, &intent)? {
         still_owned()?;
         return Ok(raw);
     }
@@ -358,7 +351,7 @@ fn repair(
     let result: Result<Vec<u8>, String> = (|| {
         if owned {
             reclaim(
-                &journal,
+                journal,
                 &intent,
                 expected_started,
                 repair_generation,
@@ -368,17 +361,17 @@ fn repair(
         }
         phase = "quiescent-body";
         let raw = canonicalize(
-            body(&journal, &intent, repair_generation, owned)?
+            body(journal, &intent, repair_generation, owned)?
                 .to_string()
                 .as_bytes(),
         )
         .map_err(|e| e.to_string())?;
         still_owned()?;
         phase = "repair-commit";
-        crate::dependency_creator_recovery::commit(&journal, &intent, &raw)?;
+        crate::dependency_creator_recovery::commit(journal, &intent, &raw)?;
         phase = "repair-readback";
         let observed =
-            verified(&journal, &intent)?.ok_or("dependency recovery commit unavailable")?;
+            verified(journal, &intent)?.ok_or("dependency recovery commit unavailable")?;
         if observed != raw {
             return Err("dependency recovery changed after commit".into());
         }

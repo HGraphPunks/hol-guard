@@ -1,12 +1,17 @@
 //! Data-only JSON contracts; candidate code is never imported to interpret records.
 use sha2::{Digest, Sha256};
 use std::{borrow::Cow, collections::BTreeMap, fmt};
+mod dependency_recovery;
 mod dependency_repair;
+pub use dependency_recovery::{
+    dependency_expected_started_marker, dependency_preparation_authorization,
+    dependency_preparation_authorization_state, verify_dependency_recovery_reply,
+    DependencyPreparationState,
+};
 mod dependency_run;
 pub use dependency_repair::{
     dependency_repair_authorization, parse_dependency_repair_authorization,
-    verify_dependency_recovery_reply, verify_dependency_repair_result,
-    verify_dependency_unknown_result,
+    verify_dependency_repair_result, verify_dependency_unknown_result,
 };
 mod feature_run;
 pub use feature_run::{

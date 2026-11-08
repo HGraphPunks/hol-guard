@@ -38,7 +38,19 @@ pub fn parse_dependency_repair_authorization(
     let generation = v["repair_generation"]
         .as_str()
         .ok_or("dependency repair executable pin missing")?;
-    if raw != dependency_repair_authorization(intent, started, generation)? {
+    let expected = if v["schema"] == "hol-gauntlet-host-dependency-repair-authorization.v2" {
+        crate::dependency_preparation_authorization(
+            intent,
+            started,
+            generation,
+            v["preparation_state_sha256"]
+                .as_str()
+                .ok_or("preparation state pin missing")?,
+        )?
+    } else {
+        dependency_repair_authorization(intent, started, generation)?
+    };
+    if raw != expected {
         return Err("dependency repair authorization differs".into());
     }
     Ok((started.into(), generation.into()))
@@ -54,6 +66,9 @@ pub fn verify_dependency_unknown_result(
         return Err("bounded canonical dependency observation required".into());
     }
     let mut v: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;
+    if v["schema"] == "hol-gauntlet-native-dependency-unknown.v2" {
+        return crate::dependency_recovery::verify_preparation_unknown(intent, reader, raw);
+    }
     let fields = [
         "schema",
         "job_id",
@@ -111,40 +126,21 @@ pub fn verify_dependency_unknown_result(
     Ok(v)
 }
 
-/// Explicit recovery may complete an original report or retain an aborted run.
-pub fn verify_dependency_recovery_reply(
-    intent: &DependencyRunIntent,
-    started: &str,
-    repair_generation: &str,
-    reader_generation: &str,
-    raw: &[u8],
-) -> Result<Value, String> {
-    dependency_repair_authorization(intent, started, repair_generation)?;
-    if raw.is_empty() || raw.len() > 32768 {
-        return Err("bounded dependency recovery reply required".into());
-    }
-    let value: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;
-    if value["schema"] == "hol-gauntlet-native-dependency-read.v1" {
-        let public = crate::verify_dependency_read_response(intent, reader_generation, raw)?;
-        if value["report"]["started_marker_sha256"] != started {
-            return Err("finalized dependency reservation differs from authorization".into());
-        }
-        Ok(public)
-    } else {
-        verify_dependency_repair_result(intent, started, repair_generation, raw)
-    }
-}
-
 pub fn verify_dependency_repair_result(
     intent: &DependencyRunIntent,
     started: &str,
     generation: &str,
     raw: &[u8],
 ) -> Result<Value, String> {
-    if raw.is_empty() || raw.len() > 8192 || canonicalize(raw).map_err(|e| e.to_string())? != raw {
+    if raw.is_empty() || raw.len() > 32768 || canonicalize(raw).map_err(|e| e.to_string())? != raw {
         return Err("bounded canonical dependency repair required".into());
     }
     let v: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;
+    if v["schema"] == "hol-gauntlet-native-dependency-repair.v4" {
+        return crate::dependency_recovery::verify_preparation_repair(
+            intent, started, generation, raw,
+        );
+    }
     let creator = v["schema"] == "hol-gauntlet-native-dependency-repair.v3";
     let mut fields = vec![
         "schema",
@@ -447,7 +443,7 @@ mod tests {
             "report":report,"archive_proof":null,"artifact_admitted":false,"execution_eligible":false,"qualification_eligible":false,
             "guard_causality_verified":false,"model_requests":0,"model_tokens":0});
         let verify = |v: &Value, started: &str, reader: &str| {
-            verify_dependency_recovery_reply(
+            crate::verify_dependency_recovery_reply(
                 &intent,
                 started,
                 &"d".repeat(64),
