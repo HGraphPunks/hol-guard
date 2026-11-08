@@ -2,7 +2,7 @@
 //! Guard control scoring and authenticated host admission are separate exits.
 use crate::builder_image_context::{python_worker_lock, verify_python_lock};
 use crate::native_controller_exec::NativeChild;
-use crate::native_job_io::{load, own_identity, require_no_unknown_jobs};
+use crate::native_job_io::{load, own_identity, require_no_unknown_jobs, NativeAdmissionGuard};
 use crate::native_job_spec::{NativeJobExecution, ACTIVE_SECONDS};
 use crate::native_prelaunch::{reserve_native, NativeHostAck};
 use crate::terminal::{digest, report_name, terminal_name, MAX_TERMINAL_BYTES};
@@ -111,6 +111,7 @@ fn dispatch_native_worker_inner(
     if request.deployment_digest() != Some(deployment) {
         return Err("native deployment differs from outside pin".into());
     }
+    let admission = NativeAdmissionGuard::start()?;
     let lease = journal.acquire_active_lease().map_err(|e| e.to_string())?;
     // A consumed identity cannot run again, irrespective of unrelated host
     // preflight cost or availability. Malformed/mismatched markers still fail
@@ -135,6 +136,7 @@ fn dispatch_native_worker_inner(
     )?;
     crate::require_rust_job_slice_absent(&spec.job_id).map_err(|e| e.to_string())?;
     gauntlet_cell_rootfs::verify_preparation_host_helpers(&preparation)?;
+    admission.finish()?;
     let deadline = BoottimeDeadline::start(ACTIVE_SECONDS).map_err(|e| e.to_string())?;
     let (started, signing) = reserve_native(
         &journal,

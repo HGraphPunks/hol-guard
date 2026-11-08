@@ -209,6 +209,17 @@ satisfied against 62 distributions. Validation `f9340f8d…` binds 34 records.
 Fresh GNU compilation reproduces actor `a6604708…`; binding `59fd037e…` reuses
 its exact retained bytes. Never replay either completed job or infer a Native
 control pass or qualification from this inert publication.
+Signed prelaunch attempts `013`/`014` fail without reservation or candidate
+execution; the former exposes the required Root-only `0500` mode, and the latter
+times out during unoptimized admission. Its exact pidfd-bound stop requires
+SIGKILL after 25 seconds, retaining that forced-cleanup outcome. Source
+`a74f6fdb…` adds a 50-second admission watchdog, joined before key generation
+or reservation, while preserving every history check. Validation `eac70b43…`
+binds 713 Mac tests, Mac/ARM warnings-denied Clippy and two actual UID 65532 ARM
+subprocess tests. Scope `030` drains without force and all 334 historical
+metadata rows remain unchanged. The optimized release worker `8201c839…` is
+installed with mode `0500`. Two existing Rust files change; no new file, crate,
+binary or dependency is added. Fresh signed acceptance remains open.
 No causality or parent-exit success is claimed; parent exits remain 24/62.
 
 ```text

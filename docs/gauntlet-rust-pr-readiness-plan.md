@@ -137,11 +137,23 @@ with evidence. Code volume and checked substeps do not establish completion.
   binds 34 records. Fresh GNU compilation reproduces actor `a6604708…` without
   another binary copy. Neither completed job may be replayed. No current-source
   Native control pass or qualification is inferred from inert publication.
+- Signed prelaunch attempts `013`/`014` fail without reservation, host pin or
+  candidate execution. The first exposes the Root-only `0500` worker-mode
+  requirement. The second exceeds the host wait during CPU-bound unoptimized
+  admission; exact pidfd-bound cleanup requires SIGKILL after 25 seconds and
+  verifies all four leases and 334 unchanged metadata rows. Keep both failures.
+  Source `a74f6fdb…` adds a 50-second admission watchdog, joined before key
+  generation/reservation, while retaining every history check. Validation
+  `eac70b43…` binds 713 Mac tests, Mac/ARM Clippy and two actual unprivileged ARM
+  subprocess tests; scope `030` drains without force. No new files/dependencies
+  are added. Optimized release worker `8201c839…` is installed with mode `0500`.
+  Use it for a fresh signed job; never replay attempts `013`/`014`.
 - **Next:** finish signed v2 artifact acceptance and fresh isolated qualification
   of the merged product, then source/preparation/observer admission and actual
   writer attribution in the dependency order below. Keep captured private
   payloads private until sanitized delivery. Never replay consumed pipe jobs
-  `001`–`012` or borrow their source pins for the newer product.
+  `001`–`012`, failed prelaunch attempts `013`/`014`, or borrow their source pins
+  for the newer product.
   Job `006` used older product `74d8d008`
   and failed with exit 126 before tests; its 65 closed sessions, 470,846 bytes
   and 525 task histories are component evidence, not current-source qualification.

@@ -533,6 +533,31 @@ copy. No candidate is imported or executed as Root during these operations.
 Fresh signed Native acceptance remains pending. Never replay either completed
 build/export job or infer qualification from this inert publication.
 
+Attempts `013` (`d196e0a634168fcd`) and `014` (`e08b89fd344ae881`) remain failed.
+The first refuses the test-tool mode `0555`; the Root worker requires `0500`.
+Independent readback proves no reservation, host pin or cell. Mode correction
+changes permissions only. The second exceeds the host's 60-second prelaunch
+window while its unoptimized worker continues CPU-bound admission without a
+reservation. Exact pidfd-bound termination requires SIGKILL after a 25-second
+SIGTERM grace; stop record `70cf4bf9…` verifies death, four available leases,
+empty workspace, no sidecars/cell/image lease and all 334 unchanged metadata
+rows. Neither failed attempt runs a candidate or consumes a host key pin.
+
+A fixed 50-second admission watchdog now bounds this read-only phase, including
+unresponsive nested verification. It exits on cancellation/expiry, and is stopped
+and joined before key generation or reservation. Historical verification remains
+unchanged. Two existing Rust files change; no file, crate, binary or dependency
+is added. All 713 Mac tests and warnings-denied Mac/ARM Clippy pass. Two measured
+UID 65532 ARM tests exercise blocked/cancelled admission and completed/early-error
+watchdog shutdown in owned subprocesses. Scope `030` drains without forced
+cleanup; its outcome is separate from the forced stop of attempt `014`.
+
+Source `a74f6fdb…` and validation `eac70b43…` bind these checks and retained
+failures. The optimized, fixture-free release worker is 9,359,408 bytes,
+SHA-256 `8201c839…`, installed with exact mode `0500`; release compilation takes
+239.09 seconds. Use that generation for a fresh job, never replay `013`/`014`.
+Signed live acceptance, outside admission and all parent exits remain open.
+
 ## Scope and implementation order
 
 Capture the actual stdin/stdout pipe exchanges of source-pinned Native

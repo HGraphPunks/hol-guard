@@ -6,6 +6,78 @@ use gauntlet_contracts::{canonicalize, WorkerRequest};
 use rustix::fs::{fstat, Dir};
 use serde_json::Value;
 use std::path::Path;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use std::thread::JoinHandle;
+use std::time::Duration;
+
+/// Admission only reads retained state. End this guard before generating a key
+/// or reserving a job: its watchdog may exit the entire worker, closing leases,
+/// when a nested historical verifier cannot respond to cancellation itself.
+pub(crate) struct NativeAdmissionGuard {
+    stop: Arc<AtomicBool>,
+    watcher: Option<JoinHandle<()>>,
+    deadline: crate::BoottimeDeadline,
+}
+impl NativeAdmissionGuard {
+    pub(crate) fn start() -> Result<Self, String> {
+        // Leave transport headroom inside the host's 60-second prelaunch wait.
+        Self::start_seconds(50)
+    }
+    fn start_seconds(seconds: u64) -> Result<Self, String> {
+        let deadline = crate::BoottimeDeadline::start(seconds).map_err(|e| e.to_string())?;
+        let stop = Arc::new(AtomicBool::new(false));
+        let finished = stop.clone();
+        let watcher = std::thread::Builder::new()
+            .name("native-admission".into())
+            .spawn(move || {
+                while !finished.load(Ordering::Acquire) {
+                    if crate::native_worker::cancellation_requested()
+                        || deadline.remaining().map_or(true, |left| left.is_zero())
+                    {
+                        eprintln!("native admission cancelled or expired before reservation");
+                        std::process::exit(2);
+                    }
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+            })
+            .map_err(|e| e.to_string())?;
+        Ok(Self {
+            stop,
+            watcher: Some(watcher),
+            deadline,
+        })
+    }
+    fn join(&mut self) -> Result<(), String> {
+        self.stop.store(true, Ordering::Release);
+        if let Some(watcher) = self.watcher.take() {
+            watcher
+                .join()
+                .map_err(|_| "native admission watchdog failed")?;
+        }
+        Ok(())
+    }
+    pub(crate) fn finish(mut self) -> Result<(), String> {
+        self.join()?;
+        if crate::native_worker::cancellation_requested()
+            || self
+                .deadline
+                .remaining()
+                .map_err(|e| e.to_string())?
+                .is_zero()
+        {
+            return Err("native admission cancelled or expired before reservation".into());
+        }
+        Ok(())
+    }
+}
+impl Drop for NativeAdmissionGuard {
+    fn drop(&mut self) {
+        let _ = self.join();
+    }
+}
 
 pub(crate) fn load(
     request: &WorkerRequest,
@@ -195,4 +267,73 @@ pub(crate) fn own_identity(
         return Err("native controller changed across gate samples".into());
     }
     Ok(process)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    const CHILD: &str = "HOL_GAUNTLET_ADMISSION_GUARD_CHILD";
+    const ENTERED: &str = "admission-entered";
+    const RESERVED: &str = "reservation-boundary-reached";
+
+    #[test]
+    fn admission_watchdog_child() {
+        let Ok(mode) = std::env::var(CHILD) else {
+            return;
+        };
+        crate::install_native_worker_signals().unwrap();
+        let guard = NativeAdmissionGuard::start_seconds(1).unwrap();
+        println!("{ENTERED}");
+        std::io::Write::flush(&mut std::io::stdout()).unwrap();
+        match mode.as_str() {
+            "blocked" => std::thread::sleep(Duration::from_secs(4)),
+            "cancelled" => {
+                assert_eq!(unsafe { libc::raise(libc::SIGTERM) }, 0);
+                std::thread::sleep(Duration::from_secs(4));
+            }
+            "finished" => {
+                guard.finish().unwrap();
+                std::thread::sleep(Duration::from_millis(1100));
+                println!("{RESERVED}");
+            }
+            "early-error" => {
+                drop(guard);
+                std::thread::sleep(Duration::from_millis(1100));
+            }
+            _ => panic!("unknown owned admission test mode"),
+        }
+    }
+
+    #[test]
+    fn blocked_or_cancelled_admission_exits_before_reservation_and_completed_guards_join() {
+        for mode in ["blocked", "cancelled", "finished", "early-error"] {
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "native_job_io::tests::admission_watchdog_child",
+                    "--nocapture",
+                    "--test-threads=1",
+                ])
+                .env_clear()
+                .env(CHILD, mode)
+                .stdin(std::process::Stdio::null())
+                .output()
+                .unwrap();
+            let stdout = String::from_utf8(output.stdout).unwrap();
+            let stderr = String::from_utf8(output.stderr).unwrap();
+            assert!(stdout.contains(ENTERED), "{mode}: {stderr}");
+            assert_eq!(stdout.contains(RESERVED), mode == "finished", "{mode}");
+            let refused = matches!(mode, "blocked" | "cancelled");
+            assert_eq!(
+                output.status.code(),
+                Some(if refused { 2 } else { 0 }),
+                "{mode}: {stderr}"
+            );
+            assert_eq!(
+                stderr.contains("native admission cancelled or expired before reservation"),
+                refused,
+                "{mode}"
+            );
+        }
+    }
 }
