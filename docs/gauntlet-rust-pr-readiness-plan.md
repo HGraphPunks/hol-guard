@@ -18,7 +18,8 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
-- Pre-CID recovery is in progress: explicit native v3 / host v2 receipts bind
+- Pre-CID recovery is implemented at `b2983a6cd`, with the Root fixture corrected
+  at `c9aaa25ce`. Explicit native v3 / host v2 receipts bind
   original creator readiness, incomplete CID bytes and separate per-attempt
   witnesses. Creator/client drain now precedes Podman runtime queries, and
   v3 completion uses atomic no-replace publication. The new ARM-only module
@@ -27,13 +28,19 @@ with evidence. Code volume and checked substeps do not establish completion.
   All 676 Mac tests and Mac Clippy pass for the unchanged effective Mac source.
   Formatting, final ARM Clippy/release/test builds and default host builds also
   pass. Local validation `c08a5bd3…` binds eight records/seven logs and the final
-  tool hashes. Four unprivileged ARM cases pass; the Root fixture's initial
-  fixed-path mistake is retained and corrected to use the same publication
-  primitive with temporary directories. Its empty group is separately removed
-  under four leases without signals or container changes. The corrected Root
-  fixture and real missing-CID interruption, recovery
-  interruption and normal-control proofs remain pending. No parent
-  exit closes; partial intent/reservation/report reconciliation remains open.
+  tool hashes. All five selected ARM cases pass. Fresh missing-CID job
+  `c43e7a1580bd269f` leaves an actual stopped creator; first-call Rust repair
+  succeeds in 3.246 seconds. Job `7e04b9c128a36df5` retains its original writer's
+  32-byte receipt. Repair is killed after its durable witness and resumes with
+  unchanged authorization in 3.971 seconds; both witnesses and original bytes
+  survive. Normal `a180c5e9742bd36f` exits zero in 64.422 seconds and matches all
+  2,290 files/51,318,588 bytes. Cleanup and restart/refusal checks pass. The failed
+  Root fixture and missed-window job `9b72e063a5d148cf` remain retained, including
+  their separate cleanup. Validation `1e2228e6…` binds 168 records; bundle
+  `130feaed…` has 179 members and excludes nineteen actual private nonces.
+  No parent exit closes; partial intent/reservation/report reconciliation,
+  independent review and qualification remain open. See the
+  [live missing-receipt proof](gauntlet-rust-hostbound-candidate-build-proof.md#missing-dependency-container-receipt-recovery).
 - Upstream advances to `59ff1696b`, merged without conflicts as `dbd3073ac`.
   All eighteen incoming files match upstream; ten Python files parse without
   imports. The 440-file Gauntlet map and immutable 420-file baseline are

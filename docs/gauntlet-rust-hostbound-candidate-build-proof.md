@@ -789,6 +789,92 @@ build remain unchanged. Final worker `7b595c69…` and test ELF `d9f98bc3…`
 supersede the earlier binaries for subsequent execution. The corrected Root
 fixture and live fault cases remain pending; no failed evidence is replaced.
 
+Final implementation `c9aaa25ce73386a49678c06eeb3b2f05cd792c8d` freezes worker
+`7b595c69…` and test ELF `d9f98bc3…` in the separate
+`dependency-creator-recovery-20261107-host-002` directory. Installation holds all
+four leases and preserves all 334 historical metadata rows. The five selected
+ARM cases now pass: four unprivileged cases and the explicit Root temporary
+publication/placement fixture. Its receipt is `d21ab5f7…`. The placement fixture
+still stops inert children before their helper binaries execute; actual helper
+execution is established separately below.
+
+Fresh job `c43e7a1580bd269f` pins the real Root Podman creator by executable
+inode/hash, exact argv, parent/start identity and held pidfd. The outside watcher
+stops that post-exec creator, verifies it inherited none of the four leases and
+kills only the original supervisor through its held pidfd. The creator survives
+stopped in the retained group; the original CID receipt and running marker are
+absent. No Podman query runs while it is stopped. Both commands read unknown/null
+state, and wrong-reservation repair refuses without authorization. Independent
+four-lease observation confirms the same stopped helper, group and enforced
+policy remain unchanged.
+
+The first authorized Rust repair succeeds in 3.246 seconds. Outside checks
+verify the original supervisor and creator gone, job groups/name/profile absent,
+the original CID receipt still missing, a durable absence witness, and the Root
+v3 completion matching its public host v2 projection. No outside helper cleanup
+or transport rescue is needed. All six restarted-read, repeat-repair, changed-pin
+and consumed-launch cases pass. Outside completion is `e6140e69…`, restart
+readback `6e9c4a9d…`, and native completion
+`937c3f0104d0a90bf3db9a4bca0f554b1de6414af66acd315abe549d8cf20968`.
+
+Job `7e04b9c128a36df5` proves an actual incomplete original write. After pinning
+the post-exec creator, the outside watcher lowers only the original supervisor's
+`RLIMIT_FSIZE` soft limit from unlimited to 32 bytes. The already-forked creator's
+limit remains unlimited. The verified sudo monitor and supervisor are continued
+as part of the planned fault release before the creator resumes. The supervisor
+then exits without a SIGKILL fallback, leaving a Root-0600, 32-byte prefix of the
+exact canonical CID receipt. The apparatus never edits those bytes. Outside
+inspection verifies the bound full CID, `created` state, no running/init process
+and an empty retained group. This uses Linux's documented per-process resource
+limit and partial-write behavior ([getrlimit](https://man7.org/linux/man-pages/man2/getrlimit.2.html),
+[write](https://man7.org/linux/man-pages/man2/write.2.html)); the observed result
+is retained in `09f3907c…`, not inferred from those references.
+
+Wrong-pin noninterference passes before cleanup. A second outside watcher pins
+the actual repair supervisor and kills it at the new witness's close-write. It
+verifies the witness durable, creator group absent, container still present and
+Root completion absent. Receipt `6849dbd3…` binds that interruption. The host
+retains its uncertain repair and cleanup authorization. A second Rust call uses
+that exact unchanged authorization and succeeds in 3.971 seconds. Both witnesses
+and the original partial bytes remain; outside validation checks their full
+bindings, the deterministic selected witness and all resource/process absence.
+All six restart/refusal cases pass. Outside completion is `a90323aa…`, restart
+`d23a2b14…`, and native completion
+`68a6a2787d20992661344d5cc69f80b313ac4ad8f7075bff7073a7952cbd8d06`.
+
+Earlier job `9b72e063a5d148cf` misses the post-create-inspect observation window
+before applying a limit. Its watcher failure and supervisor-loss host result
+remain retained. Separate reconciliation observes a complete 221-byte receipt
+and a created/unstarted container, without a retained successful supervisor
+identity observation. Existing v2 Rust repair succeeds in 4.676 seconds, followed
+by outside cleanup and six restart/refusal cases. This failed attempt is not a
+partial-write proof; its harness is `ee735f53…` and cleanup `b7b8f0d3…`.
+
+Normal control `a180c5e9742bd36f` exits zero in 64.422 seconds with the same final
+worker. Outside observation verifies the actual UID/GID-65532 exporter and fixed
+input, capability, mount, namespace, policy and cgroup limits. Both read commands
+agree; consumed launch and completed-job repair refuse before cleanup authority.
+Independent inert ZIP decoding verifies all 2,290 files/51,318,588 bytes and entry
+digest `b01fe0d3806503226d77118a977594ee5603025ed6412ea1d24ae6a0daf5f866`.
+The 16,690,636-byte ZIP hashes to
+`ad0b900f6a02201680b919e5c436dac85b35d5b69ef00a8d2e5c5505c7adb112`;
+export validation is `201867a0…` and cleanup `8eeada16…`. These live cases retain
+product source `53c64ae96` and controller `123024f4…`; they do not qualify a newer
+upstream product generation.
+
+Live validation `dependency-creator-recovery-20261107-validation-006.json` binds
+168 records, SHA-256
+`1e2228e6bf7493d6029799081d29156aed0347550dc78444a1d91cad555e3cab`.
+Public bundle `gauntlet-rust-review-dependency-creators-20261107-001.tar` has
+179 members/18,176,000 bytes, SHA-256
+`130feaed3dbf4a1bf4c31682d2069edc3e95302eb6d8f955e95afed5d63367c0`.
+Every member reopens; nineteen actual private nonces are excluded, including
+decoded ZIP contents. All four jobs' final cleanup checks preserve the 333 old
+records' metadata without reading their contents. Remote evidence delivery,
+independent review, broader partial intent/reservation/report reconciliation and
+qualification remain open. Parent exits stay 24/62; all admission flags remain
+false and product model requests/tokens remain zero.
+
 ## Dependency reconciliation without relaunch
 
 `gauntlet-host dependencies run|read` and the existing dependency diagnostic

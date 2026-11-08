@@ -281,16 +281,24 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
   - [ ] Diagnose the first active dependency repair refusal and complete
   pre-CID/partial-state recovery. The first job's delayed active check also
   remains a retained failure. Qualification stays open; no parent exit closes.
-    - [ ] Prove native v3 pre-CID recovery with retained creator custody,
+    - [x] Prove native v3 pre-CID recovery with retained creator custody,
     separate per-attempt CID witnesses, atomic completion, interrupted repair
     and normal controls. The implementation adds one necessary ARM-only module
     within the existing crate. All 676 Mac tests, formatting, Mac/ARM Clippy and
-    final builds pass; ARM execution remains pending. Local validation is
-    `c08a5bd3…`. Four unprivileged ARM cases pass. The initial Root fixture
+    final builds pass, plus all five selected ARM cases. Local validation is
+    `c08a5bd3…`. The initial Root fixture
     failed by reopening a fixed slot; its failure and empty-group cleanup stay
-    retained. The corrected temporary-directory fixture awaits execution.
-    Original incomplete/failed records
-    are preserved, and no new schema grants admission or invents an exit.
+    retained; the corrected temporary-directory fixture passes. Actual stopped
+    creator job `c43e7a1580bd269f` repairs in 3.246 seconds. Original-writer partial
+    job `7e04b9c128a36df5` preserves 32 bytes, survives repair-supervisor loss
+    after its durable witness and resumes under the same authorization in
+    3.971 seconds. Normal `a180c5e9742bd36f` matches all 2,290 files. Cleanup and
+    restart/refusal checks pass; missed-window job `9b72e063a5d148cf` remains a
+    retained failed fault attempt with separate v2 repair. Live validation
+    `1e2228e6…` binds 168 records; public bundle `130feaed…` excludes nineteen
+    actual private nonces. Broader partial-state recovery stays open. No new
+    schema grants admission or invents an exit. See
+    [missing receipt recovery](gauntlet-rust-hostbound-candidate-build-proof.md#missing-dependency-container-receipt-recovery).
     - [x] Add private phase/error diagnostics within the existing 490-line
     repair module, with exclusive durable writes, bounded UTF-8 prefixes and
     full-error hashes. All 675 Mac tests, formatting, Mac/ARM Clippy, builds and
