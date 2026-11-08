@@ -19,17 +19,19 @@ with evidence. Code volume and checked substeps do not establish completion.
 ## Resume from this checkpoint
 
 - Continue `codex/gauntlet-rust-finish-20261105` and draft [child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5)
-  against integration `f143f9ac`. Transfer code is `76a5604fe`; live evidence
-  is `984cba186`. Main `4220e765b` merges cleanly as `9adf112e9`, preserving
-  all six incoming files. Gauntlet source stays unchanged. Require all five
+  against integration `f143f9ac`. Transfer code is `76a5604fe`; Root pipe
+  component is `734338221`. Main `d01a43ae1` merges cleanly as `ff638012d`,
+  preserving all 31 incoming files and the component. Python and Rust agree
+  on 409 controller files, 420 entries and digest `aac18d28…`; it is not
+  installed. The immutable baseline remains unchanged. Require all five
   current-head jobs and independent review before merging; the last dispatch
   was disabled. No settings change or override is authorized.
 - Primary `build transfer` now binds exact archive/commit bytes, worker and VM
   to one durable dispatch through the existing bounded Rust stream owner.
   Partial, linked, orphaned or uncertain records cannot allow replay. Two
   existing Rust files change, both below 500 lines; no new file, crate, target
-  or dependency. **686 Mac tests**, formatting, warnings-denied Mac/ARM Clippy
-  and **six measured unprivileged ARM tests** pass. The new main's Native
+  or dependency. **692 Mac tests**, formatting, warnings-denied Mac/ARM Clippy
+  and **15 measured Linux component tests** pass. The new main's Native
   library/CLI/test targets compile on Mac/ARM without executing product tests.
 - Exact live product `74d8d0081` includes main `84ba6e4da`; controller tree
   is `52da7281…`. Build `c2e80b4915f76a3d` passes four selected and 185
@@ -45,7 +47,15 @@ with evidence. Code volume and checked substeps do not establish completion.
   Audit remains incomplete and ineligible. Kernel/input checks and four-lease
   cleanup pass; 333 historical records and their lock retain metadata without
   reading their bytes or keys. See [primary audit](gauntlet-rust-feature-worker.md#fresh-primary-audit-at-the-current-build-generation).
-  Newer main `4220e765b` has compilation only and still needs live qualification.
+  Newer main `d01a43ae1` has compilation only and still needs live qualification.
+- Opt-in launch v5 relays actual Native kernel pipes through Root: 43 complete
+  sessions, 317,818 read bytes and 154 complete frame pairs. Independent Mac/ARM
+  Rust replay is identical. Five necessary source files reuse existing crates,
+  binary targets and tests. All five failed live attempts and checked recoveries
+  remain retained. The full hook/sink control fails Native's read-only profile
+  mismatch; no sink/Post/effect success is credited. Next integrate v5 into the
+  signed artifact readers and support the current containment contract while
+  preserving Native decisions. See [pipe checkpoint](gauntlet-rust-native-stdio-plan.md#root-owned-pipe-transport-checkpoint-november-8).
 - Validation `dddb9d04…` binds 116 public evidence files; bundle
   `gauntlet-rust-review-primary-transfer-20261108-002.tar` has
   118 members/53,258,240 bytes, SHA-256 `587ccd27…`.
@@ -60,8 +70,8 @@ with evidence. Code volume and checked substeps do not establish completion.
   and resources before each mutation. Baseline 420 and source map 440
   (79 changed/20 added) remain unchanged.
 - Next complete independent Native request/decision/effect authority, all twelve
-  staging/installed roles and fresh signed conformance. Atomic wire bytes,
-  concurrent memory, operation semantics and actual effect writers remain open,
+  staging/installed roles and fresh signed conformance. Signed wire admission,
+  operation semantics and actual effect writers remain open,
   followed by real workflows, full legacy parity and reviewed cutover/rollback.
   **24/62** parent exits; all eligibility/causality flags are false and model
   use is zero. This goal grants no quota, upstream main merge, release

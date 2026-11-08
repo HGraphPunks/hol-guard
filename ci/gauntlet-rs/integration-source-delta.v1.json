@@ -422,7 +422,7 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/fixtures.py",
       "phase": 5,
-      "sha256": "8a5cfa0d455a92632ded8e861f4ac5a9a6ee9f795a311335ebb5d7984eca4b64"
+      "sha256": "d98a2bf0d6f1e29eaaae95d5656a1d31d53a4c3bc7a15fd2b57d3a31b2797739"
     },
     {
       "base_sha256": "841da1d2937e72dd53c4468a12b1886d0b56b28f5bf2ed7e78fbb71f0355011d",
@@ -646,7 +646,7 @@
       "disposition": "frozen_data_or_schema",
       "path": "ci/gauntlet/scenarios.json",
       "phase": 1,
-      "sha256": "d6c894a00baff44a1fba831c3737e4deca04b97595efe2ef8e311f68b34f24b6"
+      "sha256": "366a618615e0cb69a47fe7f499c50120bc87977952e8971462ea91ef4552bf62"
     },
     {
       "base_sha256": "e8789402ce8d0f23cb9a555c09bf0aee43e749ef455ebc27ec7d30df0d8ede39",

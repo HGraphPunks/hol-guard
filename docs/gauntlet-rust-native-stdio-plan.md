@@ -132,6 +132,17 @@ changed Rust files remain below 500 lines.
 | `arm-reader-replay-001.json` | `f685a3c635b01072785f379b8ec4fe0bd8b39fa389c8ceef50cfdfa58caee69a` |
 | `live-closed-readback-005.json` | `1e2a4c7fac9998bc4d3c793206115e8ca07408c10a6dce57a05f566cf16d0b28` |
 
+Component commit `734338221` merges upstream `d01a43ae1` without conflicts as
+`ff638012d`. All 31 incoming files and 38 component files retain their bytes.
+The refreshed source map and current controller expectation pass 692 Mac
+workspace tests and warnings-denied Mac/ARM Clippy. Matching Native library,
+CLI and test targets compile on both platforms; the existing ARM musl warning
+remains visible. Python and Rust independently agree on the new controller
+digest `aac18d28…`. This controller is not installed, and the earlier live pipe
+proof does not become a fresh merged-product qualification. See the
+[upstream checkpoint](gauntlet-rust-execution-checklist.md#0-baseline-inventory-and-differential-corpus)
+for exact records and source pins.
+
 Model use and quota changes are zero. Remote evidence delivery, independent
 review and all five current-head CI jobs remain required. The parent count
 stays 24/62; neither the gate nor the observer cutover is enabled.
