@@ -20,10 +20,11 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 - Continue `codex/gauntlet-rust-finish-20261105` and draft [child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5)
   against integration `f143f9ac`. Transfer code is `76a5604fe`; Root pipe
-  component is `734338221`. Main `5f0abeadc` merges cleanly as `fc8149d76`,
+  component is `734338221`. Main `1d7f8304d` merges cleanly as `f93ecd24d`,
   preserving all 11 incoming files and the component. Python and Rust agree
-  on 409 controller files, 420 entries and digest `aac18d28…`; it is not
-  installed. The immutable baseline remains unchanged. Require all five
+  on 409 controller files, 420 entries and digest `4e0af628…`; it is not
+  installed. The new environment-name scenario changes one source-map hash;
+  the immutable baseline remains unchanged. Require all five
   current-head jobs and independent review before merging; the last dispatch
   was disabled. No settings change or override is authorized.
 - Primary `build transfer` now binds exact archive/commit bytes, worker and VM
@@ -48,7 +49,7 @@ with evidence. Code volume and checked substeps do not establish completion.
   Audit remains incomplete and ineligible. Kernel/input checks and four-lease
   cleanup pass; 333 historical records and their lock retain metadata without
   reading their bytes or keys. See [primary audit](gauntlet-rust-feature-worker.md#fresh-primary-audit-at-the-current-build-generation).
-  Newer main `5f0abeadc` has compilation only and still needs live qualification.
+  Newer main `1d7f8304d` has compilation only and still needs live qualification.
 - Opt-in launch v5 relays actual Native kernel pipes through Root: 43 complete
   sessions, 317,818 read bytes and 154 complete frame pairs. Independent Mac/ARM
   Rust replay is identical. Five necessary source files reuse existing crates,
@@ -68,7 +69,10 @@ with evidence. Code volume and checked substeps do not establish completion.
   Its unprotected write succeeds and is retired; independent readback verifies
   cleanup and the unchanged fixture. All 65 pipe sessions, 470,846 bytes and
   525 task histories replay identically on Mac/ARM. Validation `9d41ea5c…`
-  binds 38 evidence files. Next identify the exact Native boundary failure,
+  binds 38 evidence files. Merged validation `cb72b7bc…` verifies seventeen
+  further records and the independently recomputed controller pin; the initial
+  stale-pin failure remains retained. Next identify the exact Native boundary failure
+  through its existing fixed errors or an outside failing-syscall observation,
   then prove utility/write refusal, fresh signed export and the twelve roles;
   SDK role modes currently refuse this preparation. See [read-only checkpoint](gauntlet-rust-native-stdio-plan.md#explicit-read-only-control-checkpoint).
 - Validation `dddb9d04…` binds 116 public evidence files; bundle

@@ -247,6 +247,36 @@ and twelve-role grading remain open. Remote evidence delivery, five current-head
 CI jobs and independent review are still required. No parent exit closes:
 24/62 complete, all eligibility/causality flags false and model use zero.
 
+Upstream subsequently adds the names-only environment scenario at
+`1d7f8304dd04fafd202fae7855717c55872a6d47`, merged as
+`f93ecd24d97829b6a1f3a74b36fa185d0b4989d6`. All eleven incoming files retain
+their upstream bytes. The refreshed 440-file map keeps 79 changed/20 added
+entries and changes only the scenario digest; its SHA-256 is
+`2a36900e7f7661afe76aee4b3b13fd5987c8c9df391b3eda2a67b3d1d966f7bf`.
+The original 420-file baseline remains unchanged.
+
+The first merged workspace run correctly refuses the stale `aac18d28…`
+controller expectation. An independent Python oracle evaluates only the
+bootstrap's file-selection expression, imports no module and invokes no
+installer. It checks all 409 hashes and eleven directory modes, calculates
+`4e0af628dffecc9b7cf3471f56bed40209616e9651054db0a399b5afe4590c04`, and
+reproduces the previous digest by reverting only the scenario file's hash.
+Rust agrees after updating the existing test assertion. The initial source
+records' claim that the controller was unchanged was incorrect; merged source
+v4 and validation below explicitly supersede that field. All failed records
+remain retained. No installed controller generation changes.
+
+Merged source `readonly-merged-source-004.json` has SHA-256
+`e25ac7ad41580831d655fcb54ef076d210f7652ed042432dfc803711c63b1291`.
+All 703 workspace tests, full formatting and warnings-denied Mac/ARM Clippy
+pass; Native library/CLI/test targets compile on Mac/ARM without product
+execution. Validation `readonly-main1d7-validation-001.json`, SHA-256
+`cb72b7bcded752dc1010c341852745a0473ebc97c3332681e46364d817128838`,
+rechecks seventeen records, including oracle `f937328c…`. Only the existing
+source map, test and three checkpoint documents need this follow-up. The live
+read-only failure remains pinned to its earlier source and product; the new
+source supplies no fresh runtime, utility or qualification success.
+
 ## Scope and implementation order
 
 Capture the actual stdin/stdout pipe exchanges of source-pinned Native

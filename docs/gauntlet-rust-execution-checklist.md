@@ -96,6 +96,19 @@ Full SDK roles, signed export, outside admission, semantics and actual writers
 remain open. All six failed attempts and 334 historical metadata rows survive;
 parent exits remain 24/62 and model use is zero.
 
+Main `1d7f8304d` then merges cleanly as `f93ecd24d`, preserving eleven incoming
+files. Its environment-name scenario changes one digest in the 440-file map;
+the 420-file baseline stays unchanged. Independent Python installer selection
+and Rust agree on 409 files, 420 entries and controller digest `4e0af628…`.
+The initial stale expected-pin failure is retained and corrected from that
+oracle. Merged source `e25ac7ad…` passes all 703 Mac tests, formatting and
+warnings-denied Mac/ARM Clippy; Native library/CLI/tests compile on both.
+Validation `readonly-main1d7-validation-001.json` hashes to
+`cb72b7bcded752dc1010c341852745a0473ebc97c3332681e46364d817128838`.
+This adds no local file or dependency and does not install the new controller
+or qualify the newer runtime. All parent counts and live-control limits above
+remain unchanged.
+
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
 ```
