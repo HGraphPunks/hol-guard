@@ -556,7 +556,51 @@ Source `a74f6fdb…` and validation `eac70b43…` bind these checks and retained
 failures. The optimized, fixture-free release worker is 9,359,408 bytes,
 SHA-256 `8201c839…`, installed with exact mode `0500`; release compilation takes
 239.09 seconds. Use that generation for a fresh job, never replay `013`/`014`.
-Signed live acceptance, outside admission and all parent exits remain open.
+Signed live acceptance was still open at that checkpoint. The fresh result
+below remains separate from outside admission and the parent exits.
+
+Fresh signed job `015` (`4e4819769a5ab5c0`) completes in 50.116 seconds using
+product `e0145e09b`, Gauntlet `576f30ee6`, optimized worker `8201c839…` and Native
+ELF `2476dd16…`. Host reconciliation and fresh offline readers authenticate
+report `172d46bd…` and terminal `3aa22c04…` against the original durable pin.
+The diagnostic reports `passed`; the terminal remains `invalid-evidence`, with
+zero model requests and no SDK role qualification. Attempts `013`/`014` remain
+failed and are never replayed.
+
+Independent closed readback `73ccfa03…` verifies the original controller and
+outside-observed Native generations are dead, controller/product cgroups,
+AppArmor profile, rootfs mount and image lease are absent, and all 334 historical
+metadata rows are unchanged. It retains the original process journal
+`891f2abd…` (2,669 rows, 515 task lifetimes/final waits, 266 execs, 78 Native
+execs) and pipe journal `b467bfcf…` (1,240 rows). The actual Native sample runs
+as UID/GID 10004 with zero capabilities, NNP and seccomp. Closed-readback `001`
+is retained as a failed diagnostic filename assumption; `002` corrects only
+the reader, without replaying the workload.
+
+The existing offline verifier now offers `--readonly-artifacts`, explicitly
+selecting the v8/read-only signed report rather than any of the six SDK roles.
+Archive `6aa34b68…` contains 34 members/3,358,720 bytes. Rust joins its original
+preparation/declarations, capture metadata, three normal hook inputs, contained
+sink input/result, fixed v7 fixture and complete v2 process/transport history
+to the authenticated report. It hashes the preparation's original bytes,
+including its trailing newline, without rewriting the evidence. Ten mutation
+cases refuse, including reindexed fixture/capture/journal changes, a trimmed
+preparation, changed journal inode, wrong interpreter/observer/archive pins
+and an SDK-reader substitution. A fresh signed readback after these checks
+matches the retained host pin and result exactly.
+
+Source `dfe38380…` changes six existing Rust files and adds no file, crate,
+binary or dependency. Validation `f944a144…` binds 37 records, all 715 Mac
+tests, warnings-denied all-target/all-feature Mac/ARM Clippy and four measured
+UID 65532 ARM unit tests. Independent Mac/ARM replay produces identical
+97,491-byte output (`14d33a60…`): 61 pipe sessions, one socket helper, eight
+framed clients and 444,496 pipe bytes. V1 refuses on both. Scopes `031`/`032`
+drain without forced cleanup and replay inputs return to Root-only access.
+The first replay-input transfer refuses a preexisting historical directory;
+that failure is retained and the successful transfer uses the fresh job ID.
+Private payload delivery, source/preparation/observer admission, operation
+semantics and physical writer attribution remain open. All eligibility and
+causality flags stay false; parent exits remain 24/62.
 
 ## Scope and implementation order
 

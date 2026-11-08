@@ -126,7 +126,8 @@ with evidence. Code volume and checked substeps do not establish completion.
   contract. Validation `fcc4f16a…` binds 713 Mac tests, the strengthened path
   rerun, warnings-denied Mac/ARM Clippy and six actual ARM checks (four
   unprivileged, two Root-only key tests). No file, crate, binary or dependency
-  is added. Fresh signed VM acceptance and all authority obligations remain open.
+  is added. The subsequent signed VM acceptance is recorded below; all authority
+  obligations remain open.
 - Product `e0145e09b` completes isolated build `60e7a7a17e642363` in 1,811.658
   seconds. Primary readback and independent reading verify cleanup, the retained
   Host pin, all 1,643 wheel entries and Native ELF `2476dd16…`; logs report 185
@@ -147,12 +148,27 @@ with evidence. Code volume and checked substeps do not establish completion.
   `eac70b43…` binds 713 Mac tests, Mac/ARM Clippy and two actual unprivileged ARM
   subprocess tests; scope `030` drains without force. No new files/dependencies
   are added. Optimized release worker `8201c839…` is installed with mode `0500`.
-  Use it for a fresh signed job; never replay attempts `013`/`014`.
-- **Next:** finish signed v2 artifact acceptance and fresh isolated qualification
-  of the merged product, then source/preparation/observer admission and actual
-  writer attribution in the dependency order below. Keep captured private
+  It is used by fresh signed job `015`; never replay attempts `013`/`014`.
+- Signed read-only job `015` (`4e4819769a5ab5c0`) completes in 50.116 seconds
+  against product `e0145e09b`, Native `2476dd16…` and worker `8201c839…`.
+  Fresh host reconciliation and offline verification authenticate the same
+  report `172d46bd…`; the terminal stays `invalid-evidence`. Independent closed
+  readback `73ccfa03…` verifies 515 completed task lifetimes, resource absence
+  and all 334 unchanged historical metadata rows. Custom readers use metadata only.
+  Source `dfe38380…` adds signed read-only artifact verification in six existing
+  Rust files, with no new file, crate, binary or dependency. Validation
+  `f944a144…` binds 37 records, 715 Mac tests, Mac/ARM Clippy, four measured ARM
+  tests and two ARM replay cases. Mac/ARM v2 replay matches byte for byte
+  (`14d33a60…`, 97,491 bytes); v1 refuses. The 34-member archive `6aa34b68…`
+  checks actual hook/capture/transport and fixed read-only fixture relations.
+  All ten reindexed-artifact, metadata, version/role and outside-pin mutations
+  refuse. Scopes `031`/`032` drain without force. SDK role qualification,
+  observer admission, physical writer attribution and eligibility remain false.
+- **Next:** finish source/preparation/observer admission and actual writer
+  attribution before full role qualification of the merged product, following
+  the dependency order below. Keep captured private
   payloads private until sanitized delivery. Never replay consumed pipe jobs
-  `001`–`012`, failed prelaunch attempts `013`/`014`, or borrow their source pins
+  `001`–`012`, failed prelaunch attempts `013`/`014`, signed job `015`, or borrow their source pins
   for the newer product.
   Job `006` used older product `74d8d008`
   and failed with exit 126 before tests; its 65 closed sessions, 470,846 bytes

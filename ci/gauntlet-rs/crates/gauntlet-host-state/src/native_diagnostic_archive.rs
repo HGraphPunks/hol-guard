@@ -23,13 +23,14 @@ enum ArtifactSubset {
     Process,
     Hooks,
     Controls,
+    Readonly,
 }
 impl ArtifactSubset {
     fn role(self) -> Option<&'static str> {
         match self {
             Self::InputBinding => Some("input-binding"),
             Self::Boundary => Some("boundary"),
-            Self::Mcp | Self::Process | Self::Hooks | Self::Controls => None,
+            Self::Mcp | Self::Process | Self::Hooks | Self::Controls | Self::Readonly => None,
         }
     }
     fn schema(self) -> &'static str {
@@ -40,6 +41,7 @@ impl ArtifactSubset {
             Self::Process => "hol-gauntlet-host-native-process-artifact-readback.v1",
             Self::Hooks => "hol-gauntlet-host-native-hook-artifact-readback.v1",
             Self::Controls => "hol-gauntlet-host-native-control-artifact-readback.v1",
+            Self::Readonly => "hol-gauntlet-host-native-readonly-artifact-readback.v1",
         }
     }
 }
@@ -240,6 +242,21 @@ impl HostNativeControlReadback {
             Some((interpreter_sha256, observer_sha256)),
         )
     }
+    /// Check the signed read-only profile without borrowing SDK role claims.
+    pub fn verify_readonly_artifacts(
+        &self,
+        path: &Path,
+        expected_sha256: &str,
+        interpreter_sha256: &str,
+        observer_sha256: &str,
+    ) -> Result<Value> {
+        self.verify_artifact_subset(
+            path,
+            expected_sha256,
+            ArtifactSubset::Readonly,
+            Some((interpreter_sha256, observer_sha256)),
+        )
+    }
     fn verify_artifact_subset(
         &self,
         path: &Path,
@@ -247,6 +264,15 @@ impl HostNativeControlReadback {
         subset: ArtifactSubset,
         process_pins: Option<(&str, &str)>,
     ) -> Result<Value> {
+        let readonly = matches!(subset, ArtifactSubset::Readonly);
+        require(if readonly {
+            self.observation()["schema"] == "hol-gauntlet-host-native-control-readback.v2"
+                && self.diagnostic()["schema"] == "hol-gauntlet-native-hook-transport.v2"
+                && self.diagnostic().get("control_role").is_none()
+        } else {
+            self.observation()["schema"] == "hol-gauntlet-host-native-control-readback.v1"
+                && self.diagnostic()["schema"] == "hol-gauntlet-native-deterministic-control.v1"
+        })?;
         require(
             subset
                 .role()
@@ -293,6 +319,19 @@ impl HostNativeControlReadback {
                     && declaration["preparation_sha256"] == sha(preparation_raw),
             )?;
         }
+        if readonly {
+            require(
+                declaration["schema"] == "hol-gauntlet-native-worker-job.v8"
+                    && declaration["profile"] == "native-host-pinned-readonly-hook-v1"
+                    && declaration["guard"] == self.diagnostic()["pins"]
+                    && declaration.get("sdk").is_none()
+                    && declaration.get("role").is_none()
+                    && declaration["preparation_sha256"] == sha(preparation_raw)
+                    && declaration["worker_generation"] == observation["worker_generation"]
+                    && preparation["launch"]["outside_observer_sha256"]
+                        == observation["worker_generation"],
+            )?;
+        }
         let relations = match subset {
             ArtifactSubset::InputBinding => gauntlet_evidence::verify_native_binding_diagnostic(
                 self.diagnostic(),
@@ -333,6 +372,17 @@ impl HostNativeControlReadback {
                 let (interpreter, observer) =
                     process_pins.ok_or("explicit control process readback pins missing")?;
                 gauntlet_evidence::verify_native_control_diagnostic(
+                    self.diagnostic(),
+                    &preparation,
+                    &files,
+                    interpreter,
+                    observer,
+                )
+            }
+            ArtifactSubset::Readonly => {
+                let (interpreter, observer) =
+                    process_pins.ok_or("explicit read-only pins missing")?;
+                gauntlet_evidence::verify_native_readonly_diagnostic(
                     self.diagnostic(),
                     &preparation,
                     &files,

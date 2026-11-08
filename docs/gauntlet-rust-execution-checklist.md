@@ -219,7 +219,26 @@ binds 713 Mac tests, Mac/ARM warnings-denied Clippy and two actual UID 65532 ARM
 subprocess tests. Scope `030` drains without force and all 334 historical
 metadata rows remain unchanged. The optimized release worker `8201c839…` is
 installed with mode `0500`. Two existing Rust files change; no new file, crate,
-binary or dependency is added. Fresh signed acceptance remains open.
+binary or dependency is added. Fresh signed acceptance was open at that source.
+
+Signed read-only job `015` (`4e4819769a5ab5c0`) then completes in 50.116 seconds
+against product `e0145e09b`, Native `2476dd16…` and worker `8201c839…`. Fresh host
+reconciliation/offline verification authenticate report `172d46bd…` and terminal
+`3aa22c04…`; the terminal stays `invalid-evidence`. Closed readback `73ccfa03…`
+verifies 515 completed task lifetimes, resource absence and 334 unchanged
+historical metadata rows. Custom readers use metadata only. Source
+`dfe38380…` adds the explicit signed read-only artifact route in six existing
+Rust files; it adds no file, crate, binary or dependency. Archive `6aa34b68…`
+joins original declarations, normal hook/capture inputs, sink output, v2
+transports and the fixed read-only fixture to the host-authenticated report.
+Validation `f944a144…` binds 37 records, all 715 Mac tests, Mac/ARM Clippy, four
+measured UID 65532 ARM tests, two ARM replay cases and ten artifact/pin/role
+mutation refusals. Mac/ARM replay is byte-identical (`14d33a60…`, 97,491 bytes);
+v1 refuses v2 on both. Scopes `031`/`032` drain without force, replay inputs
+return to Root-only access, and failed reader/transfer attempts are retained.
+This is read-only diagnostic evidence: SDK roles, observer/source/preparation
+admission, physical writers and eligibility remain open/false. **24/62 parent
+exits complete, 38 open.**
 No causality or parent-exit success is claimed; parent exits remain 24/62.
 
 ```text

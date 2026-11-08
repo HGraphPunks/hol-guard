@@ -59,6 +59,178 @@ fn ledger(control: &Value) -> Result<()> {
     Ok(())
 }
 
+/// Recompute the explicitly selected read-only diagnostic's actual hook inputs,
+/// capture bytes, v2 transports and fixed fixture. This grants no SDK role,
+/// independent writer attribution, observer admission or qualification.
+pub fn verify_native_readonly_diagnostic(
+    control: &Value,
+    preparation: &Value,
+    files: &BTreeMap<String, Vec<u8>>,
+    interpreter: &str,
+    observer: &str,
+) -> Result<Value> {
+    let job = text(control, "job_id")?;
+    let route = crate::NativeContainmentRoute::PythonReadonlyV1;
+    let artifacts = Artifacts::new(files)?;
+    let preparation_raw = artifacts.raw("combined/preparation.v1.json")?;
+    ineligible(control)?;
+    require(
+        hex(job, 16)
+            && hex(interpreter, 64)
+            && hex(observer, 64)
+            && control["schema"] == "hol-gauntlet-native-hook-transport.v2"
+            && control["status"] == "passed"
+            && control["sdk_exercised"] == false
+            && control["artifact_admitted"] == false
+            && control["qualified_role_complete"] == false
+            && control.get("control_role").is_none()
+            && control.get("sdk_pins").is_none()
+            && control.get("guard_pins").is_none()
+            && control.get("requests").is_none()
+            && preparation["schema"] == "hol-gauntlet-cell-preparation.v2"
+            && preparation["control_profile"] == "python-readonly.v1"
+            && preparation["task_mounts"]["providers"] == json!([])
+            && preparation["stage"] == format!("/var/lib/hol-gauntlet-rust/native-jobs/{job}/cell")
+            && preparation["launch"]["job_slice"] == format!("holgauntletrust{job}.slice")
+            && preparation["launch"]["schema"] == "hol-gauntlet-cell-supervisor.v5"
+            && preparation["launch"]["image_interpreter_sha256"] == interpreter
+            && preparation["launch"]["outside_observer_sha256"] == observer
+            && parse(preparation_raw)? == *preparation
+            && control["preparation_sha256"] == sha256(preparation_raw)
+            && control["prefix_tree_sha256"] == preparation["runtime_tree_digest"],
+    )?;
+    for name in ["error", "cleanup_error", "effect_error"] {
+        require(control.get(name).is_some_and(Value::is_null))?;
+    }
+    for name in ["cell_cleanup_complete", "prefix_unchanged"] {
+        require(control[name] == true)?;
+    }
+    let plane = &control["plane"];
+    require(
+        plane["sdk_exercised"] == false
+            && plane["containment_contract"]
+                == json!({
+        "schema":"hol-gauntlet-native-containment-contract.v2",
+        "reason_code":route.reason(),"required_execution_profile":route.profile()}),
+    )?;
+    let output = crate::native_hook_diagnostic::readonly_output(control)?;
+    let expected = crate::native_hook_diagnostic::readonly_payloads(control, &output)?;
+    let mut hooks = crate::native_hook_diagnostic::captures(
+        control,
+        preparation,
+        files,
+        expected,
+        Some(output),
+        route,
+    )?;
+    require(control["measurements"]["prompt"] == plane["hooks"][0]["response"])?;
+    let process =
+        crate::native_process_trace_diagnostic::verify(preparation, plane, &artifacts, true)?
+            .ok_or(EvidenceError::Invalid("read-only trace missing"))?;
+    let transport = crate::native_stdio_diagnostic::verify(
+        control,
+        preparation,
+        &artifacts,
+        &Value::Null,
+        &Value::Null,
+    )?
+    .ok_or(EvidenceError::Invalid("read-only transport missing"))?;
+    require(transport["schema"] == "hol-gauntlet-native-transport-readback.v2")?;
+    let streams = crate::native_capture_stream::verify(&artifacts)?;
+    require(streams["partial_captures"].as_u64() == Some(0))?;
+    let positive = &control["measurements"]["unprotected_write_positive"];
+    let probe = "import os\nfd=os.open('readonly-write-probe.txt',os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)\nwith os.fdopen(fd,'w') as effect:effect.write('unexpected')\n";
+    let command = vec![
+        "/usr/bin/python3".into(),
+        "-I".into(),
+        "-B".into(),
+        "-c".into(),
+        probe.into(),
+    ];
+    require(
+        positive["schema"] == "hol-gauntlet-native-readonly-write-positive.v1"
+            && positive["native_command"] == json!(command)
+            && positive["retired"] == true
+            && positive["exit_code"] == 0
+            && positive["execution_eligible"] == false
+            && positive["guard_causality_verified"] == false
+            && positive["stdout_sha256"] == sha256(b"")
+            && positive["stderr_sha256"] == sha256(b""),
+    )?;
+    let captured = artifacts.capture(&command, 0, &sha256(b""), &sha256(b""), None)?;
+    let positive_input =
+        crate::verify_native_capture_input(&artifacts.events, captured.sequence, &command, b"")?;
+    require(positive_input["input_delivery_checked"] == true)?;
+    let observed = &positive["observed"];
+    require(
+        observed["file"] == "readonly-write-probe.txt"
+            && observed["sha256"] == sha256(b"unexpected")
+            && observed["bytes"] == 10
+            && observed["uid"] == 10001
+            && observed["gid"] == 10001
+            && observed["mode"] == 0o600
+            && observed["links"] == 1,
+    )?;
+    number(&observed["device"])?;
+    number(&observed["inode"])?;
+    // The v7 fixture is immutable; no reported test body can define its own oracle.
+    let fixture = artifacts.raw("combined/workspace/tests/test_control.py")?;
+    require(
+        fixture.len() == 821
+            && sha256(fixture)
+                == "2b829ab76812e1cc72fd964367b8659f5d61e60a6f75fa14218204827b8fb9a6",
+    )?;
+    let effect = &control["effect"];
+    require(
+        control["fixture"]["schema"] == "hol-gauntlet-native-contained-fixture.v7"
+            && control["fixture"]["control_profile"] == "python-readonly.v1"
+            && control["fixture"]["required_execution_profile"] == route.profile()
+            && control["fixture"]["utility_tests"] == 3
+            && effect["schema"] == "hol-gauntlet-held-native-readonly-state.v1"
+            && effect["write_probe_absent"] == true
+            && effect["workspace_write_effect_expected"] == false
+            && effect["effect_writer_attribution_checked"] == false
+            && effect["execution_eligible"] == false
+            && effect["guard_causality_verified"] == false,
+    )?;
+    for (name, raw, claim) in [
+        (
+            "combined/workspace/tests/test_control.py",
+            fixture,
+            &effect["fixture"],
+        ),
+        (
+            "combined/workspace/pytest.ini",
+            b"[pytest]\ntestpaths = tests\n".as_slice(),
+            &effect["project_marker"],
+        ),
+    ] {
+        physical(&artifacts, name, raw, claim)?;
+    }
+    require(
+        control["fixture"]["sha256"] == sha256(fixture)
+            && control["fixture"]["bytes"] == fixture.len(),
+    )?;
+    for key in [
+        "file", "bytes", "sha256", "device", "inode", "uid", "gid", "mode",
+    ] {
+        require(control["fixture"]["project_marker"][key] == effect["project_marker"][key])?;
+    }
+    for name in ["pre", "sink", "post", "native_hook_count_unchanged"] {
+        require(control["measurements"]["replay_refusals"][name] == true)?;
+    }
+    hooks["process_relations"] = process;
+    Ok(
+        json!({"schema":"hol-gauntlet-native-readonly-artifact-relations.v1",
+        "hook_relations":hooks,"transport_relations":transport,"stream_relations":streams,
+        "positive_write_input":positive_input,"fixed_readonly_fixture_checked":true,"utility_tests":3,
+        "signed_write_refusal_claim_retained":true,"outside_observer_admitted":false,
+        "effect_writer_attribution_checked":false,"physical_effect_causality_checked":false,
+        "qualified_role_complete":false,"sdk_exercised":false,"execution_eligible":false,
+        "guard_causality_verified":false,"model_requests":0}),
+    )
+}
+
 /// Recompute the fixed role, capture, process and physical-state relations.
 /// Caller must authenticate the report and archive under independent pins.
 pub fn verify_native_control_diagnostic(

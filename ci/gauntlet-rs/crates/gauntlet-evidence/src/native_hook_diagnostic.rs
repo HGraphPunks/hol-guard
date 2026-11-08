@@ -103,9 +103,32 @@ pub fn verify_native_hook_diagnostic(
         interpreter_sha256,
         observer_sha256,
     )?;
+    let output = completed_output(control)?;
+    let expected = hook_payloads(control, output.as_ref())?;
+    let mut result = captures(
+        control,
+        preparation,
+        files,
+        expected,
+        output,
+        crate::NativeContainmentRoute::WorkspaceV1,
+    )?;
+    result["process_relations"] = process;
+    Ok(result)
+}
+
+pub(crate) fn captures(
+    control: &Value,
+    preparation: &Value,
+    files: &BTreeMap<String, Vec<u8>>,
+    expected: Vec<Value>,
+    output: Option<Value>,
+    route: crate::NativeContainmentRoute,
+) -> Result<Value> {
     let artifacts = Artifacts::new(files)?;
     let prefix = text(preparation, "runtime_prefix")?;
     let plane = &control["plane"];
+    let readonly = route == crate::NativeContainmentRoute::PythonReadonlyV1;
     let plane_schema = match preparation["launch"]["schema"].as_str() {
         Some("hol-gauntlet-cell-supervisor.v3") => "hol-gauntlet-native-hook-plane.v2",
         Some("hol-gauntlet-cell-supervisor.v4") => "hol-gauntlet-native-hook-plane.v3",
@@ -114,7 +137,7 @@ pub fn verify_native_hook_diagnostic(
     };
     require(
         plane["schema"] == plane_schema
-            && plane["pins"] == control["guard_pins"]
+            && plane["pins"] == control[if readonly { "pins" } else { "guard_pins" }]
             && plane["cleanup_complete"] == true
             && plane["product_claims_authenticated"] == false
             && plane["guard_causality_verified"] == false
@@ -122,8 +145,6 @@ pub fn verify_native_hook_diagnostic(
             && plane["model_requests"].as_u64() == Some(0),
     )?;
     let journal_bound = crate::native_capture_input::journal_binding(plane, &artifacts)?;
-    let output = completed_output(control)?;
-    let expected = hook_payloads(control, output.as_ref())?;
     let hooks = list(&plane["hooks"], 4)?;
     require(hooks.len() == expected.len())?;
     let command = guard_argv(
@@ -178,16 +199,24 @@ pub fn verify_native_hook_diagnostic(
             (1, _) => require(
                 response["decision"] == "deny"
                     && response["policy_action"] == "sandbox-required"
-                    && response["required_execution_profile"] == "workspace-contained-v1"
-                    && response["reason_code"] == "native_workspace_containment_required"
-                    && control["requests"][0]["response"]["product_response"] == response,
+                    && response["required_execution_profile"] == route.profile()
+                    && response["reason_code"] == route.reason()
+                    && (if readonly {
+                        &control["measurements"]["pre"]
+                    } else {
+                        &control["requests"][0]["response"]["product_response"]
+                    }) == &response,
             )?,
             (2, Some(out)) => {
                 require(
                     response["decision"] == "allow"
                         && response["reviewed_output_sha256"] == out["output_sha256"]
                         && response["model_output_action"] == "allow_original"
-                        && control["requests"][2]["response"]["product_response"] == response,
+                        && (if readonly {
+                            &control["measurements"]["post"]
+                        } else {
+                            &control["requests"][2]["response"]["product_response"]
+                        }) == &response,
                 )?;
             }
             _ => require(response["decision"] == "deny" || response["decision"] == "block")?,
@@ -274,14 +303,131 @@ pub fn verify_native_hook_diagnostic(
         "journal_report_binding_checked":journal_bound,
         "contained_sink_input":sink_input,"cancelled_sink_lifecycle_graded":false,
         "native_process_custody_checked":false,"physical_effect_causality_checked":false,
-        "process_relations":process,"qualified_role_complete":false,"outside_signing_key_admitted":false,
+        "qualified_role_complete":false,"outside_signing_key_admitted":false,
         "execution_eligible":false,"guard_causality_verified":false,"model_requests":0}),
     )
+}
+
+pub(crate) fn readonly_output(control: &Value) -> Result<Value> {
+    let executions = list(&control["plane"]["executions"], 1)?;
+    require(executions.len() == 1)?;
+    let result = &executions[0];
+    let stderr = text(result, "stderr")?;
+    require(
+        control["measurements"]["sink"] == *result
+            && result["exit_code"] == 0
+            && result["stdout"] == ""
+            && result["product_claims_authenticated"] == false
+            && result["containment_conformance_established"] == false
+            && stderr.contains("\nRan 3 tests in ")
+            && stderr.ends_with("\n\nOK\n"),
+    )?;
+    for name in [
+        "test_workspace_read",
+        "test_guard_state_hidden",
+        "test_write_denied",
+    ] {
+        require(stderr.lines().any(|line| {
+            line.starts_with(&format!("{name} (test_control.ReadonlyControl.{name})"))
+                && line.ends_with(" ... ok")
+        }))?;
+    }
+    let mut output = crate::captured_contained_output(result)?;
+    require(control["measurements"]["captured_output"] == output)?;
+    output["pre_payload_digest"] = result["payload_digest"].clone();
+    Ok(output)
+}
+
+pub(crate) fn readonly_payloads(control: &Value, output: &Value) -> Result<Vec<Value>> {
+    let plane = &control["plane"];
+    let session = text(plane, "controller_session_id")?;
+    require(session == format!("gauntlet-native-hook-{}", text(control, "job_id")?))?;
+    let active = json!({"HOME":"/product/home","LANG":"C.UTF-8",
+        "MALLOC_ARENA_MAX":"2","PATH":"/usr/local/bin:/usr/bin:/bin"});
+    let environment = json!({"path":active["PATH"],"home":active["HOME"],
+        "environment_names":["HOME","LANG","MALLOC_ARENA_MAX","PATH"],
+        "environment_digest":digest(&active)?,"git_pager_disabled":false,"pager_disabled":false,
+        "xdg_config_home":null,"git_config_no_system":false,"library_search_paths":{}});
+    require(control["measurements"]["execution_environment"] == environment)?;
+    let prompt = json!({"hook_event_name":"UserPromptSubmit","config_path":"/product/home/omp.json",
+        "session_id":session,"prompt":crate::native_process_public::PROMPT});
+    let pre = json!({"hook_event_name":"PreToolUse","config_path":"/product/home/omp.json",
+        "session_id":session,"tool_call_id":"native-hook-transport","tool_name":"bash",
+        "tool_input":{"command":"python3 -m unittest discover -s tests -v"},
+        "guard_execution_environment":environment,"guard_contained_output_profile":"controller-contained-output.v1"});
+    let mut post = pre.clone();
+    post["hook_event_name"] = json!("PostToolUse");
+    post["tool_response"] = output["tool_response"].clone();
+    post["is_error"] = output["is_error"].clone();
+    Ok(vec![prompt, pre, post])
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn readonly_output_requires_actual_utility_bytes_and_exact_review_delivery() {
+        let stderr = [
+            "test_guard_state_hidden",
+            "test_workspace_read",
+            "test_write_denied",
+        ]
+        .map(|name| format!("{name} (test_control.ReadonlyControl.{name}) ... ok\n"))
+        .join("")
+            + "\nRan 3 tests in 0.001s\n\nOK\n";
+        let result = json!({"exit_code":0,"stdout":"","stderr":stderr,
+            "stdout_sha256":crate::crypto::sha256(b""),"stderr_sha256":crate::crypto::sha256(stderr.as_bytes()),
+            "payload_digest":"a".repeat(64),"product_claims_authenticated":false,"containment_conformance_established":false});
+        let value = json!({"plane":{"executions":[result]},"measurements":{
+            "sink":result,"captured_output":crate::captured_contained_output(&result).unwrap()}});
+        assert_eq!(readonly_output(&value).unwrap()["is_error"], false);
+        for (pointer, bad) in [
+            (
+                "/plane/executions/0/stderr",
+                json!(stderr.replace("test_write_denied", "test_other")),
+            ),
+            ("/plane/executions/0/stdout", json!("forged pass")),
+            (
+                "/plane/executions/0/product_claims_authenticated",
+                json!(true),
+            ),
+            ("/plane/executions", json!([])),
+            (
+                "/measurements/captured_output/output_sha256",
+                json!("f".repeat(64)),
+            ),
+        ] {
+            let mut wrong = value.clone();
+            *wrong.pointer_mut(pointer).unwrap() = bad;
+            assert!(readonly_output(&wrong).is_err(), "{pointer}");
+        }
+    }
+    #[test]
+    fn readonly_payloads_bind_the_fixed_session_environment_and_normal_hook_protocol() {
+        let active = json!({"HOME":"/product/home","LANG":"C.UTF-8","MALLOC_ARENA_MAX":"2","PATH":"/usr/local/bin:/usr/bin:/bin"});
+        let value = json!({"job_id":"0123456789abcdef","plane":{"controller_session_id":"gauntlet-native-hook-0123456789abcdef"},
+            "measurements":{"execution_environment":{"path":active["PATH"],"home":active["HOME"],
+                "environment_names":["HOME","LANG","MALLOC_ARENA_MAX","PATH"],"environment_digest":digest(&active).unwrap(),
+                "git_pager_disabled":false,"pager_disabled":false,"xdg_config_home":null,"git_config_no_system":false,"library_search_paths":{}}}});
+        let output = json!({"tool_response":[{"type":"text","text":"actual"}],"is_error":false});
+        let rows = readonly_payloads(&value, &output).unwrap();
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[1]["tool_call_id"], "native-hook-transport");
+        assert_eq!(
+            rows[1]["tool_input"]["command"],
+            "python3 -m unittest discover -s tests -v"
+        );
+        assert_eq!(rows[2]["tool_response"], output["tool_response"]);
+        for pointer in [
+            "/plane/controller_session_id",
+            "/measurements/execution_environment/path",
+            "/measurements/execution_environment/environment_digest",
+        ] {
+            let mut wrong = value.clone();
+            *wrong.pointer_mut(pointer).unwrap() = json!("substituted");
+            assert!(readonly_payloads(&wrong, &output).is_err(), "{pointer}");
+        }
+    }
     #[test]
     fn native_input_uses_root_session_exact_sdk_input_and_complete_environment() {
         let value = json!({"plane":{"controller_session_id":"root-session"},"requests":[{"request":{

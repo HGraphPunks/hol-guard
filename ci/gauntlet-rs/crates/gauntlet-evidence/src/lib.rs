@@ -175,7 +175,9 @@ pub use native_actor_elf::verify_native_actor_elf;
 pub use native_binding_diagnostic::verify_native_binding_diagnostic;
 pub use native_boundary_diagnostic::verify_native_boundary_diagnostic;
 pub use native_capture_input::verify_native_capture_input;
-pub use native_control_diagnostic::verify_native_control_diagnostic;
+pub use native_control_diagnostic::{
+    verify_native_control_diagnostic, verify_native_readonly_diagnostic,
+};
 pub use native_control_envelope::{
     native_control_signing_record, verify_native_control_envelope,
     AuthenticatedNativeControlReport, NativeControlReportPins, NATIVE_CONTROL_ENVELOPE_LIMIT,

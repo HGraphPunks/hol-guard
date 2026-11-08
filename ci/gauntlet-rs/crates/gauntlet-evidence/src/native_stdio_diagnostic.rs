@@ -94,6 +94,16 @@ fn pipes(
     checkpoint: &Value,
 ) -> Result<Value> {
     let plane = &control["plane"];
+    let pins = if control["schema"] == "hol-gauntlet-native-hook-transport.v2" {
+        require(
+            preparation["control_profile"] == "python-readonly.v1"
+                && control.get("guard_pins").is_none()
+                && control.get("control_role").is_none(),
+        )?;
+        &control["pins"]
+    } else {
+        &control["guard_pins"]
+    };
     let config_file = "combined/cell/native-wire.v1.json";
     let config = declaration(artifacts, config_file, 4096)?;
     let rootfs_file = "combined/cell/native-rootfs.v1.json";
@@ -111,7 +121,7 @@ fn pipes(
             && rootfs["state"] == "persistent-v1"
             && rootfs["network_profile"] == "private-loopback-v1"
             && config["native_sha256"] == preparation["launch"]["native_runtime_sha256"]
-            && config["native_sha256"] == control["guard_pins"]["native_sha256"]
+            && config["native_sha256"] == pins["native_sha256"]
             && config["native_program"] == format!("{}/lib/python3.12/site-packages/codex_plugin_scanner/_native/hol-guard-runtime", text(preparation, "runtime_prefix")?),
     )?;
     for key in [
@@ -137,13 +147,20 @@ fn pipes(
     require(supervisor == expected)?;
     let (prepared, pin) = unique(&artifacts.events, "prepared")?;
     let (bound, binding) = unique(&artifacts.events, "rust-preparation-bound")?;
+    let preparation_pin = if control["schema"] == "hol-gauntlet-native-hook-transport.v2" {
+        let raw = artifacts.raw("combined/preparation.v1.json")?;
+        require(parse(raw)? == *preparation)?;
+        sha256(raw)
+    } else {
+        digest(preparation)?
+    };
     require(
         prepared == 0
             && prepared < bound
             && pin["supervisor_declaration_sha256"] == sha256(artifacts.raw(supervisor_file)?)
             && pin["rootfs_declaration_sha256"] == expected["rootfs_sha256"]
             && pin["constructor_sha256"] == preparation["launch"]["constructor_sha256"]
-            && binding["preparation_sha256"] == digest(preparation)?
+            && binding["preparation_sha256"] == preparation_pin
             && control["preparation_sha256"] == binding["preparation_sha256"]
             && binding["rust_image_lease_owned"] == true
             && binding["image_id"] == preparation["image_id"]

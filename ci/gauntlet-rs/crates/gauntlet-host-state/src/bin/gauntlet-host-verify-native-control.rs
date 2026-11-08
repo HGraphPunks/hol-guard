@@ -53,7 +53,10 @@ fn run() -> Result<(), String> {
         && !(args.len() == 14
             && matches!(
                 args[9].as_str(),
-                "--process-artifacts" | "--hook-artifacts" | "--control-artifacts"
+                "--process-artifacts"
+                    | "--hook-artifacts"
+                    | "--control-artifacts"
+                    | "--readonly-artifacts"
             ))
         && !(args.len() == 12
             && matches!(
@@ -61,7 +64,7 @@ fn run() -> Result<(), String> {
                 "--input-binding-artifacts" | "--boundary-artifacts" | "--mcp-artifacts"
             ))
     {
-        return Err("usage: gauntlet-host-verify-native-control PRIVATE_PIN_DIRECTORY COMPLETION_JSON SOURCE_SHA JOB_ID DEPLOYMENT_SHA256 WORKER_SHA256 PREPARATION_SHA256 ROLE [--input-binding-artifacts|--boundary-artifacts|--mcp-artifacts PUBLIC_USTAR SHA256 | --process-artifacts|--hook-artifacts|--control-artifacts PUBLIC_USTAR SHA256 INTERPRETER_SHA256 OBSERVER_SHA256]".into());
+        return Err("usage: gauntlet-host-verify-native-control PRIVATE_PIN_DIRECTORY COMPLETION_JSON SOURCE_SHA JOB_ID DEPLOYMENT_SHA256 WORKER_SHA256 PREPARATION_SHA256 ROLE [--input-binding-artifacts|--boundary-artifacts|--mcp-artifacts PUBLIC_USTAR SHA256 | --process-artifacts|--hook-artifacts|--control-artifacts|--readonly-artifacts PUBLIC_USTAR SHA256 INTERPRETER_SHA256 OBSERVER_SHA256]".into());
     }
     let journal =
         HostControllerKeyPinJournal::open(Path::new(&args[1])).map_err(|e| e.to_string())?;
@@ -120,6 +123,16 @@ fn run() -> Result<(), String> {
         output["schema"] =
             serde_json::json!("hol-gauntlet-offline-native-control-artifact-verification.v1");
         output["control_artifacts"] = verified.verify_control_artifacts(
+            Path::new(&args[10]),
+            &args[11],
+            &args[12],
+            &args[13],
+        )?;
+    }
+    if args.len() == 14 && args[9] == "--readonly-artifacts" {
+        output["schema"] =
+            serde_json::json!("hol-gauntlet-offline-native-readonly-artifact-verification.v1");
+        output["readonly_artifacts"] = verified.verify_readonly_artifacts(
             Path::new(&args[10]),
             &args[11],
             &args[12],
