@@ -16,6 +16,7 @@ struct TaskImage {
     gate: Option<usize>,
     parent: Option<u64>,
     native: bool,
+    checked_client: bool,
 }
 
 fn identifier(value: &Value) -> Result<u64> {
@@ -67,7 +68,12 @@ pub(crate) fn floors(task: &Value) -> Result<()> {
     require(status["NoNewPrivs"] == "1" && status["Seccomp"] == "2")
 }
 
-fn inventory(events: &[Value], native: &str, gates: &BTreeMap<GateKey, usize>) -> Result<Value> {
+fn inventory(
+    events: &[Value],
+    native: &str,
+    gates: &BTreeMap<GateKey, usize>,
+    clients_only: bool,
+) -> Result<Value> {
     require(hex(native, 64) && !events.is_empty() && events.len() <= 65536)?;
     let actor = &events[0]["data"]["actor"];
     require(actor["executable"]["sha256"] != native)?;
@@ -78,6 +84,7 @@ fn inventory(events: &[Value], native: &str, gates: &BTreeMap<GateKey, usize>) -
     let mut native_images = Vec::new();
     let mut inherited = 0;
     let mut image_counts = BTreeMap::<String, usize>::new();
+    let mut checked_clients = 0;
     for (sequence, row) in events.iter().enumerate() {
         let data = &row["data"];
         match row["kind"].as_str() {
@@ -89,6 +96,7 @@ fn inventory(events: &[Value], native: &str, gates: &BTreeMap<GateKey, usize>) -
                         gate: None,
                         parent: None,
                         native: false,
+                        checked_client: false,
                     },
                 );
                 *image_counts
@@ -106,6 +114,7 @@ fn inventory(events: &[Value], native: &str, gates: &BTreeMap<GateKey, usize>) -
                     gate: parent.gate,
                     parent: Some(parent_id),
                     native: parent.native,
+                    checked_client: parent.checked_client,
                 };
                 require(births.insert(number(&data["child_tid"])?, child).is_none())?;
             }
@@ -119,7 +128,9 @@ fn inventory(events: &[Value], native: &str, gates: &BTreeMap<GateKey, usize>) -
                     !tasks.contains_key(&id) && child.parent == Some(parent_id) && parent_id < id,
                 )?;
                 if child.native {
-                    floors(&data["task"])?;
+                    if !clients_only || child.checked_client {
+                        floors(&data["task"])?;
+                    }
                     ever_native.insert(id);
                     inherited += 1;
                 }
@@ -151,17 +162,22 @@ fn inventory(events: &[Value], native: &str, gates: &BTreeMap<GateKey, usize>) -
                     require(pin == native)?;
                 }
                 task.native = pin == native;
+                task.checked_client = false;
                 if task.native {
                     let args = command(&raw)?;
                     let gate = task
                         .gate
                         .ok_or(EvidenceError::Invalid("Native image has no gated ancestor"))?;
                     require(args.len() >= 2 && !args[0].is_empty() && !args[1].is_empty())?;
-                    floors(&image["task"])?;
-                    require(
-                        image["namespaces"] == actor["namespaces"]
-                            && image["lsm_label"] == actor["lsm_label"],
-                    )?;
+                    task.checked_client = args[1] == "resident-client-stream";
+                    if !clients_only || task.checked_client {
+                        floors(&image["task"])?;
+                        require(
+                            image["namespaces"] == actor["namespaces"]
+                                && image["lsm_label"] == actor["lsm_label"],
+                        )?;
+                    }
+                    checked_clients += usize::from(task.checked_client);
                     ever_native.insert(id);
                     // The journal retains exact argv. Do not duplicate large
                     // operands into every readback; the raw digest binds them.
@@ -179,8 +195,7 @@ fn inventory(events: &[Value], native: &str, gates: &BTreeMap<GateKey, usize>) -
         }
     }
     require(births.is_empty() && joined.len() == gates.len())?;
-    Ok(
-        json!({"schema":"hol-gauntlet-native-runtime-image-lineage.v1",
+    let mut result = json!({"schema":"hol-gauntlet-native-runtime-image-lineage.v1",
         "complete_task_history_checked":true,"native_runtime_sha256":native,
         "created_tasks":tasks.len(),"gates_joined":joined.len(),"native_exec_images_checked":native_images.len(),
         "tasks_with_observed_or_inherited_native_image":ever_native.len(),"native_image_inheritances":inherited,
@@ -188,8 +203,15 @@ fn inventory(events: &[Value], native: &str, gates: &BTreeMap<GateKey, usize>) -
         "native_image_privilege_floors_checked":true,"internal_native_request_bytes_checked":false,
         "inherited_memory_contents_authenticated":false,"effect_writer_attribution_checked":false,
         "all_native_runtime_descendants_graded":false,"outside_observer_admitted":false,
-        "outside_signing_key_admitted":false,"execution_eligible":false,"guard_causality_verified":false,"model_requests":0}),
-    )
+        "outside_signing_key_admitted":false,"execution_eligible":false,"guard_causality_verified":false,"model_requests":0});
+    if clients_only {
+        result["schema"] = json!("hol-gauntlet-native-runtime-image-lineage.v2");
+        result["native_image_privilege_floors_checked"] = json!(false);
+        result["resident_client_privilege_floors_checked"] = json!(true);
+        result["resident_client_execs_checked"] = json!(checked_clients);
+        result["other_native_execs_ungraded"] = json!(native_images.len() - checked_clients);
+    }
+    Ok(result)
 }
 
 pub(crate) fn verify(
@@ -243,10 +265,21 @@ pub(crate) fn verify(
                 .is_none(),
         )?;
     }
+    let pins = if control["schema"] == "hol-gauntlet-native-hook-transport.v2" {
+        require(
+            preparation["control_profile"] == "python-readonly.v1"
+                && control.get("guard_pins").is_none()
+                && control.get("control_role").is_none(),
+        )?;
+        &control["pins"]
+    } else {
+        &control["guard_pins"]
+    };
     inventory(
         &events,
-        text(&control["guard_pins"], "native_sha256")?,
+        text(pins, "native_sha256")?,
         &gates,
+        control["schema"] == "hol-gauntlet-native-hook-transport.v2",
     )
     .map(Some)
 }

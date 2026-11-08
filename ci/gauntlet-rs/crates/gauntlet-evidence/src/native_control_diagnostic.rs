@@ -127,15 +127,23 @@ pub fn verify_native_readonly_diagnostic(
     let process =
         crate::native_process_trace_diagnostic::verify(preparation, plane, &artifacts, true)?
             .ok_or(EvidenceError::Invalid("read-only trace missing"))?;
-    let transport = crate::native_stdio_diagnostic::verify(
-        control,
-        preparation,
-        &artifacts,
-        &Value::Null,
-        &Value::Null,
-    )?
-    .ok_or(EvidenceError::Invalid("read-only transport missing"))?;
+    let images = crate::native_runtime_trace::verify(control, preparation, &artifacts)
+        .map_err(|e| EvidenceError::Context("read-only Native image history", Box::new(e)))?
+        .ok_or(EvidenceError::Invalid(
+            "read-only Native image history missing",
+        ))?;
+    let transport =
+        crate::native_stdio_diagnostic::verify(control, preparation, &artifacts, &images, &hooks)?
+            .ok_or(EvidenceError::Invalid("read-only transport missing"))?;
     require(transport["schema"] == "hol-gauntlet-native-transport-readback.v2")?;
+    require(
+        transport["copied_hook_relations"]["schema"]
+            == "hol-gauntlet-copied-native-hook-relations.v2"
+            && transport["copied_hook_relations"]["outer_hooks_joined"] == 3
+            && transport["copied_hook_relations"]["contained_reauthorizations_checked"]
+                .as_u64()
+                .is_some_and(|n| n > 0),
+    )?;
     let streams = crate::native_capture_stream::verify(&artifacts)?;
     require(streams["partial_captures"].as_u64() == Some(0))?;
     let positive = &control["measurements"]["unprotected_write_positive"];
@@ -223,6 +231,7 @@ pub fn verify_native_readonly_diagnostic(
     Ok(
         json!({"schema":"hol-gauntlet-native-readonly-artifact-relations.v1",
         "hook_relations":hooks,"transport_relations":transport,"stream_relations":streams,
+        "runtime_image_relations":images,
         "positive_write_input":positive_input,"fixed_readonly_fixture_checked":true,"utility_tests":3,
         "signed_write_refusal_claim_retained":true,"outside_observer_admitted":false,
         "effect_writer_attribution_checked":false,"physical_effect_causality_checked":false,

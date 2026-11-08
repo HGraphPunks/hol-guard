@@ -98,3 +98,51 @@ fn accepted_policy_ack_echoes_the_requested_snapshot_without_claiming_admission(
     changed["status"] = json!("accepted-without-policy");
     assert!(verify(&request, &changed).is_err());
 }
+
+#[test]
+fn owned_pipe_runner_authority_binds_the_complete_request_and_old_profile_refuses() {
+    let request = json!({"operation":"runner_authority","deadline_budget_ms":1000,
+        "request":{"schema":"guard-runner-authority-request.v1","request_id":"one",
+        "guard_home":"/product/guard","kind":"approval_wait_hint","args":{"held":true}}});
+    let response = json!({"schema":"guard-runner-authority-result.v1","request_id":"one",
+        "request_sha256":sha256(&canonical_value(&request["request"]).unwrap()),
+        "status":"ok","code":"ok","payload":{}});
+    assert_eq!(
+        verify_owned_pipe(&request, &response).unwrap(),
+        ReplyBinding::Digest
+    );
+    assert!(verify(&request, &response).is_err());
+    let mut changed = response.clone();
+    changed["request_sha256"] = json!(format!(
+        "sha256:{}",
+        response["request_sha256"].as_str().unwrap()
+    ));
+    assert!(verify_owned_pipe(&request, &changed).is_err());
+    let mut changed = request.clone();
+    changed["request"]["args"]["held"] = json!(false);
+    assert!(verify_owned_pipe(&changed, &response).is_err());
+    let mut changed = response.clone();
+    changed["request_id"] = json!("two");
+    assert!(verify_owned_pipe(&request, &changed).is_err());
+}
+
+#[test]
+fn owned_pipe_cloud_reply_has_only_structural_credit_and_stays_versioned() {
+    let request = json!({"operation":"exact_cloud_review","deadline_budget_ms":1000,
+        "request":{"schema":"guard-exact-cloud-review-resident-request.v1","request":{"op":"digest","payload":{}}}});
+    let response = json!({"schema":"guard-exact-cloud-review-resident-result.v1","status":"ok","answer":{"digest":"synthetic"}});
+    assert_eq!(
+        verify_owned_pipe(&request, &response).unwrap(),
+        ReplyBinding::Structural
+    );
+    assert!(verify(&request, &response).is_err());
+    let mut changed = request.clone();
+    changed["request"]["request"]["op"] = json!("unknown");
+    assert!(verify_owned_pipe(&changed, &response).is_err());
+    let mut changed = response.clone();
+    changed["schema"] = json!("guard-exact-cloud-review-resident-result.v2");
+    assert!(verify_owned_pipe(&request, &changed).is_err());
+    let mut changed = response.clone();
+    changed["request_sha256"] = json!("invented");
+    assert!(verify_owned_pipe(&request, &changed).is_err());
+}

@@ -125,3 +125,66 @@ fn native_typed_context_omits_empty_maps_and_inserts_declared_defaults() {
         json!({"LD_LIBRARY_PATH":"/different"});
     assert!(verify(&changed, &case["response"]).is_err());
 }
+
+#[test]
+fn owned_pipe_fields_keep_native_identity_and_do_not_relax_the_snapshot_reader() {
+    let case = &vectors()[1];
+    let mut request = case["request"].clone();
+    for key in [
+        "record_receipt",
+        "record_activity",
+        "record_pre_tool_activity",
+    ] {
+        request[key] = json!(false);
+    }
+    request["containment_sink"] = json!({"sink_command":["/prefix/bin/python", "-m", "codex_plugin_scanner.cli", "guard"],"native_sink":false});
+    let mut response = case["response"].clone();
+    response["containment_rewrite"] = json!("kept");
+    for key in [
+        "exact_command_block",
+        "receipt_recorded",
+        "activity_recorded",
+    ] {
+        response[key] = json!(false);
+    }
+    let expected = verify(&case["request"], &case["response"]).unwrap();
+    assert_eq!(verify_owned_pipe(&request, &response).unwrap(), expected);
+    assert!(verify(&request, &response).is_err());
+    for pointer in [
+        "/record_receipt",
+        "/record_activity",
+        "/record_pre_tool_activity",
+        "/containment_sink/native_sink",
+    ] {
+        let mut changed = request.clone();
+        *changed.pointer_mut(pointer).unwrap() = json!("false");
+        assert!(verify_owned_pipe(&changed, &response).is_err(), "{pointer}");
+    }
+    for pointer in [
+        "/exact_command_block",
+        "/receipt_recorded",
+        "/activity_recorded",
+        "/containment_rewrite",
+    ] {
+        let mut changed = response.clone();
+        *changed.pointer_mut(pointer).unwrap() = json!("unknown");
+        assert!(verify_owned_pipe(&request, &changed).is_err(), "{pointer}");
+    }
+    request["containment_sink"]["sink_command"] = json!([]);
+    assert!(verify_owned_pipe(&request, &response).is_err());
+}
+
+#[test]
+fn owned_pipe_requests_still_refuse_swapped_receipts_and_changed_actions() {
+    let cases = vectors();
+    for case in &cases {
+        verify_owned_pipe(&case["request"], &case["response"]).unwrap();
+    }
+    assert!(verify_owned_pipe(&cases[0]["request"], &cases[1]["response"]).is_err());
+    let mut request = cases[1]["request"].clone();
+    request["raw_payload"]["tool_input"]["command"] = json!("unreviewed command");
+    assert!(verify_owned_pipe(&request, &cases[1]["response"]).is_err());
+    let mut response = cases[1]["response"].clone();
+    response["receipt"]["decision_id"] = json!("0".repeat(64));
+    assert!(verify_owned_pipe(&cases[1]["request"], &response).is_err());
+}

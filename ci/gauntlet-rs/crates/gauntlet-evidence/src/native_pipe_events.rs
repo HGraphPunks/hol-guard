@@ -247,7 +247,7 @@ pub(crate) fn verify(
     expected_config: &Value,
     connector: &str,
     schema: &str,
-) -> Result<Value> {
+) -> Result<crate::native_stdio_events::Readback> {
     require(matches!(schema, V1 | V2))?;
     config(expected_config)?;
     require(hex(connector, 64) && checkpoint["schema"] == "hol-gauntlet-native-process-events.v1")?;
@@ -440,8 +440,10 @@ pub(crate) fn verify(
             selected.insert(sequence);
         }
     }
+    let session_count = sessions.len();
     let mut streams = Vec::new();
-    for (id, session) in &sessions {
+    let mut captured = Vec::new();
+    for (id, session) in sessions {
         let event = session.exec.unwrap();
         let framed = if selected.contains(&event) {
             Some(
@@ -453,10 +455,18 @@ pub(crate) fn verify(
         };
         streams.push(json!({"session":id,"exec_event":event,"read":session.written,"written":session.written,
             "stream_sha256":session.read.each_ref().map(|v| sha256(v)),"actual_eof_rows_checked":true,"native_frames":framed}));
+        if selected.contains(&event) {
+            captured.push(crate::native_stdio_hook_relations::pipe_stream(
+                id,
+                event,
+                &events[event],
+                session.read,
+            )?);
+        }
     }
     let mut result = json!({"schema":"hol-gauntlet-native-pipe-readback.v1","pipe_event_relations_verified":true,
-        "journal_sha256":sha256(raw),"journal_events":count,"sessions":streams,"session_count":sessions.len(),
-        "native_client_streams":selected.len(),"opaque_sessions":sessions.len()-selected.len(),"bytes_read":total,
+        "journal_sha256":sha256(raw),"journal_events":count,"sessions":streams,"session_count":session_count,
+        "native_client_streams":selected.len(),"opaque_sessions":session_count-selected.len(),"bytes_read":total,
         "actual_pipe_byte_rows_present":total>0,"complete_process_history":process,
         "outside_preparation_joined":false,"outside_observer_admitted":false,"outside_signing_key_admitted":false,
         "exclusive_product_authorship_verified":false,"request_semantics_verified":false,"effect_writer_attribution_checked":false,
@@ -464,10 +474,13 @@ pub(crate) fn verify(
     if schema == V2 {
         let socket_helpers = helpers.summary()?;
         result["schema"] = json!("hol-gauntlet-native-transport-readback.v2");
-        result["connection_count"] = json!(sessions.len() + socket_helpers.len());
+        result["connection_count"] = json!(session_count + socket_helpers.len());
         result["socket_helper_count"] = json!(socket_helpers.len());
         result["socket_helpers"] = json!(socket_helpers);
         result["socket_bytes_observed"] = json!(false);
     }
-    Ok(result)
+    Ok(crate::native_stdio_events::Readback {
+        summary: result,
+        streams: captured,
+    })
 }

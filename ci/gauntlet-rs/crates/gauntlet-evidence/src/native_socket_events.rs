@@ -298,6 +298,7 @@ pub(crate) mod tests {
             &"a".repeat(64),
             schema,
         )
+        .map(|readback| readback.summary)
     }
 
     #[test]

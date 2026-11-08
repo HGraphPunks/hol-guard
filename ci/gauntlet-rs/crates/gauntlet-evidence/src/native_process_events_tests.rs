@@ -391,6 +391,7 @@ pub(crate) mod pipes {
             &"a".repeat(64),
             native_pipe_events::V1,
         )
+        .map(|readback| readback.summary)
     }
     #[test]
     fn exact_pipe_prefixes_eof_and_all_selected_native_execs_are_recomputed_without_admission() {

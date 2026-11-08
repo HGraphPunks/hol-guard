@@ -76,6 +76,14 @@ pub(super) enum ReplyBinding {
 /// Command capability's digest intentionally excludes its signing key. The
 /// snapshot ACK echoes an unverified product claim, not a request digest.
 pub(super) fn verify(request: &Value, response: &Value) -> Result<ReplyBinding> {
+    verify_profile(request, response, false)
+}
+
+pub(super) fn verify_owned_pipe(request: &Value, response: &Value) -> Result<ReplyBinding> {
+    verify_profile(request, response, true)
+}
+
+fn verify_profile(request: &Value, response: &Value, owned_pipe: bool) -> Result<ReplyBinding> {
     let row = request
         .as_object()
         .ok_or(EvidenceError::Invalid("resident operation object required"))?;
@@ -92,6 +100,27 @@ pub(super) fn verify(request: &Value, response: &Value) -> Result<ReplyBinding> 
     let body = request["request"]
         .as_object()
         .ok_or(EvidenceError::Invalid("resident operation body required"))?;
+    if owned_pipe && operation == "exact_cloud_review" {
+        require(
+            body.len() == 2
+                && body["schema"] == "guard-exact-cloud-review-resident-request.v1"
+                && body["request"].is_object()
+                && matches!(
+                    body["request"]["op"].as_str(),
+                    Some("sign" | "verify" | "digest" | "capability" | "job")
+                )
+                && response.as_object().is_some_and(|row| {
+                    row.len() == 3
+                        && ["schema", "status", "answer"]
+                            .iter()
+                            .all(|key| row.contains_key(*key))
+                })
+                && response["schema"] == "guard-exact-cloud-review-resident-result.v1"
+                && response["status"] == "ok"
+                && response["answer"].is_object(),
+        )?;
+        return Ok(ReplyBinding::Structural);
+    }
     match operation {
         "hook_direct_evidence_drain" => {
             let limit = body
@@ -190,8 +219,22 @@ pub(super) fn verify(request: &Value, response: &Value) -> Result<ReplyBinding> 
         }
         _ => {}
     }
-    let (request_schema, response_schema) =
-        schemas(operation).ok_or(EvidenceError::Invalid("unsupported resident operation"))?;
+    let (request_schema, response_schema) = if owned_pipe && operation == "runner_authority" {
+        require(
+            body.len() == 5
+                && ["schema", "request_id", "guard_home", "kind", "args"]
+                    .iter()
+                    .all(|key| body.contains_key(*key))
+                && body["guard_home"].as_str().is_some_and(|s| !s.is_empty())
+                && body["kind"].as_str().is_some_and(|s| !s.is_empty()),
+        )?;
+        (
+            "guard-runner-authority-request.v1",
+            "guard-runner-authority-result.v1",
+        )
+    } else {
+        schemas(operation).ok_or(EvidenceError::Invalid("unsupported resident operation"))?
+    };
     let id = body
         .get("request_id")
         .and_then(Value::as_str)
@@ -211,7 +254,12 @@ pub(super) fn verify(request: &Value, response: &Value) -> Result<ReplyBinding> 
         require(material.get("integrity_key_b64").is_some())?;
         material["integrity_key_b64"] = Value::Null;
     }
-    let expected = format!("sha256:{}", sha256(&canonical_value(&material)?));
+    let digest = sha256(&canonical_value(&material)?);
+    let expected = if owned_pipe && operation == "runner_authority" {
+        digest
+    } else {
+        format!("sha256:{digest}")
+    };
     require(response["request_sha256"] == expected)?;
     Ok(ReplyBinding::Digest)
 }

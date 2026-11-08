@@ -92,6 +92,8 @@ fn pipes(
     preparation: &Value,
     artifacts: &Artifacts<'_>,
     checkpoint: &Value,
+    images: &Value,
+    hooks: &Value,
 ) -> Result<Value> {
     let plane = &control["plane"];
     let pins = if control["schema"] == "hol-gauntlet-native-hook-transport.v2" {
@@ -186,7 +188,7 @@ fn pipes(
         plane["native_launch_adapter_sha256"]
             == sha256(crate::native_diagnostic_artifacts::PIPE_LAUNCH.as_bytes()),
     )?;
-    let mut result = crate::native_process_event_files::native_pipe_events::verify(
+    let readback = crate::native_process_event_files::native_pipe_events::verify(
         artifacts.raw(PIPE)?,
         artifacts.raw("combined/cell/native-process-events.v1.jsonl")?,
         checkpoint,
@@ -195,6 +197,20 @@ fn pipes(
         connector,
         text(&plane["native_pipe_bytes"], "schema")?,
     )?;
+    let copied = if images.is_null() && hooks.is_null() {
+        None
+    } else {
+        Some(
+            crate::native_stdio_hook_relations::verify(
+                control, artifacts, &readback, images, hooks,
+            )
+            .map_err(|e| EvidenceError::Context("Native pipe hook byte relations", Box::new(e)))?,
+        )
+    };
+    let mut result = readback.summary;
+    if let Some(copied) = copied {
+        result["copied_hook_relations"] = copied;
+    }
     result["journal_report_binding_checked"] = json!(true);
     result["report_preparation_declarations_checked"] = json!(true);
     result["native_launch_adapter_sha256"] = plane["native_launch_adapter_sha256"].clone();
@@ -222,7 +238,7 @@ pub(crate) fn verify(
     let checkpoint = &plane["process_events"]["checkpoint"];
     if pipe {
         require(bound && launch["native_stdio"] == "outside-root-native-pipes.v1")?;
-        return pipes(control, preparation, artifacts, checkpoint).map(Some);
+        return pipes(control, preparation, artifacts, checkpoint, images, hooks).map(Some);
     }
     let capture = &checkpoint["native_stdio"];
     require(

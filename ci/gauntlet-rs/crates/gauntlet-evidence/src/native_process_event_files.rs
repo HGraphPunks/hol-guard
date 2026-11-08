@@ -67,4 +67,5 @@ pub fn verify_native_process_event_files(
         crate::native_diagnostic_artifacts::text(&checkpoint, "connector_sha256")?,
         schema,
     )
+    .map(|readback| readback.summary)
 }

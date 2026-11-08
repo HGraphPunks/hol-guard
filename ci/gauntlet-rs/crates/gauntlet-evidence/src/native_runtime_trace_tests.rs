@@ -117,7 +117,44 @@ fn checked(rows: &[(&str, Value)], gates: &BTreeMap<GateKey, usize>) -> Result<V
         .filter(|v| !v.is_empty())
         .map(parse)
         .collect::<Result<Vec<_>>>()?;
-    inventory(&events, &"b".repeat(64), gates)
+    inventory(&events, &"b".repeat(64), gates, false)
+}
+
+#[test]
+fn pipe_diagnostic_checks_client_floors_without_grading_nested_native_launchers() {
+    let mut rows = graph();
+    rows[6].1["image"] = image(
+        44,
+        44,
+        9,
+        true,
+        b"/prefix/hol-guard-runtime\0resident-client-stream\0--stdin\0",
+    );
+    rows[13].1["image"]["task"]["status"]["CapEff"] = json!("0000000000200100");
+    rows[13].1["image"]["namespaces"]["user"] = json!("4:99");
+    let (raw, _) = pack(&rows);
+    let events = raw
+        .split(|b| *b == b'\n')
+        .filter(|v| !v.is_empty())
+        .map(parse)
+        .collect::<Result<Vec<_>>>()
+        .unwrap();
+    assert!(inventory(&events, &"b".repeat(64), &gates(), false).is_err());
+    let value = inventory(&events, &"b".repeat(64), &gates(), true).unwrap();
+    assert_eq!(value["native_exec_images_checked"], 2);
+    assert_eq!(value["resident_client_execs_checked"], 1);
+    assert_eq!(value["other_native_execs_ungraded"], 1);
+    assert_eq!(value["native_image_privilege_floors_checked"], false);
+    assert_eq!(value["all_native_runtime_descendants_graded"], false);
+    for (pointer, replacement) in [
+        ("/task/status/CapEff", json!("0000000000000001")),
+        ("/task/status/Uid", json!("0 0 0 0")),
+        ("/namespaces/user", json!("4:99")),
+    ] {
+        let mut changed = events.clone();
+        *changed[6]["data"]["image"].pointer_mut(pointer).unwrap() = replacement;
+        assert!(inventory(&changed, &"b".repeat(64), &gates(), true).is_err());
+    }
 }
 
 #[test]

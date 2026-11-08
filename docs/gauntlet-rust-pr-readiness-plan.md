@@ -18,6 +18,19 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
+- Latest hook-byte join source `147220ad…` extends fourteen existing Rust files
+  over clean upstream merge `a4ca0e9d1` (`d7832c242`). Validation `9b0665ef…`
+  binds 42 records: 723 Mac tests, Mac/ARM Clippy, seventeen measured UID 65532
+  ARM tests, two unchanged raw replays and ten artifact/pin/role refusals.
+  Signed job `015` is read back without replay: its 162 request/response pairs
+  include five hook exchanges joined to three outer inputs and two contained
+  reauthorizations. One resolved Python command matches its traced interpreter
+  execution. Eight clients have checked outer privilege floors; seventy other
+  Native exec images remain explicitly ungraded. Historical readers stay strict;
+  no files, crates, binaries or dependencies are added. Source/preparation/
+  observer admission, operation semantics, physical writers and all parent exits
+  remain open. Upstream has since advanced to `0afa9229d`; merge it after
+  preserving this chunk, then compile its changed Native sources without execution.
 - Continue `codex/gauntlet-rust-finish-20261105` and draft [child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5),
   based on integration `f143f9ac`. Artifact verification `a779925b9` is preserved
   by clean merge `abcd8b624` of upstream `5042340cc`: all thirteen incoming

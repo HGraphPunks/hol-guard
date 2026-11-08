@@ -84,7 +84,7 @@ fn normalized_source(source: &Value) -> Result<Value> {
     Ok(normalized)
 }
 
-fn identities(request: &Value) -> Result<(String, String)> {
+fn identities(request: &Value, owned_pipe: bool) -> Result<(String, String)> {
     let event = text(request, "event")?;
     require(
         request["schema"] == "guard-hook-envelope.v2"
@@ -92,6 +92,32 @@ fn identities(request: &Value) -> Result<(String, String)> {
             && matches!(event, "UserPromptSubmit" | "PreToolUse" | "PostToolUse")
             && request["raw_payload"]["hook_event_name"] == event,
     )?;
+    let mut optional = vec![
+        "recording_only",
+        "local_cli_rules",
+        "observe_local_cli",
+        "structured_output_config",
+    ];
+    if owned_pipe {
+        optional.extend([
+            "record_receipt",
+            "record_activity",
+            "record_pre_tool_activity",
+            "containment_sink",
+        ]);
+        for key in [
+            "record_receipt",
+            "record_activity",
+            "record_pre_tool_activity",
+        ] {
+            require(request.get(key).is_none_or(Value::is_boolean))?;
+        }
+        if let Some(sink) = request.get("containment_sink") {
+            fields(sink, &["sink_command"], &["native_sink"])?;
+            crate::native_diagnostic_artifacts::argv(&sink["sink_command"])?;
+            require(sink.get("native_sink").is_none_or(Value::is_boolean))?;
+        }
+    }
     fields(
         request,
         &[
@@ -105,12 +131,7 @@ fn identities(request: &Value) -> Result<(String, String)> {
             "policy_snapshot",
             "source",
         ],
-        &[
-            "recording_only",
-            "local_cli_rules",
-            "observe_local_cli",
-            "structured_output_config",
-        ],
+        &optional,
     )?;
     require(request.get("recording_only").is_none_or(|v| v == false))?;
     require(
@@ -199,7 +220,15 @@ fn identities(request: &Value) -> Result<(String, String)> {
 }
 
 pub(crate) fn verify(request: &Value, response: &Value) -> Result<Value> {
-    let (request_digest, intent) = identities(request)?;
+    verify_profile(request, response, false)
+}
+
+pub(crate) fn verify_owned_pipe(request: &Value, response: &Value) -> Result<Value> {
+    verify_profile(request, response, true)
+}
+
+fn verify_profile(request: &Value, response: &Value, owned_pipe: bool) -> Result<Value> {
+    let (request_digest, intent) = identities(request, owned_pipe)?;
     let request_id = match request.get("request_id") {
         Some(Value::Null) => format!("sha256:{request_digest}"),
         Some(Value::String(id))
@@ -213,6 +242,27 @@ pub(crate) fn verify(request: &Value, response: &Value) -> Result<Value> {
         }
         _ => return Err(EvidenceError::Invalid("Native hook request ID unsupported")),
     };
+    let mut optional = vec!["containment_route", "local_cli_rule"];
+    if owned_pipe {
+        optional.extend([
+            "containment_rewrite",
+            "exact_command_block",
+            "receipt_recorded",
+            "activity_recorded",
+        ]);
+        for key in [
+            "exact_command_block",
+            "receipt_recorded",
+            "activity_recorded",
+        ] {
+            require(response.get(key).is_none_or(Value::is_boolean))?;
+        }
+        require(
+            response
+                .get("containment_rewrite")
+                .is_none_or(|v| matches!(v.as_str(), Some("kept" | "routed"))),
+        )?;
+    }
     fields(
         response,
         &[
@@ -226,7 +276,7 @@ pub(crate) fn verify(request: &Value, response: &Value) -> Result<Value> {
             "harness_response",
             "receipt",
         ],
-        &["containment_route", "local_cli_rule"],
+        &optional,
     )?;
     let receipt = &response["receipt"];
     let result = &response["result"];

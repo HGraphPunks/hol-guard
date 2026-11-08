@@ -249,6 +249,22 @@ security scan `c46e3566…` over all nine artifact-patch files and shared caller
 with no reportable findings. Independent PR review, current-head CI and live
 qualification of the newer merged product remain open.
 
+Hook-byte join source `147220ad…`, based on merge `a4ca0e9d1` of upstream
+`d7832c242`, reuses the existing frame and identity readers for actual owned-pipe
+buffers. Readback `2d0f4388…` checks all 162 request/response pairs, five hook
+identities, three outer inputs and two contained reauthorizations from signed
+job `015`; one resolved Python command also joins its actual interpreter exec.
+It checks 78 resident-operation reply digests and retains 79 replies without
+digest credit. Eight client execs have checked outer privilege floors; seventy
+other Native exec images remain ungraded. Historical snapshot refusals and the
+97,491-byte standalone replay (`14d33a60…`) are preserved. Validation `9b0665ef…`
+binds 42 records, 723 Mac tests, Mac/ARM Clippy, seventeen unprivileged ARM tests,
+two ARM replay cases and ten artifact/pin/role refusals. Scopes `033`/`034` drain
+without force; all 334 historical metadata rows are unchanged. Fourteen existing
+Rust files change, with no new file, crate, binary or dependency. Consumed jobs
+are not replayed. Policy/operation semantics, observer/source/preparation
+admission, physical writers, independent review and parent exits remain open.
+
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
 ```

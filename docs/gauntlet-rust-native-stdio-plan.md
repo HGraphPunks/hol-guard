@@ -612,6 +612,40 @@ patch files and shared callers are reviewed, with no reportable findings.
 The scan records its empty workbench inventory and explicit nine-file Git
 review. Independent PR review and all five exact-head CI jobs remain open.
 
+### Actual pipe hook-byte joins
+
+Source `147220ad3ba7332834e43d15452d83dd3f4d19ebb980a58e57fb1d0f09de93a8`
+extends fourteen existing Rust files over merge `a4ca0e9d1` of `d7832c242`.
+It retains actual buffers from the independent pipe replay, then reuses the
+historical frame/identity reader under an explicit owned-pipe profile. Original
+snapshot schemas still refuse the newer recording/containment fields and
+resident operations. Generic standalone replay output is unchanged.
+
+The original signed job `015` is never replayed. Readback `2d0f4388…` verifies
+all 162 requests and responses across eight client streams: five hook identities
+join three acknowledged outer inputs and two contained reauthorizations.
+The resolved `/usr/bin/python3.12` unittest command additionally matches the
+interpreter's measured ELF and exec in the same gated task history. Seventy-eight
+resident-operation reply digests match; seventy-nine replies have no digest
+credit, including six policy-snapshot echoes. This does not re-evaluate policy,
+admit those snapshots or verify operation effects. Client privileges are checked
+for eight execs; all seventy other Native exec images remain visible and ungraded,
+including the nested-user-namespace launcher. No all-image privilege claim is made.
+
+Validation `9b0665eff4270b80bdb038e6e296f215f32b5aec9c1fd5d86414e76d5255f26e`
+binds 42 records in the existing external evidence directories. All 723 Mac
+tests, formatting, Mac/ARM warnings-denied Clippy, seventeen measured UID 65532
+ARM tests, two ARM replay cases and ten artifact/pin/role refusals pass. The final
+frozen reader reproduces the pre-mutation readback byte for byte.
+Scopes `033`/`034` drain without force, replay inputs return to Root-only access,
+and all 334 historical metadata rows remain unchanged; custom readers read no
+historical worker-record bytes. Failed development builds/readbacks are retained.
+There are no new files, crates, binaries or dependencies. Source/preparation/
+observer admission, physical writers, complete operation semantics and fresh
+role qualification remain open. Eligibility/causality stay false; model use is
+zero and parent exits remain 24/62. The earlier scoped security scan does not
+cover this new patch; independent review and current-head CI remain required.
+
 ## Scope and implementation order
 
 Capture the actual stdin/stdout pipe exchanges of source-pinned Native
