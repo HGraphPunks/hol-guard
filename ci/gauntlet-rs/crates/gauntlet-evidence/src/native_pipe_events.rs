@@ -10,6 +10,12 @@ use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 
 const CONNECTOR: &[u8] = b"/public/gauntlet-product-cell";
+#[path = "native_socket_events.rs"]
+mod sockets;
+pub(crate) const V1: &str = "hol-gauntlet-native-pipes.v1";
+pub(crate) const V2: &str = sockets::SCHEMA;
+#[cfg(test)]
+pub(crate) use sockets::tests::mixed as mixed_fixture;
 struct Session {
     phase: u8,
     wrapper: Value,
@@ -79,25 +85,6 @@ fn image(events: &[Value], event: usize, observed: &Value, pin: &str, actor: &Va
     )?;
     crate::native_runtime_trace::floors(&observed["task"])
 }
-fn pipes(value: &Value) -> Result<[[u64; 2]; 4]> {
-    let rows = value
-        .as_array()
-        .filter(|v| v.len() == 4)
-        .ok_or(EvidenceError::Invalid("four Native pipe objects required"))?;
-    let mut out = [[0; 2]; 4];
-    for (pair, value) in out.iter_mut().zip(rows) {
-        let row = value
-            .as_array()
-            .filter(|v| v.len() == 2)
-            .ok_or(EvidenceError::Invalid("Native pipe object pair required"))?;
-        pair[0] = row[0]
-            .as_u64()
-            .ok_or(EvidenceError::Invalid("pipe device required"))?;
-        pair[1] = number(&row[1])?;
-    }
-    require(out.iter().collect::<BTreeSet<_>>().len() == 4)?;
-    Ok(out)
-}
 impl Session {
     fn handoff(data: &Value, events: &[Value], actor: &Value, connector: &str) -> Result<Self> {
         require(
@@ -131,7 +118,7 @@ impl Session {
             wrapper: wrapper.clone(),
             gate: gate.clone(),
             gate_event,
-            pipes: pipes(&data["pipes"])?,
+            pipes: sockets::objects(&data["pipes"])?,
             exec: None,
             read: [Vec::new(), Vec::new()],
             written: [0; 2],
@@ -259,7 +246,9 @@ pub(crate) fn verify(
     binding: &Value,
     expected_config: &Value,
     connector: &str,
+    schema: &str,
 ) -> Result<Value> {
+    require(matches!(schema, V1 | V2))?;
     config(expected_config)?;
     require(hex(connector, 64) && checkpoint["schema"] == "hol-gauntlet-native-process-events.v1")?;
     let process = crate::verify_native_process_events(process_raw, checkpoint)?;
@@ -298,6 +287,7 @@ pub(crate) fn verify(
     number(&binding["inode"])?;
     let mut previous = "0".repeat(64);
     let mut sessions = BTreeMap::<usize, Session>::new();
+    let mut helpers = sockets::Helpers::default();
     let mut joined = BTreeSet::new();
     let mut closed = false;
     let mut total = 0;
@@ -332,7 +322,7 @@ pub(crate) fn verify(
                             "exclusive_product_authorship_verified",
                         ],
                     )
-                    && data["schema"] == "hol-gauntlet-native-pipes.v1"
+                    && data["schema"] == schema
                     && data["config"] == *expected_config
                     && data["actor"]["argv"] == json!(["/public/gauntlet-product-cell", "actor"])
                     && data["kernel_pipe_bytes"] == true
@@ -349,20 +339,41 @@ pub(crate) fn verify(
         if kind == "native-pipe-owner-closed" {
             require(
                 exact_keys(data, &["sessions", "execution_eligible"])
-                    && integer(&data["sessions"])? == sessions.len()
+                    && integer(&data["sessions"])? == sessions.len() + helpers.ids().count()
                     && data["execution_eligible"] == false
                     && sessions.values().all(|s| s.phase == 3)
-                    && sessions.keys().copied().eq(0..sessions.len()),
+                    && helpers.pending() == 0
+                    && sessions
+                        .keys()
+                        .copied()
+                        .chain(helpers.ids())
+                        .collect::<BTreeSet<_>>()
+                        .into_iter()
+                        .eq(0..sessions.len() + helpers.ids().count()),
             )?;
             closed = true;
             continue;
         }
         let id = integer(&data["session"])?;
         require(id < 1024)?;
+        if kind.starts_with("native-socket-helper-") {
+            require(schema == V2 && !sessions.contains_key(&id))?;
+            if kind == "native-socket-helper-handoff" {
+                require(
+                    sessions.values().filter(|s| s.phase < 3).count() + helpers.pending() < 16,
+                )?;
+                helpers.handoff(data, &events, actor, connector)?;
+            } else {
+                require(kind == "native-socket-helper-exec-bound")?;
+                require(joined.insert(helpers.bind(data, &events, actor, expected_config)?))?;
+            }
+            continue;
+        }
         if kind == "native-pipe-handoff" {
             require(
                 !sessions.contains_key(&id)
-                    && sessions.values().filter(|s| s.phase < 3).count() < 16,
+                    && !helpers.ids().any(|v| v == id)
+                    && sessions.values().filter(|s| s.phase < 3).count() + helpers.pending() < 16,
             )?;
             let new = Session::handoff(data, &events, actor, connector)?;
             require(
@@ -443,13 +454,20 @@ pub(crate) fn verify(
         streams.push(json!({"session":id,"exec_event":event,"read":session.written,"written":session.written,
             "stream_sha256":session.read.each_ref().map(|v| sha256(v)),"actual_eof_rows_checked":true,"native_frames":framed}));
     }
-    Ok(
-        json!({"schema":"hol-gauntlet-native-pipe-readback.v1","pipe_event_relations_verified":true,
+    let mut result = json!({"schema":"hol-gauntlet-native-pipe-readback.v1","pipe_event_relations_verified":true,
         "journal_sha256":sha256(raw),"journal_events":count,"sessions":streams,"session_count":sessions.len(),
         "native_client_streams":selected.len(),"opaque_sessions":sessions.len()-selected.len(),"bytes_read":total,
         "actual_pipe_byte_rows_present":total>0,"complete_process_history":process,
         "outside_preparation_joined":false,"outside_observer_admitted":false,"outside_signing_key_admitted":false,
         "exclusive_product_authorship_verified":false,"request_semantics_verified":false,"effect_writer_attribution_checked":false,
-        "execution_eligible":false,"guard_causality_verified":false,"model_requests":0}),
-    )
+        "execution_eligible":false,"guard_causality_verified":false,"model_requests":0});
+    if schema == V2 {
+        let socket_helpers = helpers.summary()?;
+        result["schema"] = json!("hol-gauntlet-native-transport-readback.v2");
+        result["connection_count"] = json!(sessions.len() + socket_helpers.len());
+        result["socket_helper_count"] = json!(socket_helpers.len());
+        result["socket_helpers"] = json!(socket_helpers);
+        result["socket_bytes_observed"] = json!(false);
+    }
+    Ok(result)
 }

@@ -173,8 +173,22 @@ UID/GID 10004. Validation `d6f4b44a…` retains separate product `53eed6482` and
 Gauntlet source/tool pins, plus earlier transfer and fixture-selection failures.
 All 705 Mac tests and warnings-denied Mac/ARM Clippy pass with all features.
 The v2 schema grants no socket-byte ownership; historical v1 readers refuse it,
-and independent Rust v2 replay/signed acceptance remains open. The necessary
+and independent Rust v2 replay/signed acceptance was still open at this producer. The necessary
 boundary uses one focused Rust module and no new crate, binary or dependency.
+
+Boundary `197d7abd1` and clean merge `55a03e5f4` preserve upstream `82e69eab5`
+and all 37 incoming files. The Gauntlet source map is unchanged; Native library,
+CLI and tests compile on Mac/ARM without execution. The independent Rust v2
+reader then reproduces the unchanged `012` history on Mac and UID 65532 ARM:
+identical 130,923-byte summaries (`0d8c1d46…`), 64 pipe sessions, nine framed
+clients, 465,410 pipe bytes and one helper. V1 refuses v2 on both. Validation
+`86818911…` binds 711 Mac tests and thirteen unprivileged ARM checks, including
+queued handshake/activity bytes, parent lifetime and artifact substitutions.
+One additional necessary Rust module holds replay; no crate, binary, dependency,
+test file or proof script is added. Both scopes drain without forced cleanup;
+replay inputs return to Root-only access and all 334 metadata rows are unchanged.
+Signed v2 acceptance, newer-product VM qualification and all admission/writer
+obligations remain open.
 No causality or parent-exit success is claimed; parent exits remain 24/62.
 
 ```text

@@ -389,6 +389,7 @@ pub(crate) mod pipes {
             &binding["journal"],
             config,
             &"a".repeat(64),
+            native_pipe_events::V1,
         )
     }
     #[test]

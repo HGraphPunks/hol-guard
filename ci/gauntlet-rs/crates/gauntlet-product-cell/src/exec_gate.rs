@@ -315,6 +315,8 @@ mod tests {
         parent
             .set_read_timeout(Some(Duration::from_millis(200)))
             .unwrap();
+        let handshake = b"fixture-token-handshake\n";
+        parent.write_all(handshake).unwrap();
         let flags = |fd| unsafe { libc::fcntl(fd, libc::F_GETFL) };
         let before = [flags(listener.as_raw_fd()), flags(health.as_raw_fd())];
         let inspected = inspect_native_socket_stdio(&listener, &health).unwrap();
@@ -330,6 +332,14 @@ mod tests {
             before,
             [flags(listener.as_raw_fd()), flags(health.as_raw_fd())]
         );
+        let mut endpoint = &health;
+        let mut queued = vec![0; handshake.len()];
+        endpoint.read_exact(&mut queued).unwrap();
+        assert_eq!(queued, handshake);
+        endpoint.write_all(b"A").unwrap();
+        let mut activity = [0];
+        parent.read_exact(&mut activity).unwrap();
+        assert_eq!(activity, [b'A']);
         drop(health);
         assert_eq!(parent.read(&mut [0]).unwrap(), 0);
     }

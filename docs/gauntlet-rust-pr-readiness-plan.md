@@ -106,11 +106,25 @@ with evidence. Code volume and checked substeps do not establish completion.
   `53eed6482`; validation `d6f4b44a…` binds its separate Gauntlet source/tool
   generations, all 705 Mac tests and warnings-denied Mac/ARM Clippy with all
   features enabled. All 334 historical metadata rows remain unchanged.
-- **Next:** finish independent Rust v2 replay before signed artifact acceptance.
-  Commit this boundary, reconcile upstream `34701a036` (two new commits, including
-  the edge's token handshake), refresh current-source validation and push.
-  Preserve health-socket bytes without reading or journaling them. Never replay
-  consumed pipe jobs `001`–`012`.
+- Boundary `197d7abd1` is pushed, followed by clean upstream merge `55a03e5f4`
+  through `82e69eab5`, preserving all 37 incoming files. All 1,470 Gauntlet Git
+  blobs match the validated generation; the 440-file Python map is unchanged.
+  The merged Native library/CLI/tests compile on Mac and ARM in
+  384.664/399.967 seconds without execution. The newer product is not yet
+  independently qualified in the VM.
+- Independent Rust v2 replay now verifies the unchanged `012` journals on Mac
+  and UID 65532 ARM, byte-identically: 64 pipe sessions, nine framed clients,
+  465,410 pipe bytes and one socket helper. V1 refuses v2 on both platforms.
+  Validation `86818911…` binds the separate verifier source/tool generation,
+  711 Mac tests, thirteen unprivileged ARM checks and measured cleanup. Queued
+  health handshake/activity bytes and real EOF are preserved. One additional
+  Rust module holds this independent verification boundary; no crate, target,
+  dependency, test file or proof script is added. All authority flags stay false.
+- **Next:** finish signed v2 artifact acceptance and fresh isolated qualification
+  of the merged product, then source/preparation/observer admission and actual
+  writer attribution in the dependency order below. Keep captured private
+  payloads private until sanitized delivery. Never replay consumed pipe jobs
+  `001`–`012` or borrow their source pins for the newer product.
   Job `006` used older product `74d8d008`
   and failed with exit 126 before tests; its 65 closed sessions, 470,846 bytes
   and 525 task histories are component evidence, not current-source qualification.

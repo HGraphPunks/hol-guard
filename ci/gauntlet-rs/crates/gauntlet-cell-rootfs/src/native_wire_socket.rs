@@ -104,7 +104,7 @@ pub(super) fn session(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Read;
+    use std::io::{Read, Write};
     use std::os::fd::AsFd;
 
     #[test]
@@ -116,6 +116,12 @@ mod tests {
             parent
                 .set_read_timeout(Some(Duration::from_millis(200)))
                 .unwrap();
+            health
+                .set_read_timeout(Some(Duration::from_millis(200)))
+                .unwrap();
+            if case == 0 {
+                parent.write_all(b"fixture-handshake\n").unwrap();
+            }
             let mut expected = inspect_native_socket_stdio(&listener, &health)
                 .unwrap()
                 .objects;
@@ -150,14 +156,22 @@ mod tests {
             )
             .unwrap();
             drop(descriptors);
-            drop(health);
             assert_eq!(passed.join().unwrap(), case == 0);
             if case == 0 {
                 assert_eq!(
                     receive::<1>(&mut actor, deadline, &AtomicBool::new(false)).unwrap(),
                     [1]
                 );
+                let mut endpoint = &health;
+                let mut handshake = [0; 18];
+                endpoint.read_exact(&mut handshake).unwrap();
+                assert_eq!(&handshake, b"fixture-handshake\n");
+                endpoint.write_all(b"A").unwrap();
+                let mut activity = [0];
+                parent.read_exact(&mut activity).unwrap();
+                assert_eq!(activity, [b'A']);
             }
+            drop(health);
             assert_eq!(
                 parent.read(&mut [0]).unwrap(),
                 0,

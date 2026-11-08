@@ -19,7 +19,18 @@ pub(crate) fn reindex(files: &mut BTreeMap<String, Vec<u8>>, metadata: Value) {
 
 // Inert boundary fixture; no product execution, observer admission or role score.
 pub(crate) fn pipe_fixture() -> (Value, Value, BTreeMap<String, Vec<u8>>) {
-    let (process, pipe, config) = crate::native_process_events::tests::pipes::fixture();
+    transport_fixture_mode(false)
+}
+pub(crate) fn transport_fixture() -> (Value, Value, BTreeMap<String, Vec<u8>>) {
+    transport_fixture_mode(true)
+}
+fn transport_fixture_mode(mixed: bool) -> (Value, Value, BTreeMap<String, Vec<u8>>) {
+    let (process, pipe, config) = if mixed {
+        crate::native_process_event_files::native_pipe_events::mixed_fixture()
+    } else {
+        crate::native_process_events::tests::pipes::fixture()
+    };
+    let schema = &pipe[0].1["schema"];
     let (process, checkpoint) = pack(&process);
     let (pipe_raw, mut pipe_pin) = pack(&pipe);
     pipe_pin["journal"]["inode"] = json!(3);
@@ -61,7 +72,7 @@ pub(crate) fn pipe_fixture() -> (Value, Value, BTreeMap<String, Vec<u8>>) {
         ),
         (
             "native-pipe-owner-ready",
-            json!({"schema":"hol-gauntlet-native-pipes.v1","execution_eligible":false}),
+            json!({"schema":schema,"execution_eligible":false}),
         ),
         ("actor-ready", json!({})),
         (
@@ -85,7 +96,7 @@ pub(crate) fn pipe_fixture() -> (Value, Value, BTreeMap<String, Vec<u8>>) {
     let (main, mut main_pin) = pack(&main_rows);
     main_pin["journal"]["inode"] = json!(4);
     let plane = json!({"schema":"hol-gauntlet-native-hook-plane.v4","cleanup_complete":true,"process_events":observation,
-        "native_pipe_bytes":{"schema":"hol-gauntlet-native-pipes.v1","available":true,"binding":pipe_pin["journal"],"execution_eligible":false,"exclusive_product_authorship_verified":false},
+        "native_pipe_bytes":{"schema":schema,"available":true,"binding":pipe_pin["journal"],"execution_eligible":false,"exclusive_product_authorship_verified":false},
         "capture_journal":main_pin["journal"],"capture_input_receipt_schema":"hol-gauntlet-capture-input-terminal.v1",
         "native_launch_adapter_sha256":sha256(crate::native_diagnostic_artifacts::PIPE_LAUNCH.as_bytes())});
     let mut files = BTreeMap::from([

@@ -34,9 +34,11 @@ pub fn verify_native_process_event_files(
 ) -> Result<Value> {
     let raw = read(journal, journal_sha256, 64 * 1024 * 1024)?;
     let checkpoint = parse(&read(checkpoint, checkpoint_sha256, 8192)?)?;
-    if checkpoint["schema"] != "hol-gauntlet-native-pipe-replay.v1" {
-        return verify_native_process_events(&raw, &checkpoint);
-    }
+    let schema = match checkpoint["schema"].as_str() {
+        Some("hol-gauntlet-native-pipe-replay.v1") => native_pipe_events::V1,
+        Some("hol-gauntlet-native-transport-replay.v2") => native_pipe_events::V2,
+        _ => return verify_native_process_events(&raw, &checkpoint),
+    };
     require(
         crate::payload::exact_keys(
             &checkpoint,
@@ -63,5 +65,6 @@ pub fn verify_native_process_event_files(
         &checkpoint["pipe_binding"],
         &checkpoint["native_wire_config"],
         crate::native_diagnostic_artifacts::text(&checkpoint, "connector_sha256")?,
+        schema,
     )
 }

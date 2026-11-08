@@ -438,6 +438,54 @@ token-authenticated reads over the same health socket; its merge and fresh-sourc
 validation remain pending. The handoff must preserve those bytes without reading
 or journaling them.
 
+### Independent mixed-transport replay
+
+Boundary `197d7abd1` and merge `55a03e5f4` preserve all 37 incoming files through
+upstream `82e69eab5`. The 440-file source map remains unchanged; all 1,470
+Gauntlet blobs match the boundary's validated source. The merged Native library,
+CLI and tests compile on Mac/ARM in 384.664/399.967 seconds without execution.
+The `012` product remains `53eed6482`; no newer-product VM result is inferred.
+
+The existing Rust replay command now accepts explicit input schema
+`hol-gauntlet-native-transport-replay.v2`; its v1 input remains strict. Replay
+checks every original journal byte/hash chain, complete process history, distinct
+connection IDs, helper phases, exact argv and caller pins, parent namespace PID
+and lifetime, exec generation, socket-object relations and real final wait.
+It rejects replacement execs, missing/reordered/duplicate records, substituted
+objects or parents, unknown fields and socket-byte/authority claims. Pipe bytes,
+framing and EOF keep their v1 rules. The full artifact route requires the same
+explicit transport version in its observation, supervisor lifecycle and journal.
+
+One additional necessary Rust module separates this verifier from the outside
+producer; existing crates, commands and test files are reused. All 711 Mac tests,
+formatting and warnings-denied Mac/ARM Clippy pass. Thirteen tests run as UID/GID
+65532 on ARM, including full artifact/refusal cases and real sockets with queued
+handshake/activity bytes and EOF. Both original private byte streams survive
+inspection; Root neither reads nor journals them.
+
+Mac and measured UID 65532 ARM replay of the unchanged `012` journals produces
+the same 130,923-byte summary, SHA-256
+`0d8c1d461ff130c53917e72760a34a370ab158df73f93c38cb22c4d50602c64e`.
+It records 64 pipe sessions, nine framed Native clients, 465,410 captured pipe
+bytes and one metadata-only helper. Explicit v1 selection refuses on both.
+Both scopes drain without forced cleanup. Independent readback verifies unchanged
+input bytes, Root-only input-directory access restored, no active image pointer
+and all 334 historical metadata rows preserved. Captured payloads remain private.
+
+| Evidence in the same external directory | SHA-256 |
+| --- | --- |
+| `socket-v2-source-001.json` | `e9934c090ac28ac1bb08dfbd199baa3bee8cb7972996b60921def1199dc305bc` |
+| `socket-v2-frozen-tools-001.json` | `36ce730093275e2287ed82e049ecaeca3f6936034881c6c0fe82975c3e41ce21` |
+| `socket-v2-arm-unit-001.json` | `21f88fb224f80c21fa08c20a737a681f821c0433df5935de26f84c3b9d189267` |
+| `socket-v2-arm-replay-001.json` | `d7aa4c6b9e1f826f39a7e6f51dcddccd0e5f523869b0db3e3ebcbe7ce535ef49` |
+| `socket-v2-closed-readback-001.json` | `0ac41a297d8928a86337bf51f0b8d5aa3035699065f531bdf77667c54998fb7c` |
+| `socket-v2-validation-001.json` | `868189117a8336453fbd86dcb6d922ac6baaec8badfb433571739e3c1288eae9` |
+
+This is independent component replay and inert artifact validation. Fresh signed
+v2 acceptance, preparation/source/observer/key admission, actual writers,
+complete request/decision/effect grading and newer-product VM qualification remain
+open. No model runs, quota resets, parent exits or release/gate transitions occur.
+
 All 334 historical metadata rows are unchanged; their bytes/keys and private
 Root build argv are not read. No product runs on Host or Root. All admission/
 causality flags stay false, model use is zero and parent exits remain 24/62.

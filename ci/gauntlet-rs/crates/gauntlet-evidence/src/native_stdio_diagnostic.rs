@@ -1,6 +1,7 @@
 //! Bind snapshots to the versioned launch, signed closure and Root file identity.
 use crate::crypto::sha256;
 use crate::native_diagnostic_artifacts::{digest, parse, require, text, Artifacts};
+use crate::native_process_event_files::native_pipe_events;
 use crate::payload::exact_keys;
 use crate::{EvidenceError, Result};
 use serde_json::{json, Value};
@@ -25,6 +26,11 @@ pub(crate) fn pipe_lifecycle(
     closed: usize,
 ) -> Result<()> {
     let observation = &plane["native_pipe_bytes"];
+    let schema = text(observation, "schema")?;
+    require(matches!(
+        schema,
+        native_pipe_events::V1 | native_pipe_events::V2
+    ))?;
     let (owner_ready, start) = unique(&artifacts.events, "native-pipe-owner-ready")?;
     let (terminal, end) = unique(&artifacts.events, "native-pipe-owner-terminal")?;
     let (cleanup, _) = unique(&artifacts.events, "terminal-cleanup")?;
@@ -33,8 +39,7 @@ pub(crate) fn pipe_lifecycle(
             && owner_ready < ready
             && closed < terminal
             && terminal < cleanup
-            && start
-                == &json!({"schema":"hol-gauntlet-native-pipes.v1","execution_eligible":false})
+            && start == &json!({"schema":schema,"execution_eligible":false})
             && exact_keys(
                 observation,
                 &[
@@ -45,7 +50,6 @@ pub(crate) fn pipe_lifecycle(
                     "exclusive_product_authorship_verified",
                 ],
             )
-            && observation["schema"] == "hol-gauntlet-native-pipes.v1"
             && observation["available"] == true
             && observation["execution_eligible"] == false
             && observation["exclusive_product_authorship_verified"] == false
@@ -172,6 +176,7 @@ fn pipes(
         &plane["native_pipe_bytes"]["binding"],
         &config,
         connector,
+        text(&plane["native_pipe_bytes"], "schema")?,
     )?;
     result["journal_report_binding_checked"] = json!(true);
     result["report_preparation_declarations_checked"] = json!(true);
@@ -273,6 +278,30 @@ mod tests {
         control["plane"]["native_pipe_bytes"]["schema"] =
             json!("hol-gauntlet-native-transports.v2");
         assert!(read(&control, &prep, &files).is_err());
+    }
+    #[test]
+    fn mixed_transport_artifacts_require_the_same_explicit_schema_and_all_declarations() {
+        let (control, prep, files) =
+            crate::native_process_trace_diagnostic::tests::transport_fixture();
+        let result = read(&control, &prep, &files).unwrap();
+        assert_eq!(
+            result["schema"],
+            "hol-gauntlet-native-transport-readback.v2"
+        );
+        assert_eq!(result["connection_count"], 2);
+        assert_eq!(result["socket_helper_count"], 1);
+        assert_eq!(result["journal_report_binding_checked"], true);
+        assert_eq!(result["socket_bytes_observed"], false);
+        assert_eq!(result["execution_eligible"], false);
+        let mut old = control.clone();
+        old["plane"]["native_pipe_bytes"]["schema"] = json!(native_pipe_events::V1);
+        assert!(read(&old, &prep, &files).is_err());
+        for name in files.keys().filter(|p| p.as_str() != "results.sha256.json") {
+            let mut missing = files.clone();
+            missing.remove(name);
+            refresh(&mut missing);
+            assert!(read(&control, &prep, &missing).is_err(), "{name}");
+        }
     }
     #[test]
     fn missing_declarations_or_journals_cannot_borrow_a_reported_complete_pipe_owner() {
