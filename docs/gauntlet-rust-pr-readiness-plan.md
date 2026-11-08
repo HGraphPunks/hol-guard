@@ -18,54 +18,54 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
-- Continue `codex/gauntlet-rust-finish-20261105`. Completion retirement is
-  committed at `792a64ab5`; current main `84ba6e4da` merges cleanly as
-  `ddc21cd6c`, preserving all six incoming files. [Child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5)
-  remains draft against integration `f143f9ac`. Obtain all five current-head
-  jobs before its merge. Actions was disabled at the preceding checkpoint.
-  No override or settings change is authorized; upstream main merge and release
-  publication remain separate.
-- Missing/exact-prefix preparation and partial completion now have explicit
-  snapshot-bound retirement. Original files remain intact; completion retirement
-  fsyncs them and requires absent resources without adoption or signals. It
-  retains `aborted` with unknown exit and no eligibility. Full-report/absent-
-  terminal finalization remains supported. See [completion retirement](gauntlet-rust-hostbound-candidate-build-proof.md#interrupted-dependency-completion-retirement)
-  and the preceding preparation proof. Two necessary modules are added within
-  existing crates, with no crate, binary, dependency, proof script or document.
-- Worker `d71ca8b2…`, host `fde7281c…` and compatibility host `ea4024ac…`
-  bind source `792a64ab5`. All 682 Mac workspace tests, formatting,
-  warnings-denied Mac/ARM Clippy, final builds and nine selected ARM tests pass.
-  Matching Native library/CLI/test targets compile on Mac/ARM; all 682 tests
-  pass again at merged head `ddc21cd6c`.
-  Validation `bfa7c278…` binds 145 records; source manifest is `aa198898…`.
-- Live `6147ab2733bb774d` preserves a 64-byte report and retires in
-  7.022 seconds. `f44a167f33be73b5` preserves a full report and 32-byte
-  terminal and retires in 12.598 seconds. Twenty restart/refusal and seven
-  historical-reader cases pass; direct Root reuse refuses. Normal
-  `84267ae7556a6101` exits zero in 65.823 seconds and matches all 2,290
-  files/51,318,588 bytes. Failed prelaunch `de145dd6f485a69f` has no
-  intent/dispatch/runtime reservation or resource; its inert slot and failure
-  remain. **Never replay any of these four IDs.** Export/setup failures remain.
-- Bundle `1e58a24a…` has 177 members/18,503,680 bytes and excludes all
-  thirty actual nonces, including decoded ZIPs. Remote delivery, independent
-  review and five required cloud jobs remain open. The immutable 420-file
-  baseline, 440-file map (79 changed/20 added) and controller plan `52da7281…`
-  are unchanged. Live product evidence remains at `53c64ae96`; newer main
-  is not execution-qualified.
-- Next finish the fresh candidate and 28-group/52-selector audit at the required
-  generations, then the twelve staging/installed roles with independent
-  request/decision/effect authority. Keep unprovable custody gaps unknown.
-  Preserve old unknown `b937d2e04a16c85f` and the unexplained first active
-  refusal. Copied Native replies do not prove atomic wire bytes, concurrent
-  memory, semantics or actual effect writers. Real workflows, legacy parity,
-  reviewed cutover/rollback and admission remain open. **24/62** parent exits;
-  model requests/tokens are zero. This goal grants no quota.
-- The owned ARM VM is idle at 2 CPUs/16 GiB/48 GiB. Final four-lease snapshots
-  match earlier recovery/control snapshots exactly and verify resource absence
-  plus unchanged metadata for 333 historical records and their lock. Inspect
-  exact pins, leases and resources before every operation; serialize VM changes
-  and never read historical worker bytes or keys. Earlier checkpoints remain
-  in Git and the existing proof documents.
+- Continue `codex/gauntlet-rust-finish-20261105` and draft [child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5)
+  against integration `f143f9ac`. Transfer code is `76a5604fe`; live evidence
+  is `984cba186`. Main `4220e765b` merges cleanly as `9adf112e9`, preserving
+  all six incoming files. Gauntlet source stays unchanged. Require all five
+  current-head jobs and independent review before merging; the last dispatch
+  was disabled. No settings change or override is authorized.
+- Primary `build transfer` now binds exact archive/commit bytes, worker and VM
+  to one durable dispatch through the existing bounded Rust stream owner.
+  Partial, linked, orphaned or uncertain records cannot allow replay. Two
+  existing Rust files change, both below 500 lines; no new file, crate, target
+  or dependency. **686 Mac tests**, formatting, warnings-denied Mac/ARM Clippy
+  and **six measured unprivileged ARM tests** pass. The new main's Native
+  library/CLI/test targets compile on Mac/ARM without executing product tests.
+- Exact live product `74d8d0081` includes main `84ba6e4da`; controller tree
+  is `52da7281…`. Build `c2e80b4915f76a3d` passes four selected and 185
+  contained contracts. Primary transfer/export `c8a491e0d27bf653` completes.
+  Independent reconstruction matches all wheel/dependency bytes, four trees,
+  4,328 prefix entries/124,462,108 bytes and six launchers. Requirement input
+  identity reuses the prior Python oracle with no fresh requirement execution.
+  See [source transfer](gauntlet-rust-vm-source-transfer-proof.md#primary-rust-transfer-into-the-build-slot)
+  and [build/runtime](gauntlet-rust-hostbound-candidate-build-proof.md#fresh-current-source-build-and-runtime-through-the-primary-commands).
+- Primary audit `52b9d314e8a670cf` completes 28 groups/52 selectors:
+  **1,304 passes, zero failures/errors and one deliberate retired-Pi skip**.
+  Rust/Python grading, restart reads and consumed/wrong-pin refusals agree.
+  Audit remains incomplete and ineligible. Kernel/input checks and four-lease
+  cleanup pass; 333 historical records and their lock retain metadata without
+  reading their bytes or keys. See [primary audit](gauntlet-rust-feature-worker.md#fresh-primary-audit-at-the-current-build-generation).
+  Newer main `4220e765b` has compilation only and still needs live qualification.
+- Validation `dddb9d04…` binds 116 public evidence files; bundle
+  `gauntlet-rust-review-primary-transfer-20261108-002.tar` has
+  118 members/53,258,240 bytes, SHA-256 `587ccd27…`.
+  All members reverify and exclude 33 actual nonces, including decoded archives.
+  Private intents and Root dependency reports stay excluded. Remote delivery,
+  independent review and cloud jobs remain open; earlier archives and failures
+  stay retained.
+- Never replay those three jobs or earlier `6147ab2733bb774d`,
+  `f44a167f33be73b5`, `de145dd6f485a69f` and `84267ae7556a6101`.
+  Preserve unknown `b937d2e04a16c85f` and the unexplained first active refusal.
+  The owned VM is idle at 2 CPUs/16 GiB/48 GiB; inspect exact pins, four leases
+  and resources before each mutation. Baseline 420 and source map 440
+  (79 changed/20 added) remain unchanged.
+- Next complete independent Native request/decision/effect authority, all twelve
+  staging/installed roles and fresh signed conformance. Atomic wire bytes,
+  concurrent memory, operation semantics and actual effect writers remain open,
+  followed by real workflows, full legacy parity and reviewed cutover/rollback.
+  **24/62** parent exits; all eligibility/causality flags are false and model
+  use is zero. This goal grants no quota, upstream main merge, release
+  publication or PR-gate activation.
 
 ## Keep the implementation small
 

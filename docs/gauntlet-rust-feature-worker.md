@@ -611,3 +611,19 @@ covers only the named product generation. Broader recovery, independent
 authority, signed conformance, remote evidence/review and admission remain
 open. Every admission/qualification/causality flag stays false, model use is
 zero, and the parent ledger stays **24/62**.
+
+Review addendum `gauntlet-rust-review-primary-transfer-20261108-002.tar`
+contains 118 members/53,258,240 bytes, SHA-256
+`587ccd27226c630d2b0834387c5c117b2861cae15586d68b7c2afd2dc3d2c7c8`;
+manifest is `973962840a86368a9187b1db8f77d080aaa7d5d926735a912d9f76fa9233f1c8`.
+Validation `source-transfer-current359-20261108-validation-002.json` binds
+116 public evidence files, SHA-256
+`dddb9d0404c543c7366af6cce46bd6d479b6502e7d0639ac70fec03233f2310f`.
+All members reopen and verify; raw and recursively decoded archive scans
+exclude all 33 actual private nonces. Private intents, Root dependency report
+bodies and product/controller/worker/executor binaries are excluded; the
+pinned public Rust reader is included for replay. The first packaging attempt
+stopped at the additional outer-TAR nesting level before writing an archive.
+Its validation and failure record remain intact. The corrected bounded scan
+accounts for that one layer with the same byte/member limits and no workload
+replay. Remote delivery and independent review remain open.

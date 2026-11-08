@@ -1411,3 +1411,15 @@ ASCII hex and recursively decoded ZIP contents. Independent review, retrievable
 remote evidence, required CI, signed conformance, deterministic authority and
 operational admission remain open. All eligibility/causality flags stay false,
 model usage is zero and no parent exit closes.
+
+After this live proof, upstream main `4220e765b3a9f4d7883d53f95cd7568837c8c563`
+merges cleanly as `9adf112e9773c488439eb0fd354d19241eac1aca`. All six incoming
+Native/Python files match upstream exactly; Gauntlet source and the 440-file
+controller map are unchanged. Matching Native library, CLI and test targets
+compile on Mac and ARM without executing a product test binary on the Host.
+The compile records are `source-transfer-upstream-20261108-native-mac-001.json`
+(`1d34ea03fa239748ac6513914ca70451031acf88e5e2d8892256f86dcd0e444c`)
+and `source-transfer-upstream-20261108-native-arm-001.json`
+(`645a0b5c1d8e968807d257a6b9e56c0fc3dbe88d7a5c4ee13643f6b2ca7dec89`).
+The live build/audit above covers product `74d8d0081` only; the newer product
+still needs live qualification.
