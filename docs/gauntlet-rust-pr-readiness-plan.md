@@ -20,10 +20,10 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 - Continue `codex/gauntlet-rust-finish-20261105` and draft [child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5)
   against integration `f143f9ac`. Transfer code is `76a5604fe`; Root pipe
-  component is `734338221`. Main `1d7f8304d` merges cleanly as `f93ecd24d`,
-  preserving all 11 incoming files and the component. Python and Rust agree
-  on 409 controller files, 420 entries and digest `4e0af628…`; it is not
-  installed. The new environment-name scenario changes one source-map hash;
+  component is `734338221`. Main `311d63cb2` merges cleanly as `99c233ad4`,
+  preserving all 13 incoming files and the component. Python and Rust agree
+  on 409 controller files, 420 entries and digest `f2581135…`; it is not
+  installed. The new absent hidden-home scenario changes one source-map hash;
   the immutable baseline remains unchanged. Require all five
   current-head jobs and independent review before merging; the last dispatch
   was disabled. No settings change or override is authorized.
@@ -49,7 +49,7 @@ with evidence. Code volume and checked substeps do not establish completion.
   Audit remains incomplete and ineligible. Kernel/input checks and four-lease
   cleanup pass; 333 historical records and their lock retain metadata without
   reading their bytes or keys. See [primary audit](gauntlet-rust-feature-worker.md#fresh-primary-audit-at-the-current-build-generation).
-  Newer main `1d7f8304d` has compilation only and still needs live qualification.
+  Newer main `311d63cb2` has compilation only and still needs live qualification.
 - Opt-in launch v5 relays actual Native kernel pipes through Root: 43 complete
   sessions, 317,818 read bytes and 154 complete frame pairs. Independent Mac/ARM
   Rust replay is identical. Five necessary source files reuse existing crates,
@@ -75,6 +75,16 @@ with evidence. Code volume and checked substeps do not establish completion.
   through its existing fixed errors or an outside failing-syscall observation,
   then prove utility/write refusal, fresh signed export and the twelve roles;
   SDK role modes currently refuse this preparation. See [read-only checkpoint](gauntlet-rust-native-stdio-plan.md#explicit-read-only-control-checkpoint).
+- Native now retains its existing static Linux boundary error in stderr after
+  the original failure line. Enforcement and exit 126 remain unchanged; no
+  retry or alternate execution path is added. Source `52f718a4…` passes 703
+  tests, formatting, Mac/ARM Clippy and Native compilation on both platforms.
+  Validation `e1f3d824…` rechecks eighteen evidence files. Fresh build ID
+  `ed8f9da0b49ebde2` has passed the VM preflight but has not started at this
+  source checkpoint. Capture this committed generation through the primary
+  Rust commands, publish its inert runtime, then use a fresh control job to
+  observe the boundary reason. Never replay jobs `001`–`006` or borrow the
+  older runtime's qualification. All runtime/authority exits remain open.
 - Validation `dddb9d04…` binds 116 public evidence files; bundle
   `gauntlet-rust-review-primary-transfer-20261108-002.tar` has
   118 members/53,258,240 bytes, SHA-256 `587ccd27…`.

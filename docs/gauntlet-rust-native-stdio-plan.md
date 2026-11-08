@@ -277,6 +277,26 @@ source map, test and three checkpoint documents need this follow-up. The live
 read-only failure remains pinned to its earlier source and product; the new
 source supplies no fresh runtime, utility or qualification success.
 
+To identify the failure, the existing Native launcher now retains its fixed
+boundary error in stderr after the original generic line, still returning 126.
+It adds no retry, command execution or enforcement bypass. This is three lines
+of diagnostic code in the existing module; its errors contain no paths or plan
+bytes. Source `boundary-source-001.json` hashes to
+`52f718a495454bfd6428930697b9aeec9a5f92c15efc33bd8f04364cf3950a15`.
+All 703 tests, Gauntlet formatting, Mac/ARM Clippy and Native compilation pass.
+Validation `boundary-validation-001.json` (`e1f3d824…`) checks eighteen files.
+
+This source merges upstream `311d63cb2` as `99c233ad4`, preserving thirteen
+incoming files. The new hidden-home scenario updates only its source-map hash;
+the 440-file map/420-file baseline counts stay fixed. Independent Python and
+Rust controller plans agree on
+`f258113527755ecd7d46aa919ab816ba01efe390798c00769ced4cea51ca3609`.
+The fresh build ID `ed8f9da0b49ebde2` is reserved; its preflight verifies worker
+and image pins, four leases, an unused slot and 334 unchanged historical metadata
+rows. At this source checkpoint no build has started and the new controller is
+not installed. Runtime construction/publication and a fresh control are required
+before the diagnostic can identify any actual failing stage.
+
 ## Scope and implementation order
 
 Capture the actual stdin/stdout pipe exchanges of source-pinned Native

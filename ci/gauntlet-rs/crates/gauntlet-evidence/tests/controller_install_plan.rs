@@ -44,10 +44,10 @@ fn current_source_map_matches_python_bootstrap_tree_plan() {
     // Frozen independently from bootstrap.py's selection and bootstrap_guest.py's
     // 0755/0444 Root install modes, then Python canonical SHA-256 over the same
     // path/mode/uid/file-hash shape used by TreeKind::Controller. Recomputed
-    // from bootstrap.py's unchanged selection after main 1d7f8304d, including
-    // its names-only environment scenario. The independent data-only oracle
+    // from bootstrap.py's unchanged selection after main 311d63cb2, including
+    // its absent hidden-home listing scenario. The independent data-only oracle
     // checks all 409 source hashes and 11 directory modes; it also reproduces
-    // the prior aac18d28 digest by reverting only that scenario file's hash.
+    // the prior 4e0af628 digest by reverting only that scenario file's hash.
     // The installed 74d8d008 generation keeps its separate 52da7281 digest;
     // older installed generations and immutable evidence remain retained.
     let plan = plan_controller_install(&current_source_map()).unwrap();
@@ -55,7 +55,7 @@ fn current_source_map_matches_python_bootstrap_tree_plan() {
     assert_eq!(plan.entries, 420);
     assert_eq!(
         plan.tree_digest,
-        "4e0af628dffecc9b7cf3471f56bed40209616e9651054db0a399b5afe4590c04"
+        "f258113527755ecd7d46aa919ab816ba01efe390798c00769ced4cea51ca3609"
     );
     assert!(plan
         .installed_files

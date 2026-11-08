@@ -109,6 +109,18 @@ This adds no local file or dependency and does not install the new controller
 or qualify the newer runtime. All parent counts and live-control limits above
 remain unchanged.
 
+Main `311d63cb2` merges as `99c233ad4` with thirteen incoming files preserved.
+Its hidden-home scenario changes one source-map digest; the independently
+recomputed controller expectation is `f2581135…`, still 409 files/420 entries.
+The Native launcher now prints its existing fixed setup error while preserving
+the original failure line, exit 126 and enforcement. Source `52f718a4…` passes
+703 tests, formatting, Mac/ARM Clippy and Native compilation on both platforms.
+Validation `boundary-validation-001.json` hashes to
+`e1f3d8242f7cc10be2d5a48ad41acc740b14551a29ccc56b5dc8d54e131c0633`.
+Build ID `ed8f9da0b49ebde2` is reserved with an unused-job VM preflight; no new
+runtime or successful control is claimed. All counts and eligibility limits
+remain unchanged.
+
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
 ```

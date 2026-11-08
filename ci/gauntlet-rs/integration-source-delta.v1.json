@@ -646,7 +646,7 @@
       "disposition": "frozen_data_or_schema",
       "path": "ci/gauntlet/scenarios.json",
       "phase": 1,
-      "sha256": "f5c41321bf56fa25f7b3164f6d3a8e49006b0e5dff9035909252d4a7d7703bae"
+      "sha256": "d58ff2d574532c62a6f3c4e641d5005df89443cbcdcbfef9204572760dea95eb"
     },
     {
       "base_sha256": "e8789402ce8d0f23cb9a555c09bf0aee43e749ef455ebc27ec7d30df0d8ede39",
