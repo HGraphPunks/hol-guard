@@ -265,6 +265,13 @@ Rust files change, with no new file, crate, binary or dependency. Consumed jobs
 are not replayed. Policy/operation semantics, observer/source/preparation
 admission, physical writers, independent review and parent exits remain open.
 
+Commit `61049ac25` matches all 1,471 frozen Gauntlet blobs. Clean merge
+`e78b4bfc9` preserves upstream `0afa9229d` and all twelve incoming files;
+Gauntlet sources stay unchanged. Merged Native library/CLI/tests compile on
+Mac/ARM without execution (308.005/260.86 seconds). Validation `b489097a…`
+binds the merge and earlier Gauntlet checks; job `015` does not qualify this
+newer product. Independent review and all five current-head jobs remain open.
+
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
 ```

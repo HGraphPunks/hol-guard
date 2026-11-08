@@ -29,8 +29,12 @@ with evidence. Code volume and checked substeps do not establish completion.
   Native exec images remain explicitly ungraded. Historical readers stay strict;
   no files, crates, binaries or dependencies are added. Source/preparation/
   observer admission, operation semantics, physical writers and all parent exits
-  remain open. Upstream has since advanced to `0afa9229d`; merge it after
-  preserving this chunk, then compile its changed Native sources without execution.
+  remain open. Commit `61049ac25` preserves this chunk. Clean merge `e78b4bfc9`
+  then preserves upstream `0afa9229d` and all twelve incoming files, with all
+  Gauntlet blobs unchanged. Its Native library/CLI/tests compile on Mac/ARM
+  without execution (308.005/260.86 seconds); validation `b489097a…` binds
+  the merge, compilation and earlier Gauntlet evidence. The merged product
+  still needs fresh live qualification under its own source pins.
 - Continue `codex/gauntlet-rust-finish-20261105` and draft [child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5),
   based on integration `f143f9ac`. Artifact verification `a779925b9` is preserved
   by clean merge `abcd8b624` of upstream `5042340cc`: all thirteen incoming

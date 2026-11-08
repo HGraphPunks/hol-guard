@@ -646,6 +646,12 @@ role qualification remain open. Eligibility/causality stay false; model use is
 zero and parent exits remain 24/62. The earlier scoped security scan does not
 cover this new patch; independent review and current-head CI remain required.
 
+Commit `61049ac25` matches all 1,471 frozen Gauntlet blobs. Merge `e78b4bfc9`
+preserves upstream `0afa9229d` and its twelve incoming files without changing
+those blobs. Native library/CLI/tests compile on Mac/ARM without execution
+(308.005/260.86 seconds); validation `b489097a…` binds the merged generation.
+Its live product qualification remains separate from the older signed job.
+
 ## Scope and implementation order
 
 Capture the actual stdin/stdout pipe exchanges of source-pinned Native
