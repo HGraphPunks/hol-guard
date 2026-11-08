@@ -281,6 +281,20 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
   - [ ] Diagnose the first active dependency repair refusal and complete
   pre-CID/partial-state recovery. The first job's delayed active check also
   remains a retained failure. Qualification stays open; no parent exit closes.
+    - [x] Prove full-report finalization at `e3619c0e3`, preserving the original
+    Root report, unknown host observations and one-use dispatch. Fresh
+    `e6d3098a47cb125f` is interrupted before terminal creation and again before
+    atomic finalization. Reads remain unknown; wrong pins authorize nothing.
+    The same-authorized retry finishes in 3.812 seconds, preserving both
+    witnesses and interrupted staging bytes. Eight restart/refusal and five
+    reader-compatibility cases pass. Normal `b4a9f07e13d2865c` matches all 2,290
+    files. All 677 Mac tests, formatting, Mac/ARM Clippy/builds and six selected
+    ARM cases pass; failures stay retained. Live validation `c131cef9…` binds
+    111 records; bundle `a9d352ef…` has 129 members and excludes twenty-one
+    actual nonces. No migration source file, crate, binary or dependency is
+    added. Broader partial-state recovery, qualification, review and the
+    parent exit stay open. See
+    [report finalization](gauntlet-rust-hostbound-candidate-build-proof.md#retained-dependency-report-finalization).
     - [x] Prove native v3 pre-CID recovery with retained creator custody,
     separate per-attempt CID witnesses, atomic completion, interrupted repair
     and normal controls. The implementation adds one necessary ARM-only module

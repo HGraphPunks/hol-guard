@@ -1,6 +1,6 @@
 # Finish the Gauntlet Rust migration
 
-Updated: 2026-11-07. Executor: **GPT-6.1 Sol, Max reasoning**.
+Updated: 2026-11-08 UTC. Executor: **GPT-6.1 Sol, Max reasoning**.
 
 ## Mission and completion rule
 
@@ -18,6 +18,28 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
+- Full retained-report finalization at `e3619c0e3` reuses existing Rust owners,
+  without a new source file, crate or target. Read stays unknown; explicit
+  repair binds original report/process/CID/archive and resource absence, then
+  retains a witness and atomically publishes an invalid-evidence terminal.
+  Job `e6d3098a47cb125f` proves original terminal interruption, interrupted
+  finalization and same-authorized retry in 3.812 seconds, preserving report
+  and staging bytes. Eight restart/refusal and five compatibility cases pass.
+  Normal `b4a9f07e13d2865c` exits zero in 116.467 seconds and matches all 2,290
+  files. All 677 Mac tests, Mac/ARM Clippy/builds and six selected ARM cases pass.
+  Validation `c131cef9…` binds 111 records; bundle `a9d352ef…` has 129 members
+  and excludes twenty-one actual nonces. Partial records, independent review,
+  remote delivery and qualification remain open. See
+  [retained-report recovery](gauntlet-rust-hostbound-candidate-build-proof.md#retained-dependency-report-finalization).
+- Latest upstream `7ac2d7a90` merges without conflicts as `425a921c9`.
+  Twenty incoming files match upstream. Two reviewed Gauntlet hashes refresh;
+  the immutable 420-file baseline and 440-file inventory remain. An independent
+  data-only oracle derives controller digest `52da7281…`; `85814edab` updates
+  the expected test pin. The stale-oracle failure stays retained. All 677 merged
+  Mac tests, formatting, Mac/ARM Clippy/default host builds and Mac/ARM Native
+  library/CLI/test-target compilation pass. Validation `3ae79738…` binds
+  nineteen records included in the recovery bundle. Newer-product execution
+  and qualification remain open.
 - Pre-CID recovery is implemented at `b2983a6cd`, with the Root fixture corrected
   at `c9aaa25ce`. Explicit native v3 / host v2 receipts bind
   original creator readiness, incomplete CID bytes and separate per-attempt
@@ -41,7 +63,7 @@ with evidence. Code volume and checked substeps do not establish completion.
   No parent exit closes; partial intent/reservation/report reconciliation,
   independent review and qualification remain open. See the
   [live missing-receipt proof](gauntlet-rust-hostbound-candidate-build-proof.md#missing-dependency-container-receipt-recovery).
-- Latest upstream is `380cf0e4f`, merged without conflicts as `c935f19a9`.
+- Prior upstream is `380cf0e4f`, merged without conflicts as `c935f19a9`.
   All seven incoming files match upstream; the one Python change is documentation
   and parses without imports. Native library/CLI/test targets compile on Mac/ARM.
   The broader ARM check exposes a branch-local macOS cancellation-test import;

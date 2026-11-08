@@ -1078,3 +1078,26 @@ and `independent-prefix-readback-001.json` to
 Private intents, nonces and keys are excluded from the export. Candidate wheel
 composition and publication remain open, with no artifact admission, qualification,
 causality or model use claimed.
+
+
+## Retained dependency report finalization
+
+Source `e3619c0e3563edd901750243863b33e2e690a945` adds explicit recovery for a complete Root report whose terminal is absent. Thirteen existing Rust source/test files change; no source file, crate, binary or dependency is added. Intent, reservation, running marker, CID and inert archive must agree, and the original process identity and candidate resources must be absent. Read remains unknown. Explicit repair retains a Root witness and atomically publishes the missing terminal without replacing original report bytes. Partial or conflicting reports and existing partial terminals remain unresolved.
+
+The terminal stays `invalid-evidence`. Its known exit comes from the original full Root report; it grants no Guard verdict, admission, qualification or model credit. Original unknown observations remain retained. Repeated repair verifies its witness and terminal without another workload launch.
+
+Source manifest `dependency-report-finalization-20261108-source-004.json` is `3ddb6faa82d9e0d38f81430a54f64004170b5666fd8173545f97a002be096ef9`. Frozen worker `385f4a92…` is 10,329,800 bytes; host `7ba685b7…`, compatibility CLI `efa6bb02…` and ARM tests `8fc584f3…` are separately pinned. Installation holds four leases and preserves all 334 historical metadata rows. All 677 Mac tests, formatting, Mac/ARM warnings-denied Clippy, ARM release/test builds and default host builds pass. Six selected ARM cases pass, including an explicit inert Root fixture. Initial temporary-path, formatting, moved-import and outside-wrapper failures stay retained. Local validation `fec6c4f4…` binds 33 records and identifies each check's source.
+
+Fresh job `e6d3098a47cb125f` is interrupted through its held pidfd at the original supervisor's terminal `openat` entry. The full report is already retained; no report or terminal bytes are edited. Report SHA-256 `657b14da7c3eeee6a0a2b09686ecc9b6d04dc113760a3de7df9223971f4fb938`, inode and timestamps remain unchanged. Both host commands observe unknown; the wrong reservation refuses before authorization. Independent four-lease readback proves resource absence and no finalization witness.
+
+The first authorized finalizer is interrupted at `renameat2` entry after durable witness and staging writes. Reads still return the identical unknown observation. The same-authorized retry finishes in 3.812 seconds. Both witnesses and original interrupted staging bytes survive; terminal `809cd486…` matches those staged bytes. Eight restart/refusal cases pass. Independent final reconciliation `57576672…` confirms original report and metadata preservation and resource absence.
+
+Normal `b4a9f07e13d2865c` exits zero in 116.467 seconds. Outside kernel observation binds UID/GID 65532, exporter/inputs, read-only mounts, empty capabilities, namespaces, enforced profile and resource limits. Both exports independently match 2,290 files/51,318,588 decoded bytes and framing digest `b01fe0d3806503226d77118a977594ee5603025ed6412ea1d24ae6a0daf5f866`. Four normal read/refusal cases and five reader-compatibility cases pass: the new reader opens older v2/v3 repairs and completed v1; the previous reader opens the new finalized v1.
+
+Live validation `dependency-report-finalization-20261108-validation-006.json` binds 111 records, SHA-256 `c131cef99b25f4e3e635ef0862b099fb72b2bec495142142343e6228c6515578`. Public `gauntlet-rust-review-dependency-reports-20261108-001.tar` contains 129 members/34,877,440 bytes, SHA-256 `a9d352ef3796e436f1f901af38ef2823968c59c605dbc844c26fc03d3512e7d9`. Every member reopens, and twenty-one actual private nonces are excluded, including from decoded ZIPs. Remote delivery, independent review, missing/partial intent and reservation states, partial reports and qualification remain open. Parent exits stay 24/62; model requests/tokens remain zero.
+
+### Upstream receipt and source-map followup
+
+Main `7ac2d7a90d270f71bb45032c77ccb8c5edfada19` merges as `425a921c9aadbf17f0b4eb79ef74d612ae89b082` without conflicts. All twenty incoming files match upstream. The reviewed Git fixture and scenario update two source hashes; the immutable 420-file Python baseline and 440-file inventory remain. The first merged suite rejects a stale controller-tree expectation. Independent data-only oracle `3e0971d2…` checks bootstrap's unchanged selection and all 409 file hashes/eleven directory modes, deriving `52da7281…` without importing or executing controller code. `85814edab` updates the source delta and expected test pin.
+
+All 677 merged Mac tests, formatting, Mac/ARM Clippy and default host builds pass. Native library/CLI/test targets compile on Mac and ARM; Native product tests are not executed on the host. The existing musl warning stays visible. Validation `upstream-receipt-recovery-20261108-validation-005.json` binds nineteen records, SHA-256 `3ae79738f0da291f5ea9fe16e3e7a3294f0c33e1d2a50357a733474ff58d83a6`. Recovery source hashes remain unchanged. Live product execution still belongs to `53c64ae96`; newer-source qualification stays open.
