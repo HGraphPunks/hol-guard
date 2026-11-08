@@ -249,7 +249,7 @@ fn reused_numeric_pid_cannot_borrow_a_previous_generation_final_status() {
     assert!(check(&rows).is_err());
 }
 
-mod pipes {
+pub(crate) mod pipes {
     use super::*;
     use crate::native_process_event_files::native_pipe_events;
     const CORE: &str = "/opt/hol-gauntlet/candidates/pinned/prefix/lib/python3.12/site-packages/codex_plugin_scanner/_native/hol-guard-runtime";
@@ -267,7 +267,7 @@ mod pipes {
         }
         value
     }
-    fn fixture() -> (Rows, Rows, Value) {
+    pub(crate) fn fixture() -> (Rows, Rows, Value) {
         let actor = shaped(42, 7, 1, &[WRAPPER, "actor"], false);
         let wrapper = shaped(
             43,

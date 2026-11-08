@@ -2,7 +2,7 @@
 //! The host must authenticate the report and pin the public archive first.
 use crate::crypto::sha256;
 use crate::native_diagnostic_artifacts::{
-    argv, digest, handoff, ineligible, request_argv, require, text, Artifacts,
+    argv, digest, handoff, ineligible, request_argv, require, text, transport_argv, Artifacts,
 };
 use crate::{canonical_value, Result};
 use serde_json::{json, Value};
@@ -96,7 +96,13 @@ fn bindings(control: &Value, prefix: &str, artifacts: &Artifacts<'_>) -> Result<
                 },
         )?;
         let command = argv(&row["native_command"])?;
-        require(command == request_argv(prefix, text(&row["handoff"], "path")?, declared))?;
+        require(
+            command
+                == transport_argv(
+                    &control["plane"],
+                    request_argv(prefix, text(&row["handoff"], "path")?, declared),
+                )?,
+        )?;
         let stderr = text(row, "stderr")?;
         require(
             row["exit_code"].as_i64() == Some(126)

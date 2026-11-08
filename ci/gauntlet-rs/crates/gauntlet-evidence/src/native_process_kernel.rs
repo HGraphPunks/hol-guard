@@ -117,7 +117,10 @@ impl<'a> KernelSamples<'a> {
                 (launch["schema"] == "hol-gauntlet-cell-supervisor.v3"
                     && launch["process_events"] == "outside-root-ptrace.v1")
                     || (launch["schema"] == "hol-gauntlet-cell-supervisor.v4"
-                        && launch["process_events"] == "outside-root-ptrace.v2"),
+                        && launch["process_events"] == "outside-root-ptrace.v2")
+                    || (launch["schema"] == "hol-gauntlet-cell-supervisor.v5"
+                        && launch["process_events"] == "outside-root-ptrace.v1"
+                        && launch["native_stdio"] == "outside-root-native-pipes.v1"),
             )?;
         }
         Self::new(observed, observer_sha256)

@@ -86,7 +86,8 @@ Native client exec joins, privilege floors, pipe objects, accepted byte prefixes
 offsets, drained EOFs and independently recomputed counts. Framing retains
 partial or malformed streams explicitly. An empty owner grants no byte credit.
 Public pins alone grant no observer, signing-key or preparation admission.
-Full v5 integration into the signed control-artifact readers remains open.
+The v5 control-artifact route is implemented in the reader checkpoint below;
+fresh signed v5 export/control acceptance and outside admission remain open.
 
 The complete hook/sink control is **failed**, not passed. Its actual Pre response
 requires `python-eval-readonly-v1`; the old one-use ledger requires
@@ -142,6 +143,38 @@ digest `aac18d28…`. This controller is not installed, and the earlier live pip
 proof does not become a fresh merged-product qualification. See the
 [upstream checkpoint](gauntlet-rust-execution-checklist.md#0-baseline-inventory-and-differential-corpus)
 for exact records and source pins.
+
+The next reader slice changes fifteen existing source/test files, all at most
+499 lines, without adding a file, crate, binary target or dependency. V5 binds
+the signed-report journal checkpoints to distinct Root file identities and
+checks owner readiness before actor release and terminal closure after complete
+process history. It recomputes the rootfs/configuration/supervisor/manifest
+relations under the supplied preparation pin. Captures must use the reader's
+exact embedded launch adapter. Each selected Guard CLI must join to its own
+traced Native client and completed Root pipe session; the historical malformed
+input exception remains explicit and cannot fabricate a client observation.
+Legacy v1–v4 routes cannot borrow v5 fields or pipe journals.
+
+Eight new tests cover these boundaries and refusals. All 700 Mac workspace
+tests and warnings-denied Mac/ARM Clippy pass. Nine selected tests also pass as
+UID/GID 65532 with no groups/capabilities and no-new-privileges in the ARM VM.
+ELF `4549b69a…` is measured at its post-exec stop before its first instruction;
+scope 014 is removed with zero OOM/PID-limit events and no forced cleanup.
+All four leases and 334 historical metadata rows remain unchanged. The fresh
+standalone reader reproduces the earlier 87,064-byte replay exactly.
+
+These are inert artifact-boundary tests, not a successful fresh product run.
+The current embedded adapter pin intentionally refuses an older WIP adapter.
+Reported preparation relations do not admit the observer, signing key or
+outside source; all those flags, request semantics and writer attribution stay
+false. The read-only profile mismatch still blocks the full control.
+
+| Reader evidence under `native-wire-20261108-tools-001/` | SHA-256 |
+| --- | --- |
+| `v5-reader-source-002.json` | `a666e5cf201f7cbd8ffaa44af1c6e90b4224cc6297fcbb74a11f8aa052e4b8cf` |
+| `v5-reader-validation-001.json` | `93e9299db5ecdbeb0e54a9c12a153265ae20b5063d0f34181c5c1d3437fb0706` |
+| `v5-reader-vm-tests-001.json` | `66a2dd823163696142142667def4484fa00825df0729f6381506a30e0f9486c8` |
+| `independent-pipe-replay-001/v5-host-legacy-replay-001.json` | `508241fcdb49007088a4dc2afead4bd11a5a197e5acae07fcea6551cf0aa7b46` |
 
 Model use and quota changes are zero. Remote evidence delivery, independent
 review and all five current-head CI jobs remain required. The parent count

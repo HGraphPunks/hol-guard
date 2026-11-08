@@ -199,7 +199,11 @@ pub(crate) fn verify(
 ) -> Result<Option<Value>> {
     if !matches!(
         preparation["launch"]["schema"].as_str(),
-        Some("hol-gauntlet-cell-supervisor.v3" | "hol-gauntlet-cell-supervisor.v4")
+        Some(
+            "hol-gauntlet-cell-supervisor.v3"
+                | "hol-gauntlet-cell-supervisor.v4"
+                | "hol-gauntlet-cell-supervisor.v5"
+        )
     ) {
         return Ok(None);
     }

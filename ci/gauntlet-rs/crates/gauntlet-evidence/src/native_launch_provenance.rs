@@ -33,12 +33,20 @@ pub(crate) fn verify(
                 "hol-gauntlet-cell-supervisor.v2"
                     | "hol-gauntlet-cell-supervisor.v3"
                     | "hol-gauntlet-cell-supervisor.v4"
+                    | "hol-gauntlet-cell-supervisor.v5"
             )
         ) && (launch["schema"] != "hol-gauntlet-cell-supervisor.v3"
             || launch["process_events"] == "outside-root-ptrace.v1")
             && (launch["schema"] != "hol-gauntlet-cell-supervisor.v4"
                 || (launch["process_events"] == "outside-root-ptrace.v2"
                     && launch["native_stdio"] == "outside-root-native-stdio.v1"
+                    && hex(
+                        crate::native_diagnostic_artifacts::text(launch, "native_runtime_sha256")?,
+                        64,
+                    )))
+            && (launch["schema"] != "hol-gauntlet-cell-supervisor.v5"
+                || (launch["process_events"] == "outside-root-ptrace.v1"
+                    && launch["native_stdio"] == "outside-root-native-pipes.v1"
                     && hex(
                         crate::native_diagnostic_artifacts::text(launch, "native_runtime_sha256")?,
                         64,
@@ -150,5 +158,23 @@ mod tests {
         assert!(read(&prep, &events, false).is_err());
         prep["launch"]["process_events"] = json!("poll");
         assert!(read(&prep, &events, true).is_err());
+    }
+
+    #[test]
+    fn v5_requires_pipe_mode_v1_recorder_and_actual_native_pin() {
+        let (mut prep, events) = fixture();
+        prep["launch"] = json!({"schema":"hol-gauntlet-cell-supervisor.v5","process_events":"outside-root-ptrace.v1",
+            "native_stdio":"outside-root-native-pipes.v1","native_runtime_sha256":"c".repeat(64),
+            "image_interpreter_sha256":"a".repeat(64),"outside_observer_sha256":"b".repeat(64)});
+        assert!(read(&prep, &events, true).unwrap().is_some());
+        for (key, value) in [
+            ("process_events", json!("outside-root-ptrace.v2")),
+            ("native_stdio", json!("outside-root-native-stdio.v1")),
+            ("native_runtime_sha256", json!(false)),
+        ] {
+            let mut changed = prep.clone();
+            changed["launch"][key] = value;
+            assert!(read(&changed, &events, true).is_err(), "{key}");
+        }
     }
 }

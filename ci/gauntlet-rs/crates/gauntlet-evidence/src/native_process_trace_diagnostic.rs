@@ -57,9 +57,24 @@ pub(crate) fn verify(
     journal_bound: bool,
 ) -> Result<Option<Value>> {
     let stdio = preparation["launch"]["schema"] == "hol-gauntlet-cell-supervisor.v4";
-    let traced = stdio || preparation["launch"]["schema"] == "hol-gauntlet-cell-supervisor.v3";
+    let pipes = preparation["launch"]["schema"] == "hol-gauntlet-cell-supervisor.v5";
+    let traced =
+        stdio || pipes || preparation["launch"]["schema"] == "hol-gauntlet-cell-supervisor.v3";
     if !stdio {
         require(!artifacts.contains("combined/cell/native-stdio-events.v1.jsonl"))?;
+    }
+    if !pipes {
+        require(
+            !artifacts.contains("combined/cell/native-pipe-events.v1.jsonl")
+                && plane.get("native_pipe_bytes").is_none()
+                && plane.get("native_launch_adapter_sha256").is_none()
+                && !artifacts.events.iter().any(|r| {
+                    matches!(
+                        r["kind"].as_str(),
+                        Some("native-pipe-owner-ready" | "native-pipe-owner-terminal")
+                    )
+                }),
+        )?;
     }
     if !traced {
         require(
@@ -83,7 +98,9 @@ pub(crate) fn verify(
                     "outside-root-ptrace.v1"
                 })
             && plane["schema"]
-                == (if stdio {
+                == (if pipes {
+                    "hol-gauntlet-native-hook-plane.v4"
+                } else if stdio {
                     "hol-gauntlet-native-hook-plane.v3"
                 } else {
                     "hol-gauntlet-native-hook-plane.v2"
@@ -133,6 +150,9 @@ pub(crate) fn verify(
     let (started, start) = unique(&artifacts.events, "process-events-started")?;
     let (ready, _) = unique(&artifacts.events, "actor-ready")?;
     let (closed, close) = unique(&artifacts.events, "process-events-closed")?;
+    if pipes {
+        crate::native_stdio_diagnostic::pipe_lifecycle(plane, artifacts, started, ready, closed)?;
+    }
     require(
         filtered < started
             && started < ready
@@ -209,4 +229,4 @@ pub(crate) fn verify(
 
 #[cfg(test)]
 #[path = "native_process_trace_diagnostic_tests.rs"]
-mod tests;
+pub(crate) mod tests;

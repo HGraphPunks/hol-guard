@@ -2,7 +2,8 @@
 use crate::crypto::sha256;
 use crate::native_binding_diagnostic::authorization;
 use crate::native_diagnostic_artifacts::{
-    argv, digest, guard_argv, handoff, ineligible, parse, request_argv, require, text, Artifacts,
+    argv, digest, guard_argv, handoff, ineligible, parse, request_argv, require, text,
+    transport_argv, Artifacts,
 };
 use crate::{canonical_value, EvidenceError, Result};
 use serde_json::{json, Value};
@@ -62,6 +63,7 @@ pub(crate) fn verify(control: &Value, prefix: &str, artifacts: &Artifacts<'_>) -
         "workspace":"/runtime/home/project","payload":payload}))?;
     handoff(&f["request"], &raw)?;
     let command = request_argv(prefix, text(&f["request"], "path")?, &sha256(&raw));
+    let command = transport_argv(&control["plane"], command)?;
     require(argv(&f["native_command"])? == command)?;
     let observations =
         control["plane"]["observations"]
@@ -167,6 +169,7 @@ pub(crate) fn verify(control: &Value, prefix: &str, artifacts: &Artifacts<'_>) -
             "/runtime/home/project",
         ],
     );
+    let hook_command = transport_argv(&control["plane"], hook_command)?;
     let capture = artifacts.capture(
         &hook_command,
         0,

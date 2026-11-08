@@ -2,6 +2,129 @@ use super::*;
 use crate::canonical_value;
 use crate::native_process_events::tests::{image_value, pack, task_value};
 use std::collections::BTreeMap;
+
+pub(crate) fn reindex(files: &mut BTreeMap<String, Vec<u8>>, metadata: Value) {
+    files.remove("results.sha256.json");
+    let pins = files
+        .iter()
+        .map(|(p, b)| (p.clone(), json!({"bytes":b.len(),"sha256":sha256(b)})))
+        .collect::<BTreeMap<_, _>>();
+    files.insert(
+        "results.sha256.json".into(),
+        canonical_value(&json!({"files":pins,"filesystem":metadata,
+        "execution_eligible":false,"guard_causality_verified":false,"model_requests":0}))
+        .unwrap(),
+    );
+}
+
+// Inert boundary fixture; no product execution, observer admission or role score.
+pub(crate) fn pipe_fixture() -> (Value, Value, BTreeMap<String, Vec<u8>>) {
+    let (process, pipe, config) = crate::native_process_events::tests::pipes::fixture();
+    let (process, checkpoint) = pack(&process);
+    let (pipe_raw, mut pipe_pin) = pack(&pipe);
+    pipe_pin["journal"]["inode"] = json!(3);
+    let actor = &pipe[0].1["actor"];
+    let mut source = crate::fixed_native_private_cell_sources()
+        .into_iter()
+        .map(|(p, b)| (p, sha256(b)))
+        .collect::<BTreeMap<_, _>>();
+    source.insert("public/initializer".into(), "d".repeat(64));
+    source.insert("public/gauntlet-product-cell".into(), "a".repeat(64));
+    let manifest = canonical_value(&json!({"schema":"product-cell-artifacts.v2","files":source,
+        "runtime":{"schema":"product-cell-native-runtime.v1","actor_sha256":"a".repeat(64)}}))
+    .unwrap();
+    let preparation = json!({"schema":"hol-gauntlet-cell-preparation.v1","stage":"/var/lib/hol-gauntlet-rust/fixture/cell",
+        "runtime_prefix":"/opt/hol-gauntlet/candidates/pinned/prefix","initializer_sha256":"d".repeat(64),
+        "artifact_manifest_sha256":sha256(&manifest),"image_id":format!("sha256:{}", "e".repeat(64)),"runtime_tree_digest":"f".repeat(64),
+        "launch":{"schema":"hol-gauntlet-cell-supervisor.v5","process_events":"outside-root-ptrace.v1",
+        "native_stdio":"outside-root-native-pipes.v1","native_runtime_sha256":"b".repeat(64),"constructor_sha256":"c".repeat(64)}});
+    let rootfs = canonical_value(&json!({"schema":"hol-gauntlet-product-rootfs.v2","stage":preparation["stage"],
+        "initializer_sha256":preparation["initializer_sha256"],"artifact_manifest_sha256":preparation["artifact_manifest_sha256"],
+        "system_spec_sha256":"1".repeat(64),"task_spec_sha256":"2".repeat(64),"runtime_spec_sha256":"3".repeat(64),
+        "idmap_runtime":"ubuntu2404-controller-v1","state":"persistent-v1","network_profile":"private-loopback-v1",
+        "parent_network_namespace":"net:[123]","native_wire_sha256":sha256(&canonical_value(&config).unwrap())})).unwrap();
+    let mut supervisor = preparation["launch"].clone();
+    supervisor["rootfs_declaration"] =
+        json!("/var/lib/hol-gauntlet-rust/fixture/cell/native-rootfs.v1.json");
+    supervisor["rootfs_sha256"] = json!(sha256(&rootfs));
+    let supervisor = canonical_value(&supervisor).unwrap();
+    let observation = json!({"schema":"hol-gauntlet-native-process-recorder.v1","available":true,"checkpoint":checkpoint});
+    let main_rows = [
+        (
+            "prepared",
+            json!({"supervisor_declaration_sha256":sha256(&supervisor),"rootfs_declaration_sha256":sha256(&rootfs),"constructor_sha256":"c".repeat(64)}),
+        ),
+        ("filtered-cell", actor.clone()),
+        (
+            "process-events-started",
+            json!({"schema":"hol-gauntlet-native-process-recorder-started.v1","mode":"outside-root-ptrace.v1","tracer_tid":99,"actor":actor,"execution_eligible":false}),
+        ),
+        (
+            "native-pipe-owner-ready",
+            json!({"schema":"hol-gauntlet-native-pipes.v1","execution_eligible":false}),
+        ),
+        ("actor-ready", json!({})),
+        (
+            "rust-preparation-bound",
+            json!({"preparation_sha256":crate::native_diagnostic_artifacts::digest(&preparation).unwrap(),"rust_image_lease_owned":true,
+            "image_id":preparation["image_id"],"runtime_tree_digest":preparation["runtime_tree_digest"],"artifact_manifest_sha256":preparation["artifact_manifest_sha256"]}),
+        ),
+        (
+            "capture-input-terminal",
+            json!({"schema":"hol-gauntlet-capture-input-terminal.v1","handle":"12345678-1234-1234-1234-1234567890ab",
+            "argv_sha256":sha256(b"/usr/bin/true"),"expected_sha256":sha256(b""),"expected_bytes":0,"delivered_sha256":sha256(b""),
+            "delivered_bytes":0,"stdin_close_acknowledged":true,"input_complete":true,"execution_eligible":false,"guard_causality_verified":false,"model_requests":0}),
+        ),
+        ("process-events-closed", observation.clone()),
+        (
+            "native-pipe-owner-terminal",
+            json!({"available":true,"binding":pipe_pin["journal"],"execution_eligible":false}),
+        ),
+        ("terminal-cleanup", json!({})),
+    ];
+    let (main, mut main_pin) = pack(&main_rows);
+    main_pin["journal"]["inode"] = json!(4);
+    let plane = json!({"schema":"hol-gauntlet-native-hook-plane.v4","cleanup_complete":true,"process_events":observation,
+        "native_pipe_bytes":{"schema":"hol-gauntlet-native-pipes.v1","available":true,"binding":pipe_pin["journal"],"execution_eligible":false,"exclusive_product_authorship_verified":false},
+        "capture_journal":main_pin["journal"],"capture_input_receipt_schema":"hol-gauntlet-capture-input-terminal.v1",
+        "native_launch_adapter_sha256":sha256(crate::native_diagnostic_artifacts::PIPE_LAUNCH.as_bytes())});
+    let mut files = BTreeMap::from([
+        (
+            "combined/cell/native-supervisor-events.v1.jsonl".into(),
+            main,
+        ),
+        (FILE.into(), process),
+        ("combined/cell/native-pipe-events.v1.jsonl".into(), pipe_raw),
+        (
+            "combined/cell/native-wire.v1.json".into(),
+            canonical_value(&config).unwrap(),
+        ),
+        ("combined/cell/native-rootfs.v1.json".into(), rootfs),
+        ("combined/cell/native-supervisor.v1.json".into(), supervisor),
+        ("combined/cell/cell-artifact-manifest.json".into(), manifest),
+    ]);
+    let mut metadata = json!({});
+    for (i, name) in files.keys().enumerate() {
+        metadata[name] = json!({"device":1,"inode":10+i,"uid":0,"gid":0,"mode":0o444,"links":1});
+    }
+    for (name, journal) in [
+        (FILE, &checkpoint["journal"]),
+        (
+            "combined/cell/native-supervisor-events.v1.jsonl",
+            &main_pin["journal"],
+        ),
+        (
+            "combined/cell/native-pipe-events.v1.jsonl",
+            &pipe_pin["journal"],
+        ),
+    ] {
+        metadata[name] = journal.clone();
+    }
+    reindex(&mut files, metadata);
+    let control = json!({"plane":plane,"guard_pins":{"native_sha256":"b".repeat(64)},
+        "preparation_sha256":crate::native_diagnostic_artifacts::digest(&preparation).unwrap()});
+    (control, preparation, files)
+}
 fn stdio_fixture() -> Fixture {
     let mut fixture = Fixture::new();
     let declaration = json!({"mode":"outside-root-native-stdio.v1","native_runtime_sha256":"b".repeat(64),

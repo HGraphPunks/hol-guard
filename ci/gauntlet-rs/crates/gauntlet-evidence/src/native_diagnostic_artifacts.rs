@@ -62,6 +62,37 @@ pub(crate) fn guard_argv(prefix: &str, tail: &[&str]) -> Vec<String> {
     result.extend(tail.iter().map(|v| (*v).to_owned()));
     result
 }
+// Inert verifier bytes: never executed by the trusted reader. A v5 capture
+// must contain this exact source, not an arbitrary caller-supplied bootstrap.
+pub(crate) const PIPE_LAUNCH: &str = include_str!("../../../adapters/native_pipe_launch_v1.py");
+pub(crate) fn transport_argv(plane: &Value, command: Vec<String>) -> Result<Vec<String>> {
+    if plane["schema"] != "hol-gauntlet-native-hook-plane.v4" {
+        require(
+            plane.get("native_launch_adapter_sha256").is_none()
+                && plane.get("native_pipe_bytes").is_none(),
+        )?;
+        return Ok(command);
+    }
+    require(plane["native_launch_adapter_sha256"] == sha256(PIPE_LAUNCH.as_bytes()))?;
+    let prefix = command
+        .first()
+        .and_then(|s| s.strip_suffix("/bin/python"))
+        .ok_or(EvidenceError::Invalid("fixed prefix Python required"))?;
+    require(
+        command.len() >= 6
+            && command[1..6] == ["-I", "-B", "-m", "codex_plugin_scanner.cli", "guard"],
+    )?;
+    let mut result = command[..3].to_vec();
+    result.extend([
+        "-c".into(),
+        PIPE_LAUNCH.into(),
+        format!(
+            "{prefix}/lib/python3.12/site-packages/codex_plugin_scanner/_native/hol-guard-runtime"
+        ),
+    ]);
+    result.extend_from_slice(&command[3..]);
+    argv(&json!(result))
+}
 pub(crate) fn request_argv(prefix: &str, path: &str, pin: &str) -> Vec<String> {
     guard_argv(
         prefix,
@@ -271,5 +302,36 @@ impl<'a> Artifacts<'a> {
         Err(EvidenceError::Invalid(
             "actual Native capture missing or out of order",
         ))
+    }
+}
+
+#[cfg(test)]
+mod transport_tests {
+    use super::*;
+    #[test]
+    fn v5_uses_exact_embedded_adapter_and_preserves_guard_arguments() {
+        let prefix = "/opt/hol-gauntlet/candidates/pinned/prefix";
+        let old = request_argv(prefix, "/product/home/request.json", &"a".repeat(64));
+        let plane = json!({"schema":"hol-gauntlet-native-hook-plane.v4","native_launch_adapter_sha256":sha256(PIPE_LAUNCH.as_bytes())});
+        let wire = transport_argv(&plane, old.clone()).unwrap();
+        assert_eq!(&wire[..3], &old[..3]);
+        assert_eq!(&wire[3..5], &["-c", PIPE_LAUNCH]);
+        assert_eq!(&wire[6..], &old[3..]);
+        assert!(wire[5].ends_with("/_native/hol-guard-runtime"));
+        for schema in [
+            "hol-gauntlet-native-hook-plane.v1",
+            "hol-gauntlet-native-hook-plane.v2",
+            "hol-gauntlet-native-hook-plane.v3",
+        ] {
+            assert_eq!(
+                transport_argv(&json!({"schema":schema}), old.clone()).unwrap(),
+                old
+            );
+        }
+        let mut wrong = plane;
+        wrong["native_launch_adapter_sha256"] = json!("f".repeat(64));
+        assert!(transport_argv(&wrong, old.clone()).is_err());
+        wrong["schema"] = json!("hol-gauntlet-native-hook-plane.v3");
+        assert!(transport_argv(&wrong, old).is_err());
     }
 }

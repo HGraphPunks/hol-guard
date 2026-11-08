@@ -30,8 +30,9 @@ with evidence. Code volume and checked substeps do not establish completion.
   to one durable dispatch through the existing bounded Rust stream owner.
   Partial, linked, orphaned or uncertain records cannot allow replay. Two
   existing Rust files change, both below 500 lines; no new file, crate, target
-  or dependency. **692 Mac tests**, formatting, warnings-denied Mac/ARM Clippy
-  and **15 measured Linux component tests** pass. The new main's Native
+  or dependency. **700 Mac tests**, formatting and warnings-denied Mac/ARM
+  Clippy pass. Separate pinned runs retain 15 Linux producer checks and nine
+  new unprivileged ARM reader checks. The new main's Native
   library/CLI/test targets compile on Mac/ARM without executing product tests.
 - Exact live product `74d8d0081` includes main `84ba6e4da`; controller tree
   is `52da7281…`. Build `c2e80b4915f76a3d` passes four selected and 185
@@ -53,9 +54,13 @@ with evidence. Code volume and checked substeps do not establish completion.
   Rust replay is identical. Five necessary source files reuse existing crates,
   binary targets and tests. All five failed live attempts and checked recoveries
   remain retained. The full hook/sink control fails Native's read-only profile
-  mismatch; no sink/Post/effect success is credited. Next integrate v5 into the
-  signed artifact readers and support the current containment contract while
-  preserving Native decisions. See [pipe checkpoint](gauntlet-rust-native-stdio-plan.md#root-owned-pipe-transport-checkpoint-november-8).
+  mismatch; no sink/Post/effect success is credited. The v5 artifact-reader
+  route now binds reported preparation declarations, exact launch source and
+  each CLI's traced pipe session. Source `a666e5cf…` changes fifteen existing
+  files; validation `93e9299d…` verifies thirteen records. Fresh signed v5
+  export/control acceptance and outside admission stay open. Next support
+  Native's current containment contract with versioned utility and write-refusal
+  expectations, preserving its decisions and old fixtures. See [pipe checkpoint](gauntlet-rust-native-stdio-plan.md#root-owned-pipe-transport-checkpoint-november-8).
 - Validation `dddb9d04…` binds 116 public evidence files; bundle
   `gauntlet-rust-review-primary-transfer-20261108-002.tar` has
   118 members/53,258,240 bytes, SHA-256 `587ccd27…`.

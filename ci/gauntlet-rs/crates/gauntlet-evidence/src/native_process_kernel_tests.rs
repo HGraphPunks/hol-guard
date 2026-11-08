@@ -130,12 +130,16 @@ fn v2_limits_are_closed_pinned_and_available_only_to_traced_launch_v3() {
     assert!(KernelSamples::for_launch(&observed, &"d".repeat(64), &traced).is_ok());
     let stdio = json!({"schema":"hol-gauntlet-cell-supervisor.v4","process_events":"outside-root-ptrace.v2"});
     assert!(KernelSamples::for_launch(&observed, &"d".repeat(64), &stdio).is_ok());
+    let pipes = json!({"schema":"hol-gauntlet-cell-supervisor.v5","process_events":"outside-root-ptrace.v1","native_stdio":"outside-root-native-pipes.v1"});
+    assert!(KernelSamples::for_launch(&observed, &"d".repeat(64), &pipes).is_ok());
     for launch in [
         json!({"schema":"hol-gauntlet-cell-supervisor.v1"}),
         json!({"schema":"hol-gauntlet-cell-supervisor.v2"}),
         json!({"schema":"hol-gauntlet-cell-supervisor.v3"}),
         json!({"schema":"hol-gauntlet-cell-supervisor.v3", "process_events":"other"}),
         json!({"schema":"hol-gauntlet-cell-supervisor.v4","process_events":"outside-root-ptrace.v1"}),
+        json!({"schema":"hol-gauntlet-cell-supervisor.v5","process_events":"outside-root-ptrace.v2","native_stdio":"outside-root-native-pipes.v1"}),
+        json!({"schema":"hol-gauntlet-cell-supervisor.v5","process_events":"outside-root-ptrace.v1","native_stdio":"outside-root-native-stdio.v1"}),
     ] {
         assert!(KernelSamples::for_launch(&observed, &"d".repeat(64), &launch).is_err());
     }

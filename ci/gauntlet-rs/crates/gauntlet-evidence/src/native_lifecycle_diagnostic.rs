@@ -2,7 +2,7 @@
 //! The outside observer and historical journal still require separate admission.
 use crate::crypto::sha256;
 use crate::native_diagnostic_artifacts::{
-    argv, digest, handoff, ineligible, request_argv, require, text, Artifacts,
+    argv, digest, handoff, ineligible, request_argv, require, text, transport_argv, Artifacts,
 };
 use crate::native_lifecycle_fixture::{fixture, held_file, readiness};
 use crate::native_process_kernel::{list, number, KernelSamples};
@@ -115,6 +115,7 @@ pub(crate) fn verify(
     if role == "cancel" {
         *command.last_mut().unwrap() = "30".into();
     }
+    let command = transport_argv(&control["plane"], command)?;
     let mut gated = vec!["/public/gauntlet-product-cell".into(), "exec-gate".into()];
     gated.extend(command.clone());
     require(

@@ -2,7 +2,7 @@
 //! Missing historical stdin receipts remain unverified; no role is admitted.
 use crate::crypto::sha256;
 use crate::native_diagnostic_artifacts::{
-    argv, digest, guard_argv, handoff, request_argv, require, text, Artifacts,
+    argv, digest, guard_argv, handoff, request_argv, require, text, transport_argv, Artifacts,
 };
 use crate::native_process_kernel::list;
 use crate::{canonical_value, EvidenceError, Result};
@@ -109,6 +109,7 @@ pub fn verify_native_hook_diagnostic(
     let plane_schema = match preparation["launch"]["schema"].as_str() {
         Some("hol-gauntlet-cell-supervisor.v3") => "hol-gauntlet-native-hook-plane.v2",
         Some("hol-gauntlet-cell-supervisor.v4") => "hol-gauntlet-native-hook-plane.v3",
+        Some("hol-gauntlet-cell-supervisor.v5") => "hol-gauntlet-native-hook-plane.v4",
         _ => "hol-gauntlet-native-hook-plane.v1",
     };
     require(
@@ -140,6 +141,7 @@ pub fn verify_native_hook_diagnostic(
             "/runtime/home/project",
         ],
     );
+    let command = transport_argv(plane, command)?;
     let mut after = None;
     let mut inputs = Vec::new();
     let mut captures = Vec::new();
@@ -222,6 +224,7 @@ pub fn verify_native_hook_diagnostic(
     if control["control_role"] != "timeout" {
         *command.last_mut().unwrap() = "30".into();
     }
+    let command = transport_argv(plane, command)?;
     let mut sink_input = None;
     if let Some(output) = &output {
         let result = &plane["executions"][0];

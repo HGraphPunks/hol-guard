@@ -60,8 +60,22 @@ explicitly older `74d8d008` generation. The full hook/sink control still fails:
 Native requires `python-eval-readonly-v1`, while the old ledger accepts only
 `workspace-contained-v1`. No sink, Post, physical effect or full-control success
 is credited. All failed attempts, checked recoveries and the 333 historical
-worker records remain intact. Signed v5 artifact integration, source/preparation
+worker records remain intact. Fresh signed v5 acceptance, source/preparation
 admission, operation effects, physical writers and all parent exits remain open.
+
+The v5 artifact-reader route now checks the three distinct Root journals,
+reported preparation/rootfs/configuration/manifest pins, exact embedded launch
+source and each Guard CLI's traced Native pipe session. Source manifest
+`v5-reader-source-002.json` (`a666e5cf…`) passes 700 Mac workspace tests and
+warnings-denied Mac/ARM Clippy. Nine parser tests pass as UID 65532 in the owned
+ARM VM; scope 014 drains without forced cleanup and all 334 historical metadata
+rows remain unchanged. The retained standalone pipe replay stays byte-identical.
+Validation `v5-reader-validation-001.json` hashes to
+`93e9299db5ecdbeb0e54a9c12a153265ae20b5063d0f34181c5c1d3437fb0706`.
+This adds no file, crate, binary target or dependency. These are inert boundary
+tests and historical replay; fresh signed v5 export/control acceptance, outside
+admission, request semantics and physical writers remain open. Parent exits
+remain 24/62.
 
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
