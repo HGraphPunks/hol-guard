@@ -58,10 +58,13 @@ pub(super) fn drain(workers: Vec<JoinHandle<()>>, timeout: Duration) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_os = "macos")]
     use crate::policy_store::policy_store_approval::bash_cancellation::Launches;
     use std::sync::mpsc::sync_channel;
 
+    #[cfg(target_os = "macos")]
     struct StopLaunches(Arc<Launches>);
+    #[cfg(target_os = "macos")]
     impl Drop for StopLaunches {
         fn drop(&mut self) {
             self.0.shutdown();
@@ -69,6 +72,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn single_cpu_budget_serves_policy_metadata_and_cancels_both_active_launches() {
         use std::sync::atomic::Ordering;
         const IDS: [&str; 2] = ["worker-budget-launch-0001", "worker-budget-launch-0002"];
