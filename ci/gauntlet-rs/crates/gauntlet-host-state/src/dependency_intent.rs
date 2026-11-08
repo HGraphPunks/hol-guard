@@ -249,16 +249,17 @@ impl DependencyIntentJournal {
             reader.into(),
         ];
         let raw =
-            run_fixed_intent(&argv, &[], Duration::from_secs(120), 8193, 8192).map_err(|e| {
+            run_fixed_intent(&argv, &[], Duration::from_secs(120), 32769, 8192).map_err(|e| {
                 format!("dependency recovery unavailable; workload cannot retry: {e:?}")
             })?;
         let frame = raw
             .strip_suffix(b"\n")
             .ok_or("canonical dependency recovery response required")?;
-        let mut public = gauntlet_contracts::verify_dependency_repair_result(
+        let mut public = gauntlet_contracts::verify_dependency_recovery_reply(
             intent,
             &started,
             &generation,
+            reader,
             frame,
         )?;
         self.stable()?;
@@ -381,17 +382,13 @@ impl DependencyIntentJournal {
         let raw = match response {
             Ok(raw) => raw,
             Err(_) if self.repair_pins(&intent)?.is_some() => {
+                let authorization = self.repair_pins(&intent)?;
                 let public = self.repaired(&intent, generation, true)?;
                 self.retain_view(
                     &format!("{job}.dependency-reconciled-{generation}.json"),
                     &public,
                 )?;
-                if self.read(job)? != intent
-                    || self.repair_pins(&intent)?.is_none_or(|(started, repair)| {
-                        public["started_marker_sha256"] != started
-                            || public["repair_generation"] != repair
-                    })
-                {
+                if self.read(job)? != intent || self.repair_pins(&intent)? != authorization {
                     return Err("dependency readback pins changed after retention".into());
                 }
                 return Ok(public);
@@ -441,7 +438,7 @@ impl DependencyIntentJournal {
         self.retain_view(&name, &public)?;
         self.stable()?;
         if self.read(job)? != intent
-            || (public["schema"] == "hol-gauntlet-host-dependency-repair.v1"
+            || (public.get("repair_generation").is_some()
                 && self.repair_pins(&intent)?.is_none_or(|(started, repair)| {
                     public["started_marker_sha256"] != started
                         || public["repair_generation"] != repair

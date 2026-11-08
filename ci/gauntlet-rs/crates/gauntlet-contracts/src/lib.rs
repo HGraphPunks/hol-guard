@@ -5,7 +5,8 @@ mod dependency_repair;
 mod dependency_run;
 pub use dependency_repair::{
     dependency_repair_authorization, parse_dependency_repair_authorization,
-    verify_dependency_repair_result, verify_dependency_unknown_result,
+    verify_dependency_recovery_reply, verify_dependency_repair_result,
+    verify_dependency_unknown_result,
 };
 mod feature_run;
 pub use feature_run::{

@@ -322,6 +322,18 @@ fn repair(
     if started.sha256 != expected_started || started.controller_public_key_hex.is_some() {
         return Err("outside dependency reservation differs".into());
     }
+    if owned {
+        if let Some(frame) = crate::dependency_state::finalize_report(
+            &journal,
+            &job_lease,
+            &intent,
+            repair_generation,
+            read_only,
+            &still_owned,
+        )? {
+            return Ok(frame);
+        }
+    }
     for suffix in ["report.json", "terminal.json", "controller-key.json"] {
         match statat(
             &journal.root,

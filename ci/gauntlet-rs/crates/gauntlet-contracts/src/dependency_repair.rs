@@ -111,6 +111,30 @@ pub fn verify_dependency_unknown_result(
     Ok(v)
 }
 
+/// Explicit recovery may complete an original report or retain an aborted run.
+pub fn verify_dependency_recovery_reply(
+    intent: &DependencyRunIntent,
+    started: &str,
+    repair_generation: &str,
+    reader_generation: &str,
+    raw: &[u8],
+) -> Result<Value, String> {
+    dependency_repair_authorization(intent, started, repair_generation)?;
+    if raw.is_empty() || raw.len() > 32768 {
+        return Err("bounded dependency recovery reply required".into());
+    }
+    let value: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;
+    if value["schema"] == "hol-gauntlet-native-dependency-read.v1" {
+        let public = crate::verify_dependency_read_response(intent, reader_generation, raw)?;
+        if value["report"]["started_marker_sha256"] != started {
+            return Err("finalized dependency reservation differs from authorization".into());
+        }
+        Ok(public)
+    } else {
+        verify_dependency_repair_result(intent, started, repair_generation, raw)
+    }
+}
+
 pub fn verify_dependency_repair_result(
     intent: &DependencyRunIntent,
     started: &str,
@@ -394,6 +418,81 @@ mod tests {
             let mut bad = value.clone();
             bad[key] = v;
             assert!(verify(&bad).is_err(), "{key}");
+        }
+    }
+    #[test]
+    fn finalized_report_requires_outside_reservation_and_reader_without_execution_credit() {
+        let intent = DependencyRunIntent::new(
+            pins("0123456789abcdef"),
+            "/usr/bin/limactl",
+            "fixture-vm",
+            &"0".repeat(64),
+        )
+        .unwrap();
+        let report = json!({"schema":"hol-gauntlet-native-dependency-result.v1","job_id":intent.pins.text("job_id"),
+            "source_sha":intent.pins.text("source_sha"),"intent_sha256":intent.digest().unwrap(),
+            "intent":serde_json::from_slice::<Value>(&intent.bytes().unwrap()).unwrap(),
+            "worker_generation":intent.pins.text("runner_binary_sha256"),"started_marker_sha256":"e".repeat(64),
+            "status":"invalid-evidence","exit_code":1,"captured_dependencies_bytes":null,"captured_dependencies_sha256":null,
+            "container_absent":true,"container_cgroup_absent":true,"client_cgroup_drained":true,"build_profile_removed":true,
+            "artifact_admitted":false,"execution_eligible":false,"guard_causality_verified":false,"model_requests":0});
+        let report_hash = |v: &Value| {
+            format!(
+                "{:x}",
+                Sha256::digest(canonicalize(v.to_string().as_bytes()).unwrap())
+            )
+        };
+        let original = json!({"schema":"hol-gauntlet-native-dependency-read.v1","reader_generation":"8".repeat(64),
+            "intent_sha256":intent.digest().unwrap(),"report_sha256":report_hash(&report),"terminal_sha256":"9".repeat(64),
+            "report":report,"archive_proof":null,"artifact_admitted":false,"execution_eligible":false,"qualification_eligible":false,
+            "guard_causality_verified":false,"model_requests":0,"model_tokens":0});
+        let verify = |v: &Value, started: &str, reader: &str| {
+            verify_dependency_recovery_reply(
+                &intent,
+                started,
+                &"d".repeat(64),
+                reader,
+                &canonicalize(v.to_string().as_bytes()).unwrap(),
+            )
+        };
+        let public = verify(&original, &"e".repeat(64), &"8".repeat(64)).unwrap();
+        assert_eq!(public["status"], "invalid-evidence");
+        assert_eq!(public["retained_result_reconciled"], true);
+        assert!(!public.to_string().contains(&intent.nonce));
+        assert!(verify(&original, &"f".repeat(64), &"8".repeat(64)).is_err());
+        assert!(verify(&original, &"e".repeat(64), &"7".repeat(64)).is_err());
+        for field in [
+            "schema",
+            "reader_generation",
+            "intent_sha256",
+            "report_sha256",
+            "terminal_sha256",
+            "report-intent",
+            "report-started",
+            "archive_proof",
+            "extra",
+            "missing",
+            "qualification_eligible",
+            "model_tokens",
+        ] {
+            let mut bad = original.clone();
+            match field {
+                "report-intent" => bad["report"]["intent"]["vm"] = json!("foreign"),
+                "report-started" => {
+                    bad["report"]["started_marker_sha256"] = json!("f".repeat(64));
+                    bad["report_sha256"] = json!(report_hash(&bad["report"]));
+                }
+                "missing" => {
+                    bad.as_object_mut().unwrap().remove("report_sha256");
+                }
+                "qualification_eligible" => bad[field] = json!(true),
+                "model_tokens" => bad[field] = json!(1),
+                _ => bad[field] = json!("invalid"),
+            }
+            assert!(
+                verify(&bad, &"e".repeat(64), &"8".repeat(64)).is_err(),
+                "{field}"
+            );
         }
     }
 }

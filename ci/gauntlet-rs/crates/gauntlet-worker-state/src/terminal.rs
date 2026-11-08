@@ -12,8 +12,9 @@ use std::io::Write;
 
 const TERMINAL_SCHEMA_V1: &str = "hol-gauntlet-worker-terminal.v1";
 const TERMINAL_SCHEMA_V2: &str = "hol-gauntlet-worker-terminal.v2";
-const MAX_TERMINAL_BYTES: u64 = 2048;
+pub(crate) const MAX_TERMINAL_BYTES: u64 = 2048;
 const MAX_REPORT_BYTES: u64 = 16 * 1024 * 1024;
+type RetainedPublication<'a> = Option<&'a dyn Fn(&[u8]) -> Result<(), ReservationError>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProcessIdentity {
@@ -63,15 +64,15 @@ pub struct TerminalReceipt {
     pub sha256: String,
 }
 
-fn digest(bytes: &[u8]) -> String {
+pub(crate) fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
-fn report_name(job_id: &str) -> String {
+pub(crate) fn report_name(job_id: &str) -> String {
     format!("{job_id}.report.json")
 }
 
-fn terminal_name(job_id: &str) -> String {
+pub(crate) fn terminal_name(job_id: &str) -> String {
     format!("{job_id}.terminal.json")
 }
 
@@ -186,6 +187,7 @@ impl RunReservationJournal {
             exit_code,
             status,
             None,
+            None,
         )
     }
 
@@ -205,6 +207,7 @@ impl RunReservationJournal {
         exit_code: i32,
         status: TerminalOutcome,
         expected_controller_key_pin_sha256: Option<&str>,
+        retained_publication: RetainedPublication<'_>,
     ) -> Result<TerminalReceipt, ReservationError> {
         if request.action() != WorkerAction::Run
             || !request.matches_deployment(source_sha, deployment_digest)
@@ -237,6 +240,11 @@ impl RunReservationJournal {
             return Err(ReservationError::InvalidMarker);
         }
         let key_fields = terminal_key_fields(self, &started, expected_controller_key_pin_sha256)?;
+        if retained_publication.is_some()
+            && (status != TerminalOutcome::InvalidEvidence || key_fields.is_some())
+        {
+            return Err(ReservationError::InvalidMarker);
+        }
         let job_id = request.job_id();
         match statat(
             &self.root,
@@ -270,8 +278,23 @@ impl RunReservationJournal {
         if bytes.len() as u64 > MAX_TERMINAL_BYTES {
             return Err(ReservationError::InvalidMarker);
         }
-        create_durable(&self.root, &report_name(job_id), report_raw)?;
-        create_durable(&self.root, &terminal_name(job_id), &bytes)?;
+        if let Some(publish) = retained_publication {
+            if read_bounded_regular(&self.root, &report_name(job_id), MAX_REPORT_BYTES)?.as_deref()
+                != Some(report_raw)
+            {
+                return Err(ReservationError::InvalidMarker);
+            }
+            publish(&bytes)?;
+            if read_bounded_regular(&self.root, &terminal_name(job_id), MAX_TERMINAL_BYTES)?
+                .as_deref()
+                != Some(bytes.as_slice())
+            {
+                return Err(ReservationError::InvalidMarker);
+            }
+        } else {
+            create_durable(&self.root, &report_name(job_id), report_raw)?;
+            create_durable(&self.root, &terminal_name(job_id), &bytes)?;
+        }
         if key_fields.is_some() {
             terminal_key_fields(self, &started, expected_controller_key_pin_sha256)?;
         }
@@ -396,102 +419,6 @@ impl RunReservationJournal {
             exit_code,
             status,
             sha256: digest(&bytes),
-        }))
-    }
-
-    /// Reopen an already completed Rust deterministic diagnostic for a host
-    /// that retained the key before launch. This exports only the bounded
-    /// invalid-evidence terminal and diagnostic summary, then independently
-    /// reopens the fixed deterministic controller report to check its digest.
-    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-    pub fn read_deterministic_diagnostic_root_owned(
-        &self,
-        job_id: &str,
-        source_sha: &str,
-        deployment_digest: &str,
-        worker_generation: &str,
-    ) -> Result<Value, ReservationError> {
-        use gauntlet_evidence::observe_deterministic_report_root_owned_ineligible;
-
-        if !self.root_owned {
-            return Err(ReservationError::UnsafeRoot);
-        }
-        let first = self
-            .terminal(job_id, source_sha, deployment_digest, worker_generation)?
-            .ok_or(ReservationError::InvalidMarker)?;
-        if first.status != TerminalOutcome::InvalidEvidence
-            || first.controller_key_pin_sha256.is_none()
-        {
-            return Err(ReservationError::InvalidMarker);
-        }
-        crate::require_rust_job_slice_absent(job_id)?;
-        let terminal_raw =
-            read_bounded_regular(&self.root, &terminal_name(job_id), MAX_TERMINAL_BYTES)?
-                .ok_or(ReservationError::InvalidMarker)?;
-        let report_raw = read_bounded_regular(&self.root, &report_name(job_id), 8192)?
-            .ok_or(ReservationError::InvalidMarker)?;
-        if digest(&terminal_raw) != first.sha256 || digest(&report_raw) != first.report_sha256 {
-            return Err(ReservationError::InvalidMarker);
-        }
-        let terminal: Value =
-            serde_json::from_slice(&terminal_raw).map_err(|_| ReservationError::InvalidMarker)?;
-        let report: Value =
-            serde_json::from_slice(&report_raw).map_err(|_| ReservationError::InvalidMarker)?;
-        let config_digest = report["config_digest"]
-            .as_str()
-            .filter(|value| hex(value, 64))
-            .ok_or(ReservationError::InvalidMarker)?;
-        let expected_deterministic_sha = report["deterministic_report_sha256"]
-            .as_str()
-            .filter(|value| hex(value, 64))
-            .ok_or(ReservationError::InvalidMarker)?;
-        if report["schema"] != "hol-gauntlet-rust-deterministic-run-diagnostic.v1"
-            || report["job_id"] != job_id
-            || report["source_sha"] != source_sha
-            || report["deployment_digest"] != deployment_digest
-            || report["worker_generation"] != worker_generation
-            || report["started_marker_sha256"] != first.started_marker_sha256
-            || report["controller_key_pin_sha256"].as_str()
-                != first.controller_key_pin_sha256.as_deref()
-            || report["controller_public_key_hex"].as_str()
-                != first.controller_public_key_hex.as_deref()
-            || report["exit_code"] != first.exit_code
-            || report["process"]["pid"] != first.process.pid
-            || report["process"]["start_ticks"] != first.process.start_ticks
-            || report["independent_control_verdict"] != false
-            || report["execution_eligible"] != false
-        {
-            return Err(ReservationError::InvalidMarker);
-        }
-        let observed = observe_deterministic_report_root_owned_ineligible(
-            job_id,
-            source_sha,
-            config_digest,
-            first.exit_code,
-        )
-        .map_err(|_| ReservationError::InvalidMarker)?;
-        if observed.raw_sha256 != expected_deterministic_sha
-            || report["producer_status_claim"] != observed.producer_status
-            || report["producer_cell_count"] != observed.cell_count
-        {
-            return Err(ReservationError::InvalidMarker);
-        }
-        if self.terminal(job_id, source_sha, deployment_digest, worker_generation)?
-            != Some(first.clone())
-        {
-            return Err(ReservationError::InvalidMarker);
-        }
-        crate::require_rust_job_slice_absent(job_id)?;
-        Ok(json!({
-            "schema":"hol-gauntlet-rust-deterministic-readback.v1",
-            "job_id":job_id,
-            "source_sha":source_sha,
-            "terminal":terminal,
-            "diagnostic_report":report,
-            "terminal_sha256":first.sha256,
-            "diagnostic_report_sha256":first.report_sha256,
-            "deterministic_report_sha256":observed.raw_sha256,
-            "execution_eligible":false,
         }))
     }
 }

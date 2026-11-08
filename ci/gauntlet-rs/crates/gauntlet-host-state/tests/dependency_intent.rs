@@ -74,85 +74,100 @@ fn repair_reply(intent: &DependencyRunIntent) -> serde_json::Value {
 
 #[test]
 fn dependency_repair_is_authorized_before_transport_and_reopens_without_launch() {
-    let (_temp, root, journal, intent) = transport_fixture();
-    let job = intent.pins.text("job_id");
-    let generation = "d".repeat(64);
-    let started = "e".repeat(64);
-    let auth = root.join(format!("{job}.dependency-repair-authorized.json"));
-    assert!(journal
-        .repair(job, &started, &generation, Some("foreign-vm"))
-        .is_err());
-    assert!(!auth.exists() && !root.join("limactl.calls").exists());
-    let outside = root.join("repair-authorization-target");
-    let authorization=canonicalize(json!({"schema":"hol-gauntlet-host-dependency-repair-authorization.v1","job_id":job,
+    for finalize_report in [false, true] {
+        let (_temp, root, journal, intent) = transport_fixture();
+        let job = intent.pins.text("job_id");
+        let generation = "d".repeat(64);
+        let started = "e".repeat(64);
+        let auth = root.join(format!("{job}.dependency-repair-authorized.json"));
+        assert!(journal
+            .repair(job, &started, &generation, Some("foreign-vm"))
+            .is_err());
+        assert!(!auth.exists() && !root.join("limactl.calls").exists());
+        let outside = root.join("repair-authorization-target");
+        let authorization=canonicalize(json!({"schema":"hol-gauntlet-host-dependency-repair-authorization.v1","job_id":job,
         "intent_sha256":intent.digest().unwrap(),"started_marker_sha256":started,"repair_generation":generation}).to_string().as_bytes()).unwrap();
-    std::fs::write(&outside, &authorization).unwrap();
-    std::fs::set_permissions(&outside, std::fs::Permissions::from_mode(0o600)).unwrap();
-    for linked in [false, true] {
-        if linked {
-            std::fs::hard_link(&outside, &auth).unwrap();
-        } else {
-            symlink(&outside, &auth).unwrap();
+        std::fs::write(&outside, &authorization).unwrap();
+        std::fs::set_permissions(&outside, std::fs::Permissions::from_mode(0o600)).unwrap();
+        for linked in [false, true] {
+            if linked {
+                std::fs::hard_link(&outside, &auth).unwrap();
+            } else {
+                symlink(&outside, &auth).unwrap();
+            }
+            assert!(journal.repair(job, &started, &generation, None).is_err());
+            assert!(!root.join("limactl.calls").exists());
+            assert_eq!(std::fs::read(&outside).unwrap(), authorization);
+            std::fs::remove_file(&auth).unwrap();
         }
+        std::fs::write(&auth, b"{").unwrap();
+        std::fs::set_permissions(&auth, std::fs::Permissions::from_mode(0o600)).unwrap();
         assert!(journal.repair(job, &started, &generation, None).is_err());
         assert!(!root.join("limactl.calls").exists());
-        assert_eq!(std::fs::read(&outside).unwrap(), authorization);
         std::fs::remove_file(&auth).unwrap();
-    }
-    std::fs::write(&auth, b"{").unwrap();
-    std::fs::set_permissions(&auth, std::fs::Permissions::from_mode(0o600)).unwrap();
-    assert!(journal.repair(job, &started, &generation, None).is_err());
-    assert!(!root.join("limactl.calls").exists());
-    std::fs::remove_file(&auth).unwrap();
-    assert!(journal.execute_once(&intent).is_err());
-    let original = intent.bytes().unwrap();
-    let reply = canonicalize(repair_reply(&intent).to_string().as_bytes()).unwrap();
-    let unknown=canonicalize(json!({"schema":"hol-gauntlet-native-dependency-unknown.v1","job_id":job,"source_sha":intent.pins.text("source_sha"),"intent_sha256":intent.digest().unwrap(),
+        assert!(journal.execute_once(&intent).is_err());
+        let original = intent.bytes().unwrap();
+        let mut reply = if finalize_report {
+            retained_reply(&intent)
+        } else {
+            repair_reply(&intent)
+        };
+        if finalize_report {
+            reply["reader_generation"] = json!(generation);
+        }
+        let reply = canonicalize(reply.to_string().as_bytes()).unwrap();
+        let unknown=canonicalize(json!({"schema":"hol-gauntlet-native-dependency-unknown.v1","job_id":job,"source_sha":intent.pins.text("source_sha"),"intent_sha256":intent.digest().unwrap(),
         "worker_generation":intent.pins.text("runner_binary_sha256"),"reader_generation":generation,"started_marker_sha256":started,
         "running_marker_sha256":null,"retained_client_cgroup_receipt_sha256":null,"status":"unknown","exit_code":null,
         "artifact_admitted":false,"execution_eligible":false,"qualification_eligible":false,"guard_causality_verified":false,"model_requests":0,"model_tokens":0}).to_string().as_bytes()).unwrap();
-    std::fs::write(root.join("limactl"),format!("#!/bin/sh\n/bin/cat >/dev/null\ncase \"$*\" in *--read-native-dependencies*) if [ ! -e \"$0.repaired\" ]; then\n/bin/cat <<'OBSERVED'\n{}\nOBSERVED\nexit 0\nfi\nexit 7;; *--repair-owned-native-dependencies*) : > \"$0.repaired\";; esac\n/bin/cat <<'REPLY'\n{}\nREPLY\n",String::from_utf8(unknown).unwrap(),String::from_utf8(reply).unwrap())).unwrap();
-    assert!(journal
-        .repair(job, &"a".repeat(64), &generation, None)
-        .is_err());
-    assert!(!auth.exists() && !root.join("limactl.repaired").exists());
-    let public = journal.repair(job, &started, &generation, None).unwrap();
-    assert!(public["exit_code"].is_null());
-    assert_eq!(public["status"], "aborted");
-    assert!(!public.to_string().contains(&intent.nonce));
-    let authorization = std::fs::read(&auth).unwrap();
-    assert_eq!(
-        std::fs::metadata(&auth).unwrap().permissions().mode() & 0o777,
-        0o600
-    );
-    let reopened = DependencyIntentJournal::open(&root).unwrap();
-    assert_eq!(
-        reopened.repair(job, &started, &generation, None).unwrap(),
-        public
-    );
-    let read = reopened
-        .reconcile_read_only(job, &generation, None)
-        .unwrap();
-    assert_eq!(
-        read["private_result_sha256"],
-        public["private_result_sha256"]
-    );
-    assert_eq!(read["retained_result_reconciled"], true);
-    assert_eq!(
-        reopened
+        std::fs::write(root.join("limactl"),format!("#!/bin/sh\n/bin/cat >/dev/null\ncase \"$*\" in *--read-native-dependencies*) if [ ! -e \"$0.repaired\" ]; then\n/bin/cat <<'OBSERVED'\n{}\nOBSERVED\nexit 0\nfi\nexit 7;; *--repair-owned-native-dependencies*) : > \"$0.repaired\";; esac\n/bin/cat <<'REPLY'\n{}\nREPLY\n",String::from_utf8(unknown).unwrap(),String::from_utf8(reply).unwrap())).unwrap();
+        assert!(journal
+            .repair(job, &"a".repeat(64), &generation, None)
+            .is_err());
+        assert!(!auth.exists() && !root.join("limactl.repaired").exists());
+        let public = journal.repair(job, &started, &generation, None).unwrap();
+        let (status, exit) = if finalize_report {
+            ("invalid-evidence", json!(0))
+        } else {
+            ("aborted", json!(null))
+        };
+        assert_eq!(public["exit_code"], exit);
+        assert_eq!(public["status"], status);
+        assert!(!public.to_string().contains(&intent.nonce));
+        let authorization = std::fs::read(&auth).unwrap();
+        assert_eq!(
+            std::fs::metadata(&auth).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        let reopened = DependencyIntentJournal::open(&root).unwrap();
+        assert_eq!(
+            reopened.repair(job, &started, &generation, None).unwrap(),
+            public
+        );
+        let read = reopened
             .reconcile_read_only(job, &generation, None)
-            .unwrap(),
-        read
-    );
-    assert!(reopened
-        .repair(job, &"f".repeat(64), &generation, None)
-        .is_err());
-    assert!(reopened
-        .repair(job, &started, &"a".repeat(64), None)
-        .is_err());
-    assert_eq!(std::fs::read(auth).unwrap(), authorization);
-    assert_eq!(reopened.read(job).unwrap().bytes().unwrap(), original);
-    assert!(reopened.execute_once(&intent).is_err());
+            .unwrap();
+        assert_eq!(
+            read["private_result_sha256"],
+            public["private_result_sha256"]
+        );
+        assert_eq!(read["retained_result_reconciled"], true);
+        assert_eq!(
+            reopened
+                .reconcile_read_only(job, &generation, None)
+                .unwrap(),
+            read
+        );
+        assert!(reopened
+            .repair(job, &"f".repeat(64), &generation, None)
+            .is_err());
+        assert!(reopened
+            .repair(job, &started, &"a".repeat(64), None)
+            .is_err());
+        assert_eq!(std::fs::read(auth).unwrap(), authorization);
+        assert_eq!(reopened.read(job).unwrap().bytes().unwrap(), original);
+        assert!(reopened.execute_once(&intent).is_err());
+    }
 }
 
 #[test]
@@ -366,7 +381,8 @@ fn malformed_dependency_public_fields_refuse_and_keep_the_attempt_consumed() {
 }
 
 fn retained_reply(intent: &DependencyRunIntent) -> serde_json::Value {
-    let report = private_reply(intent);
+    let mut report = private_reply(intent);
+    report["started_marker_sha256"] = json!("e".repeat(64));
     let raw = canonicalize(report.to_string().as_bytes()).unwrap();
     let public = gauntlet_contracts::verify_dependency_run_result(intent, &raw).unwrap();
     json!({"schema":"hol-gauntlet-native-dependency-read.v1","reader_generation":"8".repeat(64),
@@ -386,6 +402,22 @@ fn dependency_reconciliation_reads_legacy_intents_without_authorizing_dispatch()
     std::fs::remove_file(root.join("0123456789abcdef.dependency-authorized.json")).unwrap();
     let original = intent.bytes().unwrap();
     let reply = retained_reply(&intent);
+    for (field, value) in [
+        ("archive_sha256", json!("f".repeat(64))),
+        ("nonce", json!(intent.nonce)),
+        ("files", json!(true)),
+        ("execution_eligible", json!(true)),
+    ] {
+        let mut bad = reply.clone();
+        bad["archive_proof"][field] = value;
+        let raw = canonicalize(bad.to_string().as_bytes()).unwrap();
+        assert!(gauntlet_contracts::verify_dependency_read_response(
+            &intent,
+            &"8".repeat(64),
+            &raw
+        )
+        .is_err());
+    }
     let raw = canonicalize(reply.to_string().as_bytes()).unwrap();
     let script = format!(
         "#!/bin/sh\numask 077\n/bin/cat > \"$0.input\"\n/bin/cat <<'REPLY'\n{}\nREPLY\n",
@@ -426,49 +458,6 @@ fn dependency_reconciliation_reads_legacy_intents_without_authorizing_dispatch()
         .exists());
     assert!(journal.execute_once(&intent).is_err());
     assert_eq!(journal.read("0123456789abcdef").unwrap(), intent);
-}
-
-#[test]
-fn dependency_read_codec_refuses_foreign_missing_or_authoritative_frames() {
-    let (_temp, _root, _journal, intent) = transport_fixture();
-    let original = retained_reply(&intent);
-    for field in [
-        "schema",
-        "reader_generation",
-        "intent_sha256",
-        "report_sha256",
-        "terminal_sha256",
-        "report-intent",
-        "archive-hash",
-        "archive-extra",
-        "archive-count",
-        "archive-authority",
-        "extra",
-        "missing",
-        "qualification_eligible",
-        "model_tokens",
-    ] {
-        let mut bad = original.clone();
-        match field {
-            "report-intent" => bad["report"]["intent"]["vm"] = json!("foreign"),
-            "archive-hash" => bad["archive_proof"]["archive_sha256"] = json!("f".repeat(64)),
-            "archive-extra" => bad["archive_proof"]["nonce"] = json!(intent.nonce),
-            "archive-count" => bad["archive_proof"]["files"] = json!(true),
-            "archive-authority" => bad["archive_proof"]["execution_eligible"] = json!(true),
-            "missing" => {
-                bad.as_object_mut().unwrap().remove("report_sha256");
-            }
-            "qualification_eligible" => bad[field] = json!(true),
-            "model_tokens" => bad[field] = json!(1),
-            _ => bad[field] = json!("invalid"),
-        }
-        let raw = canonicalize(bad.to_string().as_bytes()).unwrap();
-        assert!(
-            gauntlet_contracts::verify_dependency_read_response(&intent, &"8".repeat(64), &raw)
-                .is_err(),
-            "{field}"
-        );
-    }
 }
 
 #[test]

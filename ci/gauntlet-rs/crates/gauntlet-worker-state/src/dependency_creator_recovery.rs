@@ -211,7 +211,7 @@ fn witnesses(slot: &OwnedFd, context: &Context) -> Result<Vec<Witness>, String> 
     Ok(result)
 }
 
-fn attempt() -> Result<String, String> {
+pub(crate) fn attempt() -> Result<String, String> {
     let mut bytes = [0u8; 8];
     SystemRandom::new()
         .fill(&mut bytes)

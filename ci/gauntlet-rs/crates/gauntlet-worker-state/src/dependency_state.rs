@@ -1,136 +1,15 @@
 //! Cross-job dependency uncertainty blocks further execution under the shared
 //! worker lease. Completed records are checked against retained intent bytes.
-use crate::{
-    open_root_owned_public_directory, read_bounded_regular, RunReservationJournal, TerminalOutcome,
-};
+use crate::{RunReservationJournal, TerminalOutcome};
 use gauntlet_contracts::canonicalize;
 use gauntlet_contracts::DependencyRunIntent;
-use rustix::fs::{statat, AtFlags, Dir};
+use rustix::fs::{statat, AtFlags};
 use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 pub(crate) const STATE: &str = "/var/lib/hol-gauntlet-rust/dependency-state";
 
-pub(crate) fn require_idle() -> Result<(), String> {
-    crate::feature_state::require_idle()?;
-    let base = open_root_owned_public_directory(Path::new("/var/lib/hol-gauntlet-rust"))
-        .map_err(|e| e.to_string())?;
-    match statat(&base, "dependency-state", AtFlags::SYMLINK_NOFOLLOW) {
-        Err(rustix::io::Errno::NOENT) => return Ok(()),
-        Err(e) => return Err(e.to_string()),
-        Ok(_) => {}
-    }
-    let journal =
-        RunReservationJournal::open_root_owned(Path::new(STATE)).map_err(|e| e.to_string())?;
-    let mut jobs = BTreeSet::new();
-    let mut starts = BTreeMap::new();
-    let mut count = 0usize;
-    for entry in Dir::read_from(&journal.root).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let name = entry
-            .file_name()
-            .to_str()
-            .map_err(|_| "dependency state filename UTF-8")?;
-        if matches!(name, "." | ".." | "active.lock") {
-            continue;
-        }
-        count += 1;
-        if count > 4096 {
-            return Err("dependency state inventory bound exceeded".into());
-        }
-        let (job, suffix) = name
-            .split_once('.')
-            .filter(|(s, _)| crate::hex(s, 16))
-            .ok_or("unrecognized dependency job")?;
-        if !matches!(
-            suffix,
-            "started.json"
-                | "running.json"
-                | "report.json"
-                | "terminal.json"
-                | "dependency-repair.json"
-        ) {
-            return Err("unrecognized dependency sidecar".into());
-        }
-        jobs.insert(job.to_owned());
-        if suffix == "started.json" {
-            let raw = read_bounded_regular(&journal.root, name, 1024)
-                .map_err(|e| e.to_string())?
-                .ok_or("dependency start disappeared")?;
-            if canonicalize(&raw).map_err(|e| e.to_string())? != raw {
-                return Err("ambiguous dependency start".into());
-            }
-            let value: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
-            starts.insert(job.to_owned(), value);
-        }
-    }
-    for job in jobs {
-        let start = starts
-            .get(&job)
-            .ok_or("orphan dependency sidecar blocks execution")?;
-        let digest = start["deployment_digest"]
-            .as_str()
-            .ok_or("dependency start lacks intent")?;
-        let intent = crate::dependency_repair::intent_for_job(&job, digest)?;
-        let p = &intent.pins;
-        journal
-            .started(
-                &job,
-                p.text("source_sha"),
-                digest,
-                p.text("runner_binary_sha256"),
-            )
-            .map_err(|e| e.to_string())?
-            .ok_or("dependency start differs")?;
-        let terminal = journal
-            .terminal(
-                &job,
-                p.text("source_sha"),
-                digest,
-                p.text("runner_binary_sha256"),
-            )
-            .map_err(|e| e.to_string())?;
-        let repair = crate::dependency_repair::verified(&journal, &intent)?;
-        if terminal.is_some() == repair.is_some() {
-            return Err("active, ambiguous or unknown dependency job blocks execution".into());
-        }
-        if let Some(terminal) = terminal {
-            if terminal.status != TerminalOutcome::InvalidEvidence {
-                return Err("dependency terminal claims execution authority".into());
-            }
-            let raw = read_bounded_regular(&journal.root, &format!("{job}.report.json"), 16384)
-                .map_err(|e| e.to_string())?
-                .ok_or("dependency report missing")?;
-            let report: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
-            let reported = DependencyRunIntent::parse(
-                &canonicalize(report["intent"].to_string().as_bytes())
-                    .map_err(|e| e.to_string())?,
-            )?;
-            if reported != intent
-                || report["schema"] != "hol-gauntlet-native-dependency-result.v1"
-                || report["intent_sha256"] != digest
-                || report["container_absent"] != true
-                || report["container_cgroup_absent"] != true
-                || report["client_cgroup_drained"] != true
-                || report["build_profile_removed"] != true
-                || report["artifact_admitted"] != false
-                || report["execution_eligible"] != false
-                || report["guard_causality_verified"] != false
-                || report["model_requests"] != 0
-            {
-                return Err("dependency report differs from retained intent or cleanup".into());
-            }
-            crate::dependency_podman::verify_completed_absent(
-                &intent,
-                report["container_id"]
-                    .as_str()
-                    .ok_or("dependency CID missing")?,
-            )?;
-        }
-    }
-    Ok(())
-}
+pub(crate) use crate::dependency_run::require_idle;
 
 pub(crate) fn client_group_absent(job: &str) -> Result<(), String> {
     let path = format!("/sys/fs/cgroup/system.slice/hol-gauntlet-rust-candidate-{job}");
@@ -179,14 +58,21 @@ pub fn read_native_dependencies(
     if crate::dependency_repair::intent_for_job(job, expected_intent)? != intent {
         return Err("dependency reconciliation differs from retained host intent".into());
     }
-    let terminal = journal
-        .terminal(
-            job,
-            p.text("source_sha"),
-            expected_intent,
-            p.text("runner_binary_sha256"),
-        )
-        .map_err(|e| e.to_string())?;
+    let report_pending = present(&journal, &format!("{job}.report.json"))?
+        && !present(&journal, &format!("{job}.terminal.json"))?;
+    let terminal = if report_pending {
+        retained_completion(&journal, &intent)?;
+        None
+    } else {
+        journal
+            .terminal(
+                job,
+                p.text("source_sha"),
+                expected_intent,
+                p.text("runner_binary_sha256"),
+            )
+            .map_err(|e| e.to_string())?
+    };
     if terminal.is_some()
         && !matches!(
             statat(
@@ -242,11 +128,225 @@ pub fn read_native_dependencies(
         stable()?;
         return Ok(result);
     };
-    if terminal.status != TerminalOutcome::InvalidEvidence
-        || terminal.controller_public_key_hex.is_some()
-    {
-        return Err("dependency terminal is outside this protocol".into());
+    completed_response(&journal, &intent, generation, &terminal, &stable)
+}
+
+struct ReportParts {
+    raw: Vec<u8>,
+    value: Value,
+    public: Value,
+    archive: Option<Value>,
+}
+
+fn present(journal: &RunReservationJournal, name: &str) -> Result<bool, String> {
+    match statat(&journal.root, name, AtFlags::SYMLINK_NOFOLLOW) {
+        Ok(_) => Ok(true),
+        Err(rustix::io::Errno::NOENT) => Ok(false),
+        Err(e) => Err(e.to_string()),
     }
+}
+
+struct RetainedCompletion {
+    parts: ReportParts,
+    started: crate::StartedMarker,
+    running: crate::RunningMarker,
+    exit: i32,
+}
+
+fn retained_completion(
+    journal: &RunReservationJournal,
+    intent: &DependencyRunIntent,
+) -> Result<RetainedCompletion, String> {
+    let p = &intent.pins;
+    let job = p.text("job_id");
+    let digest = intent.digest()?;
+    let started = journal
+        .started(
+            job,
+            p.text("source_sha"),
+            &digest,
+            p.text("runner_binary_sha256"),
+        )
+        .map_err(|e| e.to_string())?
+        .ok_or("retained report reservation missing")?;
+    if started.controller_public_key_hex.is_some()
+        || present(journal, &format!("{job}.controller-key.json"))?
+    {
+        return Err("keyed report is outside dependency finalization".into());
+    }
+    let running = journal
+        .running_marker(
+            job,
+            p.text("source_sha"),
+            &digest,
+            p.text("runner_binary_sha256"),
+        )
+        .map_err(|e| e.to_string())?
+        .ok_or("retained report process marker missing")?;
+    if running.cgroup != format!("/system.slice/hol-gauntlet-rust-candidate-{job}") {
+        return Err("retained report client group differs".into());
+    }
+    client_group_absent(job)?;
+    match std::fs::read(format!("/proc/{}/stat", running.process.pid)) {
+        Ok(raw) => {
+            let observed = crate::linux_process::parse_proc_stat(&raw, running.process.pid)
+                .ok_or("retained report client identity unavailable")?;
+            if observed.start_ticks == running.process.start_ticks {
+                return Err("retained report client still exists".into());
+            }
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => return Err(e.to_string()),
+    }
+    let parts = report_parts(journal, intent)?;
+    let v = &parts.value;
+    let exit = v["exit_code"]
+        .as_i64()
+        .and_then(|n| i32::try_from(n).ok())
+        .ok_or("retained report exit unavailable")?;
+    let slot =
+        crate::builder_candidate_source::open_fixed_build_slot(job).map_err(|e| e.to_string())?;
+    let crate::dependency_creator_recovery::OriginalCid::Retained(cid) =
+        crate::dependency_creator_recovery::original(&slot, &digest)?
+    else {
+        return Err("retained report CID receipt missing".into());
+    };
+    if v["started_marker_sha256"] != started.sha256
+        || v["container_id"] != cid
+        || (exit == 0) != parts.archive.is_some()
+    {
+        return Err("retained report reservation, CID or export differs".into());
+    }
+    if v["execution_error"].is_null() {
+        if v["client_pid"] != running.process.pid
+            || v["client_start_ticks"] != running.process.start_ticks
+            || ["stdout_sha256", "stderr_sha256"]
+                .iter()
+                .any(|k| !v[k].as_str().is_some_and(|s| crate::hex(s, 64)))
+        {
+            return Err("retained report process observation differs".into());
+        }
+    } else if !v["execution_error"].is_string()
+        || exit != 2
+        || [
+            "client_pid",
+            "client_start_ticks",
+            "stdout_sha256",
+            "stderr_sha256",
+        ]
+        .iter()
+        .any(|k| !v[k].is_null())
+    {
+        return Err("retained report failed observation differs".into());
+    }
+    Ok(RetainedCompletion {
+        parts,
+        started,
+        running,
+        exit,
+    })
+}
+
+/// Explicit recovery completes a full retained report without re-running it.
+pub(crate) fn finalize_report(
+    journal: &RunReservationJournal,
+    lease: &crate::ActiveLease,
+    intent: &DependencyRunIntent,
+    generation: &str,
+    read_only: bool,
+    stable: &impl Fn() -> Result<(), String>,
+) -> Result<Option<Vec<u8>>, String> {
+    use sha2::{Digest, Sha256};
+    let p = &intent.pins;
+    let job = p.text("job_id");
+    if !present(journal, &format!("{job}.report.json"))? {
+        return Ok(None);
+    }
+    if present(journal, &format!("{job}.dependency-repair.json"))? {
+        return Err("retained report conflicts with aborted dependency repair".into());
+    }
+    let retained = retained_completion(journal, intent)?;
+    let digest = intent.digest()?;
+    let slot =
+        crate::builder_candidate_source::open_fixed_build_slot(job).map_err(|e| e.to_string())?;
+    let context = |terminal: &[u8], finalizer: Option<&str>| {
+        serde_json::json!({
+        "schema":"hol-gauntlet-native-dependency-report-finalization.v1","job_id":job,"source_sha":p.text("source_sha"),
+        "intent_sha256":digest,"worker_generation":p.text("runner_binary_sha256"),
+        "finalizer_generation":finalizer,"started_marker_sha256":retained.started.sha256,
+        "running_marker_sha256":retained.running.sha256,"report_sha256":retained.parts.public["private_result_sha256"],
+        "terminal_sha256":format!("{:x}",Sha256::digest(terminal)),"status":"invalid-evidence","exit_code":retained.exit,
+        "artifact_admitted":false,"execution_eligible":false,"qualification_eligible":false,"guard_causality_verified":false,
+        "model_requests":0,"model_tokens":0})
+    };
+    if !present(journal, &format!("{job}.terminal.json"))? {
+        if read_only {
+            return Err("read never finalizes a retained report".into());
+        }
+        let request = gauntlet_contracts::WorkerRequest::parse(serde_json::json!({"schema":"hol-gauntlet-worker-request.v1",
+            "action":"run","job_id":job,"source_sha":p.text("source_sha"),"deployment_digest":intent.digest()?}).to_string().as_bytes()).map_err(|e| e.to_string())?;
+        stable()?;
+        journal
+            .finish_retained_report_under_lease(
+                lease,
+                &request,
+                &retained.started,
+                &retained.parts.raw,
+                retained.running.process,
+                retained.exit,
+                &|terminal| {
+                    stable().map_err(crate::ReservationError::Io)?;
+                    crate::dependency_io::report_finalization(
+                        &slot,
+                        &context(terminal, Some(generation)),
+                        true,
+                    )
+                    .map_err(crate::ReservationError::Io)?;
+                    stable().map_err(crate::ReservationError::Io)?;
+                    crate::dependency_creator_recovery::publish(
+                        journal,
+                        &slot,
+                        &format!("{job}.terminal.json"),
+                        terminal,
+                    )
+                    .map_err(crate::ReservationError::Io)
+                },
+            )
+            .map_err(|e| e.to_string())?;
+    }
+    let terminal_raw = crate::dependency_io::read(
+        &journal.root,
+        &format!("{job}.terminal.json"),
+        0,
+        0o600,
+        2048,
+    )?;
+    crate::dependency_io::report_finalization(
+        &slot,
+        &context(
+            &terminal_raw,
+            if read_only { None } else { Some(generation) },
+        ),
+        false,
+    )?;
+    let terminal = journal
+        .terminal(
+            job,
+            p.text("source_sha"),
+            &intent.digest()?,
+            p.text("runner_binary_sha256"),
+        )
+        .map_err(|e| e.to_string())?
+        .ok_or("report finalization terminal missing")?;
+    completed_response(journal, intent, generation, &terminal, stable).map(Some)
+}
+
+fn report_parts(
+    journal: &RunReservationJournal,
+    intent: &DependencyRunIntent,
+) -> Result<ReportParts, String> {
+    let p = &intent.pins;
+    let job = p.text("job_id");
     let report = crate::dependency_io::read(
         &journal.root,
         &format!("{job}.report.json"),
@@ -254,18 +354,13 @@ pub fn read_native_dependencies(
         0o600,
         16384,
     )?;
-    let public = gauntlet_contracts::verify_dependency_run_result(&intent, &report)?;
-    if public["private_result_sha256"] != terminal.report_sha256
-        || public["exit_code"].as_i64() != Some(i64::from(terminal.exit_code))
-    {
-        return Err("dependency retained report differs from terminal".into());
-    }
+    let public = gauntlet_contracts::verify_dependency_run_result(intent, &report)?;
     let value: Value = serde_json::from_slice(&report).map_err(|e| e.to_string())?;
     let cid = value["container_id"]
         .as_str()
         .filter(|s| crate::hex(s, 64))
         .ok_or("dependency report container identity missing")?;
-    crate::dependency_podman::verify_completed_absent(&intent, cid)?;
+    crate::dependency_podman::verify_completed_absent(intent, cid)?;
     let slot =
         crate::builder_candidate_source::open_fixed_build_slot(job).map_err(|e| e.to_string())?;
     let archive = if let Some(hash) = public["captured_dependencies_sha256"].as_str() {
@@ -293,7 +388,6 @@ pub fn read_native_dependencies(
             _ => return Err("unreported dependency export needs separate inspection".into()),
         }
     };
-    stable()?;
     if crate::dependency_io::read(
         &journal.root,
         &format!("{job}.report.json"),
@@ -304,10 +398,38 @@ pub fn read_native_dependencies(
     {
         return Err("dependency report changed while reconciling".into());
     }
+    Ok(ReportParts {
+        raw: report,
+        value,
+        public,
+        archive,
+    })
+}
+
+pub(crate) fn completed_response(
+    journal: &RunReservationJournal,
+    intent: &DependencyRunIntent,
+    generation: &str,
+    terminal: &crate::TerminalReceipt,
+    stable: &impl Fn() -> Result<(), String>,
+) -> Result<Vec<u8>, String> {
+    use sha2::{Digest, Sha256};
+    if terminal.status != TerminalOutcome::InvalidEvidence
+        || terminal.controller_public_key_hex.is_some()
+    {
+        return Err("dependency terminal is outside this protocol".into());
+    }
+    let parts = report_parts(journal, intent)?;
+    if parts.public["private_result_sha256"] != terminal.report_sha256
+        || parts.public["exit_code"].as_i64() != Some(i64::from(terminal.exit_code))
+    {
+        return Err("dependency retained report differs from terminal".into());
+    }
+    stable()?;
     let response = serde_json::json!({"schema":"hol-gauntlet-native-dependency-read.v1",
-        "reader_generation":generation,"intent_sha256":expected_intent,
-        "report_sha256":format!("{:x}",Sha256::digest(&report)),"terminal_sha256":terminal.sha256,
-        "report":value,"archive_proof":archive,"artifact_admitted":false,"execution_eligible":false,
+        "reader_generation":generation,"intent_sha256":intent.digest()?,
+        "report_sha256":format!("{:x}",Sha256::digest(&parts.raw)),"terminal_sha256":terminal.sha256,
+        "report":parts.value,"archive_proof":parts.archive,"artifact_admitted":false,"execution_eligible":false,
         "qualification_eligible":false,"guard_causality_verified":false,"model_requests":0,"model_tokens":0});
     let encoded = canonicalize(response.to_string().as_bytes()).map_err(|e| e.to_string())?;
     if encoded.len() > 32768 {
