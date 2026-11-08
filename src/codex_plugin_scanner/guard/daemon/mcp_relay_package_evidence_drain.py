@@ -52,13 +52,15 @@ them: nothing is waiting on an answer, because the call already reached the
 child.
 
 The resident writes the receipts of plain package records itself -- a forward
-under its own action, a ``policy-block`` block, and an ``ask`` block whose
-notice it already raised from a harness that opens no approval center -- once
-this drain acknowledges the page that skipped them
-(``mcp_relay_receipt_package.rs``). The records that reach this drain are the
-safe-alternative, observed and refused ones, the ask blocks still carrying a
-notice or opening the approval center, and any plain record the store would
-not take there.
+under its own action, an observed forward whose notices it already raised, a
+``policy-block`` block, an ``ask`` block whose notice it already raised from a
+harness that opens no approval center, and a safe-alternative block whose
+record names the approval center its inbox row links to -- once this drain
+acknowledges the page that skipped them (``mcp_relay_receipt_package.rs``). The
+records that reach this drain are the refused ones, the safe-alternative blocks
+from a binding with no approval center, the observed forwards and ask blocks
+still carrying a notice or opening the approval center, and any plain record
+the store would not take there.
 """
 
 from __future__ import annotations

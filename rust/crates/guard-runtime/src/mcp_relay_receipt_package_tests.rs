@@ -63,6 +63,18 @@ fn composed(record: &Value) -> Map<String, Value> {
     args
 }
 
+const CENTER: &str = "http://127.0.0.1:4781";
+
+/// A safe-alternative block whose record names the center its row links to.
+fn reviewed(workspace: &Path) -> Value {
+    edited(
+        record(workspace, "block", "policy-safe-alternative", "review"),
+        |record| {
+            record["review"] = json!({"redaction_level": "full", "approval_center_url": CENTER})
+        },
+    )
+}
+
 fn edited(mut record: Value, edit: impl FnOnce(&mut Value)) -> Value {
     edit(&mut record);
     record
@@ -228,6 +240,74 @@ fn ask_blocks_the_daemon_still_surfaces_are_not_plain() {
     let _ = std::fs::remove_dir_all(&workspace);
 }
 
+/// An observed forward whose notices the resident raised.
+fn observed(workspace: &Path) -> Value {
+    edited(
+        record(workspace, "forward", "policy-observe", "allow"),
+        |record| record["observed"] = json!({"notices": []}),
+    )
+}
+
+#[test]
+fn an_observed_forward_writes_the_allowed_receipt_under_the_mode() {
+    let workspace = temp_home("relay-package-observed");
+    let expected = artifact(&workspace);
+    let args = composed(&observed(&workspace));
+    assert_eq!(args["event_name"], "runtime_tool_call_allowed");
+    let receipt = &args["receipt"];
+    assert_eq!(receipt["artifact_id"], expected.artifact_id);
+    assert_eq!(receipt["approval_source"], "policy");
+    assert_eq!(
+        receipt["changed_capabilities"],
+        json!(["runtime_tool_call", "policy-observe", "package-install"])
+    );
+    assert_eq!(args["inventory"]["approved"], true);
+    let payload: Value =
+        serde_json::from_str(args["event_payload_json"].as_str().unwrap()).unwrap();
+    assert_eq!(payload["decision_source"], "policy-observe");
+    assert_eq!(payload["risk_categories"], json!([]));
+    let _ = std::fs::remove_dir_all(&workspace);
+}
+
+#[test]
+fn observed_forwards_the_daemon_still_surfaces_are_not_plain() {
+    let workspace = temp_home("relay-package-observed-owned");
+    let forward = observed(&workspace);
+    assert!(is_plain(&forward));
+    let cases = [
+        edited(forward.clone(), |r| r["observed"] = json!({})),
+        edited(forward.clone(), |r| {
+            r["observed"] = json!({"notices": [], "extra": true})
+        }),
+        // An observed forward is recorded under the mode, and is a forward.
+        edited(forward.clone(), |r| {
+            r["decision_source"] = json!("policy-allow")
+        }),
+        edited(forward.clone(), |r| {
+            r["outcome"] = json!("block");
+            r["decision_source"] = json!("policy-block");
+            r["policy_action"] = json!("block");
+            r["package"]
+                .as_object_mut()
+                .unwrap()
+                .remove("policy_workspace");
+        }),
+        edited(forward, |r| {
+            r["approval"] = json!({
+                "approval_center_url": "http://127.0.0.1:4781/approvals",
+                "review_url": "http://127.0.0.1:4781/approvals/req-1",
+                "request_id": "req-1",
+                "workspace": "/work",
+                "notices": [],
+            })
+        }),
+    ];
+    for case in cases {
+        assert!(!is_plain(&case), "{case}");
+    }
+    let _ = std::fs::remove_dir_all(&workspace);
+}
+
 #[test]
 fn package_records_the_daemon_owns_are_not_plain() {
     let workspace = temp_home("relay-package-owned");
@@ -236,15 +316,16 @@ fn package_records_the_daemon_owns_are_not_plain() {
     assert!(is_plain(&forward));
     assert!(is_plain(&block));
     let cases = [
-        // An observed forward still raises its notices.
+        // An observed forward still carrying notices raises them.
         edited(forward.clone(), |r| {
             r["decision_source"] = json!("policy-observe");
-            r["observed"] = json!({"notices": []});
+            r["observed"] = json!({"notices": [{"request_id": "req-1"}]});
         }),
         edited(forward.clone(), |r| {
             r["decision_source"] = json!("policy-warn")
         }),
-        // A queued request still writes its inbox row or approval surface.
+        // A queued request from a binding with no center still writes its
+        // inbox row, and an ask block still raises its approval surface.
         edited(block.clone(), |r| {
             r["decision_source"] = json!("policy-safe-alternative");
             r["policy_action"] = json!("review");
@@ -302,5 +383,97 @@ fn plain_package_records_land_in_the_store() {
     assert_eq!(count(&home, "runtime_receipts"), before + 2);
     assert_eq!(count(&home, "guard_events"), 2);
     let _ = std::fs::remove_dir_all(&home);
+    let _ = std::fs::remove_dir_all(&workspace);
+}
+
+#[test]
+fn a_safe_alternative_block_writes_its_receipt_then_a_silent_row() {
+    let workspace = temp_home("relay-package-safe-alternative");
+    let expected = artifact(&workspace);
+    let (args, row) =
+        compose(HOME, &reviewed(&workspace), &stamp()).expect("a plain package record composes");
+    assert_eq!(args["event_name"], "runtime_tool_call_review_required");
+    let receipt = &args["receipt"];
+    assert_eq!(receipt["artifact_id"], expected.artifact_id);
+    assert_eq!(receipt["artifact_hash"], PACKAGE_HASH);
+    assert_eq!(
+        receipt["changed_capabilities"],
+        json!([
+            "runtime_tool_call",
+            "policy-safe-alternative",
+            "package-install"
+        ])
+    );
+    assert_eq!(args["inventory"]["approved"], false);
+    // Projected with the artifact, so the receipt records its risk categories.
+    let payload: Value =
+        serde_json::from_str(args["event_payload_json"].as_str().unwrap()).unwrap();
+    assert!(payload["risk_categories"].is_array());
+    let row = row.expect("a safe-alternative block adds a row");
+    assert_eq!(row["harness"], "codex");
+    assert_eq!(row["prompt_shown"], false);
+    assert_eq!(row["redaction_level"], "full");
+    assert_eq!(row["now"], stamp().now);
+    assert_eq!(row["approval_center_url"], CENTER);
+    let item = &row["items"][0];
+    assert_eq!(item["artifact_id"], expected.artifact_id);
+    assert_eq!(item["artifact_type"], "package_request");
+    assert_eq!(item["artifact_hash"], PACKAGE_HASH);
+    assert_eq!(item["policy_action"], "review");
+    assert_eq!(item["risk_signals"], json!(["package-install"]));
+    // The decision's evidence and the package's, without the firewall entry.
+    let evidence = item["scanner_evidence"].as_array().unwrap();
+    assert_eq!(
+        evidence.last(),
+        Some(&json!({"source": "execution_context", "cwd": "/work"}))
+    );
+    assert!(evidence
+        .iter()
+        .all(|entry| entry.get("mcpSkillFirewall").is_none()));
+    let artifacts = row["artifacts"].as_object().unwrap();
+    assert!(artifacts.contains_key(&expected.artifact_id));
+    let _ = std::fs::remove_dir_all(&workspace);
+}
+
+#[test]
+fn safe_alternative_blocks_the_daemon_still_writes_are_not_plain() {
+    let workspace = temp_home("relay-package-safe-alternative-owned");
+    let block = reviewed(&workspace);
+    assert!(is_plain(&block));
+    let cases = [
+        // A binding with no center leaves the row to the daemon's origin.
+        edited(block.clone(), |r| {
+            r["review"] = json!({"redaction_level": "full"})
+        }),
+        edited(block.clone(), |r| {
+            r["review"]["redaction_level"] = json!("secret")
+        }),
+        edited(block.clone(), |r| r["review"]["extra"] = json!(true)),
+        // A safe-alternative block is recorded under its own source.
+        edited(block.clone(), |r| {
+            r["decision_source"] = json!("policy-block")
+        }),
+        edited(block.clone(), |r| r["observed"] = json!({"notices": []})),
+        edited(block, |r| {
+            r["outcome"] = json!("forward");
+            r["decision_source"] = json!("policy-allow");
+            r["policy_action"] = json!("allow");
+            r["package"]["policy_workspace"] = json!("/work");
+        }),
+    ];
+    for case in cases {
+        assert!(!is_plain(&case), "{case}");
+    }
+    let _ = std::fs::remove_dir_all(&workspace);
+}
+
+#[test]
+fn a_safe_alternative_block_that_is_not_reviewable_adds_no_row() {
+    let workspace = temp_home("relay-package-safe-alternative-block");
+    let block = edited(reviewed(&workspace), |r| {
+        r["policy_action"] = json!("block")
+    });
+    let (_, row) = compose(HOME, &block, &stamp()).expect("a plain package record composes");
+    assert!(row.is_none());
     let _ = std::fs::remove_dir_all(&workspace);
 }
