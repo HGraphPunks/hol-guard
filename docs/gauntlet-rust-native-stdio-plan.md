@@ -297,6 +297,49 @@ rows. At this source checkpoint no build has started and the new controller is
 not installed. Runtime construction/publication and a fresh control are required
 before the diagnostic can identify any actual failing stage.
 
+After committing that diagnostic as
+`6a764d42b0a566697c75c9a7ce768bfede92a555`, the primary Rust commands capture
+and transfer build `ed8f9da0b49ebde2`: 63,345,255 bytes, archive SHA-256
+`2131170e3d9cc6d402072ab7cb3481d2d84cf0f67b9e6d6a95645e19220a37dd`.
+The new controller is installed as inert data and independently matches all
+409 files/420 entries. The first readiness request carries the prior job's
+rendered AppArmor hash and refuses before any Host pin, dispatch or candidate.
+Readback proves that unused state. The corrected policy is independently
+rendered as `c5163109…`; existing Rust context and policy commands pass the
+load/remove proof, then readiness accepts the still-unstarted job. Attempt 002
+is the first actual builder execution. The refusal and every observer failure
+remain immutable.
+
+Outside kernel readback measures container PID 434010/start tick 22643765 as
+UID/GID 65532 with empty capabilities, no-new-privileges and seccomp, separate
+mount/PID/network/IPC/UTS namespaces, and the source mounted read-only. Limits
+are 12 GiB, zero swap, two CPUs and 512 PIDs. The actual label is
+`crun//&hol-gauntlet-build-ed8f9da0b49ebde2 (mixed)`; kernel policy lookup
+separately reports the exact job profile as `enforce` and `crun` as `unconfined`.
+This component lookup follows AppArmor's [stacking documentation](https://gitlab.com/apparmor/apparmor/-/wikis/AppArmorStacking),
+which distinguishes the stack's aggregate mode from each profile's mode.
+The earlier single-profile assertion remains failed, with its original bytes.
+No global profile mode or security setting is changed.
+
+Evidence under `native-boundary-build-host-state-20261108-001/`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `controller-install-001.json` | `d369bdd11e67ca39d0f4940d7a6767694d8d803e416b2c0d3bda90d1a52e62f4` |
+| `source-transfer-001.json` | `cbf73384b817dc6bc76204aea961e7912e3598516b5b47e299c4e0051c728a37` |
+| `prelaunch-refusal-readback-001.json` | `14c2df17a115bd46edf1eae08496583be193415e5030fba5cd2ff1d2f8b23e60` |
+| `readiness-diagnostic-002.json` | `59079e7cca80ef3003cde95fb23539cbab1b5768757a731ab16fd6cfcc61e9d4` |
+| `outside-kernel-004.json` | `588e96b8216adf5e1cfbd77ea0b47d2d36dc1b46496a7f29f92ffec56d82909e` |
+| `preparation-validation-001.json` | `92bca3a281664f376822e3ad57d64205180b548097be871e4cc8a629b79dbb74` |
+
+The current build remains active in managed exec session 33136. The kernel
+snapshot verifies live identity, not completion or runtime qualification. Compiler
+messages are producer progress only. Its first terminal result, artifact/runtime
+publication, cleanup and a fresh Native control are still required. All 334
+historical metadata rows are unchanged; their bytes/keys and private Root build
+argv are not read. No product runs on Host or Root. All admission/causality flags
+stay false, model use is zero and parent exits remain 24/62.
+
 ## Scope and implementation order
 
 Capture the actual stdin/stdout pipe exchanges of source-pinned Native

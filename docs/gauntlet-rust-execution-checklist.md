@@ -121,6 +121,19 @@ Build ID `ed8f9da0b49ebde2` is reserved with an unused-job VM preflight; no new
 runtime or successful control is claimed. All counts and eligibility limits
 remain unchanged.
 
+Diagnostic source `6a764d42b` is now captured and transferred through the primary
+Rust commands for build `ed8f9da0b49ebde2`, archive `2131170e…` (63,345,255 bytes).
+Its controller is independently verified after inert installation. The first
+readiness refusal spent no Host pin and started no candidate; the old rendered
+policy hash was corrected from the pinned template, with both attempts retained.
+Rust context preparation and policy load/removal pass before the first actual
+builder launch. Kernel readback measures UID/GID 65532, empty capabilities,
+no-new-privileges, seccomp, isolated namespaces and read-only source, with 12 GiB,
+two CPUs and 512 PIDs. The exact stacked label includes the job profile in
+enforce mode. Preparation validation `92bca3a2…` binds seventeen files; all 334
+historical metadata rows remain unchanged. The build is active in managed session
+33136. No terminal, runtime, utility, causality or parent-exit success is claimed.
+
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
 ```

@@ -18,93 +18,71 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
-- Continue `codex/gauntlet-rust-finish-20261105` and draft [child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5)
-  against integration `f143f9ac`. Transfer code is `76a5604fe`; Root pipe
-  component is `734338221`. Main `311d63cb2` merges cleanly as `99c233ad4`,
-  preserving all 13 incoming files and the component. Python and Rust agree
-  on 409 controller files, 420 entries and digest `f2581135…`; it is not
-  installed. The new absent hidden-home scenario changes one source-map hash;
-  the immutable baseline remains unchanged. Require all five
-  current-head jobs and independent review before merging; the last dispatch
-  was disabled. No settings change or override is authorized.
-- Primary `build transfer` now binds exact archive/commit bytes, worker and VM
-  to one durable dispatch through the existing bounded Rust stream owner.
-  Partial, linked, orphaned or uncertain records cannot allow replay. Two
-  existing Rust files change, both below 500 lines; no new file, crate, target
-  or dependency. **703 Mac tests**, formatting and warnings-denied Mac/ARM
-  Clippy pass. Separate pinned runs retain 15 Linux producer checks and nine
-  new unprivileged ARM reader checks. The new main's Native
-  library/CLI/test targets compile on Mac/ARM without executing product tests.
-- Exact live product `74d8d0081` includes main `84ba6e4da`; controller tree
-  is `52da7281…`. Build `c2e80b4915f76a3d` passes four selected and 185
-  contained contracts. Primary transfer/export `c8a491e0d27bf653` completes.
-  Independent reconstruction matches all wheel/dependency bytes, four trees,
-  4,328 prefix entries/124,462,108 bytes and six launchers. Requirement input
-  identity reuses the prior Python oracle with no fresh requirement execution.
-  See [source transfer](gauntlet-rust-vm-source-transfer-proof.md#primary-rust-transfer-into-the-build-slot)
-  and [build/runtime](gauntlet-rust-hostbound-candidate-build-proof.md#fresh-current-source-build-and-runtime-through-the-primary-commands).
-- Primary audit `52b9d314e8a670cf` completes 28 groups/52 selectors:
-  **1,304 passes, zero failures/errors and one deliberate retired-Pi skip**.
-  Rust/Python grading, restart reads and consumed/wrong-pin refusals agree.
-  Audit remains incomplete and ineligible. Kernel/input checks and four-lease
-  cleanup pass; 333 historical records and their lock retain metadata without
-  reading their bytes or keys. See [primary audit](gauntlet-rust-feature-worker.md#fresh-primary-audit-at-the-current-build-generation).
-  Newer main `311d63cb2` has compilation only and still needs live qualification.
-- Opt-in launch v5 relays actual Native kernel pipes through Root: 43 complete
-  sessions, 317,818 read bytes and 154 complete frame pairs. Independent Mac/ARM
-  Rust replay is identical. Five necessary source files reuse existing crates,
-  binary targets and tests. All five failed live attempts and checked recoveries
-  remain retained. The full hook/sink control fails Native's read-only profile
-  mismatch; no sink/Post/effect success is credited. The v5 artifact-reader
-  route now binds reported preparation declarations, exact launch source and
-  each CLI's traced pipe session. Source `a666e5cf…` changes fifteen existing
-  files; validation `93e9299d…` verifies thirteen records. Fresh signed v5
-   export/control acceptance and outside admission stay open. See [pipe checkpoint](gauntlet-rust-native-stdio-plan.md#root-owned-pipe-transport-checkpoint-november-8).
-- Explicit preparation v2 now selects `python-readonly.v1` with launch v5;
-  exact Native reason/profile pairs and one-use routing remain mandatory.
-  Historical write/Node/npm fixtures keep their assertions. Eleven existing
-  Rust files change, with no new file or dependency; eight unprivileged ARM
-  contract tests pass. Fresh component job `006` reaches Native's read-only
-  sink but fails its Linux boundary setup with exit 126 before tests start.
-  Its unprotected write succeeds and is retired; independent readback verifies
-  cleanup and the unchanged fixture. All 65 pipe sessions, 470,846 bytes and
-  525 task histories replay identically on Mac/ARM. Validation `9d41ea5c…`
-  binds 38 evidence files. Merged validation `cb72b7bc…` verifies seventeen
-  further records and the independently recomputed controller pin; the initial
-  stale-pin failure remains retained. Next identify the exact Native boundary failure
-  through its existing fixed errors or an outside failing-syscall observation,
-  then prove utility/write refusal, fresh signed export and the twelve roles;
-  SDK role modes currently refuse this preparation. See [read-only checkpoint](gauntlet-rust-native-stdio-plan.md#explicit-read-only-control-checkpoint).
-- Native now retains its existing static Linux boundary error in stderr after
-  the original failure line. Enforcement and exit 126 remain unchanged; no
-  retry or alternate execution path is added. Source `52f718a4…` passes 703
-  tests, formatting, Mac/ARM Clippy and Native compilation on both platforms.
-  Validation `e1f3d824…` rechecks eighteen evidence files. Fresh build ID
-  `ed8f9da0b49ebde2` has passed the VM preflight but has not started at this
-  source checkpoint. Capture this committed generation through the primary
-  Rust commands, publish its inert runtime, then use a fresh control job to
-  observe the boundary reason. Never replay jobs `001`–`006` or borrow the
-  older runtime's qualification. All runtime/authority exits remain open.
-- Validation `dddb9d04…` binds 116 public evidence files; bundle
-  `gauntlet-rust-review-primary-transfer-20261108-002.tar` has
-  118 members/53,258,240 bytes, SHA-256 `587ccd27…`.
-  All members reverify and exclude 33 actual nonces, including decoded archives.
-  Private intents and Root dependency reports stay excluded. Remote delivery,
-  independent review and cloud jobs remain open; earlier archives and failures
-  stay retained.
-- Never replay those three jobs or earlier `6147ab2733bb774d`,
-  `f44a167f33be73b5`, `de145dd6f485a69f` and `84267ae7556a6101`.
-  Preserve unknown `b937d2e04a16c85f` and the unexplained first active refusal.
-  The owned VM is idle at 2 CPUs/16 GiB/48 GiB; inspect exact pins, four leases
-  and resources before each mutation. Baseline 420 and source map 440
-  (79 changed/20 added) remain unchanged.
-- Next complete independent Native request/decision/effect authority, all twelve
-  staging/installed roles and fresh signed conformance. Signed wire admission,
-  operation semantics and actual effect writers remain open,
-  followed by real workflows, full legacy parity and reviewed cutover/rollback.
-  **24/62** parent exits; all eligibility/causality flags are false and model
-  use is zero. This goal grants no quota, upstream main merge, release
-  publication or PR-gate activation.
+- Continue `codex/gauntlet-rust-finish-20261105` and draft [child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5),
+  based on integration `f143f9ac`. Upstream `311d63cb2` merges cleanly as
+  `99c233ad4`, preserving thirteen incoming files. Diagnostic commit
+  `6a764d42b0a566697c75c9a7ce768bfede92a555` preserves Native's generic
+  failure line and exit 126, then prints its existing fixed boundary error.
+  It adds no execution path, file, crate, target or dependency. All **703 Mac
+  tests**, Gauntlet formatting, Mac/ARM Clippy and Native target compilation
+  pass; validation `e1f3d824…` binds eighteen files.
+- **Build `ed8f9da0b49ebde2` is active.** Resume managed exec session
+  **33136**, launched by Host PID 49093, before starting any new VM work.
+  The exact source is `6a764d42b…`; its 63,345,255-byte archive hashes to
+  `2131170e3d9cc6d402072ab7cb3481d2d84cf0f67b9e6d6a95645e19220a37dd`.
+  The primary Rust source/transfer commands verify Git history and deliver
+  the exact archive. Preserve the consumed dispatch; an observation timeout
+  is not permission to restart. Evidence is in the existing external
+  `native-boundary-build-host-state-20261108-001` directory.
+- The first build request refused before any Host pin, dispatch or candidate
+  execution because it carried the earlier job's rendered AppArmor hash.
+  Immutable refusal/readback records prove the unused state. The new job's
+  policy hash is independently derived as `c5163109…`; existing Rust commands
+  materialize the context, prove policy load/removal and pass readiness.
+  Attempt 002 is the first actual builder execution. Preparation validation
+  `92bca3a2…` binds seventeen records. All initial setup and observer failures
+  remain retained.
+- The separately installed controller at
+  `/opt/hol-gauntlet/controller-6a764d42b0a56669` has 409 files/420 entries,
+  independently matching tree `f2581135…`. The source map still has 440 files,
+  79 changed/20 added against the immutable 420-file baseline. Kernel readback
+  measures the builder as UID/GID 65532, empty capabilities, no-new-privileges,
+  seccomp, isolated namespaces and a read-only source mount, with 12 GiB,
+  two CPUs and 512 PIDs. Its actual stacked label retains the requested job
+  profile in enforce mode. All 334 historical metadata rows are unchanged;
+  custom wrappers read none of those worker records' bytes or keys.
+- **Next:** obtain the active build's terminal result through the existing
+  host-bound reader and independently verify artifacts and cleanup. Use a
+  fresh dependency/export job to publish the exact inert runtime. Then run
+  a fresh Native control, preparation v2/`python-readonly.v1`, to observe
+  the fixed boundary error and prove real utility/write refusal. Never
+  replay pipe jobs `001`–`006`. Job `006` used older product `74d8d008`
+  and failed with exit 126 before tests; its 65 closed sessions, 470,846 bytes
+  and 525 task histories are component evidence, not current-source qualification.
+  Full SDK role modes still refuse the read-only preparation.
+- Retain earlier product `74d8d0081`, controller `52da7281…`, successful
+  build `c2e80b4915f76a3d`, transfer/export `c8a491e0d27bf653`, and audit
+  `52b9d314e8a670cf` (28 groups/52 selectors, 1,304 passes, zero failures/errors,
+  one deliberate retired-Pi skip; incomplete/ineligible). Never rerun them.
+  Preserve failed/unknown `6147ab2733bb774d`, `f44a167f33be73b5`,
+  `de145dd6f485a69f`, `84267ae7556a6101`, `b937d2e04a16c85f`
+  and the unexplained first active refusal. See [build/runtime](gauntlet-rust-hostbound-candidate-build-proof.md#fresh-current-source-build-and-runtime-through-the-primary-commands),
+  [source transfer](gauntlet-rust-vm-source-transfer-proof.md#primary-rust-transfer-into-the-build-slot),
+  [primary audit](gauntlet-rust-feature-worker.md#fresh-primary-audit-at-the-current-build-generation)
+  and [Native controls](gauntlet-rust-native-stdio-plan.md#explicit-read-only-control-checkpoint).
+- Thirteen sanitized public archives remain local; the latest primary-transfer
+  bundle has 118 members/53,258,240 bytes, SHA-256 `587ccd27…`, and excludes
+  all 33 nonces known at its creation. New private build/pipe payloads are not
+  published. Reviewer-retrievable delivery, independent review and all five
+  current-head jobs remain open; Actions is disabled on the fork. No settings
+  change or check override is authorized.
+- Continue the full dependency order below: independent Native semantics,
+  observer/key/source/preparation admission, actual writers, twelve fresh
+  staging/installed roles and signed conformance, then host operations, real
+  authorized workflows, legacy parity and cutover/rollback. **24/62 parent
+  exits complete, 38 open.** All eligibility/causality flags remain false,
+  model use is zero, and this goal grants no quota reset, upstream merge,
+  release publication or PR-gate activation.
 
 ## Keep the implementation small
 
