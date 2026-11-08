@@ -556,3 +556,58 @@ and exact comparison of every public summary field passes in
 This bundle records implementation `f2d70d192` and product source `8920be8bd`.
 Remote delivery and independent review remain open; it supplies no new
 admission, qualification, causality or model-use credit.
+
+### Fresh primary audit at the current build generation
+
+Audit `52b9d314e8a670cf` runs product/test source
+`74d8d00814bfb281e4cf8a8823b083b3656db9bb`, including main `84ba6e4da`,
+after build `c2e80b4915f76a3d` and independently reconstructed runtime
+publication. The primary host is `5c8b6801…` from `76a5604fe`; Root worker
+`f46a1782…`, executor `14939d26…` and controller `52da7281…` bind the same
+product source. Earlier installed generations and their evidence remain intact.
+The catalog remains 28 groups/52 selectors, digest `19555165…`.
+
+The primary run finishes in **1,767.917 seconds**. Independent Rust and
+immutable Python JUnit grading agree on **1,304 passing tests, zero failures
+or errors and one deliberate retired-Pi skip**. The skip says that the live
+hook path reviews a shape allowed only by the retired Python composition.
+Twenty-seven groups pass; one remains incomplete. Successful host transport
+preserves workload exit one, audit `incomplete` and outer `invalid-evidence`.
+No expected skip is converted into a pass.
+
+Outside kernel observation verifies the actual supervisor/executor ELF and
+argv, pidfds, all four read-only inputs, UID/GID 65532, empty capabilities,
+no-new-privileges, seccomp, enforced AppArmor, separate namespaces and the
+existing two-CPU/12-GiB/2,048-task limits. No OOM or task-limit event occurs.
+Four-lease completion checks independently verify the original processes,
+full CID/name, client/libpod/conmon cgroups and profile are absent. Metadata
+for all 333 historical records and their lock is unchanged; their bytes and
+keys are not read.
+
+Two fresh primary reads return identical bytes. Wrong-intent read and consumed
+run refuse with exit two; the latter refuses locally before transport. The
+four original host records retain identical bytes and metadata. The 62-member,
+307,200-byte public export excludes all 33 actual private nonces. The current
+Rust reader independently matches all 56 XML/log artifacts; wrong spec and
+report pins refuse. Replay imports or executes no product or dependency.
+
+Records are external in `current-source359-feature-host-state-20261108-001`:
+
+| Record | SHA-256 |
+| --- | --- |
+| Root canonical result | `ae093ad31fc9e43a3a2d93767d6bbe38f01915e2be0a6dc380feacde17ae0dbb` |
+| `outside-kernel-001.json` | `27ac86778ade6df9e796febffee226c41f33af41173d406f15cadfcb03d07e76` |
+| `outside-completion-001.json` | `ce8c1505ef9a8ab242a9b45efcbb688ed82f6a92229811a722d9a0f1a283d883` |
+| `primary-terminal-restart-001.json` | `ae4dd0597037318cfcfb4fba172dfe321860e5e183950779a0f64623de14783e` |
+| Feature report | `03c90dd794156de5568b7500efaefbeb81eb88d902eb62a433f996ec875b248e` |
+| Rust readback | `db0fdee120b5532a31c073bb534ee3e92769ed64a9baefda82242413cefe9ca8` |
+| `public-artifacts-001.tar` | `e3816cc91249f28e9c2742f9f0c0af084cd8089516cd775d394e025312d57ca3` |
+| `independent-replay-001/independent-public-readback-001.json` | `5407c1f14ee811e4e670ad1b967965abeff9bf08bc192deeb5ce25a37a5e5853` |
+
+The initial preflight wrapper syntax failure occurred on the Host before any
+VM mutation or reservation and remains retained. The corrected preparation
+uses the audit ID once; no workload is replayed to repair proof tooling. This
+covers only the named product generation. Broader recovery, independent
+authority, signed conformance, remote evidence/review and admission remain
+open. Every admission/qualification/causality flag stays false, model use is
+zero, and the parent ledger stays **24/62**.

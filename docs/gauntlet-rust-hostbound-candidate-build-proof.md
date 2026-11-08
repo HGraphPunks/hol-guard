@@ -1351,3 +1351,63 @@ reproduces the unchanged `52da7281…` plan. Follow-up validation SHA-256 is
 `03ccfb7af35b5fb8bbdd2ba5dfcaba5882b960e3bdefe5c0e3e9d583934ba4a0`.
 No product tests run on the host, and this newer product source remains
 unqualified by the retained live execution.
+
+## Fresh current-source build and runtime through the primary commands
+
+Product source `74d8d00814bfb281e4cf8a8823b083b3656db9bb` contains upstream
+`84ba6e4daa9d2e11ced491fa046c42690b06b4da`. Its separately installed controller
+has 409 selected files, 420 entries and tree `52da7281…`; Rust and an independent
+byte/metadata walk agree while preserving prior controller generations.
+
+Primary `gauntlet-host build source` captures job `c2e80b4915f76a3d`, archive
+`bc170b35…` (63,248,018 bytes). The first setup attempt lacked the required
+preexisting private state directory and refused before capture or VM work;
+its failed record and unused ID remain retained. The fresh job runs through
+primary `build run`, host `fde7281c…` and Root runner `6b769fa4…`, exiting zero
+in 1,856.538 seconds. Four selected checks and all 185 contained contracts pass.
+Independent observation binds the actual supervisor/client, pidfds, source
+mount, UID/GID 65532, empty capabilities, namespaces, AppArmor, seccomp and
+limits. Final inspection under four leases proves original process/resource
+absence and unchanged metadata for the 333 historical records and their lock.
+
+Trusted capture retains the 29,438,334-byte ZIP `a9003a02…`. Inert wheel
+inspection reads all 1,638 entries, verifies wheel `7c5807a4…` and the actual
+47,696,360-byte Native ELF `1d37eae8…`, with no missing capabilities. Two
+restarted primary reads through host `5c8b6801…`, source `76a5604fe`, return
+identical results and leave the original host pin/dispatch unchanged.
+
+The [primary Rust source transfer](gauntlet-rust-vm-source-transfer-proof.md#primary-rust-transfer-into-the-build-slot)
+feeds separate dependency job `c8a491e0d27bf653`. Its exact Git archive
+`23c93580…` differs from the build archive but resolves to the same commit;
+project and lock bytes match the retained capsule exactly. Primary dependency
+execution under worker `d71ca8b2…` exits zero in 82.381 seconds. Independent
+kernel/input and cleanup checks pass. Rust stages all 2,290 dependency files,
+composes 4,328 prefix entries/124,462,108 bytes and six launchers, then publishes
+the immutable source path with tree `060803ad…`. No package is imported by Root.
+
+Independent host reconstruction reopens the 19-member public export, verifies
+every wheel/dependency byte and reproduces all four inventories. It finds 62
+distributions and MCP 1.30.0. Rust's 21 requirements, including 11 active,
+all pass. All 62 METADATA files and the exact staging requirement code match
+the prior Python oracle byte for byte, with the same VM boot, builder image
+and prefix interpreter. Input-identity readback verifies that reused outcome;
+it explicitly records that no fresh Python requirement execution occurred.
+
+Evidence is outside Git in `current-source359-build-host-state-20261108-002`
+and `current-source359-dependency-host-state-20261108-001` under the existing
+evidence root:
+
+| Record | SHA-256 |
+| --- | --- |
+| Outside build completion | `af4599a7290ebf6815a876717da9be9cb40afec2dd58fee5b62a4e2c205b44e1` |
+| Inert wheel readback | `56cd2a15728491527a1cc8614a0b8c9b2c0c606fdfe06d422cf1abfa81bbdc24` |
+| Immutable runtime publication | `29ff984936f46cdb4f947e59c57120e361e4e491836f08af0a70ee60427cc528` |
+| Public runtime TAR, 48,240,640 bytes | `09e771311f78cfbab6ef37af44bb694111202e1f1ab9c1b7c5cde6d572d94989` |
+| Independent four-tree reconstruction | `042d3f095f6c24f0f0205f46fab0587345b79c00949c583b1f0b7d2ea27248cc` |
+| Python requirement input equivalence | `93ee2155b768c4dd59de9a2676ad0ed877cdd63dc02b0ddde25b7fe60f08d810` |
+
+At export time, all 32 actual private nonces are excluded from raw bytes,
+ASCII hex and recursively decoded ZIP contents. Independent review, retrievable
+remote evidence, required CI, signed conformance, deterministic authority and
+operational admission remain open. All eligibility/causality flags stay false,
+model usage is zero and no parent exit closes.

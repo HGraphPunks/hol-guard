@@ -259,6 +259,15 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
 
   The [retained VM controller audit](gauntlet-rust-controller-source-audit.md) found that the older active Python controller tree is neither the exact 420-file baseline nor this PR's integration tree. A separate [current source-matched tree](gauntlet-rust-current-head-controller-install-proof.md) is now installed inertly, but no reviewed outside install pin or deployment points to it. A Rust worker may not launch either tree until that trust and deployment binding is established.
 - [ ] Port exact Git/archive provenance and the unprivileged, bounded Podman builder, retaining UID, AppArmor, seccomp, capability and `slirp4netns` controls.
+  - [x] Connect primary `build transfer` to the existing bounded Rust stream
+    owner and fixed guest receiver at source `76a5604fe`. All 686 Mac tests,
+    formatting, Mac/ARM Clippy and six measured unprivileged ARM tests pass.
+    Live `c8a491e0d27bf653` transfers its exact-commit archive in 10.656 seconds;
+    independent byte/metadata readback, restart/changed-VM refusal and downstream
+    primary dependency export pass. Partial, linked, orphaned and uncertain host
+    records cannot authorize replay. Two existing Rust files change, with no new
+    file, crate, target or dependency. See [primary source transfer](gauntlet-rust-vm-source-transfer-proof.md#primary-rust-transfer-into-the-build-slot).
+    Review and admission remain open; no parent exit closes.
   - [x] Retain dependency client kernel custody before launch and connect explicit
   host-authorized repair to the existing commands. Typed unknown reads supply
   reservation pins without cleanup authority; wrong pins refuse before durable
@@ -453,6 +462,28 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
   - [x] Match the pinned Python VM builder's fixed Podman `run` argv for v3.48, v3.49, local 3.50 alpha and retained-artifact retest without launching a container. Rust enforces source/archive/image/job identities and bounded memory; two tests match the Python-frozen vectors and refuse arbitrary selectors. The Linux ARM64 CI job now includes the parity test; see [builder run proof](gauntlet-rust-builder-run-proof.md). Image/profile custody, build execution and cleanup remain open.
   - [x] Retain a candidate client's boot/device/inode identity before launch and add explicit host-authorized repair through the existing diagnostic executables. Fresh job `ea0ef712724b4957` leaves an active candidate after a verified supervisor SIGKILL; wrong-anchor recovery refuses, then Rust reclaims only the retained full CID and kernel group and records an aborted/null-exit result. Independent four-lease checks verify original process/resource absence, unchanged source/anchor/CID/cgroup/policy and all 333 historical records' metadata. Rebuilt-host repeat repair matches and consumed build readiness refuses. All 660 Mac all-feature tests, warnings-denied Mac/ARM Clippy, formatting and four selected ARM cases pass; the nullable-frame regression failure stays retained. One necessary 278-line recovery module is added, with no new crate, executable target or dependency. See [candidate recovery](gauntlet-rust-hostbound-candidate-build-proof.md#interrupted-candidate-build-recovery). Broader interruption, independent review and admission remain open; no parent exit closes.
 - [ ] Port inert wheel staging, installed-prefix identity, fresh signed conformance, immutable deployment, and feature-audit invocation without importing a candidate as Root.
+  - [x] Run primary audit `52b9d314e8a670cf` at product `74d8d0081`, after
+    build `c2e80b4915f76a3d` and reconstructed runtime publication. All 28
+    groups/52 selectors complete in 1,767.917 seconds. Rust and immutable
+    Python JUnit grading agree on 1,304 passes, zero failures/errors and one
+    deliberate retired-Pi skip; status remains incomplete. Fresh/restart
+    reads match; wrong intent and consumed dispatch refuse with all four
+    host records unchanged. Outside kernel/cleanup checks verify isolation,
+    absent owned resources and unchanged metadata for 333 historical records.
+    The 62-member export excludes all 33 actual nonces. See [primary feature
+    audit](gauntlet-rust-feature-worker.md#fresh-primary-audit-at-the-current-build-generation).
+    This exact generation remains ineligible; no parent exit closes.
+  - [x] Build product source `74d8d0081`, containing main `84ba6e4da`, through
+    primary job `c2e80b4915f76a3d`. It exits zero in 1,856.538 seconds with four
+    selected checks and all 185 contained contracts passing. Independent kernel,
+    cleanup, wheel/Native and restarted primary reads pass. The current-source
+    dependency export composes 4,328 entries/124,462,108 bytes and six launchers;
+    Rust publishes the immutable runtime and independent host reconstruction
+    reproduces all four inventories. Requirement input identity reuses the prior
+    Python oracle explicitly without a fresh Python requirement execution.
+    All 333 historical worker records and their lock retain metadata; all
+    eligibility flags remain false. See [current-source runtime proof](gauntlet-rust-hostbound-candidate-build-proof.md#fresh-current-source-build-and-runtime-through-the-primary-commands).
+    Fresh signed controls, authority, review and admission remain open.
   - [x] Connect explicit `gauntlet-host features record/run/read/repair` to the existing journal and fixed VM operations, sharing command handling with `gauntlet-host-feature-audit`. Versioned public recording keeps the nonce private; historical journal/Root protocols remain unchanged. Fresh source `8920be8bd` completes build `9ca1b850e63fd247`, dependency job `22b1bd1ca737f37a` and local immutable runtime publication. All 185 contained contracts pass; independent host reconstruction verifies every wheel/dependency byte, four trees, six aliases and 21 requirements. Primary audit `462a926cee8fcfff` completes all 28 groups/52 selectors with 1,303 passes, zero failures/errors and one deliberate Pi skip. Rust/Python artifact counts match; incomplete status stays ineligible. Retained readback matches, consumed dispatch refuses, cleanup verifies under four leases and all 333 older records' metadata stays unchanged. See the [live command proof](gauntlet-rust-feature-worker.md#fresh-audit-through-the-primary-host-command). Observer admission, broader recovery and merged-source qualification remain open; no parent exit closes.
   - [x] Implement the separate Rust Root feature worker and one-use host caller: closed outside intent, exact completed-build/wheel/Native/image preflight, complete durable reservation before launch, fixed feature cgroup, full CID/intent ownership, bounded protected stdout, independent Root artifact capture, unknown-job admission checks and quiescent aborted recovery. All 645 Mac migration tests and warnings-denied Mac/ARM Clippy pass. Root initialization v4 preserves existing layouts and receipts. A later local host `read` action now reopens a completed guest result only after exact intent/dispatch checks; 31 host tests and Mac/ARM Clippy pass without a live guest read. The new owner still needs fresh owned-VM execution, live restart/recovery proof, active-resource recovery and final operator wiring; see [feature worker](gauntlet-rust-feature-worker.md). This subset closes no parent exit.
   - [x] At `22d29e6e`, add durable host repair authorization and aborted readback without replay, plus prelaunch boot/device/inode custody and held-cgroup cleanup under all three leases. The new ARM test binary SHA-256 is `2bda54adaa4779095421db4d512830fdb5eb5024f18ff5d6a8e3735b9b627fc0`. Eleven feature cases and one explicit Root recovery case pass in the owned VM, including the parent's SIGKILL exit, complete descendant drain/removal and forged, partial and same-name replacement refusals. Both worker leases are held by the physical probe; metadata for all 333 retained records stays identical and no owned cgroup/container remains. The two logs are `feature-recovery-20261105-root-feature-units-001.log` (`5cbe8a569144aa257fe37f3506e53b2ada17d7693e741775870afef094e4bbb0`) and `feature-recovery-20261105-root-cgroup-001.log` (`56062c3363d45533d62937ae219bad0a8e62a6acfdc17b917f7f424753f0be0d`) in existing external evidence. All 653 Mac tests, Rustfmt and Mac/ARM warnings-denied Clippy pass. The first full-suite dashboard failure is retained; a focused test reproduces inherited `O_NONBLOCK`/`WouldBlock`, and `e8d34b0d` restores bounded blocking reads. Two necessary module splits keep the shared cgroup owner and host tests below 500 lines; no crate, executable or dependency is added. Full live feature `run/read/repair`, interruption, operator integration and qualification remain open; no parent exit closes.
