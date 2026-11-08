@@ -131,8 +131,29 @@ builder launch. Kernel readback measures UID/GID 65532, empty capabilities,
 no-new-privileges, seccomp, isolated namespaces and read-only source, with 12 GiB,
 two CPUs and 512 PIDs. The exact stacked label includes the job profile in
 enforce mode. Preparation validation `92bca3a2…` binds seventeen files; all 334
-historical metadata rows remain unchanged. The build is active in managed session
-33136. No terminal, runtime, utility, causality or parent-exit success is claimed.
+historical metadata rows remain unchanged. Build `ed8f9da0b49ebde2` then completes
+in 1,520.117 seconds; its host-bound readback and all 1,639 inert wheel entries
+verify. Fresh dependency job `d77d88039d6ada35` supplies the full dependency
+export, although both live kernel observers miss its container. Rust publishes
+the exact inert runtime, tree `affb2c5f…`, Native ELF `9b605cbe…`; its Python
+contract report records 185 passes. These results supply no admission credit.
+
+Native pipe jobs `007`–`010` all fail before test execution with exit 126.
+Job `010` joins the first remount's `EPERM` to a pidfd-held namespace-owner
+snapshot by PID/start ticks: setup capabilities belong to a child user namespace,
+while the mount namespace belongs to its parent. Cause record `00109968…`
+binds this evidence and cleanup. Temporary observer source changes are removed.
+The focused fix creates a current-user-owned mount namespace with recursively
+private propagation before hardening; its ordering test requires namespace
+failure to prevent mapping and execution. The initial ARM compile rejects the
+direct unsafe syscall; the corrected source uses the safe `nix` wrapper with
+its existing dependency's Linux-only `sched` feature. Source record `4e62d792…`
+adds no file, crate, target, dependency package or lockfile entry. Corrected
+Native library/CLI/test compilation passes on Mac and ARM musl (0.654/149.486
+seconds), without product execution. Merge fetched upstream `ba94c2f00`, refresh
+pins and validate the merged source before a fresh isolated build and Native
+control `011`. Fixed-runtime utility remains unproved.
+No causality or parent-exit success is claimed; parent exits remain 24/62.
 
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete

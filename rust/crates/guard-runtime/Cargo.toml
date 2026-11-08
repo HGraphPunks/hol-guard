@@ -77,6 +77,7 @@ security-framework = "3.7.0"
 windows-permissions.workspace = true
 
 [target.'cfg(all(unix, target_os = "linux"))'.dependencies]
+nix = { workspace = true, features = ["sched"] }
 seccompiler = "0.5.0"
 landlock = "=0.4.7"
 capctl = "=0.2.4"

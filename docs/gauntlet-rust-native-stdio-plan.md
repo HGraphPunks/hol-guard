@@ -332,13 +332,50 @@ Evidence under `native-boundary-build-host-state-20261108-001/`:
 | `outside-kernel-004.json` | `588e96b8216adf5e1cfbd77ea0b47d2d36dc1b46496a7f29f92ffec56d82909e` |
 | `preparation-validation-001.json` | `92bca3a281664f376822e3ad57d64205180b548097be871e4cc8a629b79dbb74` |
 
-The current build remains active in managed exec session 33136. The kernel
-snapshot verifies live identity, not completion or runtime qualification. Compiler
-messages are producer progress only. Its first terminal result, artifact/runtime
-publication, cleanup and a fresh Native control are still required. All 334
-historical metadata rows are unchanged; their bytes/keys and private Root build
-argv are not read. No product runs on Host or Root. All admission/causality flags
-stay false, model use is zero and parent exits remain 24/62.
+Build `ed8f9da0b49ebde2` completes in 1,520.117 seconds. The host-bound reader
+verifies its result and export; the inert wheel reader checks all 1,639 entries.
+Native ELF `9b605cbef8296071da173d2395b57bf4c21098a2c57fd2c50c173cbccd7cd392`
+is 47,696,360 bytes. Fresh dependency job `d77d88039d6ada35` completes and its
+full export verifies, but both live kernel observers miss its container; no
+independent live-isolation observation is claimed for that job. Rust composes
+and publishes the inert prefix at source `6a764d42b…`, tree `affb2c5f…`.
+The build's Python contract report records 185 passes. Runtime publication
+record `6a2a152b…` supplies custody evidence, not runtime qualification.
+
+Fresh Native controls `007`–`010` all fail with exit 126 before the three
+read-only utility tests run. The new fixed diagnostic identifies executable
+mapping mount failure. Temporary kernel-only tracing records the first
+remount returning `EPERM`. For job `010`, an independent reader holds the
+Native pidfd and namespace descriptors and uses `NS_GET_USERNS` to measure
+the mount namespace's owner. PID 451598/start ticks 23230372 join both
+observations: Native has setup capabilities in user namespace 4026532459,
+but mount namespace 4026532395 belongs to user namespace 4026532394.
+Namespace inode values alone are not used to join separate jobs.
+
+Cause record `mount-cause-001.json`, SHA-256
+`001099680bb6a18446ed443d0d0b3d15b98fb1938ee03111e9a9a5279f54f8af`,
+binds the mount failure, namespace-owner snapshot and closed-job readback.
+All temporary observer source edits are removed and checked against HEAD;
+their retained binaries remain diagnostic, with no observer-admission claim.
+The focused fix in existing `restricted_linux_launch/pipeline.rs` creates a
+mount namespace owned by the current user namespace and makes propagation
+recursively private before enforcing mappings. An error stops before mapping
+or execution. Read-only/noexec, sealed-image and capability-drop requirements
+are unchanged. The first ARM compile rejects a direct unsafe syscall under
+the crate's `forbid(unsafe_code)`; that failed record is retained. Corrected
+source `mount-fix-source-002.json`, SHA-256
+`4e62d792f59fbdf66ea6dab970a3812b5cc18fb17b5882a74b0a12f16641a6cc`,
+uses the existing `nix` dependency's safe wrapper with Linux-only `sched`.
+It adds no file, crate, target, dependency package or lockfile entry.
+Corrected Native library/CLI/test compilation passes on Mac and ARM musl in
+0.654/149.486 seconds, without product execution. Fetched upstream `ba94c2f00`
+must be merged and its source pins/validation refreshed before a fresh isolated
+build/runtime followed by control `011`; the fix has no live success yet.
+Never replay any consumed build or pipe job.
+
+All 334 historical metadata rows are unchanged; their bytes/keys and private
+Root build argv are not read. No product runs on Host or Root. All admission/
+causality flags stay false, model use is zero and parent exits remain 24/62.
 
 ## Scope and implementation order
 

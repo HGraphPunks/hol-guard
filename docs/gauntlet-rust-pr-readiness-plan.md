@@ -26,13 +26,13 @@ with evidence. Code volume and checked substeps do not establish completion.
   It adds no execution path, file, crate, target or dependency. All **703 Mac
   tests**, Gauntlet formatting, Mac/ARM Clippy and Native target compilation
   pass; validation `e1f3d824…` binds eighteen files.
-- **Build `ed8f9da0b49ebde2` is active.** Resume managed exec session
-  **33136**, launched by Host PID 49093, before starting any new VM work.
+- **Build `ed8f9da0b49ebde2` completed successfully in 1,520.117 seconds.**
+  Managed exec session 33136 is terminal; do not replay this consumed job.
   The exact source is `6a764d42b…`; its 63,345,255-byte archive hashes to
   `2131170e3d9cc6d402072ab7cb3481d2d84cf0f67b9e6d6a95645e19220a37dd`.
   The primary Rust source/transfer commands verify Git history and deliver
-  the exact archive. Preserve the consumed dispatch; an observation timeout
-  is not permission to restart. Evidence is in the existing external
+  the exact archive. The host-bound reader verifies the result and export,
+  and the inert wheel reader checks all 1,639 entries. Evidence is in the existing external
   `native-boundary-build-host-state-20261108-001` directory.
 - The first build request refused before any Host pin, dispatch or candidate
   execution because it carried the earlier job's rendered AppArmor hash.
@@ -51,12 +51,35 @@ with evidence. Code volume and checked substeps do not establish completion.
   two CPUs and 512 PIDs. Its actual stacked label retains the requested job
   profile in enforce mode. All 334 historical metadata rows are unchanged;
   custom wrappers read none of those worker records' bytes or keys.
-- **Next:** obtain the active build's terminal result through the existing
-  host-bound reader and independently verify artifacts and cleanup. Use a
-  fresh dependency/export job to publish the exact inert runtime. Then run
-  a fresh Native control, preparation v2/`python-readonly.v1`, to observe
-  the fixed boundary error and prove real utility/write refusal. Never
-  replay pipe jobs `001`–`006`. Job `006` used older product `74d8d008`
+- Fresh dependency job `d77d88039d6ada35` also completed; its two live kernel
+  observers missed the container and supply no live-isolation credit. Rust
+  verifies its complete export, composes the prefix and publishes source
+  `6a764d42b…` with tree `affb2c5f…` and Native ELF `9b605cbe…`.
+  The build's Python contract report records 185 passes. Runtime publication
+  `6a2a152b…` is inert custody evidence, not qualification.
+- Fresh Native pipe jobs `007`–`010` all fail with exit 126 before test
+  execution. The fixed diagnostic identifies executable-mapping mount failure.
+  A temporary kernel-only observer and a separate pidfd/namespace-FD reader
+  join job `010` by PID/start ticks: the launcher's user namespace differs
+  from the mount namespace's owner, and its first remount returns `EPERM`.
+  Cause record `00109968…` binds the evidence and verified cleanup. All
+  temporary observer source changes are removed; retained binaries stay
+  explicitly diagnostic. The focused fix creates a mount namespace owned
+  by the current user namespace and makes propagation recursively private
+  before mapping hardening. Namespace failure stops before execution;
+  read-only/noexec, sealing and capability-drop requirements stay intact.
+- The first ARM compile rejects a direct unsafe syscall, preserving the crate's
+  `forbid(unsafe_code)`. Source `mount-fix-source-002.json` (`4e62d792…`)
+  uses the existing `nix` dependency's safe wrapper and enables its `sched`
+  feature only on Linux. No package, lockfile entry or source file is added.
+- Corrected Native library/CLI/test compilation passes on Mac (0.654 seconds)
+  and ARM musl (149.486 seconds); no product executes on Host or Root.
+- **Next:** commit the fix and checkpoints, then merge fetched upstream
+  `ba94c2f00` and refresh its source-map/controller pins and affected validation.
+  Build that exact merged source
+  in a fresh one-use unprivileged job and publish its inert runtime before
+  Native control `011`. Actual fixed-runtime utility/write refusal remains
+  unproved. Never replay pipe jobs `001`–`010`. Job `006` used older product `74d8d008`
   and failed with exit 126 before tests; its 65 closed sessions, 470,846 bytes
   and 525 task histories are component evidence, not current-source qualification.
   Full SDK role modes still refuse the read-only preparation.
