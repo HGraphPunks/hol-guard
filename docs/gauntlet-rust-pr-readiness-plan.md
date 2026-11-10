@@ -21,13 +21,15 @@ with evidence. Code volume and checked substeps do not establish completion.
 - Continue `codex/gauntlet-rust-finish-20261105` and draft
   [child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5), based on
   integration `f143f9ac`. Published merge `0463695b4` includes upstream
-  `4a0b5ab5a`. Upstream has since advanced two commits to `d586334a9`;
-  merge its seven changed files after preserving the current catalog slice.
+  `4a0b5ab5a`. Catalog commit `5306c65cc` is preserved; the next merge
+  incorporates upstream `d586334a9` with all seven incoming files exact.
 - The fixed legacy inventory now covers 308 core, 16 approval-retry,
   11 connector-setup and 15 full-task rows in the existing JSON files.
   Reader `352fe6d5…` preserves all eleven fields/defaults and listing order.
-  All 727 workspace tests pass before lint simplification; four focused tests
-  and Mac Clippy pass afterward. ARM and merged-source validation remain.
+  All 727 merged workspace tests, four focused tests, formatting and Mac/ARM
+  Clippy pass. Merged Native library/CLI/tests compile with `--no-run` on
+  Mac/ARM in 497.85/354.087 seconds. Validation `catalog-merged-validation-001.json`
+  (`439fa574…`) binds seven checks and 7,161 unchanged source/asset inputs.
   One Rust module is added; no crate, binary, dependency or proof script.
   Historical 128-case parity, candidate-catalog admission, execution and judging
   remain open. The [matrix](gauntlet-rust-surface-matrix.md) records source
@@ -44,7 +46,8 @@ with evidence. Code volume and checked substeps do not establish completion.
   Evidence is retained under `budget-limits-20261110-001`; validation
   `merged-validation-002.json` hashes to `cc29285d…`.
 - Actions permissions report enabled, but exact-head dispatch returns HTTP 422,
-  "Actions has been disabled"; no run is created. All five current-head jobs,
+  "Actions has been disabled" at published merge `0463695b4`; no run is created.
+  All five current-head jobs,
   independent review and reviewer-retrievable delivery remain required.
   No settings change or check override is authorized.
 - Latest signed read-only Native job `015` (`4e4819769a5ab5c0`) uses older

@@ -307,6 +307,17 @@ enabled, but dispatch at pushed merge `0463695b4` returns HTTP 422,
 exact-head jobs and independent approval still precede integration merge.
 No model use, live qualification, release or parent-exit completion is claimed.
 
+Catalog commit `5306c65cc` adds one fixed inert Rust reader for all 350 current
+legacy rows and preserves the historical 128-case baseline. The following merge
+of upstream `d586334a9` keeps all seven incoming files exact and changes no
+Gauntlet source. All 727 merged Mac tests, formatting and Mac/ARM Clippy pass;
+Native library/CLI/tests compile without execution on Mac/ARM in
+497.85/354.087 seconds. Validation `catalog-merged-validation-001.json`
+(`439fa574…`) verifies 7,161 source/asset inputs and the unchanged 190-package
+set. Four current-source catalog tests match the actual Python reader.
+The active plan is shortened; detailed checkpoints remain in Git and this
+ledger. No model request, new VM job, Root deployment or parent exit is claimed.
+
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
 ```
@@ -1125,7 +1136,8 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
     16 approval-retry, 11 connector-setup and 15 full-task rows, using the existing
     JSON files and contracts crate. Byte pins, all eleven normalized fields,
     declaration order and the list projection match the actual Python reader
-    `1acb014b…` (Rust reader `352fe6d5…`); changed bytes, wrong-catalog bytes and unsupported profiles
+    `1acb014b…` (Rust reader `352fe6d5…`); changed bytes, wrong-catalog bytes and
+    unsupported profiles
     refuse. One Rust module is added, with no binary or dependency. Its
     `hol-gauntlet-legacy-catalog-inventory.v1` output remains execution- and
     qualification-ineligible. The immutable baseline is still 128 rows at

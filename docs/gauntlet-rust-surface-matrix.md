@@ -43,7 +43,9 @@ finds 304 Python files, 282 parser calls across 24 files, 44 main guards and
 268 possible process calls. These are lexical counts: a method named run is
 not necessarily an external process. The retained external evidence
 `budget-limits-20261110-001/static-surface-inventory-001.json`
-(`04a9bec0…`) records each location, phase and proposed owners. Dynamic
+(`04a9bec0…`) records each location, phase and proposed owners. Its derived
+`process-surface-inventory-001.json` (`962e0e98…`) separates 194 literal
+process API calls from 74 other possible calls. Dynamic
 dispatch, exact argv and per-file authority still require semantic review;
 the exhaustive inventory parent exit remains open.
 
@@ -74,6 +76,16 @@ explicit boundary ownership:
 | `adapters/native_guard_identity_v1.py`, `native_workspace_readiness_v1.py`, frozen success-test bytes | Explicit product-test adapters inside UID/GID-10004 isolation; one normal-client call or metadata probe. Rust owns orchestration, budgets and response checks. | Versioned external product-test dependency permitted by the migration contract. Adapter hashes are reported; no Root Python service/oracle or scoring authority is introduced. |
 
 The VM worker accepts only `inspect`, `progress`, `reconcile`, and identity/deployment-bound one-time `run`. The bounded syntax in [the worker boundary](gauntlet-rust-worker-protocol.md) remains separate from execution authority. The Rust native apparatus worker now dispatches and drains real owned-VM jobs under its fixed versioned profile; its receipts remain invalid-evidence. Full qualified deployment, SDK/Guard scoring, host authentication and operational cutover remain separate open exits.
+
+The baseline disposition retain_external_model_runtime on `provider.py` is a
+proposal to audit, not permission to retain trusted Python orchestration after
+cutover. Its InferenceRelay also owns endpoint/credential handling, fixed-model
+forwarding, canary interception, round limits and response observations. Those
+functions need Rust host-state/agent-bridge/evidence owners in Phases 4–5;
+the model process alone remains external. Likewise, retained TypeScript SDK
+observers provide bounded input observations, not independent grading or
+publication authority. Keep the immutable baseline tags and track this scope
+correction in the exhaustive audit.
 
 ## State, public status and receipts
 
