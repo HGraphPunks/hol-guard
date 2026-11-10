@@ -1,6 +1,6 @@
 # Finish the Gauntlet Rust migration
 
-Updated: 2026-11-08 UTC. Executor: **GPT-6.1 Sol, Max reasoning**.
+Updated: 2026-11-10 UTC. Executor: **GPT-6.1 Sol, Max reasoning**.
 
 ## Mission and completion rule
 
@@ -18,6 +18,27 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
+- The resource-limit follow-up reuses existing modules and tests: Git output
+  is capped while both pipes are read; Python upstream observations have lifetime
+  byte/event/session limits; legacy build/feature/probe logs use a bounded pipe
+  and retain uncertain cleanup states. Rust builder/feature plans disable
+  Podman's duplicate log storage. The old Python builder fixture stays immutable;
+  its Rust comparison permits only the explicit logging guard. The optional
+  evidence selector now includes the Rust subtree and migration workflows,
+  without enabling the gate. The source map remains 440 files, now 86 changed
+  and 20 added against the unchanged 420-file baseline. No file, crate, binary
+  or dependency is added. All 723 Rust tests and 174 Python tooling tests pass;
+  the standalone older-controller probe follow-up passes 20 build/probe tests.
+  Rustfmt and Mac Clippy pass. The independent Python controller plan matches
+  Rust at `3f151167…` (409 files/420 entries); ARM checks and merged-source
+  validation remain to follow. Retained writable-export storage/inode
+  exhaustion is still unresolved; byte-floor refusal alone proves no Root
+  journal failure. No model or candidate/product execution occurred on Host/Root.
+  Full-diff review accounted for all 1,817 paths at `ea197e8a6`, with bounded
+  original-interface witnesses. Scan `24cd36df…` failed because its packaged
+  inventory excludes CI paths and rejected every actual candidate; its draft
+  evidence is retained, and it supplies no completed/clean security report.
+  Independent review, five current-head jobs and all 38 parent exits remain open.
 - Latest hook-byte join source `147220ad…` extends fourteen existing Rust files
   over clean upstream merge `a4ca0e9d1` (`d7832c242`). Validation `9b0665ef…`
   binds 42 records: 723 Mac tests, Mac/ARM Clippy, seventeen measured UID 65532

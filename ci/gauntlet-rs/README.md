@@ -158,14 +158,14 @@ GAUNTLET_PUBLIC_STATE=/absolute/path/to/.gauntlet-ops/public docker --context co
 
 Compose binds only host `127.0.0.1:8793`; the container reads `/state` without write access, runs as UID/GID 65532, drops all capabilities, and has a 0.25-CPU/128-MiB limit. Its built-in health probe checks the dashboard process, while `/api/status` continues to show the observer's actual stale or unavailable state. Use `GAUNTLET_RUST_PORT` only if another local port is needed. This command does not start a Rust observer, VM job or PR gate. The [container proof](../../docs/gauntlet-rust-dashboard-container-proof.md) records the live comparison.
 
-`gauntlet-worker-state` is an inert durable journal library for the future Linux worker. It consumes a fixed `run` request only after independently supplied source, deployment and worker-generation pins match, creates one-time canonical started and running markers with exclusive no-symlink file creation, and fsyncs the files and directory. It can also persist bounded canonical report bytes and a versioned terminal receipt bound to the started marker and process identity. Restart reads detect orphan, partial, symlinked or changed evidence and block replay. It does not launch a process or authorize benchmark execution.
-Its read-only response projection emits the fixed v1 protocol: an untouched job is `not-started` for progress, a started job is `running` only when a fresh Linux pidfd/start-tick/cgroup sample matches its durable marker, and a changed report cannot become terminal success. `inspect` and unstarted `run` remain unavailable until the Linux worker has complete trusted deployment and dispatch code.
+`gauntlet-worker-state` owns durable one-use journals, pinned source/deployment preparation, builder and feature supervision, recovery, and explicit Native diagnostic dispatch on Linux ARM64. It fsyncs exclusive no-symlink markers and binds terminal receipts to the reserved job and observed process identities. Partial, orphaned or changed evidence blocks replay. The explicit Native path launches its Rust controller in owned cgroups and captures SDK/MCP and product-cell observations; its terminal remains `invalid-evidence` with `execution_eligible: false` and `guard_causality_verified: false`. Transport and artifact joins do not establish independent policy/effect grading or qualification. Current exits and evidence are tracked in the [execution checklist](../../docs/gauntlet-rust-execution-checklist.md).
+The earlier read-only v1 projections and frozen probes below remain supported historical diagnostics. Their unavailable/inert results describe those entrypoints and source generations. They do not describe the newer explicit Native dispatcher.
 An inert [fixed launch plan](../../docs/gauntlet-rust-worker-launch-proof.md)
 reproduces the pinned Python worker's deterministic `ci check` argv, cwd,
 environment and output paths for two Python-frozen cases. It refuses wrong
 deployment/interpreter pins and injected request selectors. It does not spawn
 the controller or establish execution eligibility.
-The separate `open_root_owned` entrypoint is reserved for a live Linux worker: it requires effective Root, no symlink path components, Root-owned non-writable ancestors and a final directory with no group/world permissions. Its nonblocking `active.lock` lease is descriptor-held through reservation and terminal writing, and fails if the visible lock file changes. Tests use the inert `open` entrypoint to prove lock contention without Root. Linux process/cgroup observations are implemented, but the live dispatcher and independently authenticated report are still absent.
+The separate `open_root_owned` entrypoint requires effective Root, no symlink path components, Root-owned non-writable ancestors and a final directory with no group/world permissions. Its nonblocking `active.lock` lease is descriptor-held through reservation and terminal writing, and fails if the visible lock file changes. Tests use the inert `open` entrypoint to prove lock contention without Root. Native dispatch composes these custody checks; independent admission, grading and qualification remain open.
 
 `gauntlet-vm-worker-shadow` is an uninstalled Linux ARM64 read-only entrypoint. It accepts one bounded fixed request on stdin and three independently supplied source/deployment/generation hashes, reads only `/var/lib/hol-gauntlet-rust/worker-state`, and prints a v1 response. It refuses other platforms, CLI path/command selectors and untrusted state ancestry. `inspect` and an untouched `run` are unavailable; a reserved job is `running` only with a valid durable marker and fresh kernel sample. It cannot create a journal, reserve a job, launch a candidate or replace the current Python worker. The latest static 1.2 MB ARM64 shadow binary had SHA-256 `b498f6723a09c48daf3c2e0dc94bb3616dd6a74c3686499bb9298cd4959e932b` on both host and VM; an unprivileged request exited 2 with the expected Root-custody refusal. The separate Rust state directory there is empty and mode 0700.
 
@@ -216,9 +216,9 @@ installed version metadata when applicable. `execution_eligible` is always
 `false`: even the full inert inventory does not prove OS execute access,
 Linux symlink-race safety, independent verdicts or live candidate execution.
 
-The next slices must finish Phase 0's behavioral matrix and Phase 1's full
-asset/configuration custody, legacy evidence and independent scoring parity before moving
-to the Linux VM worker and host observer. The existing Python Gauntlet, VM
-jobs, model provider, dashboard and optional PR gate remain the authoritative
-execution path until fresh source-bound parity and recovery checks justify a
-controlled cutover. This workspace does not start a job or publish a status.
+Remaining work includes independent admission and effect grading, current-source
+workflow and legacy qualification, and controlled idle cutover/rollback. The
+supported Python paths remain available while the [readiness plan](../../docs/gauntlet-rust-pr-readiness-plan.md)
+and execution checklist govern migration acceptance. The commands above only
+check or inspect; explicit diagnostic dispatch does not authorize qualification,
+release publication or PR-gate activation.

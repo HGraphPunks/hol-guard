@@ -272,6 +272,25 @@ Mac/ARM without execution (308.005/260.86 seconds). Validation `b489097a…`
 binds the merge and earlier Gauntlet checks; job `015` does not qualify this
 newer product. Independent review and all five current-head jobs remain open.
 
+The 2026-11-10 resource-limit follow-up changes existing modules only. Git
+stdout/stderr share an in-flight cap; Python upstream observation byte/event
+budgets survive reconnects and its lifetime session limit bounds retained
+threads. Legacy build/feature/probe logs use a bounded pipe, preserve unknown
+cleanup and retain confinement until container disappearance is verified.
+Rust builder/feature plans disable duplicate Podman log storage. The immutable
+Python builder fixture remains intact, with its Rust comparison admitting only
+the explicit logging guard. The optional gate selector includes Rust Gauntlet
+paths without gate activation. All 440 source-map entries are refreshed (86
+changed, 20 added); the 420-file baseline is unchanged. All 723 Rust tests and
+174 Python tooling tests pass; the standalone older-controller probe follow-up
+passes 20 build/probe tests. Rustfmt and Mac Clippy pass. Python/Rust controller
+plans agree on `3f151167…` (409 files/420 entries); ARM and merged-source checks
+remain open. Shared writable
+export/inode exhaustion, independent review and actual qualification remain
+open. Scan `24cd36df…` reviewed all 1,817 paths at `ea197e8a6`, then failed on
+the tool's CI exclusion; retained draft analysis and bounded witnesses are not
+a completed security report. This follow-up closes no parent exit: **24/62**.
+
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
 ```

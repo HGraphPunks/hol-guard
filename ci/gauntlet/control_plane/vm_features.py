@@ -90,6 +90,7 @@ def run(request):
     sys.path.insert(0, str(controller))
     from ci.gauntlet.control_plane.feature_entry import FEATURES
     from ci.gauntlet.control_plane.artifacts import inspect_archive
+    from ci.gauntlet.control_plane.vm_build import BuildCleanupUncertain, run_logged
 
     with (BASE/'worker.lock').open('r+') as lease:
         fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -134,6 +135,7 @@ def run(request):
         subprocess.run(['/usr/sbin/apparmor_parser', '--replace', str(policy)],
                        capture_output=True, check=True, timeout=30)
         command = ['/usr/bin/podman', 'run', '--rm', '--name', profile,
+                   '--log-driver=none', '--timeout=14340',
                    '--user', '65532:65532', '--cap-drop=ALL',
                    '--security-opt=no-new-privileges', '--security-opt=apparmor='+profile,
                    '--memory='+str(settings.get('build_memory_gib', 12))+'g',
@@ -153,12 +155,11 @@ def run(request):
         started = time.time()
         try:
             with (root/'container.log').open('x') as log:
-                process = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT,
-                                         timeout=14400, check=False)
+                process = run_logged(command, log, timeout=14400)
                 code = process.returncode
-        except subprocess.TimeoutExpired:
+        except (subprocess.TimeoutExpired, BuildCleanupUncertain):
             uncertain = True
-            error = 'container command timed out; inspect retained container before new admission'
+            error = 'container time or log budget exhausted; inspect retained container before new admission'
         except Exception as exc:
             error = type(exc).__name__+': '+str(exc)[:500]
         finally:

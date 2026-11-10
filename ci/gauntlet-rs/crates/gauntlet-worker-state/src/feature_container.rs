@@ -19,6 +19,7 @@ fn arguments(intent: &FeatureRunIntent) -> Result<Vec<String>, String> {
     let mut args = vec![
         "create".into(),
         "--pull=never".into(),
+        "--log-driver=none".into(),
         "--name".into(),
         format!("hol-gauntlet-build-{id}"),
         "--label".into(),

@@ -1,9 +1,11 @@
 """Diagnose a retained failed build in a disposable unprivileged VM container."""
+import inspect
 import json
 from pathlib import Path
 import subprocess
 import sys
 from .config import load
+from .vm_build import BuildCleanupUncertain, run_logged
 
 ENTRY = r'''import json,os,subprocess,tarfile,zipfile
 from pathlib import Path
@@ -82,13 +84,21 @@ with Path('/opt/hol-gauntlet/worker.lock').open('r+') as lease:
  profile='hol-gauntlet-probe-'+out.name[6:]
  policy=base/(out.name+'.apparmor');policy.write_text(r['profile'].replace('HOL_GAUNTLET_BUILD_PROFILE',profile))
  subprocess.run(['/usr/sbin/apparmor_parser','--replace',str(policy)],check=True)
- argv=['/usr/bin/podman','run','--rm','--name','hol-gauntlet-probe-'+job,'--user','65532:65532','--cap-drop=ALL','--security-opt=no-new-privileges','--security-opt=apparmor='+profile,'--timeout=240','--memory=12g','--memory-swap=12g','--cpus=2','--pids-limit=512','--network=slirp4netns','--env','HOL_GUARD_BUILD_SHA='+receipt['source_sha'],'--volume',str(base/'source.tar.gz')+':/input/source.tar.gz:ro','--volume',str(base/'candidate.zip')+':/input/candidate.zip:ro','--volume',str(out)+':/output:rw','--entrypoint','/usr/local/bin/gauntlet-python',image,'-I','-B','-c',r['entry']]
+ argv=['/usr/bin/podman','run','--rm','--log-driver=none','--name','hol-gauntlet-probe-'+job,'--user','65532:65532','--cap-drop=ALL','--security-opt=no-new-privileges','--security-opt=apparmor='+profile,'--timeout=240','--memory=12g','--memory-swap=12g','--cpus=2','--pids-limit=512','--network=slirp4netns','--env','HOL_GUARD_BUILD_SHA='+receipt['source_sha'],'--volume',str(base/'source.tar.gz')+':/input/source.tar.gz:ro','--volume',str(base/'candidate.zip')+':/input/candidate.zip:ro','--volume',str(out)+':/output:rw','--entrypoint','/usr/local/bin/gauntlet-python',image,'-I','-B','-c',r['entry']]
  logpath=base/(out.name+'.log')
- with logpath.open('x') as log:result=subprocess.run(argv,stdout=log,stderr=subprocess.STDOUT,timeout=300)
- subprocess.run(['/usr/sbin/apparmor_parser','--remove',str(policy)],check=True)
+ try:
+  with logpath.open('x') as log:result=run_logged(argv,log,timeout=300)
+ finally:
+  exists=subprocess.run(['/usr/bin/podman','container','exists','hol-gauntlet-probe-'+job],capture_output=True,timeout=30)
+  if exists.returncode!=1:raise RuntimeError('probe container cleanup uncertain; profile retained')
+  subprocess.run(['/usr/sbin/apparmor_parser','--remove',str(policy)],check=True)
  print(json.dumps({'exit_code':result.returncode,'log':str(logpath),'result':str(out/'result.json')}))
 assert not any(n.startswith('codex_plugin_scanner') for n in sys.modules)
 '''
+# Retained controllers may predate this helper. Transfer its reviewed stdlib
+# implementation with the fixed probe instead of importing a newer VM module.
+ROOT = '\n'.join(('import select,time', inspect.getsource(BuildCleanupUncertain),
+                  inspect.getsource(run_logged), ROOT))
 
 if __name__=='__main__':
  root=Path(__file__).resolve().parents[3]
