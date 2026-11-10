@@ -1,3 +1,4 @@
+use gauntlet_contracts::legacy_catalog::{fixed_legacy_catalog, LegacyCatalogKind};
 use gauntlet_contracts::{fixed_feature_catalog, fixed_feature_schedule};
 use serde_json::{json, Value};
 use std::path::Path;
@@ -59,5 +60,67 @@ print(json.dumps(dict(groups=scope['catalog'](),schedule=[r[0]for r in scope['or
     );
     for group in groups {
         assert_eq!(json!(group.pytest_argv()), expected["commands"][group.id()]);
+    }
+}
+
+#[test]
+fn legacy_inventory_and_listing_match_the_actual_python_reader() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(4)
+        .unwrap();
+    let code = r#"
+import hashlib,json,sys
+from dataclasses import asdict
+from pathlib import Path
+def prevent_runtime(event,args):
+ if event in {'subprocess.Popen','os.system','os.exec','os.posix_spawn','socket.connect','socket.bind'}:
+  raise RuntimeError('catalog comparison permits no process or network execution')
+ if event=='import' and (args[0] in {'hol_guard','src'} or args[0].startswith(('hol_guard.','src.','ci.native_runtime'))):
+  raise RuntimeError('product runtime imports are forbidden')
+sys.addaudithook(prevent_runtime)
+root=Path(sys.argv[1])
+source=root/'ci/gauntlet/catalog.py'
+assert hashlib.sha256(source.read_bytes()).hexdigest()=='1acb014b980db01f026b71655474e353f277bc0e7ea316704a5c150a74ef869c'
+sys.path.insert(0,str(root))
+from ci.gauntlet.catalog import load_catalog
+def digest(value):
+ return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False).encode()).hexdigest()
+result={}
+for profile,file in {'core':'scenarios.json','approval-retry':'approval_retry.json','connector-setup':'connector_setup.json','full-tasks':'full_tasks.json'}.items():
+ rows=load_catalog(root/'ci/gauntlet'/file)
+ result[profile]={'count':len(rows),'rows_sha256':digest([asdict(row) for row in rows]),'listing_sha256':digest([{'id':row.id,'expectation':row.expectation,'oracle':row.oracle} for row in rows])}
+assert not any(name in {'hol_guard','src'} or name.startswith(('hol_guard.','src.','ci.native_runtime')) for name in sys.modules)
+print(json.dumps(result,sort_keys=True))
+"#;
+    let output = Command::new("python3")
+        .args(["-I", "-S", "-B", "-c", code])
+        .arg(root)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stderr.is_empty());
+    assert!(output.stdout.len() < 4096);
+    let expected: Value = serde_json::from_slice(&output.stdout).unwrap();
+    for kind in LegacyCatalogKind::ALL {
+        let catalog = fixed_legacy_catalog(kind).unwrap();
+        let rows = serde_json::to_vec(catalog.scenarios()).unwrap();
+        let listing = serde_json::to_vec(&catalog.listing()).unwrap();
+        assert_eq!(
+            json!(catalog.scenarios().len()),
+            expected[kind.profile()]["count"]
+        );
+        assert_eq!(
+            gauntlet_contracts::canonical_sha256(&rows).unwrap(),
+            expected[kind.profile()]["rows_sha256"]
+        );
+        assert_eq!(
+            gauntlet_contracts::canonical_sha256(&listing).unwrap(),
+            expected[kind.profile()]["listing_sha256"]
+        );
     }
 }

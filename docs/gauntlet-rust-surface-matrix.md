@@ -27,6 +27,39 @@ This is a migration inventory for Python Gauntlet PR #5263 at `b4efd8171b06d0e13
 
 The `ci check` profile values are `deterministic`, `beta-e2e`, `feature-ai`, and `feature-ai-protocol`. The legacy `run` profiles are `core`, `contained-bun-vitest`, `full-tasks`, `approval-retry`, and `connector-setup`; only its pinned OMP core path makes the existing qualification claim. The legacy harness values are `omp`, `claude-code`, `codex`, and `cursor`; non-OMP harnesses remain diagnostic. A Rust CLI must not silently collapse these scopes into one green result.
 
+The immutable baseline core has **128 rows**, catalog SHA-256 `6195060f…`
+at `b4efd817…`. The current source has **308 core rows**, plus separate
+16-row approval-retry, 11-row connector-setup and 15-row full-task catalogs.
+The contracts library's `legacy_catalog::fixed_legacy_catalog` pins these
+four existing current files. All eleven normalized row fields, defaults,
+declaration order and the legacy list projection match Python reader
+`1acb014b…`. Its versioned inventory always reports execution and qualification
+ineligible. The contained Bun/Vitest profile has no corresponding data catalog
+and is refused by this selector. This library subset does not implement the
+legacy CLI, fixture workers, candidate-catalog admission or historical parity.
+
+The November 10 static inventory verifies all 440 mapped source hashes and
+finds 304 Python files, 282 parser calls across 24 files, 44 main guards and
+268 possible process calls. These are lexical counts: a method named run is
+not necessarily an external process. The retained external evidence
+`budget-limits-20261110-001/static-surface-inventory-001.json`
+(`04a9bec0…`) records each location, phase and proposed owners. Dynamic
+dispatch, exact argv and per-file authority still require semantic review;
+the exhaustive inventory parent exit remains open.
+
+In addition to the three public CLIs, the following parser families require
+explicit boundary ownership:
+
+| Current parser family under ci/gauntlet | Proposed Rust owner / retained dependency |
+| --- | --- |
+| benchmark native builtin/product/pytest, Linux browser/executor and Root initializer controls | Worker-state, product-cell, cell-rootfs and evidence; pytest remains an external executor. |
+| benchmark contained-exec/service relays and MCP server | MCP-service and World; worker-state owns process lifetime and evidence owns grading. |
+| benchmark approval pilot/elapsed control and developer pilot/worker probe | Agent-bridge, worker-state and evidence; OMP/Bun stays a bounded external adapter. |
+| benchmark developer model/provider relays; control-plane live provider | Host-state and evidence own supervision and quota; MLX stays the external model process. |
+| control-plane dashboard server | Host-state owns the public projection and loopback HTTP lifecycle. |
+| full-task argument extension/gateway and GitHub CI helper | Host-state and evidence own scheduling, verification and publication; external service actions retain their separate authorization. |
+| benchmark wrong-temperature fixture parser | Product test asset, executed only inside the unprivileged fixture boundary. |
+
 ## Versioned inputs and executable boundaries
 
 | Input or external process | Current contract | Rust owner / outstanding proof |
@@ -48,9 +81,49 @@ The Python observer stores private job records under `private/jobs/<job-id>.json
 
 The public snapshot is `hol-gauntlet-dashboard.v1` with observer `hol-gauntlet-observer.v2`. It exposes only an allowlist of up to 200 unarchived jobs, including identity, state, reason, timestamps, phase/events, bounded progress, selected build/stage summaries and public resource/headroom telemetry. Private logs, credentials, config, candidate runtime state and signing material stay outside this snapshot. Rust dashboard tests must show stale or absent telemetry as unavailable.
 
+Python Agent.publish and Rust host-state public_jobs share these 29 job keys:
+
+| Group | Keys |
+| --- | --- |
+| Identity | id, pr, title, url, sha, base_sha, kind, tag |
+| Lifecycle | state, reason, created_at, started_at, finished_at, updated_at |
+| Publication | status_error, result, posted_state |
+| Progress | phase, phase_started_at, events, vm_progress, progress_error |
+| Build and staging | build_run, build_dispatch, source_error, local_build, stage_error, stage_result, diagnostic_result |
+
+The nested local_build allowlist is source_sha, job_id, tag, status,
+builder_image, error, failure_phase, exit_code, log_path and version. The
+projection excludes archived jobs, sorts newest first and caps the result at
+200; Rust also bounds the complete projection to 8 MiB. Its publication
+eligibility stays false until observer ownership and a coherent snapshot
+are independently established. Other top-level telemetry/server annotations
+and nested public result formats still need the exhaustive audit.
+
 The VM uses a Root-owned worker lease and a one-time `<job>.started.json` marker before candidate execution, followed by `<job>.json` terminal receipt. The build/stage paths have their own retained receipts and progress files. The workflow controller uses `ci-controller.lock`, per-shard attempt ledgers and immutable frozen inputs. The host model provider uses `events.jsonl` and `quota.lock`; unsettled or unknown usage halts admission. A new Rust writer must not share Python's live lock/journal namespace, and a reader cannot turn absence of a terminal receipt into permission to retry.
 
-Local control-plane commands return `0` for success and `2` for caught operational errors. `ci check` returns its report's exit code: `0` for accepted local result, `1` for a computed failed gate, `2` for invalid execution, and `130` for interruption. Its report remains `qualification_eligible: false`, `trust_status: local-integrity-only`, and `production_ci_activated: false`. The Python worker also exits `2` on rejected requests. The legacy CLI's full exit-code matrix still needs a separate differential inventory; do not infer it from this row.
+The following source inventory separates process success from report meaning.
+These rows have not all been exercised as differential Rust CLI cases:
+
+| Python surface | Existing exit semantics | Proposed Rust owner |
+| --- | --- | --- |
+| Control-plane commands | 0 success; 2 caught operational error. Worker rejects also exit 2. | Host-state and worker-state |
+| Legacy list, verify, pack | 0 after successful operation; 2 for caught ValueError, RuntimeError or OSError. | Contracts and evidence |
+| Legacy run, including non-OMP harnesses | 0 for report pass; 1 otherwise; caught validation/operational errors 2. Non-OMP results remain diagnostic. | Worker-state and evidence |
+| Legacy installed | 0 accepted, 1 rejected; report-only returns 0 regardless of acceptance. Caught operational errors return 2. | Worker-state and evidence |
+| Legacy qualify | 0 qualified, or successfully prepared with prepare-only; otherwise 1. Pre-dispatch errors caught by the outer CLI return 2. | Host-state and evidence |
+| Benchmark profile, preview, freeze, run, status | 0 after returning a result. Uncaught exceptions retain the interpreter's failure; parser errors exit 2. | Contracts, host-state and worker-state |
+| Benchmark pilot | 0 execution_valid, 1 otherwise. This is a diagnostic claim. | Worker-state and evidence |
+| Benchmark approval and developer | Return None after printing the report, so normal process exit is 0 regardless of its score. | Agent-bridge and evidence; retain diagnostic limits |
+| Benchmark gate | 0 accepted local gate; 1 computed failed gate; 2 invalid evidence; 3 invalid policy. | Evidence |
+| Benchmark ci and deterministic | Return the result exit_code; boundary-caught exceptions are 2 and KeyboardInterrupt is 130. CI-check uses 0/1 for accepted/failed local gates. | Host-state, worker-state and evidence |
+
+Legacy argparse failures exit 2 before dispatch. The native OMP route installs
+SIGTERM/SIGHUP handlers that unwind through SystemExit(128 + signal); a
+successor must preserve cleanup as well as the numeric status. The portable
+CI reports remain qualification_eligible false, trust_status local-integrity-only
+and production_ci_activated false. Historical-reader errors, every signal
+interleaving and final report/JUnit reason classes still require differential
+vectors; no zero exit alone establishes qualification.
 
 ## Open inventory work
 

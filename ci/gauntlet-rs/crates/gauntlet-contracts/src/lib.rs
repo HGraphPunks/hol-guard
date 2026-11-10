@@ -32,6 +32,7 @@ mod effect_writer_image;
 mod feature_catalog;
 mod feature_spec;
 mod identity;
+pub mod legacy_catalog;
 mod policy;
 mod prelaunch_handoff;
 mod runner_config;

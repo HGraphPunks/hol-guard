@@ -299,11 +299,13 @@ rusqlite/libsqlite3-sys to 0.41.1/0.39.1 with the same 190-package set. Keep
 historical fixtures and outside base-image checks. Python/Rust agree on the
 409-file/420-entry controller tree `20650edd…`; the 440-file map has 87 changed
 and 20 added entries. All 723 Rust tests, 175 Python tooling tests, formatting
-and Mac/ARM Clippy pass. Native library/CLI/tests compile on Mac without
-execution; Native ARM compilation remains in progress. Fork Actions is
-enabled again; all five exact-head jobs and independent approval still precede
-integration merge. No model use, live qualification, release or parent-exit
-completion is claimed.
+and Mac/ARM Clippy pass. Native library/CLI/tests compile on Mac and ARM
+without execution (1,073.115/939.335 seconds). Actions permissions report
+enabled, but dispatch at pushed merge `0463695b4` returns HTTP 422,
+"Actions has been disabled"; no run is created. Validation
+`merged-validation-002.json` (`cc29285d…`) retains the result. All five
+exact-head jobs and independent approval still precede integration merge.
+No model use, live qualification, release or parent-exit completion is claimed.
 
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
@@ -1119,6 +1121,16 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
 ## 5. Legacy qualification, installed acceptance, and publication
 
 - [ ] Port the pinned 128-scenario legacy catalog, fixture realism, subprocess workers, exact-call judge and signed evidence export/readers.
+  - [x] Add a fixed, inert reader for the current catalog generation: 308 core,
+    16 approval-retry, 11 connector-setup and 15 full-task rows, using the existing
+    JSON files and contracts crate. Byte pins, all eleven normalized fields,
+    declaration order and the list projection match the actual Python reader
+    `1acb014b…` (Rust reader `352fe6d5…`); changed bytes, wrong-catalog bytes and unsupported profiles
+    refuse. One Rust module is added, with no binary or dependency. Its
+    `hol-gauntlet-legacy-catalog-inventory.v1` output remains execution- and
+    qualification-ineligible. The immutable baseline is still 128 rows at
+    `b4efd817…`/catalog `6195060f…`; historical-reader parity, candidate-catalog
+    admission, execution, judging and signed export remain open.
 - [ ] Port OMP core qualification plus Watch/approval/native/full-task diagnostics while preserving each lane's existing claim limits.
   - [x] Repair the macOS Native fixture's missing Mach-O UUID and configure explicit consent policy, preserving every approval/replay assertion. Source `dca678a6` passed 53 real ownership/sink/delivery tests with no skips and seven hardened-image tests; the later UUID metadata assertion at `6c6c0c71` passed the focused real lifecycle. The integration workflow now runs this lane before each chunk merges. See [macOS Native judge proof](gauntlet-rust-macos-native-judge-proof.md). This used zero model requests; installed and real-agent qualification remain open.
 - [ ] Port installed registration, repeat, aged-home and exact package/source/native identity checks.

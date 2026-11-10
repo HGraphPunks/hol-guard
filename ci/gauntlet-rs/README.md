@@ -29,6 +29,14 @@ The composite v1–v7 inert config loader also reproduces Python's runtime/path
 declarations, rejects symlinked private-cell paths, and checks v5–v7 installed
 version metadata against outside source/native/version pins. It does not
 authenticate the full installed prefix or admit a candidate to execution.
+
+The contracts library's fixed legacy catalog reader pins the existing 308-case
+core, 16-case approval-retry, 11-case connector-setup and 15-case full-task
+catalogs. Its normalized rows and listing match the actual Python reader,
+including every default. It accepts no caller path or source pin. Inventory
+always remains ineligible for execution and qualification; fixture execution,
+judging, candidate-catalog admission and historical-reader parity remain open.
+
 An inert SDK and installed-prefix inventory hashes metadata and bytes through
 descriptor-relative directory enumeration. Linux `openat2` confines symlink
 resolution, and a retained VM deployment gave positive Python/Rust parity for
