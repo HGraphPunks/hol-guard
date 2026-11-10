@@ -355,6 +355,13 @@
       "sha256": "e7a61ea02cf05ac72f13fa87879d25b2baa2eddc57deabbe5eb6741d65464f38"
     },
     {
+      "base_sha256": "2618b6fff2f8bab8adc871e9bc3c3c66dd0e3f71614ac825447788024934835c",
+      "disposition": "retain_execution_asset",
+      "path": "ci/gauntlet/control_plane/Builder.Dockerfile",
+      "phase": 2,
+      "sha256": "87f3c36f4201368dd9cfaa092eb9e32fce75e1fc86e154a65796ae0249cba770"
+    },
+    {
       "base_sha256": "3120b14ea30c6ac678517eb77f8f2c4dfa087d39be074d1815658d8b3db62bed",
       "disposition": "retain_execution_asset",
       "path": "ci/gauntlet/control_plane/Builder.apparmor",
@@ -695,7 +702,7 @@
       "disposition": "frozen_data_or_schema",
       "path": "ci/gauntlet/scenarios.json",
       "phase": 1,
-      "sha256": "86efae23a9b26f245b6a98d6a28b21a3d03b63a89d75812426b4b8f205d0be2e"
+      "sha256": "20b85a784c707e472eb1231d8a3a6f02db8776a8c2b62a48386415a3e6f7ef54"
     },
     {
       "base_sha256": "e8789402ce8d0f23cb9a555c09bf0aee43e749ef455ebc27ec7d30df0d8ede39",

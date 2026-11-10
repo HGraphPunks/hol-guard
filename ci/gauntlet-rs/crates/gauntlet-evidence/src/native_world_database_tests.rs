@@ -15,7 +15,7 @@ fn expectations() -> (Value, BTreeMap<String, Value>, Vec<Value>) {
 }
 fn fixture(change: impl FnOnce(&Connection)) -> Vec<u8> {
     let (meta, records, receipts) = expectations();
-    let connection = Connection::open_in_memory().unwrap();
+    let mut connection = Connection::open_in_memory().unwrap();
     for (_, sql) in TABLES {
         connection.execute_batch(sql).unwrap();
     }

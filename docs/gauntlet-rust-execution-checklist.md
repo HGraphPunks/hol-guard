@@ -291,6 +291,20 @@ open. Scan `24cd36df…` reviewed all 1,817 paths at `ea197e8a6`, then failed on
 the tool's CI exclusion; retained draft analysis and bounded witnesses are not
 a completed security report. This follow-up closes no parent exit: **24/62**.
 
+Upstream `4a0b5ab5a` then merges without conflicts. All 322 incoming paths are
+accounted for: 320 exact blob/mode/deletion matches and two inspected additive
+union files. The shared dependency requires Rust 1.89, so align the eleven
+crate MSRVs, all five workflow jobs and current builder; pin existing
+rusqlite/libsqlite3-sys to 0.41.1/0.39.1 with the same 190-package set. Keep
+historical fixtures and outside base-image checks. Python/Rust agree on the
+409-file/420-entry controller tree `20650edd…`; the 440-file map has 87 changed
+and 20 added entries. All 723 Rust tests, 175 Python tooling tests, formatting
+and Mac/ARM Clippy pass. Native library/CLI/tests compile on Mac without
+execution; Native ARM compilation remains in progress. Fork Actions is
+enabled again; all five exact-head jobs and independent approval still precede
+integration merge. No model use, live qualification, release or parent-exit
+completion is claimed.
+
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
 ```

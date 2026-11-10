@@ -1,16 +1,24 @@
 //! The words, quoted phrases and file names a typed prompt gives, which the
 //! project file search looks for.
 use crate::context_assistance_prompt_files::wanted_file;
+use paths::without_paths;
+
+#[path = "context_assistance_prompt_paths.rs"]
+mod paths;
 
 pub(crate) const MAX_TERMS: usize = 32;
 const MAX_PHRASES: usize = 4;
 /// How far past an opening quote to look for its closing one, so a prompt
 /// full of unmatched quotes is still scanned in one pass.
-const MAX_PHRASE_SPAN: usize = 120;
+const MAX_PHRASE_SPAN: usize = 160;
+/// The most of a quote searched for. A longer one, such as a whole docstring
+/// sentence, is searched by its first words up to this length.
+const MAX_PHRASE_CHARS: usize = 80;
 /// Files the prompt names, such as `CHANGES.rst`, each standing for at most
 /// `MAX_NAMED_MATCHES` files with that name.
 pub(crate) const MAX_NAMED: usize = 4;
 const TEST_WORDS: &[&str] = &["test", "tests", "spec", "e2e", "testing"];
+pub(crate) const TEST_DIRS: &[&str] = &["test", "tests", "__tests__", "spec", "e2e"];
 const STOP_WORDS: &[&str] = &[
     "about", "add", "after", "again", "all", "already", "also", "and", "any", "are", "because",
     "been", "before", "being", "both", "build", "but", "can", "cannot", "change", "could",
@@ -99,8 +107,9 @@ pub(crate) fn terms(prompt: &str) -> Vec<String> {
 
 /// The prompt's `terms`, each marked when the prompt wrote it whole as a
 /// name (`case_sensitive`, `IntRange`), not as a plain word or a piece of a
-/// name.
+/// name. An absolute path such as `/tmp/run-1/out.log` gives none.
 pub(crate) fn marked_terms(prompt: &str) -> Vec<(String, bool)> {
+    let prompt = &without_paths(prompt);
     let mut code: Vec<(String, bool)> = Vec::new();
     let mut plain: Vec<(String, bool)> = Vec::new();
     for (word, shaped) in words(prompt) {
@@ -235,8 +244,9 @@ fn file_name(token: &str) -> Option<(&str, &str)> {
 
 /// The names the prompt writes as code, spelled as written: `_batched`,
 /// which `terms` reads as `batched`, and each dotted name whole as well
-/// (`peekable.prepend`), which names a member.
+/// (`peekable.prepend`), which names a member. An absolute path gives none.
 pub(crate) fn spellings(prompt: &str) -> Vec<String> {
+    let prompt = &without_paths(prompt);
     let dotted = (spans(prompt).into_iter())
         .flat_map(|(span, _)| tokens(span))
         .map(|token| token.trim_matches(['.', '-', '/']))
@@ -291,6 +301,22 @@ pub(crate) fn asks_for_tests(terms: &[String]) -> bool {
     terms.iter().any(|term| TEST_WORDS.contains(&term.as_str()))
 }
 
+/// A test or spec file by its usual name or folder in common languages.
+pub(crate) fn test_file(relative: &str) -> bool {
+    let lower = relative.to_lowercase();
+    let name = lower.rsplit('/').next().unwrap_or(&lower);
+    let stem = name.rsplit_once('.').map_or(name, |(stem, _)| stem);
+    lower.split('/').any(|part| TEST_DIRS.contains(&part))
+        || name.contains(".test.")
+        || name.contains(".spec.")
+        || stem.starts_with("test_")
+        || stem.ends_with("_test")
+        || stem.ends_with("_tests")
+        || stem.ends_with("_spec")
+        || stem == "test"
+        || stem == "tests"
+}
+
 fn prompt_mentions_tests(prompt: &str) -> bool {
     prompt
         .split(|c: char| !c.is_alphanumeric())
@@ -333,8 +359,15 @@ pub(crate) fn phrases(prompt: &str) -> Vec<String> {
             continue;
         };
         let phrase: String = chars[at + 1..at + 1 + end].iter().collect();
-        let phrase = phrase.trim().to_lowercase();
-        if (3..=80).contains(&phrase.chars().count())
+        // A quote pasted with its line breaks reads as the source does once
+        // unwrapped, however the source wraps it.
+        let phrase = if phrase.contains('\n') {
+            unwrapped(&phrase)
+        } else {
+            phrase
+        };
+        let phrase = first_words(phrase.trim().to_lowercase());
+        if phrase.chars().count() >= 3
             && phrase.chars().any(char::is_alphanumeric)
             && !found.contains(&phrase)
         {
@@ -343,6 +376,24 @@ pub(crate) fn phrases(prompt: &str) -> Vec<String> {
         at += end + 2;
     }
     found
+}
+
+/// `phrase` cut to its first words that fit in `MAX_PHRASE_CHARS`. Every
+/// file that holds the whole quote holds these words too, and a quote that
+/// ends differently from the source (a period added or left off) still
+/// matches.
+fn first_words(phrase: String) -> String {
+    let Some((cut, _)) = phrase.char_indices().nth(MAX_PHRASE_CHARS) else {
+        return phrase;
+    };
+    let head = &phrase[..cut];
+    let words = if phrase[cut..].starts_with(char::is_whitespace) {
+        head
+    } else {
+        head.rsplit_once(char::is_whitespace)
+            .map_or(head, |(words, _)| words)
+    };
+    words.trim_end().to_owned()
 }
 
 /// `text` with each line break, and the indent and comment mark after it,

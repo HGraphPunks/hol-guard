@@ -2,7 +2,7 @@
 name = "gauntlet-world"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.88"
+rust-version = "1.89"
 description = "Transactional synthetic provider state and signed receipts for Rust Gauntlet"
 
 [dependencies]
@@ -11,7 +11,7 @@ caseless = "=0.2.2"
 gauntlet-contracts = { path = "../gauntlet-contracts" }
 guard-runtime-pyjson = { path = "../../../../rust/crates/guard-runtime-pyjson" }
 ring = "=0.17.14"
-rusqlite = { version = "=0.40.2", features = ["bundled"] }
+rusqlite = { version = "=0.41.1", features = ["bundled"] }
 serde_json = { version = "=1.0.151", features = ["arbitrary_precision"] }
 sha2 = "=0.10.9"
 

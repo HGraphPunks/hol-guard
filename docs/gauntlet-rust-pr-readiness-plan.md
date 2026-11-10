@@ -18,6 +18,20 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
+- The conflict-free merge of upstream `4a0b5ab5a` preserves all 322 changed
+  paths: 320 match exact blobs/modes/deletions, and two additive union files
+  retain both branches. Gauntlet's eleven crate MSRVs, its five-job workflow
+  and current builder align with Rust 1.89. Existing rusqlite/libsqlite3-sys
+  pins become 0.41.1/0.39.1; the 190-package set stays unchanged. Historical
+  builder contexts retain inert planning support, with current base-image
+  custody still requiring outside pins. The map is 440 files/87 changed/20
+  added; independent Python/Rust controller plans match `20650edd…` (409
+  files/420 entries). All 723 merged Rust tests, 175 Python tooling tests,
+  formatting and Mac/ARM Clippy pass. Native library/CLI/tests compile on Mac
+  with `--no-run`; Native ARM compilation is in progress. Fork Actions is now
+  enabled; run all five jobs on the pushed merged head. Independent review
+  and all 38 open parent exits remain required. No model or product runtime
+  executes on Host/Root during these checks.
 - The resource-limit follow-up reuses existing modules and tests: Git output
   is capped while both pipes are read; Python upstream observations have lifetime
   byte/event/session limits; legacy build/feature/probe logs use a bounded pipe

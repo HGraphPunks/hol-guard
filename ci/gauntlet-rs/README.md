@@ -143,7 +143,7 @@ trusted provider generation or benchmark eligibility. See the
 `gauntlet-dashboard` is a read-only shadow server for the existing public status directory. It embeds the current dashboard HTML, JavaScript and CSS, reads only bounded regular files through no-symlink descriptors, and serves the same `/api/status` and `/healthz` values on loopback. It does not own the observer, VM, queue or port 8791. To compare it with the Python dashboard, run it on port 8792 with the absolute **public** directory (never the private state root):
 
 ```sh
-cargo +1.88.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gauntlet-dashboard -- --state /absolute/path/to/.gauntlet-ops/public --port 8792
+cargo +1.89.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gauntlet-dashboard -- --state /absolute/path/to/.gauntlet-ops/public --port 8792
 ```
 
 On 2026-10-20, a side-by-side read of the live public directory produced equal status JSON after excluding the time-sampled `collector_age_seconds`; the health values were equal and the three static assets were byte-identical. The Rust server does not change the authoritative Python controller or its port.
@@ -183,16 +183,16 @@ The [read-only product-cell sibling inventory](../../docs/gauntlet-rust-product-
 Run the checks from the repository root:
 
 ```sh
-cargo +1.88.0 fmt --manifest-path ci/gauntlet-rs/Cargo.toml --all --check
-cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml --locked
-cargo +1.88.0 clippy --manifest-path ci/gauntlet-rs/Cargo.toml --all-targets --locked -- -D warnings
+cargo +1.89.0 fmt --manifest-path ci/gauntlet-rs/Cargo.toml --all --check
+cargo +1.89.0 test --manifest-path ci/gauntlet-rs/Cargo.toml --locked
+cargo +1.89.0 clippy --manifest-path ci/gauntlet-rs/Cargo.toml --all-targets --locked -- -D warnings
 ```
 
 Run the read-only verifier with an absolute bundle directory and a separate
 absolute JSON pin-file path:
 
 ```sh
-cargo +1.88.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gauntlet-verify -- \
+cargo +1.89.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gauntlet-verify -- \
   /absolute/path/to/public-bundle /absolute/path/to/trusted-external-pins.json
 ```
 
@@ -205,7 +205,7 @@ Inspect pinned runner documents and ordinary file assets with a separate
 trusted SHA-256 pin and a canonical absolute public asset root:
 
 ```sh
-cargo +1.88.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gauntlet-inputs-verify -- \
+cargo +1.89.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gauntlet-inputs-verify -- \
   /absolute/path/to/config.json EXTERNAL_CONFIG_SHA256 /absolute/path/to/assets
 ```
 

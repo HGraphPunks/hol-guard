@@ -15,6 +15,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from ..config_mutation import notify_native_policy_mutation
+from ..native_approval_gate import session_signals
 from ..sqlite_tuning import sqlite_connect_timeout_seconds
 from .dashboard_bundle import dashboard_build_id
 from .server_common import _now
@@ -32,6 +34,7 @@ def edge_handshake(
     busy_timeout_seconds: float,
     dashboard_build: str | None,
     user_home: str | None = None,
+    session_signals: list[str] | None = None,
 ) -> bytes:
     """The line that lets the edge answer token-authenticated store reads."""
 
@@ -42,16 +45,23 @@ def edge_handshake(
         "store_path": os.path.abspath(store_path),
         "source": source,
         "busy_timeout_ms": max(1, min(_MAX_BUSY_TIMEOUT_MS, int(busy_timeout_seconds * 1000))),
+        # Store reads resolve a relative config path from the daemon's working
+        # directory; the edge runs from its own.
+        "cwd": os.getcwd(),
     }
     if dashboard_build is not None:
         payload["dashboard_build"] = dashboard_build
     if user_home is not None:
         # Evidence reads shorten this home to ``~`` as ``redact_local_path`` does.
         payload["user_home"] = user_home
+    if session_signals:
+        # The edge runs in a session of its own; approval-gate checks it sends
+        # must carry the daemon's session, as the daemon's own checks do.
+        payload["session_signals"] = session_signals
     return json.dumps(payload, separators=(",", ":")).encode("utf-8") + b"\n"
 
 
-def daemon_edge_callbacks(server: Any, static_dir: Path) -> tuple[Callable[[], bytes], Callable[[], None]]:
+def daemon_edge_callbacks(server: Any, static_dir: Path) -> tuple[Callable[[], bytes], Callable[[bytes], None]]:
     """The handshake builder and activity callback for ``server``'s edge."""
 
     def handshake() -> bytes:
@@ -64,13 +74,18 @@ def daemon_edge_callbacks(server: Any, static_dir: Path) -> tuple[Callable[[], b
             busy_timeout_seconds=sqlite_connect_timeout_seconds(),
             dashboard_build=dashboard_build_id(static_dir),
             user_home=_user_home(),
+            session_signals=session_signals(),
         )
 
-    def on_activity() -> None:
+    def on_activity(kinds: bytes = b"a") -> None:
         # The edge answered a request itself; count it as the request handler
         # would have.
         server.last_activity_monotonic = time.monotonic()
         server.runtime_heartbeat.touch(_now())
+        if b"p" in kinds:
+            # An edge write changed Guard's policy inputs; republish the
+            # native policy snapshot as the daemon's own writes do.
+            notify_native_policy_mutation(server.store.guard_home)
 
     return handshake, on_activity
 
