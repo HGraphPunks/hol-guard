@@ -91,10 +91,14 @@ fn classify_operands(text: &str, arguments: &[String]) -> Option<Vec<Operand>> {
         .collect()
 }
 
+/// `absent_recursive` says whether a missing operand stays missing while the
+/// listing runs: no peer segment may create a file, directory or link at that
+/// name, because a recursive listing walks whatever appears there.
 pub(super) fn safe_listing_segment(
     text: &str,
     arguments: &[String],
     context: super::PathContext<'_>,
+    absent_recursive: bool,
 ) -> bool {
     let recursive = arguments.iter().any(|argument| is_recursive_flag(argument));
     let lists_hidden = arguments
@@ -128,9 +132,17 @@ pub(super) fn safe_listing_segment(
             None => &Operand::Plain,
         };
         let allowed = match kind {
+            // A name that is not there holds no tree to walk, so a recursive
+            // listing of it prints the same error a plain `ls` does. A `~` is
+            // expanded by the shell from its own `HOME`, which this screen
+            // reads as the declared home, so a walk is admitted under it only
+            // once `shell_home_matches` says the two name one directory.
             Operand::Plain if recursive => {
                 surviving += 1;
                 search::safe_recursive_listing_target(argument, context, lists_hidden)
+                    || (absent_recursive
+                        && (!argument.starts_with('~') || context.shell_home_matches)
+                        && absent_listing_operand(argument, context))
             }
             // A listing without a glob admits a name that is not there, because
             // the shell prints an error and nothing else. One glob beside it
@@ -164,11 +176,20 @@ pub(super) fn safe_listing_segment(
     surviving > 0 || !recursive || search::safe_recursive_listing_target(".", context, lists_hidden)
 }
 
+/// A glob that a program prints instead of listing, as in `echo src/*`. The
+/// shell hands it the names a non-recursive `ls` of the same pattern prints, so
+/// the word takes that listing's proof.
+pub(super) fn listable_glob(value: &str, context: super::PathContext<'_>) -> bool {
+    search::safe_glob_operand(value, context, false)
+        || search::safe_unmatched_glob_operand(value, context, false)
+        || leaf_glob_operand(value, context)
+}
+
 /// `ls` of a path that does not exist prints only an error. Agents probe for
 /// optional directories this way (`ls ~/work/scripts 2>/dev/null`). The
-/// nearest existing ancestor must be a directory a listing may name, and every
-/// missing component must be a visible name that clears the sensitive screens,
-/// so the probe cannot spell a hidden or credential location.
+/// nearest existing ancestor must be a directory a listing may name, and the
+/// path must clear the sensitive screens, so the probe cannot spell a
+/// credential location.
 pub(super) fn absent_listing_operand(value: &str, context: super::PathContext<'_>) -> bool {
     if value.is_empty()
         || value.len() > 4096
@@ -202,14 +223,28 @@ pub(super) fn absent_listing_operand(value: &str, context: super::PathContext<'_
             Ok(_) => {
                 let private_temporary =
                     super::listing_temporary::private_temporary_ancestor(ancestor, context);
+                // A name that is not there prints `No such file or
+                // directory` and nothing else, so what the probe may spell
+                // is whatever a listing of the same path would be allowed to
+                // print if it did exist. A plain name is one, with the `.git`
+                // marker an agent probes for and a repository's `.github`
+                // beside it; so is a tool's own directory in the home
+                // directory, which a present-path listing already allows and
+                // an absent one used to refuse, reporting by the
+                // disagreement whether the tool was set up. `~/.aws`,
+                // `~/.config/gh` and the other stores stay refused, because
+                // the answer to a probe for one of them is itself the
+                // account it keeps.
                 let spelled = missing.iter().enumerate().all(|(index, part)| {
                     let name = part.to_string_lossy();
-                    // `.git` is the one marker agents probe for. A missing
-                    // leaf prints only an error and reveals no content.
-                    // `.github` holds a project's workflows, never a
-                    // credential, so a probe for them may name it anywhere.
                     !name.starts_with('.') || (index == 0 && name == ".git") || name == ".github"
-                }) || private_temporary;
+                })
+                    || crate::pretool::read_paths::hidden_listing::absent_home_hidden_tool_path(
+                        &expanded,
+                        ancestor,
+                        context.home_dir,
+                    )
+                    || private_temporary;
                 // The owner's private temporary root itself (`$TMPDIR`) sits
                 // in a location the listing screens deny, but nobody else can
                 // put an entry there, so a missing name below it is enough.
@@ -230,6 +265,10 @@ pub(super) fn absent_listing_operand(value: &str, context: super::PathContext<'_
 }
 
 /// The path an operand names, with `~` and a relative cwd resolved.
+///
+/// A `~` is expanded here from the declared `home_dir`, which is the home the
+/// shell reports; where a caller needs the two to be one directory it screens
+/// `shell_home_matches` itself before admitting the operand.
 fn expanded_path(value: &str, context: super::PathContext<'_>) -> Option<std::path::PathBuf> {
     if value.starts_with('~') {
         super::read_paths::expand_home_read_path(value, context.home_dir)
@@ -379,7 +418,7 @@ fn listable_ancestor(ancestor: &std::path::Path, context: super::PathContext<'_>
     };
     resolved.to_str().is_some_and(|parent| {
         safe_reads::bounded_read_target(parent, context.home_dir, context.cwd, true)
-            || (!parent_steps && search::skill_listing_root(parent, context))
+            || (!parent_steps && search::skill_listing_root(parent, context, false))
     })
 }
 

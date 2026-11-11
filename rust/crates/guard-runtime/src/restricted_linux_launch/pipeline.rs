@@ -6,6 +6,7 @@ use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
 
 pub(super) trait Stages {
+    fn namespace(&mut self) -> Result<()>;
     fn mappings(&mut self, plan: &Plan) -> Result<BTreeMap<PathBuf, (u64, u64)>>;
     fn landlock(&mut self, plan: &Plan) -> Result<()>;
     fn socket(&mut self) -> Result<()>;
@@ -14,6 +15,22 @@ pub(super) trait Stages {
 
 struct Kernel;
 impl Stages for Kernel {
+    fn namespace(&mut self) -> Result<()> {
+        // Bubblewrap can enter a child user namespace after setting up devices.
+        // Setup capabilities there cannot remount its parent-owned namespace.
+        // Create a mount namespace owned by the launcher's current user
+        // namespace before any repository code can run.
+        nix::sched::unshare(nix::sched::CloneFlags::CLONE_NEWNS)
+            .map_err(|_| "Linux private mount namespace could not be created.")?;
+        nix::mount::mount(
+            None::<&std::path::Path>,
+            std::path::Path::new("/"),
+            None::<&str>,
+            nix::mount::MsFlags::MS_REC | nix::mount::MsFlags::MS_PRIVATE,
+            None::<&str>,
+        )
+        .map_err(|_| "Linux private mount propagation could not be enforced.")
+    }
     fn mappings(&mut self, plan: &Plan) -> Result<BTreeMap<PathBuf, (u64, u64)>> {
         super::mappings::enforce(plan)
     }
@@ -43,6 +60,7 @@ pub(super) fn run(mut plan: Plan, stages: &mut impl Stages) -> Result<()> {
             return Err("Linux output boundary changed.");
         }
     }
+    stages.namespace()?;
     let sealed = stages.mappings(&plan)?;
     for path in &plan.read_files {
         if let Some(identity) = sealed.get(path) {
@@ -64,6 +82,14 @@ mod tests {
             calls: Vec<&'static str>,
         }
         impl Stages for Backend {
+            fn namespace(&mut self) -> Result<()> {
+                self.calls.push("namespace");
+                if self.failure == "namespace" {
+                    Err("failed")
+                } else {
+                    Ok(())
+                }
+            }
             fn mappings(&mut self, _: &Plan) -> Result<BTreeMap<PathBuf, (u64, u64)>> {
                 self.calls.push("mappings");
                 if self.failure == "mappings" {
@@ -94,10 +120,17 @@ mod tests {
             }
         }
         for (failure, expected) in [
-            ("mappings", vec!["mappings"]),
-            ("landlock", vec!["mappings", "landlock"]),
-            ("socket", vec!["mappings", "landlock", "socket"]),
-            ("none", vec!["mappings", "landlock", "socket", "execute"]),
+            ("namespace", vec!["namespace"]),
+            ("mappings", vec!["namespace", "mappings"]),
+            ("landlock", vec!["namespace", "mappings", "landlock"]),
+            (
+                "socket",
+                vec!["namespace", "mappings", "landlock", "socket"],
+            ),
+            (
+                "none",
+                vec!["namespace", "mappings", "landlock", "socket", "execute"],
+            ),
         ] {
             let plan = Plan {
                 command: vec!["/unexecuted-fixture".into()],

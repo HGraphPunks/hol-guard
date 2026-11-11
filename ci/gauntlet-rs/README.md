@@ -5,6 +5,21 @@ This independent Cargo workspace is an implementation slice of the
 Gauntlet's trusted code separately from the HOL Guard product workspace in
 `rust/`; a candidate product build must never supply its own verifier.
 
+The [current execution checkpoint](../../docs/gauntlet-rust-pr-readiness-plan.md)
+and [acceptance ledger](../../docs/gauntlet-rust-execution-checklist.md) record
+current source pins, supported commands and remaining qualification gaps.
+Python compatibility paths remain available. Runtime cutover and rollback are
+still unqualified: require no active or unknown job, preserve original ledgers
+and quota, and verify receipt reconciliation before changing ownership. The
+retained owner-loss volume currently blocks fresh admission; switching to
+Python or replacing state cannot resolve that missing authority. Retire Python
+orchestration only after the required parity, conformance and rollback proofs.
+
+The native product-cell actor has a separate
+[GNU/glibc release build contract](../../docs/gauntlet-rust-native-actor-build.md).
+The Root worker and constructor may be static musl; the actor must support
+the pinned dynamic libseccomp ABI within its existing 2-MiB bound.
+
 `gauntlet-contracts` accepts bounded JSON byte records, rejects
 duplicate keys and nonfinite values, reproduces the Python canonical JSON
 bytes and SHA-256 digest, and applies the Python depth, node, byte and decimal
@@ -24,6 +39,17 @@ The composite v1–v7 inert config loader also reproduces Python's runtime/path
 declarations, rejects symlinked private-cell paths, and checks v5–v7 installed
 version metadata against outside source/native/version pins. It does not
 authenticate the full installed prefix or admit a candidate to execution.
+
+The contracts library's fixed legacy catalog reader pins the existing 310-case
+core, 16-case approval-retry, 11-case connector-setup and 15-case full-task
+catalogs. Its normalized rows and listing match the actual Python reader,
+including every default. It accepts no caller path or source pin. Inventory
+always remains ineligible for execution and qualification. Separate source-derived
+current/frozen reducers preserve the original 128-row baseline and the four
+current catalogs; full-task and Connector wrappers keep their own claim limits.
+Fresh legacy execution, installed acceptance, candidate admission and complete
+historical-reader parity remain open. Python readers and execution paths remain.
+
 An inert SDK and installed-prefix inventory hashes metadata and bytes through
 descriptor-relative directory enumeration. Linux `openat2` confines symlink
 resolution, and a retained VM deployment gave positive Python/Rust parity for
@@ -107,13 +133,15 @@ Python-exported valid and signed hostile fixtures provide differential tests.
 The [parity manifest](parity-manifest.v1.json) records SHA-256 hashes for all
 420 pinned Gauntlet source files and a preliminary owner phase.
 The separate [integration source delta](integration-source-delta.v1.json) records the
-48 files changed and seven files added when that pinned source is combined with
-current `main` in draft PR #5402. A Rust test reconstructs and hashes all 427
+93 files changed and 21 files added when that pinned source is combined with
+reviewed upstream source in the migration branch. A Rust test reconstructs and hashes all 441
 tracked `ci/gauntlet` files; the original 420-file manifest remains the
 immutable #5263 fixture baseline. Neither manifest makes candidate code a
 trusted controller generation.
 `gauntlet-contracts` also parses fixed, versioned [VM worker requests and responses](../../docs/gauntlet-rust-worker-protocol.md)
-with no command or path selectors and explicit unknown/unavailable states; no worker dispatcher or receipt authenticator exists yet.
+with no command or path selectors and explicit unknown/unavailable states. Its
+historical syntax-only readers remain separate from the newer explicit Rust
+dispatcher and authenticated readback paths described below.
 `gauntlet-evidence` checks the pinned Python worker's terminal receipt against caller-supplied source, job, deployment and config pins and the exact report bytes. The pure consistency helper does not open VM paths or award benchmark eligibility.
 An uninstalled [Root-only Python-worker shadow](../../docs/gauntlet-rust-python-worker-file-proof.md)
 now reads one retained receipt and report through fixed no-symlink private
@@ -138,7 +166,7 @@ trusted provider generation or benchmark eligibility. See the
 `gauntlet-dashboard` is a read-only shadow server for the existing public status directory. It embeds the current dashboard HTML, JavaScript and CSS, reads only bounded regular files through no-symlink descriptors, and serves the same `/api/status` and `/healthz` values on loopback. It does not own the observer, VM, queue or port 8791. To compare it with the Python dashboard, run it on port 8792 with the absolute **public** directory (never the private state root):
 
 ```sh
-cargo +1.88.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gauntlet-dashboard -- --state /absolute/path/to/.gauntlet-ops/public --port 8792
+cargo +1.89.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gauntlet-dashboard -- --state /absolute/path/to/.gauntlet-ops/public --port 8792
 ```
 
 On 2026-10-20, a side-by-side read of the live public directory produced equal status JSON after excluding the time-sampled `collector_age_seconds`; the health values were equal and the three static assets were byte-identical. The Rust server does not change the authoritative Python controller or its port.
@@ -153,14 +181,86 @@ GAUNTLET_PUBLIC_STATE=/absolute/path/to/.gauntlet-ops/public docker --context co
 
 Compose binds only host `127.0.0.1:8793`; the container reads `/state` without write access, runs as UID/GID 65532, drops all capabilities, and has a 0.25-CPU/128-MiB limit. Its built-in health probe checks the dashboard process, while `/api/status` continues to show the observer's actual stale or unavailable state. Use `GAUNTLET_RUST_PORT` only if another local port is needed. This command does not start a Rust observer, VM job or PR gate. The [container proof](../../docs/gauntlet-rust-dashboard-container-proof.md) records the live comparison.
 
-`gauntlet-worker-state` is an inert durable journal library for the future Linux worker. It consumes a fixed `run` request only after independently supplied source, deployment and worker-generation pins match, creates one-time canonical started and running markers with exclusive no-symlink file creation, and fsyncs the files and directory. It can also persist bounded canonical report bytes and a versioned terminal receipt bound to the started marker and process identity. Restart reads detect orphan, partial, symlinked or changed evidence and block replay. It does not launch a process or authorize benchmark execution.
-Its read-only response projection emits the fixed v1 protocol: an untouched job is `not-started` for progress, a started job is `running` only when a fresh Linux pidfd/start-tick/cgroup sample matches its durable marker, and a changed report cannot become terminal success. `inspect` and unstarted `run` remain unavailable until the Linux worker has complete trusted deployment and dispatch code.
+`gauntlet-worker-state` owns durable one-use journals, pinned source/deployment preparation, builder and feature supervision, recovery, and explicit Native diagnostic dispatch on Linux ARM64. It fsyncs exclusive no-symlink markers and binds terminal receipts to the reserved job and observed process identities. Partial, orphaned or changed evidence blocks replay. The Native path launches its Rust controller in owned cgroups and captures SDK/MCP and product-cell observations. Source-selected independent reducers and authenticated reports exist; fresh role execution, physical writer attribution, source admission and qualification remain incomplete. Native terminals retain `invalid-evidence`, `execution_eligible: false` and `guard_causality_verified: false`. The [execution checklist](../../docs/gauntlet-rust-execution-checklist.md) remains at **24/62 parent exits complete, 38 open**.
+
+The normal `gauntlet-host` command families now cover the following flow.
+These are implemented interfaces; newer completed-read/recovery refinements are
+still under focused validation.
+
+| Family | Normal commands |
+| --- | --- |
+| `build` | source/transfer; transfer-bounded/transfer-bounded-read; run-bounded/read-bounded; capture/wheel-stage; prefix-clone/prefix-clone-read; runtime-publish/runtime-publish-read |
+| `dependencies` | inputs/transfer/transfer-read; run-bounded/read-bounded/repair-bounded; prefix-stage/prefix-stage-read |
+| `artifacts` | record/download/download-read; ack/ack-read; retire/retire-read/retire-resume |
+| `deterministic`, `live` | initialize/initialize-read; record; prepare/prepare-read; run/read/report/repair; live adds provision/provision-read/pair |
+| `provider` | prepare/start/read/stop; source/job-bound serial Unix model relay with retained quota cap/history checks |
+| Lifecycle | attach-job/refresh-job; status/agent/up remain passive |
+
+Explicit observer attachment uses `attach-job --state-parent ABS_PRIVATE_PARENT
+--operation native|bounded-build --journal ABS_PRIVATE_JOURNAL --job-id HEX16
+--intent-sha256 HEX64`. It retains the original journal identity, Source/VM
+context and intent digest in a private binding; stdout returns its hash.
+`refresh-job --state-parent ABS_PRIVATE_PARENT --job-id HEX16 --binding-sha256
+HEX64` rechecks that same authority. Status and the passive dashboard refresh
+already attached jobs and show verified phases and sanitized result hashes.
+Missing or changed authority becomes unknown and blocks admission. These
+commands send no workload request and establish no worker availability or gate
+activation. Existing v1 lifecycle histories remain readable; the first successful
+attachment upgrades only the isolated Rust checkpoint to v2 and preserves its
+release rows. Mocked attachment/recovery checks do not qualify execution.
+
+The sequence is source/dependency preparation, bounded build, inert artifact
+capture, prefix/runtime publication, then separately authorized Native/live and
+provider work. Actual private ZIP bytes must be retained before artifact ack;
+custody is rechecked before retirement. Downstream bounded build/dependency/prefix/artifact
+routes require completed Source.v2 context, original private intents and consumed
+dispatches, original Lima/SSH homes and instance identity, and outside authority.
+`artifacts retire-resume` continues only the original consumed cleanup after
+rechecking the retained ZIP, acknowledgement and retirement binding;
+`retire-read` never changes Root state. Physical partial-cleanup recovery is
+separate from the mocked Host checks.
+`deterministic initialize-abort-unreleased` handles a consumed Host dispatch
+only when its official Host pin is missing and Root proves the job unstarted;
+its existing abort read/resume commands preserve that authority. Completed
+bounded Native jobs use `deterministic retire/retire-read/retire-resume`, which
+require the original initialized storage and actual private report archive.
+Both cleanup paths keep model usage unknown and leave provider quota unchanged.
+Lost replies require authenticated original readback; they do not permit replay
+or reconstruction from public hashes. Raw ZIP/USTAR/model bytes and Host bindings
+remain private at 0700/0600; stdout exposes sanitized summaries and hashes.
+Original source/dependency volumes remain required while later verification or
+Native preparation depends on them.
+
+Bounded storage.v2 requires finite byte/inode limits and the live original,
+outside-pinned mount-namespace owner. A replacement owner cannot inherit that
+authority. Historical v1 routes remain ineligible and cannot acquire new v2
+retirement authority. Supervisor v5 keeps exactly five pinned helpers
+(`/usr/bin/systemd-run`, `/usr/bin/systemctl`, `/usr/bin/aa-exec`,
+`/usr/bin/unshare`, `/usr/sbin/apparmor_parser`); v6 keeps the same closed fields
+and adds only `/usr/bin/nsenter`. Both use `outside-root-ptrace.v1` and
+`outside-root-native-pipes.v1`. V1–v5 readers retain their original contracts.
+
+Actual normal Rust commands completed the `bb69ca40` ARM build, dependency
+resolution/inert staging, prefix clone and immutable runtime publication on
+historical v1 storage, all ineligible. The actual pinned SDK passed MCP-only
+tool inventory and four formatter cases with zero inference. The actual Rootfs
+private-namespace/full-journal cleanup fixture passed without a candidate run;
+cleanup credit remains unknown. These observations are distinct from the
+unproved storage.v2 normal flow, Worker ENOSPC, new Host recovery, model pair,
+beta and full legacy execution. Ordinary allowed Bash still lacks an execution
+lifecycle bound to the SDK's genuine persistent brush process. Model/source
+authorization, sufficient retained quota, capacity, required CI and independent
+approvals remain pending. See the [readiness checkpoint](../../docs/gauntlet-rust-pr-readiness-plan.md#resume-from-this-checkpoint),
+[build/read/recovery evidence](../../docs/gauntlet-rust-hostbound-candidate-build-proof.md)
+and [surface matrix](../../docs/gauntlet-rust-surface-matrix.md).
+
+The earlier read-only v1 projections and frozen probes below remain supported historical diagnostics. Their unavailable/inert results describe those entrypoints and source generations. They do not describe the newer explicit Native dispatcher.
 An inert [fixed launch plan](../../docs/gauntlet-rust-worker-launch-proof.md)
 reproduces the pinned Python worker's deterministic `ci check` argv, cwd,
 environment and output paths for two Python-frozen cases. It refuses wrong
 deployment/interpreter pins and injected request selectors. It does not spawn
 the controller or establish execution eligibility.
-The separate `open_root_owned` entrypoint is reserved for a live Linux worker: it requires effective Root, no symlink path components, Root-owned non-writable ancestors and a final directory with no group/world permissions. Its nonblocking `active.lock` lease is descriptor-held through reservation and terminal writing, and fails if the visible lock file changes. Tests use the inert `open` entrypoint to prove lock contention without Root. Linux process/cgroup observations are implemented, but the live dispatcher and independently authenticated report are still absent.
+The separate `open_root_owned` entrypoint requires effective Root, no symlink path components, Root-owned non-writable ancestors and a final directory with no group/world permissions. Its nonblocking `active.lock` lease is descriptor-held through reservation and terminal writing, and fails if the visible lock file changes. Tests use the inert `open` entrypoint to prove lock contention without Root. Native dispatch composes these custody checks; independent admission, grading and qualification remain open.
 
 `gauntlet-vm-worker-shadow` is an uninstalled Linux ARM64 read-only entrypoint. It accepts one bounded fixed request on stdin and three independently supplied source/deployment/generation hashes, reads only `/var/lib/hol-gauntlet-rust/worker-state`, and prints a v1 response. It refuses other platforms, CLI path/command selectors and untrusted state ancestry. `inspect` and an untouched `run` are unavailable; a reserved job is `running` only with a valid durable marker and fresh kernel sample. It cannot create a journal, reserve a job, launch a candidate or replace the current Python worker. The latest static 1.2 MB ARM64 shadow binary had SHA-256 `b498f6723a09c48daf3c2e0dc94bb3616dd6a74c3686499bb9298cd4959e932b` on both host and VM; an unprivileged request exited 2 with the expected Root-custody refusal. The separate Rust state directory there is empty and mode 0700.
 
@@ -178,16 +278,16 @@ The [read-only product-cell sibling inventory](../../docs/gauntlet-rust-product-
 Run the checks from the repository root:
 
 ```sh
-cargo +1.88.0 fmt --manifest-path ci/gauntlet-rs/Cargo.toml --all --check
-cargo +1.88.0 test --manifest-path ci/gauntlet-rs/Cargo.toml --locked
-cargo +1.88.0 clippy --manifest-path ci/gauntlet-rs/Cargo.toml --all-targets --locked -- -D warnings
+cargo +1.89.0 fmt --manifest-path ci/gauntlet-rs/Cargo.toml --all --check
+cargo +1.89.0 test --manifest-path ci/gauntlet-rs/Cargo.toml --locked
+cargo +1.89.0 clippy --manifest-path ci/gauntlet-rs/Cargo.toml --all-targets --locked -- -D warnings
 ```
 
 Run the read-only verifier with an absolute bundle directory and a separate
 absolute JSON pin-file path:
 
 ```sh
-cargo +1.88.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gauntlet-verify -- \
+cargo +1.89.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gauntlet-verify -- \
   /absolute/path/to/public-bundle /absolute/path/to/trusted-external-pins.json
 ```
 
@@ -200,7 +300,7 @@ Inspect pinned runner documents and ordinary file assets with a separate
 trusted SHA-256 pin and a canonical absolute public asset root:
 
 ```sh
-cargo +1.88.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gauntlet-inputs-verify -- \
+cargo +1.89.0 run --locked --manifest-path ci/gauntlet-rs/Cargo.toml --bin gauntlet-inputs-verify -- \
   /absolute/path/to/config.json EXTERNAL_CONFIG_SHA256 /absolute/path/to/assets
 ```
 
@@ -211,9 +311,10 @@ installed version metadata when applicable. `execution_eligible` is always
 `false`: even the full inert inventory does not prove OS execute access,
 Linux symlink-race safety, independent verdicts or live candidate execution.
 
-The next slices must finish Phase 0's behavioral matrix and Phase 1's full
-asset/configuration custody, legacy evidence and independent scoring parity before moving
-to the Linux VM worker and host observer. The existing Python Gauntlet, VM
-jobs, model provider, dashboard and optional PR gate remain the authoritative
-execution path until fresh source-bound parity and recovery checks justify a
-controlled cutover. This workspace does not start a job or publish a status.
+Remaining work includes current-source workflow/legacy execution and qualification,
+independent admission/effect grading, and controlled idle cutover/rollback. No
+Python entrypoint or reader has been removed. The [readiness plan](../../docs/gauntlet-rust-pr-readiness-plan.md)
+and execution checklist govern acceptance. The verifier examples above only
+inspect; separate normal dispatch and publication interfaces retain their explicit
+authority requirements and do not authorize qualification, release or PR-gate
+activation.

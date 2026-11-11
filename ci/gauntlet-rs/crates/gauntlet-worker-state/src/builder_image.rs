@@ -14,7 +14,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 const UV_REF: &str = "ghcr.io/astral-sh/uv:0.9.26";
-const RUST_REF: &str = "docker.io/library/rust:1.88.0-slim-bookworm";
+const RUST_REF: &str = "docker.io/library/rust:1.89.0-slim-bookworm";
+const LEGACY_RUST_REF: &str = "docker.io/library/rust:1.88.0-slim-bookworm";
 const INSPECT_FORMAT: &str = "{{.Id}}|{{.Os}}|{{.Architecture}}";
 const INSPECT_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -113,7 +114,11 @@ fn pinned_dockerfile(
                 (0, "FROM ghcr.io/astral-sh/uv:0.9.26 AS uv") => {
                     format!("FROM sha256:{uv_id} AS uv")
                 }
-                (1, "FROM docker.io/library/rust:1.88.0-slim-bookworm") => {
+                (
+                    1,
+                    "FROM docker.io/library/rust:1.88.0-slim-bookworm"
+                    | "FROM docker.io/library/rust:1.89.0-slim-bookworm",
+                ) => {
                     format!("FROM sha256:{rust_id}")
                 }
                 _ => return Err(BuilderImageError::UnsupportedDockerfile),
@@ -127,7 +132,11 @@ fn pinned_dockerfile(
             output.push('\n');
         }
     }
-    if from_count != 2 || output.contains(UV_REF) || output.contains(RUST_REF) {
+    if from_count != 2
+        || output.contains(UV_REF)
+        || output.contains(RUST_REF)
+        || output.contains(LEGACY_RUST_REF)
+    {
         return Err(BuilderImageError::UnsupportedDockerfile);
     }
     Ok(output.into_bytes())
@@ -249,6 +258,14 @@ mod tests {
         assert!(dockerfile.contains(&format!("FROM sha256:{}\n", "c".repeat(64))));
         assert!(!dockerfile.contains(UV_REF));
         assert!(!dockerfile.contains(RUST_REF));
+        assert!(!dockerfile.contains(LEGACY_RUST_REF));
+        let legacy = std::str::from_utf8(context().dockerfile_bytes())
+            .unwrap()
+            .replace(RUST_REF, LEGACY_RUST_REF);
+        assert_eq!(
+            pinned_dockerfile(legacy.as_bytes(), &"b".repeat(64), &"c".repeat(64)).unwrap(),
+            plan.dockerfile_bytes()
+        );
         assert_eq!(plan.to_json()["execution_eligible"], false);
         let changed = fixed_builder_image_plan(
             &context(),
@@ -275,6 +292,11 @@ mod tests {
         let moved = b"FROM ghcr.io/astral-sh/uv:0.9.27 AS uv\nFROM docker.io/library/rust:1.88.0-slim-bookworm\n";
         assert_eq!(
             pinned_dockerfile(moved, &"b".repeat(64), &"c".repeat(64)).unwrap_err(),
+            BuilderImageError::UnsupportedDockerfile
+        );
+        let moved_rust = b"FROM ghcr.io/astral-sh/uv:0.9.26 AS uv\nFROM docker.io/library/rust:1.90.0-slim-bookworm\n";
+        assert_eq!(
+            pinned_dockerfile(moved_rust, &"b".repeat(64), &"c".repeat(64)).unwrap_err(),
             BuilderImageError::UnsupportedDockerfile
         );
     }

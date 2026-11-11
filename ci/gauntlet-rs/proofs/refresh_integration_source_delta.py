@@ -18,6 +18,20 @@ DELTA = WORKSPACE / "integration-source-delta.v1.json"
 NEW_FILES = {
     "ci/gauntlet/case_retry.py": ("port_to_rust", 5),
     "ci/gauntlet/benchmark/stage_control_adapter.py": ("port_to_rust", 2),
+    "ci/gauntlet/approval_retry_action.py": ("port_to_rust", 5),
+    "ci/gauntlet/approval_retry_persistent.py": ("port_to_rust", 5),
+    "ci/gauntlet/codex_contained.py": ("port_to_rust", 5),
+    "ci/gauntlet/decision_coverage.py": ("port_to_rust", 5),
+    "ci/gauntlet/eval_shell.py": ("port_to_rust", 5),
+    "ci/gauntlet/docker_stub_fixtures.py": ("port_to_rust", 5),
+    "ci/gauntlet/extension_allow_fixtures.py": ("port_to_rust", 5),
+    "ci/gauntlet/runtime_cases.py": ("port_to_rust", 5),
+    "ci/gauntlet/git_allow_fixtures.py": ("port_to_rust", 5),
+    "ci/gauntlet/approval_retry_marker.py": ("port_to_rust", 5),
+    "ci/gauntlet/branch_return_fixtures.py": ("port_to_rust", 5),
+    "ci/gauntlet/extension_catalog_fixtures.py": ("port_to_rust", 5),
+    "ci/gauntlet/plugin_manifest_fixtures.py": ("port_to_rust", 5),
+    "ci/gauntlet/workspace_runner_fixtures.py": ("port_to_rust", 5),
 }
 
 

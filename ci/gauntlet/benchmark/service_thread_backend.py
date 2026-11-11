@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import copy
 import os
 import subprocess
 import threading
+import time
 from uuid import uuid4
 
 import anyio
@@ -21,6 +23,65 @@ from mcp.types import JSONRPCMessage
 from .contracts import canonical_json
 from .mcp_server import create_server
 from .service_relay import validate_frame
+
+
+class ServiceObservationLog:
+    """Lifetime limits include metadata, rejected traffic and reconnect history."""
+
+    def __init__(self, run_id, stop, observer, *, max_bytes, max_events, max_sessions):
+        for value, maximum in ((max_bytes, 16 * 1024 * 1024), (max_events, 10000), (max_sessions, 64)):
+            if type(value) is not int or not 1 <= value <= maximum:
+                raise ValueError('invalid service observation budget')
+        self.run_id, self.stop, self.observer = run_id, stop, observer
+        self.max_bytes, self.max_events, self.max_sessions = max_bytes, max_events, max_sessions
+        self.events, self.bytes, self.count, self.sessions = [], 0, 0, 0
+        self.reason = None
+        self.failure_reported = self.observer_failed = False
+        self._lock, self._emission_lock = threading.RLock(), threading.RLock()
+
+    def start_session(self):
+        with self._lock:
+            if self.reason is not None or self.sessions >= self.max_sessions:
+                self.reason = self.reason or 'lifetime-session-budget'
+                self.stop.set()
+                return False
+            self.sessions += 1
+            return True
+
+    def emit(self, kind, *, timestamp=False, **fields):
+        # Publish serially, without holding the state lock across a callback.
+        with self._emission_lock:
+            with self._lock:
+                event = {'sequence': len(self.events) + 1, 'run_id': self.run_id, 'kind': kind, **fields}
+                if timestamp:
+                    event['observed_monotonic_ns'] = time.monotonic_ns()
+                size = 0 if self.reason else len(canonical_json(event).encode('utf-8'))
+                if self.reason or self.count >= self.max_events or size > self.max_bytes - self.bytes:
+                    self.reason = self.reason or 'lifetime-observation-budget'
+                    self.stop.set()
+                    if self.failure_reported:
+                        if 'message' in fields:
+                            raise ValueError('service observation budget exhausted')
+                        return
+                    self.failure_reported = True
+                    event = {'sequence': len(self.events) + 1, 'run_id': self.run_id,
+                             'kind': 'observation-budget-exceeded', 'reason': self.reason}
+                else:
+                    self.bytes += size
+                    self.count += 1
+                self.events.append(event)
+            if self.observer is not None:
+                try:
+                    self.observer(copy.deepcopy(event))
+                except Exception as error:
+                    with self._lock:
+                        if not self.observer_failed:
+                            self.events.append({'sequence': len(self.events) + 1, 'run_id': self.run_id,
+                                                'kind': 'observer-error', 'reason': type(error).__name__})
+                            self.observer_failed = True
+                        self.stop.set()
+            if self.reason and 'message' in fields:
+                raise ValueError('service observation budget exhausted')
 
 
 class ServiceThreadBackend:

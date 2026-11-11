@@ -76,6 +76,88 @@ pub struct RunReservationJournal {
 
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod builder_candidate_preflight;
+mod dependency_archive_read;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod dependency_prefix;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod dependency_prefix_meta;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use dependency_prefix::{
+    read_native_dependency_prefix, stage_native_dependency_prefix, DependencyPrefixPins,
+};
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod dependency_prefix_write;
+pub use dependency_archive_read::{
+    inspect_dependency_archive, DependencyArchivePins, DependencyArchiveProof,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod dependency_completion;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use dependency_completion::retire_native_dependency_completion;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod dependency_creator_recovery;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod dependency_io;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod dependency_podman;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod dependency_preparation;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod dependency_repair;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use dependency_preparation::retire_native_dependency_preparation;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod dependency_run;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_assets;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_capture;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_container;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod feature_files;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod feature_journal;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_preflight;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_repair;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_run;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_state;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use feature_assets::capture_native_feature_asset;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use feature_repair::{read_native_feature_result, repair_native_features};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use feature_run::{receive_native_feature_intent, run_native_features};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod dependency_state;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use dependency_repair::{
+    read_repaired_native_dependencies, repair_native_dependencies, repair_owned_native_dependencies,
+};
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_dependency_archive;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_dependency_capture;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use dependency_run::{receive_native_dependency_intent, run_native_dependencies};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use dependency_state::read_native_dependencies;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_dependency_export;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_dependency_inputs;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_dependency_capture::{
+    capture_native_dependency_inputs, capture_native_dependency_inputs_v2,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_dependency_export::export_native_dependencies;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_dependency_inputs::NativeDependencyInputPins;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod builder_candidate_process;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
@@ -101,6 +183,18 @@ mod builder_run_plan;
 mod builder_source_capture;
 mod candidate_archive;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_executor;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_executor_files;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_executor_prepare;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_executor_process;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod feature_executor_scope;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use feature_executor::run_fixed_feature_executor;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_build_ready;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_capture;
@@ -118,6 +212,26 @@ mod candidate_dependencies_live;
 mod candidate_host_anchor;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_prefix_clone;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_candidate_launchers;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_candidate_prefix;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_candidate_prefix::{
+    clone_native_candidate_prefix, read_native_candidate_prefix, NativeCandidatePrefixPins,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_runtime_publish;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_runtime_receipt;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_runtime_verify;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_runtime_publish::{publish_native_runtime, read_native_runtime_publication};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_runtime_receipt::NativeRuntimePins;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod candidate_repair;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_result_read;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
@@ -146,6 +260,10 @@ mod controller_key;
 mod controller_run;
 #[cfg(target_os = "linux")]
 mod deadline;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod owned_cgroup;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod private_cell_artifact_mode;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod private_cell_shadow_artifacts;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
@@ -177,6 +295,195 @@ mod interpreter_exec;
 #[cfg(any(target_os = "linux", test))]
 mod job_slice_guard;
 mod launch_plan;
+mod native_job_spec;
+mod native_live_model;
+pub use native_live_model::NativeLiveModelPins;
+mod native_live_spec;
+pub use native_live_spec::NativeLiveJob;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_live_mcp;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_live_prepare;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_live_provider;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_live_prepare::{prepare_native_live_omp, NativeLivePreparationPins};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_live_transport;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_live_transport::dispatch_native_worker_live_pipe;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_live_artifacts;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_live_cleanup;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_live_http;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_live_run;
+pub use native_job_spec::{NativeJobExecution, NativeJobSpec};
+mod native_job_storage;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_job_storage::{
+    abort_initialized_native_job_storage, abort_native_job_storage, dispatch_native_job_storage,
+    initialize_native_job_v2, retire_native_job_storage, run_storage_namespace_owner,
+};
+pub use native_job_storage::{JobStoragePins, JobStorageProfile};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_live_http::run_native_live_http_bridge;
+#[cfg(target_os = "linux")]
+mod native_mcp_store;
+#[cfg(target_os = "linux")]
+pub use native_mcp_store::NativeMcpWorld;
+#[cfg(target_os = "linux")]
+mod native_mcp_sockets;
+#[cfg(target_os = "linux")]
+pub use native_mcp_sockets::NativeMcpSockets;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_peer;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_mcp_peer::{NativeMcpBoundary, NativeMcpProcess, NativeMcpRequestPeer};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_agent;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_agent_spec;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_command;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_proxy_client;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_public;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_mcp_agent::NativeMcpAgent;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_mcp_proxy_client::NativeMcpProxyClient;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_keyed_startup_repair;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_connection;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_control;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_quiescence;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_mcp_route;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_mcp_binding;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_mcp_control;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_mcp_frontend;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_mcp_plane;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_mcp_result;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_startup_repair;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_keyed_startup_repair::{
+    read_native_host_pinned_pre_controller_repair, repair_native_host_pinned_pre_controller,
+    repair_native_live_pre_controller, NativePrelaunchRepairPins,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_startup_repair::repair_native_pre_controller;
+mod native_sdk_protocol;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_sdk_result;
+pub use native_sdk_protocol::{NativeSdkHook, NativeSdkLedger, NativeSdkRequest};
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_operation_budget;
+mod native_sdk_socket_io;
+pub use native_sdk_socket_io::{read_native_sdk_line, write_native_sdk_line};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_sockets;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_sdk_sockets::NativeSdkSockets;
+mod native_sdk_asset_spec;
+pub use native_sdk_asset_spec::NativeSdkAssetPins;
+mod native_sdk_pins;
+pub use native_sdk_pins::{NativeSdkPins, NATIVE_SDK_AGENT_IMAGE};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_agent;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_sdk_agent_spec;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_assets;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_control;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_created_repair;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_host_device;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_process;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_public;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_quiescence;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_sdk_created_repair::repair_native_sdk_created;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_router;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_sdk_assets::VerifiedNativeSdkAssets;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_sdk_asset_publish;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_sdk_asset_publish::publish_native_sdk_assets;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_sdk_peer;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_sdk_peer::{
+    NativeSdkBoundary, NativeSdkMcpPeer, NativeSdkPeer, NativeSdkRequestPeer,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_initialize;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_initialize::{
+    initialize_native_job, initialize_native_worker, read_native_job_initialization,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_job_prepare;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_job_prepare::{stage_native_host_pinned_preparation, NativeJobPreparationPins};
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_public_archive;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_public_export;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_public_export::{export_native_host_pinned_public, NativePublicExportPins};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_source_capture;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_source_stream;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_source_capture::{capture_native_build_source, capture_native_build_source_v2};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_repair;
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_repair_receipt;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_repair::{
+    read_native_host_pinned_repair, repair_native_host_pinned, repair_native_live_host_pinned,
+    repair_native_worker,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_controller_exec;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_controller_run;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_controller_run::execute_native_controller;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_completion;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_controller_key;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_prelaunch;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_completion::{read_native_host_pinned_result, NATIVE_HOST_PINNED_COMPLETION_LIMIT};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_job_io;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_worker;
 #[cfg(target_os = "linux")]
 pub use interpreter_exec::{
     probe_verified_interpreter_exec, InterpreterExecError, InterpreterExecProof,
@@ -185,6 +492,11 @@ pub use interpreter_exec::{
 pub use job_slice_guard::{
     require_rust_job_slice_absent, stop_rust_job_slice, JobSliceStopObservation,
 };
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_worker::{
+    dispatch_native_worker, dispatch_native_worker_host_pinned,
+    dispatch_native_worker_host_pinned_pipe, install_native_worker_signals,
+};
 mod lease;
 #[cfg(target_os = "linux")]
 mod linux_cgroup;
@@ -192,7 +504,7 @@ mod linux_cgroup;
 mod linux_process;
 #[cfg(target_os = "linux")]
 mod prelaunch;
-#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod process_reap;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod product_cell_units;
@@ -291,11 +603,14 @@ pub use candidate_build_ready::{
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_capture::{
-    capture_local_candidate_archive_ineligible, verify_captured_candidate_wheel_ineligible,
+    capture_local_candidate_archive_ineligible, read_native_candidate_capture,
+    read_native_candidate_wheel_stage, verify_captured_candidate_wheel_ineligible,
     CandidateCaptureError, CandidateCaptureProof, CandidateWheelLiveProof,
+    NativeCandidateArtifactReadPins,
 };
 pub use candidate_config_projection::{
     project_candidate_config_ineligible, project_shadow_candidate_config_ineligible,
+    project_shadow_candidate_config_with_native_cell_ineligible,
     project_shadow_candidate_config_with_private_cell_ineligible, CandidateConfigProjection,
     CandidateConfigProjectionError, CandidateConfigProjectionPins,
 };
@@ -308,6 +623,7 @@ pub use candidate_config_projection_live::{
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_config_shadow_write::{
     write_shadow_candidate_config_ineligible,
+    write_shadow_candidate_config_with_native_cell_ineligible,
     write_shadow_candidate_config_with_private_cell_ineligible, CandidateConfigShadowWriteError,
     CandidateConfigShadowWriteProof,
 };
@@ -334,6 +650,8 @@ pub use candidate_prefix_clone::{
     clone_captured_candidate_prefix_ineligible, CandidatePrefixCloneError,
     CandidatePrefixClonePins, CandidatePrefixCloneProof,
 };
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use candidate_repair::repair_hostbound_candidate_ineligible;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use candidate_result_read::{
     read_fixed_candidate_result_ineligible, read_fixed_hostbound_candidate_result_ineligible,
@@ -399,6 +717,7 @@ pub use prelaunch::{
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use private_cell_shadow_artifacts::{
+    prepare_native_private_cell_shadow_artifacts_ineligible,
     prepare_private_cell_shadow_artifacts_ineligible, PrivateCellShadowError,
     PrivateCellShadowPins, PrivateCellShadowProof,
 };

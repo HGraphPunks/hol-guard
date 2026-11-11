@@ -101,7 +101,24 @@ pub fn verify_provider_status(value: &Value, pins: &Value) -> Result<Value> {
         ));
     }
 
-    let quota = &value["quota"];
+    verify_idle_quota(
+        &value["quota"],
+        config,
+        model,
+        allowance_digest,
+        token_cap,
+        maximum_requests,
+    )
+}
+
+pub(crate) fn verify_idle_quota(
+    quota: &Value,
+    config: &str,
+    model: &str,
+    allowance_digest: Option<&str>,
+    token_cap: u64,
+    maximum_requests: u64,
+) -> Result<Value> {
     let mut quota_keys = vec![
         "charged_tokens",
         "known_tokens",

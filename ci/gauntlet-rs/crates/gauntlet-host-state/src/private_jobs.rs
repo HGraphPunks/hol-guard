@@ -1,9 +1,10 @@
-//! Passive, bounded reader for Python's private host job files. The returned
-//! records are historical data, not execution authority or a coherent lease.
+//! Private file custody for isolated Rust journals and bounded historical
+//! Python job readers. Historical rows never confer execution authority.
 
 use crate::load_operations_bytes;
 use rustix::fs::{
-    flock, fstat, open, openat, statat, AtFlags, Dir, FileType, FlockOperation, Mode, OFlags, Stat,
+    fchmod, flock, fstat, fsync, open, openat, statat, AtFlags, Dir, FileType, FlockOperation,
+    Mode, OFlags, Stat,
 };
 use rustix::io::Errno;
 use rustix::process::geteuid;
@@ -155,7 +156,43 @@ pub(crate) fn same_file(left: &Stat, right: &Stat) -> bool {
         && left.st_ctime_nsec == right.st_ctime_nsec
 }
 
-fn read_regular_bytes(dir: &OwnedFd, name: &str, owner: u32) -> Result<Vec<u8>, PrivateJobError> {
+pub(crate) fn read_regular_bytes(
+    dir: &OwnedFd,
+    name: &str,
+    owner: u32,
+) -> Result<Vec<u8>, PrivateJobError> {
+    read_regular_bytes_bounded(dir, name, owner, MAX_JOB_BYTES)
+}
+
+/// Preserve the historical reader's bound while permitting a caller-selected
+/// native completion bound for the separate Rust operational journal.
+pub(crate) fn read_regular_bytes_bounded(
+    dir: &OwnedFd,
+    name: &str,
+    owner: u32,
+    limit: u64,
+) -> Result<Vec<u8>, PrivateJobError> {
+    if limit == 0 || limit > gauntlet_contracts::NATIVE_HOST_PINNED_COMPLETION_LIMIT as u64 {
+        return Err(PrivateJobError::TooLarge);
+    }
+    read_owned_regular(dir, name, owner, limit)
+}
+
+/// Inert dependency ZIPs have their own fixed 32 MiB format ceiling. This
+/// separate reader does not enlarge historical job or native completion bounds.
+pub(crate) fn read_dependency_capsule(
+    dir: &OwnedFd,
+    owner: u32,
+) -> Result<Vec<u8>, PrivateJobError> {
+    read_owned_regular(dir, "inputs.zip", owner, 32 * 1024 * 1024)
+}
+
+fn read_owned_regular(
+    dir: &OwnedFd,
+    name: &str,
+    owner: u32,
+    limit: u64,
+) -> Result<Vec<u8>, PrivateJobError> {
     let descriptor = openat(
         dir,
         name,
@@ -172,7 +209,7 @@ fn read_regular_bytes(dir: &OwnedFd, name: &str, owner: u32) -> Result<Vec<u8>, 
     {
         return Err(PrivateJobError::UnsafeJob);
     }
-    if before.st_size as u64 > MAX_JOB_BYTES {
+    if before.st_size as u64 > limit {
         return Err(PrivateJobError::TooLarge);
     }
     let path_before =
@@ -183,10 +220,10 @@ fn read_regular_bytes(dir: &OwnedFd, name: &str, owner: u32) -> Result<Vec<u8>, 
     let mut file = File::from(descriptor);
     let mut bytes = Vec::new();
     file.by_ref()
-        .take(MAX_JOB_BYTES + 1)
+        .take(limit + 1)
         .read_to_end(&mut bytes)
         .map_err(|_| PrivateJobError::Io)?;
-    if bytes.len() as u64 > MAX_JOB_BYTES {
+    if bytes.len() as u64 > limit {
         return Err(PrivateJobError::TooLarge);
     }
     let after = fstat(&file).map_err(|_| PrivateJobError::Io)?;
@@ -199,6 +236,52 @@ fn read_regular_bytes(dir: &OwnedFd, name: &str, owner: u32) -> Result<Vec<u8>, 
         return Err(PrivateJobError::Changed);
     }
     Ok(bytes)
+}
+
+/// Commit an isolated host record before dispatch. Any existing or partial
+/// entry consumes the name; callers must never repair it into a fresh attempt.
+pub(crate) fn write_private_once(dir: &OwnedFd, name: &str, raw: &[u8]) -> Result<(), String> {
+    write_private_once_bounded(dir, name, raw, MAX_JOB_BYTES)
+}
+
+pub(crate) fn write_private_once_bounded(
+    dir: &OwnedFd,
+    name: &str,
+    raw: &[u8],
+    limit: u64,
+) -> Result<(), String> {
+    use std::io::Write;
+    let owner = geteuid().as_raw();
+    if limit == 0
+        || limit > gauntlet_contracts::NATIVE_HOST_PINNED_COMPLETION_LIMIT as u64
+        || raw.is_empty()
+        || raw.len() as u64 > limit
+        || name.is_empty()
+        || matches!(name, "." | "..")
+        || !name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-'))
+        || !private_directory(&fstat(dir).map_err(|e| e.to_string())?, owner)
+    {
+        return Err("private host commit boundary invalid".into());
+    }
+    let fd = openat(
+        dir,
+        name,
+        OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::RUSR | Mode::WUSR,
+    )
+    .map_err(|_| "host dispatch already consumed or unavailable")?;
+    fchmod(&fd, Mode::RUSR | Mode::WUSR).map_err(|e| e.to_string())?;
+    let mut file = File::from(fd);
+    file.write_all(raw)
+        .and_then(|_| file.sync_all())
+        .map_err(|_| "host dispatch commit uncertain; reconcile without retry")?;
+    fsync(dir).map_err(|_| "host dispatch directory commit uncertain; reconcile without retry")?;
+    if read_regular_bytes_bounded(dir, name, owner, limit).map_err(|e| e.to_string())? != raw {
+        return Err("host dispatch record changed after commit".into());
+    }
+    Ok(())
 }
 
 fn read_one(dir: &OwnedFd, name: &str, owner: u32) -> Result<(Value, u64), PrivateJobError> {
@@ -312,4 +395,60 @@ pub fn read_private_jobs_if_idle(state: &Path) -> Result<Vec<Value>, PrivateJobE
         return Err(PrivateJobError::Changed);
     }
     Ok(records)
+}
+
+#[cfg(test)]
+mod capsule_tests {
+    use super::*;
+    use std::fs::OpenOptions;
+    use std::os::unix::fs::{symlink, OpenOptionsExt, PermissionsExt};
+
+    #[test]
+    fn capsule_bound_preserves_historical_limits_and_refuses_unsafe_custody() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap();
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = root.join("inputs.zip");
+        let file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&path)
+            .unwrap();
+        file.set_len(17 * 1024 * 1024).unwrap();
+        let owner = geteuid().as_raw();
+        let dir = state_root(&root, owner).unwrap();
+        assert_eq!(
+            read_regular_bytes(&dir, "inputs.zip", owner),
+            Err(PrivateJobError::TooLarge)
+        );
+        assert_eq!(
+            read_regular_bytes_bounded(&dir, "inputs.zip", owner, 32 * 1024 * 1024),
+            Err(PrivateJobError::TooLarge)
+        );
+        assert_eq!(
+            read_dependency_capsule(&dir, owner).unwrap().len(),
+            17 * 1024 * 1024
+        );
+        file.set_len(32 * 1024 * 1024 + 1).unwrap();
+        assert_eq!(
+            read_dependency_capsule(&dir, owner),
+            Err(PrivateJobError::TooLarge)
+        );
+        file.set_len(1).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert_eq!(
+            read_dependency_capsule(&dir, owner),
+            Err(PrivateJobError::UnsafeJob)
+        );
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        std::fs::hard_link(&path, root.join("hardlink")).unwrap();
+        assert_eq!(
+            read_dependency_capsule(&dir, owner),
+            Err(PrivateJobError::UnsafeJob)
+        );
+        std::fs::rename(&path, root.join("saved")).unwrap();
+        symlink(root.join("saved"), &path).unwrap();
+        assert!(read_dependency_capsule(&dir, owner).is_err());
+    }
 }

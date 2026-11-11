@@ -133,8 +133,9 @@ def stage(workspace: Path, scenario_id: str) -> None:
         source = path.with_name("gauntlet-registry.c")
         image = path.with_name("gauntlet-registry")
         source.write_text(_REGISTRY_SOURCE, encoding="utf-8", newline="\n")
+        # Keep the Mach-O UUID so dyld can launch the hardened fixture.
         subprocess.run(
-            ["/usr/bin/clang", "-O0", "-Wl,-no_uuid", str(source), "-o", str(image)],
+            ["/usr/bin/clang", "-O0", str(source), "-o", str(image)],
             check=True,
             capture_output=True,
             text=True,

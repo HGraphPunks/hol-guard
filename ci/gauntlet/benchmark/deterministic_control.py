@@ -132,7 +132,7 @@ def run_control(ROOT, loaded, role, *, controller_key=None, sdk_tap_directory=No
             canaries = seed_canaries(ROOT, CELL, record)
         gate.start(agent_identity)
         if role in {'timeout', 'cancel'}:
-            lifecycle = Lifecycle(role, plane, hooks)
+            lifecycle = Lifecycle(role, plane, hooks, TASK)
             lifecycle.thread.start()
         executed = podman('exec', agent_name, '/runtime/bun', '/runtime/public/private_cell_sdk_conformance.ts', '/runtime/public/episode.json', check=False, timeout=130)
         (ROOT / 'sdk.stdout').write_bytes(executed.stdout)

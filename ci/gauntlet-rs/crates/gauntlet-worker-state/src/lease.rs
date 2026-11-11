@@ -21,6 +21,113 @@ pub struct ActiveLease {
     lock_ino: u64,
 }
 
+#[cfg(test)]
+mod retained_report_tests {
+    use super::*;
+    use crate::terminal::create_durable;
+    use std::cell::Cell;
+    use std::os::unix::fs::MetadataExt;
+
+    #[test]
+    fn explicit_finalization_preserves_report_and_resumes_after_publication_interruption() {
+        let source = "a".repeat(40);
+        let deployment = "b".repeat(64);
+        let generation = "c".repeat(64);
+        let job = "0123456789abcdef";
+        let request = WorkerRequest::parse(
+            serde_json::json!({"schema":"hol-gauntlet-worker-request.v1",
+            "action":"run","job_id":job,"source_sha":source,"deployment_digest":deployment})
+            .to_string()
+            .as_bytes(),
+        )
+        .unwrap();
+        let report = br#"{"complete":true}"#;
+        for retained in [report.as_slice(), b"{", b"{}", b""] {
+            let temp = tempfile::tempdir().unwrap();
+            let journal =
+                RunReservationJournal::open(&temp.path().canonicalize().unwrap()).unwrap();
+            let started = journal
+                .reserve(&request, &source, &deployment, &generation)
+                .unwrap();
+            let name = format!("{job}.report.json");
+            create_durable(&journal.root, &name, retained).unwrap();
+            let before = std::fs::metadata(temp.path().join(&name)).unwrap();
+            let publications = Cell::new(0);
+            let interrupted = |_: &[u8]| {
+                publications.set(publications.get() + 1);
+                Err(ReservationError::Io(
+                    "injected publication interruption".into(),
+                ))
+            };
+            let finish = |status, publish: &dyn Fn(&[u8]) -> Result<(), ReservationError>| {
+                journal.finish_internal(
+                    &request,
+                    &source,
+                    &deployment,
+                    &generation,
+                    &started.sha256,
+                    report,
+                    crate::ProcessIdentity {
+                        pid: 321,
+                        start_ticks: 456,
+                    },
+                    0,
+                    status,
+                    None,
+                    Some(publish),
+                )
+            };
+            for status in [TerminalOutcome::Passed, TerminalOutcome::Failed] {
+                assert!(finish(status, &interrupted).is_err());
+            }
+            assert_eq!(publications.get(), 0);
+            assert!(finish(TerminalOutcome::InvalidEvidence, &interrupted).is_err());
+            assert_eq!(publications.get(), u32::from(retained == report));
+            assert!(!temp.path().join(format!("{job}.terminal.json")).exists());
+            let publish = |raw: &[u8]| {
+                publications.set(publications.get() + 1);
+                create_durable(&journal.root, &format!("{job}.terminal.json"), raw)
+            };
+            let result = finish(TerminalOutcome::InvalidEvidence, &publish);
+            if retained == report {
+                let terminal = result.unwrap();
+                assert_eq!(terminal.status, TerminalOutcome::InvalidEvidence);
+                assert_eq!(
+                    journal
+                        .terminal(job, &source, &deployment, &generation)
+                        .unwrap(),
+                    Some(terminal)
+                );
+                assert!(finish(TerminalOutcome::InvalidEvidence, &publish).is_err());
+                assert_eq!(publications.get(), 2);
+            } else {
+                assert!(result.is_err());
+                assert_eq!(publications.get(), 0);
+            }
+            let after = std::fs::metadata(temp.path().join(&name)).unwrap();
+            assert_eq!(std::fs::read(temp.path().join(&name)).unwrap(), retained);
+            assert_eq!(
+                (
+                    before.dev(),
+                    before.ino(),
+                    before.ctime(),
+                    before.ctime_nsec(),
+                    before.mtime(),
+                    before.mtime_nsec()
+                ),
+                (
+                    after.dev(),
+                    after.ino(),
+                    after.ctime(),
+                    after.ctime_nsec(),
+                    after.mtime(),
+                    after.mtime_nsec()
+                )
+            );
+        }
+    }
+}
+
 fn acquire(root: &OwnedFd, require_root: bool) -> Result<ActiveLease, ReservationError> {
     let descriptor = openat(
         root,
@@ -181,6 +288,51 @@ impl RunReservationJournal {
             exit_code,
             status,
             expected_controller_key_pin_sha256,
+            None,
+        )
+    }
+    /// Complete only an unchanged, unkeyed invalid-evidence report. The caller
+    /// independently verifies its artifacts and process/resource absence.
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn finish_retained_report_under_lease(
+        &self,
+        lease: &ActiveLease,
+        request: &WorkerRequest,
+        started: &crate::StartedMarker,
+        report: &[u8],
+        process: crate::ProcessIdentity,
+        exit: i32,
+        publish: &dyn Fn(&[u8]) -> Result<(), ReservationError>,
+    ) -> Result<TerminalReceipt, ReservationError> {
+        if !self.root_owned || started.controller_public_key_hex.is_some() {
+            return Err(ReservationError::UnsafeRoot);
+        }
+        lease.verify(&self.root)?;
+        let running = self
+            .running_marker(
+                &started.job_id,
+                &started.source_sha,
+                &started.deployment_digest,
+                &started.worker_generation,
+            )?
+            .ok_or(ReservationError::InvalidMarker)?;
+        if running.process != process || running.started_marker_sha256 != started.sha256 {
+            return Err(ReservationError::InvalidMarker);
+        }
+        crate::require_rust_job_slice_absent(&started.job_id)?;
+        self.finish_internal(
+            request,
+            &started.source_sha,
+            &started.deployment_digest,
+            &started.worker_generation,
+            &started.sha256,
+            report,
+            process,
+            exit,
+            TerminalOutcome::InvalidEvidence,
+            None,
+            Some(publish),
         )
     }
 }
@@ -209,7 +361,18 @@ mod tests {
             Err(ReservationError::UnsafeRoot)
         ));
         drop(held);
-        let recovered = acquire(&second.root, false).unwrap();
+        // Concurrent tests can fork while this descriptor is open. CLOEXEC
+        // closes that inherited description at exec, rather than at our drop.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        let recovered = loop {
+            match acquire(&second.root, false) {
+                Ok(lease) => break lease,
+                Err(ReservationError::LeaseBusy) if std::time::Instant::now() < deadline => {
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+                Err(error) => panic!("lease did not release after descriptor close: {error:?}"),
+            }
+        };
         recovered.verify(&second.root).unwrap();
     }
 

@@ -1,0 +1,256 @@
+{
+  "groups": [
+    {
+      "evidence_kind": "source-native-contract",
+      "id": "native_runtime",
+      "label": "Native runtime selection and verified reads",
+      "tests": [
+        "tests/test_guard_native_runtime.py",
+        "tests/test_guard_verified_reads.py"
+      ]
+    },
+    {
+      "evidence_kind": "source-native-contract",
+      "id": "contained_completion",
+      "label": "Contained output completion and one-use proof",
+      "tests": [
+        "tests/test_contained_completion.py"
+      ]
+    },
+    {
+      "evidence_kind": "source-native-contract",
+      "id": "decision_io_gate",
+      "label": "Decision-critical Python I/O ownership gate",
+      "tests": [
+        "tests/test_rust_io_ownership_gate.py::test_gate_inventories_reachable_io_and_passes_current_sources"
+      ]
+    },
+    {
+      "evidence_kind": "source-native-contract",
+      "id": "alpha_release",
+      "label": "Alpha version stamping and harness coverage",
+      "tests": [
+        "tests/test_release_critical_path.py::test_precompilation_stamps_a_requested_version_above_the_source_version",
+        "tests/test_guard_harness_version_daemon.py::test_untested_acknowledge_then_version_change_flow"
+      ]
+    },
+    {
+      "evidence_kind": "installed-product-contract",
+      "id": "prompt_secret",
+      "label": "Prompt, secret and self-protection boundaries",
+      "tests": [
+        "tests/test_guard_user_prompt_policy.py",
+        "tests/test_guard_secret_redaction.py",
+        "tests/test_guard_self_protection_schemas.py"
+      ]
+    },
+    {
+      "evidence_kind": "installed-product-contract",
+      "id": "approval",
+      "label": "Approval decisions and receipts",
+      "tests": [
+        "tests/test_guard_approvals.py",
+        "tests/test_guard_store_receipts_vectors.py",
+        "tests/test_native_receipt_persistence_gate.py"
+      ]
+    },
+    {
+      "evidence_kind": "installed-product-contract",
+      "id": "mcp",
+      "label": "MCP tool identity and authority",
+      "tests": [
+        "tests/test_guard_mcp_contract.py",
+        "tests/test_guard_mcp_provider_authority.py"
+      ]
+    },
+    {
+      "evidence_kind": "source-native-contract",
+      "id": "package_hooks",
+      "label": "Package install and local runner hooks",
+      "tests": [
+        "tests/test_guard_package_hook.py",
+        "tests/test_guard_js_package_hook_phase11.py"
+      ]
+    },
+    {
+      "evidence_kind": "source-native-contract",
+      "id": "local_tool_trust",
+      "label": "Local tool approval and grant lifecycle",
+      "tests": [
+        "tests/test_guard_trusted_local_tools.py"
+      ]
+    },
+    {
+      "evidence_kind": "source-native-contract",
+      "id": "package_shims",
+      "label": "Package-manager shim lifecycle",
+      "tests": [
+        "tests/test_guard_package_shims_cli.py"
+      ]
+    },
+    {
+      "evidence_kind": "source-native-contract",
+      "id": "supply_evaluation",
+      "label": "Supply-chain package evaluation",
+      "tests": [
+        "tests/test_guard_supply_chain_evaluator.py"
+      ]
+    },
+    {
+      "evidence_kind": "source-native-contract",
+      "id": "supply_audit",
+      "label": "Supply-chain workspace audit",
+      "tests": [
+        "tests/test_guard_local_supply_chain_audit_phase16.py"
+      ]
+    },
+    {
+      "evidence_kind": "installed-product-contract",
+      "id": "network",
+      "label": "Network grants and policy",
+      "tests": [
+        "tests/test_guard_network_local_core.py",
+        "tests/test_guard_network_policy_contract.py"
+      ]
+    },
+    {
+      "evidence_kind": "installed-product-contract",
+      "id": "managed_controls",
+      "label": "Managed control activation and authority",
+      "tests": [
+        "tests/test_managed_controls_activation_integration.py",
+        "tests/managed_controls/test_authority_composition.py"
+      ]
+    },
+    {
+      "evidence_kind": "installed-product-contract",
+      "id": "settings",
+      "label": "Settings persistence and CLI modes",
+      "tests": [
+        "tests/test_guard_settings_sync_preservation.py",
+        "tests/test_guard_cli.py::test_guard_settings_show_and_update_security_level",
+        "tests/test_guard_cli.py::test_guard_settings_set_security_level_gentle",
+        "tests/test_guard_cli.py::test_guard_settings_set_security_level_paranoid"
+      ]
+    },
+    {
+      "evidence_kind": "installed-product-contract",
+      "id": "codex_claude",
+      "label": "Codex and Claude native hooks",
+      "tests": [
+        "tests/test_guard_codex_authoritative_hook_boundary.py",
+        "tests/test_claude_daemon_hook_bridge.py",
+        "tests/test_claude_hook_failure_floor.py"
+      ]
+    },
+    {
+      "evidence_kind": "installed-product-contract",
+      "id": "copilot",
+      "label": "Copilot native hooks",
+      "tests": [
+        "tests/test_guard_copilot_hook_command_corpus.py"
+      ]
+    },
+    {
+      "evidence_kind": "source-native-contract",
+      "id": "cursor",
+      "label": "Cursor native hooks",
+      "tests": [
+        "tests/test_cursor_hooks.py"
+      ]
+    },
+    {
+      "evidence_kind": "installed-product-contract",
+      "id": "cursor_installed",
+      "label": "Cursor installed adapter and bridge",
+      "tests": [
+        "tests/test_cursor_adapter.py",
+        "tests/test_cursor_native_bridge.py",
+        "tests/test_cursor_pretooluse_write_hook.py"
+      ]
+    },
+    {
+      "evidence_kind": "source-native-contract",
+      "id": "cline",
+      "label": "Cline native hooks",
+      "tests": [
+        "tests/test_cline_hook_transports.py"
+      ]
+    },
+    {
+      "evidence_kind": "installed-product-contract",
+      "id": "gemini_hermes_openclaw_opencode",
+      "label": "Gemini, Hermes, OpenClaw and OpenCode adapters",
+      "tests": [
+        "tests/test_gemini_adapter.py",
+        "tests/test_hermes_adapter.py",
+        "tests/test_openclaw_adapter.py",
+        "tests/test_opencode_hook_python.py"
+      ]
+    },
+    {
+      "evidence_kind": "source-native-contract",
+      "id": "kimi",
+      "label": "Kimi adapter",
+      "tests": [
+        "tests/test_kimi_adapter.py"
+      ]
+    },
+    {
+      "evidence_kind": "installed-product-contract",
+      "id": "kimi_installed",
+      "label": "Kimi installed ecosystem contract",
+      "tests": [
+        "tests/test_kimi_ecosystem.py"
+      ]
+    },
+    {
+      "evidence_kind": "installed-product-contract",
+      "id": "grok_pi_zcode_devin",
+      "label": "Grok, Pi, ZCode and Devin adapters",
+      "tests": [
+        "tests/test_grok_adapter.py",
+        "tests/test_pi_adapter.py",
+        "tests/test_zcode_hooks.py",
+        "tests/test_devin_adapter.py"
+      ]
+    },
+    {
+      "evidence_kind": "installed-product-contract",
+      "id": "fleet",
+      "label": "Fleet posture",
+      "tests": [
+        "tests/test_fleet_posture_builder.py"
+      ]
+    },
+    {
+      "evidence_kind": "installed-product-contract",
+      "id": "harness_inventory",
+      "label": "Harness detection and support contracts",
+      "tests": [
+        "tests/test_guard_harness_posture.py",
+        "tests/test_guard_phase04_harness_contracts.py"
+      ]
+    },
+    {
+      "evidence_kind": "source-native-contract",
+      "id": "cloud_review",
+      "label": "Cloud review retry and batching contract",
+      "tests": [
+        "tests/test_guard_cloud_review_event_batching.py"
+      ]
+    },
+    {
+      "evidence_kind": "installed-product-contract",
+      "id": "evaluation",
+      "label": "Evaluation CLI contract",
+      "tests": [
+        "tests/test_guard_evaluation_cli_package.py"
+      ]
+    }
+  ],
+  "python_source_commit": "b4efd8171b06d0e13cbe12a077c376ecdc891fd1",
+  "python_source_path": "ci/gauntlet/control_plane/feature_entry.py",
+  "python_source_sha256": "d3d5b72d7bd9c725d7cc9b90aa3bb7bc442a99a5e188943f4686bf34e4c048de",
+  "schema": "hol-gauntlet-fixed-feature-catalog.v1"
+}

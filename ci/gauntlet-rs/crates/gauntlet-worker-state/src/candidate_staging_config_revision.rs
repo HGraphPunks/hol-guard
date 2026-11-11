@@ -112,12 +112,17 @@ pub fn revise_staging_config_ineligible(
         || old["runtime"]["guard_package_version"] != pins.version
         || old["assets"]["guard_prefix"]["path"] != format!("{base}/prefix")
         || old["assets"]["guard_prefix"]["sha256"] != pins.prefix_tree_sha256
-        || old["assets"]["private_cell"]["path"] != format!("{base}/cell-artifacts")
         || old["assets"]["private_cell"]["sha256"] != pins.private_manifest_sha256
         || old["runtime"]["guard_executor_image_id"] != pins.old_image_id
     {
         return Err("source-matched old provisional config differs from outside pins".to_owned());
     }
+    crate::private_cell_artifact_mode::verify_declared_artifacts(
+        pins.build_job_id,
+        old,
+        pins.private_manifest_sha256,
+    )
+    .map_err(|error| error.to_string())?;
     verify_runner_assets_inert(&loaded, Path::new("/opt")).map_err(|error| error.to_string())?;
     inspect_executor_image(pins.new_image_id).map_err(|error| error.to_string())?;
     let (bytes, digest) = revised_config(old, pins.old_image_id, pins.new_image_id)?;

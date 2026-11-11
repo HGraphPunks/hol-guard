@@ -35,22 +35,22 @@ fn current_source_map() -> BTreeMap<String, String> {
             )
             .is_none());
     }
-    assert_eq!(files.len(), 427);
+    assert_eq!(files.len(), 441);
     files
 }
 
 #[test]
 fn current_source_map_matches_python_bootstrap_tree_plan() {
-    // Frozen independently from bootstrap.py's selection and bootstrap_guest.py's
-    // 0755/0444 Root install modes, then Python canonical SHA-256 over the same
-    // path/mode/uid/file-hash shape used by TreeKind::Controller. Recomputed
-    // from bootstrap.py's actual selection after merging main at 4a654ea8.
+    // Independently derived by Python AST extraction of bootstrap.py's actual
+    // selector and fresh 0755/0444 modes, including the explicit MCP-only adapter.
+    // The data-only oracle checks all 410 source hashes and 11 directory modes.
+    // Older installed generations and their immutable evidence stay separate.
     let plan = plan_controller_install(&current_source_map()).unwrap();
-    assert_eq!(plan.installed_files.len(), 396);
-    assert_eq!(plan.entries, 407);
+    assert_eq!(plan.installed_files.len(), 410);
+    assert_eq!(plan.entries, 421);
     assert_eq!(
         plan.tree_digest,
-        "28fd562fa80d0ed626d9732da75590273a0a9b2c8b815df8fcabb228d1de2c8b"
+        "eedaa25b8a3ea7eb642159a2e64d71ed47222c624e882a8e318aa478c618faf2"
     );
     assert!(plan
         .installed_files

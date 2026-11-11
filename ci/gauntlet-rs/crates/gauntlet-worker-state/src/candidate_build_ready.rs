@@ -20,11 +20,12 @@ use std::fmt;
 use std::path::Path;
 
 const MIN_START_FREE: u64 = 12 * 1024 * 1024 * 1024;
-const EMPTY_NAMES: [&str; 5] = [
+const EMPTY_NAMES: [&str; 6] = [
     "candidate-run.stdout.log",
     "candidate-run.stderr.log",
     "candidate-run.host-anchor.json",
     "candidate-run.result.json",
+    "candidate-container.v1.json",
     "export",
 ];
 

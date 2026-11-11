@@ -84,7 +84,8 @@ def _allocator_policy(system, new):
 
 def construct(stage: Path, *, initializer_digest=INITIALIZER_SHA256, product_state: Path | None = None,
               loopback_parent_namespace: str | None = None, expected_system_digest: str | None = None,
-              idmap_runtime: str = 'ubuntu2404-product-v1', expected_task_digest: str | None = None):
+              idmap_runtime: str = 'ubuntu2404-product-v1', expected_task_digest: str | None = None,
+              expected_artifact_manifest_digest: str | None = None):
     """Build an entirely new mount tree; exit is mandatory on any failure."""
     if (platform.system() != 'Linux' or platform.machine() != 'aarch64'
             or os.getpid() != 1 or os.getuid() != 0 or os.getgid() != 0):
@@ -124,6 +125,23 @@ def construct(stage: Path, *, initializer_digest=INITIALIZER_SHA256, product_sta
     if (type(initializer_digest) is not str or not re.fullmatch('[0-9a-f]{64}',initializer_digest)
             or hashlib.sha256(initializer.read_bytes()).hexdigest() != initializer_digest):
         raise ValueError('initializer digest mismatch')
+    from .product_cell_layout import PYTHON_ACTOR, read_artifact_runtime
+    actor_argv=list(PYTHON_ACTOR)
+    if expected_artifact_manifest_digest is not None:
+        manifest=stage/'cell-artifact-manifest.json'
+        _trusted(manifest)
+        with manifest.open('rb') as stream:
+            raw=stream.read(1024**2+1)
+        declared,actor_argv=read_artifact_runtime(raw,expected_artifact_manifest_digest,initializer_digest)
+        wanted={name.removeprefix('public/') for name in declared['files'] if name.startswith('public/')}
+        actual={path.relative_to(public).as_posix() for path in public_paths if path.is_file()}
+        if actual!=wanted:
+            raise ValueError('public runtime differs from outside-pinned artifact set')
+        for name,pin in declared['files'].items():
+            if name.startswith('public/'):
+                source=stage/name
+                if hashlib.sha256(source.read_bytes()).hexdigest()!=pin:
+                    raise ValueError('public runtime bytes changed before namespace construction')
     _trusted(system/'usr', directory=True)
     new = stage/'rootfs'
     new.mkdir(mode=0o755)
@@ -227,8 +245,7 @@ def construct(stage: Path, *, initializer_digest=INITIALIZER_SHA256, product_sta
         raise OSError(c.get_errno(), 'old root detach failed')
     os.rmdir('/oldroot')
     mount(None, '/', flags=MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV)
-    os.execv('/public/initializer', ['/public/initializer', '/usr/bin/python3', '-I', '-B',
-                                    '/public/actor.py', '/public'])
+    os.execv('/public/initializer', ['/public/initializer',*actor_argv])
 
 
 if __name__ == '__main__':

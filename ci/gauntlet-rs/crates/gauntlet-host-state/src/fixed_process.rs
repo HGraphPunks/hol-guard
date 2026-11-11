@@ -55,6 +55,7 @@ pub(crate) fn run_fixed(
         stderr_limit,
         environment,
         false,
+        1024,
     )
 }
 
@@ -74,6 +75,7 @@ pub(crate) fn run_fixed_clean(
         stderr_limit,
         environment,
         true,
+        1024,
     )
 }
 
@@ -93,9 +95,30 @@ pub(crate) fn run_fixed_input(
         stderr_limit,
         environment,
         false,
+        1024,
     )
 }
 
+pub(crate) fn run_fixed_intent(
+    argv: &[String],
+    input: &[u8],
+    timeout: Duration,
+    stdout_limit: usize,
+    stderr_limit: usize,
+) -> Result<Vec<u8>, FixedProcessError> {
+    run_fixed_input_inner(
+        argv,
+        Some(input),
+        timeout,
+        stdout_limit,
+        stderr_limit,
+        &[],
+        false,
+        8192,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
 fn run_fixed_input_inner(
     argv: &[String],
     input: Option<&[u8]>,
@@ -104,8 +127,9 @@ fn run_fixed_input_inner(
     stderr_limit: usize,
     environment: &[(&str, &str)],
     clean_environment: bool,
+    input_limit: usize,
 ) -> Result<Vec<u8>, FixedProcessError> {
-    if input.is_some_and(|bytes| bytes.len() > 1024) {
+    if input.is_some_and(|bytes| bytes.len() > input_limit) {
         return Err(FixedProcessError::TooLarge);
     }
     let executable = argv.first().ok_or(FixedProcessError::Unavailable)?;

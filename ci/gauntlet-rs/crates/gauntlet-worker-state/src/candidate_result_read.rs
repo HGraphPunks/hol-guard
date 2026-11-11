@@ -101,7 +101,7 @@ pub struct HostBoundCandidateResultPins {
 }
 
 impl HostBoundCandidateResultPins {
-    fn valid(&self) -> bool {
+    pub(crate) fn valid(&self) -> bool {
         hex(&self.job_id, 16)
             && is_git_sha(&self.source_sha)
             && hex(&self.source_archive_sha256, 64)
@@ -166,7 +166,7 @@ impl CandidateResultReadProof {
     }
 }
 
-fn root_file_hash(
+pub(crate) fn root_file_hash(
     job: &OwnedFd,
     name: &str,
     maximum: u64,
@@ -211,7 +211,7 @@ fn root_file_hash(
     Ok((bytes, sha256))
 }
 
-fn parse_result(
+pub(crate) fn parse_result(
     raw: &[u8],
     job_id: &str,
     source_sha: &str,
@@ -498,7 +498,7 @@ fn read_candidate_result_inner(
             return Err(CandidateResultReadError::HostAnchorMismatch);
         }
     }
-    Ok(CandidateResultReadProof {
+    let proof = CandidateResultReadProof {
         job_id: job_id.to_owned(),
         source_sha: source_sha.to_owned(),
         result_sha256: result_sha256.to_owned(),
@@ -519,7 +519,19 @@ fn read_candidate_result_inner(
             image_id: pins.image_id.clone(),
             policy_sha256: pins.policy_sha256.clone(),
         }),
-    })
+    };
+    if let Some(bound) = host_bound {
+        crate::native_job_storage::source::record_read(
+            job_id,
+            crate::JobStorageProfile::Build,
+            archive_sha256,
+            result_sha256,
+            &bound.anchor.host_pin_sha256,
+            &proof.to_json(),
+        )
+        .map_err(|_| CandidateResultReadError::RetainedMismatch)?;
+    }
+    Ok(proof)
 }
 
 #[cfg(test)]

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import runpy
+import select
 import shutil
 import stat
 import subprocess
@@ -21,6 +22,46 @@ OUTPUT = Path('/var/lib/hol-gauntlet/outputs')
 
 class BuildCleanupUncertain(RuntimeError):
     pass
+
+
+def run_logged(command, log, *, timeout, check=False, maximum=16 * 1024**2):
+    """Keep candidate output behind a bounded pipe, never a Root log descriptor."""
+    log.flush()
+    total = os.fstat(log.fileno()).st_size
+    if type(maximum) is not int or maximum < 1 or total > maximum:
+        raise BuildCleanupUncertain('build log byte budget exhausted')
+    deadline = time.monotonic() + timeout
+    destination = getattr(log, 'buffer', log)
+    with subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT) as process:
+        try:
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(command, timeout)
+                ready, _, _ = select.select([process.stdout], [], [], remaining)
+                if not ready:
+                    continue
+                chunk = os.read(process.stdout.fileno(), min(65536, maximum - total + 1))
+                if not chunk:
+                    break
+                if len(chunk) > maximum - total:
+                    raise BuildCleanupUncertain('build log byte budget exhausted')
+                destination.write(chunk)
+                total += len(chunk)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(command, timeout)
+            returncode = process.wait(timeout=remaining)
+        except BaseException:
+            process.kill()
+            process.wait(timeout=5)
+            raise
+        finally:
+            log.flush()
+    if check and returncode:
+        raise subprocess.CalledProcessError(returncode, command)
+    return subprocess.CompletedProcess(command, returncode)
 
 
 def failure_detail(error, log, phase):
@@ -70,6 +111,7 @@ def container_command(image, job, sha, tag, root, memory_gib=12, *, local_versio
     if type(memory_gib) is not int or not 1 <= memory_gib <= 128:
         raise ValueError('bounded positive build memory required')
     return ['/usr/bin/podman', 'run', '--rm', '--name', 'hol-gauntlet-build-' + job,
+        '--log-driver=none', '--timeout=2040',
         '--user', '65532:65532', '--cap-drop=ALL', '--security-opt=no-new-privileges',
         *(['--security-opt=apparmor='+profile] if profile else []),
         '--memory=' + str(memory_gib) + 'g', '--memory-swap=' + str(memory_gib) + 'g', '--cpus=2', '--pids-limit=512',
@@ -160,12 +202,11 @@ def execute(request):
                 trusted(Path(helper).resolve())
                 phase = 'builder-image'
                 emit('builder-image')
-                found = subprocess.run(['/usr/bin/podman', 'image', 'exists', image], check=False,
-                                       stdout=log, stderr=subprocess.STDOUT, timeout=30)
+                found = run_logged(['/usr/bin/podman', 'image', 'exists', image], log, timeout=30)
                 if found.returncode:
-                    subprocess.run(['/usr/bin/podman', 'build', '--pull=missing', '--tag', image,
-                                    '--file', str(tool_root/'Builder.Dockerfile'), str(tool_root)],
-                                   stdout=log, stderr=subprocess.STDOUT, check=True, timeout=1200)
+                    run_logged(['/usr/bin/podman', 'build', '--pull=missing', '--tag', image,
+                                '--file', str(tool_root/'Builder.Dockerfile'), str(tool_root)],
+                               log, check=True, timeout=1200)
                 image_id = subprocess.check_output(['/usr/bin/podman', 'image', 'inspect',
                     '--format', '{{.Id}}', image], text=True, timeout=30).strip()
                 image_id = image_id.removeprefix('sha256:')
@@ -178,15 +219,15 @@ def execute(request):
                 profile='hol-gauntlet-build-'+job
                 policy=root/'Builder.apparmor'
                 policy.write_text((tool_root/'Builder.apparmor').read_text().replace('HOL_GAUNTLET_BUILD_PROFILE',profile))
-                subprocess.run(['/usr/sbin/apparmor_parser','--replace',str(policy)],stdout=log,stderr=subprocess.STDOUT,check=True,timeout=30)
+                run_logged(['/usr/sbin/apparmor_parser','--replace',str(policy)],log,check=True,timeout=30)
                 result['build_profile_sha256']=hashlib.sha256(policy.read_bytes()).hexdigest()
                 try:
-                    subprocess.run(container_command(image_id, job, sha, tag, root, settings.get('build_memory_gib', 12), local_version=request['version'] if local else None,profile=profile,retest=bool(retest)), stdout=log,
-                                   stderr=subprocess.STDOUT, check=True, timeout=2100)
+                    run_logged(container_command(image_id, job, sha, tag, root, settings.get('build_memory_gib', 12), local_version=request['version'] if local else None,profile=profile,retest=bool(retest)), log,
+                               check=True, timeout=2100)
                 finally:
-                    remaining=subprocess.run(['/usr/bin/podman','container','exists','hol-gauntlet-build-'+job],stdout=log,stderr=subprocess.STDOUT,timeout=30)
+                    remaining=run_logged(['/usr/bin/podman','container','exists','hol-gauntlet-build-'+job],log,timeout=30,maximum=16*1024**2+65536)
                     if remaining.returncode==1:
-                        subprocess.run(['/usr/sbin/apparmor_parser','--remove',str(policy)],stdout=log,stderr=subprocess.STDOUT,check=True,timeout=30)
+                        run_logged(['/usr/sbin/apparmor_parser','--remove',str(policy)],log,check=True,timeout=30,maximum=16*1024**2+65536)
                         result['build_profile_removed']=True
                     else:
                         raise BuildCleanupUncertain('container disappearance not verified')

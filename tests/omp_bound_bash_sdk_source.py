@@ -37,7 +37,7 @@ def compile_hardened_helper(directory: Path, marker: str) -> Path:
         "}\n"
     )
     subprocess.run(
-        ["/usr/bin/clang", "-O0", "-Wl,-no_uuid", str(source), "-o", str(image)],
+        ["/usr/bin/clang", "-O0", str(source), "-o", str(image)],
         check=True,
         capture_output=True,
         text=True,
@@ -100,7 +100,7 @@ pi.on("tool_result", (event) => {
     reviewer.write_text(
         f"#!{sys.executable}\nimport json, sys, time\nfrom pathlib import Path\n"
         + package_bootstrap
-        + "from codex_plugin_scanner.guard.daemon.hook_worker import HookWorker\n"
+        + "from codex_plugin_scanner.guard.hook_review.hook_worker import HookWorker\n"
         "from codex_plugin_scanner.guard.store import GuardStore\n"
         f"guard, home, workspace = Path({str(guard)!r}), Path({str(home)!r}), Path({str(workspace)!r})\n"
         "worker = HookWorker(store=GuardStore(guard), workspace=workspace, home_dir=home, "

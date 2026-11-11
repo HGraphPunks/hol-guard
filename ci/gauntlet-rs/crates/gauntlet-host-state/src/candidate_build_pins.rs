@@ -1,7 +1,7 @@
 //! Host-owned, one-use intent record for a future candidate builder handoff.
 //! This journal does not execute a build or authenticate a VM result.
 
-use crate::private_jobs::{same_file, state_root};
+use crate::private_jobs::{same_file, state_root, write_private_once};
 use gauntlet_contracts::{canonicalize, is_git_sha};
 use gauntlet_evidence::valid_package_version;
 use ring::rand::{SecureRandom, SystemRandom};
@@ -18,7 +18,14 @@ use std::path::{Path, PathBuf};
 
 const SCHEMA_V2: &str = "hol-gauntlet-host-candidate-build-pin.v2";
 const SCHEMA_V3: &str = "hol-gauntlet-host-candidate-build-pin.v3";
-const MAX_PIN_BYTES: u64 = 2048;
+const SCHEMA_V4: &str = "hol-gauntlet-host-candidate-build-pin.v4";
+const MAX_PIN_BYTES: u64 = 4096;
+type ParsedPin = (
+    HostCandidateBuildPins,
+    String,
+    &'static str,
+    Option<(String, String)>,
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostCandidateBuildPins {
@@ -47,6 +54,7 @@ pub struct HostCandidateBuildPinRecord {
     pub host_nonce_hex: String,
     pub raw_sha256: String,
     pub schema: &'static str,
+    pub vm_target: Option<(String, String)>,
 }
 
 impl HostCandidateBuildPinRecord {
@@ -74,8 +82,12 @@ impl HostCandidateBuildPinRecord {
             "prelaunch_host_pin_only":true,
             "execution_eligible":false,
         });
-        if self.schema == SCHEMA_V3 {
+        if self.schema != SCHEMA_V2 {
             value["tag"] = json!(self.pins.tag);
+        }
+        if let Some((limactl, vm)) = &self.vm_target {
+            value["limactl"] = json!(limactl);
+            value["vm"] = json!(vm);
         }
         value
     }
@@ -146,12 +158,16 @@ impl HostCandidateBuildPins {
             && hex(&self.result_reader_binary_sha256, 64)
     }
 
-    fn canonical_bytes(&self, host_nonce_hex: &str) -> Result<Vec<u8>, HostCandidateBuildPinError> {
+    fn canonical_bytes(
+        &self,
+        host_nonce_hex: &str,
+        target: Option<(&str, &str)>,
+    ) -> Result<Vec<u8>, HostCandidateBuildPinError> {
         if !self.valid() || !hex(host_nonce_hex, 64) {
             return Err(HostCandidateBuildPinError::InvalidPins);
         }
-        let value = json!({
-            "schema":SCHEMA_V3,
+        let mut value = json!({
+            "schema":if target.is_some() {SCHEMA_V4} else {SCHEMA_V3},
             "job_id":self.job_id,
             "source_sha":self.source_sha,
             "source_archive_sha256":self.source_archive_sha256,
@@ -171,18 +187,25 @@ impl HostCandidateBuildPins {
             "result_reader_binary_sha256":self.result_reader_binary_sha256,
             "host_nonce_hex":host_nonce_hex,
         });
+        if let Some((limactl, vm)) = target {
+            valid_target(limactl, vm)?;
+            value["limactl"] = json!(limactl);
+            value["vm"] = json!(vm);
+        }
         let bytes = canonicalize(value.to_string().as_bytes())
             .map_err(|_| HostCandidateBuildPinError::InvalidPins)?;
-        if bytes.is_empty() || bytes.len() as u64 > MAX_PIN_BYTES {
+        let limit = if target.is_some() {
+            MAX_PIN_BYTES
+        } else {
+            2048
+        };
+        if bytes.is_empty() || bytes.len() as u64 > limit {
             return Err(HostCandidateBuildPinError::InvalidPins);
         }
         Ok(bytes)
     }
 
-    fn parse(
-        bytes: &[u8],
-        job_id: &str,
-    ) -> Result<(Self, String, &'static str), HostCandidateBuildPinError> {
+    fn parse(bytes: &[u8], job_id: &str) -> Result<ParsedPin, HostCandidateBuildPinError> {
         if canonicalize(bytes).map_err(|_| HostCandidateBuildPinError::UnsafeRecord)? != bytes {
             return Err(HostCandidateBuildPinError::UnsafeRecord);
         }
@@ -200,15 +223,19 @@ impl HostCandidateBuildPins {
         let schema = match value["schema"].as_str() {
             Some(SCHEMA_V2) if object.len() == 18 => SCHEMA_V2,
             Some(SCHEMA_V3) if object.len() == 19 => SCHEMA_V3,
+            Some(SCHEMA_V4) if object.len() == 21 => SCHEMA_V4,
             _ => return Err(HostCandidateBuildPinError::UnsafeRecord),
         };
+        if schema != SCHEMA_V4 && bytes.len() > 2048 {
+            return Err(HostCandidateBuildPinError::UnsafeRecord);
+        }
         let source_sha = string("source_sha")?;
         let pins = Self {
             job_id: string("job_id")?,
             source_sha: source_sha.clone(),
             source_archive_sha256: string("source_archive_sha256")?,
             version: string("version")?,
-            tag: if schema == SCHEMA_V3 {
+            tag: if schema != SCHEMA_V2 {
                 string("tag")?
             } else {
                 format!("local-{source_sha}")
@@ -230,8 +257,22 @@ impl HostCandidateBuildPins {
         if !pins.valid() || pins.job_id != job_id || !hex(&host_nonce_hex, 64) {
             return Err(HostCandidateBuildPinError::UnsafeRecord);
         }
-        Ok((pins, host_nonce_hex, schema))
+        let target = if schema == SCHEMA_V4 {
+            let limactl = string("limactl")?;
+            let vm = string("vm")?;
+            valid_target(&limactl, &vm).map_err(|_| HostCandidateBuildPinError::UnsafeRecord)?;
+            Some((limactl, vm))
+        } else {
+            None
+        };
+        Ok((pins, host_nonce_hex, schema, target))
     }
+}
+
+fn valid_target(limactl: &str, vm: &str) -> Result<(), HostCandidateBuildPinError> {
+    crate::load_operations_bytes(json!({"limactl":limactl,"vm":vm}).to_string().as_bytes())
+        .map(|_| ())
+        .map_err(|_| HostCandidateBuildPinError::InvalidPins)
 }
 
 pub struct HostCandidateBuildPinJournal {
@@ -248,6 +289,38 @@ fn same_directory(left: &Stat, right: &Stat) -> bool {
 }
 
 impl HostCandidateBuildPinJournal {
+    pub(crate) fn directory(&self) -> Result<&OwnedFd, HostCandidateBuildPinError> {
+        self.stable_directory()?;
+        Ok(&self.directory)
+    }
+
+    pub(crate) fn consume_dispatch(
+        &self,
+        record: &HostCandidateBuildPinRecord,
+    ) -> Result<(), String> {
+        let current = || {
+            if self.read(&record.pins.job_id).as_ref() != Ok(record) {
+                return Err("candidate host pin changed before dispatch".to_owned());
+            }
+            Ok(())
+        };
+        current()?;
+        let raw = canonicalize(
+            json!({"schema":"hol-gauntlet-host-candidate-dispatch.v1",
+            "job_id":record.pins.job_id,"host_pin_sha256":record.raw_sha256,
+            "retry_allowed":false,"execution_eligible":false})
+            .to_string()
+            .as_bytes(),
+        )
+        .map_err(|e| e.to_string())?;
+        write_private_once(
+            &self.directory,
+            &format!("{}.candidate-build-dispatch.json", record.pins.job_id),
+            &raw,
+        )?;
+        current()
+    }
+
     /// Open a caller-created 0700 directory outside the Python observer's
     /// state. A journal here cannot itself prove a launch happened afterward.
     pub fn open(path: &Path) -> Result<Self, HostCandidateBuildPinError> {
@@ -285,6 +358,26 @@ impl HostCandidateBuildPinJournal {
         &self,
         pins: &HostCandidateBuildPins,
     ) -> Result<HostCandidateBuildPinRecord, HostCandidateBuildPinError> {
+        self.record_target(pins, None)
+    }
+
+    /// Bind a new launch to its exact local transport and VM while retaining
+    /// the v2/v3 readers and the old target-free diagnostic writer.
+    pub fn record_for_vm(
+        &self,
+        pins: &HostCandidateBuildPins,
+        limactl: &str,
+        vm: &str,
+    ) -> Result<HostCandidateBuildPinRecord, HostCandidateBuildPinError> {
+        valid_target(limactl, vm)?;
+        self.record_target(pins, Some((limactl, vm)))
+    }
+
+    fn record_target(
+        &self,
+        pins: &HostCandidateBuildPins,
+        target: Option<(&str, &str)>,
+    ) -> Result<HostCandidateBuildPinRecord, HostCandidateBuildPinError> {
         if !pins.valid() {
             return Err(HostCandidateBuildPinError::InvalidPins);
         }
@@ -297,7 +390,7 @@ impl HostCandidateBuildPinJournal {
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
-        let bytes = pins.canonical_bytes(&host_nonce_hex)?;
+        let bytes = pins.canonical_bytes(&host_nonce_hex, target)?;
         let name = Self::name(&pins.job_id)?;
         let descriptor = openat(
             &self.directory,
@@ -328,7 +421,14 @@ impl HostCandidateBuildPinJournal {
         fsync(&self.directory).map_err(|_| HostCandidateBuildPinError::Io)?;
         self.stable_directory()?;
         let readback = self.read(&pins.job_id)?;
-        if readback.pins != *pins || readback.host_nonce_hex != host_nonce_hex {
+        if readback.pins != *pins
+            || readback.host_nonce_hex != host_nonce_hex
+            || readback
+                .vm_target
+                .as_ref()
+                .map(|(l, v)| (l.as_str(), v.as_str()))
+                != target
+        {
             return Err(HostCandidateBuildPinError::Changed);
         }
         Ok(readback)
@@ -378,13 +478,15 @@ impl HostCandidateBuildPinJournal {
         {
             return Err(HostCandidateBuildPinError::Changed);
         }
-        let (pins, host_nonce_hex, schema) = HostCandidateBuildPins::parse(&bytes, job_id)?;
+        let (pins, host_nonce_hex, schema, vm_target) =
+            HostCandidateBuildPins::parse(&bytes, job_id)?;
         self.stable_directory()?;
         Ok(HostCandidateBuildPinRecord {
             pins,
             host_nonce_hex,
             raw_sha256: format!("{:x}", Sha256::digest(&bytes)),
             schema,
+            vm_target,
         })
     }
 }

@@ -45,7 +45,7 @@ jobs:
   judge-native:
     name: Build Native judge artifacts and test plan
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       # Match ci.yml's test profile. Shipping wheels retain fat LTO; judge
@@ -134,7 +134,7 @@ jobs:
     name: judge (${{ matrix.shard-index }})
     if: github.event_name == 'pull_request'
     needs: judge-native
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -163,6 +163,9 @@ jobs:
       - name: Restore executable modes on the exact build artifacts
         run: chmod 0755 rust/target/release/guard-command-source rust/target/release/hol-guard-runtime
       - uses: ./.github/actions/restore-command-projections
+      - uses: ./.github/actions/stage-command-projections
+        with:
+          compiler: rust/target/release/guard-command-source
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: gauntlet-judge-shards
@@ -200,7 +203,7 @@ jobs:
     env:
       GUARD_GAUNTLET_BOOTSTRAP_VERIFIER_SHA: ${{ github.ref == 'refs/tags/guard-gauntlet-bootstrap-v3' && github.sha || '' }}
     if: github.event_name == 'workflow_dispatch' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || github.ref == 'refs/tags/guard-gauntlet-bootstrap-v3')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -240,7 +243,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Preserve verified public evidence
         if: success()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: guard-gauntlet-${{ inputs.candidate_sha }}
           path: ${{ runner.temp }}/gauntlet-evidence/
@@ -252,7 +255,7 @@ jobs:
       GUARD_GAUNTLET_BOOTSTRAP_VERIFIER_SHA: ${{ github.ref == 'refs/tags/guard-gauntlet-bootstrap-v3' && github.sha || '' }}
     if: always() && github.event_name == 'workflow_dispatch' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || github.ref == 'refs/tags/guard-gauntlet-bootstrap-v3')
     needs: verify
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read

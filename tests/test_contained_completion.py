@@ -253,7 +253,7 @@ def test_local_script_completion_requires_exact_default_reason(case, reason):
 
 
 def test_completed_local_script_retires_only_execution_stage_reason(case):
-    from codex_plugin_scanner.guard.cli.commands_support_runtime_artifact_policy import runtime_policy_artifact_facts
+    from tests.runtime_artifact_policy_support import runtime_policy_artifact_facts
 
     artifact, _, options, record = case
     if artifact.metadata["risk_classes"] != ["execution"]:

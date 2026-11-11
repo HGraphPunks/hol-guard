@@ -2,7 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { createConnection } from 'node:net';
-import { pinDeclaredToolInventory } from './developer_omp_episode.ts';
+import { pinDeclaredToolInventory, initializeEpisodeSettings, assertEpisodeSettings, loadEpisodeSdk } from './developer_omp_episode.ts';
 
 async function bind() {
   await new Promise<void>((done, reject) => {
@@ -43,7 +43,8 @@ async function main() {
   }
   if (!withMcp && config.resourceEndpoints) throw new Error('MCP requires the explicit v2 control');
   await bind(); // Controller authenticates this exact Bun process before SDK import.
-  const sdk = await import(join(config.sdkRoot, 'src/index.ts'));
+  const loaded = await loadEpisodeSdk(config.sdkRoot, config.workspace, '/runtime/agent', config.startupProfile);
+  const sdk = loaded.sdk;
   const metadata = JSON.parse(await readFile(join(config.sdkRoot, 'package.json'), 'utf8'));
   if (metadata.version !== '18.4.12') throw new Error('exact SDK version required');
   const { AssistantMessageEventStream } = await import(resolve(config.sdkRoot, '../pi-ai/src/utils/event-stream.ts'));
@@ -54,13 +55,14 @@ async function main() {
   const events: any[] = [];
   let projectedOriginalCommand = false, storedExecutionTransport = false;
   try {
-    const settings = await sdk.Settings.init({ cwd: config.workspace, agentDir: '/runtime/agent', inMemory: true });
+    const settings = loaded.settings ?? await initializeEpisodeSettings(sdk, config.workspace, '/runtime/agent');
     const registry = new sdk.ModelRegistry(auth, '/runtime/agent/models.yml', { settings });
     registry.registerProvider('conformance-only', { baseUrl: 'http://127.0.0.1:9/v1',
       api: 'openai-completions', authHeader: false, apiKey: 'synthetic-no-provider', models: [{
         id: 'synthetic-stream', name: 'synthetic-stream', reasoning: false, input: ['text'],
         contextWindow: 10000, maxTokens: 1000, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }] });
     const model = registry.find('conformance-only', 'synthetic-stream');
+    if (config.startupProfile) await assertEpisodeSettings(sdk, settings, '/runtime/agent');
     if (withMcp) {
       const { MCPManager } = await import(join(config.sdkRoot, 'src/mcp/manager.ts'));
       manager = new MCPManager(config.workspace, null, async () => ({
@@ -87,6 +89,7 @@ async function main() {
       skipPythonPreflight: true, skills: [], rules: [], contextFiles: [], promptTemplates: [], slashCommands: [],
       preloadedCustomToolPaths: [], cacheWarming: false }));
     await pinDeclaredToolInventory(session, ['bash', ...resourceTools.map((tool: any) => tool.name)]);
+    if (config.startupProfile) await assertEpisodeSettings(sdk, settings, '/runtime/agent');
     session.subscribe((event: any) => {
       if (event.type === 'message_end' && event.message?.role === 'toolResult') events.push(event.message);
     });
@@ -121,6 +124,7 @@ async function main() {
     };
     const timer = setTimeout(() => { void session.abort(); }, 90000);
     try { await session.prompt(config.prompt); } finally { clearTimeout(timer); }
+    if (config.startupProfile) await assertEpisodeSettings(sdk, settings, '/runtime/agent');
     if (calls !== expectedCalls || events.length !== expectedCalls - 1) throw new Error('SDK call/result lifecycle differed');
     console.log(JSON.stringify({ schema: 'private-cell-sdk-conformance-result.v1', version: metadata.version,
       uid: process.getuid?.(), syntheticStreamCalls: calls, results: events,

@@ -192,6 +192,83 @@ fn fixed_run_request_precedes_prepared_and_wrong_job_refuses() {
 }
 
 #[test]
+fn native_210_second_handoff_keeps_request_binding_and_one_use_ack() {
+    let (_temporary, first) = journal();
+    let p = prepared();
+    let expected = planned(&p);
+    let raw = String::from_utf8(p.to_bytes().unwrap()).unwrap();
+    let script = "IFS= read -r request; test -n \"$request\" || exit 2; printf '%s\\n' \"$1\"; IFS= read -r ack; test -n \"$ack\"";
+    let mut accepted = first
+        .send_native_run_request_and_accept_prepared_child(
+            child(script, &raw),
+            &request(&p, &p.job_id),
+            &expected,
+            Duration::from_secs(210),
+        )
+        .unwrap();
+    assert_eq!(first.read(&p.job_id).unwrap(), *accepted.record());
+    assert!(accepted
+        .wait_bounded(Duration::from_secs(2))
+        .unwrap()
+        .success());
+    let replay = first
+        .send_native_run_request_and_accept_prepared_child(
+            child(script, &raw),
+            &request(&p, &p.job_id),
+            &expected,
+            Duration::from_secs(210),
+        )
+        .err()
+        .unwrap();
+    assert_eq!(replay.reason, HostKeyPinError::AlreadyRecorded);
+    assert!(replay.pin_recorded_or_uncertain);
+    let (_temporary, second) = journal();
+    let wrong = second
+        .send_native_run_request_and_accept_prepared_child(
+            child(script, &raw),
+            &request(&p, &"1".repeat(16)),
+            &expected,
+            Duration::from_secs(210),
+        )
+        .err()
+        .unwrap();
+    assert_eq!(wrong.reason, HostKeyPinError::WrongRequest);
+    assert!(!wrong.pin_recorded_or_uncertain);
+    assert_eq!(second.read(&p.job_id), Err(HostKeyPinError::Missing));
+}
+
+#[test]
+fn generic_and_native_handoff_caps_refuse_before_any_durable_pin() {
+    let p = prepared();
+    let expected = planned(&p);
+    let raw = String::from_utf8(p.to_bytes().unwrap()).unwrap();
+    for (native, seconds) in [(false, 61), (true, 211)] {
+        let (_temporary, journal) = journal();
+        let peer = child("printf '%s\\n' \"$1\"; IFS= read -r ack", &raw);
+        let refused = if native {
+            journal.send_native_run_request_and_accept_prepared_child(
+                peer,
+                &request(&p, &p.job_id),
+                &expected,
+                Duration::from_secs(seconds),
+            )
+        } else {
+            journal.send_run_request_and_accept_prepared_child(
+                peer,
+                &request(&p, &p.job_id),
+                &expected,
+                Duration::from_secs(seconds),
+            )
+        }
+        .err()
+        .unwrap();
+        assert_eq!(refused.reason, HostKeyPinError::TransportTimedOut);
+        assert!(!refused.pin_recorded_or_uncertain);
+        assert_eq!(journal.read(&p.job_id), Err(HostKeyPinError::Missing));
+    }
+}
+
+#[test]
 fn final_guest_result_is_bounded_after_durable_host_ack() {
     let (_temporary, journal) = journal();
     let prepared = prepared();
@@ -211,6 +288,99 @@ fn final_guest_result_is_bounded_after_durable_host_ack() {
         Ok(b"{\"ok\":true}\n".to_vec())
     );
     assert_eq!(journal.read(&prepared.job_id).unwrap(), *accepted.record());
+}
+
+#[test]
+fn native_completion_can_exceed_the_unchanged_historical_result_limit() {
+    let (_temporary, journal) = journal();
+    let prepared = prepared();
+    let expected = planned(&prepared);
+    let raw = String::from_utf8(prepared.to_bytes().unwrap()).unwrap();
+    let script="printf '%s\\n' \"$1\"; IFS= read -r ack; test -n \"$ack\" || exit 2; printf '%09000d\\n' 0";
+    let mut accepted = journal
+        .accept_prepared_child(child(script, &raw), &expected, Duration::from_secs(2))
+        .unwrap();
+    assert_eq!(
+        accepted.wait_bounded_result(Duration::from_secs(2), 8193),
+        Err(HostKeyPinError::FrameTooLarge)
+    );
+    assert_eq!(
+        accepted
+            .wait_bounded_native_completion(Duration::from_secs(2))
+            .unwrap()
+            .len(),
+        9001
+    );
+    assert_eq!(journal.read(&prepared.job_id).unwrap(), *accepted.record());
+}
+
+#[test]
+fn native_readback_uses_the_existing_pin_without_another_ack() {
+    let (_temporary, journal) = journal();
+    let prepared = prepared();
+    let expected = planned(&prepared);
+    let (record, _) = journal
+        .accept_prepared(&prepared.to_bytes().unwrap(), &expected)
+        .unwrap();
+    let mut readback = journal
+        .bind_native_readback_child(
+            child("printf '%s\\n' '{\"closed\":true}'", "unused"),
+            &expected,
+        )
+        .unwrap();
+    assert_eq!(
+        readback
+            .wait_bounded_native_completion(Duration::from_secs(2))
+            .unwrap(),
+        b"{\"closed\":true}\n"
+    );
+    assert_eq!(journal.read(&prepared.job_id).unwrap(), record);
+    let mut wrong = expected;
+    wrong.worker_generation = "8".repeat(64);
+    assert!(journal
+        .bind_native_readback_child(child("sleep 1", "unused"), &wrong)
+        .is_err());
+}
+
+#[test]
+fn native_readback_request_owns_the_child_and_closes_input_after_one_request() {
+    let (_temporary, journal) = journal();
+    let prepared = prepared();
+    let expected = planned(&prepared);
+    let (record, _) = journal
+        .accept_prepared(&prepared.to_bytes().unwrap(), &expected)
+        .unwrap();
+    let readonly = WorkerRequest::parse(
+        serde_json::json!({
+            "schema":"hol-gauntlet-worker-request.v1","action":"reconcile",
+            "source_sha":prepared.source_sha,"job_id":prepared.job_id
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
+    let mut accepted = journal.send_native_readback_request_and_bind_child(
+        child("IFS= read -r request; test -n \"$request\" || exit 2; if IFS= read -r extra; then exit 3; fi; printf '%s\\n' '{\"closed\":true}'", "unused"),
+        &readonly, &expected, Duration::from_secs(2),
+    ).unwrap();
+    assert_eq!(
+        accepted
+            .wait_bounded_native_completion(Duration::from_secs(2))
+            .unwrap(),
+        b"{\"closed\":true}\n"
+    );
+    assert_eq!(journal.read(&prepared.job_id).unwrap(), record);
+    let refusal = journal
+        .send_native_readback_request_and_bind_child(
+            child("sleep 1", "unused"),
+            &request(&prepared, &prepared.job_id),
+            &expected,
+            Duration::from_secs(2),
+        )
+        .err()
+        .unwrap();
+    assert_eq!(refusal.reason, HostKeyPinError::WrongRequest);
+    assert!(refusal.pin_recorded_or_uncertain);
 }
 
 #[test]

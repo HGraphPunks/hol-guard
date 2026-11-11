@@ -3,16 +3,150 @@
 
 use gauntlet_contracts::canonicalize;
 use gauntlet_host_state::{
-    HostCandidateBuildPinError, HostCandidateBuildPinJournal, HostCandidateBuildPins,
-    VmCandidateBuildError, VmCandidateBuildPlan,
+    public_vm_operations, HostCandidateBuildPinError, HostCandidateBuildPinJournal,
+    HostCandidateBuildPins, VmCandidateBuildError, VmCandidateBuildPlan,
+    VmHostBoundCandidateResultError, VmHostBoundCandidateResultPlan,
 };
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
+use std::process::Command;
 use tempfile::tempdir;
 
 const JOB: &str = "c04e7f93a2b15d68";
+
+#[test]
+fn uncertain_build_transport_stays_consumed_across_invocation_clones_and_restart() {
+    let dir = tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
+    let transport = root.join("transport");
+    fs::write(
+        &transport,
+        b"#!/bin/sh\nprintf 'attempt\\n' >> \"$0.calls\"\nexit 7\n",
+    )
+    .unwrap();
+    fs::set_permissions(&transport, fs::Permissions::from_mode(0o700)).unwrap();
+    let mut config = operations();
+    config["limactl"] = json!(transport);
+    let journal = HostCandidateBuildPinJournal::open(&root).unwrap();
+    let invocation = VmCandidateBuildPlan::new(&config, pins())
+        .unwrap()
+        .record_before_launch(&journal)
+        .unwrap();
+    let duplicate = invocation.clone();
+    std::thread::scope(|scope| {
+        let attempts: Vec<_> = (0..8)
+            .map(|_| scope.spawn(|| invocation.clone().execute_once(&journal)))
+            .collect();
+        for attempt in attempts {
+            assert!(attempt.join().unwrap().is_err());
+        }
+    });
+    let original = fs::read(root.join(format!("{JOB}.candidate-build-pin.json"))).unwrap();
+    drop(journal);
+    let journal = HostCandidateBuildPinJournal::open(&root).unwrap();
+    assert!(duplicate.execute_once(&journal).is_err());
+    assert_eq!(
+        fs::read(root.join("transport.calls")).unwrap(),
+        b"attempt\n"
+    );
+    assert_eq!(
+        fs::read(root.join(format!("{JOB}.candidate-build-pin.json"))).unwrap(),
+        original
+    );
+}
+
+#[test]
+fn partial_or_linked_build_dispatch_records_never_contact_transport() {
+    for kind in ["partial", "symlink", "hardlink"] {
+        let dir = tempdir().unwrap();
+        let root = dir.path().canonicalize().unwrap();
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
+        let transport = root.join("transport");
+        fs::write(&transport, b"#!/bin/sh\nprintf 'called' > \"$0.calls\"\n").unwrap();
+        fs::set_permissions(&transport, fs::Permissions::from_mode(0o700)).unwrap();
+        let mut config = operations();
+        config["limactl"] = json!(transport);
+        let journal = HostCandidateBuildPinJournal::open(&root).unwrap();
+        let invocation = VmCandidateBuildPlan::new(&config, pins())
+            .unwrap()
+            .record_before_launch(&journal)
+            .unwrap();
+        let marker = root.join(format!("{JOB}.candidate-build-dispatch.json"));
+        let outside = root.join("retained");
+        fs::write(&outside, b"retained").unwrap();
+        match kind {
+            "partial" => fs::write(&marker, b"").unwrap(),
+            "symlink" => std::os::unix::fs::symlink(&outside, &marker).unwrap(),
+            _ => fs::hard_link(&outside, &marker).unwrap(),
+        }
+        assert!(invocation.execute_once(&journal).is_err());
+        assert!(!root.join("transport.calls").exists());
+        assert_eq!(fs::read(&outside).unwrap(), b"retained");
+        assert_eq!(
+            fs::symlink_metadata(&marker)
+                .unwrap()
+                .file_type()
+                .is_symlink(),
+            kind == "symlink"
+        );
+    }
+}
+
+#[test]
+fn new_launch_pins_transport_and_vm_and_reconciliation_refuses_other_targets() {
+    let dir = tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
+    let journal = HostCandidateBuildPinJournal::open(&root).unwrap();
+    let vm = "hol-gauntlet-rust-build-20261026-001";
+    let config = public_vm_operations(Some(vm)).unwrap();
+    let plan = VmCandidateBuildPlan::new(&config, pins()).unwrap();
+    assert_eq!(plan.preflight_plan(&"e".repeat(64)).unwrap().argv()[2], vm);
+    let invocation = plan.record_before_launch(&journal).unwrap();
+    assert_eq!(invocation.argv()[2], vm);
+    let record = journal.read(JOB).unwrap();
+    assert_eq!(record.schema, "hol-gauntlet-host-candidate-build-pin.v4");
+    assert_eq!(
+        record.vm_target,
+        Some(("/opt/homebrew/bin/limactl".into(), vm.into()))
+    );
+    assert_eq!(record.to_json()["vm"], vm);
+    assert!(invocation
+        .parse_terminal_claim(&terminal_bytes(&invocation))
+        .is_ok());
+    let result = VmHostBoundCandidateResultPlan::new(
+        &config,
+        &journal,
+        JOB,
+        &"a".repeat(64),
+        &"b".repeat(64),
+    )
+    .unwrap();
+    assert_eq!(result.argv()[2], vm);
+    for wrong in [operations(), {
+        let mut c = config.clone();
+        c["limactl"] = json!("/tmp/different-limactl");
+        c
+    }] {
+        assert_eq!(
+            VmHostBoundCandidateResultPlan::new(
+                &wrong,
+                &journal,
+                JOB,
+                &"a".repeat(64),
+                &"b".repeat(64)
+            ),
+            Err(VmHostBoundCandidateResultError::InvalidConfig)
+        );
+    }
+    for invalid in ["--other", "../vm", "vm name", "vm\nname", ""] {
+        assert!(public_vm_operations(Some(invalid)).is_err());
+    }
+    assert_eq!(public_vm_operations(None).unwrap(), operations());
+}
 
 fn pins() -> HostCandidateBuildPins {
     HostCandidateBuildPins {
@@ -258,4 +392,108 @@ fn invalid_config_and_mutable_paths_refuse_before_a_pin() {
         .preflight_plan("mutable-tag")
         .is_err());
     assert_eq!(journal.read(JOB), Err(HostCandidateBuildPinError::Missing));
+}
+
+#[test]
+fn primary_and_historical_read_and_repair_refuse_a_different_vm_without_host_mutation() {
+    let dir = tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
+    let journal = HostCandidateBuildPinJournal::open(&root).unwrap();
+    let config = public_vm_operations(Some("original-owned-vm")).unwrap();
+    let invocation = VmCandidateBuildPlan::new(&config, pins())
+        .unwrap()
+        .record_before_launch(&journal)
+        .unwrap();
+    let original = fs::read(root.join(format!("{JOB}.candidate-build-pin.json"))).unwrap();
+    let primary = env!("CARGO_BIN_EXE_gauntlet-host");
+    let historical = env!("CARGO_BIN_EXE_gauntlet-host-shadow-hostbound-candidate-result");
+    for (binary, prefix, repair) in [
+        (primary, vec!["build", "read"], false),
+        (historical, vec![], false),
+        (primary, vec!["build", "repair"], true),
+        (historical, vec!["--repair"], true),
+    ] {
+        let mut command = Command::new(binary);
+        command.args(prefix).arg(&root).arg(JOB).arg("a".repeat(64));
+        if !repair {
+            command.arg("b".repeat(64));
+        }
+        let output = command.args(["--vm", "different-vm"]).output().unwrap();
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        let error = String::from_utf8_lossy(&output.stderr);
+        if repair {
+            assert!(error.contains("original host-reserved VM"), "{error}");
+        } else {
+            assert!(
+                error.contains(&VmHostBoundCandidateResultError::InvalidConfig.to_string()),
+                "{error}"
+            );
+        }
+        assert!(!error.contains(&invocation.record().host_nonce_hex));
+        assert_eq!(fs::read_dir(&root).unwrap().count(), 1);
+        assert_eq!(
+            fs::read(root.join(format!("{JOB}.candidate-build-pin.json"))).unwrap(),
+            original
+        );
+    }
+    for args in [
+        vec!["build"],
+        vec!["build", "cancel"],
+        vec!["build", "read"],
+    ] {
+        let output = Command::new(primary).args(args).output().unwrap();
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("candidate commands:"));
+    }
+}
+
+#[test]
+fn both_run_entrypoints_require_the_pinned_readiness_executable_before_recording() {
+    let dir = tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
+    let p = pins();
+    let values = [
+        p.job_id,
+        p.source_sha,
+        p.source_archive_sha256,
+        p.version,
+        p.tag,
+        p.controller_root,
+        p.controller_tree_sha256,
+        p.uv_base_image_id,
+        p.rust_base_image_id,
+        p.builder_image_id,
+        p.policy_sha256,
+        p.podman_sha256,
+        p.slirp4netns_sha256,
+        p.apparmor_parser_sha256,
+        p.seccomp_sha256,
+        p.runner_binary_sha256,
+        p.result_reader_binary_sha256,
+        "mutable-readiness-binary".into(),
+    ];
+    for (binary, prefix) in [
+        (env!("CARGO_BIN_EXE_gauntlet-host"), vec!["build", "run"]),
+        (
+            env!("CARGO_BIN_EXE_gauntlet-host-shadow-hostbound-candidate-run"),
+            vec![],
+        ),
+    ] {
+        let output = Command::new(binary)
+            .args(prefix)
+            .arg(&root)
+            .args(&values)
+            .args(["--vm", "fixture-not-running"])
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&output.stderr)
+            .contains("exact outside candidate readiness binary SHA-256 required"));
+        assert_eq!(fs::read_dir(&root).unwrap().count(), 0);
+    }
 }

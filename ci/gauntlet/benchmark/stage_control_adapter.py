@@ -18,7 +18,6 @@ from pathlib import Path
 from .contracts import canonical_json
 from .product_version import validate_version
 
-
 ROLES = frozenset({'success', 'input-binding', 'injection', 'boundary', 'timeout', 'cancel'})
 HEX16 = re.compile(r'[0-9a-f]{16}\Z')
 HEX40 = re.compile(r'[0-9a-f]{40}\Z')
@@ -115,6 +114,24 @@ def staging_config_path(build_job, private_manifest, config_digest):
             / ('provisional-' + private_manifest[:16] + '-' + config_digest[:16] + '.json'))
 
 
+def verify_cell_artifact_path(loaded,build_job,private_manifest):
+    """Bind either fixed directory to its authenticated runtime declaration."""
+    from .private_cell_campaign_inputs import _read
+    from .product_cell_layout import RUST_ACTOR, read_artifact_runtime
+    base='hol-gauntlet/rust-shadow-candidates/'+build_job
+    declared=loaded['config']['assets']['private_cell']['path']
+    cell=loaded['runtime']['guard_private_cell']
+    if (declared not in {base+'/cell-artifacts',base+'/cell-artifacts-rust-v2'}
+            or cell['artifacts']!='/opt/'+declared
+            or cell['artifact_manifest_sha256']!=private_manifest):
+        raise ValueError('fixed source-bound private-cell artifact directory required')
+    raw=_read(Path(cell['artifacts'])/'manifest.json',maximum=1024**2)
+    _,argv=read_artifact_runtime(raw,private_manifest,cell['initializer_sha256'])
+    suffix='cell-artifacts-rust-v2' if argv==list(RUST_ACTOR) else 'cell-artifacts'
+    if declared!=base+'/'+suffix:
+        raise ValueError('artifact directory differs from authenticated runtime version')
+
+
 def _read_control(path):
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
     with os.fdopen(descriptor, 'rb') as stream:
@@ -157,11 +174,12 @@ def run(argv):
     key = _rust_worker_signing_key('deterministic')
     if key is None:
         raise ValueError('sealed Rust worker controller key required')
+    from ci.gauntlet.control_plane.stage_outcome import require_cleanup
+
     from .ci_runner import private_state
     from .ci_runner_config import load_config, verify_assets
     from .ci_runner_preflight import controller_environment
     from .deterministic_control import run_control
-    from ci.gauntlet.control_plane.stage_outcome import require_cleanup
 
     config = staging_config_path(build_job, private_manifest, config_digest)
     state = Path('/home/hx-' + run_id)
@@ -176,9 +194,9 @@ def run(argv):
                 or loaded['runtime']['guard_source_sha'] != source
                 or loaded['runtime']['guard_package_version'] != version
                 or assets['guard_prefix']['path'] != 'hol-gauntlet/rust-shadow-candidates/' + build_job + '/prefix'
-                or assets['private_cell']['sha256'] != private_manifest
-                or assets['private_cell']['path'] != 'hol-gauntlet/rust-shadow-candidates/' + build_job + '/cell-artifacts'):
+                or assets['private_cell']['sha256'] != private_manifest):
             raise ValueError('staging config differs from fixed shadow candidate')
+        verify_cell_artifact_path(loaded,build_job,private_manifest)
         verify_assets(loaded)
         try:
             private_state(state, create=True, immutable_ancestry=True)

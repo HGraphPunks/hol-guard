@@ -1,5 +1,398 @@
 # Gauntlet Rust migration execution checklist
 
+The active execution contract is the
+[Rust migration completion plan](gauntlet-rust-pr-readiness-plan.md).
+Historical proof and parent-exit counts remain unchanged until new validation
+actually closes an exit.
+
+Latest expedited checkpoint (2026-11-11): **24/62 parent exits remain
+complete; 38 remain open**. The migration includes upstream `62fe5d573`.
+Current stable source passes 933 full macOS tests, zero failures/skips,
+formatting and full warnings-denied macOS/ARM Clippy. Native library/CLI/tests
+compile with `--no-run` on macOS and ARM; final ARM Gauntlet results and exact
+source snapshots are recorded in the
+[proof index](gauntlet-rust-pr-readiness-proof-20261026.md).
+
+Current Python replay reproduces 360 historical current-generation results.
+Separate 27-vector eval/launchctl coverage preserves all original goldens and
+the frozen suite of 128 cases. Current catalog: 310 Core/352 total. Source SDK
+18.18.6 is distinct from actual SDK 18.4.12; no newer-SDK or frozen-suite execution
+parity is credited. The source map is 441 files/93 changed/21 added. Independent
+Python and Rust agree on 410 installed files, 11 directories/421 entries and
+planned digest
+`eedaa25b8a3ea7eb642159a2e64d71ed47222c624e882a8e318aa478c618faf2`.
+The inert archive matches that independent row set without installation.
+
+An earlier frozen ARM generation passes bounded tmpfs/ext4 byte/inode
+exhaustion, exact mount checks, while-full teardown and restarted abort.
+The newer running-runtime owner-loss fixture **failed**. Its unverified 2-GiB
+backing, empty original cgroup and stale socket remain retained. Original
+namespace authority is lost; pinned abort refuses and fresh admission stays
+blocked. A fixture-only profile-mode check is corrected, with no fresh
+physical rerun or cleanup credit. The last normal Native control also remains
+a failed, independently invalid result.
+
+Actual pinned Bun/SDK hostile Settings startup passes with the corrected
+Root-readonly config/no-op pair. The cold FIFO/LSM experiment is bounded
+component evidence. Normal SDK output/socket/result custody, descendant and
+cancellation proof, successful complete roles and legacy execution remain
+open. The two excluded legacy drafts are archived privately outside the tree.
+
+Source/VM admission, authorized model workflows, host/parity/rollout coverage,
+all five current-head CI jobs and independent repository approval remain
+required. No new Gauntlet model request or quota mutation is claimed.
+Historical checkpoints below retain their original versions and claim limits.
+
+Closed supervisor v6 retains v5 Native pipe semantics and adds one fixed,
+outside-pinned namespace helper. Eleven ARM declaration tests and the actual
+private-namespace/full-journal cleanup regression pass. The regression proves
+owned service/policy teardown while journal exhaustion correctly prevents
+cleanup credit; it executes no candidate or model. Its retained evidence digest
+is `961577372564262e1676bdac46fa7130027964db9d531af9b964af9a0c4e1ccc`.
+After the initial normalized-mount-listing refusal, the corrected Native-volume
+fixture passes actual UID/GID-10001 byte/inode ENOSPC, teardown while full and
+restarted pinned retirement. Its evidence digest is
+`439da51165b39f6aa069a187848cb0f04b6b0adac7757bd342803ad2e78621c5`.
+Independent readback confirms absent backing, loop references and owner cgroup;
+this test-only initializer/owner pairing does not establish normal Host admission.
+The owner-loss test separately found dead-child reaping after the drain check;
+resumed empty abort, the corrected same-process retest and a fresh full-quota
+test all pass. Six actual ARM helper cancellation/reaping regressions also pass.
+Normal CLI preparation readback recovered a timed-out operation. A subsequent
+failed prelaunch had no Root start record or Host pin; explicit unreleased abort
+and identical receipt readback removed its original bounded storage. Independent
+four-lease checks found no execution resources and 341 unchanged historical
+Worker metadata rows. After correcting a Native/generic handshake-limit mismatch,
+fresh job `27558527d8f3377b` completed normal initialization, preparation, one-use
+execution, separate read and private report retrieval. Its signed control failed
+before completing the role; independent grading remains `invalid-evidence`.
+Completed-storage retirement, identical retirement readback and outside cleanup
+checks pass; 341 historical and five new terminal-job metadata rows remain.
+The registered baseline passes 912 complete macOS tests and
+warnings-denied macOS/ARM workspace Clippy. These results close no parent exit.
+
+The pinned SDK's real MCP-only inventory and four formatter cases pass without
+inference. Current/frozen legacy reducer parity, provider/CLI implementation and
+mock recovery tests do not close real workflow exits. Ordinary allowed SDK Bash,
+full legacy execution, fresh signed conformance, model pair/beta, final-source
+coverage, rollout and merge gates remain open. See the
+[current execution checkpoint](gauntlet-rust-pr-readiness-plan.md#resume-from-this-checkpoint)
+for pending authorization, quota, VM-capacity and CI actions. Historical records
+below preserve their original source/version and claim limits.
+
+Retained merged source `dc3b9336` includes the CPU-aware Native worker budget
+and upstream `73b48265`. Its fresh runtime publication, all 36 inert operation
+cases, two passed Node/npm controls at the unchanged 128-task limit, complete
+Root traces and Rust artifact readback are recorded in the
+[2026-10-28 runtime proof](gauntlet-rust-native-pressure-runtime-proof-20261028.md).
+Both controls peak at 108 with no PID-limit rejection. The first polling-sampler
+assertion remains unresolved; the second records 70 samples without errors.
+Full deterministic grading and conformance remain open. Those controls retain
+326 worker records; the newer launch-v4 control below preserves them all.
+These bounded results close no parent exit.
+
+Verifier `98a544f3` also passes the bounded
+[Native image-lineage proof](gauntlet-rust-native-image-lineage.md): 60 exec
+images, 29 inheritances and 87 task identities under nine gates, with 594 Mac
+tests, 19 focused Root ARM tests, five Linux artifact cases and 32 unchanged
+historical readbacks. This offline proof does not supply Native wire semantics,
+actual effect writers, complete role grading or outside admission.
+
+The initial [Native pipe snapshot proof](gauntlet-rust-native-stdio-plan.md)
+also passes: producer `01889017` has 22 owned ARM tests; verifier `bd262dca`
+has 615 Mac tests, 27 focused Root ARM tests, eleven identical Mac/ARM snapshot
+replays/refusals and 32 unchanged legacy readbacks. Fixed readback checks both
+public exports and all 673 committed Rust source files. Earlier failures and
+all 326 worker records remain preserved. These synthetic stopped-buffer
+snapshots do not establish atomic Native wire bytes or request semantics.
+The [fresh Native v4 control](gauntlet-rust-native-stdio-live-proof-20261028.md)
+at tool `77e7b7e7` and product `dc3b9336` passes with 12 streams, 497 complete
+frames and 460 actual final waits. Nine Mac/ARM artifact cases and five fresh
+fixed-host replay/refusal cases pass. The sampler completes 772 observations,
+peaks at 112 tasks and reports zero PID-limit rejections. All 326 earlier
+records survive in the new 333-record baseline. Request semantics, atomic
+bytes, physical writers, outside admission and every parent exit remain open.
+The [copied hook subset](gauntlet-rust-native-copied-hook-relations.md) now joins
+five request/response exchanges to three acknowledged outer hooks and two
+contained reauthorizations. Committed verifier `3ea621aa` passes eight focused
+and 623 complete Mac tests, fourteen Root ARM tests, nine identical Mac/ARM
+artifact outcomes, five fresh fixed-host checks and 32 unchanged historical
+readbacks. All 691 source-map entries and 42 public export members verify.
+This subset grants no full request-semantics or parent-exit credit.
+The [resident-operation reply binding](gauntlet-rust-native-operation-reply-bindings.md)
+now recomputes 97 request ID/schema/digest relations in the same retained
+control. Ten more ACKs echo the requested policy generation/digest; 136 drain
+replies have only structural checks, and the final drain is unanswered. The
+complete 135-test evidence library and affected Mac/ARM Clippy
+pass. Operation effects, atomic wire bytes and all parent exits stay open.
+
+The opt-in [Root-owned pipe component](gauntlet-rust-native-stdio-plan.md#root-owned-pipe-transport-checkpoint-november-8)
+now observes 43 actual Native sessions, 317,818 read bytes and 154 complete
+request/response frame pairs. Independent Mac/ARM Rust replay is byte-identical;
+692 Mac workspace tests, 15 measured Linux tests and Mac/ARM Clippy pass.
+Historical snapshots keep their old limits. The live product remains the
+explicitly older `74d8d008` generation. The full hook/sink control still fails:
+Native requires `python-eval-readonly-v1`, while the old ledger accepts only
+`workspace-contained-v1`. No sink, Post, physical effect or full-control success
+is credited. All failed attempts, checked recoveries and the 333 historical
+worker records remain intact. Fresh signed v5 acceptance, source/preparation
+admission, operation effects, physical writers and all parent exits remain open.
+
+The v5 artifact-reader route now checks the three distinct Root journals,
+reported preparation/rootfs/configuration/manifest pins, exact embedded launch
+source and each Guard CLI's traced Native pipe session. Source manifest
+`v5-reader-source-002.json` (`a666e5cf…`) passes 700 Mac workspace tests and
+warnings-denied Mac/ARM Clippy. Nine parser tests pass as UID 65532 in the owned
+ARM VM; scope 014 drains without forced cleanup and all 334 historical metadata
+rows remain unchanged. The retained standalone pipe replay stays byte-identical.
+Validation `v5-reader-validation-001.json` hashes to
+`93e9299db5ecdbeb0e54a9c12a153265ae20b5063d0f34181c5c1d3437fb0706`.
+This adds no file, crate, binary target or dependency. These are inert boundary
+tests and historical replay; fresh signed v5 export/control acceptance, outside
+admission, request semantics and physical writers remain open. Parent exits
+remain 24/62.
+
+Explicit read-only preparation v2 now requires launch v5 and the exact Native
+reason/profile pair; other decisions and legacy workspace preparations cannot
+borrow that route. Historical write/Node/npm fixtures remain unchanged. Source
+`readonly-source-002.json` (`b2d1be88…`) passes 703 Mac workspace tests, full
+formatting, warnings-denied Mac/ARM Clippy and eight unprivileged ARM contracts.
+Fresh component job `006` reaches the Native sink, which exits 126 during Linux
+boundary setup before tests start. Post allows the captured error; this is a
+failed control with no utility or denied-write success credit. Root independently
+verifies the unprotected write, its retirement, unchanged fixture and cleanup.
+Mac/ARM replay agrees on 65 sessions, 470,846 bytes and 525 complete task histories.
+Validation `readonly-validation-001.json` hashes to
+`9d41ea5c585e61be247a14513a50c32d12fd8eee299c91cbbabbc9c305eda3ea`.
+No new file, crate, target or dependency is added. Main `5f0abeadc` is merged as
+`fc8149d76` and compiles on Mac/ARM; live evidence still uses older `74d8d008`.
+See the [read-only checkpoint](gauntlet-rust-native-stdio-plan.md#explicit-read-only-control-checkpoint).
+Full SDK roles, signed export, outside admission, semantics and actual writers
+remain open. All six failed attempts and 334 historical metadata rows survive;
+parent exits remain 24/62 and model use is zero.
+
+Main `1d7f8304d` then merges cleanly as `f93ecd24d`, preserving eleven incoming
+files. Its environment-name scenario changes one digest in the 440-file map;
+the 420-file baseline stays unchanged. Independent Python installer selection
+and Rust agree on 409 files, 420 entries and controller digest `4e0af628…`.
+The initial stale expected-pin failure is retained and corrected from that
+oracle. Merged source `e25ac7ad…` passes all 703 Mac tests, formatting and
+warnings-denied Mac/ARM Clippy; Native library/CLI/tests compile on both.
+Validation `readonly-main1d7-validation-001.json` hashes to
+`cb72b7bcded752dc1010c341852745a0473ebc97c3332681e46364d817128838`.
+This adds no local file or dependency and does not install the new controller
+or qualify the newer runtime. All parent counts and live-control limits above
+remain unchanged.
+
+Main `311d63cb2` merges as `99c233ad4` with thirteen incoming files preserved.
+Its hidden-home scenario changes one source-map digest; the independently
+recomputed controller expectation is `f2581135…`, still 409 files/420 entries.
+The Native launcher now prints its existing fixed setup error while preserving
+the original failure line, exit 126 and enforcement. Source `52f718a4…` passes
+703 tests, formatting, Mac/ARM Clippy and Native compilation on both platforms.
+Validation `boundary-validation-001.json` hashes to
+`e1f3d8242f7cc10be2d5a48ad41acc740b14551a29ccc56b5dc8d54e131c0633`.
+Build ID `ed8f9da0b49ebde2` is reserved with an unused-job VM preflight; no new
+runtime or successful control is claimed. All counts and eligibility limits
+remain unchanged.
+
+Diagnostic source `6a764d42b` is now captured and transferred through the primary
+Rust commands for build `ed8f9da0b49ebde2`, archive `2131170e…` (63,345,255 bytes).
+Its controller is independently verified after inert installation. The first
+readiness refusal spent no Host pin and started no candidate; the old rendered
+policy hash was corrected from the pinned template, with both attempts retained.
+Rust context preparation and policy load/removal pass before the first actual
+builder launch. Kernel readback measures UID/GID 65532, empty capabilities,
+no-new-privileges, seccomp, isolated namespaces and read-only source, with 12 GiB,
+two CPUs and 512 PIDs. The exact stacked label includes the job profile in
+enforce mode. Preparation validation `92bca3a2…` binds seventeen files; all 334
+historical metadata rows remain unchanged. Build `ed8f9da0b49ebde2` then completes
+in 1,520.117 seconds; its host-bound readback and all 1,639 inert wheel entries
+verify. Fresh dependency job `d77d88039d6ada35` supplies the full dependency
+export, although both live kernel observers miss its container. Rust publishes
+the exact inert runtime, tree `affb2c5f…`, Native ELF `9b605cbe…`; its Python
+contract report records 185 passes. These results supply no admission credit.
+
+Native pipe jobs `007`–`010` all fail before test execution with exit 126.
+Job `010` joins the first remount's `EPERM` to a pidfd-held namespace-owner
+snapshot by PID/start ticks: setup capabilities belong to a child user namespace,
+while the mount namespace belongs to its parent. Cause record `00109968…`
+binds this evidence and cleanup. Temporary observer source changes are removed.
+The focused fix creates a current-user-owned mount namespace with recursively
+private propagation before hardening; its ordering test requires namespace
+failure to prevent mapping and execution. The initial ARM compile rejects the
+direct unsafe syscall; the corrected source uses the safe `nix` wrapper with
+its existing dependency's Linux-only `sched` feature. Source record `4e62d792…`
+adds no file, crate, target, dependency package or lockfile entry. Corrected
+Native library/CLI/test compilation passes on Mac and ARM musl (0.654/149.486
+seconds), without product execution. Fix `d3c86f1d3` is then preserved by clean
+upstream merge `8a4266be7` of `ba94c2f00`, with all 31 incoming files retained.
+The refreshed source map remains 440 files/79 changed/20 added; independent
+Python/Rust selection agrees on controller tree `7ae10140…`. All 703 Mac tests,
+formatting, warnings-denied Mac/ARM Clippy and Native compilation on both
+platforms pass at that merged source. Validation `217f5705…` binds 35 source
+files and ten records. Source `53eed6482` then completes isolated build
+`05c2c0c7904fd554` (1,544.537 seconds, 1,641 wheel entries, 185 reported Python
+contract passes) and dependency export `44e9605c6aab249e`. Independent live
+kernel observation measures the exporter and verifies cleanup; Rust publishes
+inert runtime tree `98490c7d…`, Native ELF `71a09662…`. The namespace-failure
+ordering regression passes as UID 65532 on ARM. Control `011` then fails before
+utility tests because `daemon-edge` inherits listening/health sockets instead
+of pipes. Existing Rust recovery passes; closed readback `9a000a92…` verifies
+resource absence and all 334 unchanged metadata rows. The separate measured
+socket handoff then passes twelve ARM boundary/trace checks. New control `012`
+passes in 130.443 seconds; independent closed readback `38109c0a…` checks the
+read-only utility/denied-write result, 64 pipe sessions, one socket helper,
+528 task lifetimes/final waits and complete cleanup. Native executes only as
+UID/GID 10004. Validation `d6f4b44a…` retains separate product `53eed6482` and
+Gauntlet source/tool pins, plus earlier transfer and fixture-selection failures.
+All 705 Mac tests and warnings-denied Mac/ARM Clippy pass with all features.
+The v2 schema grants no socket-byte ownership; historical v1 readers refuse it,
+and independent Rust v2 replay/signed acceptance was still open at this producer. The necessary
+boundary uses one focused Rust module and no new crate, binary or dependency.
+
+Boundary `197d7abd1` and clean merge `55a03e5f4` preserve upstream `82e69eab5`
+and all 37 incoming files. The Gauntlet source map is unchanged; Native library,
+CLI and tests compile on Mac/ARM without execution. The independent Rust v2
+reader then reproduces the unchanged `012` history on Mac and UID 65532 ARM:
+identical 130,923-byte summaries (`0d8c1d46…`), 64 pipe sessions, nine framed
+clients, 465,410 pipe bytes and one helper. V1 refuses v2 on both. Validation
+`86818911…` binds 711 Mac tests and thirteen unprivileged ARM checks, including
+queued handshake/activity bytes, parent lifetime and artifact substitutions.
+One additional necessary Rust module holds replay; no crate, binary, dependency,
+test file or proof script is added. Both scopes drain without forced cleanup;
+replay inputs return to Root-only access and all 334 metadata rows are unchanged.
+Signed v2 acceptance, newer-product VM qualification and all admission/writer
+obligations remain open.
+The explicit signed read-only hook profile then reuses prelaunch key custody
+without changing the six SDK roles. Caller-selected `readonly-utility` binds
+worker job v8 to controller/completion v2; version substitutions refuse. Source
+`d82873ba…` and validation `fcc4f16a…` bind 713 Mac tests, the strengthened path
+rerun, warnings-denied Mac/ARM Clippy and six actual ARM checks, including two
+Root-only sealed-key/ack tests. Scope `029` drains without forced cleanup;
+all 334 historical metadata rows remain unchanged. Eleven existing Rust files
+change, with no new file, crate, binary or dependency. Signed VM acceptance,
+artifact/observer admission and independent effects remain open.
+
+Product `e0145e09b` completes build `60e7a7a17e642363` in 1,811.658 seconds.
+Primary readback and independent wheel reading verify its retained Host pin,
+cleanup, all 1,643 entries and Native ELF `2476dd16…`; logs report 185 Python
+contract passes. Dependency job `6ca5d18106dcac22` completes in 39.694 seconds
+with independently measured execution and reconciled cleanup. Rust publishes
+inert tree `09e21bf7…`: 4,333 entries, six console scripts and active requirements
+satisfied against 62 distributions. Validation `f9340f8d…` binds 34 records.
+Fresh GNU compilation reproduces actor `a6604708…`; binding `59fd037e…` reuses
+its exact retained bytes. Never replay either completed job or infer a Native
+control pass or qualification from this inert publication.
+Signed prelaunch attempts `013`/`014` fail without reservation or candidate
+execution; the former exposes the required Root-only `0500` mode, and the latter
+times out during unoptimized admission. Its exact pidfd-bound stop requires
+SIGKILL after 25 seconds, retaining that forced-cleanup outcome. Source
+`a74f6fdb…` adds a 50-second admission watchdog, joined before key generation
+or reservation, while preserving every history check. Validation `eac70b43…`
+binds 713 Mac tests, Mac/ARM warnings-denied Clippy and two actual UID 65532 ARM
+subprocess tests. Scope `030` drains without force and all 334 historical
+metadata rows remain unchanged. The optimized release worker `8201c839…` is
+installed with mode `0500`. Two existing Rust files change; no new file, crate,
+binary or dependency is added. Fresh signed acceptance was open at that source.
+
+Signed read-only job `015` (`4e4819769a5ab5c0`) then completes in 50.116 seconds
+against product `e0145e09b`, Native `2476dd16…` and worker `8201c839…`. Fresh host
+reconciliation/offline verification authenticate report `172d46bd…` and terminal
+`3aa22c04…`; the terminal stays `invalid-evidence`. Closed readback `73ccfa03…`
+verifies 515 completed task lifetimes, resource absence and 334 unchanged
+historical metadata rows. Custom readers use metadata only. Source
+`dfe38380…` adds the explicit signed read-only artifact route in six existing
+Rust files; it adds no file, crate, binary or dependency. Archive `6aa34b68…`
+joins original declarations, normal hook/capture inputs, sink output, v2
+transports and the fixed read-only fixture to the host-authenticated report.
+Validation `f944a144…` binds 37 records, all 715 Mac tests, Mac/ARM Clippy, four
+measured UID 65532 ARM tests, two ARM replay cases and ten artifact/pin/role
+mutation refusals. Mac/ARM replay is byte-identical (`14d33a60…`, 97,491 bytes);
+v1 refuses v2 on both. Scopes `031`/`032` drain without force, replay inputs
+return to Root-only access, and failed reader/transfer attempts are retained.
+This is read-only diagnostic evidence: SDK roles, observer/source/preparation
+admission, physical writers and eligibility remain open/false. **24/62 parent
+exits complete, 38 open.**
+No causality or parent-exit success is claimed; parent exits remain 24/62.
+
+Verifier `a779925b9` is preserved by clean merge `abcd8b624` of upstream
+`5042340cc`. All thirteen incoming files are retained and all 1,471 Gauntlet
+blobs are unchanged by the merge. Merged Native library/CLI/tests compile on
+Mac/ARM without execution. Validation `08473b20…` also binds same-author
+security scan `c46e3566…` over all nine artifact-patch files and shared callers,
+with no reportable findings. Independent PR review, current-head CI and live
+qualification of the newer merged product remain open.
+
+Hook-byte join source `147220ad…`, based on merge `a4ca0e9d1` of upstream
+`d7832c242`, reuses the existing frame and identity readers for actual owned-pipe
+buffers. Readback `2d0f4388…` checks all 162 request/response pairs, five hook
+identities, three outer inputs and two contained reauthorizations from signed
+job `015`; one resolved Python command also joins its actual interpreter exec.
+It checks 78 resident-operation reply digests and retains 79 replies without
+digest credit. Eight client execs have checked outer privilege floors; seventy
+other Native exec images remain ungraded. Historical snapshot refusals and the
+97,491-byte standalone replay (`14d33a60…`) are preserved. Validation `9b0665ef…`
+binds 42 records, 723 Mac tests, Mac/ARM Clippy, seventeen unprivileged ARM tests,
+two ARM replay cases and ten artifact/pin/role refusals. Scopes `033`/`034` drain
+without force; all 334 historical metadata rows are unchanged. Fourteen existing
+Rust files change, with no new file, crate, binary or dependency. Consumed jobs
+are not replayed. Policy/operation semantics, observer/source/preparation
+admission, physical writers, independent review and parent exits remain open.
+
+Commit `61049ac25` matches all 1,471 frozen Gauntlet blobs. Clean merge
+`e78b4bfc9` preserves upstream `0afa9229d` and all twelve incoming files;
+Gauntlet sources stay unchanged. Merged Native library/CLI/tests compile on
+Mac/ARM without execution (308.005/260.86 seconds). Validation `b489097a…`
+binds the merge and earlier Gauntlet checks; job `015` does not qualify this
+newer product. Independent review and all five current-head jobs remain open.
+
+The 2026-11-10 resource-limit follow-up changes existing modules only. Git
+stdout/stderr share an in-flight cap; Python upstream observation byte/event
+budgets survive reconnects and its lifetime session limit bounds retained
+threads. Legacy build/feature/probe logs use a bounded pipe, preserve unknown
+cleanup and retain confinement until container disappearance is verified.
+Rust builder/feature plans disable duplicate Podman log storage. The immutable
+Python builder fixture remains intact, with its Rust comparison admitting only
+the explicit logging guard. The optional gate selector includes Rust Gauntlet
+paths without gate activation. All 440 source-map entries are refreshed (86
+changed, 20 added); the 420-file baseline is unchanged. All 723 Rust tests and
+174 Python tooling tests pass; the standalone older-controller probe follow-up
+passes 20 build/probe tests. Rustfmt and Mac Clippy pass. Python/Rust controller
+plans agree on `3f151167…` (409 files/420 entries); ARM and merged-source checks
+remain open. Shared writable
+export/inode exhaustion, independent review and actual qualification remain
+open. Scan `24cd36df…` reviewed all 1,817 paths at `ea197e8a6`, then failed on
+the tool's CI exclusion; retained draft analysis and bounded witnesses are not
+a completed security report. This follow-up closes no parent exit: **24/62**.
+
+Upstream `4a0b5ab5a` then merges without conflicts. All 322 incoming paths are
+accounted for: 320 exact blob/mode/deletion matches and two inspected additive
+union files. The shared dependency requires Rust 1.89, so align the eleven
+crate MSRVs, all five workflow jobs and current builder; pin existing
+rusqlite/libsqlite3-sys to 0.41.1/0.39.1 with the same 190-package set. Keep
+historical fixtures and outside base-image checks. Python/Rust agree on the
+409-file/420-entry controller tree `20650edd…`; the 440-file map has 87 changed
+and 20 added entries. All 723 Rust tests, 175 Python tooling tests, formatting
+and Mac/ARM Clippy pass. Native library/CLI/tests compile on Mac and ARM
+without execution (1,073.115/939.335 seconds). Actions permissions report
+enabled, but dispatch at pushed merge `0463695b4` returns HTTP 422,
+"Actions has been disabled"; no run is created. Validation
+`merged-validation-002.json` (`cc29285d…`) retains the result. All five
+exact-head jobs and independent approval still precede integration merge.
+No model use, live qualification, release or parent-exit completion is claimed.
+
+Catalog commit `5306c65cc` adds one fixed inert Rust reader for all 350 current
+legacy rows and preserves the historical 128-case baseline. The following merge
+of upstream `d586334a9` keeps all seven incoming files exact and changes no
+Gauntlet source. All 727 merged Mac tests, formatting and Mac/ARM Clippy pass;
+Native library/CLI/tests compile without execution on Mac/ARM in
+497.85/354.087 seconds. Validation `catalog-merged-validation-001.json`
+(`439fa574…`) verifies 7,161 source/asset inputs and the unchanged 190-package
+set. Four current-source catalog tests match the actual Python reader.
+The active plan is shortened; detailed checkpoints remain in Git and this
+ledger. No model request, new VM job, Root deployment or parent exit is claimed.
+
 ```text
 ████████░░░░░░░░░░░░  39% — 24 of 62 parent milestones complete
 ```
@@ -10,12 +403,86 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
 
 - [x] Create a separate, locked Rust workspace outside the product runtime and an isolated read-only CI check. Evidence: `ci/gauntlet-rs/Cargo.toml`, `.github/workflows/gauntlet-rust-contracts.yml`, PR #5306 isolated `contracts` check at `8a7989c4`.
 - [x] Record SHA-256 hashes and proposed owner phase for all 420 tracked `ci/gauntlet` files at the pinned Python commit. Evidence: `ci/gauntlet-rs/parity-manifest.v1.json` and `source_inventory_parity.rs`.
-- [ ] Integrate the pinned Gauntlet control-plane source from draft PR #5263 into a reviewed base or an explicitly reviewed migration dependency. Draft integration PR #5402 combines #5263 and #5306 with current `main`; `integration-source-delta.v1.json` now records 427 Gauntlet files, including the staging adapter, with a Rust test checking every source hash. Review and merge remain open; no Rust worker cutover can rely on an unmerged candidate controller.
+- [ ] Integrate the pinned Gauntlet control-plane source from draft PR #5263 into a reviewed base or an explicitly reviewed migration dependency. Draft integration PR #5402 combines #5263 and #5306 with current `main`; `integration-source-delta.v1.json` now records 440 Gauntlet files, including the staging adapter, with a Rust test checking every source hash. Review and merge remain open; no Rust worker cutover can rely on an unmerged candidate controller.
   - [x] Merge current `main` at `9a506a8d` into draft #5402 without rewriting its history. The only content conflict was the hook ownership contract: retain this branch's live contained-completion and MCP-budget entries, accept `main`'s deletion of retired `source_paths.py` references. The contract validator passed; the merged Rust workspace tests, Rustfmt and warnings-denied Clippy passed locally. GitHub CI is running on merge head `e65af5bf`. This updates the draft integration base; it does not satisfy independent review or merge.
   - [x] Merge newer `main` at `7eba6064` on 2026-10-21 without a conflict; refresh the explicit 427-file map to 48 changed and seven added files. The Rust inventory test checks all tracked bytes, and Python independently recomputes the 396-file/407-entry controller install plan at `01ba175093b9e9a7a114eedde2c213e9254426f079c8ec0c2b201b9ff2f0c4ec`. The earlier six-role live proof used the older `eb1c9f9d` controller generation, so fresh installation, live validation and independent review of this merged source remain open.
   - [x] Checkpoint interrupted work at `a89088c5`, then merge `main` at `76efccff` through [incremental PR #1](https://github.com/HGraphPunks/hol-guard/pull/1). Upstream moved the Native runtime entrypoint into `lib.rs`; preserve its thin `main.rs` and register both migration modules in the library. Review all 14 upstream Gauntlet changes and refresh the explicit map to 57 changed and seven added files. Python's actual bootstrap selection and Rust independently agree on 396 files, 407 entries and current controller digest `6c18e1cfd705d0409335280fb9e2176442b3e21a1681c0b8e853afbf1dc29bd6`; retained VM controllers and the immutable baseline are unchanged. The final child subsequently includes `main` through `c07cbb5d` and completed the check/merge cycle recorded below.
   - [x] Complete the first child-PR cycle: [PR #1](https://github.com/HGraphPunks/hol-guard/pull/1) merged as `b15eb638` after all four current-head Rust jobs passed on `8a2f57ce` in [run 39870402856](https://github.com/HGraphPunks/hol-guard/actions/runs/39870402856). All eight full judge shards passed (15,697 passed, 12 existing skips, 24 existing expected failures), and Linux/macOS/Windows MDM conformance passed. The integration tip was fetched, checked out cleanly and used for the next child. The eleven CodeQL findings have unchanged upstream sink regions and remain open; optional exact-head live inference qualification remains ungranted. Follow `ci/gauntlet-rs/AGENTS.md` for subsequent chunks; this is integration validation, not production qualification.
   - [x] Merge eleven newer upstream commits through `4a654ea8` into the next child and review all five Gauntlet file changes. Source `da6d899b` records 427 files, with 58 changed and seven added; source-byte and source-drift tests pass. Python's actual bootstrap selection and Rust independently agree on 396 files, 407 entries and digest `28fd562fa80d0ed626d9732da75590273a0a9b2c8b815df8fcabb228d1de2c8b`. The Native policy-bundle crate split preserves both migration modules, and merged library/CLI compilation and the ownership report pass. This new tree is not installed over the retained VM controller.
+  - [x] Complete the second child cycle: [PR #2](https://github.com/HGraphPunks/hol-guard/pull/2) merged as `f143f9ac` after the four Rust jobs passed on `ca15e04a` in [run 39873842822](https://github.com/HGraphPunks/hol-guard/actions/runs/39873842822). The full 16,650-node Linux judge plan completed (16,614 passed, 12 existing skips, 24 existing expected failures), all three MDM platforms passed, and CodeQL/Security Gates were green. Fetch and cleanly check out the integration tip before creating the next child.
+  - [x] Import four newer upstream commits through `f1f90ae6` in the next child, review the added Docker-context scenario, and refresh all 427 Gauntlet byte pins. The fixture correction at `dca678a6` keeps 58 changed and seven added files; Python and Rust independently agree on the new 396-file/407-entry controller digest `9c936cb68c564ee8f9ad4d92ee3efcc58268262acb957845a16a10a5f22c1164`. The new five-job cycle adds actual macOS Native ownership/approval/delivery and image-hardening coverage; the retained VM controller remains unchanged.
+  - [x] Import the upstream receipt-clock fixture correction at `d1ab7bc6` into pending PR #3 as merge `e5f4b120`. Its fixed October 16 receipt date expired on October 23 and could make the full judge fail on every open PR. All ten `test_runner_sync_payload.py` cases pass locally after import; Gauntlet/Native source bytes and controller pins are unchanged. GitHub still refuses workflow dispatch as Actions disabled despite its enabled permissions setting, so the five required final-head cloud jobs and the third child merge remain pending.
+  - [ ] Complete the third child cycle, [PR #3](https://github.com/HGraphPunks/hol-guard/pull/3), at head `2ab0f15f`: its local macOS Native fixes are validated, but GitHub dispatch returns HTTP 422, `Actions has been disabled for this repository`, despite the repository permissions API reporting enabled. Reapplying that setting did not restore execution. Keep it unmerged until all five current-head jobs pass. The next isolated host-lifecycle chunk is committed locally as `0c32a1e7`; merge this preparation into a fresh child from the fetched integration tip after this cycle completes and recheck current upstream `main`. The preparation already imports `d1ab7bc6` through PR #3. No disabled-check bypass or upstream merge is authorized by this preparation.
+  - [x] Merge 35 upstream commits through `785b6aaf` as `8208a6b5` without conflicts, review all seven changed Gauntlet files and refresh the 432-file map to 70 changed and 12 added entries. Python's actual selector and Rust agree on 401 files, 412 entries and digest `5a135a5abb4f0663bbdfb6e440c085f443ac6be943ccee7afd11fbc9ba46a311`; preserve the immutable 420-file baseline. At `c6c35510`, all 561 migration workspace tests, Mac/ARM warnings-denied Clippy, matching Native compilation, three output checks, seven Mac image checks and all five Native program/directory stages pass. The broader suite exposes a watch-mode finding identifier hidden behind containment; Rust fix `564a7a47` preserves the intrinsic action floor, passes all 13 runtime finding tests and runtime Clippy, and passes 638 Native/Gauntlet cases with one explicit Linux-Bun skip. All failed attempts and generated public directory bytes remain retained. See [upstream synchronization](gauntlet-rust-upstream-sync-785b6aaf.md). Required cloud checks, independent review, full current-source conformance and parent exits remain open.
+  - [x] Merge 30 upstream commits through `931cafb2` as `795948ba`, preserving both migration runtime modules and the CPU-aware worker budget. Review both Gauntlet changes and refresh the 432-file map; Python and Rust agree on the 401-file/412-entry controller plan at `ff8d1459…`. The immutable baseline and retained VM controllers are unchanged. All 45 focused Native tests, matching Native compilation/Clippy, 634 Mac migration tests and Mac/ARM Clippy pass. The zero-selection and stale-expectation failures remain retained. Current-head CI and fresh source-matched qualification stay open; see [upstream synchronization](gauntlet-rust-upstream-sync-931cafb2.md).
+  - [x] Preserve preparation through `6ddf29cb0` on child `codex/gauntlet-rust-finish-20261105` and merge current `main` `b2da1b2b` as `1acc28a7a`. Review 48 changed Gauntlet paths; the explicit map has 437 files, 77 changed and 17 added against the unchanged 420-file baseline. Python's actual bootstrap selection and Rust agree on 406 files, 417 entries and digest `b518addfd1f23ea2d88d443dcaeebc9ad29b2d474535ac8409a8aff1ffcaad93`. All 650 Mac migration tests, 223 focused Python tests, Mac/ARM warnings-denied migration Clippy and Mac/ARM Native library/CLI checks pass. Failed inventory, workflow and MCP-frame attempts remain retained; the final Rust log is `completion-integration-20261105-rust-tests-003.log` (SHA-256 `28a1f7daca5c57c4469d1819a9ac6cee7fc0595e94ae07e31e3f6988142beb4d`) beside the existing external evidence. Fork dispatch still returns HTTP 422, Actions disabled; required current-head CI, independent review, guest installation and qualification remain open. Existing upstream whitespace and immutable proof bytes are preserved. No parent exit closes.
+  On November 6, import upstream `48d012fd7e846bd8a39d277a1c35a30fc239a813`
+  without conflicts, preserving the migration runtime modules and ownership
+  contract. Review all 14 Gauntlet changes, including persistent approval,
+  contributed-extension allow and Docker fixtures. The unchanged baseline now
+  has 78 changed and 20 added files. Actual Python bootstrap and Rust agree on
+  409 selected files, 420 installed entries and controller digest
+  `e81a214c9771095da22f2897aa5c25600d2016f416cd6562d4fd5511f6321e9a`.
+  All 656 Mac Rust tests, 226 focused Python tests and seven subtests pass;
+  formatting, warnings-denied migration Clippy and matching Native library/CLI
+  checks pass on Mac and ARM. The ARM product check
+  retains its existing musl `libc::time_t` deprecation warning. The earlier
+  hard-coded Git-reader count failure remains retained; the reader now checks
+  the embedded delta count, and the full rerun passes. Evidence outside Git:
+  `upstream-20261106-mac-all-002.log` (SHA-256
+  `f2d0ad7901b995eb0d558cf00865c0bd4ec616e9a34a05f24e2589b2b452c867`),
+  `upstream-20261106-python-focused-001.log` (SHA-256
+  `7a293675078e393f9a6cc5fe2c28416ebebab5cbf69e1aa5cebdafe82ad16dbc`)
+  and `upstream-20261106-python-controller-plan-001.json` (SHA-256
+  `67f7a6ccbef21bd4f867d83399e1f7bda2066961a3d0f1dc18480b35073900e8`).
+  The new controller is not installed over retained generations. Required CI,
+  independent review and fresh qualification remain open; no parent exit closes.
+  - [x] Reconcile thirteen more upstream commits through `2b811b610`, preserving
+  the Native completion/budget modules and their Python bridge. Review all ten
+  changed Gauntlet files; the merged bytes match upstream exactly. The unchanged
+  420-file baseline still maps 440 files, 78 changed and 20 added. Actual Python
+  selection and Rust agree on 409 files, 420 entries and controller digest
+  `24926e437754ebf4be36c9a117a6e35ad55ab0d4d7cae58c8e1a69ae45e7d82b`.
+  All 658 Mac migration tests, Mac/ARM warnings-denied Clippy, formatting and
+  Mac/ARM Native library/CLI checks pass; the existing ARM musl deprecation stays
+  visible. Static checks parse 39 changed Python files without imports and
+  verify all 282 non-Unix inventory arms. The aggregate external record
+  `upstream-20261106-merge-validation-002.json` hashes to
+  `888fa5de417b065f5c0eb051b4c99b432c394bb38c9b1b8977732d9fe1744b35`;
+  the independent selector record hashes to
+  `031f1d4ce364a359b4a4433826233b5c7d87b09feaf63e6116970496f68af9ae`.
+  No controller is installed over retained `e81a214c…` jobs. Fresh merged-source
+  product/legacy execution, independent review and required cloud checks remain
+  open. No parent exit closes and no model request is made.
+  - [x] Reconcile four upstream commits through `e43ca02cf` as merge
+  `efa6f05e3`, preserving all fourteen incoming files exactly. Twelve Python
+  files parse without imports; all 297 old scenarios remain unchanged beside
+  two new Git Allow cases. Refresh the existing 440-file map and independently
+  derive controller `39bde055…` from Python's actual selector and Rust's Git
+  reader. All 672 Mac tests, formatting, Mac/ARM Clippy and Native library/CLI
+  compilation pass; imported Guard command tests compile on Mac. Retain the
+  stale-pin failure, existing ARM warning, immutable 420-file baseline and all
+  older installed/live generations. Aggregate `a77e2a86…` verifies eleven
+  records and eight logs. The new controller is not installed; fresh product
+  qualification, required CI and review remain open. See the
+  [upstream followup](gauntlet-rust-hostbound-candidate-build-proof.md#upstream-followup-after-dependency-recovery).
+  - [x] Reconcile four upstream commits through `d01a43ae1` as merge
+  `ff638012d`, preserving all 31 incoming files and the Root pipe component
+  `734338221` unchanged. Review the handbook-glob and null-output Gauntlet
+  additions; refresh only their two hashes in the 440-file map (79 changed,
+  20 added). Python's actual selector and the Rust Git reader independently
+  agree on 409 controller files, 420 entries and digest
+  `aac18d2864703f76f547b8384d0441d302be5531a3d83ee297f91c5cc472daeb`.
+  All 692 Mac workspace tests, warnings-denied Mac/ARM Clippy and matching
+  Native library/CLI/test compilation pass. Retain the initial stale-digest
+  failure and existing ARM musl warning. External records under
+  `native-wire-20261108-tools-001/` include `mac-tests-004.json`
+  (`d29f7f5121c80e5b751b0c4be777510f6b04c574b20f80b2c1c04a29f74f0807`)
+  and `upstream-d01a43ae1-rust-controller-plan-001.json`
+  (`f5206d84b2df654c6f0794b5a4b96cad831d451c13bf689b5a439290a54eeeff`).
+  No new controller is installed; live product `74d8d008` and its `52da7281`
+  controller remain separate. Fresh product qualification, all five current-head
+  cloud jobs, independent review and every open parent exit remain required.
 - [x] Enumerate the three Python CLI entrypoints, primary command/profile surfaces, operational job states, public snapshot boundary, file/tree asset roles and major journals with proposed Rust phase owners. Evidence: [command and state ownership matrix](gauntlet-rust-surface-matrix.md). Historical schemas, every status field, legacy exit codes and the 420-file dispositions still need the exhaustive audit below.
 - [ ] Audit every manifest disposition and enumerate each CLI command, profile, schema/version, external executable, artifact role, public status field, exit code, journal and state transition with an owning Rust component.
 - [x] Freeze Python-produced canonical JSON vectors, seven accepted runner declarations, and valid/incomplete, complete synthetic, and signed hostile public bundles. Evidence: Rust fixture tests under `ci/gauntlet-rs/crates/`.
@@ -85,7 +552,19 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
     - [x] Obtain a green isolated `macos-host` check for the host crate and its pin journal. At code head `18d31910`, [run 39550787109](https://github.com/hashgraph-online/hol-guard/actions/runs/39550787109) passed `macos-host`, `arm64-binaries` and `contracts`. The macOS check includes the bounded pipe's half-closed socket case. This validates the isolated library on macOS, not a reviewed live Lima handoff.
     - [x] Read one retained six-control Python job under an outside config/report pin and require six caller-supplied public keys before checking signed openings. The SHA-matched ARM64 diagnostic checked six distinct sessions, six reported tails, six recomputed Native review summaries, five route/output/prompt/CLI relations, the partial-cancel relation and signed input-binding/injection probes; wrong key and wrong report pins refused. The matching old Python verifier accepted all six records. The keys were observed on that same VM and the result stayed ineligible. See [six-control openings proof](gauntlet-rust-six-control-openings-proof.md). Fresh host prelaunch custody, independent kernel/SDK effects and a Rust-controlled run remain open.
     - [x] Wire the internal Rust controller owner to reject a producer-claimed pass unless all six Root-owned records open under the worker-generated shared key from the prelaunch handoff. Code pin `3645a853`; a self-contained ARM64 worker unit binary passed 71 tests with three intentional ignores after embedding its fixed config fixtures. This path is still unwired and has no live job or verdict; see [controller key handoff proof](gauntlet-rust-controller-key-handoff-proof.md).
+    - [x] Implement a distinct v7 Rust Native diagnostic profile with sealed fixed-descriptor key consumption, signed controller/context identity, durable Mac host pin/ack transport and independently reopened host completion readback. Add a separate keyed pre-controller repair that retains the consumed public reservation and refuses touched task custody or surviving resources. The affected Mac run passes 405 tests without failures/ignores; Mac/ARM Clippy and ARM static test compilation pass. See [host-pinned Rust controls](gauntlet-rust-native-host-keyed-controls.md). Root test execution and live host-to-VM proof remain pending; signatures do not supply independent effect scoring or admission.
     - [ ] Retain the v2 started-marker and sidecar hashes on the host before VM controller execution, prove crash/restart and substitution refusals on a fresh Rust-controlled job, and compare all six signed records against those outside pins.
+      - [x] At source `f53bc490`, run all six fresh v7 roles through the actual Rust Mac pin/ack and Root signer, independently reauthenticate their signatures and kernel/SDK/MCP/physical joins, retain host restart and wrong-context refusals, and repair the consumed lost-ack reservation without an exit or replay. The offline Rust verifier also accepts all six distinct outside keys and refuses cross-job replay. Native tests pass 186 worker/64 evidence/40 rootfs plus subprocess; all 284 worker files remain intact, with 420 outside samples and all owned resources absent. See [host-pinned controls](gauntlet-rust-native-host-keyed-controls.md). Complete crash/restart authority, independent Rust grading and current-source conformance remain open; this bounded proof closes no parent exit.
+      - [x] At Rust verifier source `b059a590`, bind a caller-pinned public archive to the prior host-authenticated completion and recompute nine malformed request/capture refusals plus the synthetic forbidden-command counterfactual, captured deny/authorization refusal and physical marker/trap relations. Actual retained job `e2c701baf1475103`, identical restart, six original-envelope regressions and six hostile-archive/role/pin refusals pass. The Mac workspace passes 510 tests with warnings-denied Clippy; seven evidence and two archive/path regressions cover substitutions and false passes. ARM source `788eeeed` passes warnings-denied Clippy and all nine new tests natively under Root, with both worker leases held and all 284 prior files unchanged; independent public export readback passes. See [Rust artifact verifier](gauntlet-rust-native-binding-artifact-verifier.md). Independent live request/process/SDK/MCP custody, complete role grading and current-source conformance remain open; parent exits stay 24/62.
+      - [x] At Rust source `cec21c2c`, independently reconstruct three physical canaries, positive capture visibility, six path and two network errno refusals, exact fixture bytes and capture chains under the authenticated boundary completion. Fifteen actual retained-artifact/regression/refusal cases pass, including identical restart and unchanged input-binding output. The full Mac workspace passes 515 tests; Mac/ARM warnings-denied Clippy and five new evidence plus two archive-custody tests natively under Root pass. Both leases and all 284 prior worker files remain intact. Independent host readback verifies the public export. See [boundary artifact verifier](gauntlet-rust-native-boundary-artifact-verifier.md). Child kernel claims remain unauthenticated, live process custody and full grading remain open, and no parent exit closes.
+      - [x] At verifier source `65a70076`, independently select the clean/injected catalog inputs, join all six roles' actual SDK/Native/MCP captures and shared budgets, verify signed reads and reconstruct the physical SQLite schema/records/journal/cache in bounded read-only memory. All 31 actual/regression/restart/refusal cases pass, including recomputed mutation archives. Mac passes 529 tests; Mac/ARM warnings-denied Clippy and 17 focused Root ARM tests pass. Host readback verifies exact source/ELF/log pins and all 284 unchanged worker records under both leases. See [MCP/provider artifact verifier](gauntlet-rust-native-mcp-artifact-verifier.md). Process custody, complete role grading and source-matched conformance remain open; all eligibility/causality flags stay false and no parent exit closes.
+      - [x] At `70c0d1d9`, join 48 primary SDK/MCP process tuples to 420 separate kernel samples, actual fixed argv/ELF/namespace/identity/limit observations, SDK direct-parent ancestry and eight literal public helper files. Fifty readback/regression/restart/refusal cases pass. Four missed negative probes and all old raw SDK requests remain unverified; explicit interpreter/observer readback pins do not become v7 prelaunch pins. Future executions retain versioned raw request/response bytes. Workspace development validation passes 537 tests; final eight focused tests, Mac/ARM warnings-denied Clippy and ten native Root tests pass. Host export readback and all 284 retained worker records pass. See [process artifact verifier](gauntlet-rust-native-process-artifact-verifier.md). Fresh capture execution, Native hook/Bash/lifecycle grading, full process custody and observer/key admission remain open; no parent exit closes.
+      - [x] Add versioned Root capture-input bindings and terminal delivery receipts, preserving acknowledged byte counts/hashes, owned handle/argv and input-close state through success and failure. Mac rootfs passes 36 tests including three new partial/binary/reuse/changed-input cases; Mac/ARM rootfs warnings-denied Clippy and static ARM compilation pass. All three new tests also pass natively under Root at `052cbabd`; independent public-export readback verifies source/ELF/log pins, both leases and all 284 unchanged worker records. Fresh actual capture execution and the consuming Native grader remain pending. Historical absent receipts gain no input-delivery credit. See [capture input receipts](gauntlet-rust-native-capture-input-receipts.md). No parent exit closes.
+      - [x] At `72f49ab8`, recompute 19 actual Native hook captures and five contained result/SDK/Post joins across six historical roles. New captures require exact acknowledged input receipts plus the Root journal checkpoint signed in the Native plane; historical missing receipts stay unverified and invented events refuse. Forty-three archive/restart/regression/refusal cases, 547 Mac workspace tests, Mac/ARM warnings-denied Clippy and eleven focused Root ARM tests pass. Public host readback verifies all source/ELF/log/metadata pins, both leases and all 284 unchanged worker records. Initial lease-fixture, Clippy and writable-ancestor test failures remain retained. See [hook artifact verifier](gauntlet-rust-native-hook-artifact-verifier.md). Native process/effect/lifecycle custody, fresh producer execution and qualification remain open; parent exits stay 24/62.
+      - [x] At `575c83a9`, compose six-role artifact checks with 66 gate/interpreter launches, 43 actual Native clients, all 67 reconstructed output captures, physical fixtures/effect joins and both held detached lifecycle relations. Eighty-one archive cases, including 43 refusals, pass. Nine internal-client observations and seven helper launches remain gaps; actual writer attribution, outside child-death observation, internal Native request bytes and custody admission remain open. All 554 Mac workspace tests and Mac/ARM warnings-denied Clippy pass. Eleven focused Root ARM tests plus six actual archive readbacks, six byte-identical Mac-matching restarts and five refusals pass; independent export readback verifies all pins, fixture copies and 284 unchanged worker records. All failed attempts remain retained. See [control/lifecycle artifact proof](gauntlet-rust-native-control-artifact-verifier.md). No fresh product/model execution or parent exit is claimed.
+      - [x] At `c3c8fa5d`, add a closed v2 launch declaration with outside interpreter/observer digests and a Root-held fixed interpreter generation measured before startup and rechecked before spawn/release. Rust consumes the matching signed journal checkpoint; legacy declarations cannot gain pin credit from invented events, and observer execution/admission stays separate. Seven new cases, 561 Mac workspace tests, 41 final affected rootfs tests and Mac/ARM warnings-denied Clippy pass; all seven new cases pass natively under Root. A fresh zero-model control against the explicit retained 3.58.0 candidate verifies the early witness, three raw SDK frames, three acknowledged hook inputs, signed journal checkpoint, nine launches, five Native clients and eight output streams. Twenty actual/restart/refusal cases and 32 unchanged historical readbacks pass. The preceding authenticated npm failure at the 128-task ceiling remains retained and unresolved; the passing run's kernel peak is 126. Both jobs preserve all 284 original files, with 298 records retained afterward. See [prelaunch interpreter pins](gauntlet-rust-native-prelaunch-interpreter-pins.md). Full current-source conformance remains open and no parent exit closes.
+      - [ ] Resolve the observed intermittent Native/npm task-pressure failure at the product cell's existing 128-task ceiling before complete-role conformance. Preserve the failed signed report, exact kernel fork refusal and both distinct sampled/current and kernel-peak measurements; a passing rerun alone does not close this issue.
+      - [ ] Exercise the proven outside Rust process-event recorder in fresh Native runs and bind/recompute its signed journal checkpoint. At `0259fa90`, six actual fork/thread/exec/signal/death and lost-recorder/foreign-target cases plus four parser cases pass in the owned ARM VM. Reader `a0439880` passes six replay units and 30 actual/restart/refusal CLI cases on both Mac and ARM, accounting for 74 tasks, 73 final waits and one explicit exec retirement. Native positive reads reopen the unchanged original Root files; independent host export readback verifies every source/ELF/log/metadata pin, both leases and all 298 unchanged worker records. All 571 migration workspace tests, Mac/ARM all-target warnings-denied Clippy and Rustfmt pass. Both initial fixture and socket-restriction failures remain retained. Closed v3 startup/drain, kernel tracer checks and signed checkpoint/gate joins at `cc3ce245` pass all 579 Mac workspace tests, Mac/ARM warnings-denied Clippy, 27 focused Root ARM cases and 32 byte-identical legacy controls. Fresh zero-model control `e2c701baf1475403` records 559 tasks, 559 final waits and 152 execs; frozen Rust replay accepts that actual history and restart and refuses three corrupt inputs. The control remains failed/invalid-evidence because Native rendering becomes unavailable and the SDK withholds output; the independent sampler separately exhausts its bound. All 298 prior records survive, with a final 305-record baseline. At `8adf90cc`, all 585 Mac workspace tests, Mac/ARM Clippy, 41 focused Root ARM cases and 32 byte-identical legacy controls pass. Fresh control `e2c701baf1475404` collects 88 v2 outside samples without errors and delivers exact Native-reviewed output, but npm aborts at the 128-task ceiling with a kernel-confirmed fork rejection. Rust replays its complete 460-task/460-final-wait history. All 305 prior records survive; the current baseline is 312. Both failures remain retained, and a successful current-source Native control remains pending. See [process-event implementation and proof](gauntlet-rust-native-process-event-plan.md). Complete Native grading and admission remain pending; historical polling gains no retroactive credit and no parent exit closes.
   - [ ] Complete the remaining `verify_control` SDK process/peer authentication, private-cell runtime, Native review, output, boundary and cancellation checks against independently authenticated effects for all six deterministic roles.
 - [ ] Verify HMAC and remaining signed custody formats, and read the quota/controller journals with interruption and tamper cases. The Python provider-quota v1 journal is an unsigned canonical hash chain bound to outside config and allowance pins; it must not be described as HMAC-signed. Python controller invocations are local-integrity records, not signed attestations.
   - [x] Verify the exact two-field Python controller Ed25519 envelope with an outside public key, bounded duplicate-rejecting JSON and canonical record bytes. A Python `cryptography` fixture and negative cases passed locally, in the ARM container and as a SHA-matched unprivileged ARM VM binary; see [signed-envelope proof](gauntlet-rust-controller-envelope-proof.md). This proves synthetic envelope authentication only; live record custody, trusted key delivery and independently observed effects remain open.
@@ -139,11 +618,191 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
 
   The [retained VM controller audit](gauntlet-rust-controller-source-audit.md) found that the older active Python controller tree is neither the exact 420-file baseline nor this PR's integration tree. A separate [current source-matched tree](gauntlet-rust-current-head-controller-install-proof.md) is now installed inertly, but no reviewed outside install pin or deployment points to it. A Rust worker may not launch either tree until that trust and deployment binding is established.
 - [ ] Port exact Git/archive provenance and the unprivileged, bounded Podman builder, retaining UID, AppArmor, seccomp, capability and `slirp4netns` controls.
+  - [x] Connect primary `build transfer` to the existing bounded Rust stream
+    owner and fixed guest receiver at source `76a5604fe`. All 686 Mac tests,
+    formatting, Mac/ARM Clippy and six measured unprivileged ARM tests pass.
+    Live `c8a491e0d27bf653` transfers its exact-commit archive in 10.656 seconds;
+    independent byte/metadata readback, restart/changed-VM refusal and downstream
+    primary dependency export pass. Partial, linked, orphaned and uncertain host
+    records cannot authorize replay. Two existing Rust files change, with no new
+    file, crate, target or dependency. See [primary source transfer](gauntlet-rust-vm-source-transfer-proof.md#primary-rust-transfer-into-the-build-slot).
+    Review and admission remain open; no parent exit closes.
+  - [x] Retain dependency client kernel custody before launch and connect explicit
+  host-authorized repair to the existing commands. Typed unknown reads supply
+  reservation pins without cleanup authority; wrong pins refuse before durable
+  authorization. Recovery binds the original intent, full CID and kernel group
+  under four leases, preserving the original consumed attempt and null exit.
+  All 675 Mac tests, formatting, Mac/ARM Clippy and executable builds pass;
+  live recovery and normal-control evidence are retained below. One shared
+  contract module is added without a new crate, executable or dependency.
+  See [supervisor recovery](gauntlet-rust-hostbound-candidate-build-proof.md#dependency-supervisor-recovery).
+  - [x] Prove actual dependency-supervisor SIGKILL on `a6840d15c928fe37` and
+  `c95ad2e6018bf743`, typed unknown readback, wrong-pin refusal before cleanup
+  authorization and matching-authorization Rust repair without relaunch.
+  The second job has independent active-container observation after refusal;
+  its first repair error is retained and the same-authorized Rust retry succeeds.
+  Both jobs pass restarted read/repeat repair and consumed/different-pin refusals.
+  Normal control `b8c32a6f519d470e` exits zero in 76.099 seconds; independent
+  decoding matches all 2,290 files. Four-lease cleanup verifies all resources
+  absent and historical metadata unchanged. Validation `af4f2bce…` binds 62
+  records. Older completed generations remain readable through both commands.
+  - [ ] Diagnose the first active dependency repair refusal and complete
+  pre-CID/partial-state recovery. The first job's delayed active check also
+  remains a retained failure. Qualification stays open; no parent exit closes.
+    - [x] Retire incomplete dependency completion records at `792a64ab5`.
+    Outside snapshot authorization preserves a real 64-byte report and a full
+    report with 32-byte terminal. Explicit recovery requires absent resources,
+    fsyncs originals and publishes an aborted receipt with unknown exit.
+    Repairs finish in 7.022/12.598 seconds. All 682 Mac tests, Mac/ARM checks,
+    nine selected ARM tests, twenty restart/refusal cases, seven historical
+    reader cases and direct Root reuse refusal pass. Normal
+    `84267ae7556a6101` matches all 2,290 files/51,318,588 bytes. Validation
+    `bfa7c278…` binds 145 records; bundle `1e58a24a…` excludes thirty actual
+    nonces. Two necessary modules separate contracts and Root recovery; no
+    crate, target, dependency, proof script or document is added. Failed
+    prelaunch/export/setup fixtures remain retained. Missing-custody gaps,
+    the original active refusal, review, delivery, CI and qualification remain
+    open; no parent closes. See
+    [completion retirement](gauntlet-rust-hostbound-candidate-build-proof.md#interrupted-dependency-completion-retirement).
+    - [x] Prove interrupted preparation recovery at `70206a42c`, with the
+    inert Root fixture corrected at `7bfc15a8c`. Typed snapshot observations
+    and explicit original-worker authorization preserve absent/empty reservation
+    and intent files. Three verified live boundaries, interrupted no-replace
+    publication and same-authorized retry in 2.220 seconds pass. Two failed
+    observers remain failed fixtures with separate verified retirement. Fifty
+    restart/refusal and six historical-reader cases pass; direct Root reuse
+    refuses. Normal `f2058c9d17b64e30` exits zero in 84.004 seconds and matches
+    all 2,290 files/51,318,588 bytes. All 680 merged Mac tests, Mac/ARM checks
+    and seven selected ARM cases pass. Validation `6431c966…` binds 227 records;
+    bundle `b0b82810…` has 277 members and excludes twenty-seven actual
+    nonces. Three necessary modules are added within existing crates, without
+    a crate, executable, dependency, proof script or document. Nonempty live
+    short writes, partial reports/terminals, missing-custody gaps, independent
+    review, remote delivery and qualification remain open; no parent closes.
+    See [preparation recovery](gauntlet-rust-hostbound-candidate-build-proof.md#interrupted-dependency-preparation-recovery).
+    - [x] Prove full-report finalization at `e3619c0e3`, preserving the original
+    Root report, unknown host observations and one-use dispatch. Fresh
+    `e6d3098a47cb125f` is interrupted before terminal creation and again before
+    atomic finalization. Reads remain unknown; wrong pins authorize nothing.
+    The same-authorized retry finishes in 3.812 seconds, preserving both
+    witnesses and interrupted staging bytes. Eight restart/refusal and five
+    reader-compatibility cases pass. Normal `b4a9f07e13d2865c` matches all 2,290
+    files. All 677 Mac tests, formatting, Mac/ARM Clippy/builds and six selected
+    ARM cases pass; failures stay retained. Live validation `c131cef9…` binds
+    111 records; bundle `a9d352ef…` has 129 members and excludes twenty-one
+    actual nonces. No migration source file, crate, binary or dependency is
+    added. Broader partial-state recovery, qualification, review and the
+    parent exit stay open. See
+    [report finalization](gauntlet-rust-hostbound-candidate-build-proof.md#retained-dependency-report-finalization).
+    - [x] Prove native v3 pre-CID recovery with retained creator custody,
+    separate per-attempt CID witnesses, atomic completion, interrupted repair
+    and normal controls. The implementation adds one necessary ARM-only module
+    within the existing crate. All 676 Mac tests, formatting, Mac/ARM Clippy and
+    final builds pass, plus all five selected ARM cases. Local validation is
+    `c08a5bd3…`. The initial Root fixture
+    failed by reopening a fixed slot; its failure and empty-group cleanup stay
+    retained; the corrected temporary-directory fixture passes. Actual stopped
+    creator job `c43e7a1580bd269f` repairs in 3.246 seconds. Original-writer partial
+    job `7e04b9c128a36df5` preserves 32 bytes, survives repair-supervisor loss
+    after its durable witness and resumes under the same authorization in
+    3.971 seconds. Normal `a180c5e9742bd36f` matches all 2,290 files. Cleanup and
+    restart/refusal checks pass; missed-window job `9b72e063a5d148cf` remains a
+    retained failed fault attempt with separate v2 repair. Live validation
+    `1e2228e6…` binds 168 records; public bundle `130feaed…` excludes nineteen
+    actual private nonces. Broader partial-state recovery stays open. No new
+    schema grants admission or invents an exit. See
+    [missing receipt recovery](gauntlet-rust-hostbound-candidate-build-proof.md#missing-dependency-container-receipt-recovery).
+    - [x] Add private phase/error diagnostics within the existing 490-line
+    repair module, with exclusive durable writes, bounded UTF-8 prefixes and
+    full-error hashes. All 675 Mac tests, formatting, Mac/ARM Clippy, builds and
+    four selected ARM tests pass, including an explicit Root temporary fixture.
+    Two fresh interruptions complete first-call repair and outside cleanup;
+    final-worker reads preserve both repairs and all original host records.
+    The old refusal is not reproduced. Validation `e437160f…` binds 56 records;
+    the count-parser failure and data-only correction stay retained. No file,
+    crate, target or dependency is added. See [diagnostics](gauntlet-rust-hostbound-candidate-build-proof.md#private-repair-failure-diagnostics).
+    - [x] Verify early dependency creator custody through the existing parser,
+    Podman and client paths, then actual full-CID/pre-client interruption and a
+    normal control. The implementation uses five existing Rust files with no
+    new dependency or target. All 675 Mac tests, formatting, Mac/ARM Clippy and
+    builds pass, plus the explicit inert Root placement fixture. Direct-SIGKILL
+    job `a4d1927e63bc805f` repairs in 6.110 seconds without outside rescue;
+    cleanup, six restart/refusal cases and normal export/readback pass. All
+    2,290 files/51,318,588 bytes match. Validation `a27350b9…` binds 108 records;
+    the SIGSTOP/sudo fixture failure and transport recovery remain retained.
+    Missing-CID/partial states and the parent exit stay open. See
+    [early creator custody](gauntlet-rust-hostbound-candidate-build-proof.md#early-dependency-creator-custody).
+  - [x] Add fixed dependency reconciliation to the primary host and existing
+  diagnostic, reusing original intent/VM bindings, terminal verification and
+  the inert ZIP reader. The Root path acquires four leases and addresses only
+  the requested job; public responses exclude the private intent and nonce.
+  Legacy reads authorize no retry, and repeated matching host readback is
+  idempotent. All 672 Mac tests, formatting and Mac/ARM warnings-denied Clippy
+  pass; the new Root executable builds. No file, crate, target or dependency
+  is added. See [dependency reconciliation](gauntlet-rust-hostbound-candidate-build-proof.md#dependency-reconciliation-without-relaunch).
+  Separately installed reader `96215aa2…` reconciles both retained generations
+  through both host commands. Fresh job `f02a618c39de745b` recovers its Root
+  terminal after actual host SIGKILL, preserving the original unknown attempt
+  and absent local result. Repeated reads match; a consumed launch refuses.
+  Independent decoding verifies all 2,290 files; four-lease cleanup verifies
+  all resources absent and 333 historical metadata rows plus the lock unchanged.
+  Live validation `3adedd4a…` binds 29 records. Broader interruption and all
+  qualification/causality exits remain open; no parent exit closes.
+  - [x] Commit host build/dependency dispatch before contacting Lima, preserving
+  one-use behavior after concurrent callers, uncertain transport and journal
+  restart. Linked/partial dispatch records refuse without contacting transport;
+  historical dependency intents remain readable without authorizing a retry.
+  Private dependency replies are retained at 0600 and projected into a versioned
+  public result with typed nullable fields and no private intent or nonce.
+  All 669 Mac tests, formatting and warnings-denied Mac/ARM Clippy pass. The
+  six changed implementation/test files stay within 500 lines; no file, crate,
+  executable target or dependency is added. Fresh VM job `ce76a18b95d042ef`
+  verifies the new public/private result path, actual kernel confinement,
+  cleanup, consumed-run refusal and all 2,290 exported dependency files.
+  The upgraded primary host reopens the earlier audit with unchanged records.
+  Aggregate `host-dispatch-20261107-validation-002.json` hashes to
+  `cfde5d70adb296e534504aa55c8863e1ffcf1aabf1fbcd58f11ac3aec224d9cd`.
+  See [durable host dispatch](gauntlet-rust-hostbound-candidate-build-proof.md#durable-host-dispatch-and-private-dependency-results).
+  Broader interruption coverage, independent authority and admission remain
+  open; no parent exit closes.
+  - [x] Share `gauntlet-host build source/run/read/repair` with the existing source,
+  run and result/repair entrypoints through one 89-line module, adding no crate,
+  executable target or dependency. All 662 Mac tests, formatting and
+  warnings-denied Mac/ARM Clippy pass. Source history/hook isolation, consumed
+  jobs, readiness-before-record and original-VM refusals pass through the actual
+  entrypoints. Merged-source build `b7f0b85b31df49cc` passes four selected checks
+  and all 185 contained contracts. Primary active/consumed refusals, terminal
+  readback after trusted capture and the earlier aborted job's repair readback
+  preserve their records. Fresh dependency job `f7a1bf6e9d3482c0` and immutable
+  runtime publication complete. Independent replay matches all four inventories,
+  4,327 prefix entries, six launchers, 62 distributions and all 21 requirements,
+  including 11 active and satisfied. The separate exact-source controller
+  `123024f4…` passes independent Rust/Python whole-tree checks, preserving the
+  old generation and all 333 historical records' metadata. Aggregate
+  `host-build-command-20261107-validation-002.json` hashes to
+  `ed6d8d183bead6608808ee35a490f86d1d103249e1395715e09a4ae58ce40401`.
+  See [primary build command](gauntlet-rust-hostbound-candidate-build-proof.md#primary-host-build-command-and-merged-source-follow-up).
+  Merged-source audit `a38df7e1b26c4905` completes with independently recomputed
+  1,303 passes, zero failures/errors and one deliberate retired-Pi skip. Exact
+  terminal readback, consumed-run refusal and four-lease cleanup match, with
+  all historical metadata unchanged. Its status remains incomplete. Broader
+  recovery, qualification and admission remain open; all
+  eligibility/causality flags stay false and no parent exit closes.
+  - [x] Bind and retain the full candidate container ID before start, then verify CID/name/image/UID/request binding before teardown. The first 3.59.0 attempt exposed a no-op timeout drain and stays consumed/unknown. A real Root ARM timeout/foreign-binding probe now passes; all 656 Mac tests and Mac/ARM warnings-denied Clippy pass. The fixed two-hour candidate budget covers release LTO; dependency/feature budgets and the frozen Python vector are unchanged. Full attempt `d5a9c18e3bf20764` preserves 183 contract passes and two stale-import failures, with independently verified complete cleanup and unchanged metadata for all 333 prior records. The one-line test import fix preserves both assertions. Fresh job `97bef577d8beb254` completes corrected source `023e0b641`: four selected checks and all 185 contained contracts pass. Fresh dependency job `b20e4bd21efb86e9`, inert staging, composition and immutable publication also complete. Independent reconstruction matches all four inventories, 4,316 prefix entries and six aliases; the exact Python source loop and Rust agree on 62 distributions and all 21 requirements, including 11 active and satisfied. Fresh 28-group/52-selector audit `df0cc730b3b23ef5` completes with 1,300 passing tests, three failures and one deliberately retired Pi skip. Rust/Python artifact replay and independent cleanup agree; the two Cline reason assertions and missing Kimi import remain retained failures. Focused reproduction identifies mock-guard EPIPE; existing-helper reuse and the missing TOML import fix preserve all 186 assertions and pass 173 unprivileged ARM executions. These separate diagnostics do not replace a fresh full audit. See [current build and runtime evidence](gauntlet-rust-hostbound-candidate-build-proof.md#corrected-3590-build-and-immutable-runtime). Audit outcome, broader recovery, conformance and admission remain open; no parent exit closes.
+  - [x] Execute frozen dependency installation through a distinct Rust host intent and native Root supervisor on two fresh jobs at `62aa7ba7`. Independent observation of actual exporter bytes, UID/GID, capabilities, no-new-privileges, seccomp, enforced AppArmor and effective cgroup limits passes; cleanup and eight source/capsule/image/runtime/generation/lease/replay refusals preserve original records. Quiescent repair of the first missing-marker attempt records aborted/null-exit state without inventing a running marker or terminal. Host readback verifies all 80 evidence members and all 2,302 file bytes in each of three ZIPs, with 62 distributions and MCP 1.30.0. See [dependency run proof](gauntlet-rust-native-dependency-run-vm-proof-20261026.md). Broader interruption recovery, inert prefix composition and complete candidate requirements remain open; no artifact or execution is admitted.
+  - [x] Repeat the full Rust build/dependency/wheel/prefix/publication path for exact 3.58.0 source `9f42d9dd`. The fresh contained build passes four selected and all 187 contract tests; the fresh dependency exporter has actual outside ELF/argv/intent/kernel/cleanup observation. Rust and independent host reconstruction agree on all 1,665 wheel files, 2,302 dependency files, the 4,371-entry published prefix, six aliases, 63 distributions and all 23 requirements. Thirty-six stage/compose/publish cases pass; the actual Python source oracle agrees. Stale-interpreter, missed-observer and export refusals remain retained, with a fresh run for corrected observation. All 284 prior worker records remain intact. See [current 3.58.0 proof](gauntlet-rust-current358-runtime-proof-20261027.md). Twelve fresh roles, independent grading, conformance/admission, feature audit and broader recovery remain open; no parent exit closes.
+  - [x] Publish the verified candidate prefix once as source-bound runtime data through Rust at `c89e0008`. Ten wrong-pin/lease/replay cases preserve 8,059 original files/links; all 4,411 published entries and both receipts match. Host verification checks all 23 export members against the independently reconstructed prefix and complete Python requirement oracle. Actual Root ARM64 passes 135 library tests with 24 preexisting fixture ignores; the full Mac workspace passes 425. See [publication proof](gauntlet-rust-native-runtime-publication-vm-proof-20261026.md). Independent controls, fresh conformance, deployment admission and broader interruption recovery remain open; no artifact or execution is admitted.
+  - [x] Compose the exact current candidate and compatible dependency prefix through Rust at `fc80aecd`. The fresh VM build passes four selected and 187 complete contained tests. All 4,411 prefix entries and six aliases match; fourteen composition/dependency refusals preserve 4,041 original files/links. Rust and the exact Python source loop agree on 63 distributions, 23 requirements, 13 active and satisfied, and 10 inactive. Host readback verifies all 46 members and reconstructs the complete tree. The earlier failed private partial and courier refusal remain retained. See [composition proof](gauntlet-rust-native-candidate-prefix-vm-proof-20261026.md). The later publication subproof above closes inert runtime publication; independent controls and fresh conformance remain open. No artifact or execution is admitted.
+  - [x] Publish a source-bound inert dependency prefix through Rust stager `c19dcfc7`. All 2,302 dependency files independently match the successful ZIP, nine wrong-pin/lease/aborted/replay cases preserve 18 original files, and host readback verifies all 29 export members and reconstructs the complete 2,649-entry tree. Actual Root ARM64 passes 129 library tests with 24 preexisting ignores; the full Mac workspace passes 419. See [prefix proof](gauntlet-rust-native-dependency-prefix-vm-proof-20261026.md). The later composition proof above supplies complete candidate requirements; publication and conformance remain open. No package executes as Root and no artifact is admitted.
+  - [x] Create exact-Git dependency input capsules in Rust and capture them once through the native Root worker under both permanent leases. The source-sized VM proof at `cb97ad10` verifies the three outside-pinned files, exact modes under umask 0077, both competing leases, wrong generation/source/hash, truncated/extra bytes, wrong exporter hash and consumed-slot replay. Independent host readback verifies all 36 evidence members. At `5c02d14e`, the complete Mac workspace passes 413 tests and actual Root ARM64 passes 126, with 24 preexisting fixture ignores; the first stale current-context test failure remains retained. See [dependency input proof](gauntlet-rust-native-dependency-input-vm-proof-20261026.md). This input-only proof executes no exporter; the later run and prefix proofs above cover that separate work.
+  - [x] Create a full exact local Git-object archive in Rust without checkout, hooks or credentials, with exclusive private slots, descriptor-bound bounded tar/gzip and independent ref/graph verification before its receipt. Source `6bb4cbfb` passes real Git refusal/replay tests and captures the full 55,702,249-byte candidate archive on the Mac; replay preserves archive/receipt hashes. See [local source producer](gauntlet-rust-local-source-producer.md). Remote release fetch/authentication and qualified source admission remain open.
+  - [x] Repeat the host-bound Rust build, artifact capture, complete wheel-byte verification and inert staging on the separate fresh VM for 3.57.0 source `84549fd4`, then newer exact source `62aa7ba7` including Native `9dd2fefb`. Each passes four selected and 187 complete contained contract tests. Outside kernel checks confirm unchanged isolation; wrong hash/replay/target refuse and final cleanup is independently absent. Rust/Python agree on the earlier 1,722-entry wheel and newer 1,705-entry wheel and their different actual Native bytes. Two failed predecessor builds remain consumed. See [earlier build](gauntlet-rust-native-candidate-build-20261026.md) and [newer build](gauntlet-rust-native-candidate-build-current-20261026.md). Both artifacts remain unadmitted; candidate prefix composition and fresh controls/conformance are open.
   - [x] Read all proposed controller source blobs from one exact local Git commit, compare every SHA-256 with the 426-file integration map and derive the expected 395-file install digest. The read-only Rust diagnostic matched commit `5a696f78` and refused the older 420-file baseline; see [Git controller source proof](gauntlet-rust-git-controller-source-proof.md). Remote fetch/tag authentication, an independently reviewed source pin, source-matched controller deployment and build execution remain open.
   - [x] Inertly verify a retained Python Git-object `source.tar.gz` against an outside SHA-256 through bounded, owner-only no-symlink descriptors and a regular-member tar inventory. Four Rust tests passed, and an independent Python read agreed on the digest, 14 members and byte counts of a 45 MB historical archive; see [source archive proof](gauntlet-rust-source-archive-proof.md). This inventory alone does not establish Git provenance or execution admission.
   - [x] Inertly bind the pinned archive's exact release/local ref to the outside commit and check its reachable Git graph in a fresh private repository that excludes archived config, hooks and alternates. Six tests passed on macOS and Linux ARM64, including direct, annotated and shallow Git fetches, wrong-commit/missing-ref/alternate refusals, and a same-ref recheck that rejects a mocked moved tag. The uninstalled diagnostic accepted exact retained v3.48.0 and local-candidate archives on the host; a separate live read-only `v3.48.0` lookup still matched the retained commit. Every output remained execution-ineligible. Full native host tests and warnings-denied native/ARM64 Clippy passed; see [source commit proof](gauntlet-rust-source-commit-proof.md). GitHub origin, independent pin review, a moved-tag recheck inside a live admission transaction and build admission remain open.
   - [x] Transfer an exact Git-verified source archive through a bounded Rust host process to an exclusive guest inbox path, then independently read back its digest and metadata. The source-pinned `5313f6ad` macOS binary transferred a 45,439,546-byte retained local-candidate archive into a fresh synthetic job on the live ARM VM; replay exited 2, left the original bytes intact and left no partial file. Local host tests and Clippy passed; seven integration tests passed unprivileged on the ARM VM. See [one-use VM transfer proof](gauntlet-rust-vm-source-transfer-proof.md). The guest helper is still Python; release-tag live transfer, reviewed source/guest executable pins, lease-bound Root build execution and Podman remain open; all output is execution-ineligible.
   - [x] Capture the already transferred archive into a one-use Root-owned build slot through bounded no-symlink reads and an outside SHA-256 pin. At code pin `6f32e4ba`, the Linux ARM diagnostic rejected an unprivileged call and a wrong digest before creating the slot, then copied 45,439,546 bytes into a 0700 Root directory and 0444 Root file. Independent hash/readback matched; replay refused and left the file intact. After a fixture-mode correction at `e2739ab7`, the full VM worker library suite passed 42/42 runnable tests; warnings-denied ARM Clippy and native worker tests passed. See [Root source capture proof](gauntlet-rust-builder-source-capture-proof.md). This diagnostic had no Rust worker lease, Podman image/profile custody, artifact or benchmark result and remained execution-ineligible.
+  - [x] Capture bounded binary stdin directly through the pinned native Rust worker under both permanent leases. Source `c80ac788` passes exact length/hash/EOF, wrong executable, both competing leases, truncation, overflow and consumed-slot/replay cases on the separate build VM. Committed archives are Root-owned 0444; rejected private partials remain retained. The actual Root suite passes 122 tests with 24 preexisting fixture-specific ignores separate. See [native source proof](gauntlet-rust-native-source-vm-proof-20261026.md). This supplies byte custody, not Git archive semantics: the first working-tree archive was later rejected by the builder and remains retained. The initial corrected archives came from a proof courier and separately passed Rust Git-graph verification; the new Rust producer has its own full-size proof above.
   - [x] Derive the exact Python-compatible builder context hash, image tag and job-specific AppArmor policy from four fixed files in a Root-owned, outside-pinned controller tree. At code pin `468b8a93`, two ARM parity tests and warnings-denied Clippy passed. A SHA-matched ARM diagnostic refused unprivileged and wrong-tree calls, then matched the live installed tree digest and derived tag `localhost/hol-gauntlet-builder:efe7c9623195a139721e`. That tag was absent from Podman; see [builder context proof](gauntlet-rust-builder-context-proof.md). This is read-only and execution-ineligible; fresh image/base pinning, policy load, Podman execution and cleanup remain open.
   - [x] Derive a Rust-only builder image plan from exact local ARM64 base image IDs, replacing the two mutable `FROM` tags and refusing added or changed base instructions. At code pin `92757bfe`, a SHA-matched ARM diagnostic refused unprivileged and wrong-base calls, then verified both fixed tags and IDs against Podman on the live VM. The plan selected `localhost/hol-gauntlet-rust-builder:32674715d5dad985aca1`; it built no image and remained ineligible. See [base image proof](gauntlet-rust-builder-base-image-proof.md). Independently reviewed registry pins, one-use context materialization, lease-bound build, resulting image-ID custody and cleanup remain open.
   - [x] Materialize one Root-owned image context under both the Rust active lease and the Python VM worker lock, using the exact outside-pinned controller bytes and local base IDs. At code pin `5a07252b`, the live ARM diagnostic refused unprivileged, wrong-base, replay and busy-Python-lock calls; independent file metadata and SHA-256 readback matched all three fixed files. The Rust-only image tag remained absent, and the output was execution-ineligible. See [one-use image context proof](gauntlet-rust-builder-image-context-proof.md). A bounded Rust-owned Podman build, resulting image-ID custody and cleanup remain open.
@@ -160,7 +819,37 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
   - [x] Bind an exact v3.48.0 release ref through the Mac one-use pin, Root readiness, guest pre-run anchor, candidate run and retained-result reader. The first release job consumed its pin and failed because the runner selected a nonexistent local ref; after the v3 tag fix, fresh job `aaabefe820493283` built the release wheel, exited zero, was captured once and passed host-bound result and full inert wheel-byte checks. The resulting 19,739,196-byte archive and 28,814,776-byte native binary remain unadmitted. See [release-tag build proof](gauntlet-rust-release-tag-build-proof.md). This is a build/custody proof, not conformance or feature inference; the release builder did not run the local-source-only 186 contract tests.
   - [x] Repeat the exact-tag host-bound build and retained-result proof for v3.49.0. Fresh one-use job `da85d9f817d98679` used an independently verified release-ref archive, exited zero, captured the 19,920,953-byte export once, passed host-bound v3 retained-result/cleanup reconciliation and verified all 1,708 inert wheel entries and native bytes. See [release-tag build proof](gauntlet-rust-release-tag-build-proof.md). The archive is unadmitted and no signed conformance or feature inference ran.
   - [x] Match the pinned Python VM builder's fixed Podman `run` argv for v3.48, v3.49, local 3.50 alpha and retained-artifact retest without launching a container. Rust enforces source/archive/image/job identities and bounded memory; two tests match the Python-frozen vectors and refuse arbitrary selectors. The Linux ARM64 CI job now includes the parity test; see [builder run proof](gauntlet-rust-builder-run-proof.md). Image/profile custody, build execution and cleanup remain open.
+  - [x] Retain a candidate client's boot/device/inode identity before launch and add explicit host-authorized repair through the existing diagnostic executables. Fresh job `ea0ef712724b4957` leaves an active candidate after a verified supervisor SIGKILL; wrong-anchor recovery refuses, then Rust reclaims only the retained full CID and kernel group and records an aborted/null-exit result. Independent four-lease checks verify original process/resource absence, unchanged source/anchor/CID/cgroup/policy and all 333 historical records' metadata. Rebuilt-host repeat repair matches and consumed build readiness refuses. All 660 Mac all-feature tests, warnings-denied Mac/ARM Clippy, formatting and four selected ARM cases pass; the nullable-frame regression failure stays retained. One necessary 278-line recovery module is added, with no new crate, executable target or dependency. See [candidate recovery](gauntlet-rust-hostbound-candidate-build-proof.md#interrupted-candidate-build-recovery). Broader interruption, independent review and admission remain open; no parent exit closes.
 - [ ] Port inert wheel staging, installed-prefix identity, fresh signed conformance, immutable deployment, and feature-audit invocation without importing a candidate as Root.
+  - [x] Run primary audit `52b9d314e8a670cf` at product `74d8d0081`, after
+    build `c2e80b4915f76a3d` and reconstructed runtime publication. All 28
+    groups/52 selectors complete in 1,767.917 seconds. Rust and immutable
+    Python JUnit grading agree on 1,304 passes, zero failures/errors and one
+    deliberate retired-Pi skip; status remains incomplete. Fresh/restart
+    reads match; wrong intent and consumed dispatch refuse with all four
+    host records unchanged. Outside kernel/cleanup checks verify isolation,
+    absent owned resources and unchanged metadata for 333 historical records.
+    The 62-member export excludes all 33 actual nonces. See [primary feature
+    audit](gauntlet-rust-feature-worker.md#fresh-primary-audit-at-the-current-build-generation).
+    This exact generation remains ineligible; no parent exit closes.
+  - [x] Build product source `74d8d0081`, containing main `84ba6e4da`, through
+    primary job `c2e80b4915f76a3d`. It exits zero in 1,856.538 seconds with four
+    selected checks and all 185 contained contracts passing. Independent kernel,
+    cleanup, wheel/Native and restarted primary reads pass. The current-source
+    dependency export composes 4,328 entries/124,462,108 bytes and six launchers;
+    Rust publishes the immutable runtime and independent host reconstruction
+    reproduces all four inventories. Requirement input identity reuses the prior
+    Python oracle explicitly without a fresh Python requirement execution.
+    All 333 historical worker records and their lock retain metadata; all
+    eligibility flags remain false. See [current-source runtime proof](gauntlet-rust-hostbound-candidate-build-proof.md#fresh-current-source-build-and-runtime-through-the-primary-commands).
+    Fresh signed controls, authority, review and admission remain open.
+  - [x] Connect explicit `gauntlet-host features record/run/read/repair` to the existing journal and fixed VM operations, sharing command handling with `gauntlet-host-feature-audit`. Versioned public recording keeps the nonce private; historical journal/Root protocols remain unchanged. Fresh source `8920be8bd` completes build `9ca1b850e63fd247`, dependency job `22b1bd1ca737f37a` and local immutable runtime publication. All 185 contained contracts pass; independent host reconstruction verifies every wheel/dependency byte, four trees, six aliases and 21 requirements. Primary audit `462a926cee8fcfff` completes all 28 groups/52 selectors with 1,303 passes, zero failures/errors and one deliberate Pi skip. Rust/Python artifact counts match; incomplete status stays ineligible. Retained readback matches, consumed dispatch refuses, cleanup verifies under four leases and all 333 older records' metadata stays unchanged. See the [live command proof](gauntlet-rust-feature-worker.md#fresh-audit-through-the-primary-host-command). Observer admission, broader recovery and merged-source qualification remain open; no parent exit closes.
+  - [x] Implement the separate Rust Root feature worker and one-use host caller: closed outside intent, exact completed-build/wheel/Native/image preflight, complete durable reservation before launch, fixed feature cgroup, full CID/intent ownership, bounded protected stdout, independent Root artifact capture, unknown-job admission checks and quiescent aborted recovery. All 645 Mac migration tests and warnings-denied Mac/ARM Clippy pass. Root initialization v4 preserves existing layouts and receipts. A later local host `read` action now reopens a completed guest result only after exact intent/dispatch checks; 31 host tests and Mac/ARM Clippy pass without a live guest read. The new owner still needs fresh owned-VM execution, live restart/recovery proof, active-resource recovery and final operator wiring; see [feature worker](gauntlet-rust-feature-worker.md). This subset closes no parent exit.
+  - [x] At `22d29e6e`, add durable host repair authorization and aborted readback without replay, plus prelaunch boot/device/inode custody and held-cgroup cleanup under all three leases. The new ARM test binary SHA-256 is `2bda54adaa4779095421db4d512830fdb5eb5024f18ff5d6a8e3735b9b627fc0`. Eleven feature cases and one explicit Root recovery case pass in the owned VM, including the parent's SIGKILL exit, complete descendant drain/removal and forged, partial and same-name replacement refusals. Both worker leases are held by the physical probe; metadata for all 333 retained records stays identical and no owned cgroup/container remains. The two logs are `feature-recovery-20261105-root-feature-units-001.log` (`5cbe8a569144aa257fe37f3506e53b2ada17d7693e741775870afef094e4bbb0`) and `feature-recovery-20261105-root-cgroup-001.log` (`56062c3363d45533d62937ae219bad0a8e62a6acfdc17b917f7f424753f0be0d`) in existing external evidence. All 653 Mac tests, Rustfmt and Mac/ARM warnings-denied Clippy pass. The first full-suite dashboard failure is retained; a focused test reproduces inherited `O_NONBLOCK`/`WouldBlock`, and `e8d34b0d` restores bounded blocking reads. Two necessary module splits keep the shared cgroup owner and host tests below 500 lines; no crate, executable or dependency is added. Full live feature `run/read/repair`, interruption, operator integration and qualification remain open; no parent exit closes.
+  Live audit `98d0cdb912f50ef8` retains a real invalid result after 28 XML files because pytest published 0644; host readback preserves it. Interrupted audit `47f1bc9d804a6e25` required operator assistance after kernel-confirmed `crun` signal denials, then the pinned worker durably recorded an aborted unknown exit. The executor now publishes owned XML privately; two ARM publication/refusal cases pass. A receive-only `crun` policy correction passes an actual confined-container stop/removal probe. The refreshed 437-file map and independent 417-entry Python/Rust controller plan agree on `409fe095fe10627e4c2ab7a14fe73e9d1b6177bbc3471364ca430cf4ddfb35f0`; all 656 Mac tests and 28 focused Python tests plus seven subtests pass. Fresh audit `6fb9d42a017c83e5` subsequently completes all 28 groups/52 selectors: Root independently verifies and retains 56 XML/log artifacts, 1,286 passing tests, two Cline assertion failures and one skip, preserving failed/incomplete status. Supervisor-crash audit `c42a9e3b701fd865` leaves active resources and unknown readback, then the pinned Rust repair completes in 13.64 seconds without workload rescue. Fresh read and repeat repair match; replay refuses with all four host records unchanged. Outside checks under all three leases confirm actual cleanup and unchanged metadata for all 333 prior worker records. See the [live attempts and fixes](gauntlet-rust-feature-worker.md#live-attempts-and-fixes) for exact pins, artifact hashes and limits. Both attempts use the retained 3.58.0 candidate; current-source qualification, the broader interruption matrix and operator wiring remain open. No parent exit closes.
+  - [x] Preserve the 28-group/52-selector feature catalog and source/installed contexts in Rust, add a bounded v2 JUnit/report verifier, and implement the fixed UID-65532 ARM executor. Nine initial focused tests, 632 Mac workspace tests, Mac/ARM Clippy and eight live ARM tests pass; execution outside the dedicated PID-1 container refuses. Both live same-UID controller-access probes pass. See [feature audit](gauntlet-rust-feature-audit.md); this subset closes no parent exit.
+  - [x] Execute all 28 groups under the fixed Rust executor in the owned development container and independently verify its artifacts on Mac/ARM. The report preserves 1,287 passes, one real installed Codex failure and one pre-existing Pi expected failure, with 26 passed groups and overall `failed`. Exact Python baseline counts agree on all 1,289 cases. The standalone reader adds two file-custody tests; all 634 Mac tests, eight ARM reader tests, five ARM readbacks and six fresh Mac outcomes pass. Both public exports, all 706 producer Git blobs, 60 outside observations, final cleanup and 333 unchanged worker records verify. Rust durable Root admission/recovery, the product failure, conformance and deployment remain open. Setup/pack/bootstrap failures stay retained; see [feature audit](gauntlet-rust-feature-audit.md).
+  - [x] Reproduce the unchanged Codex assertion under one frozen Native build, identify preparation Git variables leaking into pytest, and remove only those three added variables from product-test contexts. Fresh audit `5803` preserves the same product, 52 selectors and assertions: 1,288 passes, zero failures and the same expected failure, with 27 passed groups and overall `incomplete`. Ten ARM tests, 70 outside observations, all 708 executor Git blobs, Python baseline counts and identical Mac/ARM actual/restart readback verify; all 333 worker records and the original failed audit remain unchanged. Product policy is unchanged. Rust durable Root integration, conformance and deployment remain open; see [environment correction](gauntlet-rust-feature-audit.md#corrected-environment-and-repeat-audit).
   - [x] Verify the nested wheel's safe entry paths and full decoded byte set, distribution metadata, native runtime manifest and actual native executable digest without extraction or execution. At code pin `cda9eb73`, the ARM VM reader and Python `wheel_entries` independently agreed on 1,727 entries, 53,396,514 decoded bytes, the 29,732,624-byte native hash and a separate framed aggregate entry digest; unprivileged and wrong-archive calls refused. See [candidate wheel proof](gauntlet-rust-candidate-wheel-proof.md). Trusted terminal build receipt, installed-prefix staging, conformance and immutable deployment remain open; the archive is unadmitted.
   - [x] Report Python's exact `contained-output-completion.v1` wheel-member floor in the Rust inert wheel proof. Current Rust and Python readers independently inspected the pinned v3.48.0 and v3.49.0 release wheels and agreed that both lack the module, so neither can be promoted to strict benchmark admission. See [release capability proof](gauntlet-rust-release-capability-proof.md). This is a data-only preflight signal, not signed conformance.
   - [x] Materialize a captured v3.48.0 release wheel once into a private Root-owned inert tree, then stream-read every file back and compare the complete tree with the pinned Python inventory. The Rust and Python readers agreed on 1,706 wheel files, 1,744 file-plus-directory entries, 52,181,110 bytes and tree SHA-256 `cbafa46e0555764406450a1c5940a69c781352f4dfcfb932259396a19c8a387c`; replay refused without changing it. The first v3.49.0 staging attempt retained a partial tree after a file-versus-directory count error, which was corrected and tested on ARM before the separate v3.48.0 success. See [inert staging proof](gauntlet-rust-candidate-wheel-stage-proof.md). Dependency validation, signed conformance, immutable deployment and feature audit remain open; the wheel tree is unadmitted.
@@ -249,8 +938,203 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
       - [ ] Reconcile Guard decisions and cleanup from independently pinned inputs and post-run observations, then score all six controls and construct a fresh source-bound conformance package.
   - [ ] Write an immutable Rust-only deployment manifest and final config under the build-job-keyed shadow namespace after fresh conformance, then extend the fixed worker request/prelaunch reader to admit that exact namespace against outside host pins. The existing v1 reader hardcodes Python's `/opt/hol-gauntlet/candidates/<source>/config.json`, and that source directory already belongs to a retained Python candidate; a Rust run must not overwrite or silently reuse it.
 - [ ] Port product-cell isolation and six staging plus six installed deterministic controls; authenticate native Pre/Post and physical effects independently.
+  - A distinct closed v2 worker profile now implements normal Native prompt,
+    Pre/sink/Post transport and one-use original-input/captured-output binding
+    in Rust. The descriptor-held handoff refuses mutation, aliases and renamed
+    survivors. Sixty-four source-pinned Python response cases match. Local
+    tests and ARM compilation pass. The first live v2 run reached Native but
+    failed its readiness barrier with `invalid_workspace`; its failed record
+    and cleanup remain retained. The v1 regression passed and wrong Native pins
+    refused. A fresh corrected-home job passed readiness and prompt, then
+    Native refused the diagnostic's incomplete execution context before any
+    sink launch. A third fresh job with the fixed actor-environment stamp
+    passes actual Native Pre/sink/Post, the physical test effect, all replays
+    and cleanup. The inert reader checks all 210 diagnostic export members,
+    33 input members and preservation of 48 earlier worker files; see the
+    [current Native hook VM proof](gauntlet-rust-native-hook-vm-proof-20261027.md).
+    These diagnostics supply no SDK/Guard verdict. See
+    [transport contract](gauntlet-rust-native-hook-transport.md).
+  - [x] Publish the retained public SDK/Bun pair through Root Rust under both
+    worker leases without package execution. Source `8c868cbf`, job
+    `e2c701baf1472400`: exact pin/lease/replay refusals pass, complete
+    source/published inventories match the explicit Root custody normalization,
+    and all 54 prior worker files remain unchanged. The inert host reader
+    verifies 42,324 source members, 20 result members, three binary-input
+    members, the dual receipt and 141 passing Root tests with 24 existing
+    fixture ignores. See [SDK publication proof](gauntlet-rust-native-sdk-publication-vm-proof-20261027.md).
+    SDK/Bun execution, MCP and independently scored controls remain open.
+  - [x] Retain and independently read back the SDK launcher refusals and
+    scoped recovery before accepting a fresh run. Exports 025/027/028/029/030
+    preserve all original failures, the exact never-started CID repair,
+    separate consumed/aborted receipts with unknown exits, lease/pin/replay
+    refusals and 94 worker files. The committed inert readers verify every
+    exported member and input pin. The current agent reaches its exact
+    delegated cgroup and resource limits, then refuses its process label
+    before Bun starts. A separate fresh held-pidfd diagnostic identifies the
+    exact `crun//&SDK` label; the corrected source keeps that complete stack
+    fixed and passes 450 Mac tests plus Mac/ARM Clippy. Live SDK acceptance
+    remains open. See [SDK transport evidence](gauntlet-rust-native-sdk-transport.md).
+  - [x] Complete the Rust-owned actual SDK/Bun benign diagnostic on the
+    published 3.57.0 runtime. Job `e2c701baf1473501` at `d4d81a4b` passes
+    pre-import binding, same-UID refusal, genuine Native Pre/sink/Post,
+    Node/npm fixture, exact captured-result delivery, replay refusals and
+    independent cleanup. The 119-member host reader requires the actual
+    outside post-exec Bun sample and unchanged host-device identity; all
+    129 worker files and prior failed attempts/repairs remain preserved.
+    Root passes 157 worker tests with 24 existing fixture ignores, 31 rootfs
+    tests and its subprocess check; ARM Clippy/builds pass. Unchanged Mac
+    code retains 454 passing tests. This remains unadmitted and unscored;
+    see [SDK transport evidence](gauntlet-rust-native-sdk-transport.md).
+  - [ ] Add Rust-owned Native MCP/service execution, independent Guard
+    request/decision/effect scoring, source-matched controls and conformance.
+    - [x] Port the seven-family transactional synthetic state engine into
+      `gauntlet-world`, including SQLite state/receipt/idempotency atomicity,
+      exact signed receipts, ACLs, pagination and insertion-sensitive search.
+      Rust matches 153 source-pinned actual Python operations and every
+      intermediate snapshot/receipt digest; five additional durability and
+      refusal tests pass. The full Mac workspace passes 460 tests; Mac/ARM
+      Clippy pass. Source `6f308fae` also passes all six tests natively as Root
+      on ARM; the host reader verifies every input/result member and the
+      eight Linux-Bun bridge vectors. Root MCP integration remains open;
+      see [world proof](gauntlet-rust-world-proof-20261027.md).
+    - [x] Add bounded Rust base MCP dispatch with the exact 41-tool catalog
+      from MCP 1.30.0, schema validation, original arguments, canonical World
+      results and persistent NDJSON. Nine dispatch and five real Unix-socket
+      tests pass; full Mac workspace 474 tests, Mac/ARM Clippy and static ARM
+      builds pass. At `5433f744`, all 20 current MCP/world tests also pass
+      natively as Root on ARM; host readback verifies every ELF, result and
+      real catalog producer record. Root peer/proxy/SDK integration remains
+      pending; see [MCP proof](gauntlet-rust-mcp-service-proof-20261027.md).
+    - [x] Add Root-private SQLite and fixed upstream/resource/gate listeners,
+      with exclusive creation, held/visible inode checks, descriptor isolation,
+      sticky custody refusal and conservative partial-startup retirement.
+      Seven new tests pass natively as Root on ARM; the worker suite passes
+      164 tests with 24 existing ignores. Actual peer, proxy and SDK MCP
+      execution remain open; see [Root boundary proof](gauntlet-rust-mcp-root-boundary-proof-20261027.md).
+    - [x] Execute the closed v4 Rust-owned Native MCP profile and independently
+      verify its public artifacts. At `eafefd5b`, fresh job
+      `e2c701baf1473801` passes both normal CLI proxies/resident children,
+      14 upstream frames, two signed receipts/physical SQLite records,
+      20 outside process samples and cleanup while preserving 137 prior
+      worker files. Stale-helper and workspace-owner refusals stay retained;
+      the consumed pre-controller reservation has a distinct immutable
+      aborted/null-exit repair. Wrong helpers now refuse before reservation.
+      All 173 ARM worker tests, 31 rootfs tests plus nested subprocess and
+      warnings-denied Clippy pass. Actual SDK MCP composition, combined
+      builtin/MCP budget and scoring remain open; see
+      [Native MCP transport](gauntlet-rust-native-mcp-transport.md).
+    - [x] Verify the combined v5 Rust-owned SDK/MCP/Bash diagnostic on the owned
+      ARM VM. At `dde4cb73`, job `e2c701baf1473901` passes both actual SDK tool
+      results, two same-UID refusals, a shared MCP/Bash budget and cleanup.
+      Independent public readback joins 24 frontend/upstream frames each,
+      one signed SQLite receipt, physical records/effect and 50 outside
+      samples. V4 reference job `e2c701baf1473902` also passes. Mac tests (80),
+      native ARM worker tests (177; 24 existing ignores), 31 rootfs tests plus
+      subprocess and Mac/ARM Clippy pass. No qualification credit is inferred.
+      The original replay courier timeout stays retained. At `779bc841`, fresh
+      job `e2c701baf1474001` repeats the complete execution with 51 samples;
+      replay refuses in 523.923 ms while the legacy lease is held, reconcile
+      returns the original terminal, and wrong request pins refuse before
+      preflight. Independent readback verifies the new archive and unchanged
+      161 worker files. The tested library ELF remains byte-identical.
+      See [combined transport](gauntlet-rust-native-sdk-mcp-transport.md).
+    - [ ] Complete the v6 deterministic roles and their independent physical
+      scoring. The closed role parser and installed-Native nine-case binding
+      recorder are implemented, with an unchanged held trap required for
+      refusal. At `f013438b`, fresh v6 job `e2c701baf1474101` passes all nine
+      actual Native refusals, with independent wire/CLI/capture/physical-trap
+      verification, 57 outside samples and 167 preserved worker files. Native
+      ARM tests pass 177 worker cases, 33 rootfs cases plus subprocess; Mac
+      tests (107), Mac/ARM Clippy and ARM binaries pass. Full role scoring
+      remains open.
+      At `2063110d`, independent review rejects the controller-reported
+      forbidden probe pass because its sink returned an invalid-workspace
+      planner error. The original 171-member export and all 173 worker files
+      remain retained. The correction adds a checked project marker and
+      requires an actual Native authorization-refusal prefix. At `a62a328d`,
+      fresh job `e2c701baf1474301` passes the corrected positive/negative
+      control and all nine binding cases. Independent readback checks the
+      original failed/corrected exports, captured Native deny/refusal, physical
+      marker, 67 outside samples, preserved 179 worker files and bounded replay.
+      ARM suites, Clippy/builds and proof readers pass. This remains an
+      ineligible diagnostic using the historical product build.
+      At `0ae73f0f`, fresh boundary job `e2c701baf1474401` passes actual SDK
+      delivery, both positive canary visibility probes, six path/two network
+      refusals and physical canary preservation. Independent readback verifies
+      150 export members, 51 outside samples and 185 preserved worker files.
+      Native ARM suites and 108 Mac tests pass, with Clippy/builds clean.
+      At `034a750d`, fresh injection job `e2c701baf1474501` passes independent
+      upstream/Native/SDK/physical-document joins and the forbidden-command
+      probe. Native forwards the payload; model resistance and MCP withholding
+      are not claimed. Readback checks 151 export members, 56 samples and
+      191 preserved worker files. ARM passes 178 worker/35 rootfs tests plus
+      subprocess; 109 Mac tests, Clippy and builds pass.
+      Timeout/cancel now compile with exclusive readiness, held detached
+      kernel/ELF/ancestry custody, exact timeout/cancellation outcomes and
+      cleanup-gated physical readback. All 111 affected Mac tests and Clippy
+      pass; fresh native lifecycle verification remains pending. No
+      qualified role is claimed.
+      The first timeout at `f01deadb` remains failed: real exit 124 and an
+      outside-observed child do not substitute for missing readiness. The
+      original failed 138-member export, 66 samples and 197 worker files are
+      retained and independently checked. The next version preserves child
+      errors and uses standard-library exclusive readiness publication;
+      corrected native verification remains pending.
+      Subsequent independent observations locate readiness in the child's
+      overlay, not the physical lower workspace. At `0bd3254f`, cancellation
+      `e2c701baf1474802` passes the bounded actual SDK/MCP/Root lifecycle and
+      host readback, including held-child death and explicit missing result/
+      Post. Replay refuses in 522.862 ms; 221 worker files remain intact.
+      Timeout `e2c701baf1474901` at `fa409a89` remains failed and retained
+      with 227 files: Linux still resolves the same zero-link overlay dentry
+      after death. A narrowly bound retirement check and regression are
+      implemented; the 33-test Mac rootfs suite and Mac/ARM Clippy/static
+      compilation pass. Fresh native timeout verification and qualified
+      role scoring remain open. Parent-exit counts remain unchanged.
+      At `35852bd6`, fresh timeout `e2c701baf1475001` passes independent
+      Native 124/SDK error/Post, held-child/dead-overlay and cleanup readback.
+      Replay refuses in 526.615 ms; 233 worker files remain intact. Native
+      ARM passes 179 worker/40 rootfs tests plus subprocess, and the 33-test
+      Mac rootfs suite and affected Clippy/builds pass. The same-source
+      cancellation `e2c701baf1475002` also passes independent readback:
+      61 outside samples, complete cleanup, preserved missing SDK result/
+      Post and 239 intact worker files. Replay refuses in 533.798 ms.
+      All qualification flags stay
+      false; complete role scoring and source-matched conformance stay open.
+      See [deterministic controls](gauntlet-rust-native-deterministic-controls.md).
+  - [x] Run fresh current-source Native success, timeout and cancellation
+    through the complete Rust worker on the published 3.57.0 runtime. GNU actor
+    ABI preflight refuses the earlier static actor before artifact creation;
+    all three controllers exit 0 and all resources drain. Two independent live
+    kernel observations match the actual actor/filter/namespace/resource tuple.
+    Host readback verifies all 117 export/ten input members, unchanged prefix,
+    terminal bindings and retained failures. Root passes 135 worker tests
+    (24 existing fixture ignores), 59 evidence and 23 rootfs plus one subprocess
+    check; Mac passes 427 tests and Mac/ARM64 Clippy. See the
+    [current worker proof](gauntlet-rust-native-current-worker-vm-proof-20261026.md).
+    This releases an apparatus effect, without a Guard decision or eligibility.
   - [x] Match Python's distinct product-cell HMAC frame schema, domain, roles and three frozen wire-byte vectors in Rust. Mac and offline Linux ARM64 parity tests passed; two live Rust/Python product-cell RPC directions passed on Mac, and the VM realm refused the same-key cell frame. Code pin `1ae40a54`; see [product-cell frame proof](gauntlet-rust-product-cell-frames-proof.md). Private bootstrap, actor/cgroup ownership, Guard effects and control verdicts remain open.
+  - [x] Port the unprivileged product actor, measured one-use exec gate, Root layout reader, loopback topology checks and two-layer pinned libseccomp startup into `gauntlet-product-cell` at `cc6948cd`. Six Mac/eight isolated ARM unit tests and both-platform Clippy passed. The real ARM64 executable, driven by Python's existing authenticated client, passed all eight operations under both network profiles, including outside observation of the pre-release gate, fixed environment, actual binary I/O, release replay/foreign-handle refusal, output limits and clean exit. See [native product-cell proof](gauntlet-rust-product-cell-native-proof.md). These are disposable container apparatus tests with zero model requests; versioned VM artifacts, AppArmor/rootfs/supervisor integration, Guard/effect causality and conformance remain open.
+  - [x] Add an explicit source-pinned v2 native artifact format, distinct one-use Rust artifact/config targets, and adapter/custody readers that bind native process arguments to the outside manifest and initializer pins. The focused Python regression suite passed 151 tests; Mac evidence/worker libraries passed 57 and ARM libraries passed 171 with 24 explicit VM tests separate. No AppArmor or isolation permission was relaxed. See [versioned native deployment](gauntlet-rust-native-cell-deployment.md). Actual VM launch, Guard controls, full Root Rust ownership and conformance remain open.
+  - [x] Run the versioned Rust actor/gate through the actual 2-vCPU/16-GiB/48-GiB VM boundary with the installed Guard native daemon. Success, timeout and cancellation passed with outside AppArmor/UID/filter/resource observations, a real gated idmapped effect, binary I/O, unchanged controller/prefix and complete cgroup/mount/image cleanup. Rust and Python independently matched the new 25-file bundle, and the Rust config writer verified all 13 asset roles. See [native VM proof](gauntlet-rust-native-cell-vm-proof.md). These retained-candidate zero-model tests remain ineligible; six-control causality, fresh-main conformance and full Root Rust ownership stay open.
+  - [x] Run the new `gauntlet-cell-rootfs` constructor through fresh VM success, timeout and cancellation with outside identity/mount/effect/cleanup checks. Source `7a44fff5`, wrapper `ad797602`, seven macOS/eight native ARM64 tests, ARM64 build/Clippy and three proof-launch tests passed. All three live cases started the retained Native daemon and ended with unchanged controller/prefix and complete cleanup; see [constructor VM proof](gauntlet-rust-rootfs-vm-proof-20261026.md). The collector/candidate remain historical and eligibility false. Full Rust supervisor ownership and source-matched Guard conformance remain separate open exits.
+  - [x] Run Rust-owned service launch, outside kernel/mount collection, authenticated actor transport, process gating, binary capture and cell cleanup through fresh success/timeout/cancel on the ARM64 VM. Source `a61815a0`, 16 native/12 macOS tests, complete default-feature macOS workspace and warnings-denied Clippy pass. All three cases started the retained Native daemon, preserved the controller/prefix, and completed cgroup/mount/AppArmor/image cleanup without external intervention. Both earlier failed attempts remain retained. See [Rust supervisor VM proof](gauntlet-rust-supervisor-vm-proof-20261026.md). Image staging/lease remains Python; current-source Guard causality and full worker/conformance admission stay open.
+  - [x] Move inert native artifact/runtime staging and the exclusive dependency-image lease into Rust. Source `69039ec6` passed six fresh VM cases: success/timeout/cancel, wrong executable pin before mutation, one-use replay refusal and leaving another owner's image untouched. All 20 native ARM64 tests, the 398-test all-feature macOS workspace and ARM64 Clippy pass. The image journal and durable active pointer block uncertain/restarted ownership; outside checks confirmed image/cell cleanup. See [native preparation proof](gauntlet-rust-preparation-vm-proof-20261026.md). Worker composition, current-source Guard controls and admission remain open.
+  - [x] Compose the actual native Rust worker with both leases, durable reservation/running/terminal state, descriptor-bound contained Rust controller, Rust preparation/supervisor/image ownership and fresh terminal readback. Final source `2a4c3fa0` passes success, timeout, product cancellation, replay refusal, wrong worker generation and lease contention on the ARM64 VM. All completed jobs remain `invalid-evidence`, with no model use. The 404-test Mac workspace and warnings-denied Mac/ARM64 Clippy pass; native Root suites pass 23 rootfs/119 worker tests, with 24 preexisting fixture-specific ignores reported separately. See [worker VM proof](gauntlet-rust-native-worker-vm-proof-20261026.md). Host authentication, current-source controls and qualified benchmark admission remain open.
+  - [x] Recover the retained failed native apparatus job through an explicit Rust quiescent repair: wrong pins refuse; original marker/stream/journal bytes remain unchanged; only the verified owned image lease is released. A separate one-use `aborted` receipt has unknown exit status and no eligibility/model credit, survives reopen, and lets fresh jobs proceed while the old job ID stays consumed. Failed execution and two proof-adapter attempts remain preserved. See [worker VM proof](gauntlet-rust-native-worker-vm-proof-20261026.md). This does not implement general live/unknown-job repair or infer an ordinary terminal.
+  - [x] Initialize a fresh VM's fixed native storage directly in Rust under both worker leases, with no Python control-plane installer. Source `bff9ed0d` passes wrong-pin refusal before mutation, exact modes under 0077, competing Rust/legacy leases and immutable receipt reopen on the separate pinned build VM. Its historical v1 build-parent mode was incompatible with the candidate reader; explicit layout v2 at `c80ac788` now requires 0700 and refuses the existing loose directory. A measured, empty v1 directory and receipt were retained under both leases before Rust created v2. The actual Root suite passes 122 tests with 24 existing fixture-specific ignores separate. No job is adopted or eligibility/model credit supplied. See [historical initialization proof](gauntlet-rust-native-initialization-vm-proof-20261026.md) and [v2/source proof](gauntlet-rust-native-source-vm-proof-20261026.md).
 - [ ] Prove failure containment for moved tags, wrong archive/wheel/prefix, symlinks, replay, stale PID, timeout, cancellation, surviving descendants and uncertain cleanup.
+  - [x] Exercise actual feature-supervisor loss on fresh audit
+  `ed40a9c721e3685b` against retained exact product `53c64ae96`. Held pidfds
+  verify supervisor SIGKILL and the surviving unprivileged executor; the host
+  keeps the unknown attempt. Primary Rust repair completes in 10.288 seconds,
+  records aborted/null-exit state, and independently leaves all exact owned
+  resources/processes absent. Wrong intent/generation and consumed launch
+  refuse; restart read/repeat repair match with four host records unchanged.
+  Four-lease cleanup preserves 333 historical records plus lock metadata.
+  Validation `70e0c017…` binds 15 records; no new runtime code, model use,
+  qualification or parent-exit credit is claimed. See
+  [feature recovery](gauntlet-rust-feature-worker.md#feature-supervisor-interruption-and-rust-recovery).
 - [ ] Run fresh exact-commit ARM VM conformance at 2 vCPU/16 GiB RAM/48 GiB disk with zero model requests and retained source-bound reports; keep the v3.48/v3.49 missing-capability finding visible.
 
 ## 3. Mac host, release observer, and dashboard
@@ -259,10 +1143,24 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
   - [x] Match the pinned Python operator-config defaults, merge and validation over caller-supplied bytes: four accepted cases and 33 exact refusal messages, plus bounded malformed-input refusal. Read the retained private host config through owner-only no-symlink descriptors and verify release-only settings; see [host config proof](gauntlet-rust-host-config-proof.md). Independently attested provenance and the host commands remain open.
   - [x] Expose the existing bounded Rust public-snapshot reader as an uninstalled read-only `gauntlet-status` command. On the live host it matched Python's `status` JSON exactly apart from the sampled age; both saw 26 jobs and an online collector. Four dashboard tests and warnings-denied native/ARM64 Clippy passed; see [status CLI proof](gauntlet-rust-status-cli-proof.md). Observer ownership and the remaining operator commands remain open.
   - [x] Compose a read-only Rust doctor shadow from the existing host, Lima VM, exact-release and resource-reason probes. On the live host it saw the 2-vCPU/16-GiB VM with 14,886,461,440 free disk bytes, both allowed tags at their recorded commits, no current resource reasons and `execution_eligible: false`; warnings-denied native host Clippy passed. See [doctor shadow proof](gauntlet-rust-doctor-shadow-proof.md). It does not own the Python observer, authenticate source/install pins or implement the operator's mutating commands.
+  - [x] Implement and exercise a separate opt-in Rust host lifecycle at `0c32a1e7`: strict versioned checkpoints, independent permanent transaction/observer locks, durable hold/resume/stop, exact two-release tuple deduplication, stale/orphaned status and unknown recovery. All 118 macOS host tests, 14 ARM64 lifecycle/process tests, warnings-denied ARM64 Clippy and source inventories pass. A copied executable queued both outside-resolved release tuples, ran its own observer and stopped successfully with admissions held; no VM work or model request occurred. See [host lifecycle proof](gauntlet-rust-host-lifecycle-proof.md). This is locally committed preparation while PR #3's Actions checks are unavailable, not a completed child cycle, Python history import, authoritative observer, signed journal or cutover. The parent remains open.
+  - [x] Compose a functioning passive Rust observer/dashboard at `6271f09b`: immutable outside-pinned configuration, independent source/resource samplers, bounded cancellable probes, public field allowlisting and one foreground process owning both lease and socket. All 141 macOS host/dashboard tests, 28 ARM64 lifecycle/observer/telemetry tests, two ARM64 cleanup tests, both-platform Clippy and source inventories passed. A new port-8794 instance discovered both actual release SHAs, sampled the live 16-GiB VM through a SHA-verified native Rust probe, stopped cleanly and restarted without duplicate jobs; port 8791 remained online. See [native observer proof](gauntlet-rust-observer-native-proof.md). No benchmark/model execution, required gate, authoritative observer cutover or completed child-PR cycle is claimed.
+  - [x] Synchronize observer preparation with `main` through `c5202d11`, retaining all 17 intervening upstream commits and refreshing only the explicit Gauntlet source delta/current controller-plan expectation. Python and Rust agree on 396 controller files, 407 entries and digest `a81e82a241bb9755fa72ca77f01cebbfb75839faa4d70324a9f27ede32276e48`. Native library/CLI compilation, matching release projection checks, 193 targeted approval/ownership/CI/Bash tests and four restored Bun observer cases passed; five Linux-only tests remain macOS skips. See [native observer proof](gauntlet-rust-observer-native-proof.md). Retained executable/VM generations and quota are unchanged; the five-job cloud merge requirement remains open.
 - [ ] Port release-only exact-tag discovery for v3.48/v3.49, optional isolated PR artifact handoff, queue admission, single observer lease, and unknown-job blocking.
   - [x] Match the pinned Python data-only admission, archive and first-ready queue decisions for both release-tag and PR modes. The Rust `gauntlet-host-state` crate matches 30 admission cases, two 13-job archive passes and 10 selection cases, preserving running/preparing/unknown records and blocking on any unknown job. Four local Rust integration tests and Clippy passed; see [release queue proof](gauntlet-rust-release-queue-proof.md). This crate has no live lease, GitHub discovery, trusted state reader, persistence or VM dispatch, so the parent remains open.
   - [x] Match Python's fixed `git ls-remote` argv, direct/peeled exact-tag resolution and refusal classes in 14 mocked, Python-frozen cases. A bounded read-only Rust Git executor resolved the live v3.48.0/v3.49.0 tags from the retained private config to the same SHAs as Python, while reporting `admission_eligible: false`; fake executable and timeout tests passed. See [release source proof](gauntlet-rust-release-source-proof.md). Executable attestation, moved-tag admission recheck and the full observer remain open.
 - [ ] Port bounded Lima transport, source/build/stage/control progress, VM/headroom/progress sampling, and public snapshot publication with no private fields.
+  - [x] Connect normal `gauntlet-host deterministic` initialize/record/prepare/
+    run/read/report/repair commands to fixed worker selectors. Durable dispatch
+    precedes VM mutation; original SSH/Lima homes and instance inode remain
+    pinned. New jobs require a complete preparation receipt. Report retrieves
+    its own private 0600 archive before independent judging; keyed recovery
+    retains null exit and consumed identity. Raw authenticated captures remain
+    private. The standalone diagnostic now emits sanitized result v2; historical
+    v1 readers retain their limits. All 771 Mac workspace tests, changed-source
+    formatting and warnings-denied Mac/ARM Clippy pass. Current-batch live VM
+    acceptance, observer cutover and all parent exits remain open; validation
+    records are retained outside Git in `expedited-20261110-001`.
   - [x] Add a host-owned child-process adapter for the bounded prepared/ack exchange and a fixed, read-only Rust-worker `progress` Lima plan. Three process tests cover durable acknowledgement, replay, pre-pin timeout/wrong identity and post-ack timeout retaining the one-use pin; three shadow-plan tests cover fixed argv/request, exact canonical response binding and fake-Lima failure. Host crate tests and warnings-denied Clippy passed locally. A separate live Lima probe reached the isolated Root-owned Rust shadow worker; see [host/VM wire proof](gauntlet-rust-host-worker-wire-proof.md). The host process adapter was tested against local children, not yet a reviewed live worker; killing `limactl` leaves guest execution uncertain.
   - [x] Exercise the actual Rust host child adapter and Rust worker pipe codec across the running Lima VM with synthetic, non-executing identities. A SHA-matched, separately installed inert ARM binary generated the prepared frame; the native Mac host fsynced a 0600 one-use key record before ack, observed guest exit 0, refused replay and refused a missing guest binary without recording a pin. No VM started marker or controller run occurred. Code pin `0e9728e3`, guest binary SHA-256 `1769b24c10faebd453f5fcb6d05574210dd9cdb83a03440e363a7c6c3d5ba8dd`; see [host/VM wire proof](gauntlet-rust-host-worker-wire-proof.md). Reviewed binary/VM identity, durable guest sidecar/marker custody and live terminal reconciliation remain open.
   - [x] Add and exercise the canonical `run` request frame ahead of the prepared/ack exchange on the same bounded Lima child. The host validates the planned source/job/deployment, sends one exact request, then durably pins the guest's prepared values before ack. The worker rejects noncanonical, non-`run` and wrong-tuple requests before generating ephemeral values. A fresh synthetic three-frame live exchange passed, replay refused, wrong/missing guest path did not create a pin, and no VM started marker existed. Code pin `4fafbf97`, ARM binary SHA-256 `41b292ddc500b79f4043a11de3b707ee8101940c7271fd295185215179f65391`; see [host/VM wire proof](gauntlet-rust-host-worker-wire-proof.md). The inert probe still does not reserve or execute a job.
@@ -272,6 +1170,7 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
   - [x] Match Python's public-job projection over already-read private records: the exact field allowlist, nested build filter, archive count, order and 200-job cap. Three synthetic tests and a live historical comparison agree on 26 visible jobs, 90 archived jobs and the 137,036-byte canonical public-view digest; see [public-job proof](gauntlet-rust-public-jobs-proof.md). It neither takes the observer lease nor publishes a snapshot.
   - [x] Match Python's fixed read-only VM worker `progress` request for a retained job with and without a deployment digest. Four Rust tests cover the Python-frozen argv/request, fake Lima stdin and refusal boundaries. Rust and Python independently observed the same historical v3.48 phase and six-control count on the idle VM; see [VM progress proof](gauntlet-rust-vm-progress-proof.md). Producer progress is not an independently verified result, and no Rust observer writes it to a public snapshot.
 - [x] Serve the existing loopback dashboard/API from Rust with correct instance identity, stale/unavailable states, active jobs and resource headroom. Evidence: `gauntlet-dashboard` serves the embedded existing assets and bounded public snapshots on loopback; four Rust tests cover staleness, active jobs/headroom, symlink refusal and HTTP identity/host/method behavior. On 2026-10-20, side-by-side port 8792 returned the same live status JSON as the Python server on 8791 (excluding the sampled age), the same health values, and byte-identical HTML/JS/CSS. This is a shadow server only; observer and cutover items remain open.
+  The November 5 [request-deadline follow-up](gauntlet-rust-observer-native-proof.md#request-deadline-follow-up-2026-11-05) preserves fragmented accepted sockets while bounding all header reads and response writes with one monotone budget. The pre-fix regression fails; all 656 Mac workspace tests and seven explicit ARM dashboard cases pass afterward. The operator shutdown test closes its socket and lease during partial input. Formal scan assembly and cloud CI remain open; this strengthens the existing dashboard exit without closing another parent.
   - [x] Make the Rust healthcheck read bounded `/healthz` JSON and require the Gauntlet service with a valid or explicitly absent instance ID, with optional `--port` for the 8792 standalone shadow and the existing 8787 container default. A real check against the running 8792 shadow passed; a fake unrelated 200 and malformed ID refused in macOS and Linux ARM64 tests. Explicitly absent ID keeps server health separate from collector readiness. Local Clippy passed.
 - [ ] Shadow-read historical state, then test intentional interruption and read-only receipt reconciliation before a controlled observer cutover.
   - [x] Read the existing Python private job directory through bounded, owner-only, no-symlink descriptors without taking its lease. Three synthetic Rust tests passed. On 2026-10-20, the uninstalled summary-only Rust diagnostic and a separate Python scan agreed on all 116 retained jobs, 90 archived jobs, every state count and no unknown blocker; see [host jobs proof](gauntlet-rust-host-jobs-proof.md). A coherent lock-held snapshot, interruption and remote receipt reconciliation remain open.
@@ -319,7 +1218,19 @@ This checklist implements [the migration design](gauntlet-rust-migration.md). **
 ## 5. Legacy qualification, installed acceptance, and publication
 
 - [ ] Port the pinned 128-scenario legacy catalog, fixture realism, subprocess workers, exact-call judge and signed evidence export/readers.
+  - [x] Add a fixed, inert reader for the current catalog generation: 308 core,
+    16 approval-retry, 11 connector-setup and 15 full-task rows, using the existing
+    JSON files and contracts crate. Byte pins, all eleven normalized fields,
+    declaration order and the list projection match the actual Python reader
+    `1acb014b…` (Rust reader `352fe6d5…`); changed bytes, wrong-catalog bytes and
+    unsupported profiles
+    refuse. One Rust module is added, with no binary or dependency. Its
+    `hol-gauntlet-legacy-catalog-inventory.v1` output remains execution- and
+    qualification-ineligible. The immutable baseline is still 128 rows at
+    `b4efd817…`/catalog `6195060f…`; historical-reader parity, candidate-catalog
+    admission, execution, judging and signed export remain open.
 - [ ] Port OMP core qualification plus Watch/approval/native/full-task diagnostics while preserving each lane's existing claim limits.
+  - [x] Repair the macOS Native fixture's missing Mach-O UUID and configure explicit consent policy, preserving every approval/replay assertion. Source `dca678a6` passed 53 real ownership/sink/delivery tests with no skips and seven hardened-image tests; the later UUID metadata assertion at `6c6c0c71` passed the focused real lifecycle. The integration workflow now runs this lane before each chunk merges. See [macOS Native judge proof](gauntlet-rust-macos-native-judge-proof.md). This used zero model requests; installed and real-agent qualification remain open.
 - [ ] Port installed registration, repeat, aged-home and exact package/source/native identity checks.
 - [ ] Keep trusted-default-branch verification separate from candidate execution and status writing; verify stale PR heads, forged producer metadata and candidate self-trust are refused.
 - [ ] Verify old and new evidence against immutable Git blobs and historical trust exceptions; retain Python readers for unsupported old versions.

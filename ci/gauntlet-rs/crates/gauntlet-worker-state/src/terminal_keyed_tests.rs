@@ -50,6 +50,7 @@ fn keyed_terminal_requires_the_exact_sidecar_and_survives_restart() {
             0,
             TerminalOutcome::Passed,
             expected,
+            None,
         )
     };
     assert!(matches!(finish(None), Err(ReservationError::InvalidPins)));

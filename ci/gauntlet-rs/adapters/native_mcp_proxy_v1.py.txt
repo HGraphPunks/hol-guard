@@ -1,0 +1,43 @@
+"""Unprivileged product adapter: bind this process, then exec the normal CLI.
+
+Root only writes these bytes. This adapter runs inside UID/GID10005's owned
+container; it never owns a database, signing key, quota or benchmark verdict.
+"""
+import json
+import os
+from pathlib import Path
+import socket
+import sys
+
+from codex_plugin_scanner.guard.adapters.mcp_servers import ManagedMcpServer, proxy_cli_args
+
+if len(sys.argv) != 2 or sys.argv[1] not in {
+    "mail", "crm", "calendar", "docs", "tables", "chat", "tickets"
+}:
+    raise ValueError("fixed MCP family required")
+family = sys.argv[1]
+prefix = json.loads(Path("/product/public/prefix.json").read_bytes())["prefix"]
+python = prefix + "/bin/python"
+if sys.executable != python:
+    raise ValueError("declared installed interpreter required")
+server = ManagedMcpServer(
+    harness="omp", name=family, source_scope="project", config_path="/product/public/mcp.json",
+    command="/usr/bin/python3",
+    args=("/product/public/service_relay.py", "--socket", "/upstream/" + family + ".sock"),
+    transport="stdio", env={}, enabled=True,
+)
+args = proxy_cli_args(proxy_command="omp-mcp-proxy", guard_home="/product/guard",
+                      server=server, home="/product/home", workspace="/product/home/project")
+with socket.socket(socket.AF_UNIX) as connection:
+    connection.settimeout(30)
+    connection.connect("/product/proxy-gate/ready.sock")
+    connection.sendall(("native-mcp-proxy-ready.v1 " + family + "\n").encode())
+    response = bytearray()
+    while not response.endswith(b"\n"):
+        chunk = connection.recv(129 - len(response))
+        if not chunk or len(response) + len(chunk) > 128:
+            raise ValueError("incomplete MCP proxy binding")
+        response.extend(chunk)
+    if response != b"native-mcp-proxy-bound.v1\n":
+        raise ValueError("MCP proxy binding refused")
+os.execv(python, [python, "-I", *args])

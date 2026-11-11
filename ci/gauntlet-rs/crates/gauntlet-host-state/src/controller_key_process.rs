@@ -2,8 +2,8 @@
 //! The caller must separately attest the Lima executable, VM and guest worker.
 
 use super::{
-    pipe::write_frame, HostControllerKeyPinJournal, HostKeyPinError, HostKeyPinRecord,
-    HostPrelaunchIdentity,
+    pipe::{write_frame, NATIVE_HANDOFF_TIME},
+    HostControllerKeyPinJournal, HostKeyPinError, HostKeyPinRecord, HostPrelaunchIdentity,
 };
 use gauntlet_contracts::{canonicalize, WorkerAction, WorkerRequest};
 use std::io::Read;
@@ -37,6 +37,24 @@ impl HostPreparedProcess {
 
     pub fn process_id(&self) -> Option<u32> {
         self.child.0.as_ref().map(Child::id)
+    }
+
+    /// Transfer the original live channel only after its durable prelaunch ack.
+    /// The process owner still kills/reaps on error; these pipes grant no retry.
+    pub fn take_live_pipes(
+        &mut self,
+    ) -> Result<(std::process::ChildStdin, std::process::ChildStdout), HostKeyPinError> {
+        let child = self
+            .child
+            .0
+            .as_mut()
+            .ok_or(HostKeyPinError::TransportFailed)?;
+        let input = child.stdin.take().ok_or(HostKeyPinError::TransportFailed)?;
+        let output = child
+            .stdout
+            .take()
+            .ok_or(HostKeyPinError::TransportFailed)?;
+        Ok((input, output))
     }
 
     /// Wait only for the host transport process. A successful exit does not
@@ -86,6 +104,22 @@ impl HostPreparedProcess {
         if limit == 0 || limit > 8192 {
             return Err(HostKeyPinError::FrameTooLarge);
         }
+        self.wait_result(timeout, limit)
+    }
+
+    /// Read only the new native completion envelope's bounded public records.
+    /// Historical result readers retain their original 8192-byte bound.
+    pub fn wait_bounded_native_completion(
+        &mut self,
+        timeout: Duration,
+    ) -> Result<Vec<u8>, HostKeyPinError> {
+        self.wait_result(
+            timeout,
+            gauntlet_contracts::NATIVE_HOST_PINNED_COMPLETION_LIMIT + 1,
+        )
+    }
+
+    fn wait_result(&mut self, timeout: Duration, limit: usize) -> Result<Vec<u8>, HostKeyPinError> {
         let stdout = self
             .child
             .0
@@ -143,6 +177,85 @@ impl Drop for ChildOwner {
 }
 
 impl HostControllerKeyPinJournal {
+    /// Own the readback transport before writing its one bounded request.
+    /// The existing durable pin is required; no acknowledgement is sent.
+    pub fn send_native_readback_request_and_bind_child(
+        &self,
+        child: Child,
+        request: &WorkerRequest,
+        expected: &HostPrelaunchIdentity,
+        timeout: Duration,
+    ) -> Result<HostPreparedProcess, HostProcessFailure> {
+        let mut accepted = self.bind_native_readback_child(child, expected)?;
+        let result = (|| {
+            if !expected.valid()
+                || !matches!(
+                    request.action(),
+                    WorkerAction::Inspect | WorkerAction::Reconcile
+                )
+                || request.source_sha() != expected.source_sha
+                || request.job_id() != expected.job_id
+            {
+                return Err(HostKeyPinError::WrongRequest);
+            }
+            if timeout.is_zero() || timeout > Duration::from_secs(60) {
+                return Err(HostKeyPinError::TransportTimedOut);
+            }
+            let raw = canonicalize(request.to_json().to_string().as_bytes())
+                .map_err(|_| HostKeyPinError::WrongRequest)?;
+            let input = accepted
+                .child
+                .0
+                .as_mut()
+                .and_then(|child| child.stdin.take())
+                .ok_or(HostKeyPinError::TransportFailed)?;
+            write_frame(input.as_raw_fd(), &raw, Instant::now() + timeout)?;
+            drop(input);
+            Ok(())
+        })();
+        result.map_err(|reason| HostProcessFailure {
+            reason,
+            pin_recorded_or_uncertain: true,
+        })?;
+        Ok(accepted)
+    }
+
+    /// Bind a read-only native result transport to an already durable pin.
+    /// This sends no acknowledgement and cannot authorize another execution.
+    pub fn bind_native_readback_child(
+        &self,
+        child: Child,
+        expected: &HostPrelaunchIdentity,
+    ) -> Result<HostPreparedProcess, HostProcessFailure> {
+        let owned = ChildOwner(Some(child));
+        if !expected.valid() {
+            return Err(HostProcessFailure {
+                reason: HostKeyPinError::WrongPreparedIdentity,
+                pin_recorded_or_uncertain: true,
+            });
+        }
+        let record = self
+            .read(&expected.job_id)
+            .map_err(|reason| HostProcessFailure {
+                reason,
+                pin_recorded_or_uncertain: !matches!(reason, HostKeyPinError::Missing),
+            })?;
+        if record.pins.source_sha != expected.source_sha
+            || record.pins.job_id != expected.job_id
+            || record.pins.deployment_digest != expected.deployment_digest
+            || record.pins.worker_generation != expected.worker_generation
+        {
+            return Err(HostProcessFailure {
+                reason: HostKeyPinError::WrongPreparedIdentity,
+                pin_recorded_or_uncertain: true,
+            });
+        }
+        Ok(HostPreparedProcess {
+            child: owned,
+            record,
+        })
+    }
+
     /// Consume a caller-launched child with piped stdout (prepared frame) and
     /// stdin (ack). The caller must use fixed, externally pinned argv and null
     /// or independently drained stderr. No child is spawned by this method.
@@ -153,7 +266,7 @@ impl HostControllerKeyPinJournal {
         expected: &HostPrelaunchIdentity,
         timeout: Duration,
     ) -> Result<HostPreparedProcess, HostProcessFailure> {
-        self.accept_child_inner(child, None, expected, timeout)
+        self.accept_child_inner(child, None, expected, timeout, Duration::from_secs(60))
     }
 
     /// Send one exact run request before receiving the prepared frame. The
@@ -166,7 +279,26 @@ impl HostControllerKeyPinJournal {
         expected: &HostPrelaunchIdentity,
         timeout: Duration,
     ) -> Result<HostPreparedProcess, HostProcessFailure> {
-        self.accept_child_inner(child, Some(request), expected, timeout)
+        self.accept_child_inner(
+            child,
+            Some(request),
+            expected,
+            timeout,
+            Duration::from_secs(60),
+        )
+    }
+
+    /// Native admission may inspect retained history before preparation. Its
+    /// request, prepared frame, durable pin and ACK share one bounded deadline.
+    /// The caller still pins the actual worker, transport and original VM.
+    pub fn send_native_run_request_and_accept_prepared_child(
+        &self,
+        child: Child,
+        request: &WorkerRequest,
+        expected: &HostPrelaunchIdentity,
+        timeout: Duration,
+    ) -> Result<HostPreparedProcess, HostProcessFailure> {
+        self.accept_child_inner(child, Some(request), expected, timeout, NATIVE_HANDOFF_TIME)
     }
 
     fn accept_child_inner(
@@ -175,13 +307,14 @@ impl HostControllerKeyPinJournal {
         request: Option<&WorkerRequest>,
         expected: &HostPrelaunchIdentity,
         timeout: Duration,
+        maximum: Duration,
     ) -> Result<HostPreparedProcess, HostProcessFailure> {
         let owned = ChildOwner(Some(child));
         let result = (|| {
             if !expected.valid() {
                 return Err(HostKeyPinError::WrongPreparedIdentity);
             }
-            if timeout.is_zero() || timeout > Duration::from_secs(60) {
+            if timeout.is_zero() || timeout > maximum {
                 return Err(HostKeyPinError::TransportTimedOut);
             }
             if request.is_some_and(|request| {
@@ -206,20 +339,13 @@ impl HostControllerKeyPinJournal {
                 .stdin
                 .as_ref()
                 .ok_or(HostKeyPinError::TransportFailed)?;
+            let deadline = Instant::now() + timeout;
             if let Some(request) = request {
                 let raw = canonicalize(request.to_json().to_string().as_bytes())
                     .map_err(|_| HostKeyPinError::WrongRequest)?;
-                let deadline = Instant::now() + timeout;
                 write_frame(writer.as_raw_fd(), &raw, deadline)?;
-                self.accept_prepared_pipe(
-                    reader,
-                    writer,
-                    expected,
-                    deadline.saturating_duration_since(Instant::now()),
-                )
-            } else {
-                self.accept_prepared_pipe(reader, writer, expected, timeout)
             }
+            self.accept_prepared_pipe_until(reader, writer, expected, deadline, maximum)
         })();
         match result {
             Ok(record) => Ok(HostPreparedProcess {

@@ -1,6 +1,6 @@
 # Built only from this reviewed controller directory; no candidate build context.
 FROM ghcr.io/astral-sh/uv:0.9.26 AS uv
-FROM docker.io/library/rust:1.88.0-slim-bookworm
+FROM docker.io/library/rust:1.89.0-slim-bookworm
 COPY --from=uv /uv /usr/local/bin/uv
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 ca-certificates git jq npm pkg-config libssl-dev build-essential \

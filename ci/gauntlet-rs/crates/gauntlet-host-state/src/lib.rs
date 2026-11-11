@@ -1,20 +1,47 @@
 //! Passive host readers and queue decisions matching the pinned Python release
-//! observer. This crate neither owns the Python lease nor writes live jobs.
+//! observer. Rust lifecycle state uses a separate versioned namespace; this
+//! crate never owns the Python lease or mutates its jobs.
 
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::fmt;
 
+mod local_dependency_inputs;
+mod local_source_pack;
+mod local_source_prepare;
+pub use local_dependency_inputs::prepare_local_dependency_inputs;
 mod operations;
-pub use operations::{load_operations_bytes, OperationsError};
+pub use local_source_prepare::{prepare_local_source_archive_one_use, LocalSourcePrepareError};
+pub use operations::{load_operations_bytes, public_vm_operations, OperationsError};
+mod lifecycle;
+mod lifecycle_document;
+mod lifecycle_files;
+pub use lifecycle::{HostLifecycleError, HostLifecycleStore, HostObserverLease};
 mod fixed_process;
 mod git_controller_source;
+mod observer_config;
+mod observer_process;
+pub use observer_config::{read_observer_operations, ObserverConfiguration};
+mod observer_snapshot;
+pub use observer_snapshot::compose_observer_snapshot;
+mod observer_collect;
+mod observer_public;
+pub use observer_collect::collect_observer_once;
+mod observer_runtime;
+mod observer_start;
 pub use git_controller_source::{
     verify_git_controller_source, GitControllerSourceError, GitControllerSourceProof,
 };
+pub use observer_runtime::run_passive_observer;
+pub use observer_start::{open_observer_store, start_observer_bounded, wait_for_lifecycle};
 mod host_telemetry;
 pub use host_telemetry::{sample_host, HostTelemetryError};
+mod live_provider_operation;
 mod live_provider_preflight;
+pub use live_provider_operation::{
+    read_live_provider_binding, relay_live_model_request, run_live_provider_command,
+    LIVE_PROVIDER_USAGE,
+};
 pub use live_provider_preflight::{evaluate_live_provider_preflight, LiveProviderPreflightError};
 mod live_provider_observe;
 pub use live_provider_observe::observe_live_provider_preflight_shadow;
@@ -27,16 +54,36 @@ pub use live_provider_manifest::{
     verify_live_provider_manifest_claim, LiveProviderManifestExpectation,
 };
 mod controller_key_pins;
+mod native_control_readback;
+mod native_diagnostic_archive;
+mod native_operation;
 pub use controller_key_pins::{
     HostControllerKeyPinJournal, HostControllerKeyPins, HostDeterministicReadbackObservation,
     HostEffectEventsPin, HostKeyPinError, HostKeyPinRecord, HostKeyedTerminalObservation,
     HostPrelaunchIdentity, HostPreparedProcess, HostProcessFailure, HostSdkTapJournalPin,
     HostStagingRestartReadbackObservation,
 };
+pub use native_control_readback::{HostNativeControlReadback, NativeControlReadbackError};
+pub use native_operation::{
+    run_live_campaign_command, run_native_operation_command, run_source_artifact_command,
+    LIVE_CAMPAIGN_USAGE, NATIVE_OPERATION_USAGE, SOURCE_ARTIFACT_USAGE,
+};
 mod candidate_build_pins;
+mod candidate_command;
+mod dependency_intent;
+mod dependency_repair;
+mod feature_intent;
 pub use candidate_build_pins::{
     HostCandidateBuildPinError, HostCandidateBuildPinJournal, HostCandidateBuildPinRecord,
     HostCandidateBuildPins,
+};
+pub use candidate_command::{run_candidate_build_command, CANDIDATE_BUILD_USAGE};
+pub use dependency_intent::{
+    read_dependency_run_pins, run_dependency_command, DependencyIntentJournal,
+    DEPENDENCY_COMMAND_USAGE,
+};
+pub use feature_intent::{
+    read_feature_run_pins, run_feature_audit_command, FeatureIntentJournal, FEATURE_AUDIT_USAGE,
 };
 mod private_jobs;
 pub use private_jobs::{
@@ -57,13 +104,15 @@ pub use source_archive_commit::{
 mod stream_process;
 mod telemetry;
 pub use telemetry::{resource_admission_reasons, TelemetryError, VmProbePlan};
+mod vm_native_telemetry;
+pub use vm_native_telemetry::VmNativeProbePlan;
 mod vm_progress;
 pub use vm_progress::{VmProgressError, VmProgressPlan};
 mod vm_candidate_result;
 pub use vm_candidate_result::{VmCandidateResultError, VmCandidateResultPlan};
 mod vm_candidate_result_hostbound;
 pub use vm_candidate_result_hostbound::{
-    VmHostBoundCandidateResultError, VmHostBoundCandidateResultPlan,
+    VmHostBoundCandidateRepairPlan, VmHostBoundCandidateResultError, VmHostBoundCandidateResultPlan,
 };
 mod vm_candidate_build;
 pub use vm_candidate_build::{
