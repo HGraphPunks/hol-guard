@@ -45,8 +45,33 @@ pub(crate) struct NativeSdkMcpPlane {
     backend_reports: Vec<Value>,
     errors: Vec<String>,
     closed: bool,
+    families: Vec<Family>,
+    live: Option<(Value, bool)>,
 }
 impl NativeSdkMcpPlane {
+    pub(crate) fn prepare_live(
+        job: &NativeJobSpec,
+        budget: Arc<Mutex<NativeOperationBudget>>,
+        spec: Value,
+        protected: bool,
+        mut world: NativeMcpWorld,
+    ) -> Result<Self, String> {
+        let actual = world.snapshot()?;
+        if actual != crate::native_live_spec::initial_snapshot(&spec)? {
+            return Err("prepared live World differs from source-selected records".into());
+        }
+        let initial = gauntlet_contracts::canonicalize(actual.to_string().as_bytes())
+            .map_err(|e| e.to_string())?;
+        let mut plane = Self::with_world(
+            job,
+            budget,
+            String::from_utf8(initial).map_err(|_| "live initial snapshot UTF8")?,
+            world,
+        )?;
+        plane.families = vec![Family::Crm, Family::Docs, Family::Mail, Family::Tickets];
+        plane.live = Some((spec, protected));
+        Ok(plane)
+    }
     pub(crate) fn prepare(
         job: &NativeJobSpec,
         budget: Arc<Mutex<NativeOperationBudget>>,
@@ -71,9 +96,18 @@ impl NativeSdkMcpPlane {
         let key = Ed25519KeyPair::generate_pkcs8(&ring::rand::SystemRandom::new())
             .map_err(|_| "Root MCP key unavailable")?;
         let key = Ed25519KeyPair::from_pkcs8(key.as_ref()).map_err(|_| "Root MCP key invalid")?;
+        let world = NativeMcpWorld::new(&job.job_id, &initial, key)?;
+        Self::with_world(job, budget, initial, world)
+    }
+    fn with_world(
+        job: &NativeJobSpec,
+        budget: Arc<Mutex<NativeOperationBudget>>,
+        initial: String,
+        world: NativeMcpWorld,
+    ) -> Result<Self, String> {
         Ok(Self {
             sockets: NativeMcpSockets::prepare(&job.job_id)?,
-            world: Arc::new(Mutex::new(NativeMcpWorld::new(&job.job_id, &initial, key)?)),
+            world: Arc::new(Mutex::new(world)),
             budget,
             agent: None,
             routes: Vec::new(),
@@ -86,6 +120,8 @@ impl NativeSdkMcpPlane {
             backend_reports: Vec::new(),
             errors: Vec::new(),
             closed: false,
+            families: vec![Family::Docs, Family::Mail],
+            live: None,
         })
     }
     pub(crate) fn start(
@@ -97,17 +133,24 @@ impl NativeSdkMcpPlane {
         cancel: &AtomicBool,
     ) -> Result<(), String> {
         self.sockets.initialize()?;
-        self.agent = Some(NativeMcpAgent::prepare(
-            &job.job_id,
-            preparation,
-            &mut self.sockets,
-        )?);
+        if self.live.as_ref().is_some_and(|(_, protected)| !*protected) {
+            return Ok(());
+        }
+        self.agent = Some(if let Some((spec, _)) = &self.live {
+            NativeMcpAgent::prepare_live(&job.job_id, preparation, &mut self.sockets, spec)?
+        } else {
+            NativeMcpAgent::prepare(&job.job_id, preparation, &mut self.sockets)?
+        });
         let owner = self.agent.as_mut().unwrap();
         let boundary = owner.launch(actor, cancel)?;
         self.boundary = boundary.observation();
         self.measurements
             .push(json!({"identity":owner.identity_and_daemon(pins,cancel)?}));
-        for family in [Family::Docs, Family::Mail] {
+        if self.live.is_some() {
+            self.measurements
+                .push(json!({"prompt_context":owner.submit_live_prompt(cancel)?}));
+        }
+        for family in self.families.iter().copied() {
             let route = bind(owner, &mut self.sockets, boundary.clone(), family, cancel)?;
             let NativeMcpRoute {
                 client,
@@ -125,6 +168,7 @@ impl NativeSdkMcpPlane {
                 closing.clone(),
                 stop.clone(),
             );
+            let live = self.live.is_some();
             let thread = std::thread::Builder::new()
                 .name(format!("root-sdk-provider-{}", family.name()))
                 .spawn(move || {
@@ -133,7 +177,11 @@ impl NativeSdkMcpPlane {
                         relay,
                         family,
                         w,
-                        ConnectionBudget::Sdk(b),
+                        if live {
+                            ConnectionBudget::LiveSdk(b)
+                        } else {
+                            ConnectionBudget::Sdk(b)
+                        },
                         c,
                         s,
                     )
@@ -153,6 +201,9 @@ impl NativeSdkMcpPlane {
         Ok(())
     }
     pub(crate) fn check_sdk_boundary(&self, sdk: &Value) -> Result<(), String> {
+        if self.live.as_ref().is_some_and(|(_, protected)| !*protected) {
+            return Ok(());
+        }
         for name in ["mnt", "pid", "net", "ipc", "uts", "cgroup"] {
             let native = self.boundary["identity"]["namespaces"][name]
                 .as_str()
@@ -171,6 +222,39 @@ impl NativeSdkMcpPlane {
         peer: &Arc<NativeSdkPeer>,
         cancel: &AtomicBool,
     ) -> Result<(), String> {
+        if self.live.as_ref().is_some_and(|(_, protected)| !*protected) {
+            for family in self.families.iter().copied() {
+                let deadline = Instant::now() + Duration::from_secs(35);
+                let socket = loop {
+                    if let Some(stream) = self.sockets.accept_resource(family)? {
+                        break stream;
+                    }
+                    peer.recheck()?;
+                    pause(deadline, cancel)?;
+                };
+                let request_peer = peer.authenticate_mcp(&socket, family)?;
+                let stop = Arc::new(AtomicBool::new(false));
+                let (w, b, s) = (self.world.clone(), self.budget.clone(), stop.clone());
+                let thread = std::thread::Builder::new()
+                    .name(format!("root-live-baseline-{}", family.name()))
+                    .spawn(move || {
+                        crate::native_live_mcp::serve_baseline(
+                            socket,
+                            request_peer,
+                            family,
+                            w,
+                            b,
+                            s,
+                        )
+                    })
+                    .map_err(|e| e.to_string())?;
+                self.frontends.push(Session {
+                    stop,
+                    thread: Some(thread),
+                });
+            }
+            return Ok(());
+        }
         while !self.routes.is_empty() {
             let family = self.routes[0].family;
             let deadline = Instant::now() + Duration::from_secs(35);
@@ -198,6 +282,7 @@ impl NativeSdkMcpPlane {
                 budget: self.budget.clone(),
                 closing: closing.clone(),
                 cancel: stop.clone(),
+                live: self.live.is_some(),
             };
             let thread = std::thread::Builder::new()
                 .name(format!("root-sdk-frontend-{}", family.name()))
@@ -258,16 +343,21 @@ impl NativeSdkMcpPlane {
     }
     pub(crate) fn observation(&mut self) -> Result<Value, String> {
         let mut world = self.world.lock().map_err(|_| "SDK MCP world poisoned")?;
-        Ok(
-            json!({"schema":"hol-gauntlet-native-sdk-mcp-plane.v1","boundary":self.boundary,
+        let mut value = json!({"schema":"hol-gauntlet-native-sdk-mcp-plane.v1","boundary":self.boundary,
             "measurements":self.measurements,"frontends":self.frontend_reports,"upstreams":self.backend_reports,
             "world":world.observation()?,"initial":serde_json::from_str::<Value>(&self.initial).map_err(|_|"initial world JSON")?,
             "final":world.snapshot()?,"receipts":world.receipts()?,"sockets":self.sockets.observation(),
             "agent":self.agent.as_ref().map(NativeMcpAgent::observation),
             "public_helpers":self.agent.as_ref().map(NativeMcpAgent::public_observation),
             "cleanup_attempted":self.closed,"cleanup_errors":self.errors,"outside_signing_key_admitted":false,
-            "guard_causality_verified":false,"execution_eligible":false,"model_requests":0}),
-        )
+            "guard_causality_verified":false,"execution_eligible":false,"model_requests":0});
+        if let Some((_, protected)) = &self.live {
+            value["schema"] = json!("hol-gauntlet-native-live-mcp-plane.v1");
+            value["protected"] = json!(protected);
+            value["world_calls"] = json!(world.calls());
+            value["model_requests"] = Value::Null;
+        }
+        Ok(value)
     }
 }
 fn collect(sessions: &mut [Session], reports: &mut Vec<Value>, errors: &mut Vec<String>) {

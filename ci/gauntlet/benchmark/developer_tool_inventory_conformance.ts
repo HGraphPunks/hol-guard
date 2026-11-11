@@ -2,7 +2,7 @@
 import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { pinDeclaredToolInventory } from './developer_omp_episode.ts';
+import { developerBuiltinToolNames, pinDeclaredToolInventory } from './developer_omp_episode.ts';
 
 async function main() {
   const sdkRoot = process.argv[2];
@@ -34,14 +34,15 @@ async function main() {
   let providerCalls = 0;
   let toolCalls = 0;
   try {
-    ({ session } = await sdk.createAgentSession({ cwd: workspace, agentDir, authStorage: auth,
+    const sessionOptions = { cwd: workspace, agentDir, authStorage: auth,
       settings, modelRegistry: registry, model, getApiKey: async () => { providerCalls++; throw new Error('no model'); },
       sessionManager: sdk.SessionManager.inMemory(workspace), toolNames: ['read', 'write', 'edit', 'bash'],
       enableMCP: true, mcpManager: manager, customTools: resourceTools, disableExtensionDiscovery: true,
       extensions: [(api: any) => api.on('tool_call', () => { toolCalls++; throw new Error('no tool execution'); })],
       additionalExtensionPaths: [], enableLsp: false, enableIrc: false, skipPythonPreflight: true,
       skills: [], rules: [], contextFiles: [], promptTemplates: [], slashCommands: [],
-      preloadedCustomToolPaths: [], cacheWarming: false }));
+      preloadedCustomToolPaths: [], cacheWarming: false };
+    ({ session } = await sdk.createAgentSession(sessionOptions));
     const expected = ['read', 'write', 'edit', 'bash', resourceTools[0].name];
     await session.setActiveToolsByName(expected);
     const before = { active: session.getActiveToolNames(), enabled: session.getEnabledToolNames(),
@@ -64,8 +65,36 @@ async function main() {
     if (!missingRejected || !duplicateRejected || providerCalls !== 0 || toolCalls !== 0) {
       throw new Error('inventory failure/no-execution invariant failed');
     }
+    const legacyV1 = developerBuiltinToolNames({ schema: 'developer-omp-episode.v1' });
+    const legacyV2 = developerBuiltinToolNames({ schema: 'developer-omp-episode.v2',
+      mcpAgentSurfaces: 'mcp-agent-surfaces.v1' });
+    const mcpProfile = { schema: 'developer-omp-episode.v3' as const,
+      builtinToolProfile: 'mcp-only.v1' as const, resourceEndpoints: { docs: {} } };
+    const builtins = developerBuiltinToolNames(mcpProfile);
+    if (builtins.length || JSON.stringify(legacyV1) !== JSON.stringify(['read', 'write', 'edit', 'bash'])
+        || JSON.stringify(legacyV2) !== JSON.stringify(legacyV1)) throw new Error('versioned tool inventory changed');
+    let invalidProfilesRejected = 0;
+    for (const invalid of [
+      { ...mcpProfile, builtinToolProfile: undefined },
+      { ...mcpProfile, resourceEndpoints: undefined }, { ...mcpProfile, resourceEndpoints: {} },
+      { ...mcpProfile, resourceEndpoints: [] },
+      { ...mcpProfile, mcpAgentSurfaces: 'mcp-agent-surfaces.v1' },
+      { ...mcpProfile, schema: 'developer-omp-episode.v1' },
+    ]) {
+      try { developerBuiltinToolNames(invalid as any); }
+      catch { invalidProfilesRejected++; }
+    }
+    if (invalidProfilesRejected !== 6) throw new Error('invalid mixed tool profile accepted');
+    await session.dispose(); session = undefined;
+    ({ session } = await sdk.createAgentSession({ ...sessionOptions, toolNames: builtins,
+      sessionManager: sdk.SessionManager.inMemory(workspace) }));
+    await pinDeclaredToolInventory(session, [resourceTools[0].name]);
+    const mcpOnly = { active: session.getActiveToolNames(), enabled: session.getEnabledToolNames(),
+      mounted: session.getMountedXdevToolNames(), builtins, invalidProfilesRejected, legacyV1, legacyV2 };
+    if (providerCalls !== 0 || toolCalls !== 0) throw new Error('MCP-only registration executed work');
     console.log(JSON.stringify({ schema: 'developer-sdk-inventory-conformance.v1', version: metadata.version,
       before, after, missingRejected, missingDiagnostic, duplicateRejected, providerCalls, toolCalls,
+      mcpOnly,
       actualModelEpisode: false, qualificationEligible: false,
       scope: 'actual SDK registration in controller process; no agent/product namespace conformance',
       uid: process.getuid?.() }));

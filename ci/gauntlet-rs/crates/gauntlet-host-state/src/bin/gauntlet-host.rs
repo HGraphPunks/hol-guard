@@ -52,17 +52,32 @@ fn run() -> Result<(), String> {
             "gauntlet-host deterministic {}",
             gauntlet_host_state::NATIVE_OPERATION_USAGE
         );
+        println!(
+            "gauntlet-host provider {}",
+            gauntlet_host_state::LIVE_PROVIDER_USAGE
+        );
+        println!(
+            "gauntlet-host live {}",
+            gauntlet_host_state::LIVE_CAMPAIGN_USAGE
+        );
+        println!(
+            "gauntlet-host artifacts {}",
+            gauntlet_host_state::SOURCE_ARTIFACT_USAGE
+        );
         return Ok(());
     }
     if matches!(
         command.as_str(),
-        "features" | "build" | "dependencies" | "deterministic"
+        "features" | "build" | "dependencies" | "deterministic" | "provider" | "live" | "artifacts"
     ) {
         let args: Vec<String> = args.collect();
         let usage = match command.as_str() {
             "features" => gauntlet_host_state::FEATURE_AUDIT_USAGE,
             "dependencies" => gauntlet_host_state::DEPENDENCY_COMMAND_USAGE,
             "deterministic" => gauntlet_host_state::NATIVE_OPERATION_USAGE,
+            "provider" => gauntlet_host_state::LIVE_PROVIDER_USAGE,
+            "live" => gauntlet_host_state::LIVE_CAMPAIGN_USAGE,
+            "artifacts" => gauntlet_host_state::SOURCE_ARTIFACT_USAGE,
             _ => gauntlet_host_state::CANDIDATE_BUILD_USAGE,
         };
         if matches!(args.as_slice(), [arg] if matches!(arg.as_str(), "--help" | "-h")) {
@@ -73,6 +88,9 @@ fn run() -> Result<(), String> {
             "features" => gauntlet_host_state::run_feature_audit_command(&args)?,
             "dependencies" => gauntlet_host_state::run_dependency_command(&args)?,
             "deterministic" => gauntlet_host_state::run_native_operation_command(&args)?,
+            "provider" => gauntlet_host_state::run_live_provider_command(&args)?,
+            "live" => gauntlet_host_state::run_live_campaign_command(&args)?,
+            "artifacts" => gauntlet_host_state::run_source_artifact_command(&args)?,
             _ => gauntlet_host_state::run_candidate_build_command(&args)?,
         };
         println!("{value}");

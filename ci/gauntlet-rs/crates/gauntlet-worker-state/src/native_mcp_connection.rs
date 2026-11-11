@@ -16,6 +16,7 @@ use std::{
 pub(crate) enum ConnectionBudget {
     Diagnostic(Arc<AtomicUsize>),
     Sdk(Arc<Mutex<NativeOperationBudget>>),
+    LiveSdk(Arc<Mutex<NativeOperationBudget>>),
 }
 impl ConnectionBudget {
     fn admit(&self, family: Family, raw: &[u8]) -> Result<(), String> {
@@ -26,7 +27,7 @@ impl ConnectionBudget {
                 }
                 Ok(())
             }
-            Self::Sdk(ledger) => ledger
+            Self::Sdk(ledger) | Self::LiveSdk(ledger) => ledger
                 .lock()
                 .map_err(|_| "shared SDK operation budget poisoned")?
                 .admit_upstream(family, raw),
@@ -44,7 +45,12 @@ pub(crate) fn serve(
 ) -> Result<Value, String> {
     let mut stream = McpStream::new(socket).map_err(|e| e.to_string())?;
     let mut session = Session::new(family).map_err(|e| e.to_string())?;
-    let deadline = Instant::now() + Duration::from_secs(120);
+    let seconds = if matches!(budget, ConnectionBudget::LiveSdk(_)) {
+        crate::native_live_spec::ACTIVE_SECONDS
+    } else {
+        120
+    };
+    let deadline = Instant::now() + Duration::from_secs(seconds);
     let mut frames = Vec::new();
     let mut operations = 0;
     let served = (|| -> Result<(), String> {
@@ -99,7 +105,7 @@ pub(crate) fn serve(
         "status":if error.is_some() && !expected_close {"failed"} else {"closed"},
         "peer":peer.observation(),"frames":frames,"operations":operations,
         "shutdown_observation":error,"owner_requested_close":expected_close,
-        "shared_upstream_operation_limit":4,"sdk_builtin_budget_composed":matches!(budget,ConnectionBudget::Sdk(_)),
+        "shared_upstream_operation_limit":if matches!(budget,ConnectionBudget::LiveSdk(_)){128}else{4},"sdk_builtin_budget_composed":matches!(budget,ConnectionBudget::Sdk(_)|ConnectionBudget::LiveSdk(_)),
         "execution_eligible":false,"guard_causality_verified":false,"model_requests":0}),
     )
 }

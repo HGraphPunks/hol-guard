@@ -18,7 +18,7 @@ pub(crate) fn check_inspection(
         nonce,
         mounts,
         running,
-        "native-sdk-transport-v1",
+        ("native-sdk-transport-v1", 240),
     )
 }
 pub(crate) fn check_mcp_inspection(
@@ -36,7 +36,28 @@ pub(crate) fn check_mcp_inspection(
         nonce,
         mounts,
         running,
-        "native-sdk-mcp-transport-v1",
+        ("native-sdk-mcp-transport-v1", 240),
+    )
+}
+pub(crate) fn check_live_inspection(
+    value: &Value,
+    name: &str,
+    job: &str,
+    nonce: &str,
+    mounts: &BTreeMap<String, (String, bool)>,
+    running: bool,
+) -> Result<(String, u32), String> {
+    check_profile(
+        value,
+        name,
+        job,
+        nonce,
+        mounts,
+        running,
+        (
+            "native-sdk-mcp-transport-v1",
+            crate::native_live_spec::PREPARATION_SECONDS,
+        ),
     )
 }
 fn check_profile(
@@ -46,7 +67,7 @@ fn check_profile(
     nonce: &str,
     mounts: &BTreeMap<String, (String, bool)>,
     running: bool,
-    profile: &str,
+    (profile, seconds): (&str, u64),
 ) -> Result<(String, u32), String> {
     let id = value["Id"]
         .as_str()
@@ -63,7 +84,7 @@ fn check_profile(
         || value["Config"]["User"] != "10001:10001"
         || value["Config"]["WorkingDir"] != "/runtime/home/project"
         || value["Path"] != "/usr/bin/sleep"
-        || value["Args"] != serde_json::json!(["240"])
+        || value["Args"] != serde_json::json!([seconds.to_string()])
         || value["Config"]["Labels"]["hol.gauntlet.sdk.job"] != job
         || value["Config"]["Labels"]["hol.gauntlet.sdk.nonce"] != nonce
         || value["Config"]["Labels"]["hol.gauntlet.sdk.profile"] != profile
@@ -128,12 +149,28 @@ fn check_profile(
     let actual = value["Mounts"]
         .as_array()
         .ok_or("SDK bind inventory missing")?;
-    if actual.len() != mounts.len() {
+    let tmpfs = if actual.iter().any(|m| m["Type"] == "tmpfs") {
+        crate::native_job_storage::check_tmpfs(value)?
+    } else {
+        0
+    };
+    if actual.len() != mounts.len() + tmpfs {
         return Err("SDK mount inventory differs".into());
     }
     let mut seen = std::collections::BTreeSet::new();
     for m in actual {
         let dest = m["Destination"].as_str().ok_or("SDK destination missing")?;
+        if m["Type"] == "tmpfs"
+            && tmpfs == 4
+            && crate::native_job_storage::tmpfs_limits()
+                .iter()
+                .any(|(p, _, _)| *p == dest)
+        {
+            if !seen.insert(dest) || m["RW"] != true {
+                return Err("bounded Native tmpfs repeated or readonly".into());
+            }
+            continue;
+        }
         let expected = mounts.get(dest).ok_or("unexpected SDK mount")?;
         if !seen.insert(dest)
             || m["Type"] != "bind"
@@ -177,11 +214,22 @@ mod tests {
                 "CapAdd":[],"CapDrop":["CAP_ALL"],"SecurityOpt":["no-new-privileges",format!("apparmor={name}")]},
             "Mounts":[{"Destination":"/runtime/bun","Source":"/opt/bun","Type":"bind","RW":false,"Propagation":"rprivate"}]});
         assert!(check_inspection(&value, name, &job, &nonce, &mounts, true).is_ok());
+        let mut legacy_tmpfs_display = value.clone();
+        legacy_tmpfs_display["HostConfig"]["Tmpfs"] = json!({"/tmp":"rw,nosuid,nodev,size=65536k"});
+        assert!(check_inspection(&legacy_tmpfs_display, name, &job, &nonce, &mounts, true).is_ok());
         assert!(check_mcp_inspection(&value, name, &job, &nonce, &mounts, true).is_err());
         let mut composed = value.clone();
         composed["Config"]["Labels"]["hol.gauntlet.sdk.profile"] =
             json!("native-sdk-mcp-transport-v1");
         assert!(check_mcp_inspection(&composed, name, &job, &nonce, &mounts, true).is_ok());
+        assert!(check_live_inspection(&composed, name, &job, &nonce, &mounts, true).is_err());
+        let mut live = composed.clone();
+        live["Args"] =
+            serde_json::json!([crate::native_live_spec::PREPARATION_SECONDS.to_string()]);
+        assert!(check_live_inspection(&live, name, &job, &nonce, &mounts, true).is_ok());
+        assert!(check_mcp_inspection(&live, name, &job, &nonce, &mounts, true).is_err());
+        live["HostConfig"]["NetworkMode"] = serde_json::json!("host");
+        assert!(check_live_inspection(&live, name, &job, &nonce, &mounts, true).is_err());
         assert!(check_inspection(&composed, name, &job, &nonce, &mounts, true).is_err());
         composed["Mounts"][0]["RW"] = json!(true);
         assert!(check_mcp_inspection(&composed, name, &job, &nonce, &mounts, true).is_err());

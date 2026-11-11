@@ -116,17 +116,38 @@ impl ImageLease {
         if self.cell_may_exist {
             return Err("cell cleanup uncertain; retain owned image mount and active lease".into());
         }
+        let mut failures = Vec::new();
+        let mut owned_mount_absent = false;
         if self.owned {
-            self.journal
-                .append("image-releasing", json!({"image_id":self.image}))?;
-            if self.mounted()?.is_some() {
-                run(&self.podman_sha256, Operation::Unmount, &self.image)?;
+            crate::supervisor_cleanup::remember(
+                &mut failures,
+                self.journal
+                    .append("image-releasing", json!({"image_id":self.image})),
+            );
+            if let Some(Some(_)) =
+                crate::supervisor_cleanup::remember(&mut failures, self.mounted())
+            {
+                crate::supervisor_cleanup::remember(
+                    &mut failures,
+                    run(&self.podman_sha256, Operation::Unmount, &self.image),
+                );
             }
-            if self.mounted()?.is_some() {
-                return Err("owned image mount survived cleanup".into());
+            owned_mount_absent =
+                crate::supervisor_cleanup::remember(&mut failures, self.mounted()) == Some(None);
+            if !owned_mount_absent {
+                failures.push("owned image mount survived cleanup or readback unavailable".into());
             }
         }
-        self.journal.append("image-cleanup",json!({"image_id":self.image,"owned_mount_absent":self.owned,"borrowed_mount_untouched":!self.owned}))?;
+        let observation = json!({"image_id":self.image,"owned_mount_absent":owned_mount_absent,"borrowed_mount_untouched":!self.owned});
+        crate::supervisor_cleanup::remember(
+            &mut failures,
+            self.journal.append("image-cleanup", observation),
+        );
+        if !failures.is_empty() {
+            return Err(
+                "image cleanup evidence incomplete; retain active lease for recovery".into(),
+            );
+        }
         self.lock.complete()?;
         self.owned = false;
         self.closed = true;

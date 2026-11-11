@@ -4,12 +4,64 @@ use crate::supervisor_io::{kernel_file, marker, nonblocking, release_initializer
 use crate::Result;
 use gauntlet_agent_bridge::{BootstrapKind, BridgeChannel, BridgeClient, OutboundBootstrap};
 use serde_json::json;
-use std::os::fd::OwnedFd;
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::fd::{AsRawFd, OwnedFd};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
+
+/// PID1 starts services in its own mount namespace. A new bounded job must
+/// inherit the caller's verified private storage namespace before unshare.
+/// Keep this descriptor alive until the service has passed its ready gate.
+pub(super) fn held_private_mount_namespace() -> Result<Option<OwnedFd>> {
+    let held = std::fs::File::open("/proc/thread-self/ns/mnt").map_err(|e| e.to_string())?;
+    let actual = held.metadata().map_err(|e| e.to_string())?;
+    let initial = std::fs::metadata("/proc/1/ns/mnt").map_err(|e| e.to_string())?;
+    if (actual.dev(), actual.ino()) == (initial.dev(), initial.ino()) {
+        return Ok(None);
+    }
+    crate::kernel_process::root_proc()?;
+    let own_pid = std::fs::metadata("/proc/thread-self/ns/pid").map_err(|e| e.to_string())?;
+    let initial_pid = std::fs::metadata("/proc/1/ns/pid").map_err(|e| e.to_string())?;
+    if (own_pid.dev(), own_pid.ino()) != (initial_pid.dev(), initial_pid.ino()) {
+        return Err("initial PID namespace required for held storage namespace transfer".into());
+    }
+    let held: OwnedFd = held.into();
+    if rustix::fs::fstatfs(&held)
+        .map_err(|e| e.to_string())?
+        .f_type
+        != 0x6e73_6673
+    {
+        return Err("actual held kernel mount namespace required".into());
+    }
+    Ok(Some(held))
+}
+
+/// Only v6 supplies the additional outside pin. Older contracts cannot silently
+/// acquire a new Root executable or run from an invisible storage namespace.
+pub(super) fn mount_namespace_entry(
+    spec: &crate::SupervisorSpec,
+    namespace: Option<&OwnedFd>,
+) -> Result<Vec<String>> {
+    let Some(held) = namespace else {
+        return Ok(Vec::new());
+    };
+    let program = crate::supervisor_spec::NAMESPACE_HOST_HELPER;
+    let pin = spec.host_helpers.get(program).ok_or(
+        "private storage namespace requires the closed v6 supervisor and pinned namespace helper",
+    )?;
+    crate::fs_input::pinned(Path::new(program), 16 * 1024 * 1024, pin)?;
+    Ok(vec![
+        program.into(),
+        format!(
+            "--mount=/proc/{}/fd/{}",
+            std::process::id(),
+            held.as_raw_fd()
+        ),
+        "--".into(),
+    ])
+}
 
 impl NativeCell {
     pub(super) fn launch(&mut self) -> Result<()> {
@@ -52,6 +104,14 @@ impl NativeCell {
             "--property=TimeoutStopSec=2".into(),
             "--property=KillMode=control-group".into(),
         ];
+        let mount_namespace = held_private_mount_namespace()?;
+        if let Some(held) = &mount_namespace {
+            let info = rustix::fs::fstat(held).map_err(|e| e.to_string())?;
+            self.journal.append(
+                "private-parent-mount-namespace",
+                json!({"device":info.st_dev,"inode":info.st_ino,"held_before_service_start":true}),
+            )?;
+        }
         if let Some(slice) = &self.spec.job_slice {
             argv.push(format!("--slice={slice}"));
         }
@@ -61,6 +121,7 @@ impl NativeCell {
                 format!("--property=CPUAffinity={cpu}"),
             ]);
         }
+        argv.extend(mount_namespace_entry(&self.spec, mount_namespace.as_ref())?);
         argv.extend([
             "/usr/bin/aa-exec".into(),
             "-p".into(),

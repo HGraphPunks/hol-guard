@@ -224,16 +224,27 @@ impl<'a> CandidateContainer<'a> {
     }
 
     fn identity(&self) -> Result<Option<String>, String> {
+        self.identity_in_phase(false)
+    }
+    fn identity_in_phase(&self, owned_cleanup: bool) -> Result<Option<String>, String> {
         use crate::builder_candidate_process::{container_absent, container_id_absent};
-        if container_absent(&self.plan.job_id).map_err(|e| e.to_string())?
-            && self
-                .cid
-                .as_deref()
-                .map(container_id_absent)
-                .transpose()
-                .map_err(|e| e.to_string())?
-                .unwrap_or(true)
-        {
+        let absent = if owned_cleanup {
+            crate::builder_candidate_process::cleanup_container_absent(
+                &self.plan.job_id,
+                self.cid.as_deref(),
+            )
+            .map_err(|e| e.to_string())?
+        } else {
+            container_absent(&self.plan.job_id).map_err(|e| e.to_string())?
+                && self
+                    .cid
+                    .as_deref()
+                    .map(container_id_absent)
+                    .transpose()
+                    .map_err(|e| e.to_string())?
+                    .unwrap_or(true)
+        };
+        if absent {
             return Ok(None);
         }
         let target = self
@@ -267,6 +278,14 @@ impl<'a> CandidateContainer<'a> {
         }
         let mut args = self.plan.argv[1..].to_vec();
         args[0] = "create".into();
+        args.splice(
+            1..1,
+            crate::native_job_storage::source::container_arguments(
+                &self.plan.job_id,
+                slot,
+                crate::JobStorageProfile::Build,
+            )?,
+        );
         args.splice(
             1..1,
             [
@@ -349,7 +368,7 @@ impl<'a> CandidateContainer<'a> {
     }
 
     pub(crate) fn drain(&self) -> Result<(), String> {
-        if let Some(cid) = self.identity()? {
+        if let Some(cid) = self.identity_in_phase(true)? {
             crate::dependency_podman::run(
                 self.podman,
                 &["rm".into(), "--force".into(), "--time=5".into(), cid],
@@ -359,7 +378,7 @@ impl<'a> CandidateContainer<'a> {
     }
 
     pub(crate) fn verify_absent(&self) -> Result<(), String> {
-        if self.identity()?.is_some() {
+        if self.identity_in_phase(true)?.is_some() {
             return Err("candidate container survived cleanup".into());
         }
         if let Some(cid) = &self.cid {

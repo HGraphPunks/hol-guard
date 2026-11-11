@@ -18,65 +18,103 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
-- The expedited deadline is **2026-11-11 23:14 UTC**, including integration
-  and handoff. Normal `gauntlet-host deterministic` commands now connect
-  initialize, record, prepare, run, read, private-artifact retrieval, independent
-  judgment and repair. Dispatch is durable before VM mutation; original Lima
-  homes and instance inode remain pinned. New initialized jobs require a complete
-  preparation receipt. Process checkpoint v3 records namespace ownership/maps
-  at every birth and exec; unmapped births stay incomplete. All **771 Mac tests**,
-  changed-source formatting and warnings-denied Mac/ARM workspace Clippy pass.
-  Evidence is retained in `expedited-20261110-001`. Fresh VM execution of this
-  batch, non-Native command/mapping grading, writer attribution, admission and
-  qualification remain open. Parent exits stay **24/62**, with **38 open**.
-- Continue `codex/gauntlet-rust-finish-20261105` and draft
-  [child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5), based on
-  integration `f143f9ac`. Pushed baseline `269ee224` preserves catalog commit
-  `5306c65cc` and upstream `d586334a9`, with all seven incoming files exact.
-- The fixed legacy inventory now covers 308 core, 16 approval-retry,
-  11 connector-setup and 15 full-task rows in the existing JSON files.
-  Reader `352fe6d5…` preserves all eleven fields/defaults and listing order.
-  All 727 merged workspace tests, four focused tests, formatting and Mac/ARM
-  Clippy pass. Merged Native library/CLI/tests compile with `--no-run` on
-  Mac/ARM in 497.85/354.087 seconds. Validation `catalog-merged-validation-001.json`
-  (`439fa574…`) binds seven checks and 7,161 unchanged source/asset inputs.
-  One Rust module is added; no crate, binary, dependency or proof script.
-  Historical 128-case parity, candidate-catalog admission, execution and judging
-  remain open. The [matrix](gauntlet-rust-surface-matrix.md) records source
-  inventory, all 29 public job keys and the known CLI exit semantics.
-- Rust/MSRV/workflow/current builder use **1.89.0**. Existing SQLite pins are
-  rusqlite 0.41.1/libsqlite3-sys 0.39.1; the package set remains 190.
-  The immutable baseline has 420 files; the current Python map has 440,
-  87 changed and 20 added. Independent controller selection matches
-  `20650edd…` (409 files/420 entries). The catalog slice changes no Python,
-  baseline fixture, lockfile, workflow, private key or installed VM state.
-- At `0463695b4`, 723 Rust tests, 175 focused Python tests, formatting,
-  Mac/ARM Clippy and Native library/CLI/test compilation on Mac/ARM pass.
-  Native compilation uses `--no-run`; product code never executes on Host/Root.
-  Evidence is retained under `budget-limits-20261110-001`; validation
-  `merged-validation-002.json` hashes to `cc29285d…`.
-- Actions permissions report enabled, but exact-head dispatch returns HTTP 422,
-  "Actions has been disabled" at published merge `0463695b4`; no run is created.
-  All five current-head jobs,
-  independent review and reviewer-retrievable delivery remain required.
-  No settings change or check override is authorized.
-- Latest signed read-only Native job `015` (`4e4819769a5ab5c0`) uses older
-  product `e0145e09b`, Native `2476dd16…` and worker `8201c839…`. Its
-  162 pipe exchanges and five hook joins remain `invalid-evidence`: eight
-  outer clients have checked floors, seventy other exec images are ungraded.
-  Read the [captured relations](gauntlet-rust-native-copied-hook-relations.md)
-  and [checklist](gauntlet-rust-execution-checklist.md) before further admission.
-  Never replay consumed/failed/unknown jobs, including pipe `001`–`015` or
-  failed prelaunch `013`/`014`. Historical success cannot qualify a new source.
-- **Next delivery path:** reviewed source/preparation/observer/key admission,
-  actual writer attribution, all twelve staging/installed roles and signed
-  conformance, then qualified host operations and genuine workflows.
-  Preserve all 333 historical worker records/334 metadata rows; custom
-  inspection uses lstat metadata only. Root mutations require all four existing
-  leases and original custody pins. Keep private captures/keys/nonces private.
-  Writable-export storage/inode limits remain unresolved. Security scan
-  `24cd36df…` failed on its CI-excluding inventory; it is not a clean report.
-  This goal grants no model quota reset or additional allowance.
+- The fixed deadline is **2026-11-11 23:14 UTC**; reserve the final three
+  hours for integration and handoff. Continue branch
+  `codex/gauntlet-rust-finish-20261105` and draft
+  [child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5), targeting
+  integration `f143f9ac`. This batch begins at pushed source
+  `bb69ca40e301670b94cedc2a44090d5ec26bdd90`, preserving upstream `d586334a9`.
+  Verify the actual current branch/remote head before resuming.
+  Parent exits remain **24/62 complete, 38 open**.
+- Normal Rust commands have completed a genuine unprivileged ARM build of
+  `bb69ca40`, separate dependency resolution, inert dependency staging,
+  candidate cloning and immutable runtime publication. Build result
+  `e051986d…`, dependency result `aad6bf89…` and publication receipt
+  `418818a7…` bind the same source. These use historical v1 storage and remain
+  ineligible; they do not prove the new bounded flow, conformance or model use.
+  Preserve both original build volumes while runtime verification needs them.
+- New bounded jobs use finite ext4 volumes with byte/inode limits and a pinned,
+  per-job mount-namespace owner. Host checks original initialization and storage
+  claims before run/read/repair; public summaries omit process and owner details.
+  The first physical storage test refused Linux's normalized mount-option
+  listing and its failed partial job was retired without replay. The corrected
+  Native-profile retest passes: UID/GID 10001 reached ENOSPC after 2,046,599,168
+  bytes and separately after 65,513 files. Both full-volume teardowns removed
+  their containers/policies without new volume logs; restarted abort removed
+  backing, loop and owner. Evidence `vm-ext4-enospc-storage-002.json` hashes to
+  `439da51165b39f6aa069a187848cb0f04b6b0adac7757bd342803ad2e78621c5`.
+  This is a test-only initializer/owner pairing, not normal Host admission.
+  Owner-loss cleanup exposed a dead-child reap-order bug; independent resumed
+  empty abort and the corrected same-process retest both passed. New Worker
+  `756ab02b…` and test initializer `0537012f…` also passed a fresh full-quota
+  test with independent backing/loop/owner absence checks. Six cancellation
+  tests passed in the actual ARM VM, including interrupted helper exits 0/1.
+  Full bounded build/dependency/Native flow still requires separate validation.
+- Normal bounded Native preparation recovered through `prepare-read` after the
+  original Host transport timed out. Its first run then failed during the
+  50-second prelaunch window with no Root start record or Host pin. The new
+  explicit `initialize-abort-unreleased` route consumed that original dispatch,
+  preserved preparation evidence and removed its volume/loop/owner; readback
+  returned the identical receipt. Four independent leases verified no execution
+  resources and all 341 historical Worker metadata rows unchanged. The same
+  journal admitted a fresh job, whose caller then exposed the unchanged generic
+  handshake's 60-second cap. That never-handed-off job was explicitly aborted.
+  The corrected Native-only handoff keeps one 210-second deadline while generic
+  APIs retain 60 seconds. Host library 138/138 and process 11/11 tests pass.
+  Fresh job `27558527d8f3377b` then completed normal initialization, preparation,
+  one-use run, separate read and private artifact/report retrieval with Worker
+  `e4649a90…` and Host `50906e0b…`. Its signed control failed with `Native process
+  changed before pipe forwarding`; Rust independently reports invalid evidence,
+  not a passing control. The 3,761,664-byte archive remains private and pinned;
+  normal completed-storage retirement and identical retirement readback passed.
+  Four-lease independent checks found no owned execution resources or original
+  backing/loop/owner; all 341 old metadata rows and five new terminal-job rows
+  remain. No model inference or
+  parent-exit success is credited by this failed control.
+- The consolidated registered implementation passes 912 macOS workspace tests
+  with zero failures/skips, formatting, and full all-target/all-feature
+  warnings-denied Clippy on macOS and ARM musl. These checks do not replace the
+  five required current-head CI jobs, independent review or actual qualifications.
+- Supervisor v6 adds only the fixed, outside-pinned `/usr/bin/nsenter` helper
+  to v5's Native pipe contract. V1–v5 retain their original helper sets.
+  Eleven ARM declaration checks and an actual private-namespace/full-journal
+  cleanup test passed. The latter observes the service's real namespace and
+  private file, exhausts its journal filesystem, and removes the service and
+  AppArmor policy while retaining unknown cleanup credit. It does not run a
+  candidate. Evidence record `vm-rootfs-enospc-cleanup-003.json` hashes to
+  `961577372564262e1676bdac46fa7130027964db9d531af9b964af9a0c4e1ccc`.
+- The actual pinned OMP SDK passes the MCP-only tool-inventory check and four
+  MCP bridge/formatter cases without inference. Rust has source-derived
+  current/frozen legacy reducers and explicit signed AI-support evidence
+  checks, but catalogs and reducer parity do not establish workflow execution.
+  Ordinary allowed Bash still needs an execution lifecycle bound to the SDK's
+  real persistent brush process; a different shell backend cannot supply parity.
+  Full legacy and wider campaign execution remain open.
+- Normal artifact retrieval, prefix publication, bounded source recovery,
+  provider ownership and two-cell live commands are implemented or undergoing
+  focused recovery validation. A successful completed read must retain original
+  intents, consumed dispatch and outside authority; never replay a lost reply.
+  Failed Native preparation `08fd53f059a2e548` exposed legitimate zero-byte
+  Python package markers. Its job stays consumed; the narrow public-code fix
+  requires a fresh job and does not permit empty private receipts.
+- Preserve **341 historical Worker metadata rows** unchanged. Custom historical
+  inspection remains lstat-only. Deployment and independent cleanup checks take
+  all four existing leases; APIs acquire their own Worker/Python leases and
+  must not be nested under those same external locks. All evidence and failed
+  attempts remain in the private `expedited-20261110-001` evidence directory;
+  sanitized reviewer delivery remains required. No new model request or quota
+  mutation has occurred.
+- External gates remain open: Actions dispatch returned HTTP 422, "Actions has
+  been disabled"; five current-head jobs and independent review remain required.
+  Current candidate source is outside the original model authorization, and
+  721,979 retained tokens cannot cover the 1,600,000-token pair/beta reservation.
+  Source reauthorization, any allowance increase, and additional VM/disk
+  capacity require the pending operator actions. Do not infer approval from
+  elapsed time. The failed CI-excluding security scan is not a clean report.
+- Rust/MSRV/workflow/builder use **1.89.0**. Run the consolidated affected-platform
+  checks after the batch stabilizes, refresh the explicit source delta, update
+  the PR around the final behavior and preserve Python compatibility. No
+  upstream-main merge, release, protection change or active PR gate is authorized.
 
 ## Keep the implementation small
 

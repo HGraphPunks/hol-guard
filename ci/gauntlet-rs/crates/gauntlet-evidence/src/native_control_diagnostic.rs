@@ -92,7 +92,7 @@ pub fn verify_native_readonly_diagnostic(
             && preparation["task_mounts"]["providers"] == json!([])
             && preparation["stage"] == format!("/var/lib/hol-gauntlet-rust/native-jobs/{job}/cell")
             && preparation["launch"]["job_slice"] == format!("holgauntletrust{job}.slice")
-            && preparation["launch"]["schema"] == "hol-gauntlet-cell-supervisor.v5"
+            && crate::native_launch_provenance::pipe_launch(&preparation["launch"])?
             && preparation["launch"]["image_interpreter_sha256"] == interpreter
             && preparation["launch"]["outside_observer_sha256"] == observer
             && parse(preparation_raw)? == *preparation

@@ -11,6 +11,35 @@ pub(crate) fn check_inspection(
     mounts: &BTreeMap<String, (String, bool)>,
     running: bool,
 ) -> Result<(String, u32), String> {
+    check_profile(value, name, job, nonce, mounts, running, 240)
+}
+pub(crate) fn check_live_inspection(
+    value: &Value,
+    name: &str,
+    job: &str,
+    nonce: &str,
+    mounts: &BTreeMap<String, (String, bool)>,
+    running: bool,
+) -> Result<(String, u32), String> {
+    check_profile(
+        value,
+        name,
+        job,
+        nonce,
+        mounts,
+        running,
+        crate::native_live_spec::PREPARATION_SECONDS,
+    )
+}
+fn check_profile(
+    value: &Value,
+    name: &str,
+    job: &str,
+    nonce: &str,
+    mounts: &BTreeMap<String, (String, bool)>,
+    running: bool,
+    seconds: u64,
+) -> Result<(String, u32), String> {
     let id = value["Id"]
         .as_str()
         .filter(|s| crate::hex(s, 64))
@@ -26,7 +55,7 @@ pub(crate) fn check_inspection(
         || value["Config"]["User"] != "10005:10005"
         || value["Config"]["WorkingDir"] != "/product/home/project"
         || value["Path"] != "/usr/bin/sleep"
-        || value["Args"] != serde_json::json!(["240"])
+        || value["Args"] != serde_json::json!([seconds.to_string()])
         || value["Config"]["Labels"]["hol.gauntlet.mcp.job"] != job
         || value["Config"]["Labels"]["hol.gauntlet.mcp.nonce"] != nonce
         || value["Config"]["Labels"]["hol.gauntlet.mcp.profile"] != "native-mcp-transport-v1"
@@ -91,12 +120,28 @@ pub(crate) fn check_inspection(
     let actual = value["Mounts"]
         .as_array()
         .ok_or("MCP bind inventory missing")?;
-    if actual.len() != mounts.len() {
+    let tmpfs = if actual.iter().any(|m| m["Type"] == "tmpfs") {
+        crate::native_job_storage::check_tmpfs(value)?
+    } else {
+        0
+    };
+    if actual.len() != mounts.len() + tmpfs {
         return Err("MCP mount inventory differs".into());
     }
     let mut seen = std::collections::BTreeSet::new();
     for m in actual {
         let dest = m["Destination"].as_str().ok_or("MCP destination missing")?;
+        if m["Type"] == "tmpfs"
+            && tmpfs == 4
+            && crate::native_job_storage::tmpfs_limits()
+                .iter()
+                .any(|(p, _, _)| *p == dest)
+        {
+            if !seen.insert(dest) || m["RW"] != true {
+                return Err("bounded Native tmpfs repeated or readonly".into());
+            }
+            continue;
+        }
         let expected = mounts.get(dest).ok_or("unexpected MCP mount")?;
         if !seen.insert(dest)
             || m["Type"] != "bind"
@@ -140,6 +185,17 @@ mod tests {
                 "CapAdd":[],"CapDrop":["CAP_ALL"],"SecurityOpt":["no-new-privileges",format!("apparmor={name}")]},
             "Mounts":[{"Destination":"/product/public","Source":"/opt/public","Type":"bind","RW":false,"Propagation":"rprivate"}]});
         assert!(check_inspection(&value, name, &job, &nonce, &mounts, true).is_ok());
+        let mut legacy_tmpfs_display = value.clone();
+        legacy_tmpfs_display["HostConfig"]["Tmpfs"] = json!({"/tmp":"rw,nosuid,nodev,size=65536k"});
+        assert!(check_inspection(&legacy_tmpfs_display, name, &job, &nonce, &mounts, true).is_ok());
+        assert!(check_live_inspection(&value, name, &job, &nonce, &mounts, true).is_err());
+        let mut live = value.clone();
+        live["Args"] =
+            serde_json::json!([crate::native_live_spec::PREPARATION_SECONDS.to_string()]);
+        assert!(check_live_inspection(&live, name, &job, &nonce, &mounts, true).is_ok());
+        assert!(check_inspection(&live, name, &job, &nonce, &mounts, true).is_err());
+        live["HostConfig"]["NetworkMode"] = serde_json::json!("host");
+        assert!(check_live_inspection(&live, name, &job, &nonce, &mounts, true).is_err());
         let mut other_display = value.clone();
         other_display["Name"] = json!(name);
         other_display["Image"] = json!(NATIVE_SDK_AGENT_IMAGE.strip_prefix("sha256:").unwrap());

@@ -68,7 +68,7 @@ impl TransportContext {
     }
 }
 
-fn snapshot(path: &Path) -> Result<Value, String> {
+pub(crate) fn snapshot(path: &Path) -> Result<Value, String> {
     if !path.is_absolute() || path.as_os_str().len() > 4096 {
         return Err("absolute canonical transport home required".into());
     }
@@ -118,7 +118,7 @@ fn snapshot(path: &Path) -> Result<Value, String> {
     Ok(json!({"path":path,"ancestry":ancestry}))
 }
 
-pub(super) struct Lima {
+pub(crate) struct Lima {
     path: PathBuf,
     file: File,
     expected: String,
@@ -134,7 +134,7 @@ impl Lima {
             &intent.0["transport_context"],
         )
     }
-    pub(super) fn open_pinned(path: &str, expected: &str, context: &Value) -> Result<Self, String> {
+    pub(crate) fn open_pinned(path: &str, expected: &str, context: &Value) -> Result<Self, String> {
         if !cfg!(target_os = "macos") {
             return Err("macOS owned Lima host required".into());
         }
@@ -173,7 +173,7 @@ impl Lima {
         result.recheck()?;
         Ok(result)
     }
-    pub(super) fn recheck(&mut self) -> Result<(), String> {
+    pub(crate) fn recheck(&mut self) -> Result<(), String> {
         TransportContext::parse(self.context.value())?;
         let visible = std::fs::symlink_metadata(&self.path).map_err(|_| "Lima path unavailable")?;
         let before = self
@@ -243,7 +243,7 @@ impl Lima {
         }
         Ok(())
     }
-    pub(super) fn command(&mut self, vm: &str) -> Result<Command, String> {
+    pub(crate) fn command(&mut self, vm: &str) -> Result<Command, String> {
         self.recheck()?;
         if self.context.value()["vm"] != vm {
             return Err("Lima target differs from retained instance".into());

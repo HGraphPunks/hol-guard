@@ -275,6 +275,7 @@ pub fn run_native_dependencies(
 }
 
 pub(crate) fn require_idle() -> Result<(), String> {
+    let _namespace_scope = crate::native_job_storage::owner::scope()?;
     crate::feature_state::require_idle()?;
     let base = open_root_owned_public_directory(Path::new("/var/lib/hol-gauntlet-rust"))
         .map_err(|e| e.to_string())?;

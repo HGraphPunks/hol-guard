@@ -102,11 +102,12 @@ pub(crate) fn bind(
         return Err("SDK ready handshake differs".into());
     }
     let mut reply = gate.try_clone().map_err(|e| e.to_string())?;
-    let peer = Arc::new(NativeSdkPeer::bind(
+    let peer = Arc::new(NativeSdkPeer::bind_entrypoint(
         gate,
         boundary,
         artifacts.assets.bun(),
         &artifacts.assets.pins().bun_sha256,
+        artifacts.public.entrypoint(),
     )?);
     artifacts.public.verify()?;
     artifacts.assets.recheck_custody()?;

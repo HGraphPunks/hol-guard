@@ -215,11 +215,25 @@
       "sha256": "f2fdd9144826e77543799c2e4e96fbe7f45fc0a5e1b1e108edfb0875dd552f08"
     },
     {
+      "base_sha256": "19b3271d35d6020b7653e3f5005f8c4fb17e196899602cf4dbb95e461a190860",
+      "disposition": "retain_external_agent_adapter",
+      "path": "ci/gauntlet/benchmark/developer_omp_episode.ts",
+      "phase": 4,
+      "sha256": "daea441bbaecbe39cb31e66e4ae7ce8d8afdd9662005f545c97a09a88e088184"
+    },
+    {
       "base_sha256": "50e64dcc1b8365cc33cc4ab0b0e0de97c9155f7ba50be14311ab174555a722ae",
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/benchmark/developer_product_runtime.py",
       "phase": 4,
       "sha256": "6b4d1809059ed5a8ddb323c441d2dd83f73af790b74b2f7d849ce7031a8bbc8f"
+    },
+    {
+      "base_sha256": "df316e4609d62828ca8981befdb35c631efe0d45d289aa2ec87ac29a3322baad",
+      "disposition": "retain_external_agent_adapter",
+      "path": "ci/gauntlet/benchmark/developer_tool_inventory_conformance.ts",
+      "phase": 4,
+      "sha256": "31c2812477be77887891b6d0dfe2e4ae49bab772ab04ecb1ccdf9f822f7be802"
     },
     {
       "base_sha256": "cc1513d6b9318ee5884de399568f49de709e863350584a61a0d6439753d0dc9b",

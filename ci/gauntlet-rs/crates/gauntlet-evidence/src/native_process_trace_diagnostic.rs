@@ -57,7 +57,7 @@ pub(crate) fn verify(
     journal_bound: bool,
 ) -> Result<Option<Value>> {
     let stdio = preparation["launch"]["schema"] == "hol-gauntlet-cell-supervisor.v4";
-    let pipes = preparation["launch"]["schema"] == "hol-gauntlet-cell-supervisor.v5";
+    let pipes = crate::native_launch_provenance::pipe_launch(&preparation["launch"])?;
     let traced =
         stdio || pipes || preparation["launch"]["schema"] == "hol-gauntlet-cell-supervisor.v3";
     if !stdio {

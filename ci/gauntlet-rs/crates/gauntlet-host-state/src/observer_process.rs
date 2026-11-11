@@ -22,8 +22,8 @@ pub(crate) enum ProbeError {
     Cancelled,
 }
 
-struct Owner {
-    child: Child,
+pub(crate) struct Owner {
+    pub(crate) child: Child,
     pid: Pid,
     custody: bool,
 }
@@ -83,7 +83,20 @@ fn require_wait_custody() -> Result<(), ProbeError> {
 }
 
 impl Owner {
-    fn exited(&mut self) -> Result<bool, ProbeError> {
+    pub(crate) fn spawn(mut command: Command) -> Result<Self, ProbeError> {
+        require_wait_custody()?;
+        let child = command
+            .process_group(0)
+            .spawn()
+            .map_err(|_| ProbeError::Unavailable)?;
+        let pid = Pid::from_raw(child.id() as i32).ok_or(ProbeError::Unavailable)?;
+        Ok(Self {
+            child,
+            pid,
+            custody: true,
+        })
+    }
+    pub(crate) fn exited(&mut self) -> Result<bool, ProbeError> {
         if !self.custody {
             return Err(ProbeError::Unavailable);
         }
@@ -101,7 +114,7 @@ impl Owner {
         }
     }
 
-    fn finish(&mut self) -> Result<ExitStatus, ProbeError> {
+    pub(crate) fn finish(&mut self) -> Result<ExitStatus, ProbeError> {
         // Check for a lost wait before signalling. The executable owns child
         // waits exclusively and retains normal SIGCHLD disposition throughout.
         let exited = self.exited()?;

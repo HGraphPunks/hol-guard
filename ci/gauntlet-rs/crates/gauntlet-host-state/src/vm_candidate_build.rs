@@ -12,8 +12,9 @@ use std::fmt;
 use std::time::Duration;
 
 const MAX_TERMINAL_BYTES: usize = 8192;
-const MAX_PREFLIGHT_BYTES: usize = 2048;
-const MIN_START_FREE: u64 = 12 * 1024 * 1024 * 1024;
+#[path = "vm_candidate_build_preflight.rs"]
+mod preflight;
+pub use preflight::{VmCandidateBuildPreflightError, VmCandidateBuildPreflightPlan};
 
 fn lower_hex(value: &str, length: usize) -> bool {
     value.len() == length
@@ -66,29 +67,6 @@ impl fmt::Display for VmCandidateBuildLaunchError {
 
 impl std::error::Error for VmCandidateBuildLaunchError {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VmCandidateBuildPreflightError {
-    InvalidBinaryPin,
-    InvalidResponse,
-    Unavailable,
-    TimedOut,
-    TooLarge,
-}
-
-impl fmt::Display for VmCandidateBuildPreflightError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::InvalidBinaryPin => "exact outside candidate readiness binary SHA-256 required",
-            Self::InvalidResponse => "VM candidate readiness differs from outside build pins",
-            Self::Unavailable => "VM candidate readiness probe unavailable",
-            Self::TimedOut => "VM candidate readiness probe timed out",
-            Self::TooLarge => "VM candidate readiness response too large",
-        })
-    }
-}
-
-impl std::error::Error for VmCandidateBuildPreflightError {}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VmCandidateBuildPlan {
     limactl: String,
@@ -100,12 +78,6 @@ pub struct VmCandidateBuildPlan {
 pub struct VmCandidateBuildInvocation {
     argv: Vec<String>,
     record: HostCandidateBuildPinRecord,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VmCandidateBuildPreflightPlan {
-    argv: Vec<String>,
-    pins: HostCandidateBuildPins,
 }
 
 impl VmCandidateBuildPlan {
@@ -152,6 +124,30 @@ impl VmCandidateBuildPlan {
         let record = journal
             .record_for_vm(&self.pins, &self.limactl, &self.vm)
             .map_err(VmCandidateBuildError::HostPin)?;
+        Ok(self.invocation(record))
+    }
+
+    /// Reconstruct an opaque existing invocation only after its original pin
+    /// identity and VM match. This never records or rearms a dispatch.
+    pub(crate) fn retained_invocation(
+        &self,
+        journal: &HostCandidateBuildPinJournal,
+    ) -> Result<VmCandidateBuildInvocation, VmCandidateBuildError> {
+        let record = journal
+            .read(&self.pins.job_id)
+            .map_err(VmCandidateBuildError::HostPin)?;
+        if record.pins != self.pins
+            || record
+                .vm_target
+                .as_ref()
+                .is_none_or(|(l, v)| l != &self.limactl || v != &self.vm)
+        {
+            return Err(VmCandidateBuildError::InvalidPins);
+        }
+        Ok(self.invocation(record))
+    }
+
+    fn invocation(&self, record: HostCandidateBuildPinRecord) -> VmCandidateBuildInvocation {
         let pins = &record.pins;
         let argv = vec![
             self.limactl.clone(),
@@ -183,124 +179,90 @@ impl VmCandidateBuildPlan {
             record.raw_sha256.clone(),
             record.host_nonce_hex.clone(),
         ];
-        Ok(VmCandidateBuildInvocation { argv, record })
-    }
-
-    /// Read-only VM check, intentionally before the host journal consumes a
-    /// job ID. The actual run repeats these checks under its own locks.
-    pub fn preflight_plan(
-        &self,
-        binary_sha256: &str,
-    ) -> Result<VmCandidateBuildPreflightPlan, VmCandidateBuildPreflightError> {
-        if !lower_hex(binary_sha256, 64) {
-            return Err(VmCandidateBuildPreflightError::InvalidBinaryPin);
-        }
-        let pins = &self.pins;
-        Ok(VmCandidateBuildPreflightPlan {
-            argv: vec![
-                self.limactl.clone(),
-                "shell".to_owned(),
-                self.vm.clone(),
-                "--".to_owned(),
-                "sudo".to_owned(),
-                "-n".to_owned(),
-                format!("/opt/hol-gauntlet/rust-candidate-build-ready-shadow-{binary_sha256}"),
-                pins.controller_root.clone(),
-                pins.controller_tree_sha256.clone(),
-                pins.job_id.clone(),
-                pins.uv_base_image_id.clone(),
-                pins.rust_base_image_id.clone(),
-                pins.builder_image_id.clone(),
-                pins.source_sha.clone(),
-                pins.source_archive_sha256.clone(),
-                pins.version.clone(),
-                pins.tag.clone(),
-                pins.podman_sha256.clone(),
-                pins.slirp4netns_sha256.clone(),
-                pins.apparmor_parser_sha256.clone(),
-                pins.seccomp_sha256.clone(),
-                pins.policy_sha256.clone(),
-            ],
-            pins: pins.clone(),
-        })
-    }
-}
-
-impl VmCandidateBuildPreflightPlan {
-    pub fn argv(&self) -> &[String] {
-        &self.argv
-    }
-
-    pub fn parse_response(&self, stdout: &[u8]) -> Result<Value, VmCandidateBuildPreflightError> {
-        if stdout.len() > MAX_PREFLIGHT_BYTES + 1 {
-            return Err(VmCandidateBuildPreflightError::TooLarge);
-        }
-        let frame = stdout
-            .strip_suffix(b"\n")
-            .filter(|frame| !frame.is_empty() && !frame.contains(&b'\n'))
-            .ok_or(VmCandidateBuildPreflightError::InvalidResponse)?;
-        if canonicalize(frame).map_err(|_| VmCandidateBuildPreflightError::InvalidResponse)?
-            != frame
-        {
-            return Err(VmCandidateBuildPreflightError::InvalidResponse);
-        }
-        let value: Value = serde_json::from_slice(frame)
-            .map_err(|_| VmCandidateBuildPreflightError::InvalidResponse)?;
-        let object = value
-            .as_object()
-            .ok_or(VmCandidateBuildPreflightError::InvalidResponse)?;
-        if object.len() != 13
-            || value["schema"] != "hol-gauntlet-candidate-build-ready-shadow.v2"
-            || value["job_id"] != self.pins.job_id
-            || value["source_sha"] != self.pins.source_sha
-            || value["source_archive_sha256"] != self.pins.source_archive_sha256
-            || value["tag"] != self.pins.tag
-            || value["image_id"] != self.pins.builder_image_id
-            || value["policy_sha256"] != self.pins.policy_sha256
-            || value["free_disk_bytes"]
-                .as_u64()
-                .is_none_or(|bytes| bytes < MIN_START_FREE)
-            || value["ready_at_probe"] != true
-            || value["host_pin_recorded"] != false
-            || value["candidate_started"] != false
-            || value["artifact_admitted"] != false
-            || value["execution_eligible"] != false
-        {
-            return Err(VmCandidateBuildPreflightError::InvalidResponse);
-        }
-        Ok(json!({
-            "schema":"hol-gauntlet-host-candidate-build-ready-shadow.v2",
-            "job_id":self.pins.job_id,
-            "source_sha":self.pins.source_sha,
-            "tag":self.pins.tag,
-            "free_disk_bytes":value["free_disk_bytes"],
-            "ready_at_probe":true,
-            "host_pin_recorded":false,
-            "candidate_started":false,
-            "execution_eligible":false,
-        }))
-    }
-
-    pub fn execute_read_only(&self) -> Result<Value, VmCandidateBuildPreflightError> {
-        let output = run_fixed(
-            &self.argv,
-            Duration::from_secs(120),
-            MAX_PREFLIGHT_BYTES + 1,
-            1500,
-            &[],
-        )
-        .map_err(|error| match error {
-            FixedProcessError::Unavailable | FixedProcessError::Failed => {
-                VmCandidateBuildPreflightError::Unavailable
-            }
-            FixedProcessError::TimedOut => VmCandidateBuildPreflightError::TimedOut,
-            FixedProcessError::TooLarge => VmCandidateBuildPreflightError::TooLarge,
-        })?;
-        self.parse_response(&output)
+        VmCandidateBuildInvocation { argv, record }
     }
 }
 
 impl VmCandidateBuildInvocation {
+    /// Recompute the fixed Root marker from the original opaque pin. Neither
+    /// its canonical bytes nor the private nonce leave this API.
+    pub(crate) fn anchor_sha256(record: &HostCandidateBuildPinRecord) -> Result<String, String> {
+        let p = &record.pins;
+        let tagged = record.schema != "hol-gauntlet-host-candidate-build-pin.v2";
+        let mut v = json!({"schema":"hol-gauntlet-candidate-host-anchor.v1","job_id":p.job_id,"source_sha":p.source_sha,
+            "source_archive_sha256":p.source_archive_sha256,"version":p.version,"controller_tree_sha256":p.controller_tree_sha256,
+            "image_id":p.builder_image_id,"policy_sha256":p.policy_sha256,
+            "runtime_pins":{"podman_sha256":p.podman_sha256,"slirp4netns_sha256":p.slirp4netns_sha256,
+                "apparmor_parser_sha256":p.apparmor_parser_sha256,"seccomp_sha256":p.seccomp_sha256},
+            "runner_binary_sha256":p.runner_binary_sha256,"result_reader_binary_sha256":p.result_reader_binary_sha256,
+            "host_pin_sha256":record.raw_sha256,"host_nonce_hex":record.host_nonce_hex,
+            "pre_candidate_run":true,"artifact_admitted":false,"execution_eligible":false});
+        if tagged {
+            v["schema"] = json!("hol-gauntlet-candidate-host-anchor.v2");
+            v["tag"] = json!(p.tag);
+        }
+        let raw = canonicalize(v.to_string().as_bytes())
+            .map_err(|_| "original anchor encoding invalid")?;
+        Ok(format!("{:x}", Sha256::digest(raw)))
+    }
+    /// Only a response already checked by the fixed host-bound reader may
+    /// supply these facts. That Root reader admits only a complete zero exit,
+    /// checks the original nonce, and rehashes the actual retained files.
+    pub(crate) fn completed_terminal(&self, report: &Value) -> Result<Value, String> {
+        let p = &self.record.pins;
+        let anchor = Self::anchor_sha256(&self.record)?;
+        if report["job_id"] != p.job_id
+            || report["source_sha"] != p.source_sha
+            || report["version"] != p.version
+            || report["host_pin_sha256"] != self.record.raw_sha256
+            || report["host_anchor_sha256"] != anchor
+            || [
+                "retained_files_match",
+                "cleanup_absent",
+                "host_pin_journal_match",
+            ]
+            .iter()
+            .any(|k| report[*k] != true)
+            || ["result_sha256", "archive_sha256"]
+                .iter()
+                .any(|k| !report[*k].as_str().is_some_and(|s| lower_hex(s, 64)))
+        {
+            return Err(
+                "completed read differs from original Host nonce/anchor or terminal custody".into(),
+            );
+        }
+        Ok(
+            json!({"schema":"hol-gauntlet-host-candidate-completed-read-terminal.v1","job_id":p.job_id,
+            "source_sha":p.source_sha,"source_archive_sha256":p.source_archive_sha256,"version":p.version,
+            "result_sha256":report["result_sha256"],"unadmitted_export_sha256":report["archive_sha256"],
+            "host_pin_sha256":self.record.raw_sha256,"host_anchor_sha256":anchor,"status":"exited-zero","exit_code":0,
+            "authority":"original-host-bound-completed-read","artifact_admitted":false,"execution_eligible":false,"qualification_eligible":false}),
+        )
+    }
+    pub(crate) fn prior_terminal_sha256(
+        &self,
+        initial: &[u8],
+        completed: &Value,
+    ) -> Result<String, String> {
+        if let Ok(original) = serde_json::from_slice::<Value>(initial) {
+            let claim = self
+                .parse_terminal_claim(initial)
+                .map_err(|_| "complete original terminal conflicts with recovery")?;
+            if [
+                "status",
+                "exit_code",
+                "result_sha256",
+                "unadmitted_export_sha256",
+            ]
+            .iter()
+            .any(|k| claim[*k] != completed[*k])
+                || original["host_anchor_sha256"] != completed["host_anchor_sha256"]
+            {
+                return Err("original terminal conflicts with completed read".into());
+            }
+        }
+        Ok(format!("{:x}", Sha256::digest(initial)))
+    }
     pub fn argv(&self) -> &[String] {
         &self.argv
     }

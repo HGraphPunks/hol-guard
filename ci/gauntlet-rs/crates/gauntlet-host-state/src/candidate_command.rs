@@ -2,6 +2,7 @@
 //! historical diagnostic entrypoints. The existing journals own all custody,
 //! one-use dispatch, response validation and recovery authorization.
 
+use crate::native_operation::artifact;
 use crate::{
     prepare_local_source_archive_one_use, public_vm_operations, HostCandidateBuildPinJournal,
     HostCandidateBuildPins, VmCandidateBuildPlan, VmHostBoundCandidateRepairPlan,
@@ -10,11 +11,18 @@ use crate::{
 use serde_json::Value;
 use std::path::Path;
 
-pub const CANDIDATE_BUILD_USAGE: &str = "candidate commands:\nsource PRIVATE_STATE JOB_ID ABSOLUTE_REPOSITORY SOURCE_SHA\ntransfer PRIVATE_SOURCE_STATE PRIVATE_TRANSFER_DIR JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 CAPTURE_BINARY_SHA256 [--vm VM_NAME]\nrun PRIVATE_PIN_DIR JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 VERSION TAG CONTROLLER_ROOT CONTROLLER_TREE_SHA256 UV_BASE_IMAGE_ID RUST_BASE_IMAGE_ID BUILDER_IMAGE_ID POLICY_SHA256 PODMAN_SHA256 SLIRP_SHA256 APPARMOR_PARSER_SHA256 SECCOMP_SHA256 RUNNER_BINARY_SHA256 RESULT_READER_BINARY_SHA256 READINESS_BINARY_SHA256 [--vm VM_NAME]\nread PRIVATE_PIN_DIR JOB_ID RESULT_SHA256 EXPORT_ARCHIVE_SHA256 [--vm VM_NAME]\nrepair PRIVATE_PIN_DIR JOB_ID REPAIR_BINARY_SHA256 [--vm VM_NAME]\nAll private state directories must already exist with mode 0700. All operations remain ineligible for execution admission and qualification.";
+pub const CANDIDATE_BUILD_USAGE: &str = concat!("candidate commands:\nsource PRIVATE_STATE JOB_ID ABSOLUTE_REPOSITORY SOURCE_SHA\ntransfer PRIVATE_SOURCE_STATE PRIVATE_TRANSFER_DIR JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 CAPTURE_BINARY_SHA256 [--vm VM_NAME]\ntransfer-bounded PRIVATE_SOURCE_STATE PRIVATE_TRANSFER_DIR JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 CAPTURE_WORKER_SHA256 MKE2FS_SHA256 STORAGE_PROFILE VM LIMA_SHA256 SSH_HOME LIMA_HOME\nrun PRIVATE_PIN_DIR JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 VERSION TAG CONTROLLER_ROOT CONTROLLER_TREE_SHA256 UV_BASE_IMAGE_ID RUST_BASE_IMAGE_ID BUILDER_IMAGE_ID POLICY_SHA256 PODMAN_SHA256 SLIRP_SHA256 APPARMOR_PARSER_SHA256 SECCOMP_SHA256 RUNNER_BINARY_SHA256 RESULT_READER_BINARY_SHA256 READINESS_BINARY_SHA256 [--vm VM_NAME]\nread PRIVATE_PIN_DIR JOB_ID RESULT_SHA256 EXPORT_ARCHIVE_SHA256 [--vm VM_NAME]\nrepair PRIVATE_PIN_DIR JOB_ID REPAIR_BINARY_SHA256 [--vm VM_NAME]\ncapture PRIVATE_PIN_DIR JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 EXPORT_ARCHIVE_SHA256 VERSION BUILD_PIN_SHA256 CAPTURE_BINARY_SHA256 VM LIMA_SHA256 SSH_HOME LIMA_HOME\nwheel-stage PRIVATE_PIN_DIR JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 EXPORT_ARCHIVE_SHA256 VERSION BUILD_PIN_SHA256 CAPTURE_PROOF_SHA256 WHEEL_STAGE_BINARY_SHA256 VM LIMA_SHA256 SSH_HOME LIMA_HOME\n",
+"transfer-bounded-read takes the same arguments as transfer-bounded; it reads the original completed capture with empty stdin and never retransmits source.\n",
+"capture-read|wheel-stage-read take their original command's arguments plus READER_SHA256; they require the consumed original dispatch and authenticated bounded terminal, send empty stdin and never recreate data. A first inert capture may precede terminal readback; staging/export require authenticated terminal.\n",
+"prefix-clone|prefix-clone-read PRIVATE_PIN_DIR PRIVATE_CANDIDATE_TRANSFER_DIR CANDIDATE_SOURCE_INTENT_SHA256 CANDIDATE_JOB_ID PRIVATE_DEPENDENCY_INTENT_DIR PRIVATE_DEPENDENCY_TRANSFER_DIR DEPENDENCY_SOURCE_INTENT_SHA256 DEPENDENCY_JOB_ID CLONER_SHA256\nruntime-publish|runtime-publish-read PRIVATE_PIN_DIR PRIVATE_TRANSFER_DIR SOURCE_INTENT_SHA256 JOB_ID PYTHON_FULL_VERSION PUBLISHER_SHA256\nPrefix operations derive pins from original bounded readbacks and require the same original Lima instance.\n",
+"run-bounded PRIVATE_PIN_DIR PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 VERSION TAG CONTROLLER_ROOT CONTROLLER_TREE_SHA256 UV_BASE_IMAGE_ID RUST_BASE_IMAGE_ID BUILDER_IMAGE_ID POLICY_SHA256 PODMAN_SHA256 SLIRP_SHA256 APPARMOR_PARSER_SHA256 SECCOMP_SHA256 RUNNER_SHA256 RESULT_READER_SHA256 READINESS_SHA256\nread-bounded PRIVATE_PIN_DIR PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 JOB_ID RESULT_SHA256 EXPORT_ARCHIVE_SHA256\nAll private state directories must already exist with mode 0700. New bounded builds use the completed source's original transport. Unknown dispatches cannot be retried. All operations remain ineligible for execution admission and qualification.");
 
 /// Parse the entire command before opening a journal or contacting the VM.
 /// The private host nonce is never an operator argument or a public result.
 pub fn run_candidate_build_command(args: &[String]) -> Result<Value, String> {
+    if args.first().is_some_and(|v| artifact::handles(v)) {
+        return artifact::run_candidate_artifact_command(args);
+    }
     let action = match (args.first().map(String::as_str), args.len()) {
         (Some("source"), 5) => "source",
         (Some("transfer"), 7) => "transfer",

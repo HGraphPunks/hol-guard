@@ -18,6 +18,10 @@ use std::time::{Duration, Instant};
 #[path = "supervisor_launch.rs"]
 mod launch;
 
+#[cfg(test)]
+#[path = "supervisor_cleanup_tests.rs"]
+mod cleanup_tests;
+
 pub struct NativeCell {
     pub(crate) inputs: Inputs,
     pub(crate) spec: SupervisorSpec,

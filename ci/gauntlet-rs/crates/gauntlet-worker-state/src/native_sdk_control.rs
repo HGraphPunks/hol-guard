@@ -71,7 +71,7 @@ pub(crate) fn same_uid_negative(
         "unprivileged_result":result,"refused_before_sdk_import":true,"execution_eligible":false}),
     )
 }
-fn bind(
+pub(crate) fn bind(
     agent: &mut NativeSdkAgent,
     sockets: &NativeSdkSockets,
     boundary: NativeSdkBoundary,
@@ -98,7 +98,13 @@ fn bind(
         return Err("SDK ready handshake differs".into());
     }
     let mut response = gate.try_clone().map_err(|e| e.to_string())?;
-    let peer = NativeSdkPeer::bind(gate, boundary, assets.bun(), &assets.pins().bun_sha256)?;
+    let peer = NativeSdkPeer::bind_entrypoint(
+        gate,
+        boundary,
+        assets.bun(),
+        &assets.pins().bun_sha256,
+        public.entrypoint(),
+    )?;
     public.verify()?;
     assets.recheck_custody()?;
     let negative = same_uid_negative(agent, sockets, &peer, &cgroup, cancel)?;

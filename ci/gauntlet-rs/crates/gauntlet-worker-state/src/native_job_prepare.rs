@@ -30,15 +30,26 @@ fn preparation_receipt(
     init_raw: &[u8],
 ) -> Result<Vec<u8>, String> {
     let sdk = match &bundle.spec.execution {
-        NativeJobExecution::HostPinnedControl { sdk, .. } => Some(sdk.publication_sha256.as_str()),
+        NativeJobExecution::HostPinnedControl { sdk, .. }
+        | NativeJobExecution::HostPinnedLive { sdk, .. } => Some(sdk.publication_sha256.as_str()),
         _ => None,
     };
-    let body = json!({"schema":"hol-gauntlet-native-host-pinned-preparation.v1","source_sha":pins.source_sha,"job_id":pins.job_id,
+    let mut body = json!({"schema":"hol-gauntlet-native-host-pinned-preparation.v1","source_sha":pins.source_sha,"job_id":pins.job_id,
         "deployment_digest":pins.deployment_digest,"worker_generation":pins.worker_generation,"preparation_sha256":pins.preparation_sha256,
         "bundle_sha256":pins.bundle_sha256,"initialization_sha256":sha(init_raw),"control_role":bundle.spec.case(),
         "runtime_tree_sha256":bundle.preparation.runtime_tree_digest,"sdk_publication_sha256":sdk,
         "job_dispatched":false,"candidate_executed":false,"artifact_admitted":false,"execution_eligible":false,
         "qualification_eligible":false,"guard_causality_verified":false,"model_requests":0});
+    let init: Value = serde_json::from_slice(init_raw).map_err(|e| e.to_string())?;
+    if init["schema"] == "hol-gauntlet-native-job-initialization.v2" {
+        body["schema"] = json!("hol-gauntlet-native-host-pinned-preparation.v2");
+        body["storage_receipt_sha256"] = init["storage"]["receipt_sha256"].clone();
+    } else if matches!(
+        bundle.spec.execution,
+        NativeJobExecution::HostPinnedLive { .. }
+    ) {
+        return Err("live jobs require original bounded initialization v2".into());
+    }
     canonicalize(body.to_string().as_bytes()).map_err(|e| e.to_string())
 }
 
@@ -63,7 +74,7 @@ pub(crate) fn verify_staged_job(
         &format!("{}.job.json", spec.job_id),
         (0, 0),
         0o600,
-        8192,
+        24576,
     )?;
     let receipt = crate::feature_files::read(
         &root,
@@ -73,6 +84,7 @@ pub(crate) fn verify_staged_job(
         8192,
     )?;
     let Some(initialized) = initialized else {
+        crate::native_job_storage::lifecycle::require_absent(&spec.job_id)?;
         return if receipt.is_none() {
             Ok(())
         } else {
@@ -143,9 +155,26 @@ fn file(path: &Path, mode: u32, bound: u64) -> Result<Vec<u8>, String> {
     )
 }
 
+fn code_asset(path: &Path, mode: libc::mode_t, bound: usize) -> Result<Vec<u8>, String> {
+    let parent =
+        crate::open_root_owned_public_directory(path.parent().ok_or("code asset parent absent")?)
+            .map_err(|e| e.to_string())?;
+    crate::feature_files::required(
+        &parent,
+        path.file_name()
+            .and_then(|s| s.to_str())
+            .ok_or("code asset filename absent")?,
+        (0, 0),
+        mode,
+        bound,
+    )
+}
+
 fn verify_runtime(bundle: &NativePreparationBundle, generation: &str) -> Result<(), String> {
+    let _namespace_scope = crate::native_job_storage::owner::scope()?;
     let guard = match &bundle.spec.execution {
         NativeJobExecution::HostPinnedControl { guard, .. }
+        | NativeJobExecution::HostPinnedLive { guard, .. }
         | NativeJobExecution::HostPinnedReadonlyHook(guard) => guard,
         _ => return Err("host-pinned preparation requires its explicit Native profile".into()),
     };
@@ -245,7 +274,13 @@ fn verify_inputs(bundle: &NativePreparationBundle, generation: &str) -> Result<(
         } else {
             0o444
         };
-        let bytes = file(&p.artifacts.join(&name), mode, 2 * 1024 * 1024)?;
+        let path = p.artifacts.join(&name);
+        let bytes = if name.starts_with("code/") {
+            code_asset(&path, mode, 2 * 1024 * 1024)
+        } else {
+            file(&path, mode, 2 * 1024 * 1024)
+        }
+        .map_err(|error| format!("native preparation artifact {name}: {error}"))?;
         total = total
             .checked_add(bytes.len())
             .filter(|n| *n <= 16 * 1024 * 1024)
@@ -259,7 +294,9 @@ fn verify_inputs(bundle: &NativePreparationBundle, generation: &str) -> Result<(
     }
     gauntlet_cell_rootfs::verify_preparation_host_helpers(p)?;
     gauntlet_cell_rootfs::require_image_lease_absent(&p.image_id, &p.podman_sha256)?;
-    if let NativeJobExecution::HostPinnedControl { sdk, .. } = &bundle.spec.execution {
+    if let NativeJobExecution::HostPinnedControl { sdk, .. }
+    | NativeJobExecution::HostPinnedLive { sdk, .. } = &bundle.spec.execution
+    {
         crate::VerifiedNativeSdkAssets::load(sdk)?.verify_after_cleanup()?;
     }
     Ok(())
@@ -400,6 +437,37 @@ pub fn stage_native_host_pinned_preparation(
     crate::verify_running_binary(pins.worker_generation).map_err(|e| e.to_string())?;
     crate::native_initialize::initialization_result(
         &expected,
-        "hol-gauntlet-native-host-pinned-preparation-result.v1",
+        if initialized["schema"] == "hol-gauntlet-native-job-initialization.v2" {
+            "hol-gauntlet-native-host-pinned-preparation-result.v2"
+        } else {
+            "hol-gauntlet-native-host-pinned-preparation-result.v1"
+        },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    #[ignore = "requires outside Root; public code assets retain Root ownership and exact modes"]
+    fn empty_public_code_is_valid_while_private_empty_receipts_refuse() {
+        gauntlet_cell_rootfs::require_outside_root().unwrap();
+        let temp = tempfile::tempdir_in("/var/lib/hol-gauntlet-rust").unwrap();
+        let root = crate::open_root_owned_public_directory(temp.path()).unwrap();
+        crate::feature_files::write(&root, "__init__.py", b"", (0, 0), 0o444).unwrap();
+        let code = code_asset(&temp.path().join("__init__.py"), 0o444, 2 * 1024 * 1024).unwrap();
+        assert!(code.is_empty());
+        assert_eq!(
+            sha(&code),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        assert!(code_asset(&temp.path().join("__init__.py"), 0o555, 2 * 1024 * 1024).is_err());
+        crate::feature_files::write(&root, "empty.json", b"", (0, 0), 0o600).unwrap();
+        crate::feature_files::write(&root, "present.json", b"{}", (0, 0), 0o600).unwrap();
+        assert!(file(&temp.path().join("empty.json"), 0o600, 8192).is_err());
+        assert_eq!(
+            file(&temp.path().join("present.json"), 0o600, 8192).unwrap(),
+            b"{}"
+        );
+    }
 }

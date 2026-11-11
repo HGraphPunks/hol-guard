@@ -60,10 +60,13 @@ impl CellPreparation {
             })?;
         let control_profile = if value["schema"] == "hol-gauntlet-cell-preparation.v2" {
             if value["control_profile"] != "python-readonly.v1"
-                || value["launch"]["schema"] != "hol-gauntlet-cell-supervisor.v5"
+                || !matches!(
+                    value["launch"]["schema"].as_str(),
+                    Some("hol-gauntlet-cell-supervisor.v5" | "hol-gauntlet-cell-supervisor.v6")
+                )
             {
                 return Err(
-                    "v2 preparation requires the fixed read-only control and v5 Native pipe launch"
+                    "v2 preparation requires the fixed read-only control and v5/v6 Native pipe launch"
                         .into(),
                 );
             }
@@ -128,6 +131,7 @@ impl CellPreparation {
                     | "hol-gauntlet-cell-supervisor.v3"
                     | "hol-gauntlet-cell-supervisor.v4"
                     | "hol-gauntlet-cell-supervisor.v5"
+                    | "hol-gauntlet-cell-supervisor.v6"
             )
         ) {
             fields.extend(["image_interpreter_sha256", "outside_observer_sha256"]);
@@ -138,13 +142,18 @@ impl CellPreparation {
                 "hol-gauntlet-cell-supervisor.v3"
                     | "hol-gauntlet-cell-supervisor.v4"
                     | "hol-gauntlet-cell-supervisor.v5"
+                    | "hol-gauntlet-cell-supervisor.v6"
             )
         ) {
             fields.push("process_events");
         }
         if matches!(
             launch["schema"].as_str(),
-            Some("hol-gauntlet-cell-supervisor.v4" | "hol-gauntlet-cell-supervisor.v5")
+            Some(
+                "hol-gauntlet-cell-supervisor.v4"
+                    | "hol-gauntlet-cell-supervisor.v5"
+                    | "hol-gauntlet-cell-supervisor.v6"
+            )
         ) {
             fields.extend(["native_stdio", "native_runtime_sha256"]);
         }

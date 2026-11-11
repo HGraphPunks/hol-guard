@@ -328,6 +328,7 @@ pub(crate) fn verify(
             "hol-gauntlet-cell-supervisor.v3"
                 | "hol-gauntlet-cell-supervisor.v4"
                 | "hol-gauntlet-cell-supervisor.v5"
+                | "hol-gauntlet-cell-supervisor.v6"
         )
     ) {
         return Ok(None);

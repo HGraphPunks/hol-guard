@@ -31,6 +31,13 @@ mod feature_junit;
 mod feature_report;
 mod feature_report_files;
 pub use feature_report_files::verify_feature_report_files_v2;
+mod feature_ai_support;
+mod legacy_bash_case;
+pub use legacy_bash_case::{
+    assess_audited_frozen_legacy_case, assess_audited_legacy_bash_case, assess_audited_legacy_case,
+    assess_audited_legacy_connector_case, assess_audited_legacy_full_task_case,
+    frozen_legacy_catalog_observation, legacy_secret_copy_spec,
+};
 mod host_calls;
 mod io;
 #[cfg(target_os = "linux")]
@@ -99,6 +106,12 @@ mod provider_quota_history;
 #[cfg(feature = "quota-write")]
 mod provider_quota_writer;
 mod provider_rounds;
+mod provider_rust_status;
+pub use feature_ai_support::{
+    feature_ai_support_spec, judge_feature_ai_support_pair, project_feature_ai_mcp_arguments,
+    score_feature_ai_support_world, verify_feature_ai_support_cleanup, FeatureAiPairPins,
+    FeatureAiWorldPins,
+};
 mod provider_status;
 mod public_files;
 mod python_worker_files;
@@ -219,6 +232,7 @@ pub use provider_quota_history::verify_provider_quota_observations;
 #[cfg(feature = "quota-write")]
 pub use provider_quota_writer::ProviderQuotaWriter;
 pub use provider_rounds::reconcile_provider_rounds;
+pub use provider_rust_status::{verify_rust_provider_status, verify_rust_provider_usage};
 pub use provider_status::verify_provider_status;
 pub use python_worker_files::read_python_worker_terminal_root_owned;
 pub use runner_asset_inventory::{verify_runner_assets_inert, RunnerAssetInventory};

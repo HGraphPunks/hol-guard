@@ -66,8 +66,16 @@ impl SealedControllerKey {
         SystemRandom::new()
             .fill(&mut seed)
             .map_err(|_| ControllerKeyError::Generate)?;
+        let result = Self::from_seed(&seed);
+        seed.fill(0);
+        result
+    }
+    pub(crate) fn from_seed(seed: &[u8; 32]) -> Result<Self, ControllerKeyError> {
+        if unsafe { libc::geteuid() } != 0 {
+            return Err(ControllerKeyError::RootRequired);
+        }
         let pair =
-            Ed25519KeyPair::from_seed_unchecked(&seed).map_err(|_| ControllerKeyError::Generate)?;
+            Ed25519KeyPair::from_seed_unchecked(seed).map_err(|_| ControllerKeyError::Generate)?;
         let name = c"hol-gauntlet-controller-key";
         // SAFETY: the static name is NUL-terminated, and a successful syscall
         // gives this process sole ownership of the returned descriptor.
@@ -95,8 +103,7 @@ impl SealedControllerKey {
         .map_err(|_| ControllerKeyError::Seal)?;
         rustix::fs::fchmod(&descriptor, rustix::fs::Mode::RUSR | rustix::fs::Mode::WUSR)
             .map_err(|_| ControllerKeyError::Seal)?;
-        let written = descriptor.write_all(&seed);
-        seed.fill(0);
+        let written = descriptor.write_all(seed);
         written.map_err(|_| ControllerKeyError::Seal)?;
         descriptor
             .seek(SeekFrom::Start(0))

@@ -21,7 +21,7 @@ pub fn execute_native_controller(
     if args.len() != 6
         || !matches!(
             args[1].as_str(),
-            "--native-controller" | "--native-keyed-controller"
+            "--native-controller" | "--native-keyed-controller" | "--native-live-keyed-controller"
         )
     {
         return Err("fixed native controller arguments required".into());
@@ -42,7 +42,14 @@ pub fn execute_native_controller(
     )
     .map_err(|e| e.to_string())?;
     let (spec, _) = load(&request, &args[5])?;
-    if spec.requires_host_pin() != (args[1] == "--native-keyed-controller") {
+    if spec.requires_host_pin()
+        != matches!(
+            args[1].as_str(),
+            "--native-keyed-controller" | "--native-live-keyed-controller"
+        )
+        || matches!(spec.execution, NativeJobExecution::HostPinnedLive { .. })
+            != (args[1] == "--native-live-keyed-controller")
+    {
         return Err("native controller execution mode differs from declaration".into());
     }
     let journal =
@@ -112,6 +119,9 @@ pub fn execute_native_controller(
         }
     });
     let result = match &spec.execution {
+        NativeJobExecution::HostPinnedLive { guard, sdk, live } => {
+            crate::native_live_run::run(&spec, &args[4], guard, sdk, live, cancellation)
+        }
         NativeJobExecution::Apparatus(case) => gauntlet_cell_rootfs::run_native_apparatus(
             &spec.preparation_path(),
             &spec.preparation_sha256,

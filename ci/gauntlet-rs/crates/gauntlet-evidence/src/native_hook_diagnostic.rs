@@ -132,7 +132,12 @@ pub(crate) fn captures(
     let plane_schema = match preparation["launch"]["schema"].as_str() {
         Some("hol-gauntlet-cell-supervisor.v3") => "hol-gauntlet-native-hook-plane.v2",
         Some("hol-gauntlet-cell-supervisor.v4") => "hol-gauntlet-native-hook-plane.v3",
-        Some("hol-gauntlet-cell-supervisor.v5") => "hol-gauntlet-native-hook-plane.v4",
+        Some("hol-gauntlet-cell-supervisor.v5" | "hol-gauntlet-cell-supervisor.v6") => {
+            require(crate::native_launch_provenance::pipe_launch(
+                &preparation["launch"],
+            )?)?;
+            "hol-gauntlet-native-hook-plane.v4"
+        }
         _ => "hol-gauntlet-native-hook-plane.v1",
     };
     require(

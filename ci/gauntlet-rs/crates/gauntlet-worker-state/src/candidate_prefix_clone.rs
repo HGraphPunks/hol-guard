@@ -200,8 +200,23 @@ pub(crate) fn clone_prefix(
     let stage_path = Path::new("/var/lib/hol-gauntlet/builds")
         .join(job_id)
         .join(STAGE);
-    let baseline = inventory_tree(baseline_path, TreeKind::InstalledPrefix)
+    let (baseline, baseline_fd) = {
+        let _namespace_scope = crate::native_job_storage::owner::scope()
+            .map_err(|_| CandidatePrefixCloneError::BaselineMismatch)?;
+        if let Some(native) = native {
+            crate::native_job_storage::owner::enter(native.dependency_job_id)
+                .map_err(|_| CandidatePrefixCloneError::BaselineMismatch)?;
+        }
+        let tree = inventory_tree(baseline_path, TreeKind::InstalledPrefix)
+            .map_err(|_| CandidatePrefixCloneError::BaselineMismatch)?;
+        let fd = open(
+            baseline_path,
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
         .map_err(|_| CandidatePrefixCloneError::BaselineMismatch)?;
+        (tree, fd)
+    };
     let stage = inventory_tree(&stage_path, TreeKind::InstalledPrefix)
         .map_err(|_| CandidatePrefixCloneError::StageMismatch)?;
     if baseline.digest != baseline_tree_sha256 {
@@ -210,12 +225,6 @@ pub(crate) fn clone_prefix(
     if stage.digest != stage_tree_sha256 {
         return Err(CandidatePrefixCloneError::StageMismatch);
     }
-    let baseline_fd = open(
-        baseline_path,
-        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
-        Mode::empty(),
-    )
-    .map_err(|_| CandidatePrefixCloneError::BaselineMismatch)?;
     let stage_fd = openat(
         &job,
         STAGE,
@@ -266,7 +275,16 @@ pub(crate) fn clone_prefix(
     if cloned.bytes != bytes {
         return Err(CandidatePrefixCloneError::ReadbackMismatch);
     }
-    if inventory_tree(baseline_path, TreeKind::InstalledPrefix)
+    let baseline_after = {
+        let _namespace_scope = crate::native_job_storage::owner::scope()
+            .map_err(|_| CandidatePrefixCloneError::BaselineMismatch)?;
+        if let Some(native) = native {
+            crate::native_job_storage::owner::enter(native.dependency_job_id)
+                .map_err(|_| CandidatePrefixCloneError::BaselineMismatch)?;
+        }
+        inventory_tree(baseline_path, TreeKind::InstalledPrefix)
+    };
+    if baseline_after
         .map_err(|_| CandidatePrefixCloneError::BaselineMismatch)?
         .digest
         != baseline_tree_sha256

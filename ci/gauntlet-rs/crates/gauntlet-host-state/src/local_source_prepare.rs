@@ -210,3 +210,100 @@ pub fn prepare_local_source_archive_one_use(
     stable()?;
     Ok(report)
 }
+
+fn dependency_git(repository: &Path, args: &[&str], limit: usize) -> Result<Vec<u8>, String> {
+    let mut argv = vec![
+        "/usr/bin/git".into(),
+        "-C".into(),
+        repository
+            .to_str()
+            .ok_or("canonical local repository required")?
+            .into(),
+    ];
+    for setting in [
+        "core.hooksPath=/dev/null",
+        "credential.helper=",
+        "gc.auto=0",
+        "maintenance.auto=false",
+    ] {
+        argv.extend(["-c".into(), setting.into()]);
+    }
+    argv.extend(args.iter().map(|s| (*s).to_owned()));
+    run_fixed_clean(
+        &argv,
+        Duration::from_secs(30),
+        limit,
+        1500,
+        &[
+            ("PATH", "/usr/bin:/bin:/usr/sbin:/sbin"),
+            ("GIT_CONFIG_NOSYSTEM", "1"),
+            ("GIT_CONFIG_GLOBAL", "/dev/null"),
+            ("GIT_CONFIG_COUNT", "0"),
+            ("GIT_NO_REPLACE_OBJECTS", "1"),
+            ("GIT_NO_LAZY_FETCH", "1"),
+            ("GIT_TERMINAL_PROMPT", "0"),
+        ],
+    )
+    .map_err(|_| "bounded dependency Git object read failed".into())
+}
+
+pub(crate) fn dependency_project_inputs(
+    repository: &Path,
+    source: &str,
+) -> Result<[Vec<u8>; 2], String> {
+    if !repository.is_absolute()
+        || repository.canonicalize().ok().as_deref() != Some(repository)
+        || !repository.is_dir()
+        || !gauntlet_contracts::is_git_sha(source)
+    {
+        return Err("canonical repository and exact dependency commit required".into());
+    }
+    if dependency_git(repository, &["cat-file", "-t", source], 32)? != b"commit\n" {
+        return Err("dependency source must identify a commit".into());
+    }
+    let args = [
+        "ls-tree",
+        "-z",
+        "--full-tree",
+        source,
+        "--",
+        "pyproject.toml",
+        "uv.lock",
+    ];
+    let tree = dependency_git(repository, &args, 4096)?;
+    let mut objects = std::collections::BTreeMap::new();
+    for line in tree.split(|b| *b == 0).filter(|line| !line.is_empty()) {
+        let line = std::str::from_utf8(line).map_err(|_| "dependency tree is not UTF-8")?;
+        let (head, path) = line
+            .split_once('\t')
+            .ok_or("dependency source tree malformed")?;
+        let fields = head.split(' ').collect::<Vec<_>>();
+        if fields.len() != 3
+            || fields[0] != "100644"
+            || fields[1] != "blob"
+            || !gauntlet_contracts::is_git_sha(fields[2])
+            || !matches!(path, "pyproject.toml" | "uv.lock")
+            || objects.insert(path, fields[2]).is_some()
+        {
+            return Err("exact ordinary dependency source blobs required".into());
+        }
+    }
+    if objects.len() != 2 {
+        return Err("both dependency source blobs required".into());
+    }
+    let mut result: [Vec<u8>; 2] = std::array::from_fn(|_| Vec::new());
+    for (index, path) in ["pyproject.toml", "uv.lock"].iter().enumerate() {
+        result[index] = dependency_git(
+            repository,
+            &["cat-file", "blob", objects[path]],
+            4 * 1024 * 1024,
+        )?;
+        if result[index].is_empty() {
+            return Err("empty dependency source input refused".into());
+        }
+    }
+    if dependency_git(repository, &args, 4096)? != tree {
+        return Err("dependency source tree changed during read".into());
+    }
+    Ok(result)
+}

@@ -23,6 +23,7 @@ pub(crate) struct Frontend {
     pub budget: Arc<Mutex<NativeOperationBudget>>,
     pub closing: Arc<AtomicBool>,
     pub cancel: Arc<AtomicBool>,
+    pub live: bool,
 }
 fn retain(frames: &mut Vec<Value>, direction: &str, raw: &[u8]) -> Result<Value, String> {
     let canonical = gauntlet_contracts::canonicalize(raw).map_err(|e| e.to_string())?;
@@ -35,7 +36,12 @@ fn retain(frames: &mut Vec<Value>, direction: &str, raw: &[u8]) -> Result<Value,
 impl Frontend {
     pub(crate) fn serve(mut self) -> Result<Value, String> {
         let mut stream = McpStream::new(self.socket).map_err(|e| e.to_string())?;
-        let deadline = Instant::now() + Duration::from_secs(160);
+        let deadline = Instant::now()
+            + Duration::from_secs(if self.live {
+                crate::native_live_spec::ACTIVE_SECONDS
+            } else {
+                160
+            });
         let mut frames = Vec::new();
         let mut completion = Value::Null;
         let attempted = (|| -> Result<(), String> {

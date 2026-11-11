@@ -53,6 +53,23 @@ impl NativeMcpBoundary {
         declared_label: &str,
         product_actor: &Value,
     ) -> Result<Arc<Self>, String> {
+        Self::observe_profile(container, pin, declared_label, product_actor, false)
+    }
+    pub(crate) fn observe_live(
+        container: &str,
+        pin: &SdkWirePeerPin,
+        declared_label: &str,
+        product_actor: &Value,
+    ) -> Result<Arc<Self>, String> {
+        Self::observe_profile(container, pin, declared_label, product_actor, true)
+    }
+    fn observe_profile(
+        container: &str,
+        pin: &SdkWirePeerPin,
+        declared_label: &str,
+        product_actor: &Value,
+        live: bool,
+    ) -> Result<Arc<Self>, String> {
         gauntlet_cell_rootfs::require_outside_root()?;
         if !crate::hex(container, 64) {
             return Err("fixed MCP container ID required".into());
@@ -75,7 +92,16 @@ impl NativeMcpBoundary {
         }
         let snapshot = Snapshot::new(pin, declared_label)?;
         if snapshot.status["NSpid"].split_ascii_whitespace().last() != Some("1")
-            || read_at(&snapshot.process, "cmdline", 1024)? != b"/usr/bin/sleep\x00240\x00"
+            || read_at(&snapshot.process, "cmdline", 1024)?
+                != format!(
+                    "/usr/bin/sleep\0{}\0",
+                    if live {
+                        crate::native_live_spec::PREPARATION_SECONDS
+                    } else {
+                        240
+                    }
+                )
+                .as_bytes()
         {
             return Err("MCP boundary is not the fresh fixed namespace init".into());
         }

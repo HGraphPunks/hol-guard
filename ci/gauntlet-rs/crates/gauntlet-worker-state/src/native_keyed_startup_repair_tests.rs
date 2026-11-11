@@ -65,6 +65,28 @@ fn repair_is_bound_to_every_public_pin_and_cannot_claim_a_result_or_ack() {
     missing.as_object_mut().unwrap().remove("exit_code");
     assert!(validate(&missing, &prepared(), &"1".repeat(64)).is_err());
 }
+#[test]
+fn never_released_live_repair_binds_prepared_world_and_cannot_adopt_a_released_exit() {
+    let mut value = receipt();
+    value["schema"] = json!(LIVE_SCHEMA);
+    value["live_prepared_sha256"] = json!("3".repeat(64));
+    let check =
+        |v: &Value| validate_profile(v, &prepared(), &"1".repeat(64), Some(&"3".repeat(64)));
+    check(&value).unwrap();
+    assert!(validate(&value, &prepared(), &"1".repeat(64)).is_err());
+    for (key, bad) in [
+        ("schema", json!(SCHEMA)),
+        ("live_prepared_sha256", json!("4".repeat(64))),
+        ("model_requests", Value::Null),
+        ("model_requests", json!(1)),
+        ("controller_state", json!("released-exit-unavailable")),
+        ("exit_code", json!(0)),
+    ] {
+        let mut changed = value.clone();
+        changed[key] = bad;
+        assert!(check(&changed).is_err(), "{key}");
+    }
+}
 fn directory() -> Option<(tempfile::TempDir, Value)> {
     if unsafe { libc::geteuid() } != 0 {
         return None;

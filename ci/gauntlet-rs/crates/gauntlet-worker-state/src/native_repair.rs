@@ -188,12 +188,26 @@ fn verified_keyed_receipt(
     if retained.preparation_sha256 != spec.preparation_sha256 {
         return Err("keyed repair preparation changed".into());
     }
-    let value = crate::native_repair_receipt::verify_keyed(
-        raw,
-        &prelaunch,
-        &spec.preparation_sha256,
-        &running.sha256,
-    )?;
+    let value = if matches!(
+        spec.execution,
+        crate::NativeJobExecution::HostPinnedLive { .. }
+    ) {
+        let live = crate::native_live_prepare::retained(spec, &running.deployment_digest)?;
+        crate::native_repair_receipt::verify_live_keyed(
+            raw,
+            &prelaunch,
+            &spec.preparation_sha256,
+            &running.sha256,
+            &crate::native_live_model::sha(&live.raw),
+        )?
+    } else {
+        crate::native_repair_receipt::verify_keyed(
+            raw,
+            &prelaunch,
+            &spec.preparation_sha256,
+            &running.sha256,
+        )?
+    };
     keyed_exclusive(journal, &spec.job_id)?;
     keyed_quiescence(spec, preparation, running)?;
     let facts = current_keyed_facts(
@@ -214,7 +228,7 @@ fn verified_keyed_receipt(
 pub fn repair_native_host_pinned(
     pins: &crate::NativePrelaunchRepairPins<'_>,
 ) -> Result<Vec<u8>, String> {
-    keyed_repair(pins, true)
+    keyed_repair(pins, true, None)
 }
 
 /// Read an existing repair under the original public pins. A missing/partial
@@ -222,12 +236,23 @@ pub fn repair_native_host_pinned(
 pub fn read_native_host_pinned_repair(
     pins: &crate::NativePrelaunchRepairPins<'_>,
 ) -> Result<Vec<u8>, String> {
-    keyed_repair(pins, false)
+    keyed_repair(pins, false, None)
+}
+pub fn repair_native_live_host_pinned(
+    pins: &crate::NativePrelaunchRepairPins<'_>,
+    live_prepared_sha256: &str,
+    publish: bool,
+) -> Result<Vec<u8>, String> {
+    if !crate::hex(live_prepared_sha256, 64) {
+        return Err("outside live preparation receipt pin required for recovery".into());
+    }
+    keyed_repair(pins, publish, Some(live_prepared_sha256))
 }
 
 fn keyed_repair(
     pins: &crate::NativePrelaunchRepairPins<'_>,
     publish: bool,
+    live_prepared_sha256: Option<&str>,
 ) -> Result<Vec<u8>, String> {
     gauntlet_cell_rootfs::require_outside_root()?;
     crate::verify_running_binary(pins.repair_generation).map_err(|e| e.to_string())?;
@@ -249,6 +274,21 @@ fn keyed_repair(
     )?;
     if original != *p || spec.preparation_sha256 != pins.preparation_sha256 {
         return Err("keyed repair differs from outside original reservation/preparation".into());
+    }
+    let live = matches!(
+        spec.execution,
+        crate::NativeJobExecution::HostPinnedLive { .. }
+    );
+    if live != live_prepared_sha256.is_some() {
+        return Err(
+            "live recovery requires its explicit outside preparation pin and selector".into(),
+        );
+    }
+    if let Some(expected) = live_prepared_sha256 {
+        let prepared = crate::native_live_prepare::retained(&spec, &p.deployment_digest)?;
+        if crate::native_live_model::sha(&prepared.raw) != expected {
+            return Err("live repair differs from original Host preparation receipt".into());
+        }
     }
     let (_, preparation) = load(
         &request(&p.source_sha, &p.job_id, &p.deployment_digest)?,
@@ -335,11 +375,15 @@ fn keyed_repair(
     crate::verify_running_binary(pins.repair_generation).map_err(|e| e.to_string())?;
     let prelaunch: Value = serde_json::from_slice(&p.to_bytes().map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;
-    let value = json!({"schema":crate::native_repair_receipt::KEYED_SCHEMA,"prelaunch":prelaunch,
+    let mut value = json!({"schema":if live{crate::native_repair_receipt::LIVE_KEYED_SCHEMA}else{crate::native_repair_receipt::KEYED_SCHEMA},"prelaunch":prelaunch,
         "preparation_sha256":pins.preparation_sha256,"running_marker_sha256":running.sha256,
         "repair_generation":pins.repair_generation,"status":"aborted","controller_state":"released-exit-unavailable",
         "exit_code":null,"model_requests":0,"artifact_admitted":false,"execution_eligible":false,
         "qualification_eligible":false,"guard_causality_verified":false,"cleanup":cleanup});
+    if let Some(pin) = live_prepared_sha256 {
+        value["live_prepared_sha256"] = json!(pin);
+        value["model_requests"] = Value::Null;
+    }
     let raw = canonicalize(value.to_string().as_bytes()).map_err(|e| e.to_string())?;
     verified_keyed_receipt(&journal, &spec, &preparation, &running, &raw)?;
     crate::terminal::create_durable(
@@ -369,124 +413,12 @@ pub fn repair_native_worker(
     expected_started: &str,
     repair_generation: &str,
 ) -> Result<Vec<u8>, String> {
-    gauntlet_cell_rootfs::require_outside_root()?;
-    crate::verify_running_binary(repair_generation).map_err(|e| e.to_string())?;
-    let run = request(source, job, deployment)?;
-    if !crate::hex(expected_started, 64) {
-        return Err("outside started-marker pin required for repair".into());
-    }
-    let journal =
-        RunReservationJournal::open_root_owned(Path::new(STATE)).map_err(|e| e.to_string())?;
-    let lease = journal.acquire_active_lease().map_err(|e| e.to_string())?;
-    let python = crate::builder_image_context::python_worker_lock().map_err(|e| e.to_string())?;
-    let started = journal
-        .started(job, source, deployment, generation)
-        .map_err(|e| e.to_string())?
-        .ok_or("native job was never reserved")?;
-    if started.sha256 != expected_started || started.controller_public_key_hex.is_some() {
-        return Err("native repair differs from original unkeyed apparatus reservation".into());
-    }
-    for suffix in ["terminal.json", "report.json", "controller-key.json"] {
-        if read_bounded_regular(&journal.root, &format!("{job}.{suffix}"), 16 * 1024 * 1024)
-            .map_err(|e| e.to_string())?
-            .is_some()
-        {
-            return Err("terminal/keyed job is outside this native recovery profile".into());
-        }
-    }
-    if let Some(raw) = verified_receipt(&journal, source, job, deployment, generation)? {
-        return Ok(raw);
-    }
-    let running = journal
-        .running_marker(job, source, deployment, generation)
-        .map_err(|e| e.to_string())?
-        .ok_or("native job lacks a retained running identity")?;
-    controller_absent(&running)?;
-    let (spec, preparation) = load(&run, generation)?;
-    if matches!(
-        spec.execution,
-        crate::NativeJobExecution::McpTransport(_)
-            | crate::NativeJobExecution::SdkMcpTransport { .. }
-            | crate::NativeJobExecution::DeterministicControl { .. }
-            | crate::NativeJobExecution::HostPinnedControl { .. }
-    ) {
-        return Err(
-            "Native MCP recovery requires its own reviewed repair profile; original job retained"
-                .into(),
-        );
-    }
-    let sdk = matches!(
-        spec.execution,
-        crate::NativeJobExecution::SdkTransport { .. }
-    );
-    if sdk {
-        crate::native_sdk_quiescence::require_sdk_quiescence(&spec, &preparation)?;
-    }
-    lease.verify(&journal.root).map_err(|e| e.to_string())?;
-    crate::builder_image_context::verify_python_lock(&python).map_err(|e| e.to_string())?;
-    let mut cleanup = if sdk {
-        match gauntlet_cell_rootfs::native_preparation_image_history(&preparation)? {
-            gauntlet_cell_rootfs::NativeImageHistory::Closed => {
-                let quiescent =
-                    gauntlet_cell_rootfs::verify_closed_native_preparation(&preparation)?;
-                json!({"quiescent":quiescent,"image_unmounted":true,"active_pointer_absent":true,"active_pointer_sha256":null})
-            }
-            gauntlet_cell_rootfs::NativeImageHistory::Pending => {
-                let mut cleanup =
-                    gauntlet_cell_rootfs::recover_quiescent_preparation(&preparation)?;
-                cleanup["quiescent"]["image_history"] = json!("recovered-pending-v1");
-                cleanup
-            }
-        }
-    } else {
-        gauntlet_cell_rootfs::recover_quiescent_preparation(&preparation)?
-    };
-    if sdk {
-        crate::native_sdk_quiescence::require_sdk_quiescence(&spec, &preparation)?;
-        cleanup["sdk_agent_absent"] = json!(true);
-        cleanup["sdk_profile_absent"] = json!(true);
-    }
-    controller_absent(&running)?;
-    if journal
-        .running_marker(job, source, deployment, generation)
-        .map_err(|e| e.to_string())?
-        != Some(running.clone())
-    {
-        return Err("running marker changed during native repair".into());
-    }
-    crate::verify_running_binary(repair_generation).map_err(|e| e.to_string())?;
-    lease.verify(&journal.root).map_err(|e| e.to_string())?;
-    crate::builder_image_context::verify_python_lock(&python).map_err(|e| e.to_string())?;
-    let receipt = NativeRepairReceipt {
-        schema: if sdk {
-            "hol-gauntlet-native-worker-repair.v2"
-        } else {
-            "hol-gauntlet-native-worker-repair.v1"
-        }
-        .into(),
-        source_sha: source.into(),
-        job_id: job.into(),
-        deployment_digest: deployment.into(),
-        worker_generation: generation.into(),
-        started_marker_sha256: started.sha256,
-        running_marker_sha256: running.sha256,
-        preparation_sha256: spec.preparation_sha256,
-        repair_generation: repair_generation.into(),
-        status: "aborted".into(),
-        model_requests: 0,
-        execution_eligible: false,
-        guard_causality_verified: false,
-        exit_code: None,
-        cleanup,
-    };
-    let raw = canonicalize(
-        serde_json::to_string(&receipt)
-            .map_err(|e| e.to_string())?
-            .as_bytes(),
+    crate::native_startup_repair::repair_released_worker(
+        source,
+        deployment,
+        generation,
+        job,
+        expected_started,
+        repair_generation,
     )
-    .map_err(|e| e.to_string())?;
-    crate::terminal::create_durable(&journal.root, &format!("{job}.native-repair.json"), &raw)
-        .map_err(|e| e.to_string())?;
-    verified_receipt(&journal, source, job, deployment, generation)?
-        .ok_or("native repair receipt unavailable after commit".into())
 }

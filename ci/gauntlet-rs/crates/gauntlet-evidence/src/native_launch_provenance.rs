@@ -5,6 +5,50 @@ use crate::native_process_kernel::{hex, number};
 use crate::Result;
 use serde_json::{json, Value};
 
+pub(crate) const PIPE_HOST_HELPERS_V5: &[&str] = &[
+    "/usr/bin/systemd-run",
+    "/usr/bin/systemctl",
+    "/usr/bin/aa-exec",
+    "/usr/bin/unshare",
+    "/usr/sbin/apparmor_parser",
+];
+
+/// Closed declaration selection only. A helper pin is not proof that the helper
+/// executed or that nsenter entered the outside parent's held namespace.
+pub(crate) fn pipe_launch(launch: &Value) -> Result<bool> {
+    let v6 = match launch["schema"].as_str() {
+        Some("hol-gauntlet-cell-supervisor.v5") => false,
+        Some("hol-gauntlet-cell-supervisor.v6") => true,
+        _ => return Ok(false),
+    };
+    let helpers = launch["host_helpers"]
+        .as_object()
+        .ok_or(crate::EvidenceError::Invalid(
+            "fixed pipe-launch helpers required",
+        ))?;
+    require(
+        helpers.len() == PIPE_HOST_HELPERS_V5.len() + usize::from(v6)
+            && launch["process_events"] == "outside-root-ptrace.v1"
+            && launch["native_stdio"] == "outside-root-native-pipes.v1"
+            && launch["native_runtime_sha256"]
+                .as_str()
+                .is_some_and(|v| hex(v, 64)),
+    )?;
+    for name in PIPE_HOST_HELPERS_V5
+        .iter()
+        .copied()
+        .chain(v6.then_some("/usr/bin/nsenter"))
+    {
+        require(
+            helpers
+                .get(name)
+                .and_then(Value::as_str)
+                .is_some_and(|v| hex(v, 64)),
+        )?;
+    }
+    Ok(true)
+}
+
 pub(crate) fn verify(
     preparation: &Value,
     events: &[Value],
@@ -26,6 +70,7 @@ pub(crate) fn verify(
         )?;
         return Ok(None);
     }
+    pipe_launch(launch)?;
     require(
         matches!(
             launch["schema"].as_str(),
@@ -34,19 +79,13 @@ pub(crate) fn verify(
                     | "hol-gauntlet-cell-supervisor.v3"
                     | "hol-gauntlet-cell-supervisor.v4"
                     | "hol-gauntlet-cell-supervisor.v5"
+                    | "hol-gauntlet-cell-supervisor.v6"
             )
         ) && (launch["schema"] != "hol-gauntlet-cell-supervisor.v3"
             || launch["process_events"] == "outside-root-ptrace.v1")
             && (launch["schema"] != "hol-gauntlet-cell-supervisor.v4"
                 || (launch["process_events"] == "outside-root-ptrace.v2"
                     && launch["native_stdio"] == "outside-root-native-stdio.v1"
-                    && hex(
-                        crate::native_diagnostic_artifacts::text(launch, "native_runtime_sha256")?,
-                        64,
-                    )))
-            && (launch["schema"] != "hol-gauntlet-cell-supervisor.v5"
-                || (launch["process_events"] == "outside-root-ptrace.v1"
-                    && launch["native_stdio"] == "outside-root-native-pipes.v1"
                     && hex(
                         crate::native_diagnostic_artifacts::text(launch, "native_runtime_sha256")?,
                         64,
@@ -165,7 +204,8 @@ mod tests {
         let (mut prep, events) = fixture();
         prep["launch"] = json!({"schema":"hol-gauntlet-cell-supervisor.v5","process_events":"outside-root-ptrace.v1",
             "native_stdio":"outside-root-native-pipes.v1","native_runtime_sha256":"c".repeat(64),
-            "image_interpreter_sha256":"a".repeat(64),"outside_observer_sha256":"b".repeat(64)});
+            "image_interpreter_sha256":"a".repeat(64),"outside_observer_sha256":"b".repeat(64),
+            "host_helpers":PIPE_HOST_HELPERS_V5.iter().map(|name|((*name).to_owned(),json!("d".repeat(64)))).collect::<serde_json::Map<_,_>>()});
         assert!(read(&prep, &events, true).unwrap().is_some());
         for (key, value) in [
             ("process_events", json!("outside-root-ptrace.v2")),
@@ -176,5 +216,65 @@ mod tests {
             changed["launch"][key] = value;
             assert!(read(&changed, &events, true).is_err(), "{key}");
         }
+    }
+
+    #[test]
+    fn v6_requires_nsenter_without_broadening_the_v5_helper_or_transport_contract() {
+        let (mut prep, events) = fixture();
+        let helpers = PIPE_HOST_HELPERS_V5
+            .iter()
+            .map(|name| ((*name).to_owned(), json!("d".repeat(64))))
+            .collect::<serde_json::Map<_, _>>();
+        prep["launch"] = json!({"schema":"hol-gauntlet-cell-supervisor.v5","process_events":"outside-root-ptrace.v1",
+            "native_stdio":"outside-root-native-pipes.v1","native_runtime_sha256":"c".repeat(64),
+            "image_interpreter_sha256":"a".repeat(64),"outside_observer_sha256":"b".repeat(64),"host_helpers":helpers});
+        assert!(read(&prep, &events, true).unwrap().is_some());
+        prep["launch"]["host_helpers"]["/usr/bin/nsenter"] = json!("e".repeat(64));
+        assert!(read(&prep, &events, true).is_err());
+        prep["launch"]["schema"] = json!("hol-gauntlet-cell-supervisor.v6");
+        let result = read(&prep, &events, true).unwrap().unwrap();
+        assert_eq!(result["observer_execution_authenticated"], false);
+        assert_eq!(result["execution_eligible"], false);
+        assert!(read(&prep, &events, false).is_err());
+        for name in PIPE_HOST_HELPERS_V5
+            .iter()
+            .copied()
+            .chain(["/usr/bin/nsenter"])
+        {
+            let mut missing = prep.clone();
+            missing["launch"]["host_helpers"]
+                .as_object_mut()
+                .unwrap()
+                .remove(name);
+            assert!(read(&missing, &events, true).is_err(), "{name}");
+        }
+        for (pointer, value) in [
+            ("/launch/process_events", json!("outside-root-ptrace.v2")),
+            (
+                "/launch/native_stdio",
+                json!("outside-root-native-stdio.v1"),
+            ),
+            ("/launch/native_runtime_sha256", json!(false)),
+            ("/launch/schema", json!("hol-gauntlet-cell-supervisor.v7")),
+        ] {
+            let mut changed = prep.clone();
+            *changed.pointer_mut(pointer).unwrap() = value;
+            assert!(read(&changed, &events, true).is_err(), "{pointer}");
+        }
+        for value in [json!(false), json!("not-a-sha256"), json!("E".repeat(64))] {
+            let mut changed = prep.clone();
+            changed["launch"]["host_helpers"]["/usr/bin/nsenter"] = value;
+            assert!(read(&changed, &events, true).is_err());
+        }
+        let mut changed = prep.clone();
+        changed["launch"]["host_helpers"]["/bin/nsenter"] =
+            changed["launch"]["host_helpers"]["/usr/bin/nsenter"].take();
+        changed["launch"]["host_helpers"]
+            .as_object_mut()
+            .unwrap()
+            .remove("/usr/bin/nsenter");
+        assert!(read(&changed, &events, true).is_err());
+        prep["launch"]["host_helpers"]["/usr/bin/extra"] = json!("e".repeat(64));
+        assert!(read(&prep, &events, true).is_err());
     }
 }

@@ -16,17 +16,26 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[path = "candidate_artifact_operation.rs"]
+pub(crate) mod artifact;
+pub use artifact::{run_source_artifact_command, SOURCE_ARTIFACT_USAGE};
 #[path = "native_transport_context.rs"]
 pub(crate) mod context;
+#[path = "live_campaign_operation.rs"]
+pub(crate) mod live;
 #[path = "native_preparation_operation.rs"]
 mod preparation;
+#[cfg(test)]
+pub(crate) use preparation::job_storage_fixture;
+pub(crate) use preparation::verify_storage as verify_job_storage;
 #[path = "native_public_export.rs"]
 mod public_export;
+pub use live::{run_live_campaign_command, LIVE_CAMPAIGN_USAGE};
 #[path = "native_operation_transport.rs"]
 mod transport;
 
 const LIMIT: u64 = NATIVE_HOST_PINNED_COMPLETION_LIMIT as u64;
-pub const NATIVE_OPERATION_USAGE: &str = "deterministic commands:\ninitialize PRIVATE_0700_JOURNAL VM LIMA_SHA256 SOURCE_SHA JOB_ID WORKER_SHA256 SSH_HOME LIMA_HOME\ninitialize-read PRIVATE_JOURNAL JOB_ID INITIALIZATION_INTENT_SHA256\nrecord PRIVATE_0700_JOURNAL VM LIMA_SHA256 SOURCE_SHA JOB_ID DEPLOYMENT_SHA256 WORKER_SHA256 PREPARATION_SHA256 ROLE INTERPRETER_SHA256 OBSERVER_SHA256 SSH_HOME LIMA_HOME\nprepare PRIVATE_JOURNAL JOB_ID INTENT_SHA256 PRIVATE_BUNDLE_JSON BUNDLE_SHA256\nprepare-read PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nrun|read PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nreport PRIVATE_JOURNAL JOB_ID INTENT_SHA256 [PRIVATE_ARTIFACT_USTAR ARCHIVE_SHA256]\nrepair PRIVATE_JOURNAL JOB_ID INTENT_SHA256 REPAIR_SHA256 [--never-released]\nExecution uses the retained original VM and one-use dispatch. Unknown work blocks new runs. Reports distinguish producer status, independent judgment and qualification. Artifact USTARs stay private (0700 parent/0600 file); stdout contains hashes and sanitized judgments.";
+pub const NATIVE_OPERATION_USAGE: &str = "deterministic commands:\ninitialize PRIVATE_0700_JOURNAL VM LIMA_SHA256 SOURCE_SHA JOB_ID WORKER_SHA256 [MKE2FS_SHA256] SSH_HOME LIMA_HOME\ninitialize-read PRIVATE_JOURNAL JOB_ID INITIALIZATION_INTENT_SHA256\ninitialize-abort|initialize-abort-unreleased PRIVATE_JOURNAL JOB_ID INITIALIZATION_INTENT_SHA256 INITIALIZATION_RECEIPT_SHA256 STORAGE_SHA256 PODMAN_SHA256 ABORTER_SHA256\ninitialize-abort-read|initialize-abort-resume PRIVATE_JOURNAL JOB_ID ABORT_INTENT_SHA256\nrecord PRIVATE_0700_JOURNAL VM LIMA_SHA256 SOURCE_SHA JOB_ID DEPLOYMENT_SHA256 WORKER_SHA256 PREPARATION_SHA256 ROLE INTERPRETER_SHA256 OBSERVER_SHA256 SSH_HOME LIMA_HOME\nprepare PRIVATE_JOURNAL JOB_ID INTENT_SHA256 PRIVATE_BUNDLE_JSON BUNDLE_SHA256\nprepare-read PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nrun|read PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nreport PRIVATE_JOURNAL JOB_ID INTENT_SHA256 [PRIVATE_ARTIFACT_USTAR ARCHIVE_SHA256]\nretire PRIVATE_JOURNAL JOB_ID INTENT_SHA256 RETIRER_SHA256\nretire-read|retire-resume PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nrepair PRIVATE_JOURNAL JOB_ID INTENT_SHA256 REPAIR_SHA256 [--never-released]\nExecution uses the retained original VM and one-use dispatch. Unknown work blocks new runs. Reports distinguish producer status, independent judgment and qualification. Artifact USTARs stay private (0700 parent/0600 file); stdout contains hashes and sanitized judgments.";
 
 fn hex(s: &str, n: usize) -> bool {
     s.len() == n
@@ -45,7 +54,8 @@ struct Intent(Value);
 impl Intent {
     fn parse(raw: &[u8]) -> Result<Self, String> {
         let value: Value = serde_json::from_slice(raw).map_err(|_| "native intent JSON invalid")?;
-        let fields = [
+        let live = value["schema"] == "hol-gauntlet-host-native-live-intent.v1";
+        let mut fields = vec![
             "schema",
             "job_id",
             "source_sha",
@@ -60,13 +70,16 @@ impl Intent {
             "observer_sha256",
             "transport_context",
         ];
+        if live {
+            fields.push("live");
+        }
         let text = |key: &str| value[key].as_str().unwrap_or("");
         let vm = text("vm");
         if raw != bytes(&value)?
             || value.as_object().is_none_or(|v| {
                 v.len() != fields.len() || fields.iter().any(|k| !v.contains_key(*k))
             })
-            || text("schema") != "hol-gauntlet-host-native-intent.v1"
+            || (!live && text("schema") != "hol-gauntlet-host-native-intent.v1")
             || !hex(text("job_id"), 16)
             || !is_git_sha(text("source_sha"))
             || ![
@@ -79,16 +92,23 @@ impl Intent {
             ]
             .iter()
             .all(|k| hex(text(k), 64))
-            || !matches!(
-                text("role"),
-                "success"
-                    | "input-binding"
-                    | "injection"
-                    | "boundary"
-                    | "timeout"
-                    | "cancel"
-                    | "readonly-utility"
-            )
+            || !(if live {
+                matches!(
+                    text("role"),
+                    "feature-ai-unprotected" | "feature-ai-protected"
+                )
+            } else {
+                matches!(
+                    text("role"),
+                    "success"
+                        | "input-binding"
+                        | "injection"
+                        | "boundary"
+                        | "timeout"
+                        | "cancel"
+                        | "readonly-utility"
+                )
+            })
             || !vm.starts_with("hol-")
             || vm.len() > 96
             || !vm
@@ -102,7 +122,31 @@ impl Intent {
         if value["transport_context"]["vm"] != value["vm"] {
             return Err("native intent Lima instance differs".into());
         }
+        if live {
+            live::validate_intent(&value)?;
+        }
         Ok(Self(value))
+    }
+    fn is_live(&self) -> bool {
+        self.0["schema"] == "hol-gauntlet-host-native-live-intent.v1"
+    }
+    fn declaration_version(&self) -> (&'static str, &'static str) {
+        if self.is_live() {
+            (
+                "hol-gauntlet-native-worker-job.v9",
+                "native-host-pinned-live-omp-v1",
+            )
+        } else if self.text("role") == "readonly-utility" {
+            (
+                "hol-gauntlet-native-worker-job.v8",
+                "native-host-pinned-readonly-hook-v1",
+            )
+        } else {
+            (
+                "hol-gauntlet-native-worker-job.v7",
+                "native-host-pinned-control-v1",
+            )
+        }
     }
     fn text(&self, k: &str) -> &str {
         self.0[k].as_str().expect("validated intent")
@@ -262,15 +306,10 @@ impl Journal {
         Ok(())
     }
     fn verify(&self, intent: &Intent, raw: &[u8]) -> Result<HostNativeControlReadback, String> {
-        HostControllerKeyPinJournal::open(&self.path)
-            .map_err(|e| e.to_string())?
-            .verify_native_completion(
-                raw,
-                &intent.expected(),
-                intent.text("preparation_sha256"),
-                intent.text("role"),
-            )
-            .map_err(|e| e.to_string())
+        if intent.is_live() {
+            return live::verify_completion(self, intent, raw);
+        }
+        preparation::verify_completion(self, intent, raw)
     }
     fn require_idle(&self) -> Result<(), String> {
         let mut count = 0;
@@ -280,7 +319,11 @@ impl Journal {
                 .file_name()
                 .to_str()
                 .map_err(|_| "native journal name invalid")?;
-            preparation::verify_idle_record(self, name)?;
+            public_export::verify_retirement_idle_record(self, name)?;
+            if preparation::verify_idle_record(self, name)? {
+                continue;
+            }
+            live::verify_idle_record(self, name)?;
             if let Some(job) = name.strip_suffix(".native-dispatch.json") {
                 count += 1;
                 if count > 4096 {
@@ -289,7 +332,11 @@ impl Journal {
                 let intent = self.intent(job)?;
                 self.require_dispatch(&intent)?;
                 if !self.absent(job, "repair-intent")? {
-                    transport::verify_retained_repair(self, &intent)?;
+                    if intent.is_live() {
+                        live::verify_retained_repair(self, &intent)?;
+                    } else {
+                        transport::verify_retained_repair(self, &intent)?;
+                    }
                 } else {
                     self.verify(&intent, &self.read(job, "completion")?)
                         .map_err(|_| "unknown native job blocks new dispatch")?;
@@ -317,20 +364,33 @@ impl Journal {
         self.require_dispatch(intent)?;
         self.retain(intent.job(), "completion", frame)?;
         Ok(
-            json!({"schema":"hol-gauntlet-host-deterministic-result.v1","operation":operation,
+            json!({"schema":if intent.is_live() {"hol-gauntlet-host-live-result.v1"}else{"hol-gauntlet-host-deterministic-result.v1"},"operation":operation,
             "job_id":intent.job(),"source_sha":intent.text("source_sha"),"intent_sha256":intent.digest()?,
             "completion_sha256":sha(frame),"readback":verified.observation(),"independent_judgment":null,
-            "next_operation":"report","execution_eligible":false,"qualification_eligible":false,"model_requests":0}),
+            "next_operation":"report","execution_eligible":false,"qualification_eligible":false,"model_requests":verified.observation()["model_requests"]}),
         )
     }
 }
 
 /// Parse the complete operation before opening private state or contacting Lima.
 pub fn run_native_operation_command(args: &[String]) -> Result<Value, String> {
+    if args
+        .first()
+        .is_some_and(|s| matches!(s.as_str(), "retire" | "retire-read" | "retire-resume"))
+    {
+        return public_export::run_retirement_command(args);
+    }
     if args.first().is_some_and(|v| {
         matches!(
             v.as_str(),
-            "initialize" | "initialize-read" | "prepare" | "prepare-read"
+            "initialize"
+                | "initialize-read"
+                | "initialize-abort"
+                | "initialize-abort-unreleased"
+                | "initialize-abort-read"
+                | "initialize-abort-resume"
+                | "prepare"
+                | "prepare-read"
         )
     }) {
         return preparation::run_command(args);
@@ -385,6 +445,9 @@ pub fn run_native_operation_command(args: &[String]) -> Result<Value, String> {
         );
     }
     let intent = journal.intent(&args[2])?;
+    if intent.is_live() {
+        return Err("live intent requires the explicit live campaign command".into());
+    }
     if intent.digest()? != args[3] {
         return Err("outside native intent digest differs".into());
     }
@@ -413,29 +476,7 @@ pub fn run_native_operation_command(args: &[String]) -> Result<Value, String> {
             journal.observe(&intent, "read", &raw)
         }
         "repair" => transport::repair(&journal, &intent, &args[4], args.len() == 6),
-        "report" => {
-            journal.require_dispatch(&intent)?;
-            let verified = journal.verify(&intent, &journal.read(intent.job(), "completion")?)?;
-            let (archive, archive_sha) = if args.len() == 6 {
-                public_export::require_private_input(Path::new(&args[4]))?;
-                (PathBuf::from(&args[4]), args[5].clone())
-            } else {
-                public_export::fetch(&journal, &intent, &verified)?
-            };
-            let judgment = verified.judge_artifacts(
-                &archive,
-                &archive_sha,
-                intent.text("interpreter_sha256"),
-                intent.text("observer_sha256"),
-            )?;
-            let output = json!({"schema":"hol-gauntlet-host-deterministic-report.v1","job_id":intent.job(),"source_sha":intent.text("source_sha"),
-                "intent_sha256":intent.digest()?,"archive_sha256":archive_sha,"readback":verified.observation(),"independent_judgment":judgment,
-                "execution_eligible":false,"qualification_eligible":false,"model_requests":0});
-            journal.require_dispatch(&intent)?;
-            let raw = bytes(&output)?;
-            journal.retain(intent.job(), &format!("judgment-{}", sha(&raw)), &raw)?;
-            Ok(output)
-        }
+        "report" => public_export::report(&journal, &intent, args),
         _ => unreachable!(),
     }
 }

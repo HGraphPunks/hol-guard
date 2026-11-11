@@ -1,6 +1,26 @@
 //! Exact saved-ID/capability checks shared by the Native SDK kernel observer.
 use std::collections::BTreeMap;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SdkEntrypoint {
+    Conformance,
+    Developer,
+}
+impl SdkEntrypoint {
+    pub(crate) fn argv(self) -> &'static [u8] {
+        match self {
+            Self::Conformance => b"/runtime/bun\0/runtime/public/private_cell_sdk_conformance.ts\0/runtime/public/episode.json\0",
+            Self::Developer => b"/runtime/bun\0/runtime/public/developer_omp_episode.ts\0/runtime/public/episode.json\0",
+        }
+    }
+    pub(crate) fn digest_input(self) -> &'static [u8] {
+        self.argv().strip_suffix(&[0]).unwrap()
+    }
+    pub(crate) fn matches(self, raw: &[u8]) -> bool {
+        raw == self.argv()
+    }
+}
+
 /// The inherited developer SDK template is explicitly a named unconfined
 /// profile. It must not be confused with the product cell's enforcing label.
 pub(crate) fn sdk_label(name: &str) -> Result<String, String> {
@@ -138,11 +158,29 @@ pub(crate) fn checked_status_for_uid(
 #[path = "native_sdk_peer_linux.rs"]
 mod kernel;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub(crate) use kernel::NativeSdkModelPeer;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use kernel::{NativeSdkBoundary, NativeSdkMcpPeer, NativeSdkPeer, NativeSdkRequestPeer};
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn sdk_entrypoint_is_selected_before_binding_and_cannot_change_profiles() {
+        for selected in [SdkEntrypoint::Conformance, SdkEntrypoint::Developer] {
+            assert!(selected.matches(selected.argv()));
+            assert!(!selected.matches(selected.digest_input()));
+            let mut extra = selected.argv().to_vec();
+            extra.extend_from_slice(b"--unsafe\0");
+            assert!(!selected.matches(&extra));
+            let other = if selected == SdkEntrypoint::Conformance {
+                SdkEntrypoint::Developer
+            } else {
+                SdkEntrypoint::Conformance
+            };
+            assert!(!selected.matches(other.argv()));
+        }
+    }
     #[test]
     fn sdk_label_requires_the_exact_named_mode_and_fresh_job_identity() {
         let name = format!("hol-gauntlet-sdk-{}-{}", "a".repeat(16), "b".repeat(32));

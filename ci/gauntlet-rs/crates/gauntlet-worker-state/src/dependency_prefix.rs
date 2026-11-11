@@ -86,8 +86,7 @@ fn tree_path(job: &str, name: &str) -> PathBuf {
         .join(name)
 }
 
-pub fn stage_native_dependency_prefix(pins: &DependencyPrefixPins<'_>) -> Result<Vec<u8>, String> {
-    gauntlet_cell_rootfs::require_outside_root()?;
+fn pins_valid(pins: &DependencyPrefixPins<'_>) -> Result<(), String> {
     if !crate::hex(pins.job_id, 16)
         || ![
             pins.intent_sha256,
@@ -101,6 +100,12 @@ pub fn stage_native_dependency_prefix(pins: &DependencyPrefixPins<'_>) -> Result
     {
         return Err("complete outside dependency prefix pins required".into());
     }
+    Ok(())
+}
+
+pub fn stage_native_dependency_prefix(pins: &DependencyPrefixPins<'_>) -> Result<Vec<u8>, String> {
+    gauntlet_cell_rootfs::require_outside_root()?;
+    pins_valid(pins)?;
     crate::verify_running_binary(pins.stage_generation).map_err(|e| e.to_string())?;
     let journal =
         RunReservationJournal::open_root_owned(Path::new(crate::builder_image_context::RUST_STATE))
@@ -181,6 +186,53 @@ pub fn stage_native_dependency_prefix(pins: &DependencyPrefixPins<'_>) -> Result
     crate::builder_image_context::verify_python_lock(&legacy).map_err(|e| e.to_string())?;
     verify_published_dependency_prefix(pins.job_id, &digest, p.text("source_sha"))?;
     canonicalize(value.to_string().as_bytes()).map_err(|e| e.to_string())
+}
+
+/// Reconcile only a completed original publication; no materialization or
+/// receipt writes are performed by this route.
+pub fn read_native_dependency_prefix(pins: &DependencyPrefixPins<'_>) -> Result<Vec<u8>, String> {
+    gauntlet_cell_rootfs::require_outside_root()?;
+    pins_valid(pins)?;
+    crate::verify_running_binary(pins.stage_generation).map_err(|e| e.to_string())?;
+    let _namespace_scope = crate::native_job_storage::owner::scope()?;
+    let journal =
+        RunReservationJournal::open_root_owned(Path::new(crate::builder_image_context::RUST_STATE))
+            .map_err(|e| e.to_string())?;
+    let lease = journal.acquire_active_lease().map_err(|e| e.to_string())?;
+    let legacy = crate::builder_image_context::python_worker_lock().map_err(|e| e.to_string())?;
+    crate::native_job_io::require_no_unknown_jobs(&journal)?;
+    crate::dependency_state::require_idle()?;
+    let intent = crate::dependency_repair::intent_for_job(pins.job_id, pins.intent_sha256)?;
+    let slot = crate::builder_candidate_source::open_fixed_build_slot(pins.job_id)
+        .map_err(|e| e.to_string())?;
+    if !matches!(
+        statat(&slot, PARTIAL, AtFlags::SYMLINK_NOFOLLOW),
+        Err(rustix::io::Errno::NOENT)
+    ) {
+        return Err("partial dependency publication cannot supply completed readback".into());
+    }
+    let raw = crate::dependency_io::read(&slot, RECEIPT, 0, 0o600, 8192)?;
+    let v: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
+    if v["intent_sha256"] != pins.intent_sha256
+        || v["result_sha256"] != pins.result_sha256
+        || v["dependency_archive_sha256"] != pins.archive_sha256
+        || v["python_sha256"] != pins.python_sha256
+        || v["stage_generation"] != pins.stage_generation
+    {
+        return Err("completed dependency prefix differs from original outside pins".into());
+    }
+    let digest = format!("{:x}", Sha256::digest(&raw));
+    for _ in 0..2 {
+        crate::dependency_io::verify_inputs(&slot, &intent)?;
+        verify_published_dependency_prefix(pins.job_id, &digest, intent.pins.text("source_sha"))?;
+        if crate::dependency_io::read(&slot, RECEIPT, 0, 0o600, 8192)? != raw {
+            return Err("completed dependency receipt changed".into());
+        }
+        lease.verify(&journal.root).map_err(|e| e.to_string())?;
+        crate::builder_image_context::verify_python_lock(&legacy).map_err(|e| e.to_string())?;
+    }
+    crate::verify_running_binary(pins.stage_generation).map_err(|e| e.to_string())?;
+    Ok(raw)
 }
 
 /// Caller holds the shared worker leases. This verifies a separate published

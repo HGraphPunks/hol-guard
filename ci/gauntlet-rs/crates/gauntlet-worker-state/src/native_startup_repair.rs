@@ -262,6 +262,140 @@ pub fn repair_native_pre_controller(
         .ok_or("startup repair readback absent".into())
 }
 
+/// Arguments bind both the original job and the currently running repair
+/// binary. No process, PID, cleanup command or terminal result is supplied.
+pub(crate) fn repair_released_worker(
+    source: &str,
+    deployment: &str,
+    generation: &str,
+    job: &str,
+    expected_started: &str,
+    repair_generation: &str,
+) -> Result<Vec<u8>, String> {
+    gauntlet_cell_rootfs::require_outside_root()?;
+    crate::verify_running_binary(repair_generation).map_err(|e| e.to_string())?;
+    let run = request(source, job, deployment)?;
+    if !crate::hex(expected_started, 64) {
+        return Err("outside started-marker pin required for repair".into());
+    }
+    let journal =
+        RunReservationJournal::open_root_owned(Path::new(STATE)).map_err(|e| e.to_string())?;
+    let lease = journal.acquire_active_lease().map_err(|e| e.to_string())?;
+    let python = crate::builder_image_context::python_worker_lock().map_err(|e| e.to_string())?;
+    let started = journal
+        .started(job, source, deployment, generation)
+        .map_err(|e| e.to_string())?
+        .ok_or("native job was never reserved")?;
+    if started.sha256 != expected_started || started.controller_public_key_hex.is_some() {
+        return Err("native repair differs from original unkeyed apparatus reservation".into());
+    }
+    for suffix in ["terminal.json", "report.json", "controller-key.json"] {
+        if read_bounded_regular(&journal.root, &format!("{job}.{suffix}"), 16 * 1024 * 1024)
+            .map_err(|e| e.to_string())?
+            .is_some()
+        {
+            return Err("terminal/keyed job is outside this native recovery profile".into());
+        }
+    }
+    if let Some(raw) =
+        crate::native_repair::verified_receipt(&journal, source, job, deployment, generation)?
+    {
+        return Ok(raw);
+    }
+    let running = journal
+        .running_marker(job, source, deployment, generation)
+        .map_err(|e| e.to_string())?
+        .ok_or("native job lacks a retained running identity")?;
+    crate::native_repair::controller_absent(&running)?;
+    let (spec, preparation) = load(&run, generation)?;
+    if matches!(
+        spec.execution,
+        crate::NativeJobExecution::McpTransport(_)
+            | crate::NativeJobExecution::SdkMcpTransport { .. }
+            | crate::NativeJobExecution::DeterministicControl { .. }
+            | crate::NativeJobExecution::HostPinnedControl { .. }
+    ) {
+        return Err(
+            "Native MCP recovery requires its own reviewed repair profile; original job retained"
+                .into(),
+        );
+    }
+    let sdk = matches!(
+        spec.execution,
+        crate::NativeJobExecution::SdkTransport { .. }
+    );
+    if sdk {
+        crate::native_sdk_quiescence::require_sdk_quiescence(&spec, &preparation)?;
+    }
+    lease.verify(&journal.root).map_err(|e| e.to_string())?;
+    crate::builder_image_context::verify_python_lock(&python).map_err(|e| e.to_string())?;
+    let mut cleanup = if sdk {
+        match gauntlet_cell_rootfs::native_preparation_image_history(&preparation)? {
+            gauntlet_cell_rootfs::NativeImageHistory::Closed => {
+                let quiescent =
+                    gauntlet_cell_rootfs::verify_closed_native_preparation(&preparation)?;
+                json!({"quiescent":quiescent,"image_unmounted":true,"active_pointer_absent":true,"active_pointer_sha256":null})
+            }
+            gauntlet_cell_rootfs::NativeImageHistory::Pending => {
+                let mut cleanup =
+                    gauntlet_cell_rootfs::recover_quiescent_preparation(&preparation)?;
+                cleanup["quiescent"]["image_history"] = json!("recovered-pending-v1");
+                cleanup
+            }
+        }
+    } else {
+        gauntlet_cell_rootfs::recover_quiescent_preparation(&preparation)?
+    };
+    if sdk {
+        crate::native_sdk_quiescence::require_sdk_quiescence(&spec, &preparation)?;
+        cleanup["sdk_agent_absent"] = json!(true);
+        cleanup["sdk_profile_absent"] = json!(true);
+    }
+    crate::native_repair::controller_absent(&running)?;
+    if journal
+        .running_marker(job, source, deployment, generation)
+        .map_err(|e| e.to_string())?
+        != Some(running.clone())
+    {
+        return Err("running marker changed during native repair".into());
+    }
+    crate::verify_running_binary(repair_generation).map_err(|e| e.to_string())?;
+    lease.verify(&journal.root).map_err(|e| e.to_string())?;
+    crate::builder_image_context::verify_python_lock(&python).map_err(|e| e.to_string())?;
+    let receipt = crate::native_repair_receipt::NativeRepairReceipt {
+        schema: if sdk {
+            "hol-gauntlet-native-worker-repair.v2"
+        } else {
+            "hol-gauntlet-native-worker-repair.v1"
+        }
+        .into(),
+        source_sha: source.into(),
+        job_id: job.into(),
+        deployment_digest: deployment.into(),
+        worker_generation: generation.into(),
+        started_marker_sha256: started.sha256,
+        running_marker_sha256: running.sha256,
+        preparation_sha256: spec.preparation_sha256,
+        repair_generation: repair_generation.into(),
+        status: "aborted".into(),
+        model_requests: 0,
+        execution_eligible: false,
+        guard_causality_verified: false,
+        exit_code: None,
+        cleanup,
+    };
+    let raw = canonicalize(
+        serde_json::to_string(&receipt)
+            .map_err(|e| e.to_string())?
+            .as_bytes(),
+    )
+    .map_err(|e| e.to_string())?;
+    crate::terminal::create_durable(&journal.root, &format!("{job}.native-repair.json"), &raw)
+        .map_err(|e| e.to_string())?;
+    crate::native_repair::verified_receipt(&journal, source, job, deployment, generation)?
+        .ok_or("native repair receipt unavailable after commit".into())
+}
+
 #[cfg(test)]
 #[path = "native_startup_repair_tests.rs"]
 mod tests;

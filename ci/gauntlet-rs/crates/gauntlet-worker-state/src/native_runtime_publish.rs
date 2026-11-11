@@ -2,7 +2,7 @@
 //! source path. It never writes a deployment/admission or runs package code.
 use crate::native_runtime_receipt::NativeRuntimePins;
 use crate::{CandidateDependencyLivePins, RunReservationJournal};
-use gauntlet_evidence::{inventory_tree, TreeKind};
+use gauntlet_evidence::{inventory_tree, TreeInventory, TreeKind};
 use rustix::fs::{
     fchmod, fstat, fsync, mkdirat, open, openat, renameat_with, statat, AtFlags, Mode, OFlags,
     RenameFlags,
@@ -35,6 +35,25 @@ fn absent(parent: &OwnedFd, name: &str) -> Result<(), String> {
         Err(rustix::io::Errno::NOENT) => Ok(()),
         _ => Err("runtime publication slot already consumed; preserve and reconcile".into()),
     }
+}
+
+fn publication(
+    pins: &NativeRuntimePins<'_>,
+    clone: &Value,
+    tree: &TreeInventory,
+    requirements: Value,
+) -> Result<Value, String> {
+    let text = |key: &str| {
+        clone[key]
+            .as_str()
+            .ok_or("native runtime clone field missing")
+    };
+    Ok(
+        json!({"schema":"hol-gauntlet-native-runtime-publication.v1","job_id":pins.job_id,"source_sha":pins.source_sha,"version":pins.version,
+        "clone_receipt_sha256":pins.clone_receipt_sha256,"source_archive_sha256":text("source_archive_sha256")?,"archive_sha256":text("archive_sha256")?,"dependency_prefix_receipt_sha256":text("dependency_prefix_receipt_sha256")?,
+        "prefix":Path::new("/opt/hol-gauntlet/candidates").join(pins.source_sha).join("prefix"),"prefix_tree_sha256":tree.digest,"prefix_entries":tree.entries,"prefix_bytes":tree.bytes,"native_sha256":pins.native_sha256,"publisher_generation":pins.generation,
+        "dependency_requirements":requirements,"candidate_executed":false,"conformance_completed":false,"artifact_admitted":false,"execution_eligible":false,"guard_causality_verified":false,"model_requests":0}),
+    )
 }
 
 pub fn publish_native_runtime(pins: &NativeRuntimePins<'_>) -> Result<Value, String> {
@@ -140,10 +159,7 @@ pub fn publish_native_runtime(pins: &NativeRuntimePins<'_>) -> Result<Value, Str
     {
         return Err("runtime publication crossed disk reserve; preserve partial".into());
     }
-    let result = json!({"schema":"hol-gauntlet-native-runtime-publication.v1","job_id":pins.job_id,"source_sha":pins.source_sha,"version":pins.version,
-        "clone_receipt_sha256":pins.clone_receipt_sha256,"source_archive_sha256":text("source_archive_sha256")?,"archive_sha256":text("archive_sha256")?,"dependency_prefix_receipt_sha256":text("dependency_prefix_receipt_sha256")?,
-        "prefix":parent.join(pins.source_sha).join("prefix"),"prefix_tree_sha256":copied.digest,"prefix_entries":copied.entries,"prefix_bytes":copied.bytes,"native_sha256":pins.native_sha256,"publisher_generation":pins.generation,
-        "dependency_requirements":requirements.to_json(),"candidate_executed":false,"conformance_completed":false,"artifact_admitted":false,"execution_eligible":false,"guard_causality_verified":false,"model_requests":0});
+    let result = publication(pins, &clone, &copied, requirements.to_json())?;
     let digest = crate::builder_candidate_receipt::write_root_canonical_job_file(
         &target,
         "native-runtime.v1.json",
@@ -196,5 +212,81 @@ pub fn publish_native_runtime(pins: &NativeRuntimePins<'_>) -> Result<Value, Str
     crate::builder_image_context::verify_python_lock(&legacy).map_err(|e| e.to_string())?;
     let mut result = result;
     result["receipt_sha256"] = digest.into();
+    Ok(result)
+}
+
+/// Reconcile a completed immutable publication only. Both original receipts
+/// and all source/dependency/prefix trees must still be retained and exact.
+pub fn read_native_runtime_publication(pins: &NativeRuntimePins<'_>) -> Result<Value, String> {
+    gauntlet_cell_rootfs::require_outside_root()?;
+    crate::verify_running_binary(pins.generation).map_err(|e| e.to_string())?;
+    let _namespace_scope = crate::native_job_storage::owner::scope()?;
+    let clone = crate::native_runtime_verify::read(pins)?;
+    let text = |key: &str| {
+        clone[key]
+            .as_str()
+            .ok_or("native runtime clone field missing")
+    };
+    let requirements =
+        crate::verify_cloned_candidate_dependencies_ineligible(&CandidateDependencyLivePins {
+            job_id: pins.job_id,
+            source_sha: pins.source_sha,
+            source_archive_sha256: text("source_archive_sha256")?,
+            archive_sha256: text("archive_sha256")?,
+            version: pins.version,
+            native_sha256: pins.native_sha256,
+            prefix_tree_sha256: pins.prefix_tree_sha256,
+            python_full_version: pins.python_full_version,
+        })
+        .map_err(|e| e.to_string())?;
+    let journal =
+        RunReservationJournal::open_root_owned(Path::new(crate::builder_image_context::RUST_STATE))
+            .map_err(|e| e.to_string())?;
+    let lease = journal.acquire_active_lease().map_err(|e| e.to_string())?;
+    let python = crate::builder_image_context::python_worker_lock().map_err(|e| e.to_string())?;
+    let original = crate::native_runtime_verify::verify(pins, &clone, &journal)?;
+    let base = crate::open_root_owned_public_directory(Path::new("/opt/hol-gauntlet"))
+        .map_err(|e| e.to_string())?;
+    let candidates = directory(&base, "candidates")?;
+    if fstat(&candidates).map_err(|e| e.to_string())?.st_mode & 0o7777 != 0o755 {
+        return Err("runtime source directory custody differs".into());
+    }
+    absent(
+        &candidates,
+        &format!("{}.native-{}", pins.source_sha, pins.job_id),
+    )?;
+    let target = directory(&candidates, pins.source_sha)?;
+    if fstat(&target).map_err(|e| e.to_string())?.st_mode & 0o7777 != 0o755 {
+        return Err("runtime publication incomplete or private".into());
+    }
+    let slot = crate::builder_candidate_source::open_fixed_build_slot(pins.job_id)
+        .map_err(|e| e.to_string())?;
+    let mut result = publication(pins, &clone, &original, requirements.to_json())?;
+    let raw = gauntlet_contracts::canonicalize(result.to_string().as_bytes())
+        .map_err(|e| e.to_string())?;
+    for _ in 0..2 {
+        if crate::dependency_io::read(&slot, "native-runtime-publication.v1.json", 0, 0o600, 8192)?
+            != raw
+            || crate::dependency_io::read(&target, "native-runtime.v1.json", 0, 0o600, 8192)? != raw
+        {
+            return Err("completed runtime publication differs from original pins/receipts".into());
+        }
+        let published = inventory_tree(
+            &Path::new("/opt/hol-gauntlet/candidates")
+                .join(pins.source_sha)
+                .join("prefix"),
+            TreeKind::InstalledPrefix,
+        )
+        .map_err(|e| e.to_string())?;
+        if published != original
+            || crate::native_runtime_verify::verify(pins, &clone, &journal)? != original
+        {
+            return Err("original published runtime or retained source chain changed".into());
+        }
+        lease.verify(&journal.root).map_err(|e| e.to_string())?;
+        crate::builder_image_context::verify_python_lock(&python).map_err(|e| e.to_string())?;
+    }
+    crate::verify_running_binary(pins.generation).map_err(|e| e.to_string())?;
+    result["receipt_sha256"] = crate::native_job_storage::linux::sha(&raw).into();
     Ok(result)
 }

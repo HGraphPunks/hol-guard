@@ -175,6 +175,24 @@ pub(crate) fn read_regular_bytes_bounded(
     if limit == 0 || limit > gauntlet_contracts::NATIVE_HOST_PINNED_COMPLETION_LIMIT as u64 {
         return Err(PrivateJobError::TooLarge);
     }
+    read_owned_regular(dir, name, owner, limit)
+}
+
+/// Inert dependency ZIPs have their own fixed 32 MiB format ceiling. This
+/// separate reader does not enlarge historical job or native completion bounds.
+pub(crate) fn read_dependency_capsule(
+    dir: &OwnedFd,
+    owner: u32,
+) -> Result<Vec<u8>, PrivateJobError> {
+    read_owned_regular(dir, "inputs.zip", owner, 32 * 1024 * 1024)
+}
+
+fn read_owned_regular(
+    dir: &OwnedFd,
+    name: &str,
+    owner: u32,
+    limit: u64,
+) -> Result<Vec<u8>, PrivateJobError> {
     let descriptor = openat(
         dir,
         name,
@@ -377,4 +395,60 @@ pub fn read_private_jobs_if_idle(state: &Path) -> Result<Vec<Value>, PrivateJobE
         return Err(PrivateJobError::Changed);
     }
     Ok(records)
+}
+
+#[cfg(test)]
+mod capsule_tests {
+    use super::*;
+    use std::fs::OpenOptions;
+    use std::os::unix::fs::{symlink, OpenOptionsExt, PermissionsExt};
+
+    #[test]
+    fn capsule_bound_preserves_historical_limits_and_refuses_unsafe_custody() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap();
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = root.join("inputs.zip");
+        let file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&path)
+            .unwrap();
+        file.set_len(17 * 1024 * 1024).unwrap();
+        let owner = geteuid().as_raw();
+        let dir = state_root(&root, owner).unwrap();
+        assert_eq!(
+            read_regular_bytes(&dir, "inputs.zip", owner),
+            Err(PrivateJobError::TooLarge)
+        );
+        assert_eq!(
+            read_regular_bytes_bounded(&dir, "inputs.zip", owner, 32 * 1024 * 1024),
+            Err(PrivateJobError::TooLarge)
+        );
+        assert_eq!(
+            read_dependency_capsule(&dir, owner).unwrap().len(),
+            17 * 1024 * 1024
+        );
+        file.set_len(32 * 1024 * 1024 + 1).unwrap();
+        assert_eq!(
+            read_dependency_capsule(&dir, owner),
+            Err(PrivateJobError::TooLarge)
+        );
+        file.set_len(1).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert_eq!(
+            read_dependency_capsule(&dir, owner),
+            Err(PrivateJobError::UnsafeJob)
+        );
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        std::fs::hard_link(&path, root.join("hardlink")).unwrap();
+        assert_eq!(
+            read_dependency_capsule(&dir, owner),
+            Err(PrivateJobError::UnsafeJob)
+        );
+        std::fs::rename(&path, root.join("saved")).unwrap();
+        symlink(root.join("saved"), &path).unwrap();
+        assert!(read_dependency_capsule(&dir, owner).is_err());
+    }
 }

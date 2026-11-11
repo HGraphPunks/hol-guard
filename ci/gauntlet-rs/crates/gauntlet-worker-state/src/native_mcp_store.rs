@@ -23,6 +23,8 @@ pub struct NativeMcpWorld {
     file_stat: Stat,
     world: World,
     poisoned: bool,
+    actor: String,
+    calls: Vec<Value>,
 }
 fn directory_same(a: &Stat, b: &Stat) -> bool {
     a.st_dev == b.st_dev
@@ -48,6 +50,63 @@ fn private_file(s: &Stat) -> bool {
         && s.st_nlink == 1
 }
 impl NativeMcpWorld {
+    pub(crate) fn open_prepared(
+        job_id: &str,
+        key: Ed25519KeyPair,
+        expected: &Value,
+    ) -> Result<Self, String> {
+        gauntlet_cell_rootfs::require_outside_root()?;
+        if !crate::hex(job_id, 16) {
+            return Err("exact prepared live World job required".into());
+        }
+        let path = PathBuf::from(crate::native_job_spec::NATIVE_JOBS).join(job_id);
+        let directory =
+            crate::open_root_owned_public_directory(&path).map_err(|e| e.to_string())?;
+        let directory_stat = fstat(&directory).map_err(|e| e.to_string())?;
+        if !private_directory(&directory_stat) {
+            return Err("private prepared World directory required".into());
+        }
+        let file = openat(
+            &directory,
+            DATABASE,
+            OFlags::RDWR | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| e.to_string())?;
+        let file_stat = fstat(&file).map_err(|e| e.to_string())?;
+        let identity = json!({"device":file_stat.st_dev,"inode":file_stat.st_ino,"uid":file_stat.st_uid,"gid":file_stat.st_gid,"mode":file_stat.st_mode&0o7777,"links":file_stat.st_nlink});
+        if !private_file(&file_stat) || &identity != expected {
+            return Err("prepared World database identity differs".into());
+        }
+        let connection = Connection::open_with_flags(
+            path.join(DATABASE),
+            OpenFlags::SQLITE_OPEN_READ_WRITE
+                | OpenFlags::SQLITE_OPEN_NO_MUTEX
+                | OpenFlags::SQLITE_OPEN_NOFOLLOW,
+        )
+        .map_err(|e| e.to_string())?;
+        let mut world = World::open(connection, key).map_err(|e| e.to_string())?;
+        let actor = world.snapshot().map_err(|e| e.to_string())?["actor_id"]
+            .as_str()
+            .ok_or("prepared World actor absent")?
+            .to_owned();
+        let owned = Self {
+            path,
+            directory,
+            directory_stat,
+            file,
+            file_stat,
+            world,
+            poisoned: false,
+            actor,
+            calls: Vec::new(),
+        };
+        owned.verify()?;
+        Ok(owned)
+    }
+    pub(crate) fn database_identity(&self) -> Value {
+        json!({"device":self.file_stat.st_dev,"inode":self.file_stat.st_ino,"uid":self.file_stat.st_uid,"gid":self.file_stat.st_gid,"mode":self.file_stat.st_mode&0o7777,"links":self.file_stat.st_nlink})
+    }
     pub fn new(job_id: &str, snapshot: &str, key: Ed25519KeyPair) -> Result<Self, String> {
         gauntlet_cell_rootfs::require_outside_root()?;
         if !crate::hex(job_id, 16) {
@@ -88,6 +147,12 @@ impl NativeMcpWorld {
                 | OpenFlags::SQLITE_OPEN_NOFOLLOW,
         )
         .map_err(|e| e.to_string())?;
+        let initial: Value =
+            serde_json::from_str(snapshot).map_err(|_| "MCP initial snapshot JSON")?;
+        let actor = initial["actor_id"]
+            .as_str()
+            .ok_or("source-selected World actor missing")?
+            .to_owned();
         let world = World::initialize(connection, snapshot, key).map_err(|e| e.to_string())?;
         let owned = Self {
             path: path.to_owned(),
@@ -97,6 +162,8 @@ impl NativeMcpWorld {
             file_stat,
             world,
             poisoned: false,
+            actor,
+            calls: Vec::new(),
         };
         owned.verify()?;
         Ok(owned)
@@ -179,6 +246,9 @@ impl NativeMcpWorld {
         self.check()?;
         result
     }
+    pub(crate) fn calls(&self) -> &[Value] {
+        &self.calls
+    }
     pub fn observation(&mut self) -> Result<Value, String> {
         self.check()?;
         Ok(
@@ -201,7 +271,26 @@ impl Operations for NativeMcpWorld {
             message,
         };
         self.check().map_err(custody)?;
-        let result = Operations::call(&mut self.world, operation, args, request_id);
+        if self.calls.len() >= 500 {
+            return Err(custody("Root World call bound exhausted".into()));
+        }
+        let before = self
+            .world
+            .receipts()
+            .map_err(|e| custody(e.to_string()))?
+            .len();
+        let result = Operations::call(&mut self.world, operation, args, request_id.clone());
+        let receipts = self.world.receipts().map_err(|e| custody(e.to_string()))?;
+        let receipt_sequence = if receipts.len() == before + 1 {
+            receipts
+                .last()
+                .and_then(|r| r["event"]["sequence"].as_u64())
+        } else {
+            None
+        };
+        self.calls.push(json!({"sequence":self.calls.len()+1,"request_id":request_id,"operation":operation,"actor":self.actor,
+            "args":args,"result":match &result {Ok(v)=>v.clone(),Err(e)=>json!({"error":{"category":e.category,"message":e.message}})},
+            "receipt_sequence":receipt_sequence}));
         self.check().map_err(custody)?;
         result
     }

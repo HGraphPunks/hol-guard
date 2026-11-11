@@ -91,19 +91,18 @@ impl NativeCell {
                 .as_mut()
                 .ok_or_else(|| "Native pipe owner was not established".to_owned())
                 .and_then(|wire| wire.finish());
-            self.journal.append(
-                "native-pipe-owner-terminal",
-                match &result {
-                    Ok(binding) => {
-                        json!({"available":true,"binding":binding,"execution_eligible":false})
-                    }
-                    Err(error) => {
-                        json!({"available":false,"error":error,"execution_eligible":false})
-                    }
-                },
-            )?;
+            let observation = match &result {
+                Ok(binding) => {
+                    json!({"available":true,"binding":binding,"execution_eligible":false})
+                }
+                Err(error) => json!({"available":false,"error":error,"execution_eligible":false}),
+            };
+            // Finish and release the owned recorder even if its terminal
+            // observation cannot be committed to an exhausted job volume.
             self.native_wire_result = Some(result);
             self.native_wire = None;
+            self.journal
+                .append("native-pipe-owner-terminal", observation)?;
         }
         self.native_wire_result
             .as_ref()

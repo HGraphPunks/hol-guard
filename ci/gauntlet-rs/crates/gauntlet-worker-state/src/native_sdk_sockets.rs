@@ -149,6 +149,7 @@ pub struct NativeSdkSockets {
     job_stat: Stat,
     gate: Endpoint,
     hooks: Endpoint,
+    model: Option<Endpoint>,
 }
 impl NativeSdkSockets {
     pub fn new(job_id: &str) -> Result<Self, String> {
@@ -173,8 +174,14 @@ impl NativeSdkSockets {
             job_stat,
             gate,
             hooks,
+            model: None,
         };
         sockets.verify_job()?;
+        Ok(sockets)
+    }
+    pub(crate) fn new_live(job_id: &str) -> Result<Self, String> {
+        let mut sockets = Self::new(job_id)?;
+        sockets.model = Some(Endpoint::new(&sockets.job, "sdk-model", "model.sock")?);
         Ok(sockets)
     }
     fn verify_job(&self) -> Result<(), String> {
@@ -203,10 +210,26 @@ impl NativeSdkSockets {
     pub fn hook_directory(&self) -> PathBuf {
         self.job_path.join("sdk-hooks")
     }
+    pub(crate) fn model_directory(&self) -> Result<PathBuf, String> {
+        self.model
+            .as_ref()
+            .ok_or("live SDK model endpoint absent")?;
+        Ok(self.job_path.join("sdk-model"))
+    }
+    pub(crate) fn accept_model(&self) -> Result<Option<UnixStream>, String> {
+        self.verify_job()?;
+        self.model
+            .as_ref()
+            .ok_or("live SDK model endpoint absent")?
+            .accept(&self.job)
+    }
     pub fn close(&mut self) -> Result<(), String> {
         self.verify_job()?;
         let gate = self.gate.close(&self.job);
         let hooks = self.hooks.close(&self.job);
+        if let Some(model) = self.model.as_mut() {
+            model.close(&self.job)?;
+        }
         match (gate, hooks) {
             (Ok(()), Ok(())) => Ok(()),
             (a, b) => Err(format!(
@@ -215,8 +238,13 @@ impl NativeSdkSockets {
         }
     }
     pub fn observation(&self) -> Value {
-        json!({"schema":"hol-gauntlet-native-sdk-sockets.v1","gate":self.gate.observation(),
+        let mut value = json!({"schema":"hol-gauntlet-native-sdk-sockets.v1","gate":self.gate.observation(),
             "hooks":self.hooks.observation(),"cleanup_complete":self.gate.closed&&self.hooks.closed,
-            "execution_eligible":false})
+            "execution_eligible":false});
+        if let Some(model) = &self.model {
+            value["schema"] = json!("hol-gauntlet-native-live-sdk-sockets.v1");
+            value["model"] = model.observation();
+        }
+        value
     }
 }

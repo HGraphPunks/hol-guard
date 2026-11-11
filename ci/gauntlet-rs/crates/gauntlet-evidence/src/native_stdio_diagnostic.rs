@@ -224,7 +224,7 @@ pub(crate) fn verify(
     hooks: &Value,
 ) -> Result<Option<Value>> {
     let launch = &preparation["launch"];
-    let pipe = launch["schema"] == "hol-gauntlet-cell-supervisor.v5";
+    let pipe = crate::native_launch_provenance::pipe_launch(launch)?;
     if !pipe && launch["schema"] != "hol-gauntlet-cell-supervisor.v4" {
         require(!artifacts.contains(FILE) && !artifacts.contains(PIPE))?;
         return Ok(None);
@@ -304,6 +304,37 @@ mod tests {
         ] {
             assert_eq!(value[key], false, "{key}");
         }
+    }
+    #[test]
+    fn v6_retains_exact_v5_pipe_journal_lifecycle_and_refuses_relabeling_helpers() {
+        let (control, prep, files) =
+            crate::native_process_trace_diagnostic::tests::v6_pipe_fixture();
+        let value = read(&control, &prep, &files).unwrap();
+        assert_eq!(value["native_client_streams"], 1);
+        assert_eq!(value["journal_report_binding_checked"], true);
+        assert_eq!(value["report_preparation_declarations_checked"], true);
+        assert_eq!(value["outside_observer_admitted"], false);
+        assert_eq!(value["execution_eligible"], false);
+        let mut downgrade = prep.clone();
+        downgrade["launch"]["schema"] = json!("hol-gauntlet-cell-supervisor.v5");
+        assert!(read(&control, &downgrade, &files).is_err());
+        let mut missing = prep.clone();
+        missing["launch"]["host_helpers"]
+            .as_object_mut()
+            .unwrap()
+            .remove("/usr/bin/nsenter");
+        assert!(read(&control, &missing, &files).is_err());
+        let mut changed = control.clone();
+        changed["plane"]["process_events"]["schema"] =
+            json!("hol-gauntlet-native-process-recorder.v2");
+        assert!(read(&changed, &prep, &files).is_err());
+        let mut changed = control.clone();
+        changed["plane"]["schema"] = json!("hol-gauntlet-native-hook-plane.v3");
+        assert!(read(&changed, &prep, &files).is_err());
+        let mut missing = files.clone();
+        missing.remove("combined/cell/native-pipe-events.v1.jsonl");
+        refresh(&mut missing);
+        assert!(read(&control, &prep, &missing).is_err());
     }
     #[test]
     fn historical_pipe_reader_refuses_the_mixed_socket_transport_schema() {

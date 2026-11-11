@@ -447,5 +447,15 @@ pub(crate) fn completed_response(
         return Err("dependency reconciliation response exceeds bound".into());
     }
     stable()?;
+    if let Some(archive) = response["report"]["captured_dependencies_sha256"].as_str() {
+        crate::native_job_storage::source::record_read(
+            intent.pins.text("job_id"),
+            crate::JobStorageProfile::Dependency,
+            archive,
+            &terminal.report_sha256,
+            &intent.digest()?,
+            &response,
+        )?;
+    }
     Ok(encoded)
 }

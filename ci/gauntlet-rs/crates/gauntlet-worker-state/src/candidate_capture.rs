@@ -379,8 +379,7 @@ pub fn capture_local_candidate_archive_ineligible(
     })
 }
 
-/// Verify the already captured Root archive and every inert wheel entry.
-/// This is a read-only diagnostic, not staging or a trusted terminal receipt.
+/// Inspect an existing captured wheel without granting execution admission.
 pub fn verify_captured_candidate_wheel_ineligible(
     job_id: &str,
     source_sha: &str,
@@ -409,55 +408,7 @@ pub fn verify_captured_candidate_wheel_ineligible(
     verify_captured_source(&job, source_archive_sha256)
         .map_err(|_| CandidateCaptureError::SourceMismatch)?;
     inactive(job_id)?;
-    let descriptor = openat(
-        &job,
-        ARCHIVE,
-        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
-        Mode::empty(),
-    )
-    .map_err(|_| CandidateCaptureError::CaptureUncertain)?;
-    let before = fstat(&descriptor).map_err(|_| CandidateCaptureError::CaptureUncertain)?;
-    if before.st_size <= 0 || before.st_size as u64 > MAX_ARCHIVE {
-        return Err(CandidateCaptureError::CaptureUncertain);
-    }
-    let declaration = verify_captured(
-        &job,
-        archive_sha256,
-        before.st_size as u64,
-        source_sha,
-        version,
-    )?;
-    let mut outer = ZipArchive::new(File::from(descriptor))
-        .map_err(|_| CandidateCaptureError::ArchiveInvalid)?;
-    let mut wheel = Vec::with_capacity(declaration.wheel_bytes as usize);
-    outer
-        .by_name(&declaration.wheel)
-        .map_err(|_| CandidateCaptureError::ArchiveInvalid)?
-        .take(MAX_ARCHIVE + 1)
-        .read_to_end(&mut wheel)
-        .map_err(|_| CandidateCaptureError::ArchiveInvalid)?;
-    if wheel.len() as u64 != declaration.wheel_bytes || wheel.len() as u64 > MAX_ARCHIVE {
-        return Err(CandidateCaptureError::ArchiveInvalid);
-    }
-    let nested = inspect_candidate_wheel(&wheel, &declaration)
-        .map_err(|_| CandidateCaptureError::WheelInvalid)?;
-    let held_file = outer.into_inner();
-    let held = fstat(&held_file).map_err(|_| CandidateCaptureError::CaptureUncertain)?;
-    let visible = statat(&job, ARCHIVE, AtFlags::SYMLINK_NOFOLLOW)
-        .map_err(|_| CandidateCaptureError::CaptureUncertain)?;
-    if !same_file(&before, &held) || !same_file(&before, &visible) {
-        return Err(CandidateCaptureError::CaptureUncertain);
-    }
-    let after = verify_captured(
-        &job,
-        archive_sha256,
-        before.st_size as u64,
-        source_sha,
-        version,
-    )?;
-    if after != declaration {
-        return Err(CandidateCaptureError::CaptureUncertain);
-    }
+    let (declaration, nested) = retained_wheel(&job, archive_sha256, source_sha, version)?;
     lease
         .verify(&journal.root)
         .map_err(|_| CandidateCaptureError::LeaseUnavailable)?;
@@ -473,3 +424,13 @@ pub fn verify_captured_candidate_wheel_ineligible(
         wheel: nested,
     })
 }
+
+#[path = "candidate_artifact_readback.rs"]
+mod readback;
+pub(crate) use readback::retained_wheel;
+#[cfg(test)]
+pub(crate) use readback::verify_stage;
+pub use readback::{
+    read_native_candidate_capture, read_native_candidate_wheel_stage,
+    NativeCandidateArtifactReadPins,
+};

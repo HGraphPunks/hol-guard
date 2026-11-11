@@ -62,6 +62,7 @@ pub(crate) fn checked_job_initialization(
     if !crate::hex(source, 40) || !crate::hex(job, 16) || !crate::hex(generation, 64) {
         return Err("outside source/job/worker pins required for native initialization".into());
     }
+    crate::native_job_storage::owner::enter_pinned(source, job, generation)?;
     let jobs = open_root_owned_public_directory(&Path::new(BASE).join("native-jobs"))
         .map_err(|e| e.to_string())?;
     crate::feature_files::private_directory(&jobs, (0, 0))?;
@@ -84,26 +85,72 @@ pub(crate) fn checked_job_initialization(
             }
         }
     }
-    let root_stat = fstat(&root).map_err(|e| e.to_string())?;
-    let task = fstat(&workspace).map_err(|e| e.to_string())?;
+    let receipts = open_root_owned_public_directory(&Path::new(BASE).join("native-initialization"))
+        .map_err(|e| e.to_string())?;
+    crate::feature_files::private_directory(&receipts, (0, 0))?;
+    let raw = crate::feature_files::required(
+        &receipts,
+        &format!("{job}.job.json"),
+        (0, 0),
+        0o600,
+        24576,
+    )?;
+    let retained: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
+    let storage = if retained["schema"] == "hol-gauntlet-native-job-initialization.v2" {
+        Some(crate::native_job_storage::lifecycle::verify_binding(
+            &retained["storage"],
+            source,
+            job,
+            generation,
+            crate::native_job_storage::JobStorageProfile::Native,
+        )?)
+    } else {
+        crate::native_job_storage::lifecycle::require_absent(job)?;
+        None
+    };
+    let receipt = job_receipt(source, job, generation, &root, &workspace, storage)?;
+    let expected = gauntlet_contracts::canonicalize(receipt.to_string().as_bytes())
+        .map_err(|e| e.to_string())?;
+    if raw != expected {
+        return Err("native initialization receipt or physical identity changed".into());
+    }
+    if let Some(storage) = receipt.get("storage") {
+        let volumes =
+            open_root_owned_public_directory(Path::new(crate::native_job_storage::lifecycle::BASE))
+                .map_err(|e| e.to_string())?;
+        let slot = crate::feature_files::open_directory(&volumes, job, (0, 0))?;
+        crate::native_job_storage::admission::verify_admitted(
+            &slot,
+            &gauntlet_contracts::canonicalize(storage["receipt"].to_string().as_bytes())
+                .map_err(|e| e.to_string())?,
+            &raw,
+        )?;
+    }
+    Ok((raw, receipt))
+}
+
+pub(crate) fn job_receipt(
+    source: &str,
+    job: &str,
+    generation: &str,
+    root: &OwnedFd,
+    workspace: &OwnedFd,
+    storage: Option<Value>,
+) -> Result<Value, String> {
+    let root_stat = fstat(root).map_err(|e| e.to_string())?;
+    let task = fstat(workspace).map_err(|e| e.to_string())?;
     let path = Path::new(crate::native_job_spec::NATIVE_JOBS).join(job);
-    let receipt = json!({"schema":"hol-gauntlet-native-job-initialization.v1","source_sha":source,"job_id":job,
+    let mut body = json!({"schema":"hol-gauntlet-native-job-initialization.v1","source_sha":source,"job_id":job,
         "worker_generation":generation,"job_directory":{"device":root_stat.st_dev,"inode":root_stat.st_ino,"uid":0,"gid":0,"mode":448},
         "workspace":{"source":path.join("workspace"),"destination":"/runtime/home/project","custody_root":path,
             "device":task.st_dev,"inode":task.st_ino,"uid":10001,"gid":10001,"mode":448},
         "job_dispatched":false,"candidate_executed":false,"artifact_admitted":false,"execution_eligible":false,
         "qualification_eligible":false,"guard_causality_verified":false,"model_requests":0});
-    let expected = gauntlet_contracts::canonicalize(receipt.to_string().as_bytes())
-        .map_err(|e| e.to_string())?;
-    let receipts = open_root_owned_public_directory(&Path::new(BASE).join("native-initialization"))
-        .map_err(|e| e.to_string())?;
-    crate::feature_files::private_directory(&receipts, (0, 0))?;
-    let raw =
-        crate::feature_files::required(&receipts, &format!("{job}.job.json"), (0, 0), 0o600, 8192)?;
-    if raw != expected {
-        return Err("native initialization receipt or physical identity changed".into());
+    if let Some(storage) = storage {
+        body["schema"] = json!("hol-gauntlet-native-job-initialization.v2");
+        body["storage"] = storage;
     }
-    Ok((raw, receipt))
+    Ok(body)
 }
 
 pub fn initialize_native_job(source: &str, job: &str, generation: &str) -> Result<Vec<u8>, String> {
@@ -145,6 +192,7 @@ fn native_job_initialization(
         if crate::native_worker::cancellation_requested() {
             return Err("native job initialization cancelled".into());
         }
+        crate::native_job_storage::lifecycle::require_absent(job)?;
         let jobs = open_root_owned_public_directory(&Path::new(BASE).join("native-jobs"))
             .map_err(|e| e.to_string())?;
         crate::feature_files::private_directory(&jobs, (0, 0))?;
@@ -158,15 +206,7 @@ fn native_job_initialization(
         .and_then(|_| fsync(&workspace))
         .and_then(|_| fsync(&root))
         .map_err(|e| e.to_string())?;
-        let root_stat = fstat(&root).map_err(|e| e.to_string())?;
-        let task = fstat(&workspace).map_err(|e| e.to_string())?;
-        let path = Path::new(crate::native_job_spec::NATIVE_JOBS).join(job);
-        let body = json!({"schema":"hol-gauntlet-native-job-initialization.v1","source_sha":source,"job_id":job,
-            "worker_generation":generation,"job_directory":{"device":root_stat.st_dev,"inode":root_stat.st_ino,"uid":0,"gid":0,"mode":448},
-            "workspace":{"source":path.join("workspace"),"destination":"/runtime/home/project","custody_root":path,
-                "device":task.st_dev,"inode":task.st_ino,"uid":10001,"gid":10001,"mode":448},
-            "job_dispatched":false,"candidate_executed":false,"artifact_admitted":false,"execution_eligible":false,
-            "qualification_eligible":false,"guard_causality_verified":false,"model_requests":0});
+        let body = job_receipt(source, job, generation, &root, &workspace, None)?;
         let raw = gauntlet_contracts::canonicalize(body.to_string().as_bytes())
             .map_err(|e| e.to_string())?;
         lease.verify(&journal.root).map_err(|e| e.to_string())?;
@@ -177,7 +217,10 @@ fn native_job_initialization(
         crate::feature_files::private_directory(&receipts, (0, 0))?;
         crate::feature_files::write(&receipts, &format!("{job}.job.json"), &raw, (0, 0), 0o600)?;
     }
-    let (raw, _) = job_initialization(source, job, generation)?;
+    let (raw, body) = job_initialization(source, job, generation)?;
+    if body["schema"] != "hol-gauntlet-native-job-initialization.v1" {
+        return Err("v1 initialization cannot adopt a bounded v2 job".into());
+    }
     lease.verify(&journal.root).map_err(|e| e.to_string())?;
     crate::builder_image_context::verify_python_lock(&python).map_err(|e| e.to_string())?;
     crate::verify_running_binary(generation).map_err(|e| e.to_string())?;

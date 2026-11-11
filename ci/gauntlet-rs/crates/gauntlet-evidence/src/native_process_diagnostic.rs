@@ -246,6 +246,7 @@ pub fn verify_native_process_diagnostic(
                 | "hol-gauntlet-cell-supervisor.v3"
                 | "hol-gauntlet-cell-supervisor.v4"
                 | "hol-gauntlet-cell-supervisor.v5"
+                | "hol-gauntlet-cell-supervisor.v6"
         )
     ) {
         crate::native_capture_input::journal_binding(&control["plane"], &artifacts)?

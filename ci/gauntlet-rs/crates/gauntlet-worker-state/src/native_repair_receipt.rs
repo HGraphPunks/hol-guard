@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub(crate) const KEYED_SCHEMA: &str = "hol-gauntlet-native-keyed-worker-repair.v1";
+pub(crate) const LIVE_KEYED_SCHEMA: &str = "hol-gauntlet-native-live-keyed-worker-repair.v1";
 
 /// Public original-key custody and observed quiescence can close uncertainty,
 /// but cannot recover a lost exit or create a controller-signed result.
@@ -14,13 +15,34 @@ pub(crate) fn verify_keyed(
     preparation: &str,
     running: &str,
 ) -> Result<Value, String> {
+    verify_keyed_profile(raw, prelaunch, preparation, running, None)
+}
+pub(crate) fn verify_live_keyed(
+    raw: &[u8],
+    prelaunch: &gauntlet_contracts::PrelaunchPrepared,
+    preparation: &str,
+    running: &str,
+    live_prepared: &str,
+) -> Result<Value, String> {
+    if !hex(live_prepared, 64) {
+        return Err("outside live preparation receipt pin required for repair".into());
+    }
+    verify_keyed_profile(raw, prelaunch, preparation, running, Some(live_prepared))
+}
+fn verify_keyed_profile(
+    raw: &[u8],
+    prelaunch: &gauntlet_contracts::PrelaunchPrepared,
+    preparation: &str,
+    running: &str,
+    live_prepared: Option<&str>,
+) -> Result<Value, String> {
     if raw.len() > 8192 || canonicalize(raw).map_err(|e| e.to_string())? != raw {
         return Err("bounded canonical keyed repair receipt required".into());
     }
     let value: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;
     let expected: Value = serde_json::from_slice(&prelaunch.to_bytes().map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;
-    let fields = [
+    let mut fields = vec![
         "schema",
         "prelaunch",
         "preparation_sha256",
@@ -36,6 +58,9 @@ pub(crate) fn verify_keyed(
         "guard_causality_verified",
         "cleanup",
     ];
+    if live_prepared.is_some() {
+        fields.push("live_prepared_sha256");
+    }
     let cleanup = &value["cleanup"];
     let absent = [
         "image_unmounted",
@@ -55,7 +80,12 @@ pub(crate) fn verify_keyed(
         || value.as_object().is_none_or(|o| {
             o.len() != fields.len() || fields.iter().any(|key| !o.contains_key(*key))
         })
-        || value["schema"] != KEYED_SCHEMA
+        || value["schema"]
+            != if live_prepared.is_some() {
+                LIVE_KEYED_SCHEMA
+            } else {
+                KEYED_SCHEMA
+            }
         || value["prelaunch"] != expected
         || value["preparation_sha256"] != preparation
         || value["running_marker_sha256"] != running
@@ -65,7 +95,11 @@ pub(crate) fn verify_keyed(
         || value["status"] != "aborted"
         || value["controller_state"] != "released-exit-unavailable"
         || !value["exit_code"].is_null()
-        || value["model_requests"].as_u64() != Some(0)
+        || if let Some(pin) = live_prepared {
+            value["live_prepared_sha256"] != pin || !value["model_requests"].is_null()
+        } else {
+            value["model_requests"].as_u64() != Some(0)
+        }
         || [
             "artifact_admitted",
             "execution_eligible",
@@ -309,6 +343,42 @@ mod tests {
             &vec![b' '; 8193],
         ] {
             assert!(verify_keyed(raw, &prelaunch, &"1".repeat(64), &"2".repeat(64)).is_err());
+        }
+    }
+    #[test]
+    fn live_repair_retains_unknown_usage_and_cannot_downgrade_to_zero_model() {
+        let (prelaunch, mut value) = keyed_fixture();
+        value["schema"] = json!(LIVE_KEYED_SCHEMA);
+        value["model_requests"] = Value::Null;
+        value["live_prepared_sha256"] = json!("5".repeat(64));
+        let check = |value: &Value| {
+            verify_live_keyed(
+                &canonicalize(value.to_string().as_bytes()).unwrap(),
+                &prelaunch,
+                &"1".repeat(64),
+                &"2".repeat(64),
+                &"5".repeat(64),
+            )
+        };
+        check(&value).unwrap();
+        assert!(verify_keyed(
+            &canonicalize(value.to_string().as_bytes()).unwrap(),
+            &prelaunch,
+            &"1".repeat(64),
+            &"2".repeat(64)
+        )
+        .is_err());
+        for (key, bad) in [
+            ("model_requests", json!(0)),
+            ("model_requests", json!(3)),
+            ("exit_code", json!(0)),
+            ("live_prepared_sha256", json!("6".repeat(64))),
+            ("schema", json!(KEYED_SCHEMA)),
+            ("qualification_eligible", json!(true)),
+        ] {
+            let mut changed = value.clone();
+            changed[key] = bad;
+            assert!(check(&changed).is_err(), "{key}");
         }
     }
 

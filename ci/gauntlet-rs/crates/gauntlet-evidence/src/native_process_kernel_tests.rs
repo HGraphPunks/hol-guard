@@ -130,8 +130,20 @@ fn v2_limits_are_closed_pinned_and_available_only_to_traced_launch_v3() {
     assert!(KernelSamples::for_launch(&observed, &"d".repeat(64), &traced).is_ok());
     let stdio = json!({"schema":"hol-gauntlet-cell-supervisor.v4","process_events":"outside-root-ptrace.v2"});
     assert!(KernelSamples::for_launch(&observed, &"d".repeat(64), &stdio).is_ok());
-    let pipes = json!({"schema":"hol-gauntlet-cell-supervisor.v5","process_events":"outside-root-ptrace.v1","native_stdio":"outside-root-native-pipes.v1"});
+    let pipes = json!({"schema":"hol-gauntlet-cell-supervisor.v5","process_events":"outside-root-ptrace.v1","native_stdio":"outside-root-native-pipes.v1","native_runtime_sha256":"b".repeat(64),
+        "host_helpers":crate::native_launch_provenance::PIPE_HOST_HELPERS_V5.iter().map(|name|((*name).to_owned(),json!("a".repeat(64)))).collect::<serde_json::Map<_,_>>()});
     assert!(KernelSamples::for_launch(&observed, &"d".repeat(64), &pipes).is_ok());
+    let mut held_namespace = pipes.clone();
+    held_namespace["schema"] = json!("hol-gauntlet-cell-supervisor.v6");
+    assert!(KernelSamples::for_launch(&observed, &"d".repeat(64), &held_namespace).is_err());
+    held_namespace["host_helpers"]["/usr/bin/nsenter"] = json!("e".repeat(64));
+    assert!(KernelSamples::for_launch(&observed, &"d".repeat(64), &held_namespace).is_ok());
+    let mut wrong_mode = held_namespace.clone();
+    wrong_mode["process_events"] = json!("outside-root-ptrace.v2");
+    assert!(KernelSamples::for_launch(&observed, &"d".repeat(64), &wrong_mode).is_err());
+    let mut downgrade = held_namespace;
+    downgrade["schema"] = json!("hol-gauntlet-cell-supervisor.v5");
+    assert!(KernelSamples::for_launch(&observed, &"d".repeat(64), &downgrade).is_err());
     for launch in [
         json!({"schema":"hol-gauntlet-cell-supervisor.v1"}),
         json!({"schema":"hol-gauntlet-cell-supervisor.v2"}),

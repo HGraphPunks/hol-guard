@@ -1,11 +1,11 @@
 //! Held pidfds, executable inode and namespace descriptors for one actual SDK.
-use super::{checked_status, sdk_cgroup, sdk_process_label};
+use super::{checked_status, sdk_cgroup, sdk_process_label, SdkEntrypoint};
 use crate::linux_process::observe_process;
 use crate::sdk_wire_peer::{
     authenticate_sdk_relay_peer_ineligible, bind_sdk_relay_to_ancestor_ineligible,
     observe_sdk_relay_peer_in_cgroup_ineligible, HeldSdkWirePeer, SdkWirePeerPin,
 };
-use crate::staging_machine_observer::{observe_sdk_executable, ContainerProcessIdentity};
+use crate::staging_machine_observer::{observe_sdk_executable_for, ContainerProcessIdentity};
 use crate::staging_product_process::{alive, read_at, same_executable};
 use rustix::fs::{fstat, open, openat, Mode, OFlags, Stat};
 use rustix::process::{pidfd_open, Pid, PidfdFlags};
@@ -18,6 +18,9 @@ use std::os::unix::net::UnixStream;
 #[path = "native_sdk_mcp_peer.rs"]
 mod mcp;
 pub use mcp::NativeSdkMcpPeer;
+#[path = "native_sdk_model_peer.rs"]
+mod model;
+pub(crate) use model::NativeSdkModelPeer;
 
 struct Snapshot {
     pin: SdkWirePeerPin,
@@ -115,12 +118,40 @@ pub struct NativeSdkBoundary {
 }
 
 impl NativeSdkBoundary {
+    pub(crate) fn retain(&self) -> Result<Self, String> {
+        self.snapshot.recheck()?;
+        let snapshot = Snapshot::new(&self.snapshot.pin, &self.snapshot.label)?;
+        if snapshot.namespace_values() != self.snapshot.namespace_values() {
+            return Err("SDK boundary changed during retention".into());
+        }
+        Ok(Self {
+            snapshot,
+            container_id: self.container_id.clone(),
+        })
+    }
     /// The Root agent owner obtains this tuple from its own fresh container.
     pub fn observe(
         container_id: &str,
         pin: &SdkWirePeerPin,
         label: &str,
         product_actor: &Value,
+    ) -> Result<Self, String> {
+        Self::observe_profile(container_id, pin, label, product_actor, false)
+    }
+    pub(crate) fn observe_live(
+        container_id: &str,
+        pin: &SdkWirePeerPin,
+        label: &str,
+        product_actor: &Value,
+    ) -> Result<Self, String> {
+        Self::observe_profile(container_id, pin, label, product_actor, true)
+    }
+    fn observe_profile(
+        container_id: &str,
+        pin: &SdkWirePeerPin,
+        label: &str,
+        product_actor: &Value,
+        live: bool,
     ) -> Result<Self, String> {
         gauntlet_cell_rootfs::require_outside_root()?;
         sdk_cgroup(container_id, label, &pin.cgroup)?;
@@ -129,7 +160,16 @@ impl NativeSdkBoundary {
             .split_ascii_whitespace()
             .collect::<Vec<_>>();
         if ids.last() != Some(&"1")
-            || read_at(&snapshot.process, "cmdline", 1024)? != b"/usr/bin/sleep\x00240\x00"
+            || read_at(&snapshot.process, "cmdline", 1024)?
+                != format!(
+                    "/usr/bin/sleep\0{}\0",
+                    if live {
+                        crate::native_live_spec::PREPARATION_SECONDS
+                    } else {
+                        240
+                    }
+                )
+                .as_bytes()
         {
             return Err("SDK boundary is not the fixed freshly launched namespace init".into());
         }
@@ -172,6 +212,7 @@ pub struct NativeSdkPeer {
     bun: File,
     executable_sha256: String,
     argv_sha256: String,
+    entrypoint: SdkEntrypoint,
 }
 
 impl NativeSdkPeer {
@@ -180,6 +221,15 @@ impl NativeSdkPeer {
         agent: NativeSdkBoundary,
         bun: &File,
         bun_sha256: &str,
+    ) -> Result<Self, String> {
+        Self::bind_entrypoint(gate, agent, bun, bun_sha256, SdkEntrypoint::Conformance)
+    }
+    pub(crate) fn bind_entrypoint(
+        gate: UnixStream,
+        agent: NativeSdkBoundary,
+        bun: &File,
+        bun_sha256: &str,
+        entrypoint: SdkEntrypoint,
     ) -> Result<Self, String> {
         agent.snapshot.recheck()?;
         if !crate::hex(bun_sha256, 64) {
@@ -202,12 +252,15 @@ impl NativeSdkPeer {
         if snapshot.namespace_values() != agent.snapshot.namespace_values() {
             return Err("SDK escaped its measured agent namespaces".into());
         }
-        let sampled = observe_sdk_executable(&ContainerProcessIdentity {
-            container_id: agent.container_id.clone(),
-            pid: pin.pid,
-            start_ticks: pin.start_ticks,
-            cgroup: pin.cgroup.clone(),
-        })
+        let sampled = observe_sdk_executable_for(
+            &ContainerProcessIdentity {
+                container_id: agent.container_id.clone(),
+                pid: pin.pid,
+                start_ticks: pin.start_ticks,
+                cgroup: pin.cgroup.clone(),
+            },
+            entrypoint,
+        )
         .ok_or("fixed actual SDK executable/argv unavailable")?;
         if sampled.executable_sha256 != bun_sha256 {
             return Err("actual SDK Bun bytes differ from outside pin".into());
@@ -228,6 +281,7 @@ impl NativeSdkPeer {
             bun: bun.try_clone().map_err(|e| e.to_string())?,
             executable_sha256: sampled.executable_sha256,
             argv_sha256: sampled.argv_sha256,
+            entrypoint,
         };
         bound.recheck()?;
         Ok(bound)
@@ -247,8 +301,8 @@ impl NativeSdkPeer {
             }
         }
         let raw = read_at(&self.snapshot.process, "cmdline", 1024)?;
-        if raw!=b"/runtime/bun\x00/runtime/public/private_cell_sdk_conformance.ts\x00/runtime/public/episode.json\x00" {
-            return Err("SDK command changed after pre-import binding".into())
+        if !self.entrypoint.matches(&raw) {
+            return Err("SDK command changed after pre-import binding".into());
         }
         Ok(())
     }

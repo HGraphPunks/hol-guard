@@ -5,31 +5,32 @@ use crate::native_controller_exec::NativeChild;
 use crate::native_job_io::{load, own_identity, require_no_unknown_jobs, NativeAdmissionGuard};
 use crate::native_job_spec::{NativeJobExecution, ACTIVE_SECONDS};
 use crate::native_prelaunch::{reserve_native, NativeHostAck};
-use crate::terminal::{digest, report_name, terminal_name, MAX_TERMINAL_BYTES};
-use crate::{
-    hex, read_bounded_regular, BoottimeDeadline, OwnedJobCgroup, ReservationError,
-    RunReservationJournal, TerminalOutcome,
-};
+use crate::{BoottimeDeadline, OwnedJobCgroup, RunReservationJournal, TerminalOutcome};
 use gauntlet_contracts::{canonicalize, WorkerAction, WorkerRequest};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 
 const STATE: &str = "/var/lib/hol-gauntlet-rust/worker-state";
 static CANCELLED: AtomicBool = AtomicBool::new(false);
+static SIGNAL_EPOCH: AtomicUsize = AtomicUsize::new(0);
 
 pub(crate) fn cancellation_requested() -> bool {
     CANCELLED.load(Ordering::Acquire)
 }
+pub(crate) fn interruption_epoch() -> usize {
+    SIGNAL_EPOCH.load(Ordering::Acquire)
+}
 
 extern "C" fn cancel(_: libc::c_int) {
+    SIGNAL_EPOCH.fetch_add(1, Ordering::AcqRel);
     CANCELLED.store(true, Ordering::Release);
 }
 
 pub fn install_native_worker_signals() -> Result<(), String> {
-    // Only a lock-free atomic store runs in the signal handler.
+    // Only lock-free pointer-sized atomic operations run in the signal handler.
     for signal in [libc::SIGTERM, libc::SIGINT] {
         if unsafe { libc::signal(signal, cancel as libc::sighandler_t) } == libc::SIG_ERR {
             return Err("native worker signal handler unavailable".into());
@@ -44,7 +45,7 @@ pub fn dispatch_native_worker(
     generation: &str,
     raw: &[u8],
 ) -> Result<Vec<u8>, String> {
-    dispatch_native_worker_inner(source, deployment, generation, raw, None)
+    dispatch_native_worker_inner(source, deployment, generation, raw, None, None)
 }
 
 pub fn dispatch_native_worker_host_pinned(
@@ -54,7 +55,14 @@ pub fn dispatch_native_worker_host_pinned(
     raw: &[u8],
     mut acknowledge: impl FnMut(&[u8], &BoottimeDeadline, &AtomicBool) -> Result<Vec<u8>, String>,
 ) -> Result<Vec<u8>, String> {
-    dispatch_native_worker_inner(source, deployment, generation, raw, Some(&mut acknowledge))
+    dispatch_native_worker_inner(
+        source,
+        deployment,
+        generation,
+        raw,
+        Some(&mut acknowledge),
+        None,
+    )
 }
 
 pub fn dispatch_native_worker_host_pinned_pipe(
@@ -85,12 +93,13 @@ pub fn dispatch_native_worker_host_pinned_pipe(
     )
 }
 
-fn dispatch_native_worker_inner(
+pub(crate) fn dispatch_native_worker_inner(
     source: &str,
     deployment: &str,
     generation: &str,
     raw: &[u8],
     acknowledge: Option<&mut NativeHostAck<'_>>,
+    live: Option<&crate::native_live_transport::NativeLiveDispatch>,
 ) -> Result<Vec<u8>, String> {
     gauntlet_cell_rootfs::require_outside_root()?;
     crate::verify_running_binary(generation).map_err(|e| e.to_string())?;
@@ -130,6 +139,24 @@ fn dispatch_native_worker_inner(
         return Err("native worker cancelled before admission".into());
     }
     let (spec, preparation) = load(&request, generation)?;
+    let live_prepared = if matches!(spec.execution, NativeJobExecution::HostPinnedLive { .. }) {
+        let context =
+            live.ok_or("live OMP execution requires pinned preparation and private model channel")?;
+        let prepared = crate::native_live_prepare::retained(&spec, deployment)?;
+        if crate::native_live_model::sha(&prepared.raw) != context.prepared_sha256 {
+            return Err("live preparation differs from outside Host pin".into());
+        }
+        Some(prepared)
+    } else {
+        if live.is_some() {
+            return Err("live model channel cannot enter a deterministic profile".into());
+        }
+        None
+    };
+    let live_world_key = live_prepared
+        .as_ref()
+        .map(|p| p.world_handoff())
+        .transpose()?;
     gauntlet_cell_rootfs::require_image_lease_absent(
         &preparation.image_id,
         &preparation.podman_sha256,
@@ -137,7 +164,12 @@ fn dispatch_native_worker_inner(
     crate::require_rust_job_slice_absent(&spec.job_id).map_err(|e| e.to_string())?;
     gauntlet_cell_rootfs::verify_preparation_host_helpers(&preparation)?;
     admission.finish()?;
-    let deadline = BoottimeDeadline::start(ACTIVE_SECONDS).map_err(|e| e.to_string())?;
+    let active_seconds = if live_prepared.is_some() {
+        crate::native_live_spec::ACTIVE_SECONDS
+    } else {
+        ACTIVE_SECONDS
+    };
+    let deadline = BoottimeDeadline::start(active_seconds).map_err(|e| e.to_string())?;
     let (started, signing) = reserve_native(
         &journal,
         &lease,
@@ -151,6 +183,7 @@ fn dispatch_native_worker_inner(
     let mut native: Option<NativeChild> = None;
     let mut process = None;
     let mut slice_attempted = false;
+    let mut live_cleanup = None;
     let systemctl = preparation
         .host_helper_sha256("/usr/bin/systemctl")
         .ok_or("native systemctl pin unavailable")?;
@@ -164,6 +197,8 @@ fn dispatch_native_worker_inner(
             &group,
             &journal.root,
             signing.as_ref().map(|s| s.descriptor()),
+            live.map(|l| &l.channel),
+            live_world_key.as_ref().map(|k| k.fd()),
         )?);
         let child = native.as_mut().ok_or("native child missing")?;
         let identity = own_identity(&child.child, &spec, deployment, group.path())?;
@@ -184,12 +219,20 @@ fn dispatch_native_worker_inner(
         if let Some(signing) = &signing {
             signing.recheck(&journal, &lease, &started)?;
         }
+        if live_prepared.is_some() {
+            live_cleanup = Some(crate::native_live_cleanup::LiveCleanupObserver::before(
+                &spec,
+                identity,
+                group.path(),
+            )?);
+        }
         child.release()?;
         let mut interruption: Option<String> = None;
         let mut grace = None;
         loop {
             lease.verify(&journal.root).map_err(|e| e.to_string())?;
             verify_python_lock(&python).map_err(|e| e.to_string())?;
+            crate::native_job_storage::owner::health()?;
             child.check_logs()?;
             if let Some(status) = child.child.try_wait().map_err(|e| e.to_string())? {
                 use std::os::unix::process::ExitStatusExt;
@@ -255,6 +298,7 @@ fn dispatch_native_worker_inner(
             | NativeJobExecution::SdkMcpTransport { .. }
             | NativeJobExecution::DeterministicControl { .. }
             | NativeJobExecution::HostPinnedControl { .. }
+            | NativeJobExecution::HostPinnedLive { .. }
     );
     if sdk_quiescent {
         crate::native_sdk_quiescence::require_sdk_quiescence(&spec, &preparation)?;
@@ -265,6 +309,7 @@ fn dispatch_native_worker_inner(
             | NativeJobExecution::SdkMcpTransport { .. }
             | NativeJobExecution::DeterministicControl { .. }
             | NativeJobExecution::HostPinnedControl { .. }
+            | NativeJobExecution::HostPinnedLive { .. }
     );
     if mcp_quiescent {
         crate::native_mcp_quiescence::require_mcp_quiescence(&spec, &preparation)?;
@@ -284,6 +329,9 @@ fn dispatch_native_worker_inner(
             }
         })
     });
+    if live.is_some() && !authenticated.as_ref().is_some_and(Result::is_ok) {
+        return Err("live controller completion is unauthenticated; retain consumed unknown job for explicit repair".into());
+    }
     let parsed = match &authenticated {
         Some(Ok(value)) => Some(value.report().clone()),
         Some(Err(_)) => None,
@@ -302,6 +350,7 @@ fn dispatch_native_worker_inner(
         NativeJobExecution::SdkMcpTransport { .. } => "hol-gauntlet-native-worker-report.v5",
         NativeJobExecution::DeterministicControl { .. } => "hol-gauntlet-native-worker-report.v6",
         NativeJobExecution::HostPinnedControl { .. } => "hol-gauntlet-native-worker-report.v7",
+        NativeJobExecution::HostPinnedLive { .. } => "hol-gauntlet-native-worker-report.v9",
     };
     let unavailable_reason = match spec.execution {
         NativeJobExecution::Apparatus(_) => "native apparatus profile has no independently scored Guard controls or host signing-key pin",
@@ -312,6 +361,7 @@ fn dispatch_native_worker_inner(
         NativeJobExecution::SdkMcpTransport { .. } => "native SDK/MCP/Bash diagnostic has no independent Guard request/decision/effect scoring, six-role conformance or outside signing-key admission",
         NativeJobExecution::DeterministicControl {..}=>"Native deterministic role diagnostic has no qualified current-source suite or outside signing-key admission",
         NativeJobExecution::HostPinnedControl {..}=>"host-pinned controller signature has no independently scored effects or qualified current-source suite",
+        NativeJobExecution::HostPinnedLive {..}=>"live OMP producer completion requires independent World, usage, mediation and outside cleanup judgment",
     };
     let mut report = json!({"schema":report_schema,"profile":spec.profile(),
         "source_sha":source,"job_id":spec.job_id,"deployment_digest":deployment,"worker_generation":generation,
@@ -321,6 +371,9 @@ fn dispatch_native_worker_inner(
         "execution_error":execution_error,"controller_cgroup_drained":true,"product_slice_absent":true,"image_lease_absent":true,
         "model_requests":0,"execution_eligible":false,"guard_causality_verified":false,"status":"invalid-evidence",
         "qualification_unavailable_reason":unavailable_reason});
+    if let Some(storage) = crate::native_job_storage::native::retained_storage(&spec.job_id)? {
+        report["retained_storage"] = storage;
+    }
     if sdk_quiescent {
         report["sdk_agent_absent"] = json!(true);
         report["sdk_profile_absent"] = json!(true);
@@ -328,6 +381,23 @@ fn dispatch_native_worker_inner(
     if mcp_quiescent {
         report["mcp_agent_absent"] = json!(true);
         report["mcp_profile_absent"] = json!(true);
+    }
+    if let Some(live) = live {
+        if live.pending.load(Ordering::Acquire) {
+            return Err("live provider turn remains unsettled; retain original unknown job".into());
+        }
+        let prepared = live_prepared
+            .as_ref()
+            .ok_or("live preparation custody absent")?;
+        let cleanup = live_cleanup
+            .as_ref()
+            .ok_or("parent live cleanup before-observation absent")?
+            .finish(&spec, prepared)?;
+        report["model_requests"] = json!(live.requests.load(Ordering::Acquire));
+        report["live_prepared_sha256"] = json!(live.prepared_sha256);
+        report["live_world"] = crate::native_live_prepare::final_world(&spec, deployment)?;
+        report["live_cleanup"] = cleanup;
+        report["model_channel_pending"] = json!(false);
     }
     if let Some(signing) = &signing {
         signing.recheck(&journal, &lease, &started)?;
@@ -379,102 +449,4 @@ fn dispatch_native_worker_inner(
 
 fn process_json(process: crate::ProcessIdentity) -> Value {
     json!({"pid":process.pid,"start_ticks":process.start_ticks})
-}
-
-impl RunReservationJournal {
-    /// Reopen an already completed Rust deterministic diagnostic for a host
-    /// that retained the key before launch. This exports only the bounded
-    /// invalid-evidence terminal and diagnostic summary, then independently
-    /// reopens the fixed deterministic controller report to check its digest.
-    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-    pub fn read_deterministic_diagnostic_root_owned(
-        &self,
-        job_id: &str,
-        source_sha: &str,
-        deployment_digest: &str,
-        worker_generation: &str,
-    ) -> Result<Value, ReservationError> {
-        use gauntlet_evidence::observe_deterministic_report_root_owned_ineligible;
-
-        if !self.root_owned {
-            return Err(ReservationError::UnsafeRoot);
-        }
-        let first = self
-            .terminal(job_id, source_sha, deployment_digest, worker_generation)?
-            .ok_or(ReservationError::InvalidMarker)?;
-        if first.status != TerminalOutcome::InvalidEvidence
-            || first.controller_key_pin_sha256.is_none()
-        {
-            return Err(ReservationError::InvalidMarker);
-        }
-        crate::require_rust_job_slice_absent(job_id)?;
-        let terminal_raw =
-            read_bounded_regular(&self.root, &terminal_name(job_id), MAX_TERMINAL_BYTES)?
-                .ok_or(ReservationError::InvalidMarker)?;
-        let report_raw = read_bounded_regular(&self.root, &report_name(job_id), 8192)?
-            .ok_or(ReservationError::InvalidMarker)?;
-        if digest(&terminal_raw) != first.sha256 || digest(&report_raw) != first.report_sha256 {
-            return Err(ReservationError::InvalidMarker);
-        }
-        let terminal: Value =
-            serde_json::from_slice(&terminal_raw).map_err(|_| ReservationError::InvalidMarker)?;
-        let report: Value =
-            serde_json::from_slice(&report_raw).map_err(|_| ReservationError::InvalidMarker)?;
-        let config_digest = report["config_digest"]
-            .as_str()
-            .filter(|value| hex(value, 64))
-            .ok_or(ReservationError::InvalidMarker)?;
-        let expected_deterministic_sha = report["deterministic_report_sha256"]
-            .as_str()
-            .filter(|value| hex(value, 64))
-            .ok_or(ReservationError::InvalidMarker)?;
-        if report["schema"] != "hol-gauntlet-rust-deterministic-run-diagnostic.v1"
-            || report["job_id"] != job_id
-            || report["source_sha"] != source_sha
-            || report["deployment_digest"] != deployment_digest
-            || report["worker_generation"] != worker_generation
-            || report["started_marker_sha256"] != first.started_marker_sha256
-            || report["controller_key_pin_sha256"].as_str()
-                != first.controller_key_pin_sha256.as_deref()
-            || report["controller_public_key_hex"].as_str()
-                != first.controller_public_key_hex.as_deref()
-            || report["exit_code"] != first.exit_code
-            || report["process"]["pid"] != first.process.pid
-            || report["process"]["start_ticks"] != first.process.start_ticks
-            || report["independent_control_verdict"] != false
-            || report["execution_eligible"] != false
-        {
-            return Err(ReservationError::InvalidMarker);
-        }
-        let observed = observe_deterministic_report_root_owned_ineligible(
-            job_id,
-            source_sha,
-            config_digest,
-            first.exit_code,
-        )
-        .map_err(|_| ReservationError::InvalidMarker)?;
-        if observed.raw_sha256 != expected_deterministic_sha
-            || report["producer_status_claim"] != observed.producer_status
-            || report["producer_cell_count"] != observed.cell_count
-        {
-            return Err(ReservationError::InvalidMarker);
-        }
-        if self.terminal(job_id, source_sha, deployment_digest, worker_generation)?
-            != Some(first.clone())
-        {
-            return Err(ReservationError::InvalidMarker);
-        }
-        crate::require_rust_job_slice_absent(job_id)?;
-        Ok(json!({
-            "schema":"hol-gauntlet-rust-deterministic-readback.v1",
-            "job_id":job_id,
-            "source_sha":source_sha,
-            "terminal":terminal,
-            "diagnostic_report":report,
-            "terminal_sha256":first.sha256,
-            "diagnostic_report_sha256":first.report_sha256,
-            "deterministic_report_sha256":observed.raw_sha256,
-            "execution_eligible":false,
-        }))
-    }
 }

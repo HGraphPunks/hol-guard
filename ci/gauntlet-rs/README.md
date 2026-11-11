@@ -34,8 +34,11 @@ The contracts library's fixed legacy catalog reader pins the existing 308-case
 core, 16-case approval-retry, 11-case connector-setup and 15-case full-task
 catalogs. Its normalized rows and listing match the actual Python reader,
 including every default. It accepts no caller path or source pin. Inventory
-always remains ineligible for execution and qualification; fixture execution,
-judging, candidate-catalog admission and historical-reader parity remain open.
+always remains ineligible for execution and qualification. Separate source-derived
+current/frozen reducers preserve the original 128-row baseline and the four
+current catalogs; full-task and Connector wrappers keep their own claim limits.
+Fresh legacy execution, installed acceptance, candidate admission and complete
+historical-reader parity remain open. Python readers and execution paths remain.
 
 An inert SDK and installed-prefix inventory hashes metadata and bytes through
 descriptor-relative directory enumeration. Linux `openat2` confines symlink
@@ -126,7 +129,9 @@ tracked `ci/gauntlet` files; the original 420-file manifest remains the
 immutable #5263 fixture baseline. Neither manifest makes candidate code a
 trusted controller generation.
 `gauntlet-contracts` also parses fixed, versioned [VM worker requests and responses](../../docs/gauntlet-rust-worker-protocol.md)
-with no command or path selectors and explicit unknown/unavailable states; no worker dispatcher or receipt authenticator exists yet.
+with no command or path selectors and explicit unknown/unavailable states. Its
+historical syntax-only readers remain separate from the newer explicit Rust
+dispatcher and authenticated readback paths described below.
 `gauntlet-evidence` checks the pinned Python worker's terminal receipt against caller-supplied source, job, deployment and config pins and the exact report bytes. The pure consistency helper does not open VM paths or award benchmark eligibility.
 An uninstalled [Root-only Python-worker shadow](../../docs/gauntlet-rust-python-worker-file-proof.md)
 now reads one retained receipt and report through fixed no-symlink private
@@ -166,7 +171,65 @@ GAUNTLET_PUBLIC_STATE=/absolute/path/to/.gauntlet-ops/public docker --context co
 
 Compose binds only host `127.0.0.1:8793`; the container reads `/state` without write access, runs as UID/GID 65532, drops all capabilities, and has a 0.25-CPU/128-MiB limit. Its built-in health probe checks the dashboard process, while `/api/status` continues to show the observer's actual stale or unavailable state. Use `GAUNTLET_RUST_PORT` only if another local port is needed. This command does not start a Rust observer, VM job or PR gate. The [container proof](../../docs/gauntlet-rust-dashboard-container-proof.md) records the live comparison.
 
-`gauntlet-worker-state` owns durable one-use journals, pinned source/deployment preparation, builder and feature supervision, recovery, and explicit Native diagnostic dispatch on Linux ARM64. It fsyncs exclusive no-symlink markers and binds terminal receipts to the reserved job and observed process identities. Partial, orphaned or changed evidence blocks replay. The explicit Native path launches its Rust controller in owned cgroups and captures SDK/MCP and product-cell observations; its terminal remains `invalid-evidence` with `execution_eligible: false` and `guard_causality_verified: false`. Transport and artifact joins do not establish independent policy/effect grading or qualification. Current exits and evidence are tracked in the [execution checklist](../../docs/gauntlet-rust-execution-checklist.md).
+`gauntlet-worker-state` owns durable one-use journals, pinned source/deployment preparation, builder and feature supervision, recovery, and explicit Native diagnostic dispatch on Linux ARM64. It fsyncs exclusive no-symlink markers and binds terminal receipts to the reserved job and observed process identities. Partial, orphaned or changed evidence blocks replay. The Native path launches its Rust controller in owned cgroups and captures SDK/MCP and product-cell observations. Source-selected independent reducers and authenticated reports exist; fresh role execution, physical writer attribution, source admission and qualification remain incomplete. Native terminals retain `invalid-evidence`, `execution_eligible: false` and `guard_causality_verified: false`. The [execution checklist](../../docs/gauntlet-rust-execution-checklist.md) remains at **24/62 parent exits complete, 38 open**.
+
+The normal `gauntlet-host` command families now cover the following flow.
+These are implemented interfaces; newer completed-read/recovery refinements are
+still under focused validation.
+
+| Family | Normal commands |
+| --- | --- |
+| `build` | source/transfer; transfer-bounded/transfer-bounded-read; run-bounded/read-bounded; capture/wheel-stage; prefix-clone/prefix-clone-read; runtime-publish/runtime-publish-read |
+| `dependencies` | inputs/transfer/transfer-read; run-bounded/read-bounded/repair-bounded; prefix-stage/prefix-stage-read |
+| `artifacts` | record/download/download-read; ack/ack-read; retire/retire-read/retire-resume |
+| `deterministic`, `live` | initialize/initialize-read; record; prepare/prepare-read; run/read/report/repair; live adds provision/provision-read/pair |
+| `provider` | prepare/start/read/stop; source/job-bound serial Unix model relay with retained quota cap/history checks |
+
+The sequence is source/dependency preparation, bounded build, inert artifact
+capture, prefix/runtime publication, then separately authorized Native/live and
+provider work. Actual private ZIP bytes must be retained before artifact ack;
+custody is rechecked before retirement. Downstream bounded build/dependency/prefix/artifact
+routes require completed Source.v2 context, original private intents and consumed
+dispatches, original Lima/SSH homes and instance identity, and outside authority.
+`artifacts retire-resume` continues only the original consumed cleanup after
+rechecking the retained ZIP, acknowledgement and retirement binding;
+`retire-read` never changes Root state. Physical partial-cleanup recovery is
+separate from the mocked Host checks.
+`deterministic initialize-abort-unreleased` handles a consumed Host dispatch
+only when its official Host pin is missing and Root proves the job unstarted;
+its existing abort read/resume commands preserve that authority. Completed
+bounded Native jobs use `deterministic retire/retire-read/retire-resume`, which
+require the original initialized storage and actual private report archive.
+Both cleanup paths keep model usage unknown and leave provider quota unchanged.
+Lost replies require authenticated original readback; they do not permit replay
+or reconstruction from public hashes. Raw ZIP/USTAR/model bytes and Host bindings
+remain private at 0700/0600; stdout exposes sanitized summaries and hashes.
+Original source/dependency volumes remain required while later verification or
+Native preparation depends on them.
+
+Bounded storage.v2 requires finite byte/inode limits and the live original,
+outside-pinned mount-namespace owner. A replacement owner cannot inherit that
+authority. Historical v1 routes remain ineligible and cannot acquire new v2
+retirement authority. Supervisor v5 keeps exactly five pinned helpers
+(`/usr/bin/systemd-run`, `/usr/bin/systemctl`, `/usr/bin/aa-exec`,
+`/usr/bin/unshare`, `/usr/sbin/apparmor_parser`); v6 keeps the same closed fields
+and adds only `/usr/bin/nsenter`. Both use `outside-root-ptrace.v1` and
+`outside-root-native-pipes.v1`. V1–v5 readers retain their original contracts.
+
+Actual normal Rust commands completed the `bb69ca40` ARM build, dependency
+resolution/inert staging, prefix clone and immutable runtime publication on
+historical v1 storage, all ineligible. The actual pinned SDK passed MCP-only
+tool inventory and four formatter cases with zero inference. The actual Rootfs
+private-namespace/full-journal cleanup fixture passed without a candidate run;
+cleanup credit remains unknown. These observations are distinct from the
+unproved storage.v2 normal flow, Worker ENOSPC, new Host recovery, model pair,
+beta and full legacy execution. Ordinary allowed Bash still lacks an execution
+lifecycle bound to the SDK's genuine persistent brush process. Model/source
+authorization, sufficient retained quota, capacity, required CI and independent
+approvals remain pending. See the [readiness checkpoint](../../docs/gauntlet-rust-pr-readiness-plan.md#resume-from-this-checkpoint),
+[build/read/recovery evidence](../../docs/gauntlet-rust-hostbound-candidate-build-proof.md)
+and [surface matrix](../../docs/gauntlet-rust-surface-matrix.md).
+
 The earlier read-only v1 projections and frozen probes below remain supported historical diagnostics. Their unavailable/inert results describe those entrypoints and source generations. They do not describe the newer explicit Native dispatcher.
 An inert [fixed launch plan](../../docs/gauntlet-rust-worker-launch-proof.md)
 reproduces the pinned Python worker's deterministic `ci check` argv, cwd,
@@ -224,9 +287,10 @@ installed version metadata when applicable. `execution_eligible` is always
 `false`: even the full inert inventory does not prove OS execute access,
 Linux symlink-race safety, independent verdicts or live candidate execution.
 
-Remaining work includes independent admission and effect grading, current-source
-workflow and legacy qualification, and controlled idle cutover/rollback. The
-supported Python paths remain available while the [readiness plan](../../docs/gauntlet-rust-pr-readiness-plan.md)
-and execution checklist govern migration acceptance. The commands above only
-check or inspect; explicit diagnostic dispatch does not authorize qualification,
-release publication or PR-gate activation.
+Remaining work includes current-source workflow/legacy execution and qualification,
+independent admission/effect grading, and controlled idle cutover/rollback. No
+Python entrypoint or reader has been removed. The [readiness plan](../../docs/gauntlet-rust-pr-readiness-plan.md)
+and execution checklist govern acceptance. The verifier examples above only
+inspect; separate normal dispatch and publication interfaces retain their explicit
+authority requirements and do not authorize qualification, release or PR-gate
+activation.

@@ -23,8 +23,10 @@ pub(crate) struct NativeAdmissionGuard {
 }
 impl NativeAdmissionGuard {
     pub(crate) fn start() -> Result<Self, String> {
-        // Leave transport headroom inside the host's 60-second prelaunch wait.
-        Self::start_seconds(50)
+        // Original retained jobs are authenticated before any new reservation.
+        // Keep this bounded while allowing a full history read on the 2-CPU VM.
+        // The Host reserves another 30 seconds for the prepared transport.
+        Self::start_seconds(180)
     }
     fn start_seconds(seconds: u64) -> Result<Self, String> {
         let deadline = crate::BoottimeDeadline::start(seconds).map_err(|e| e.to_string())?;
@@ -92,6 +94,11 @@ pub(crate) fn load(
         .map_err(|e| e.to_string())?
         .ok_or("native deployment missing")?;
     let spec = NativeJobSpec::parse(&declaration_raw, digest, request, generation)?;
+    crate::native_job_storage::owner::enter_pinned(
+        &spec.source_sha,
+        &spec.job_id,
+        &spec.worker_generation,
+    )?;
     let root = open_root_owned_public_directory(&spec.job_root()).map_err(|e| e.to_string())?;
     let info = fstat(&root).map_err(|e| e.to_string())?;
     if info.st_gid != 0 || info.st_mode & 0o7777 != 0o700 {
@@ -106,6 +113,7 @@ pub(crate) fn load(
 }
 
 pub(crate) fn require_no_unknown_jobs(journal: &RunReservationJournal) -> Result<(), String> {
+    let _namespace_scope = crate::native_job_storage::owner::scope()?;
     crate::feature_state::require_idle()?;
     let mut jobs = std::collections::BTreeSet::new();
     let mut started = std::collections::BTreeMap::new();
@@ -227,7 +235,12 @@ pub(crate) fn own_identity(
     let executable = read("exe", 128 * 1024 * 1024)?;
     let argv = [
         "gauntlet-vm-worker",
-        if spec.requires_host_pin() {
+        if matches!(
+            spec.execution,
+            crate::NativeJobExecution::HostPinnedLive { .. }
+        ) {
+            "--native-live-keyed-controller"
+        } else if spec.requires_host_pin() {
             "--native-keyed-controller"
         } else {
             "--native-controller"

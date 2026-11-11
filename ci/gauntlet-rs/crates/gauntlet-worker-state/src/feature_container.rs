@@ -113,17 +113,26 @@ impl<'a> FeatureContainer<'a> {
         self.cid.as_deref()
     }
     fn identity(&self) -> Result<Option<String>, String> {
+        self.identity_in_phase(false)
+    }
+    fn identity_in_phase(&self, owned_cleanup: bool) -> Result<Option<String>, String> {
         let id = self.intent.pins().audit_id();
-        let by_name =
-            crate::builder_candidate_process::container_absent(id).map_err(|e| e.to_string())?;
-        let by_id = self
-            .cid
-            .as_deref()
-            .map(crate::builder_candidate_process::container_id_absent)
-            .transpose()
-            .map_err(|e| e.to_string())?
-            .unwrap_or(true);
-        if by_name && by_id {
+        let absent = if owned_cleanup {
+            crate::builder_candidate_process::cleanup_container_absent(id, self.cid.as_deref())
+                .map_err(|e| e.to_string())?
+        } else {
+            let by_name = crate::builder_candidate_process::container_absent(id)
+                .map_err(|e| e.to_string())?;
+            let by_id = self
+                .cid
+                .as_deref()
+                .map(crate::builder_candidate_process::container_id_absent)
+                .transpose()
+                .map_err(|e| e.to_string())?
+                .unwrap_or(true);
+            by_name && by_id
+        };
+        if absent {
             return Ok(None);
         }
         let target = self
@@ -225,14 +234,14 @@ impl<'a> FeatureContainer<'a> {
         Ok(result)
     }
     pub(crate) fn drain(&mut self) -> Result<(), String> {
-        if let Some(cid) = self.identity()? {
+        if let Some(cid) = self.identity_in_phase(true)? {
             self.cid = Some(cid.clone());
             run(
                 self.pin(),
                 &["rm".into(), "--force".into(), "--time=5".into(), cid],
             )?;
         }
-        if self.identity()?.is_some() {
+        if self.identity_in_phase(true)?.is_some() {
             return Err("feature container survived cleanup".into());
         }
         if let Some(cid) = &self.cid {

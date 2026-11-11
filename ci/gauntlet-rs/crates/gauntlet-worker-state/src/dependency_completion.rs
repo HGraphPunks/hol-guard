@@ -4,6 +4,75 @@ use crate::RunReservationJournal;
 use gauntlet_contracts::{DependencyCompletionState, DependencyRunIntent};
 use rustix::fs::{statat, AtFlags};
 use serde_json::Value;
+use std::os::fd::OwnedFd;
+
+/// Bind retained-report finalization to the exact expected terminal bytes.
+/// Partial attempts remain private and supply no authority.
+pub(crate) fn report_finalization(
+    slot: &OwnedFd,
+    context: &serde_json::Value,
+    create: bool,
+) -> Result<(), String> {
+    use gauntlet_contracts::canonicalize;
+    use rustix::fs::Dir;
+    const PREFIX: &str = "dependency-report-finalization-";
+    let mut count = 0;
+    let mut matched = false;
+    for entry in Dir::read_from(slot).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        if !entry.file_name().to_bytes().starts_with(PREFIX.as_bytes()) {
+            continue;
+        }
+        count += 1;
+        if count > 64 {
+            return Err("report finalization attempt bound exceeded".into());
+        }
+        let name = entry
+            .file_name()
+            .to_str()
+            .map_err(|_| "finalization filename UTF-8")?;
+        let id = name
+            .strip_prefix(PREFIX)
+            .and_then(|s| s.strip_suffix(".json"))
+            .filter(|s| crate::hex(s, 16))
+            .ok_or("report finalization name differs")?;
+        let raw = crate::feature_files::required(slot, name, (0, 0), 0o600, 8192)?;
+        let value: serde_json::Value = match serde_json::from_slice(&raw) {
+            Ok(v) => v,
+            Err(e) if e.is_eof() => continue,
+            Err(_) => return Err("report finalization record is malformed".into()),
+        };
+        let generation = value["finalizer_generation"]
+            .as_str()
+            .filter(|s| crate::hex(s, 64))
+            .ok_or("report finalizer generation missing")?;
+        let mut expected = context.clone();
+        expected["attempt_id"] = serde_json::json!(id);
+        expected["finalizer_generation"] = serde_json::json!(generation);
+        if canonicalize(expected.to_string().as_bytes()).map_err(|e| e.to_string())? != raw {
+            return Err("report finalization binding differs".into());
+        }
+        matched |= context["finalizer_generation"].is_null()
+            || context["finalizer_generation"] == generation;
+    }
+    if create {
+        if count >= 64 {
+            return Err("report finalization attempt bound exceeded".into());
+        }
+        let id = crate::dependency_creator_recovery::attempt()?;
+        let mut value = context.clone();
+        value["attempt_id"] = serde_json::json!(id);
+        crate::builder_candidate_receipt::write_root_canonical_job_file(
+            slot,
+            &format!("{PREFIX}{id}.json"),
+            &value,
+        )
+        .map_err(|e| e.to_string())?;
+    } else if !matched {
+        return Err("matching report finalization witness missing".into());
+    }
+    Ok(())
+}
 
 fn incomplete_object(raw: &[u8]) -> bool {
     (raw.is_empty() || raw.first() == Some(&b'{'))

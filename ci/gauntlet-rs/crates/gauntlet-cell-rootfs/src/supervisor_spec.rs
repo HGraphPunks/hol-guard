@@ -35,6 +35,7 @@ pub const HOST_HELPERS: &[&str] = &[
     "/usr/bin/unshare",
     "/usr/sbin/apparmor_parser",
 ];
+pub const NAMESPACE_HOST_HELPER: &str = "/usr/bin/nsenter";
 
 fn text<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
     value[key]
@@ -68,8 +69,11 @@ impl SupervisorSpec {
             .or_else(|_| object(raw, 8192, &pinned_fields, "hol-gauntlet-cell-supervisor.v2"))
             .or_else(|_| object(raw, 8192, &traced_fields, "hol-gauntlet-cell-supervisor.v3"))
             .or_else(|_| object(raw, 8192, &stdio_fields, "hol-gauntlet-cell-supervisor.v4"))
-            .or_else(|_| object(raw, 8192, &stdio_fields, "hol-gauntlet-cell-supervisor.v5"))?;
-        let native_pipe_transport = value["schema"] == "hol-gauntlet-cell-supervisor.v5";
+            .or_else(|_| object(raw, 8192, &stdio_fields, "hol-gauntlet-cell-supervisor.v5"))
+            .or_else(|_| object(raw, 8192, &stdio_fields, "hol-gauntlet-cell-supervisor.v6"))?;
+        let namespace_launch = value["schema"] == "hol-gauntlet-cell-supervisor.v6";
+        let native_pipe_transport =
+            namespace_launch || value["schema"] == "hol-gauntlet-cell-supervisor.v5";
         let stdio = native_pipe_transport || value["schema"] == "hol-gauntlet-cell-supervisor.v4";
         let process_events = stdio || value["schema"] == "hol-gauntlet-cell-supervisor.v3";
         let process_mode = if stdio && !native_pipe_transport {
@@ -141,18 +145,23 @@ impl SupervisorSpec {
                 .ok_or("exact Rust job slice required")?;
             Some(format!("holgauntletrust{id}.slice"))
         };
+        let helper_names: Vec<_> = HOST_HELPERS
+            .iter()
+            .copied()
+            .chain(namespace_launch.then_some(NAMESPACE_HOST_HELPER))
+            .collect();
         let helpers = value["host_helpers"]
             .as_object()
-            .filter(|v| v.len() == HOST_HELPERS.len())
+            .filter(|v| v.len() == helper_names.len())
             .ok_or("exact Root host-helper map required")?;
         let mut host_helpers = BTreeMap::new();
-        for name in HOST_HELPERS {
+        for name in helper_names {
             let pin = helpers
-                .get(*name)
+                .get(name)
                 .and_then(Value::as_str)
                 .filter(|s| hex(s, 64))
                 .ok_or("outside pin for every fixed Root host helper required")?;
-            host_helpers.insert((*name).into(), pin.into());
+            host_helpers.insert(name.into(), pin.into());
         }
         Ok(Self {
             rootfs_declaration,
@@ -380,5 +389,37 @@ mod tests {
             changed[key] = bad;
             assert!(parse(&changed).is_err());
         }
+    }
+
+    #[test]
+    fn private_storage_v6_requires_the_exact_additional_helper_pin() {
+        let mut value = fixture();
+        value["schema"] = json!("hol-gauntlet-cell-supervisor.v6");
+        value["image_interpreter_sha256"] = json!("a".repeat(64));
+        value["outside_observer_sha256"] = json!("b".repeat(64));
+        value["process_events"] = json!("outside-root-ptrace.v1");
+        value["native_stdio"] = json!("outside-root-native-pipes.v1");
+        value["native_runtime_sha256"] = json!("c".repeat(64));
+        assert!(parse(&value).is_err());
+        value["host_helpers"][NAMESPACE_HOST_HELPER] = json!("d".repeat(64));
+        let parsed = parse(&value).unwrap();
+        assert!(parsed.process_events && parsed.native_pipe_transport);
+        assert_eq!(parsed.host_helpers.len(), 6);
+        for (key, bad) in [
+            ("schema", json!("hol-gauntlet-cell-supervisor.v5")),
+            ("native_stdio", json!("outside-root-native-stdio.v1")),
+            ("process_events", json!("outside-root-ptrace.v2")),
+        ] {
+            let mut changed = value.clone();
+            changed[key] = bad;
+            assert!(parse(&changed).is_err());
+        }
+        for bad in [json!(true), json!("latest"), Value::Null] {
+            let mut changed = value.clone();
+            changed["host_helpers"][NAMESPACE_HOST_HELPER] = bad;
+            assert!(parse(&changed).is_err());
+        }
+        value["host_helpers"]["/bin/sh"] = json!("e".repeat(64));
+        assert!(parse(&value).is_err());
     }
 }

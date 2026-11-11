@@ -9,7 +9,7 @@ description = "Passive release queue decisions for the future Gauntlet host obse
 base64 = "=0.22.1"
 flate2 = "=1.1.10"
 gauntlet-contracts = { path = "../gauntlet-contracts" }
-gauntlet-evidence = { path = "../gauntlet-evidence" }
+gauntlet-evidence = { path = "../gauntlet-evidence", features = ["quota-write"] }
 gauntlet-dashboard = { path = "../gauntlet-dashboard" }
 libc = "=0.2.191"
 ring = "=0.17.14"

@@ -1,6 +1,67 @@
 //! Fixed SDK and negative-control launches inside the owned agent.
 use super::*;
 impl NativeSdkAgent {
+    pub(crate) fn prepare_live(
+        job: &str,
+        spec: &CellPreparation,
+        assets: &VerifiedNativeSdkAssets,
+        sockets: &NativeSdkSockets,
+        public: &NativeSdkPublic,
+        mcp: &mut crate::NativeMcpSockets,
+    ) -> Result<Self, String> {
+        let mut agent = Self::prepare_mcp(job, spec, assets, sockets, public, mcp)?;
+        agent.live = true;
+        agent.mounts.insert(
+            "/runtime/live-model".into(),
+            (
+                sockets.model_directory()?.to_string_lossy().into_owned(),
+                false,
+            ),
+        );
+        Ok(agent)
+    }
+    pub(crate) fn launch_live_model_bridge(
+        &mut self,
+        source: &str,
+        worker: &str,
+        budget: &str,
+        cancel: &AtomicBool,
+    ) -> Result<RootChild, String> {
+        if !crate::hex(source, 40) || !crate::hex(worker, 64) || !crate::hex(budget, 64) {
+            return Err("fixed live model bridge pins required".into());
+        }
+        let value = self.inspect(cancel)?;
+        self.check(&value, true)?;
+        self.commands.spawn(
+            false,
+            &strings(&[
+                "exec",
+                "--interactive",
+                self.cid.as_ref().ok_or("SDK CID absent")?,
+                "/runtime/public/gauntlet-vm-worker",
+                "--live-model-http-bridge-v1",
+                source,
+                &self.job,
+                worker,
+                budget,
+            ]),
+        )
+    }
+    pub(crate) fn launch_live_sdk(&mut self, cancel: &AtomicBool) -> Result<RootChild, String> {
+        let value = self.inspect(cancel)?;
+        self.check(&value, true)?;
+        self.commands.spawn(
+            false,
+            &strings(&[
+                "exec",
+                "--interactive",
+                self.cid.as_ref().ok_or("SDK CID absent")?,
+                "/runtime/bun",
+                "/runtime/public/developer_omp_episode.ts",
+                "/runtime/public/episode.json",
+            ]),
+        )
+    }
     pub(crate) fn boundary_canary_positive(
         &mut self,
         expected: &str,

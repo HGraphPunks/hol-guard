@@ -1,6 +1,7 @@
 //! Outside-pinned helper and Podman security preflight for an ARM candidate
 //! build. Observed VM hashes do not by themselves approve a production pin.
 
+use crate::builder_candidate_process::CandidateProcessError;
 use crate::hex;
 use rustix::fs::{fstat, open, statat, AtFlags, FileType, Mode, OFlags, Stat};
 use serde_json::{json, Value};
@@ -9,8 +10,7 @@ use std::fmt;
 use std::fs::File;
 use std::io::Read;
 use std::process::{Command, Stdio};
-use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 const PODMAN: &str = "/usr/bin/podman";
 const SLIRP: &str = "/usr/bin/slirp4netns";
@@ -19,6 +19,95 @@ const SECCOMP: &str = "/usr/share/containers/seccomp.json";
 const MAX_BINARY: u64 = 64 * 1024 * 1024;
 const MAX_SECCOMP: u64 = 1024 * 1024;
 const INFO_WAIT: Duration = Duration::from_secs(30);
+
+pub(crate) fn podman_command() -> Command {
+    let mut command = Command::new(PODMAN);
+    command.env_clear();
+    command.env("HOME", "/root");
+    command.env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin");
+    command.env("TMPDIR", "/var/tmp");
+    command
+}
+
+pub(crate) fn container_absent(job_id: &str) -> Result<bool, CandidateProcessError> {
+    if !crate::hex(job_id, 16) {
+        return Err(CandidateProcessError::ContainerUnknown);
+    }
+    container_target_absent(
+        &format!("hol-gauntlet-build-{job_id}"),
+        false,
+        crate::native_worker::interruption_epoch(),
+    )
+}
+
+pub(crate) fn container_id_absent(cid: &str) -> Result<bool, CandidateProcessError> {
+    if !crate::hex(cid, 64) {
+        return Err(CandidateProcessError::ContainerUnknown);
+    }
+    container_target_absent(cid, false, crate::native_worker::interruption_epoch())
+}
+
+/// Only original owned teardown may tolerate prior cancellation. A new signal
+/// invalidates both the exact name and retained CID observations.
+pub(crate) fn cleanup_container_absent(
+    job_id: &str,
+    cid: Option<&str>,
+) -> Result<bool, CandidateProcessError> {
+    if !crate::hex(job_id, 16) || cid.is_some_and(|s| !crate::hex(s, 64)) {
+        return Err(CandidateProcessError::ContainerUnknown);
+    }
+    let epoch = crate::native_worker::interruption_epoch();
+    Ok(
+        container_target_absent(&format!("hol-gauntlet-build-{job_id}"), true, epoch)?
+            && cid
+                .map(|s| container_target_absent(s, true, epoch))
+                .transpose()?
+                .unwrap_or(true),
+    )
+}
+
+fn container_target_absent(
+    target: &str,
+    owned_cleanup: bool,
+    epoch: usize,
+) -> Result<bool, CandidateProcessError> {
+    let cancelled = || {
+        crate::process_reap::probe_interrupted(
+            crate::native_worker::cancellation_requested(),
+            epoch,
+            crate::native_worker::interruption_epoch(),
+            owned_cleanup,
+        )
+    };
+    if cancelled() {
+        return Err(CandidateProcessError::ContainerUnknown);
+    }
+    let mut command = podman_command();
+    command.args(["container", "exists", target]);
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = command
+        .spawn()
+        .map_err(|_| CandidateProcessError::ContainerUnknown)?;
+    let output = crate::process_reap::capture_probe_output_bounded(
+        &mut child,
+        INFO_WAIT,
+        (4096, 4096),
+        &cancelled,
+    )
+    .map_err(|_| CandidateProcessError::ContainerUnknown)?;
+    let absent = match output.status.code() {
+        Some(0) => false,
+        Some(1) => true,
+        _ => return Err(CandidateProcessError::ContainerUnknown),
+    };
+    if cancelled() {
+        return Err(CandidateProcessError::ContainerUnknown);
+    }
+    Ok(absent)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CandidatePreflightError {
@@ -146,6 +235,9 @@ pub(crate) fn verify_file(
 }
 
 pub(crate) fn podman_info() -> Result<Value, CandidatePreflightError> {
+    if crate::native_worker::cancellation_requested() {
+        return Err(CandidatePreflightError::PodmanUnavailable);
+    }
     let mut command = Command::new(PODMAN);
     command.args(["info", "--format", "json"]);
     command
@@ -159,25 +251,22 @@ pub(crate) fn podman_info() -> Result<Value, CandidatePreflightError> {
     let mut child = command
         .spawn()
         .map_err(|_| CandidatePreflightError::PodmanUnavailable)?;
-    let started = Instant::now();
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => break,
-            Ok(None) if started.elapsed() < INFO_WAIT => thread::sleep(Duration::from_millis(20)),
-            _ => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(CandidatePreflightError::PodmanUnavailable);
-            }
-        }
-    }
-    let output = child
-        .wait_with_output()
-        .map_err(|_| CandidatePreflightError::PodmanUnavailable)?;
-    if !output.status.success() || output.stdout.len() > 64 * 1024 || output.stderr.len() > 4096 {
+    let output = crate::process_reap::capture_probe_output_bounded(
+        &mut child,
+        INFO_WAIT,
+        (64 * 1024, 4096),
+        &crate::native_worker::cancellation_requested,
+    )
+    .map_err(|_| CandidatePreflightError::PodmanUnavailable)?;
+    if !output.status.success() || crate::native_worker::cancellation_requested() {
         return Err(CandidatePreflightError::PodmanUnavailable);
     }
-    serde_json::from_slice(&output.stdout).map_err(|_| CandidatePreflightError::PodmanUnavailable)
+    let info = serde_json::from_slice(&output.stdout)
+        .map_err(|_| CandidatePreflightError::PodmanUnavailable)?;
+    if crate::native_worker::cancellation_requested() {
+        return Err(CandidatePreflightError::PodmanUnavailable);
+    }
+    Ok(info)
 }
 
 pub(crate) fn verify_candidate_runtime(

@@ -36,7 +36,12 @@ pub use observer_runtime::run_passive_observer;
 pub use observer_start::{open_observer_store, start_observer_bounded, wait_for_lifecycle};
 mod host_telemetry;
 pub use host_telemetry::{sample_host, HostTelemetryError};
+mod live_provider_operation;
 mod live_provider_preflight;
+pub use live_provider_operation::{
+    read_live_provider_binding, relay_live_model_request, run_live_provider_command,
+    LIVE_PROVIDER_USAGE,
+};
 pub use live_provider_preflight::{evaluate_live_provider_preflight, LiveProviderPreflightError};
 mod live_provider_observe;
 pub use live_provider_observe::observe_live_provider_preflight_shadow;
@@ -59,7 +64,10 @@ pub use controller_key_pins::{
     HostStagingRestartReadbackObservation,
 };
 pub use native_control_readback::{HostNativeControlReadback, NativeControlReadbackError};
-pub use native_operation::{run_native_operation_command, NATIVE_OPERATION_USAGE};
+pub use native_operation::{
+    run_live_campaign_command, run_native_operation_command, run_source_artifact_command,
+    LIVE_CAMPAIGN_USAGE, NATIVE_OPERATION_USAGE, SOURCE_ARTIFACT_USAGE,
+};
 mod candidate_build_pins;
 mod candidate_command;
 mod dependency_intent;

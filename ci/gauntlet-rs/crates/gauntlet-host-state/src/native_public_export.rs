@@ -9,6 +9,11 @@ use serde_json::{json, Value};
 use std::{fs::File, io::Write, path::PathBuf, time::Duration};
 
 const LIMIT: usize = 128 * 1024 * 1024;
+#[path = "native_storage_retirement.rs"]
+mod retirement;
+pub(super) use retirement::{
+    run_command as run_retirement_command, verify_idle_record as verify_retirement_idle_record,
+};
 pub(super) fn require_private_input(path: &std::path::Path) -> Result<(), String> {
     let owner = rustix::process::geteuid().as_raw();
     let parent = path.parent().ok_or("private artifact parent required")?;
@@ -86,7 +91,12 @@ fn validate_archive(
     let observed = verified.observation();
     if bytes(&index)? != *index_raw
         || index.as_object().is_none_or(|o| o.len() != 14)
-        || index["schema"] != "hol-gauntlet-native-public-artifacts.v1"
+        || index["schema"]
+            != if intent.is_live() {
+                "hol-gauntlet-native-public-artifacts.v2"
+            } else {
+                "hol-gauntlet-native-public-artifacts.v1"
+            }
         || index["source_sha"] != intent.text("source_sha")
         || index["job_id"] != intent.job()
         || index["deployment_digest"] != intent.text("deployment_digest")
@@ -97,7 +107,7 @@ fn validate_archive(
         || index["report_sha256"] != observed["report_sha256"]
         || index["execution_eligible"] != false
         || index["guard_causality_verified"] != false
-        || index["model_requests"].as_u64() != Some(0)
+        || index["model_requests"] != observed["model_requests"]
     {
         return Err("native public export index differs from original completed job".into());
     }
@@ -264,11 +274,35 @@ fn fetch_with_lima(
     Ok((path, digest))
 }
 
+pub(super) fn report(j: &Journal, i: &Intent, args: &[String]) -> Result<Value, String> {
+    j.require_dispatch(i)?;
+    let verified = j.verify(i, &j.read(i.job(), "completion")?)?;
+    let (archive, archive_sha) = if args.len() == 6 {
+        require_private_input(std::path::Path::new(&args[4]))?;
+        (PathBuf::from(&args[4]), args[5].clone())
+    } else {
+        fetch(j, i, &verified)?
+    };
+    let judgment = verified.judge_artifacts(
+        &archive,
+        &archive_sha,
+        i.text("interpreter_sha256"),
+        i.text("observer_sha256"),
+    )?;
+    let output = json!({"schema":"hol-gauntlet-host-deterministic-report.v1","job_id":i.job(),"source_sha":i.text("source_sha"),
+                "intent_sha256":i.digest()?,"archive_sha256":archive_sha,"readback":verified.observation(),"independent_judgment":judgment,
+                "execution_eligible":false,"qualification_eligible":false,"model_requests":0});
+    j.require_dispatch(i)?;
+    let raw = bytes(&output)?;
+    j.retain(i.job(), &format!("judgment-{}", sha(&raw)), &raw)?;
+    Ok(output)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::{collections::BTreeMap, os::unix::fs::PermissionsExt};
-    fn archive(files: &BTreeMap<String, Vec<u8>>) -> Vec<u8> {
+    pub(super) fn archive(files: &BTreeMap<String, Vec<u8>>) -> Vec<u8> {
         let mut builder = tar::Builder::new(Vec::new());
         for (name, raw) in files {
             let mut header = tar::Header::new_ustar();
@@ -284,16 +318,16 @@ mod tests {
         }
         builder.into_inner().unwrap()
     }
-    struct Fixture {
+    pub(super) struct Fixture {
         _temp: tempfile::TempDir,
-        j: Journal,
-        i: Intent,
-        verified: HostNativeControlReadback,
-        raw: Vec<u8>,
+        pub(super) j: Journal,
+        pub(super) i: Intent,
+        pub(super) verified: HostNativeControlReadback,
+        pub(super) raw: Vec<u8>,
         lima: Lima,
         transport: PathBuf,
     }
-    fn fixture() -> Fixture {
+    pub(super) fn fixture() -> Fixture {
         let source = "2".repeat(40);
         let prep = bytes(
             &json!({"runtime_prefix":format!("/opt/hol-gauntlet/candidates/{source}/prefix")}),

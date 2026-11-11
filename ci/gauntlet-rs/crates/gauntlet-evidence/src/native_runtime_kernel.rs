@@ -115,9 +115,9 @@ pub(crate) fn verify(
     samples: &KernelSamples<'_>,
     hooks: &Value,
 ) -> Result<Value> {
-    if preparation["launch"]["schema"] == "hol-gauntlet-cell-supervisor.v5" {
+    if crate::native_launch_provenance::pipe_launch(&preparation["launch"])? {
         let images = crate::native_runtime_trace::verify(control, preparation, artifacts)?.ok_or(
-            crate::EvidenceError::Invalid("v5 process image history required"),
+            crate::EvidenceError::Invalid("pipe-launch process image history required"),
         )?;
         let pipes = crate::native_stdio_diagnostic::verify(
             control,
@@ -127,7 +127,7 @@ pub(crate) fn verify(
             hooks,
         )?
         .ok_or(crate::EvidenceError::Invalid(
-            "v5 Native pipe history required",
+            "pipe-launch Native pipe history required",
         ))?;
         require(
             pipes["native_client_streams"]

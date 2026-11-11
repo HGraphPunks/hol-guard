@@ -184,6 +184,28 @@ fn sdk_requires_its_own_version_and_both_outside_product_and_dependency_pins() {
         assert!(parse(&control).is_err());
     }
     control["role"] = json!("input-binding");
+    let mut live = composed.clone();
+    live["schema"] = json!("hol-gauntlet-native-worker-job.v9");
+    live["profile"] = json!("native-host-pinned-live-omp-v1");
+    live["live"] = json!({"schema":"hol-gauntlet-native-live-omp-job.v1","cell_id":crate::native_live_spec::FEATURE_AI_BASELINE,"spec_sha256":"1".repeat(64),
+        "model":{"schema":"hol-gauntlet-native-live-model-pins.v1","provider_job_id":"2".repeat(16),"budget_digest":"3".repeat(64),"model_id":crate::native_live_model::MODEL,"max_turns":32,"token_limit":100000}});
+    let parsed = parse(&live).unwrap();
+    assert_eq!(parsed.profile(), "native-host-pinned-live-omp-v1");
+    assert_eq!(parsed.case(), "feature-ai-unprotected");
+    assert!(parsed.requires_host_pin());
+    for (pointer, bad) in [
+        ("/schema", json!("hol-gauntlet-native-worker-job.v7")),
+        ("/profile", json!("native-host-pinned-control-v1")),
+        ("/live/cell_id", json!("input-binding")),
+        ("/live/model/model_id", json!("caller-model")),
+        ("/guard/source_sha", json!("b".repeat(40))),
+    ] {
+        let mut changed = live.clone();
+        *changed.pointer_mut(pointer).unwrap() = bad;
+        assert!(parse(&changed).is_err(), "{pointer}");
+    }
+    live["role"] = json!("success");
+    assert!(parse(&live).is_err());
     control["schema"] = json!("hol-gauntlet-native-worker-job.v5");
     assert!(parse(&control).is_err());
     for (pointer, bad) in [
@@ -314,6 +336,19 @@ fn valid_preparations_cannot_borrow_another_jobs_workspace_stage_or_slice() {
     };
     job.execution = NativeJobExecution::HostPinnedReadonlyHook(pins.clone());
     assert!(job.preparation(raw.as_bytes()).is_ok());
+    let mut namespace = readonly.clone();
+    namespace["launch"]["schema"] = json!("hol-gauntlet-cell-supervisor.v6");
+    let raw = namespace.to_string();
+    job.preparation_sha256 = format!("{:x}", Sha256::digest(raw.as_bytes()));
+    assert!(job.preparation(raw.as_bytes()).is_err());
+    namespace["launch"]["host_helpers"]["/usr/bin/nsenter"] = json!("1".repeat(64));
+    let raw = namespace.to_string();
+    job.preparation_sha256 = format!("{:x}", Sha256::digest(raw.as_bytes()));
+    assert!(job.preparation(raw.as_bytes()).is_ok());
+    namespace["launch"]["host_helpers"]["/usr/bin/nsenter"] = json!(false);
+    let raw = namespace.to_string();
+    job.preparation_sha256 = format!("{:x}", Sha256::digest(raw.as_bytes()));
+    assert!(job.preparation(raw.as_bytes()).is_err());
     let legacy = value.to_string();
     job.preparation_sha256 = format!("{:x}", Sha256::digest(legacy.as_bytes()));
     assert!(job.preparation(legacy.as_bytes()).is_err());
@@ -333,12 +368,32 @@ fn valid_preparations_cannot_borrow_another_jobs_workspace_stage_or_slice() {
         job.preparation_sha256 = format!("{:x}", Sha256::digest(raw.as_bytes()));
         assert!(job.preparation(raw.as_bytes()).is_err(), "{pointer}");
     }
-    let mut changed = readonly;
+    let mut changed = readonly.clone();
     changed["task_mounts"]["workspace"]["source"] =
         json!("/var/lib/hol-gauntlet-rust/native-jobs/fedcba9876543210/workspace");
     changed["task_mounts"]["workspace"]["custody_root"] =
         json!("/var/lib/hol-gauntlet-rust/native-jobs/fedcba9876543210");
     let raw = changed.to_string();
+    job.preparation_sha256 = format!("{:x}", Sha256::digest(raw.as_bytes()));
+    assert!(job.preparation(raw.as_bytes()).is_err());
+    job.execution=NativeJobExecution::HostPinnedLive{
+        guard:NativeGuardPins{source_sha:"a".repeat(40),package_version:"3.59.0".into(),native_sha256:"b".repeat(64),bwrap_sha256:"c".repeat(64)},
+        sdk:NativeSdkPins{sdk_tree_sha256:"d".repeat(64),bun_sha256:"e".repeat(64),publication_sha256:"f".repeat(64)},
+        live:crate::NativeLiveJob::parse(&json!({"schema":"hol-gauntlet-native-live-omp-job.v1","cell_id":crate::native_live_spec::FEATURE_AI_BASELINE,"spec_sha256":"1".repeat(64),
+            "model":{"schema":"hol-gauntlet-native-live-model-pins.v1","provider_job_id":"2".repeat(16),"budget_digest":"3".repeat(64),"model_id":crate::native_live_model::MODEL,"max_turns":32,"token_limit":100000}})).unwrap()};
+    for seconds in [180, crate::native_live_spec::PREPARATION_SECONDS, 991] {
+        let mut prepared = value.clone();
+        prepared["launch"]["wall_seconds"] = json!(seconds);
+        let raw = prepared.to_string();
+        job.preparation_sha256 = format!("{:x}", Sha256::digest(raw.as_bytes()));
+        assert_eq!(
+            job.preparation(raw.as_bytes()).is_ok(),
+            seconds == crate::native_live_spec::PREPARATION_SECONDS
+        );
+    }
+    let mut forbidden = readonly;
+    forbidden["launch"]["wall_seconds"] = json!(crate::native_live_spec::PREPARATION_SECONDS);
+    let raw = forbidden.to_string();
     job.preparation_sha256 = format!("{:x}", Sha256::digest(raw.as_bytes()));
     assert!(job.preparation(raw.as_bytes()).is_err());
 }

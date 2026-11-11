@@ -6,6 +6,7 @@ use gauntlet_evidence::{
     inventory_tree, verify_installed_version_metadata, TreeInventory, TreeKind,
 };
 use serde_json::Value;
+use std::os::fd::OwnedFd;
 use std::path::{Path, PathBuf};
 
 pub(crate) fn prefix(pins: &NativeRuntimePins<'_>) -> PathBuf {
@@ -19,6 +20,49 @@ pub(crate) fn read(pins: &NativeRuntimePins<'_>) -> Result<Value, String> {
         .map_err(|e| e.to_string())?;
     let raw = crate::dependency_io::read(&job, "native-candidate-prefix.v1.json", 0, 0o600, 8192)?;
     crate::native_runtime_receipt::parse(&raw, pins)
+}
+
+pub(crate) fn source_receipt(
+    slot: &OwnedFd,
+    job: &str,
+    source_sha: &str,
+    archive_sha: &str,
+    bytes: u64,
+) -> Result<(), String> {
+    let bounded = crate::native_job_storage::source::verify(
+        job,
+        slot,
+        Some(crate::JobStorageProfile::Build),
+    )?;
+    let source = if let Some(source) = bounded {
+        source
+    } else {
+        let raw = crate::dependency_io::read(slot, "source-capture.v1.json", 0, 0o600, 8192)?;
+        if gauntlet_contracts::canonicalize(&raw).map_err(|e| e.to_string())? != raw {
+            return Err("native source receipt is not canonical".into());
+        }
+        let source: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
+        if source.as_object().is_none_or(|v| v.len() != 9)
+            || source["schema"] != "hol-gauntlet-native-source-capture.v1"
+        {
+            return Err("original native source receipt version differs".into());
+        }
+        source
+    };
+    if source["job_id"] != job
+        || source["source_sha"] != source_sha
+        || source["source_archive_sha256"] != archive_sha
+        || source["source_bytes"] != bytes
+        || source["builder_executed"] != false
+        || source["execution_eligible"] != false
+        || source["model_requests"] != 0
+        || !source["worker_generation"]
+            .as_str()
+            .is_some_and(|s| crate::hex(s, 64))
+    {
+        return Err("native runtime source receipt differs".into());
+    }
+    Ok(())
 }
 
 pub(crate) fn verify(
@@ -40,26 +84,13 @@ pub(crate) fn verify(
         text("source_archive_sha256")?,
     )
     .map_err(|e| e.to_string())?;
-    let source = crate::dependency_io::read(&slot, "source-capture.v1.json", 0, 0o600, 8192)?;
-    if gauntlet_contracts::canonicalize(&source).map_err(|e| e.to_string())? != source {
-        return Err("native source receipt is not canonical".into());
-    }
-    let source: Value = serde_json::from_slice(&source).map_err(|e| e.to_string())?;
-    if source.as_object().is_none_or(|v| v.len() != 9)
-        || source["schema"] != "hol-gauntlet-native-source-capture.v1"
-        || source["job_id"] != pins.job_id
-        || source["source_sha"] != pins.source_sha
-        || source["source_archive_sha256"] != text("source_archive_sha256")?
-        || source["source_bytes"] != bytes
-        || source["builder_executed"] != false
-        || source["execution_eligible"] != false
-        || source["model_requests"] != 0
-        || !source["worker_generation"]
-            .as_str()
-            .is_some_and(|s| crate::hex(s, 64))
-    {
-        return Err("native runtime source receipt differs".into());
-    }
+    source_receipt(
+        &slot,
+        pins.job_id,
+        pins.source_sha,
+        text("source_archive_sha256")?,
+        bytes,
+    )?;
     crate::candidate_capture::inactive(pins.job_id).map_err(|e| e.to_string())?;
     let archive = crate::dependency_io::read(&slot, "candidate.zip", 0, 0o444, 256 * 1024 * 1024)?;
     crate::candidate_capture::verify_captured(
@@ -70,11 +101,15 @@ pub(crate) fn verify(
         pins.version,
     )
     .map_err(|e| e.to_string())?;
-    let (_, dependency_tree) = crate::dependency_prefix::verify_published_dependency_prefix(
-        text("dependency_job_id")?,
-        text("dependency_prefix_receipt_sha256")?,
-        pins.source_sha,
-    )?;
+    let dependency_tree = {
+        let _namespace_scope = crate::native_job_storage::owner::scope()?;
+        crate::dependency_prefix::verify_published_dependency_prefix(
+            text("dependency_job_id")?,
+            text("dependency_prefix_receipt_sha256")?,
+            pins.source_sha,
+        )?
+        .1
+    };
     if dependency_tree != text("baseline_tree_sha256")? {
         return Err("runtime dependency tree differs".into());
     }

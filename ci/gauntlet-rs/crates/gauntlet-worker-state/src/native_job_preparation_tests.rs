@@ -127,7 +127,40 @@ fn host_preparation_bundle_retains_exact_bytes_and_supported_sdk_role_profiles()
         .as_object_mut()
         .unwrap()
         .remove("role");
-    assert_eq!(check(readonly).unwrap().spec.case(), "readonly-utility");
+    assert_eq!(
+        check(readonly.clone()).unwrap().spec.case(),
+        "readonly-utility"
+    );
+    let mut namespace = readonly;
+    namespace["preparation"]["launch"]["schema"] = json!("hol-gauntlet-cell-supervisor.v6");
+    assert!(check(namespace.clone()).is_err());
+    namespace["preparation"]["launch"]["host_helpers"]["/usr/bin/nsenter"] = json!("1".repeat(64));
+    let parsed = check(namespace.clone()).unwrap();
+    assert_eq!(parsed.spec.case(), "readonly-utility");
+    assert_eq!(
+        parsed.preparation.host_helper_sha256("/usr/bin/nsenter"),
+        Some("1".repeat(64).as_str())
+    );
+    for bad in [json!(true), json!("latest"), Value::Null] {
+        let mut changed = namespace.clone();
+        changed["preparation"]["launch"]["host_helpers"]["/usr/bin/nsenter"] = bad;
+        assert!(check(changed).is_err());
+    }
+    let mut downgraded = namespace.clone();
+    downgraded["preparation"]["launch"]["schema"] = json!("hol-gauntlet-cell-supervisor.v5");
+    assert!(check(downgraded).is_err());
+    let mut extra = namespace.clone();
+    extra["preparation"]["launch"]["host_helpers"]["/bin/sh"] = json!("1".repeat(64));
+    assert!(check(extra).is_err());
+    let mut sdk = preparation_bundle_fixture();
+    sdk["preparation"] = namespace["preparation"].clone();
+    assert!(check(sdk.clone()).is_err());
+    sdk["preparation"]["schema"] = json!("hol-gauntlet-cell-preparation.v1");
+    sdk["preparation"]
+        .as_object_mut()
+        .unwrap()
+        .remove("control_profile");
+    assert_eq!(check(sdk).unwrap().spec.case(), "success");
 }
 
 #[test]

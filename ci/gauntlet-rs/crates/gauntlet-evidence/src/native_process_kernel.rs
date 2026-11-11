@@ -112,15 +112,14 @@ impl<'a> KernelSamples<'a> {
         observer_sha256: &str,
         launch: &Value,
     ) -> Result<Self> {
+        let pipes = crate::native_launch_provenance::pipe_launch(launch)?;
         if observed["schema"] == "hol-gauntlet-outside-native-mcp-kernel.v2" {
             require(
                 (launch["schema"] == "hol-gauntlet-cell-supervisor.v3"
                     && launch["process_events"] == "outside-root-ptrace.v1")
                     || (launch["schema"] == "hol-gauntlet-cell-supervisor.v4"
                         && launch["process_events"] == "outside-root-ptrace.v2")
-                    || (launch["schema"] == "hol-gauntlet-cell-supervisor.v5"
-                        && launch["process_events"] == "outside-root-ptrace.v1"
-                        && launch["native_stdio"] == "outside-root-native-pipes.v1"),
+                    || pipes,
             )?;
         }
         Self::new(observed, observer_sha256)

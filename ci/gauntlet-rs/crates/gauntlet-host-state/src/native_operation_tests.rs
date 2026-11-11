@@ -426,3 +426,52 @@ fn keyed_repairs_resolve_only_the_original_unknown_job_without_inventing_an_exit
         assert_eq!(j.read(i.job(), "repair").unwrap(), raw);
     }
 }
+
+#[test]
+fn readonly_hook_completion_is_bound_to_explicit_host_role_and_version() {
+    use crate::native_control_readback::tests::{fixture_for, refresh};
+    let raw = |v: &Value| bytes(v).unwrap();
+    let (directory, expected, prep, frame) = fixture_for("readonly-utility");
+    let journal =
+        HostControllerKeyPinJournal::open(&directory.path().canonicalize().unwrap()).unwrap();
+    let result = journal
+        .verify_native_completion(&raw(&frame), &expected, &prep, "readonly-utility")
+        .unwrap();
+    assert_eq!(
+        result.observation()["schema"],
+        "hol-gauntlet-host-native-control-readback.v2"
+    );
+    assert_eq!(result.diagnostic()["sdk_exercised"], false);
+    assert_eq!(result.observation()["execution_eligible"], false);
+    assert!(journal
+        .verify_native_completion(&raw(&frame), &expected, &prep, "success")
+        .is_err());
+    for (pointer, value) in [
+        (
+            "/schema",
+            json!("hol-gauntlet-native-host-pinned-completion.v1"),
+        ),
+        (
+            "/report/schema",
+            json!("hol-gauntlet-native-worker-report.v7"),
+        ),
+        ("/report/profile", json!("native-host-pinned-control-v1")),
+        ("/report/controller_report/sdk_exercised", json!(true)),
+        ("/report/controller/pid", json!(242)),
+        (
+            "/report/prelaunch_custody/acknowledgement_sha256",
+            json!("0".repeat(64)),
+        ),
+        ("/report/product_slice_absent", json!(false)),
+    ] {
+        let mut changed = frame.clone();
+        *changed.pointer_mut(pointer).unwrap() = value;
+        refresh(&mut changed);
+        assert!(
+            journal
+                .verify_native_completion(&raw(&changed), &expected, &prep, "readonly-utility")
+                .is_err(),
+            "{pointer}"
+        );
+    }
+}

@@ -9,6 +9,7 @@ use std::{os::fd::OwnedFd, path::Path};
 const STATE: &str = "/var/lib/hol-gauntlet-rust/worker-state";
 const SUFFIX: &str = "native-keyed-startup-repair.json";
 const SCHEMA: &str = "hol-gauntlet-native-keyed-pre-controller-repair.v1";
+const LIVE_SCHEMA: &str = "hol-gauntlet-native-live-keyed-pre-controller-repair.v1";
 
 pub struct NativePrelaunchRepairPins<'a> {
     pub prelaunch: &'a PrelaunchPrepared,
@@ -31,6 +32,12 @@ fn absent(path: &Path) -> Result<(), String> {
     }
 }
 fn entries(fd: &OwnedFd) -> Result<std::collections::BTreeSet<String>, String> {
+    entries_bounded(fd, 2)
+}
+fn entries_bounded(
+    fd: &OwnedFd,
+    limit: usize,
+) -> Result<std::collections::BTreeSet<String>, String> {
     let mut names = std::collections::BTreeSet::new();
     for entry in Dir::read_from(fd).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
@@ -41,22 +48,38 @@ fn entries(fd: &OwnedFd) -> Result<std::collections::BTreeSet<String>, String> {
         if !matches!(name, "." | "..") {
             names.insert(name.into());
         }
-        if names.len() > 2 {
+        if names.len() > limit {
             return Err("unexpected keyed startup objects".into());
         }
     }
     Ok(names)
 }
 fn untouched_root(path: &Path, expected: &Value) -> Result<Value, String> {
+    untouched_profile(path, expected, false)
+}
+fn untouched_profile(path: &Path, expected: &Value, live: bool) -> Result<Value, String> {
     let root = crate::open_root_owned_public_directory(path).map_err(|e| e.to_string())?;
     let root_stat = fstat(&root).map_err(|e| e.to_string())?;
     if root_stat.st_uid != 0
         || root_stat.st_gid != 0
         || root_stat.st_mode & 0o7777 != 0o700
-        || entries(&root)?
-            != ["preparation.v1.json".into(), "workspace".into()]
+        || entries_bounded(&root, if live { 4 } else { 2 })?
+            != if live {
+                [
+                    "preparation.v1.json",
+                    "workspace",
+                    "mcp-world.db",
+                    "live-private",
+                ]
                 .into_iter()
+                .map(str::to_owned)
                 .collect()
+            } else {
+                ["preparation.v1.json", "workspace"]
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect()
+            }
         || expected["source"] != path.join("workspace").to_string_lossy().as_ref()
         || expected["custody_root"] != path.to_string_lossy().as_ref()
     {
@@ -87,11 +110,15 @@ fn untouched_root(path: &Path, expected: &Value) -> Result<Value, String> {
     {
         return Err("keyed startup workspace was touched or replaced".into());
     }
-    Ok(
-        json!({"job_device":root_stat.st_dev,"job_inode":root_stat.st_ino,
+    let mut value = json!({"job_device":root_stat.st_dev,"job_inode":root_stat.st_ino,
         "workspace_device":held.st_dev,"workspace_inode":held.st_ino,"workspace_uid":10001,
-        "workspace_gid":10001,"workspace_empty":true,"only_preparation_and_workspace":true}),
-    )
+        "workspace_gid":10001,"workspace_empty":true});
+    value[if live {
+        "only_preparation_workspace_and_live_custody"
+    } else {
+        "only_preparation_and_workspace"
+    }] = json!(true);
+    Ok(value)
 }
 pub(crate) fn retained(
     journal: &RunReservationJournal,
@@ -122,7 +149,28 @@ pub(crate) fn retained(
     }
     Ok((prepared, spec))
 }
-fn facts(journal: &RunReservationJournal, spec: &NativeJobSpec) -> Result<Value, String> {
+fn facts(
+    journal: &RunReservationJournal,
+    spec: &NativeJobSpec,
+    prelaunch: &PrelaunchPrepared,
+    live_expected: Option<&str>,
+) -> Result<Value, String> {
+    if crate::native_job_storage::native::verify(&spec.job_id)? {
+        let root =
+            crate::open_root_owned_public_directory(&spec.job_root()).map_err(|e| e.to_string())?;
+        for suffix in ["native.stdout", "native.stderr"] {
+            if crate::read_bounded_regular(
+                &root,
+                &format!("{}.{suffix}", spec.job_id),
+                16 * 1024 * 1024,
+            )
+            .map_err(|e| e.to_string())?
+            .is_some()
+            {
+                return Err("bounded controller logs block startup repair".into());
+            }
+        }
+    }
     for suffix in [
         "running.json",
         "terminal.json",
@@ -158,7 +206,26 @@ fn facts(journal: &RunReservationJournal, spec: &NativeJobSpec) -> Result<Value,
         .ok_or("keyed startup preparation absent")?;
     let preparation = spec.preparation(&raw)?;
     absent(&preparation.stage)?;
-    let unchanged = untouched_root(&spec.job_root(), &preparation.task_mounts["workspace"])?;
+    let unchanged = if let Some(expected) = live_expected {
+        let mut value = untouched_profile(
+            &spec.job_root(),
+            &preparation.task_mounts["workspace"],
+            true,
+        )?;
+        value["live_world"] = crate::native_live_prepare::verify_unreleased(
+            spec,
+            &prelaunch.deployment_digest,
+            expected,
+        )?;
+        untouched_profile(
+            &spec.job_root(),
+            &preparation.task_mounts["workspace"],
+            true,
+        )?;
+        value
+    } else {
+        untouched_root(&spec.job_root(), &preparation.task_mounts["workspace"])?
+    };
     crate::native_sdk_quiescence::require_sdk_quiescence(spec, &preparation)?;
     crate::native_mcp_quiescence::require_mcp_quiescence(spec, &preparation)?;
     gauntlet_cell_rootfs::require_image_lease_absent(
@@ -173,7 +240,15 @@ fn facts(journal: &RunReservationJournal, spec: &NativeJobSpec) -> Result<Value,
     )
 }
 fn validate(value: &Value, prepared: &PrelaunchPrepared, preparation: &str) -> Result<(), String> {
-    let fields = [
+    validate_profile(value, prepared, preparation, None)
+}
+fn validate_profile(
+    value: &Value,
+    prepared: &PrelaunchPrepared,
+    preparation: &str,
+    live_expected: Option<&str>,
+) -> Result<(), String> {
+    let mut fields = vec![
         "schema",
         "prelaunch",
         "preparation_sha256",
@@ -186,12 +261,23 @@ fn validate(value: &Value, prepared: &PrelaunchPrepared, preparation: &str) -> R
         "guard_causality_verified",
         "cleanup",
     ];
+    if live_expected.is_some() {
+        fields.push("live_prepared_sha256");
+    }
     let prelaunch: Value = serde_json::from_slice(&prepared.to_bytes().map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;
     if value
         .as_object()
         .is_none_or(|o| o.len() != fields.len() || fields.iter().any(|k| !o.contains_key(*k)))
-        || value["schema"] != SCHEMA
+        || value["schema"]
+            != if live_expected.is_some() {
+                LIVE_SCHEMA
+            } else {
+                SCHEMA
+            }
+        || live_expected.is_some_and(|expected| {
+            !crate::hex(expected, 64) || value["live_prepared_sha256"] != expected
+        })
         || value["prelaunch"] != prelaunch
         || value["preparation_sha256"] != preparation
         || value["repair_generation"]
@@ -226,8 +312,24 @@ pub(crate) fn verified_receipt(
     }
     let value: Value = serde_json::from_slice(&canonical).map_err(|e| e.to_string())?;
     let (prepared, spec) = retained(journal, source, job, deployment, generation)?;
-    validate(&value, &prepared, &spec.preparation_sha256)?;
-    if value["cleanup"] != facts(journal, &spec)? {
+    let live_expected = if matches!(
+        spec.execution,
+        crate::NativeJobExecution::HostPinnedLive { .. }
+    ) {
+        Some(
+            value["live_prepared_sha256"]
+                .as_str()
+                .ok_or("live startup preparation pin absent")?,
+        )
+    } else {
+        None
+    };
+    if live_expected.is_some() {
+        validate_profile(&value, &prepared, &spec.preparation_sha256, live_expected)?
+    } else {
+        validate(&value, &prepared, &spec.preparation_sha256)?
+    }
+    if value["cleanup"] != facts(journal, &spec, &prepared, live_expected)? {
         return Err("keyed startup repair custody or quiescence changed".into());
     }
     Ok(Some(raw))
@@ -235,16 +337,30 @@ pub(crate) fn verified_receipt(
 pub fn repair_native_host_pinned_pre_controller(
     pins: &NativePrelaunchRepairPins<'_>,
 ) -> Result<Vec<u8>, String> {
-    startup_repair(pins, true)
+    startup_repair(pins, true, None)
 }
 
 pub fn read_native_host_pinned_pre_controller_repair(
     pins: &NativePrelaunchRepairPins<'_>,
 ) -> Result<Vec<u8>, String> {
-    startup_repair(pins, false)
+    startup_repair(pins, false, None)
+}
+pub fn repair_native_live_pre_controller(
+    pins: &NativePrelaunchRepairPins<'_>,
+    live_prepared_sha256: &str,
+    publish: bool,
+) -> Result<Vec<u8>, String> {
+    if !crate::hex(live_prepared_sha256, 64) {
+        return Err("outside live preparation pin required for startup repair".into());
+    }
+    startup_repair(pins, publish, Some(live_prepared_sha256))
 }
 
-fn startup_repair(pins: &NativePrelaunchRepairPins<'_>, publish: bool) -> Result<Vec<u8>, String> {
+fn startup_repair(
+    pins: &NativePrelaunchRepairPins<'_>,
+    publish: bool,
+    live_expected: Option<&str>,
+) -> Result<Vec<u8>, String> {
     gauntlet_cell_rootfs::require_outside_root()?;
     crate::verify_running_binary(pins.repair_generation).map_err(|e| e.to_string())?;
     pins.prelaunch.to_bytes().map_err(|e| e.to_string())?;
@@ -266,6 +382,19 @@ fn startup_repair(pins: &NativePrelaunchRepairPins<'_>, publish: bool) -> Result
     if prepared != *p || spec.preparation_sha256 != pins.preparation_sha256 {
         return Err("outside keyed reservation or preparation differs".into());
     }
+    if matches!(
+        spec.execution,
+        crate::NativeJobExecution::HostPinnedLive { .. }
+    ) != live_expected.is_some()
+    {
+        return Err("live startup recovery requires explicit live preparation custody".into());
+    }
+    if let Some(expected) = live_expected {
+        let live = crate::native_live_prepare::retained(&spec, &p.deployment_digest)?;
+        if crate::native_live_model::sha(&live.raw) != expected {
+            return Err("live startup repair differs from outside Host preparation".into());
+        }
+    }
     if let Some(raw) = verified_receipt(
         &journal,
         &p.source_sha,
@@ -280,7 +409,7 @@ fn startup_repair(pins: &NativePrelaunchRepairPins<'_>, publish: bool) -> Result
     if !publish {
         return Err("keyed startup repair is absent; original job remains unknown".into());
     }
-    let cleanup = facts(&journal, &spec)?;
+    let cleanup = facts(&journal, &spec, p, live_expected)?;
     lease.verify(&journal.root).map_err(|e| e.to_string())?;
     crate::builder_image_context::verify_python_lock(&python).map_err(|e| e.to_string())?;
     let (again, again_spec) = retained(
@@ -292,15 +421,18 @@ fn startup_repair(pins: &NativePrelaunchRepairPins<'_>, publish: bool) -> Result
     )?;
     if again != prepared
         || again_spec.preparation_sha256 != spec.preparation_sha256
-        || facts(&journal, &spec)? != cleanup
+        || facts(&journal, &spec, p, live_expected)? != cleanup
     {
         return Err("keyed startup custody changed before commit".into());
     }
     let prelaunch: Value = serde_json::from_slice(&p.to_bytes().map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;
-    let receipt = json!({"schema":SCHEMA,"prelaunch":prelaunch,"preparation_sha256":pins.preparation_sha256,
+    let mut receipt = json!({"schema":if live_expected.is_some(){LIVE_SCHEMA}else{SCHEMA},"prelaunch":prelaunch,"preparation_sha256":pins.preparation_sha256,
         "repair_generation":pins.repair_generation,"status":"aborted","controller_state":"never-released",
         "exit_code":null,"model_requests":0,"execution_eligible":false,"guard_causality_verified":false,"cleanup":cleanup});
+    if let Some(expected) = live_expected {
+        receipt["live_prepared_sha256"] = json!(expected);
+    }
     let raw = canonicalize(receipt.to_string().as_bytes()).map_err(|e| e.to_string())?;
     crate::terminal::create_durable(&journal.root, &format!("{}.{}", p.job_id, SUFFIX), &raw)
         .map_err(|e| e.to_string())?;

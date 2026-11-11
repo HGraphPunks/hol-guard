@@ -77,6 +77,33 @@ pub(crate) fn write_file(
 }
 impl NativeMcpPublic {
     pub(crate) fn prepare(job: &Path, prefix: &Path) -> Result<Self, String> {
+        Self::prepare_profile(job, prefix, None)
+    }
+    pub(crate) fn prepare_live(
+        job: &Path,
+        prefix: &Path,
+        job_id: &str,
+        spec: &Value,
+    ) -> Result<Self, String> {
+        if !crate::hex(job_id, 16)
+            || spec["task_prompt"]
+                .as_str()
+                .is_none_or(|s| s.is_empty() || s.len() > 65536)
+        {
+            return Err("source-selected live MCP prompt required".into());
+        }
+        let authorization = canonicalize(spec["workflow"]["authorization"].to_string().as_bytes())
+            .map_err(|e| e.to_string())?;
+        let prompt = format!(
+            "{}\n\nSource-selected user delegation:\n{}",
+            spec["task_prompt"].as_str().unwrap(),
+            std::str::from_utf8(&authorization).map_err(|_| "public delegation UTF8")?
+        );
+        let payload = json!({"hook_event_name":"UserPromptSubmit","config_path":"/product/public/mcp.json",
+            "session_id":format!("gauntlet-live-{job_id}"),"prompt":prompt});
+        Self::prepare_profile(job, prefix, Some(payload))
+    }
+    fn prepare_profile(job: &Path, prefix: &Path, live: Option<Value>) -> Result<Self, String> {
         gauntlet_cell_rootfs::require_outside_root()?;
         if !prefix.is_absolute()
             || prefix
@@ -109,14 +136,29 @@ impl NativeMcpPublic {
         let directory = directory(&root, "mcp-public", 0o755, false)?;
         let config = canonicalize(json!({"prefix":prefix}).to_string().as_bytes())
             .map_err(|e| e.to_string())?;
+        let mcp = if live.is_some() {
+            let servers=["crm","docs","mail","tickets"].into_iter().map(|family|(family.to_owned(),json!({"command":"/usr/bin/python3",
+                "args":["/product/public/service_relay.py","--socket",format!("/upstream/{family}.sock")],"env":{},"transport":"stdio"}))).collect::<serde_json::Map<_,_>>();
+            canonicalize(json!({"mcpServers":servers}).to_string().as_bytes())
+                .map_err(|e| e.to_string())?
+        } else {
+            b"{}\n".to_vec()
+        };
         let mut files = Vec::new();
-        for (name, bytes) in [
+        let live_raw = live
+            .map(|v| canonicalize(v.to_string().as_bytes()).map_err(|e| e.to_string()))
+            .transpose()?;
+        let mut sources = vec![
             ("service_relay.py", RELAY.as_bytes()),
             ("native_mcp_proxy_v1.py", PROXY.as_bytes()),
             ("native_mcp_identity_v1.py", PROBE.as_bytes()),
-            ("mcp.json", b"{}\n".as_slice()),
+            ("mcp.json", mcp.as_slice()),
             ("prefix.json", config.as_slice()),
-        ] {
+        ];
+        if let Some(raw) = live_raw.as_ref() {
+            sources.push(("live-prompt.json", raw.as_slice()));
+        }
+        for (name, bytes) in sources {
             let file = write_file(&directory, name, bytes, 0o444)?;
             files.push(PublicFile {
                 name,

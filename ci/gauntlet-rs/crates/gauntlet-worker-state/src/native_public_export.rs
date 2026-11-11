@@ -23,6 +23,46 @@ fn collect(
     deployment: &str,
 ) -> Result<PublicFiles, String> {
     let mut files = PublicFiles::default();
+    if crate::native_job_storage::native::verify(job_id)? {
+        let storage = crate::open_root_owned_public_directory(
+            &Path::new(crate::native_job_storage::lifecycle::BASE).join(job_id),
+        )
+        .map_err(|e| e.to_string())?;
+        files.capture(
+            &storage,
+            "storage.json",
+            "combined/storage/receipt.v1.json",
+            (0, 0),
+            0o600,
+        )?;
+        let initialized = crate::open_root_owned_public_directory(Path::new(
+            "/var/lib/hol-gauntlet-rust/native-initialization",
+        ))
+        .map_err(|e| e.to_string())?;
+        files.capture(
+            &initialized,
+            &format!("{job_id}.job.json"),
+            "combined/storage/initialization.v2.json",
+            (0, 0),
+            0o600,
+        )?;
+        files.capture(
+            &initialized,
+            &format!("{job_id}.preparation.json"),
+            "combined/storage/preparation.v2.json",
+            (0, 0),
+            0o600,
+        )?;
+        for suffix in ["native.stdout", "native.stderr"] {
+            files.capture(
+                job,
+                &format!("{job_id}.{suffix}"),
+                &format!("combined/worker/{suffix}"),
+                (0, 0),
+                0o600,
+            )?;
+        }
+    }
     files.capture_report(journal, job_id, (0, 0))?;
     if !files.capture(
         job,
@@ -55,6 +95,17 @@ fn collect(
             (0, 0),
             0o444,
         )?;
+    }
+    for (relative, member) in [
+        ("live/evidence.v1.json", "combined/live/evidence.v1.json"),
+        ("live/context.v1.json", "combined/live/context.v1.json"),
+        ("live-cleanup.v1.json", "combined/live/cleanup.v1.json"),
+        (
+            "live-private/prepared.json",
+            "combined/live/prepared.v2.json",
+        ),
+    ] {
+        files.capture(job, relative, member, (0, 0), 0o600)?;
     }
     for name in [
         "native-supervisor-events.v1.jsonl",
@@ -101,6 +152,7 @@ fn collect(
         "native_mcp_identity_v1.py",
         "mcp.json",
         "prefix.json",
+        "live-prompt.json",
     ] {
         files.capture(
             job,
@@ -154,7 +206,7 @@ fn collect(
     Ok(files)
 }
 
-fn quiescent(
+pub(crate) fn quiescent(
     spec: &NativeJobSpec,
     preparation: &gauntlet_cell_rootfs::CellPreparation,
     running: &RunningMarker,
@@ -348,10 +400,33 @@ pub fn export_native_host_pinned_public(
     directories_stable()?;
     stable()?;
     crate::verify_running_binary(pins.exporter_generation).map_err(|e| e.to_string())?;
-    archive::encode(
-        files,
-        json!({"source_sha":p.source_sha,"job_id":p.job_id,"deployment_digest":p.deployment_digest,
+    let binding = json!({"source_sha":p.source_sha,"job_id":p.job_id,"deployment_digest":p.deployment_digest,
         "worker_generation":p.worker_generation,"preparation_sha256":pins.preparation_sha256,"control_role":pins.role,
-        "terminal_sha256":frame["terminal_sha256"],"report_sha256":frame["terminal"]["report_sha256"]}),
-    )
+        "terminal_sha256":frame["terminal_sha256"],"report_sha256":frame["terminal"]["report_sha256"]});
+    let raw = if matches!(
+        spec.execution,
+        crate::NativeJobExecution::HostPinnedLive { .. }
+    ) {
+        for name in [
+            "combined/live/evidence.v1.json",
+            "combined/live/context.v1.json",
+            "combined/live/cleanup.v1.json",
+            "combined/live/prepared.v2.json",
+        ] {
+            if !files.files.contains_key(name) {
+                return Err("complete retained live artifacts required for export".into());
+            }
+        }
+        archive::encode_live(
+            files,
+            binding,
+            frame["model_requests"]
+                .as_u64()
+                .ok_or("actual live request count required for export")?,
+        )
+    } else {
+        archive::encode(files, binding)
+    }?;
+    crate::native_job_storage::native::record_export(pins, &raw, &frame)?;
+    Ok(raw)
 }

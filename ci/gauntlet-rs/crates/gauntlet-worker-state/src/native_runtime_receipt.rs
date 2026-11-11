@@ -18,15 +18,7 @@ pub struct NativeRuntimePins<'a> {
 
 pub(crate) fn parse(raw: &[u8], pins: &NativeRuntimePins<'_>) -> Result<Value, String> {
     let patch = pins.python_full_version.strip_prefix("3.12.");
-    if !crate::hex(pins.job_id, 16)
-        || !crate::hex(pins.source_sha, 40)
-        || !gauntlet_evidence::valid_package_version(pins.version)
-        || ![
-            pins.clone_receipt_sha256,
-            pins.prefix_tree_sha256,
-            pins.native_sha256,
-            pins.generation,
-        ]
+    if ![pins.native_sha256, pins.generation]
         .iter()
         .all(|s| crate::hex(s, 64))
         || patch.is_none_or(|s| {
@@ -35,9 +27,34 @@ pub(crate) fn parse(raw: &[u8], pins: &NativeRuntimePins<'_>) -> Result<Value, S
                 || !s.bytes().all(|b| b.is_ascii_digit())
                 || s.len() > 1 && s.starts_with('0')
         })
+    {
+        return Err("complete runtime interpreter/native/generation pins required".into());
+    }
+    parse_clone(
+        raw,
+        pins.job_id,
+        pins.source_sha,
+        pins.version,
+        pins.clone_receipt_sha256,
+        pins.prefix_tree_sha256,
+    )
+}
+
+pub(crate) fn parse_clone(
+    raw: &[u8],
+    job: &str,
+    source: &str,
+    version: &str,
+    receipt_sha: &str,
+    tree_sha: &str,
+) -> Result<Value, String> {
+    if !crate::hex(job, 16)
+        || !crate::hex(source, 40)
+        || !gauntlet_evidence::valid_package_version(version)
+        || ![receipt_sha, tree_sha].iter().all(|s| crate::hex(s, 64))
         || raw.is_empty()
         || raw.len() > 8192
-        || format!("{:x}", Sha256::digest(raw)) != pins.clone_receipt_sha256
+        || format!("{:x}", Sha256::digest(raw)) != receipt_sha
         || canonicalize(raw).map_err(|e| e.to_string())? != raw
     {
         return Err(
@@ -47,10 +64,10 @@ pub(crate) fn parse(raw: &[u8], pins: &NativeRuntimePins<'_>) -> Result<Value, S
     let v: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;
     if v.as_object().is_none_or(|m| m.len() != 23)
         || v["schema"] != "hol-gauntlet-native-candidate-prefix.v1"
-        || v["job_id"] != pins.job_id
-        || v["source_sha"] != pins.source_sha
-        || v["version"] != pins.version
-        || v["prefix_tree_sha256"] != pins.prefix_tree_sha256
+        || v["job_id"] != job
+        || v["source_sha"] != source
+        || v["version"] != version
+        || v["prefix_tree_sha256"] != tree_sha
         || [
             "candidate_executed",
             "dependency_validation_completed",
@@ -84,7 +101,7 @@ pub(crate) fn parse(raw: &[u8], pins: &NativeRuntimePins<'_>) -> Result<Value, S
         .any(|k| !v[*k].as_str().is_some_and(|s| crate::hex(s, 64)))
         || !v["dependency_job_id"]
             .as_str()
-            .is_some_and(|s| crate::hex(s, 16) && s != pins.job_id)
+            .is_some_and(|s| crate::hex(s, 16) && s != job)
     {
         return Err(
             "native clone receipt differs from identity, bounds or its ineligible contract".into(),

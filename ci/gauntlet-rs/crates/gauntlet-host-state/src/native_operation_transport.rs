@@ -67,11 +67,11 @@ pub(super) fn execute(
         })?;
     let expected = intent.expected();
     let mut accepted = if run {
-        keys.send_run_request_and_accept_prepared_child(
+        keys.send_native_run_request_and_accept_prepared_child(
             child,
             &request,
             &expected,
-            Duration::from_secs(60),
+            Duration::from_secs(210),
         )
     } else {
         keys.send_native_readback_request_and_bind_child(

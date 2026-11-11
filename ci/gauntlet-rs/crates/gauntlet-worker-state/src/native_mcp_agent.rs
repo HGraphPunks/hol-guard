@@ -1,6 +1,6 @@
 //! Root ownership of one fixed, unprivileged MCP agent container. Create and
 //! start are separate so the CID is retained before any image code executes.
-use crate::native_mcp_agent_spec::check_inspection;
+use crate::native_mcp_agent_spec::{check_inspection, check_live_inspection};
 use crate::native_mcp_public::{write_file, NativeMcpPublic};
 use crate::native_sdk_process::RootCommands;
 use crate::native_sdk_public::APPARMOR;
@@ -33,6 +33,7 @@ pub struct NativeMcpAgent {
     inspection: Option<Value>,
     kernel: Option<Value>,
     closed: bool,
+    live: bool,
 }
 fn strings(args: &[&str]) -> Vec<String> {
     args.iter().map(|s| (*s).into()).collect()
@@ -50,10 +51,46 @@ fn read(path: &Path, limit: u64) -> Result<Vec<u8>, String> {
     Ok(raw)
 }
 impl NativeMcpAgent {
+    fn check(&self, value: &Value, running: bool) -> Result<(String, u32), String> {
+        if self.commands.is_cleanup() {
+            crate::native_job_storage::owner::cleanup_access(&self.job)?;
+        } else {
+            crate::native_job_storage::native::check(&self.job, value, running)?;
+        }
+        let check = if self.live {
+            check_live_inspection
+        } else {
+            check_inspection
+        };
+        check(
+            value,
+            &self.name,
+            &self.job,
+            &self.nonce,
+            &self.mounts,
+            running,
+        )
+    }
     pub fn prepare(
         job: &str,
         spec: &CellPreparation,
         sockets: &mut NativeMcpSockets,
+    ) -> Result<Self, String> {
+        Self::prepare_profile(job, spec, sockets, None)
+    }
+    pub(crate) fn prepare_live(
+        job: &str,
+        spec: &CellPreparation,
+        sockets: &mut NativeMcpSockets,
+        live: &Value,
+    ) -> Result<Self, String> {
+        Self::prepare_profile(job, spec, sockets, Some(live))
+    }
+    fn prepare_profile(
+        job: &str,
+        spec: &CellPreparation,
+        sockets: &mut NativeMcpSockets,
+        live: Option<&Value>,
     ) -> Result<Self, String> {
         if !crate::hex(job, 16) {
             return Err("fixed MCP job required".into());
@@ -66,7 +103,11 @@ impl NativeMcpAgent {
         {
             return Err("MCP preparation belongs to another native job".into());
         }
-        let public = NativeMcpPublic::prepare(&root, &spec.runtime_prefix)?;
+        let public = if let Some(live) = live {
+            NativeMcpPublic::prepare_live(&root, &spec.runtime_prefix, job, live)?
+        } else {
+            NativeMcpPublic::prepare(&root, &spec.runtime_prefix)?
+        };
         let parser = spec
             .host_helper_sha256("/usr/sbin/apparmor_parser")
             .ok_or("MCP parser pin required")?;
@@ -115,6 +156,7 @@ impl NativeMcpAgent {
             inspection: None,
             kernel: None,
             closed: false,
+            live: live.is_some(),
         };
         Ok(agent)
     }
@@ -177,12 +219,20 @@ impl NativeMcpAgent {
                 "--memory=1g",
                 "--cpus=1",
                 "--cpuset-cpus=0",
-                "--timeout=240",
                 "--env=HOME=/product/home",
                 "--env=PATH=/usr/bin:/bin",
                 "--workdir=/product/home/project",
             ]);
+            args.extend(crate::native_job_storage::native::arguments(&job)?);
             args.extend([
+                format!(
+                    "--timeout={}",
+                    if agent.live {
+                        crate::native_live_spec::PREPARATION_SECONDS
+                    } else {
+                        240
+                    }
+                ),
                 format!("--name={}", agent.name),
                 format!("--security-opt=apparmor={}", agent.name),
                 format!("--cgroup-parent=holgauntletrust{job}.slice"),
@@ -202,7 +252,11 @@ impl NativeMcpAgent {
             args.extend([
                 "--entrypoint=/usr/bin/sleep".into(),
                 NATIVE_SDK_AGENT_IMAGE.into(),
-                "240".into(),
+                if agent.live {
+                    crate::native_live_spec::PREPARATION_SECONDS.to_string()
+                } else {
+                    "240".into()
+                },
             ]);
             agent.create_attempted = true;
             let output = agent.command(false, args, 30, cancel)?;
@@ -214,27 +268,13 @@ impl NativeMcpAgent {
             }
             agent.cid = Some(cid.into());
             let value = agent.inspect(cancel)?;
-            let (actual, _) = check_inspection(
-                &value,
-                &agent.name,
-                &agent.job,
-                &agent.nonce,
-                &agent.mounts,
-                false,
-            )?;
+            let (actual, _) = agent.check(&value, false)?;
             if actual != cid {
                 return Err("MCP created CID and inspect differ".into());
             }
             agent.command(false, strings(&["start", cid]), 20, cancel)?;
             let value = agent.inspect(cancel)?;
-            let (_, pid) = check_inspection(
-                &value,
-                &agent.name,
-                &agent.job,
-                &agent.nonce,
-                &agent.mounts,
-                true,
-            )?;
+            let (_, pid) = agent.check(&value, true)?;
             let proc = PathBuf::from(format!("/proc/{pid}"));
             let raw = read(&proc.join("stat"), 4096)?;
             let stat = crate::linux_process::parse_proc_stat(&raw, pid)
@@ -270,7 +310,12 @@ impl NativeMcpAgent {
             agent.kernel = Some(json!({"pid":pid,"start_ticks":stat.start_ticks,
                 "cgroup":cgroup,"limits":limits,"lsm_label":label.trim(),
                 "declared_lsm_label":expected_label}));
-            let boundary = NativeMcpBoundary::observe(
+            let observe = if agent.live {
+                NativeMcpBoundary::observe_live
+            } else {
+                NativeMcpBoundary::observe
+            };
+            let boundary = observe(
                 agent.cid.as_ref().unwrap(),
                 &SdkWirePeerPin {
                     pid,
@@ -319,6 +364,7 @@ impl NativeMcpAgent {
         if self.closed {
             return Ok(());
         }
+        self.commands.begin_cleanup();
         let cancel = AtomicBool::new(false);
         let removed: Result<(), String> = (|| {
             if self.create_attempted {
@@ -339,14 +385,7 @@ impl NativeMcpAgent {
                         let running = value["State"]["Running"]
                             .as_bool()
                             .ok_or("MCP cleanup state missing")?;
-                        let (id, _) = check_inspection(
-                            &value,
-                            &self.name,
-                            &self.job,
-                            &self.nonce,
-                            &self.mounts,
-                            running,
-                        )?;
+                        let (id, _) = self.check(&value, running)?;
                         if self.cid.as_ref().is_some_and(|cid| *cid != id) {
                             return Err("MCP cleanup CID differs".into());
                         }

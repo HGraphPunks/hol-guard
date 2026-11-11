@@ -146,3 +146,105 @@ HTTP 422, `Actions has been disabled for this repository`, while Actions
 permissions report enabled and the workflow reports active. No PR-triggered
 run exists for the published head. The five required jobs remain unsatisfied;
 local results do not authorize merging around that requirement.
+
+## November 11 expedited storage and namespace checkpoint
+
+This checkpoint uses product source `bb69ca40e301670b94cedc2a44090d5ec26bdd90`
+and separately built trusted Gauntlet tools. The tool changes are still under
+consolidated validation. All tests below used the owned 2-CPU/16-GiB/48-GiB ARM
+VM, fixed outside executable pins and bounded services. No product runtime or
+model ran in these tests. Parent acceptance remains **24/62**.
+
+| Retained recording | Actual result | SHA-256 |
+| --- | --- | --- |
+| `vm-systemd-mount-property-probe-001.json` | systemd 255 refused unsupported `MountNamespacePath`; no service remained | `653fee7238e775a6611bc481b4873d2689a101cff456f6ad7b638d383066494a` |
+| `vm-v6-rootfs-contracts-001.json` | Seven supervisor and four preparation ARM contracts passed | `a60a44708b189cee76441888a75a3291300df1a3dd945b97e8b5ae94dcda68db` |
+| `vm-rootfs-enospc-cleanup-003.json` | Actual private namespace entry and owned service/policy teardown passed with a full journal; cleanup credit remained unknown | `961577372564262e1676bdac46fa7130027964db9d531af9b964af9a0c4e1ccc` |
+| `vm-ext4-enospc-storage-002.json` | Native-profile byte/inode ENOSPC, teardown while full and restarted retirement passed | `439da51165b39f6aa069a187848cb0f04b6b0adac7757bd342803ad2e78621c5` |
+| `storage-fixture-8a3fb4b1be269ba0.json` | Exact measurements and original storage/retirement bindings retained | `23a249f01fb59a1242e10cbec8ac635b9d81c52beb480e2229c5d0577ffabb94` |
+| `vm-ext4-full-quota-readback-001.json` | Outside readback verified no original backing, loop reference or owner cgroup remained | `965122bdf2419a572195dbf582b0b9710619b7c41a3357875ae5b1d4e87a079b` |
+| `vm-storage-owner-loss-001.json` | Failed: dead child reaping followed the cgroup drain check; no successful owner-loss fixture credited | `e2edab9ad81e85e963ee359e1b08e71ae0c115cf6af61f2fb8d9294332166308` |
+| `vm-owner-loss-abort-001.json` | Original empty-owner abort resumed after initializer exit and removed the exact remaining cgroup | `6e76f8e21abdcdd3c12e89cb9a981da55db4f501cb4767f77929336d2f5ff91d` |
+| `vm-empty-code-assets-001.json` | Empty public package markers accepted; empty private receipts refused | `4e1bb88f434c967fcc8622509cdcc84b9af113624a8c416f04d22dace6dfaa75` |
+| `vm-storage-tests-reconciliation-001.json` | Four independent leases, no owned execution resources and 341 unchanged historical metadata rows | `a3ad6db568031415362a9c55cad50c0080622cbaa951e610c26648e264823bfa` |
+
+The quota fixture reached ENOSPC as UID/GID 10001 after **2,046,599,168 bytes**
+and separately after **65,513 files**. The inode case retained free data blocks;
+the byte case retained free inodes. Both actual containers and AppArmor profiles
+were removed while the volume was still full, without creating new volume logs.
+Kernel full-options inspection confirmed `rw`, `nodiscard` and
+`errors=remount-ro`; Linux omits the default error option from compact mountinfo.
+
+Trusted release Worker SHA-256 is
+`97cdd5bf49d1f1f3a61efbb0703e00a16b67276e7347c4b4d1454ba7608da7cd`;
+the optimized test initializer is
+`f3ee7d3a5b8cfb81a1f77bbd4159be92f27a8427796cdb8519d2a1690fe65cc8`.
+Their different identities are an explicit test-only pairing. These recordings
+do not establish normal Host admission or the bounded build/dependency flow.
+The namespace regression used a trusted OS sleep and an owned empty policy;
+it establishes namespace transfer and teardown, not candidate policy enforcement.
+
+Recordings remain in the private `expedited-20261110-001` evidence directory
+under the retained evidence root above. This public index preserves concrete
+outcomes and byte pins; full sanitized artifact delivery, current-head CI,
+independent review and qualification remain separate requirements. Failed
+attempts and historical data remain intact. See the
+[current checkpoint](gauntlet-rust-pr-readiness-plan.md#resume-from-this-checkpoint)
+for subsequent fixes and remaining work.
+
+The subsequent owner and cancellation fixes passed these independently retained
+ARM checks. The fresh quota fixture pairs production Worker `756ab02b…` with
+optimized initializer `0537012f…`; it repeats the actual byte and inode limits
+above and verifies teardown while full. Earlier failed recordings remain intact.
+
+| Retained recording | Actual result | SHA-256 |
+| --- | --- | --- |
+| `vm-storage-owner-loss-002.json` | Corrected lost-owner reentry refusal and empty abort passed | `b09d71e8c7ff0a6e51a37033cfb452d39ba226017654fdca7e7f0f30362df78d` |
+| `vm-ext4-enospc-storage-003.json` | Fresh full-quota teardown and restarted abort passed in 85.34 seconds | `b21906cf23862bcbf0ac70d961e00863941f880a231bb2c5500c4fa75d1e447d` |
+| `vm-ext4-full-quota-readback-002.json` | Outside custody read and backing/loop/owner absence passed | `6f9cffd11556eb5f2aeda195995014185066be0674c4b500f3046214373d9cc8` |
+| `vm-process-cancellation-recovery-001.json` | Six actual ARM helper cancellation, output-bound and reaping tests passed | `f80020606c493428cd72304b30548fee7992d967d055a66ecd46a978e6cc9c0e` |
+| `normal-native-bounded-prepare-read-001.json` | Supported CLI recovered the original completed inert preparation after transport timeout | `a4f2f333b545a5c2ee6251bf54804feb4905a3b0ba093691464e818668486897` |
+| `normal-native-bounded-unreleased-abort-001.json` | Original failed-prelaunch dispatch consumed; initialized storage retired | `ab93b0b8e65eead91d9191ad26fcc3a45efa87d44afabee7392b4ca5f16f70d7` |
+| `normal-native-bounded-unreleased-abort-read-001.json` | Separate normal read returned the identical abort receipt | `af8595f86f83b5e7a2e4080146451b0066d7dbadd05313299b26fbf47dfaccba` |
+| `vm-normal-native-unreleased-abort-reconciliation-001.json` | Four leases verified original backing/loop/owner absence, no owned execution resources and 341 unchanged historical metadata rows | `c40952b4477a8237f4d3148a78b23f31ad75ca12c476db77109fd7cf669954e3` |
+| `normal-native-bounded-initialize-002.json` | Same journal admitted a fresh bounded identity after verified abort | `144b2d4b6ba12b8b9637b50f3d2b321bd5beacd67df2fa45e9868c5d42e2e4de` |
+
+The first bounded Native run failed before a Root start record or Host pin was
+retained; it was never replayed. Its explicit unreleased cleanup keeps exit and
+model usage `null`, preserves original preparation and dispatch evidence, and
+refunds nothing. The next identity uses production Worker `e4649a90…` and Host
+`1b308503…`; its execution validation remains separate. These results add no
+model, candidate-conformance or parent-acceptance credit.
+
+The consolidated registered code at tree `690b1d3641608b74344e89e23c92e094589af4ef`
+passes **912 macOS tests across 240 targets, zero failures/skips**, formatting,
+and full all-target/all-feature warnings-denied Clippy on macOS and ARM musl.
+Recordings `macos-workspace-tests-003.json`, `macos-workspace-clippy-003.json`
+and `arm-workspace-clippy-003.json` hash respectively to
+`fadc049dcdc41b816589a33e7b105231590ce01aaeb4c6197d80ff04de1c03f1`,
+`b2ee53328d2bd8900b4bb9683bc5399dff20f33e74acb8c1c0d88b6d3b965704`
+and `6ade69d6dcb141d1f310991794c40311129394b67ede31d3f86f60b5e1809533`.
+Only checkpoint prose changes after that tree; unfinished unregistered legacy
+modules are excluded from this validation and commit.
+
+Actual unprivileged job `27558527d8f3377b` then completes normal CLI preparation,
+one-use execution, restart readback, private export, independent report and
+storage retirement. Its **control fails** with `Native process changed before
+pipe forwarding`; the independent judgment is `invalid-evidence`. The archive
+is 3,761,664 bytes/38 members, SHA-256
+`a9a19ea2cfa81e15326f2d290f58322640385db193b59c154f7271bd34fee60c`.
+The unchanged signed failed report remains authoritative after storage retirement.
+
+| Retained recording | Result | SHA-256 |
+| --- | --- | --- |
+| `normal-native-bounded-run-003.json` | Authenticated failed controller result retained; no retry | `ea82d3d24956dc971c42a9a0769cf71f0b525d7a73b575279d5938df642b25df` |
+| `normal-native-bounded-read-003.json` | Same original completion read separately | `f49013385111faec3d2f25ed249787d48d31ecdece62bcf6129a008e28c46f45` |
+| `normal-native-bounded-report-003.json` | Original archive and signed report matched; independent judgment remains invalid | `b6df041220a7a9198314fd4764b6946c7bf00927a471fb6be7b4cfe77ff9a023` |
+| `normal-native-bounded-retire-003.json` | Completed bounded storage retired against original retained archive | `0002dd9ac0ae5aba55191509094abc4e8b1e7dd1eb0d62a3dc187ea485db99b3` |
+| `normal-native-bounded-retire-read-003.json` | Separate read returned identical retirement receipt | `505689a29f874e7ce7371028900efd137caa1f6c089845e80ba80f6b29143abe` |
+| `vm-normal-native-retired-record-measurement-003.json` | Four leases; no owned cgroup/container/profile/mount/backing/loop; 341 unchanged historical plus five retained new job rows | `404a4cca45a2346fce012f5dfb53e6685a43ea25506ea8968c8300f64f2302bf` |
+
+The earlier metadata assertion expected controller streams in Worker state;
+the measured five-record layout and exported streams are retained separately.
+That failed diagnostic remains preserved. No passing control, model inference,
+final-source qualification, current-head CI or independent approval is claimed.

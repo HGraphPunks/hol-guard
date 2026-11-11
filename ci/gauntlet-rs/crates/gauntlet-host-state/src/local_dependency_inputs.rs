@@ -1,7 +1,6 @@
 //! One-use dependency capsule from an exact, already verified Git source graph.
 //! No checkout, package import, installer, VM or provider starts on the host.
 
-use crate::fixed_process::run_fixed_clean;
 use crate::private_jobs::{child_directory, same_file, state_root};
 use crate::verify_retained_source_archive_commit;
 use rustix::fs::{
@@ -10,7 +9,6 @@ use rustix::fs::{
 use rustix::process::geteuid;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::os::fd::OwnedFd;
@@ -49,100 +47,6 @@ fn write_verified(directory: &OwnedFd, name: &str, bytes: &[u8]) -> Result<(), S
         return Err("host capsule readback differs".into());
     }
     Ok(())
-}
-
-fn git(repository: &Path, args: &[&str], limit: usize) -> Result<Vec<u8>, String> {
-    let mut argv = vec![
-        "/usr/bin/git".into(),
-        "-C".into(),
-        repository
-            .to_str()
-            .ok_or("canonical local repository required")?
-            .into(),
-    ];
-    for setting in [
-        "core.hooksPath=/dev/null",
-        "credential.helper=",
-        "gc.auto=0",
-        "maintenance.auto=false",
-    ] {
-        argv.extend(["-c".into(), setting.into()]);
-    }
-    argv.extend(args.iter().map(|s| (*s).to_owned()));
-    run_fixed_clean(
-        &argv,
-        Duration::from_secs(30),
-        limit,
-        1500,
-        &[
-            ("PATH", "/usr/bin:/bin:/usr/sbin:/sbin"),
-            ("GIT_CONFIG_NOSYSTEM", "1"),
-            ("GIT_CONFIG_GLOBAL", "/dev/null"),
-            ("GIT_CONFIG_COUNT", "0"),
-            ("GIT_NO_REPLACE_OBJECTS", "1"),
-            ("GIT_NO_LAZY_FETCH", "1"),
-            ("GIT_TERMINAL_PROMPT", "0"),
-        ],
-    )
-    .map_err(|_| "bounded dependency Git object read failed".into())
-}
-
-fn project_inputs(repository: &Path, source: &str) -> Result<[Vec<u8>; 2], String> {
-    if !repository.is_absolute()
-        || repository.canonicalize().ok().as_deref() != Some(repository)
-        || !repository.is_dir()
-        || !gauntlet_contracts::is_git_sha(source)
-    {
-        return Err("canonical repository and exact dependency commit required".into());
-    }
-    if git(repository, &["cat-file", "-t", source], 32)? != b"commit\n" {
-        return Err("dependency source must identify a commit".into());
-    }
-    let args = [
-        "ls-tree",
-        "-z",
-        "--full-tree",
-        source,
-        "--",
-        "pyproject.toml",
-        "uv.lock",
-    ];
-    let tree = git(repository, &args, 4096)?;
-    let mut objects = BTreeMap::new();
-    for line in tree.split(|b| *b == 0).filter(|line| !line.is_empty()) {
-        let line = std::str::from_utf8(line).map_err(|_| "dependency tree is not UTF-8")?;
-        let (head, path) = line
-            .split_once('\t')
-            .ok_or("dependency source tree malformed")?;
-        let fields = head.split(' ').collect::<Vec<_>>();
-        if fields.len() != 3
-            || fields[0] != "100644"
-            || fields[1] != "blob"
-            || !gauntlet_contracts::is_git_sha(fields[2])
-            || !matches!(path, "pyproject.toml" | "uv.lock")
-            || objects.insert(path, fields[2]).is_some()
-        {
-            return Err("exact ordinary dependency source blobs required".into());
-        }
-    }
-    if objects.len() != 2 {
-        return Err("both dependency source blobs required".into());
-    }
-    let mut result: [Vec<u8>; 2] = std::array::from_fn(|_| Vec::new());
-    for (index, path) in ["pyproject.toml", "uv.lock"].iter().enumerate() {
-        result[index] = git(
-            repository,
-            &["cat-file", "blob", objects[path]],
-            4 * 1024 * 1024,
-        )?;
-        if result[index].is_empty() {
-            return Err("empty dependency source input refused".into());
-        }
-    }
-    if git(repository, &args, 4096)? != tree {
-        return Err("dependency source tree changed during read".into());
-    }
-    Ok(result)
 }
 
 fn static_arm64(raw: &[u8]) -> bool {
@@ -253,7 +157,8 @@ pub fn prepare_local_dependency_inputs(
         Err(rustix::io::Errno::NOENT) => {}
         _ => return Err("host dependency input slot already consumed".into()),
     }
-    let [project, lock] = project_inputs(repository, source)?;
+    let [project, lock] =
+        crate::local_source_prepare::dependency_project_inputs(repository, source)?;
     let binary = exporter(exporter_path, exporter_sha256)?;
     let hashes = [&project, &lock, &binary].map(|bytes| format!("{:x}", Sha256::digest(bytes)));
     let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
@@ -303,4 +208,205 @@ pub fn prepare_local_dependency_inputs(
     fsync(&output).map_err(|e| e.to_string())?;
     fsync(&slot).map_err(|e| e.to_string())?;
     Ok(report)
+}
+
+fn capsule(args: &[String]) -> Result<(Value, Vec<u8>), String> {
+    use crate::private_jobs::{read_dependency_capsule, read_regular_bytes};
+    let owner = geteuid().as_raw();
+    let root = state_root(Path::new(&args[1]), owner).map_err(|e| e.to_string())?;
+    let private = child_directory(&root, "private", owner).map_err(|e| e.to_string())?;
+    let builds = child_directory(&private, "local-builds", owner).map_err(|e| e.to_string())?;
+    let slot = child_directory(&builds, &args[5], owner).map_err(|e| e.to_string())?;
+    let inputs = child_directory(&slot, "dependency-inputs", owner).map_err(|e| e.to_string())?;
+    let raw =
+        read_regular_bytes(&inputs, "preparation.v1.json", owner).map_err(|e| e.to_string())?;
+    let proof: Value =
+        serde_json::from_slice(&raw).map_err(|_| "dependency preparation invalid")?;
+    let payload = read_dependency_capsule(&inputs, owner).map_err(|e| e.to_string())?;
+    let hex = |s: &str| s.len() == 64 && s.bytes().all(|b| b"0123456789abcdef".contains(&b));
+    if ["pyproject_sha256", "uv_lock_sha256", "exporter_sha256"]
+        .iter()
+        .any(|k| !proof[k].as_str().is_some_and(hex))
+        || gauntlet_contracts::canonicalize(&raw).map_err(|e| e.to_string())? != raw
+        || proof
+            != json!({"schema":"hol-gauntlet-host-dependency-inputs.v1",
+            "job_id":args[5],"source_sha":args[6],"source_archive_sha256":args[7],
+            "payload_sha256":args[8],"payload_bytes":payload.len(),
+            "pyproject_sha256":proof["pyproject_sha256"],"uv_lock_sha256":proof["uv_lock_sha256"],
+            "exporter_sha256":proof["exporter_sha256"],"git_graph_verified":true,
+            "execution_eligible":false,"model_requests":0})
+        || payload.is_empty()
+        || format!("{:x}", Sha256::digest(&payload)) != args[8]
+    {
+        return Err("dependency capsule differs from outside source or payload pins".into());
+    }
+    Ok((proof, payload))
+}
+
+/// Stream one inert capsule through the pinned original Lima instance. An
+/// uncertain return consumes this dispatch; it never authorizes a second send.
+pub(crate) fn transfer(args: &[String]) -> Result<Value, String> {
+    use crate::native_operation::context::{Lima, TransportContext};
+    use crate::private_jobs::{read_regular_bytes, write_private_once};
+    use gauntlet_contracts::canonicalize;
+    let read = args.first().is_some_and(|s| s == "transfer-read");
+    let hex = |s: &str, n| s.len() == n && s.bytes().all(|b| b"0123456789abcdef".contains(&b));
+    if !matches!(args.len(), 12 | 13)
+        || !matches!(args[0].as_str(), "transfer" | "transfer-read")
+        || (read && args.len() != 13)
+        || !hex(&args[5], 16)
+        || !hex(&args[6], 40)
+        || [4, 7, 8, 9].iter().any(|i| !hex(&args[*i], 64))
+        || (args.len() == 13 && !hex(&args[12], 64))
+    {
+        return Err("complete dependency transfer identity required".into());
+    }
+    verify_retained_source_archive_commit(
+        Path::new(&args[1]),
+        &args[5],
+        &args[7],
+        &args[6],
+        &format!("refs/heads/local-{}", args[6]),
+    )
+    .map_err(|e| e.to_string())?;
+    let (proof, payload) = capsule(args)?;
+    let context =
+        TransportContext::from_paths(Path::new(&args[10]), Path::new(&args[11]), &args[3])?;
+    let mut lima = Lima::open_pinned("/opt/homebrew/bin/limactl", &args[4], context.value())?;
+    let journal = crate::HostCandidateBuildPinJournal::open(Path::new(&args[2]))
+        .map_err(|e| e.to_string())?;
+    let dispatch_name = format!("{}.dependency-input-dispatch.json", args[5]);
+    let result_name = format!("{}.dependency-input-result.json", args[5]);
+    let absent = || -> Result<(), String> {
+        match statat(
+            journal.directory().map_err(|e| e.to_string())?,
+            &result_name,
+            AtFlags::SYMLINK_NOFOLLOW,
+        ) {
+            Err(rustix::io::Errno::NOENT) => Ok(()),
+            _ => Err("dependency transfer result exists or is uncertain".into()),
+        }
+    };
+    if !read {
+        absent()?;
+    }
+    let bounded = args.len() == 13;
+    let mut dispatch_value = json!({"schema":"hol-gauntlet-host-dependency-input-dispatch.v1",
+        "job_id":args[5],"source_sha":args[6],"source_archive_sha256":args[7],
+        "payload_sha256":args[8],"payload_bytes":payload.len(),"worker_generation":args[9],
+        "preparation_sha256":format!("{:x}",Sha256::digest(canonicalize(proof.to_string().as_bytes()).map_err(|e| e.to_string())?)),
+        "lima_sha256":args[4],"transport_context":context.value(),"retry_allowed":false,
+        "execution_eligible":false});
+    if bounded {
+        dispatch_value["schema"] = json!("hol-gauntlet-host-dependency-input-dispatch.v2");
+        dispatch_value["storage_receipt_sha256"] = json!(args[12]);
+    }
+    let dispatch =
+        canonicalize(dispatch_value.to_string().as_bytes()).map_err(|e| e.to_string())?;
+    if !read {
+        write_private_once(
+            journal.directory().map_err(|e| e.to_string())?,
+            &dispatch_name,
+            &dispatch,
+        )?;
+    }
+    let stable = || -> Result<(), String> {
+        if read_regular_bytes(
+            journal.directory().map_err(|e| e.to_string())?,
+            &dispatch_name,
+            geteuid().as_raw(),
+        )
+        .map_err(|e| e.to_string())?
+            != dispatch
+            || capsule(args)? != (proof.clone(), payload.clone())
+        {
+            return Err(
+                "dependency dispatch or input custody changed; preserve consumed job".into(),
+            );
+        }
+        TransportContext::parse(context.value())?;
+        Ok(())
+    };
+    stable()?;
+    if !read {
+        absent()?;
+    }
+    let mut command = lima.command(&args[3])?;
+    command
+        .arg(format!(
+            "/opt/hol-gauntlet/rust-native-dependency-worker-{}",
+            args[9]
+        ))
+        .args([
+            if read {
+                "--read-captured-dependency-inputs-v2"
+            } else if bounded {
+                "--capture-dependency-inputs-v2"
+            } else {
+                "--capture-dependency-inputs"
+            },
+            &args[5],
+            &args[6],
+            &args[7],
+            &args[8],
+            &payload.len().to_string(),
+            proof["pyproject_sha256"].as_str().unwrap(),
+            proof["uv_lock_sha256"].as_str().unwrap(),
+            proof["exporter_sha256"].as_str().unwrap(),
+            &args[9],
+        ]);
+    if bounded {
+        command.arg(&args[12]);
+    }
+    let raw = crate::stream_process::run_streamed_command(
+        command,
+        if read { &[] } else { &payload },
+        Duration::from_secs(180),
+        4096,
+    )
+    .map_err(|_| {
+        if read {
+            "dependency capture read unavailable; preserve dispatch and never resend the capsule"
+        } else {
+            "dependency transfer uncertain; dispatch consumed, reconcile without retry"
+        }
+    })?;
+    lima.recheck()?;
+    stable()?;
+    let frame = raw
+        .strip_suffix(b"\n")
+        .filter(|v| !v.is_empty() && !v.contains(&b'\n'))
+        .ok_or("one dependency capture frame required; dispatch consumed")?;
+    let response: Value =
+        serde_json::from_slice(frame).map_err(|_| "dependency capture JSON invalid")?;
+    let mut expected = json!({"schema":"hol-gauntlet-native-dependency-inputs.v1",
+        "job_id":args[5],"source_sha":args[6],"source_archive_sha256":args[7],
+        "payload_sha256":args[8],"payload_bytes":payload.len(),"pyproject_sha256":proof["pyproject_sha256"],
+        "uv_lock_sha256":proof["uv_lock_sha256"],"exporter_sha256":proof["exporter_sha256"],
+        "worker_generation":args[9],"builder_executed":false,"execution_eligible":false,"model_requests":0});
+    if bounded {
+        expected["schema"] = json!("hol-gauntlet-native-dependency-inputs.v2");
+        expected["storage_receipt_sha256"] = json!(args[12]);
+    }
+    if canonicalize(frame).map_err(|e| e.to_string())? != frame || response != expected {
+        return Err("dependency capture differs from outside pins; dispatch consumed".into());
+    }
+    let result = json!({"schema":"hol-gauntlet-host-dependency-input-transfer.v1",
+        "capture":response,"dispatch_sha256":format!("{:x}",Sha256::digest(&dispatch)),
+        "source_graph_verified":true,"candidate_executed":false,"execution_eligible":false});
+    let result_bytes = canonicalize(result.to_string().as_bytes()).map_err(|e| e.to_string())?;
+    let directory = journal.directory().map_err(|e| e.to_string())?;
+    match statat(directory, &result_name, AtFlags::SYMLINK_NOFOLLOW) {
+        Err(rustix::io::Errno::NOENT) => {
+            write_private_once(directory, &result_name, &result_bytes)?
+        }
+        Ok(_)
+            if read
+                && read_regular_bytes(directory, &result_name, geteuid().as_raw())
+                    .map_err(|e| e.to_string())?
+                    == result_bytes => {}
+        _ => return Err("dependency transfer result exists, differs, or is uncertain".into()),
+    }
+    stable()?;
+    Ok(result)
 }

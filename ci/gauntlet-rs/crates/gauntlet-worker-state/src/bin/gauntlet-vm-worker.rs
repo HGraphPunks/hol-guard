@@ -4,6 +4,65 @@ fn run() -> Result<(), String> {
     use std::io::{Read, Write};
     gauntlet_worker_state::install_native_worker_signals()?;
     let args = std::env::args().collect::<Vec<_>>();
+    if args.get(1).map(String::as_str) == Some("--own-job-storage-namespace-v1") {
+        return gauntlet_worker_state::run_storage_namespace_owner(&args);
+    }
+    if let Some(raw) = gauntlet_worker_state::dispatch_native_job_storage(&args)? {
+        if matches!(
+            args.get(1).map(String::as_str),
+            Some("--export-source-job-artifact-v1" | "--read-source-job-artifact-v1")
+        ) {
+            std::io::stdout()
+                .lock()
+                .write_all(&raw)
+                .map_err(|_| "private artifact delivery uncertain")?;
+        } else {
+            println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
+        }
+        return Ok(());
+    }
+    if args.len() == 6 && args[1] == "--live-model-http-bridge-v1" {
+        return gauntlet_worker_state::run_native_live_http_bridge(&args);
+    }
+    if args.len() == 8
+        && matches!(
+            args[1].as_str(),
+            "--prepare-native-live-omp-v1" | "--read-native-live-omp-preparation-v1"
+        )
+    {
+        let pins = gauntlet_worker_state::NativeLivePreparationPins {
+            source_sha: &args[2],
+            job_id: &args[3],
+            deployment_digest: &args[4],
+            worker_generation: &args[5],
+            preparation_sha256: &args[6],
+            spec_sha256: &args[7],
+        };
+        let raw = gauntlet_worker_state::prepare_native_live_omp(
+            &pins,
+            args[1] == "--prepare-native-live-omp-v1",
+        )?;
+        println!(
+            "{}",
+            String::from_utf8(raw).map_err(|_| "live preparation output UTF8")?
+        );
+        return Ok(());
+    }
+    if args.len() == 6 && args[1] == "--live-native-host-pinned-v1" {
+        let raw = gauntlet_worker_state::dispatch_native_worker_live_pipe(
+            &args[2],
+            &args[3],
+            &args[4],
+            &args[5],
+            &std::io::stdin(),
+            &std::io::stdout(),
+        )?;
+        std::io::stdout()
+            .write_all(&raw)
+            .and_then(|_| std::io::stdout().write_all(b"\n"))
+            .map_err(|_| "live completion delivery uncertain")?;
+        return Ok(());
+    }
     if args.len() == 12 && args[1] == "--export-native-host-pinned-v1" {
         let prelaunch = gauntlet_contracts::PrelaunchPrepared {
             source_sha: args[2].clone(),
@@ -25,6 +84,45 @@ fn run() -> Result<(), String> {
             .lock()
             .write_all(&raw)
             .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    if args.len() == 12
+        && matches!(
+            args[1].as_str(),
+            "--repair-native-live-keyed-v1"
+                | "--read-native-live-keyed-repair-v1"
+                | "--repair-native-live-keyed-pre-controller-v1"
+                | "--read-native-live-keyed-pre-controller-repair-v1"
+        )
+    {
+        let prelaunch = gauntlet_contracts::PrelaunchPrepared {
+            source_sha: args[2].clone(),
+            job_id: args[3].clone(),
+            deployment_digest: args[4].clone(),
+            worker_generation: args[5].clone(),
+            started_marker_sha256: args[6].clone(),
+            controller_key_pin_sha256: args[7].clone(),
+            controller_public_key_hex: args[8].clone(),
+        };
+        let pins = gauntlet_worker_state::NativePrelaunchRepairPins {
+            prelaunch: &prelaunch,
+            preparation_sha256: &args[9],
+            repair_generation: &args[10],
+        };
+        let startup = args[1].contains("pre-controller");
+        let publish = matches!(
+            args[1].as_str(),
+            "--repair-native-live-keyed-v1" | "--repair-native-live-keyed-pre-controller-v1"
+        );
+        let raw = if startup {
+            gauntlet_worker_state::repair_native_live_pre_controller(&pins, &args[11], publish)?
+        } else {
+            gauntlet_worker_state::repair_native_live_host_pinned(&pins, &args[11], publish)?
+        };
+        println!(
+            "{}",
+            String::from_utf8(raw).map_err(|_| "live recovery output UTF8")?
+        );
         return Ok(());
     }
     if args.len() == 5
@@ -309,7 +407,7 @@ fn run() -> Result<(), String> {
     if args.len() == 6
         && matches!(
             args[1].as_str(),
-            "--native-controller" | "--native-keyed-controller"
+            "--native-controller" | "--native-keyed-controller" | "--native-live-keyed-controller"
         )
     {
         let result = gauntlet_worker_state::execute_native_controller(&args)?;

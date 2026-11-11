@@ -303,6 +303,16 @@ fn run_fixed_local_candidate_inner(
     }
     verify_candidate_runtime(&runtime).map_err(|_| CandidateRunError::RuntimeMismatch)?;
     let job = open_fixed_build_slot(job_id).map_err(|_| CandidateRunError::SourceMismatch)?;
+    if crate::native_job_storage::source::verify(
+        job_id,
+        &job,
+        Some(crate::JobStorageProfile::Build),
+    )
+    .map_err(|_| CandidateRunError::SourceMismatch)?
+    .is_some_and(|v| v["source_sha"] != source_sha)
+    {
+        return Err(CandidateRunError::SourceMismatch);
+    }
     let source_bytes = verify_captured_source(&job, archive_sha256)
         .map_err(|_| CandidateRunError::SourceMismatch)?;
     if !container_absent(job_id).map_err(CandidateRunError::Process)? {
@@ -357,10 +367,19 @@ fn run_fixed_local_candidate_inner(
         return Err(CandidateRunError::CleanupUncertain);
     }
     let still_owned = || {
+        crate::native_job_storage::owner::health()
+            .map_err(|_| CandidateProcessError::LeaseUnavailable)?;
         lease
             .verify(&journal.root)
             .map_err(|_| CandidateProcessError::LeaseUnavailable)?;
-        verify_python_lock(&python_lock).map_err(|_| CandidateProcessError::LeaseUnavailable)
+        verify_python_lock(&python_lock).map_err(|_| CandidateProcessError::LeaseUnavailable)?;
+        crate::native_job_storage::source::verify(
+            job_id,
+            &job,
+            Some(crate::JobStorageProfile::Build),
+        )
+        .map_err(|_| CandidateProcessError::LeaseUnavailable)?;
+        Ok(())
     };
     let process = (|| {
         let attached = container

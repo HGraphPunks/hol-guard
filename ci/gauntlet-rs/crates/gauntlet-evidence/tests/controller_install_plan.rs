@@ -42,7 +42,7 @@ fn current_source_map() -> BTreeMap<String, String> {
 #[test]
 fn current_source_map_matches_python_bootstrap_tree_plan() {
     // Independently derived by Python AST extraction of bootstrap.py's actual
-    // selector and fresh 0755/0444 modes after main 4a0b5ab5a and Rust 1.89 alignment.
+    // selector and fresh 0755/0444 modes, including the explicit MCP-only adapter.
     // The data-only oracle checks all 409 source hashes and 11 directory modes.
     // Older installed generations and their immutable evidence stay separate.
     let plan = plan_controller_install(&current_source_map()).unwrap();
@@ -50,7 +50,7 @@ fn current_source_map_matches_python_bootstrap_tree_plan() {
     assert_eq!(plan.entries, 420);
     assert_eq!(
         plan.tree_digest,
-        "20650edd04017541cee8f869f987c213f9cd27f59e622a91b11d7edf03675e7f"
+        "4214aee0760c1179e585459fb3e1198c34b755b22ae6a36d026788e6042d479a"
     );
     assert!(plan
         .installed_files

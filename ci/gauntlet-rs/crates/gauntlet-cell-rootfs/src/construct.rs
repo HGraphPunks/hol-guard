@@ -72,7 +72,13 @@ fn allocator(system: &Path) -> Result<Option<Vec<u8>>> {
     }
 }
 fn devices(new: &Path) -> Result<()> {
-    tmpfs(&new.join("dev"), libc::MS_NOSUID, "size=64k,mode=0755")?;
+    tmpfs(
+        &new.join("dev"),
+        libc::MS_NOSUID,
+        "mode=0755",
+        64 * 1024,
+        128,
+    )?;
     for (name, major, minor) in [
         ("null", 1, 3),
         ("zero", 1, 5),
@@ -133,7 +139,13 @@ pub(crate) fn run(inputs: Inputs) -> Result<()> {
         libc::MS_NOSUID | libc::MS_NODEV | libc::MS_NOEXEC,
         None,
     )?;
-    tmpfs(&new, libc::MS_NOSUID | libc::MS_NODEV, "size=8m,mode=0755")?;
+    tmpfs(
+        &new,
+        libc::MS_NOSUID | libc::MS_NODEV,
+        "mode=0755",
+        8 * 1024 * 1024,
+        4096,
+    )?;
     for name in [
         "usr", "etc", "dev", "proc", "tmp", "public", "oldroot", "run", "product", "opt",
     ] {
@@ -192,13 +204,17 @@ pub(crate) fn run(inputs: Inputs) -> Result<()> {
     tmpfs(
         &new.join("tmp"),
         libc::MS_NOSUID | libc::MS_NODEV,
-        "size=128m,mode=0700,uid=10004,gid=10004",
+        "mode=0700,uid=10004,gid=10004",
+        128 * 1024 * 1024,
+        8192,
     )?;
     match inputs.spec.state {
         StateProfile::Memory => tmpfs(
             &new.join("product"),
             libc::MS_NOSUID | libc::MS_NODEV,
-            "size=128m,mode=0700,uid=10004,gid=10004",
+            "mode=0700,uid=10004,gid=10004",
+            128 * 1024 * 1024,
+            8192,
         )?,
         StateProfile::Persistent => {
             let source = inputs.spec.stage.join("state");

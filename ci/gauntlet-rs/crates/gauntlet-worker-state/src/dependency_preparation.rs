@@ -38,6 +38,7 @@ impl DependencyLeases {
         Ok(result)
     }
     pub(crate) fn verify(&self) -> Result<(), String> {
+        crate::native_job_storage::owner::health()?;
         self.main
             .1
             .verify(&self.main.0.root)

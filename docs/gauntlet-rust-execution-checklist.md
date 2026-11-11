@@ -5,6 +5,50 @@ The active execution contract is the
 Historical proof and parent-exit counts remain unchanged until new validation
 actually closes an exit.
 
+Latest expedited checkpoint (2026-11-11): **24/62 parent exits remain
+complete; 38 remain open**. The genuine Rust-controlled `bb69ca40` build,
+separate dependency resolution, inert prefix cloning and runtime publication
+have completed using historical v1 storage. They remain ineligible for
+qualification. New finite ext4 storage, original namespace ownership and
+completed-read recovery require their separate physical flow checks.
+
+Closed supervisor v6 retains v5 Native pipe semantics and adds one fixed,
+outside-pinned namespace helper. Eleven ARM declaration tests and the actual
+private-namespace/full-journal cleanup regression pass. The regression proves
+owned service/policy teardown while journal exhaustion correctly prevents
+cleanup credit; it executes no candidate or model. Its retained evidence digest
+is `961577372564262e1676bdac46fa7130027964db9d531af9b964af9a0c4e1ccc`.
+After the initial normalized-mount-listing refusal, the corrected Native-volume
+fixture passes actual UID/GID-10001 byte/inode ENOSPC, teardown while full and
+restarted pinned retirement. Its evidence digest is
+`439da51165b39f6aa069a187848cb0f04b6b0adac7757bd342803ad2e78621c5`.
+Independent readback confirms absent backing, loop references and owner cgroup;
+this test-only initializer/owner pairing does not establish normal Host admission.
+The owner-loss test separately found dead-child reaping after the drain check;
+resumed empty abort, the corrected same-process retest and a fresh full-quota
+test all pass. Six actual ARM helper cancellation/reaping regressions also pass.
+Normal CLI preparation readback recovered a timed-out operation. A subsequent
+failed prelaunch had no Root start record or Host pin; explicit unreleased abort
+and identical receipt readback removed its original bounded storage. Independent
+four-lease checks found no execution resources and 341 unchanged historical
+Worker metadata rows. After correcting a Native/generic handshake-limit mismatch,
+fresh job `27558527d8f3377b` completed normal initialization, preparation, one-use
+execution, separate read and private report retrieval. Its signed control failed
+before completing the role; independent grading remains `invalid-evidence`.
+Completed-storage retirement, identical retirement readback and outside cleanup
+checks pass; 341 historical and five new terminal-job metadata rows remain.
+The registered baseline passes 912 complete macOS tests and
+warnings-denied macOS/ARM workspace Clippy. These results close no parent exit.
+
+The pinned SDK's real MCP-only inventory and four formatter cases pass without
+inference. Current/frozen legacy reducer parity, provider/CLI implementation and
+mock recovery tests do not close real workflow exits. Ordinary allowed SDK Bash,
+full legacy execution, fresh signed conformance, model pair/beta, final-source
+coverage, rollout and merge gates remain open. See the
+[current execution checkpoint](gauntlet-rust-pr-readiness-plan.md#resume-from-this-checkpoint)
+for pending authorization, quota, VM-capacity and CI actions. Historical records
+below preserve their original source/version and claim limits.
+
 Retained merged source `dc3b9336` includes the CPU-aware Native worker budget
 and upstream `73b48265`. Its fresh runtime publication, all 36 inert operation
 cases, two passed Node/npm controls at the unchanged 128-task limit, complete

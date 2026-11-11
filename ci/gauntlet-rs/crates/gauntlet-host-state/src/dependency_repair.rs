@@ -1,5 +1,5 @@
 //! Outside authorization binds recovery to the observed preparation or reservation.
-use crate::dependency_intent::DependencyIntentJournal;
+use crate::dependency_intent::{DependencyIntentJournal, DependencyTransport};
 use crate::fixed_process::run_fixed_intent;
 use crate::private_jobs::{read_regular_bytes, write_private_once};
 use gauntlet_contracts::DependencyRunIntent;
@@ -68,6 +68,7 @@ impl DependencyIntentJournal {
         intent: &DependencyRunIntent,
         reader: &str,
         read: bool,
+        transport: &mut DependencyTransport<'_>,
     ) -> Result<Value, String> {
         let auth = self
             .repair_pins(intent)?
@@ -108,9 +109,9 @@ impl DependencyIntentJournal {
                 input.len().to_string(),
             ]);
         }
-        let raw = run_fixed_intent(&argv, &input, Duration::from_secs(120), 32769, 8192).map_err(
-            |e| format!("dependency recovery unavailable; workload cannot retry: {e:?}"),
-        )?;
+        let raw = transport(&argv, &input, Duration::from_secs(120), 32769, 8192).map_err(|e| {
+            format!("dependency recovery unavailable; workload cannot retry: {e:?}")
+        })?;
         let frame = raw
             .strip_suffix(b"\n")
             .ok_or("canonical dependency recovery response required")?;
@@ -164,6 +165,16 @@ impl DependencyIntentJournal {
         generation: &str,
         vm: Option<&str>,
     ) -> Result<Value, String> {
+        self.repair_using(job, started, generation, vm, &mut run_fixed_intent)
+    }
+    pub(crate) fn repair_using(
+        &self,
+        job: &str,
+        started: &str,
+        generation: &str,
+        vm: Option<&str>,
+        transport: &mut DependencyTransport<'_>,
+    ) -> Result<Value, String> {
         let intent = self.read(job)?;
         if vm.is_some_and(|v| v != intent.vm) {
             return Err("dependency repair requires the original VM".into());
@@ -172,7 +183,7 @@ impl DependencyIntentJournal {
             gauntlet_contracts::dependency_repair_authorization(&intent, started, generation)?;
         let auth = match self.repair_pins(&intent)? {
             None => {
-                let observed = self.reconcile_read_only(job, generation, vm)?;
+                let observed = self.reconcile_using(job, generation, vm, transport)?;
                 if observed["status"] != "unknown" || observed_started(&observed) != started {
                     return Err("dependency reservation differs or is already complete; cleanup not authorized".into());
                 }
@@ -221,7 +232,7 @@ impl DependencyIntentJournal {
         if self.repair_pins(&intent)? != Some(auth) {
             return Err("dependency repair authorization commit uncertain".into());
         }
-        self.repaired(&intent, generation, false)
+        self.repaired(&intent, generation, false, transport)
     }
 }
 

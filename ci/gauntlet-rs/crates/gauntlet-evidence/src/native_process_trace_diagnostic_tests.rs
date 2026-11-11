@@ -19,12 +19,15 @@ pub(crate) fn reindex(files: &mut BTreeMap<String, Vec<u8>>, metadata: Value) {
 
 // Inert boundary fixture; no product execution, observer admission or role score.
 pub(crate) fn pipe_fixture() -> (Value, Value, BTreeMap<String, Vec<u8>>) {
-    transport_fixture_mode(false)
+    transport_fixture_mode(false, false)
+}
+pub(crate) fn v6_pipe_fixture() -> (Value, Value, BTreeMap<String, Vec<u8>>) {
+    transport_fixture_mode(false, true)
 }
 pub(crate) fn transport_fixture() -> (Value, Value, BTreeMap<String, Vec<u8>>) {
-    transport_fixture_mode(true)
+    transport_fixture_mode(true, false)
 }
-fn transport_fixture_mode(mixed: bool) -> (Value, Value, BTreeMap<String, Vec<u8>>) {
+fn transport_fixture_mode(mixed: bool, v6: bool) -> (Value, Value, BTreeMap<String, Vec<u8>>) {
     let (process, pipe, config) = if mixed {
         crate::native_process_event_files::native_pipe_events::mixed_fixture()
     } else {
@@ -44,11 +47,16 @@ fn transport_fixture_mode(mixed: bool) -> (Value, Value, BTreeMap<String, Vec<u8
     let manifest = canonical_value(&json!({"schema":"product-cell-artifacts.v2","files":source,
         "runtime":{"schema":"product-cell-native-runtime.v1","actor_sha256":"a".repeat(64)}}))
     .unwrap();
-    let preparation = json!({"schema":"hol-gauntlet-cell-preparation.v1","stage":"/var/lib/hol-gauntlet-rust/fixture/cell",
+    let mut preparation = json!({"schema":"hol-gauntlet-cell-preparation.v1","stage":"/var/lib/hol-gauntlet-rust/fixture/cell",
         "runtime_prefix":"/opt/hol-gauntlet/candidates/pinned/prefix","initializer_sha256":"d".repeat(64),
         "artifact_manifest_sha256":sha256(&manifest),"image_id":format!("sha256:{}", "e".repeat(64)),"runtime_tree_digest":"f".repeat(64),
         "launch":{"schema":"hol-gauntlet-cell-supervisor.v5","process_events":"outside-root-ptrace.v1",
-        "native_stdio":"outside-root-native-pipes.v1","native_runtime_sha256":"b".repeat(64),"constructor_sha256":"c".repeat(64)}});
+        "native_stdio":"outside-root-native-pipes.v1","native_runtime_sha256":"b".repeat(64),"constructor_sha256":"c".repeat(64),
+        "host_helpers":crate::native_launch_provenance::PIPE_HOST_HELPERS_V5.iter().map(|name|((*name).to_owned(),json!("a".repeat(64)))).collect::<serde_json::Map<_,_>>()}});
+    if v6 {
+        preparation["launch"]["schema"] = json!("hol-gauntlet-cell-supervisor.v6");
+        preparation["launch"]["host_helpers"]["/usr/bin/nsenter"] = json!("e".repeat(64));
+    }
     let rootfs = canonical_value(&json!({"schema":"hol-gauntlet-product-rootfs.v2","stage":preparation["stage"],
         "initializer_sha256":preparation["initializer_sha256"],"artifact_manifest_sha256":preparation["artifact_manifest_sha256"],
         "system_spec_sha256":"1".repeat(64),"task_spec_sha256":"2".repeat(64),"runtime_spec_sha256":"3".repeat(64),

@@ -12,6 +12,15 @@ use std::os::fd::OwnedFd;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+pub(crate) type DependencyTransport<'a> = dyn FnMut(
+        &[String],
+        &[u8],
+        Duration,
+        usize,
+        usize,
+    ) -> Result<Vec<u8>, crate::fixed_process::FixedProcessError>
+    + 'a;
+
 pub struct DependencyIntentJournal {
     pub(crate) root: OwnedFd,
     path: PathBuf,
@@ -72,6 +81,44 @@ impl DependencyIntentJournal {
             .as_bytes(),
         )
         .map_err(|e| e.to_string())
+    }
+    pub(crate) fn require_dispatch(&self, intent: &DependencyRunIntent) -> Result<(), String> {
+        self.stable()?;
+        let job = intent.pins.text("job_id");
+        if self.read(job)? != *intent {
+            return Err("original dependency intent changed".into());
+        }
+        for suffix in ["authorized", "dispatch"] {
+            if read_regular_bytes(
+                &self.root,
+                &format!("{job}.dependency-{suffix}.json"),
+                self.owner,
+            )
+            .map_err(|e| e.to_string())?
+                != Self::launch_authorization(intent)?
+            {
+                return Err(
+                    "original dependency launch/dispatch authorization missing or changed".into(),
+                );
+            }
+        }
+        Ok(())
+    }
+    pub(crate) fn retained_result(
+        &self,
+        intent: &DependencyRunIntent,
+    ) -> Result<Option<Value>, String> {
+        self.require_dispatch(intent)?;
+        let name = format!("{}.dependency-result.json", intent.pins.text("job_id"));
+        match statat(&self.root, &name, AtFlags::SYMLINK_NOFOLLOW) {
+            Err(rustix::io::Errno::NOENT) => return Ok(None),
+            Err(e) => return Err(e.to_string()),
+            Ok(_) => {}
+        }
+        let raw = read_regular_bytes(&self.root, &name, self.owner).map_err(|e| e.to_string())?;
+        let public = gauntlet_contracts::verify_dependency_run_result(intent, &raw)?;
+        self.require_dispatch(intent)?;
+        Ok(Some(public))
     }
 
     pub fn record(
@@ -134,6 +181,13 @@ impl DependencyIntentJournal {
     /// A transport error consumes this intent. Read retained guest state before
     /// considering any new job; this method never retries or admits an artifact.
     pub fn execute_once(&self, intent: &DependencyRunIntent) -> Result<Value, String> {
+        self.execute_once_using(intent, &mut run_fixed_intent)
+    }
+    pub(crate) fn execute_once_using(
+        &self,
+        intent: &DependencyRunIntent,
+        transport: &mut DependencyTransport<'_>,
+    ) -> Result<Value, String> {
         if self.read(intent.pins.text("job_id"))? != *intent {
             return Err("dependency prelaunch intent changed".into());
         }
@@ -178,7 +232,7 @@ impl DependencyIntentJournal {
             intent.bytes()?.len().to_string(),
             generation.into(),
         ];
-        let raw = run_fixed_intent(
+        let raw = transport(
             &argv,
             &intent.bytes()?,
             Duration::from_secs(2400),
@@ -229,6 +283,15 @@ impl DependencyIntentJournal {
         generation: &str,
         vm: Option<&str>,
     ) -> Result<Value, String> {
+        self.reconcile_using(job, generation, vm, &mut run_fixed_intent)
+    }
+    pub(crate) fn reconcile_using(
+        &self,
+        job: &str,
+        generation: &str,
+        vm: Option<&str>,
+        transport: &mut DependencyTransport<'_>,
+    ) -> Result<Value, String> {
         if generation.len() != 64 || !generation.bytes().all(|b| b"0123456789abcdef".contains(&b)) {
             return Err("exact dependency reader binary SHA-256 required".into());
         }
@@ -251,7 +314,7 @@ impl DependencyIntentJournal {
             intent.bytes()?.len().to_string(),
             generation.into(),
         ];
-        let response = run_fixed_intent(
+        let response = transport(
             &argv,
             &intent.bytes()?,
             Duration::from_secs(120),
@@ -261,7 +324,7 @@ impl DependencyIntentJournal {
         let raw = match response {
             Ok(raw) => raw,
             Err(_) if self.repair_pins(&intent)?.is_some() => {
-                let public = self.repaired(&intent, generation, true)?;
+                let public = self.repaired(&intent, generation, true, transport)?;
                 self.retain_view(
                     &format!("{job}.dependency-reconciled-{generation}.json"),
                     &public,
@@ -330,10 +393,36 @@ impl DependencyIntentJournal {
     }
 }
 
-pub const DEPENDENCY_COMMAND_USAGE:&str="dependency commands:\nrun PRIVATE_INTENT_DIR PRIVATE_RUN_PINS_JSON [--vm VM_NAME]\nread PRIVATE_INTENT_DIR JOB_ID READER_BINARY_SHA256 [--vm VM_NAME]\nrepair PRIVATE_INTENT_DIR JOB_ID EXPECTED_STARTED_MARKER_SHA256 REPAIR_BINARY_SHA256 [--vm VM_NAME]\nFor partial preparation, use the expected reservation hash from read. Incomplete completion retirement preserves original files and has unknown exit. Read never authorizes cleanup or a new launch. Repair supplies no execution admission.";
+pub const DEPENDENCY_COMMAND_USAGE:&str=concat!("dependency commands:\ninputs PRIVATE_SOURCE_STATE JOB_ID SOURCE_ARCHIVE_SHA256 REPOSITORY SOURCE_SHA EXPORTER_ELF EXPORTER_SHA256\ntransfer PRIVATE_SOURCE_STATE PRIVATE_TRANSFER_DIR VM LIMA_SHA256 JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 PAYLOAD_SHA256 WORKER_SHA256 SSH_HOME LIMA_HOME [STORAGE_RECEIPT_SHA256]\nrun PRIVATE_INTENT_DIR PRIVATE_RUN_PINS_JSON [--vm VM_NAME]\nread PRIVATE_INTENT_DIR JOB_ID READER_BINARY_SHA256 [--vm VM_NAME]\nrepair PRIVATE_INTENT_DIR JOB_ID EXPECTED_STARTED_MARKER_SHA256 REPAIR_BINARY_SHA256 [--vm VM_NAME]\n",
+"prefix-stage|prefix-stage-read PRIVATE_INTENT_DIR PRIVATE_TRANSFER_DIR SOURCE_INTENT_SHA256 JOB_ID PYTHON_SHA256 STAGER_SHA256\n",
+"run-bounded PRIVATE_INTENT_DIR PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 PRIVATE_RUN_PINS_JSON\nread-bounded PRIVATE_INTENT_DIR PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 JOB_ID READER_SHA256\nrepair-bounded PRIVATE_INTENT_DIR PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 JOB_ID EXPECTED_STARTED_SHA256 REPAIR_SHA256\ntransfer-read uses the bounded transfer arguments and never retransmits capsule bytes.\nFor partial preparation, use the expected reservation hash from read. Incomplete completion retirement preserves original files and has unknown exit. Read never authorizes cleanup or a new launch. Bounded operations use the completed Source's original transport. Repair supplies no execution admission.");
 
 pub fn run_dependency_command(args: &[String]) -> Result<Value, String> {
+    if args.first().is_some_and(|s| {
+        matches!(
+            s.as_str(),
+            "run-bounded"
+                | "read-bounded"
+                | "repair-bounded"
+                | "prefix-stage"
+                | "prefix-stage-read"
+        )
+    }) {
+        return crate::native_operation::artifact::run_dependency_bounded_command(args);
+    }
     match (args.first().map(String::as_str), args.len()) {
+        (Some("inputs"), 8) => crate::prepare_local_dependency_inputs(
+            Path::new(&args[1]),
+            &args[2],
+            &args[3],
+            Path::new(&args[4]),
+            &args[5],
+            Path::new(&args[6]),
+            &args[7],
+        ),
+        (Some("transfer"), 12 | 13) | (Some("transfer-read"), 13) => {
+            crate::local_dependency_inputs::transfer(args)
+        }
         (Some("repair"), 5) | (Some("repair"), 7) if args.len() == 5 || args[5] == "--vm" => {
             DependencyIntentJournal::open(Path::new(&args[1]))?.repair(
                 &args[2],

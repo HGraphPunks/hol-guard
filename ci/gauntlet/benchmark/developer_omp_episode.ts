@@ -4,13 +4,35 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { createConnection } from 'node:net';
 
 type Config = {
-  schema: 'developer-omp-episode.v1' | 'developer-omp-episode.v2'; sdkRoot: string; workspace: string; agentDir: string;
+  schema: 'developer-omp-episode.v1' | 'developer-omp-episode.v2' | 'developer-omp-episode.v3';
+  sdkRoot: string; workspace: string; agentDir: string;
   mcpAgentSurfaces?: 'mcp-agent-surfaces.v1';
+  builtinToolProfile?: 'mcp-only.v1';
   modelId: string; prompt: string; deadlineSeconds: number; maxToolCalls: number;
   maxModelTokens: number; guardExtension?: string; sdkGate?: string;
   resourceEndpoints?: Record<string, any>;
 };
 const emit = (value: unknown) => process.stdout.write(JSON.stringify(value) + '\n');
+
+/** Keep the MCP-only live profile explicit; historical inventories stay fixed. */
+export function developerBuiltinToolNames(config: Pick<Config,
+  'schema' | 'mcpAgentSurfaces' | 'builtinToolProfile' | 'resourceEndpoints'>): string[] {
+  if (!['developer-omp-episode.v1', 'developer-omp-episode.v2', 'developer-omp-episode.v3'].includes(config.schema)
+      || (config.schema === 'developer-omp-episode.v2'
+        ? config.mcpAgentSurfaces !== 'mcp-agent-surfaces.v1' : config.mcpAgentSurfaces !== undefined)) {
+    throw new Error('invalid developer episode tool profile');
+  }
+  if (config.schema === 'developer-omp-episode.v3') {
+    if (config.builtinToolProfile !== 'mcp-only.v1' || !config.resourceEndpoints
+        || typeof config.resourceEndpoints !== 'object' || Array.isArray(config.resourceEndpoints)
+        || Object.keys(config.resourceEndpoints).length === 0) {
+      throw new Error('MCP-only developer episode requires declared resource endpoints');
+    }
+    return [];
+  }
+  if (config.builtinToolProfile !== undefined) throw new Error('versioned developer tool profile required');
+  return ['read', 'write', 'edit', 'bash'];
+}
 
 /** SDK-local scheduling only; independent controller accounting remains authoritative. */
 export class DeveloperBudgetStop {
@@ -98,10 +120,8 @@ async function main() {
     throw new Error('requires isolated Linux runtime and absolute public configuration');
   }
   const config: Config = JSON.parse(await readFile(process.argv[2], 'utf8'));
-  if (!['developer-omp-episode.v1', 'developer-omp-episode.v2'].includes(config.schema)
-      || (config.schema === 'developer-omp-episode.v2'
-        ? config.mcpAgentSurfaces !== 'mcp-agent-surfaces.v1' : config.mcpAgentSurfaces !== undefined)
-      || !config.prompt || !config.modelId) {
+  const toolNames = developerBuiltinToolNames(config);
+  if (!config.prompt || !config.modelId) {
     throw new Error('invalid developer episode');
   }
   for (const key of ['sdkRoot', 'workspace', 'agentDir'] as const) {
@@ -149,12 +169,12 @@ async function main() {
   registry.registerProvider('benchmark-local', {
     baseUrl: 'http://127.0.0.1:8001/v1', api: 'openai-completions', authHeader: false,
     apiKey: 'benchmark-no-auth', models: [{ id: config.modelId, name: config.modelId, reasoning: false,
-      supportsTools: true, input: ['text'], contextWindow: 32768, maxTokens: 8192,
+      supportsTools: true, input: ['text'], contextWindow: 32768,
+      maxTokens: config.schema === 'developer-omp-episode.v3' ? 4096 : 8192,
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }],
   });
   const model = registry.find('benchmark-local', config.modelId);
   if (!model) throw new Error('declared local model unavailable');
-  const toolNames = ['read', 'write', 'edit', 'bash'];
   let manager: any;
   let resourceTools: any[] = [];
   let session: any; let timer: ReturnType<typeof setTimeout> | undefined;

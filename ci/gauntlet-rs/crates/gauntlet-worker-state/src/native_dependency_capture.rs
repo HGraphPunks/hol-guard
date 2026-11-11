@@ -72,6 +72,19 @@ pub(crate) fn source_receipt(
     pins: &NativeDependencyInputPins<'_>,
     source_bytes: u64,
 ) -> Result<(), String> {
+    if let Some(value) = crate::native_job_storage::source::verify(
+        pins.job,
+        slot,
+        Some(crate::JobStorageProfile::Dependency),
+    )? {
+        if value["source_sha"] != pins.source
+            || value["source_archive_sha256"] != pins.source_archive
+            || value["source_bytes"] != source_bytes
+        {
+            return Err("bounded source receipt differs from dependency pins".into());
+        }
+        return Ok(());
+    }
     let fd = openat(
         slot,
         "source-capture.v1.json",
@@ -127,6 +140,72 @@ pub(crate) fn source_receipt(
 pub fn capture_native_dependency_inputs(
     pins: &NativeDependencyInputPins<'_>,
 ) -> Result<Vec<u8>, String> {
+    capture(pins, None)
+}
+pub fn capture_native_dependency_inputs_v2(
+    pins: &NativeDependencyInputPins<'_>,
+    storage_sha: &str,
+) -> Result<Vec<u8>, String> {
+    if !crate::hex(storage_sha, 64) {
+        return Err("outside original dependency storage hash required".into());
+    }
+    capture(pins, Some(storage_sha))
+}
+pub fn read_native_dependency_inputs_v2(
+    pins: &NativeDependencyInputPins<'_>,
+    storage_sha: &str,
+) -> Result<Vec<u8>, String> {
+    gauntlet_cell_rootfs::require_outside_root()?;
+    crate::verify_running_binary(pins.generation).map_err(|e| e.to_string())?;
+    if !pins.valid() || !crate::hex(storage_sha, 64) {
+        return Err("original completed dependency capsule pins required".into());
+    }
+    let journal =
+        RunReservationJournal::open_root_owned(Path::new(crate::builder_image_context::RUST_STATE))
+            .map_err(|e| e.to_string())?;
+    let active = journal.acquire_active_lease().map_err(|e| e.to_string())?;
+    let python = crate::builder_image_context::python_worker_lock().map_err(|e| e.to_string())?;
+    let root = open_fixed_build_slot(pins.job).map_err(|e| e.to_string())?;
+    let source = crate::native_job_storage::source::verify(
+        pins.job,
+        &root,
+        Some(crate::JobStorageProfile::Dependency),
+    )?
+    .ok_or("original bounded dependency Source receipt absent")?;
+    if source["storage"]["receipt_sha256"] != storage_sha {
+        return Err("dependency capsule volume differs from original outside pin".into());
+    }
+    source_receipt(
+        &root,
+        pins,
+        verify_captured_source(&root, pins.source_archive).map_err(|e| e.to_string())?,
+    )?;
+    let archive =
+        crate::dependency_io::read(&root, "dependency-inputs.zip", 0, 0o444, 32 * 1024 * 1024)?;
+    decode_inputs(&archive, pins)?;
+    let directory = crate::feature_files::open_directory(&root, "dependency-inputs", (0, 0))?;
+    verify_extracted_inputs(&directory, pins)?;
+    if crate::feature_files::read(&directory, "capture.v1.json", (0, 0), 0o600, 8192)?.is_some() {
+        return Err("mixed capsule versions refused".into());
+    }
+    let raw = crate::feature_files::required(&directory, "capture.v2.json", (0, 0), 0o600, 8192)?;
+    let mut expected = pins.receipt();
+    expected["schema"] = serde_json::json!("hol-gauntlet-native-dependency-inputs.v2");
+    expected["storage_receipt_sha256"] = serde_json::json!(storage_sha);
+    if gauntlet_contracts::canonicalize(expected.to_string().as_bytes())
+        .map_err(|e| e.to_string())?
+        != raw
+    {
+        return Err("original completed capsule receipt changed".into());
+    }
+    active.verify(&journal.root).map_err(|e| e.to_string())?;
+    crate::builder_image_context::verify_python_lock(&python).map_err(|e| e.to_string())?;
+    Ok(raw)
+}
+fn capture(
+    pins: &NativeDependencyInputPins<'_>,
+    storage_sha: Option<&str>,
+) -> Result<Vec<u8>, String> {
     gauntlet_cell_rootfs::require_outside_root()?;
     crate::verify_running_binary(pins.generation).map_err(|e| e.to_string())?;
     if !pins.valid() {
@@ -139,6 +218,20 @@ pub fn capture_native_dependency_inputs(
     let lease = journal.acquire_active_lease().map_err(|e| e.to_string())?;
     let legacy = crate::builder_image_context::python_worker_lock().map_err(|e| e.to_string())?;
     let slot = open_fixed_build_slot(pins.job).map_err(|e| e.to_string())?;
+    let original = crate::native_job_storage::source::verify(
+        pins.job,
+        &slot,
+        Some(crate::JobStorageProfile::Dependency),
+    )?;
+    match (&original, storage_sha) {
+        (Some(v), Some(pin)) if v["storage"]["receipt_sha256"] == pin => {}
+        (None, None) => {}
+        _ => {
+            return Err(
+                "dependency capsule version/storage differs from original source custody".into(),
+            )
+        }
+    }
     let source_bytes =
         verify_captured_source(&slot, pins.source_archive).map_err(|e| e.to_string())?;
     source_receipt(&slot, pins, source_bytes)?;
@@ -236,10 +329,23 @@ pub fn capture_native_dependency_inputs(
         file.sync_all()
             .map_err(|_| "dependency member commit uncertain")?;
     }
-    let receipt = gauntlet_contracts::canonicalize(pins.receipt().to_string().as_bytes())
-        .map_err(|e| e.to_string())?;
-    crate::terminal::create_durable(&target, "capture.v1.json", &receipt)
-        .map_err(|e| e.to_string())?;
+    let mut body = pins.receipt();
+    if let Some(pin) = storage_sha {
+        body["schema"] = serde_json::json!("hol-gauntlet-native-dependency-inputs.v2");
+        body["storage_receipt_sha256"] = serde_json::json!(pin);
+    }
+    let receipt =
+        gauntlet_contracts::canonicalize(body.to_string().as_bytes()).map_err(|e| e.to_string())?;
+    crate::terminal::create_durable(
+        &target,
+        if storage_sha.is_some() {
+            "capture.v2.json"
+        } else {
+            "capture.v1.json"
+        },
+        &receipt,
+    )
+    .map_err(|e| e.to_string())?;
     fsync(&target).map_err(|_| "dependency input tree commit uncertain")?;
     verify_extracted_inputs(&target, pins)?;
     lease.verify(&journal.root).map_err(|e| e.to_string())?;
@@ -289,5 +395,10 @@ pub fn capture_native_dependency_inputs(
     }
     lease.verify(&journal.root).map_err(|e| e.to_string())?;
     crate::builder_image_context::verify_python_lock(&legacy).map_err(|e| e.to_string())?;
+    crate::native_job_storage::source::verify(
+        pins.job,
+        &slot,
+        Some(crate::JobStorageProfile::Dependency),
+    )?;
     Ok(receipt)
 }

@@ -1,20 +1,64 @@
 //! Normal unprivileged installed-product entrypoints.
 use super::*;
 impl NativeMcpAgent {
+    pub(crate) fn submit_live_prompt(&mut self, cancel: &AtomicBool) -> Result<Value, String> {
+        self.public.verify()?;
+        let python = self
+            .prefix
+            .join("bin/python")
+            .to_string_lossy()
+            .into_owned();
+        let argv = vec![
+            "exec".into(),
+            "--interactive".into(),
+            self.cid.as_ref().ok_or("MCP CID absent")?.clone(),
+            "/bin/sh".into(),
+            "-c".into(),
+            "exec \"$@\" < /product/public/live-prompt.json".into(),
+            "gauntlet-live-prompt".into(),
+            python,
+            "-I".into(),
+            "-B".into(),
+            "-m".into(),
+            "codex_plugin_scanner.cli".into(),
+            "guard".into(),
+            "hook".into(),
+            "--json".into(),
+            "--harness".into(),
+            "omp".into(),
+            "--guard-home".into(),
+            "/product/guard".into(),
+            "--home".into(),
+            "/product/home".into(),
+            "--workspace".into(),
+            "/product/home/project".into(),
+        ];
+        let output = self.commands.run(false, &argv, 45, cancel)?;
+        self.public.verify()?;
+        let response = gauntlet_evidence::normalize_native_hook_response(
+            &output.stdout,
+            i64::from(
+                output
+                    .status
+                    .code()
+                    .ok_or("actual live prompt process exit unavailable")?,
+            ),
+            Some("UserPromptSubmit"),
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(
+            json!({"schema":"hol-gauntlet-native-live-mcp-prompt.v1","argv":argv,"exit_code":output.status.code(),
+            "stdout_sha256":format!("{:x}",Sha256::digest(&output.stdout)),"stderr_sha256":format!("{:x}",Sha256::digest(&output.stderr)),
+            "response":response,"product_claims_authenticated":false,"execution_eligible":false}),
+        )
+    }
     pub fn identity_and_daemon(
         &mut self,
         pins: &gauntlet_cell_rootfs::NativeGuardPins,
         cancel: &AtomicBool,
     ) -> Result<Value, String> {
         let value = self.inspect(cancel)?;
-        check_inspection(
-            &value,
-            &self.name,
-            &self.job,
-            &self.nonce,
-            &self.mounts,
-            true,
-        )?;
+        self.check(&value, true)?;
         self.public.verify()?;
         let python = self
             .prefix
@@ -81,14 +125,7 @@ impl NativeMcpAgent {
         cancel: &AtomicBool,
     ) -> Result<crate::NativeMcpProxyClient, String> {
         let value = self.inspect(cancel)?;
-        check_inspection(
-            &value,
-            &self.name,
-            &self.job,
-            &self.nonce,
-            &self.mounts,
-            true,
-        )?;
+        self.check(&value, true)?;
         self.public.verify()?;
         crate::NativeMcpProxyClient::spawn(
             &mut self.commands,

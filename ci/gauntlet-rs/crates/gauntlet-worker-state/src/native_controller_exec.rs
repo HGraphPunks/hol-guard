@@ -5,6 +5,7 @@ use std::ffi::CString;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::os::unix::net::UnixStream;
 use std::os::unix::process::CommandExt;
 use std::process::{Child, ChildStdin, Command, Stdio};
 
@@ -30,6 +31,13 @@ fn log(root: &OwnedFd, name: &str) -> Result<File, String> {
     }
     Ok(File::from(fd))
 }
+fn retained_high(fd: &impl AsRawFd) -> Result<File, String> {
+    let raw = unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 16) };
+    if raw < 0 {
+        return Err("live controller descriptor retention failed".into());
+    }
+    Ok(unsafe { File::from_raw_fd(raw) })
+}
 
 impl NativeChild {
     pub(crate) fn spawn(
@@ -38,15 +46,28 @@ impl NativeChild {
         group: &OwnedJobCgroup,
         state: &OwnedFd,
         signing_key: Option<&File>,
+        model_channel: Option<&UnixStream>,
+        world_key: Option<&File>,
     ) -> Result<Self, String> {
         if spec.requires_host_pin() != signing_key.is_some() {
             return Err("native controller key handoff and declared profile differ".into());
+        }
+        let live = matches!(
+            spec.execution,
+            crate::NativeJobExecution::HostPinnedLive { .. }
+        );
+        if live != (model_channel.is_some() && world_key.is_some())
+            || (!live && (model_channel.is_some() || world_key.is_some()))
+        {
+            return Err("live controller descriptor/profile binding differs".into());
         }
         crate::verify_running_binary(&spec.worker_generation).map_err(|e| e.to_string())?;
         // `/proc/self/exe` is a kernel reference to the still-running inode
         // just verified, not argv[0] or a caller-selected executable path.
         let executable = File::open("/proc/self/exe").map_err(|e| e.to_string())?;
-        let executable = if signing_key.is_some()
+        let executable = if live {
+            retained_high(&executable)?
+        } else if signing_key.is_some()
             && executable.as_raw_fd() == crate::native_controller_key::NATIVE_CONTROLLER_KEY_FD
         {
             let fd = unsafe { libc::fcntl(executable.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 4) };
@@ -60,16 +81,37 @@ impl NativeChild {
         };
         let executable_fd = executable.as_raw_fd();
         let key = signing_key
-            .map(File::try_clone)
+            .map(|f| {
+                if live {
+                    retained_high(f).map_err(std::io::Error::other)
+                } else {
+                    f.try_clone()
+                }
+            })
             .transpose()
             .map_err(|e| e.to_string())?;
         let key_fd = key.as_ref().map(AsRawFd::as_raw_fd);
+        let model = model_channel.map(retained_high).transpose()?;
+        let world = world_key.map(retained_high).transpose()?;
+        let model_fd = model.as_ref().map(AsRawFd::as_raw_fd);
+        let world_fd = world.as_ref().map(AsRawFd::as_raw_fd);
         let writer = group.writer().map_err(|e| e.to_string())?;
-        let output = log(state, &format!("{}.native.stdout", spec.job_id))?;
-        let errors = log(state, &format!("{}.native.stderr", spec.job_id))?;
+        let bounded = if crate::native_job_storage::native::verify(&spec.job_id)? {
+            Some(
+                crate::open_root_owned_public_directory(&spec.job_root())
+                    .map_err(|e| e.to_string())?,
+            )
+        } else {
+            None
+        };
+        let logs = bounded.as_ref().unwrap_or(state);
+        let output = log(logs, &format!("{}.native.stdout", spec.job_id))?;
+        let errors = log(logs, &format!("{}.native.stderr", spec.job_id))?;
         let argv = [
             "gauntlet-vm-worker",
-            if key.is_some() {
+            if live {
+                "--native-live-keyed-controller"
+            } else if key.is_some() {
                 "--native-keyed-controller"
             } else {
                 "--native-controller"
@@ -106,6 +148,8 @@ impl NativeChild {
                 let _keep_program = &executable;
                 let _keep_arguments = &argv;
                 let _keep_key = &key;
+                let _keep_model = &model;
+                let _keep_world = &world;
                 let mut pid = libc::getpid() as u32;
                 let mut digits = [0u8; 10];
                 let mut start = digits.len();
@@ -133,6 +177,15 @@ impl NativeChild {
                     if libc::dup2(fd, target) != target || libc::fcntl(target, libc::F_SETFD, 0) < 0
                     {
                         return Err(std::io::Error::last_os_error());
+                    }
+                }
+                for (source, target) in [(model_fd, 4), (world_fd, 5)] {
+                    if let Some(fd) = source {
+                        if libc::dup2(fd, target) != target
+                            || libc::fcntl(target, libc::F_SETFD, 0) < 0
+                        {
+                            return Err(std::io::Error::last_os_error());
+                        }
                     }
                 }
                 libc::syscall(

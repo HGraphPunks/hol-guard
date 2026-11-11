@@ -109,7 +109,7 @@ fn run_placed(
     Ok(stdout)
 }
 
-fn arguments(intent: &DependencyRunIntent) -> Vec<String> {
+fn arguments(intent: &DependencyRunIntent, slot: &OwnedFd) -> Result<Vec<String>, String> {
     let p = &intent.pins;
     let job = p.text("job_id");
     let root = format!("/var/lib/hol-gauntlet/builds/{job}");
@@ -137,6 +137,11 @@ fn arguments(intent: &DependencyRunIntent) -> Vec<String> {
         "--cgroup-parent=system.slice".into(),
         "--entrypoint=/input/gauntlet-dependency-exporter".into(),
     ];
+    args.extend(crate::native_job_storage::source::container_arguments(
+        job,
+        slot,
+        crate::JobStorageProfile::Dependency,
+    )?);
     for name in ["pyproject.toml", "uv.lock", "gauntlet-dependency-exporter"] {
         args.extend([
             "--volume".into(),
@@ -152,7 +157,7 @@ fn arguments(intent: &DependencyRunIntent) -> Vec<String> {
         p.text("pyproject_sha256").into(),
         p.text("uv_lock_sha256").into(),
     ]);
-    args
+    Ok(args)
 }
 
 pub(crate) struct DependencyContainer<'a> {
@@ -178,19 +183,28 @@ impl<'a> DependencyContainer<'a> {
         self.intent.pins.text("podman_sha256")
     }
     fn identity(&self) -> Result<Option<String>, String> {
-        self.identity_in_phase(false)
+        self.identity_in_phase(false, false)
     }
-    fn identity_in_phase(&self, before_client: bool) -> Result<Option<String>, String> {
+    fn identity_in_phase(
+        &self,
+        before_client: bool,
+        owned_cleanup: bool,
+    ) -> Result<Option<String>, String> {
         let job = self.intent.pins.text("job_id");
-        if crate::builder_candidate_process::container_absent(job).map_err(|e| e.to_string())?
-            && self
-                .cid
-                .as_deref()
-                .map(crate::builder_candidate_process::container_id_absent)
-                .transpose()
-                .map_err(|e| e.to_string())?
-                .unwrap_or(true)
-        {
+        let absent = if owned_cleanup {
+            crate::builder_candidate_process::cleanup_container_absent(job, self.cid.as_deref())
+                .map_err(|e| format!("dependency job {job} cleanup inspection: {e}"))?
+        } else {
+            crate::builder_candidate_process::container_absent(job).map_err(|e| e.to_string())?
+                && self
+                    .cid
+                    .as_deref()
+                    .map(crate::builder_candidate_process::container_id_absent)
+                    .transpose()
+                    .map_err(|e| e.to_string())?
+                    .unwrap_or(true)
+        };
+        if absent {
             return Ok(None);
         }
         let target = self
@@ -231,7 +245,7 @@ impl<'a> DependencyContainer<'a> {
             intent,
             cid: cid.map(str::to_owned),
         };
-        let observed = container.identity_in_phase(true)?;
+        let observed = container.identity_in_phase(true, false)?;
         if container.cid.is_none() {
             container.cid = observed;
         }
@@ -248,7 +262,10 @@ impl<'a> DependencyContainer<'a> {
         if info["host"]["cgroupManager"] != "systemd" || info["host"]["cgroupVersion"] != "v2" {
             return Err("fixed dependency cgroup manager required".into());
         }
-        let result = run_placed(self.pin(), &arguments(self.intent), Some(group));
+        let slot =
+            crate::builder_candidate_source::open_fixed_build_slot(self.intent.pins.text("job_id"))
+                .map_err(|e| e.to_string())?;
+        let result = run_placed(self.pin(), &arguments(self.intent, &slot)?, Some(group));
         let observed = self.identity()?;
         self.cid = observed;
         let raw = result?;
@@ -281,14 +298,14 @@ impl<'a> DependencyContainer<'a> {
         })
     }
     pub(crate) fn drain(&self) -> Result<(), String> {
-        let observed = self.identity()?;
+        let observed = self.identity_in_phase(false, true)?;
         if let Some(cid) = observed {
             run(
                 self.pin(),
                 &["rm".into(), "--force".into(), "--time=5".into(), cid],
             )?;
         }
-        if self.identity()?.is_some() {
+        if self.identity_in_phase(false, true)?.is_some() {
             return Err("dependency container survived cleanup".into());
         }
         if let Some(cid) = &self.cid {
@@ -356,6 +373,15 @@ pub(crate) fn validated_container_identity(
     {
         return Err("container identity differs from its outside binding".into());
     }
+    crate::native_job_storage::source::verify_container(
+        job,
+        v,
+        if label == "hol-gauntlet.candidate-intent" {
+            crate::JobStorageProfile::Build
+        } else {
+            crate::JobStorageProfile::Dependency
+        },
+    )?;
     Ok(cid.into())
 }
 
@@ -373,11 +399,21 @@ pub(crate) fn verify_completed_absent(
         64 * 1024 * 1024,
     )
     .map_err(|e| e.to_string())?;
-    if !crate::builder_candidate_process::container_absent(intent.pins.text("job_id"))
-        .map_err(|e| e.to_string())?
-        || !crate::builder_candidate_process::container_id_absent(cid).map_err(|e| e.to_string())?
+    let job = intent.pins.text("job_id");
+    let target = format!("hol-gauntlet-build-{job}");
+    if !crate::builder_candidate_process::container_absent(job)
+        .map_err(|e| format!("dependency job {job}, target {target}: {e}"))?
     {
-        return Err("completed dependency container name exists".into());
+        return Err(format!(
+            "completed dependency container exists: job {job}, target {target}"
+        ));
+    }
+    if !crate::builder_candidate_process::container_id_absent(cid)
+        .map_err(|e| format!("dependency job {job}, target {cid}: {e}"))?
+    {
+        return Err(format!(
+            "completed dependency container exists: job {job}, target {cid}"
+        ));
     }
     for parent in ["system.slice", "machine.slice"] {
         for unit in [

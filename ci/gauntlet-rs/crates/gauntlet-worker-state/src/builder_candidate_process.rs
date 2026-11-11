@@ -1,6 +1,10 @@
 //! Bounded Podman client ownership for one local candidate container. The
 //! caller owns AppArmor and source custody before and after this process.
 
+use crate::builder_candidate_preflight::podman_command;
+pub(crate) use crate::builder_candidate_preflight::{
+    cleanup_container_absent, container_absent, container_id_absent,
+};
 use crate::builder_cgroup::OwnedCandidateCgroup;
 use crate::builder_image_build::free_bytes;
 use crate::builder_run_plan::BuilderRunPlan;
@@ -13,7 +17,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::os::fd::OwnedFd;
 use std::os::unix::process::ExitStatusExt;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::thread;
@@ -21,7 +25,6 @@ use std::time::{Duration, Instant};
 
 const MIN_REMAIN_FREE: u64 = 8 * 1024 * 1024 * 1024;
 const MAX_LOG_BYTES: u64 = 16 * 1024 * 1024;
-const INSPECT_WAIT: Duration = Duration::from_secs(30);
 const POLL: Duration = Duration::from_millis(200);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,63 +65,6 @@ pub(crate) struct CandidateProcessObservation {
     pub(crate) exit_code: i32,
     pub(crate) stdout_sha256: String,
     pub(crate) stderr_sha256: String,
-}
-
-fn podman_command() -> Command {
-    let mut command = Command::new("/usr/bin/podman");
-    command.env_clear();
-    command.env("HOME", "/root");
-    command.env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin");
-    command.env("TMPDIR", "/var/tmp");
-    command
-}
-
-pub(crate) fn container_absent(job_id: &str) -> Result<bool, CandidateProcessError> {
-    container_target_absent(&format!("hol-gauntlet-build-{job_id}"))
-}
-
-pub(crate) fn container_id_absent(cid: &str) -> Result<bool, CandidateProcessError> {
-    if !crate::hex(cid, 64) {
-        return Err(CandidateProcessError::ContainerUnknown);
-    }
-    container_target_absent(cid)
-}
-
-fn container_target_absent(target: &str) -> Result<bool, CandidateProcessError> {
-    let mut command = podman_command();
-    command.args(["container", "exists", target]);
-    command
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    let mut child = command
-        .spawn()
-        .map_err(|_| CandidateProcessError::ContainerUnknown)?;
-    let started = Instant::now();
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => break,
-            Ok(None) if started.elapsed() < INSPECT_WAIT => {
-                thread::sleep(Duration::from_millis(20))
-            }
-            _ => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(CandidateProcessError::ContainerUnknown);
-            }
-        }
-    }
-    let output = child
-        .wait_with_output()
-        .map_err(|_| CandidateProcessError::ContainerUnknown)?;
-    if output.stdout.len() > 4096 || output.stderr.len() > 4096 {
-        return Err(CandidateProcessError::ContainerUnknown);
-    }
-    match output.status.code() {
-        Some(0) => Ok(false),
-        Some(1) => Ok(true),
-        _ => Err(CandidateProcessError::ContainerUnknown),
-    }
 }
 
 fn create_log(job: &OwnedFd, name: &str) -> Result<File, CandidateProcessError> {
@@ -424,6 +370,9 @@ fn run_process(
     let started = Instant::now();
     let mut last_disk = Instant::now();
     let outcome = loop {
+        if crate::native_worker::cancellation_requested() {
+            break Err(CandidateProcessError::CleanupUncertain);
+        }
         if exceeded.load(Ordering::Acquire) {
             break Err(CandidateProcessError::LogUnavailable);
         }

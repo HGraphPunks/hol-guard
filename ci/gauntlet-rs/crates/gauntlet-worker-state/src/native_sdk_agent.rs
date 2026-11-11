@@ -1,6 +1,6 @@
 //! Root ownership of one fixed, unprivileged SDK agent container. Create and
 //! start are separate so the CID is retained before any image code executes.
-use crate::native_sdk_agent_spec::{check_inspection, check_mcp_inspection};
+use crate::native_sdk_agent_spec::{check_inspection, check_live_inspection, check_mcp_inspection};
 use crate::native_sdk_process::{RootChild, RootCommands};
 use crate::native_sdk_public::{write_file, NativeSdkPublic, APPARMOR};
 use crate::{
@@ -34,6 +34,7 @@ pub(crate) struct NativeSdkAgent {
     kernel: Option<Value>,
     closed: bool,
     mcp: bool,
+    live: bool,
 }
 fn strings(args: &[&str]) -> Vec<String> {
     args.iter().map(|s| (*s).into()).collect()
@@ -107,6 +108,7 @@ impl NativeSdkAgent {
             kernel: None,
             closed: false,
             mcp: false,
+            live: false,
         };
         Ok(agent)
     }
@@ -131,7 +133,21 @@ impl NativeSdkAgent {
         Ok(agent)
     }
     fn check(&self, value: &Value, running: bool) -> Result<(String, u32), String> {
-        if self.mcp {
+        if self.commands.is_cleanup() {
+            crate::native_job_storage::owner::cleanup_access(&self.job)?;
+        } else {
+            crate::native_job_storage::native::check(&self.job, value, running)?;
+        }
+        if self.live {
+            check_live_inspection(
+                value,
+                &self.name,
+                &self.job,
+                &self.nonce,
+                &self.mounts,
+                running,
+            )
+        } else if self.mcp {
             check_mcp_inspection(
                 value,
                 &self.name,
@@ -213,12 +229,20 @@ impl NativeSdkAgent {
                 "--memory=2g",
                 "--cpus=2",
                 "--cpuset-cpus=0-1",
-                "--timeout=240",
                 "--env=HOME=/runtime/home",
                 "--env=PATH=/usr/bin:/bin",
                 "--workdir=/runtime/home/project",
             ]);
+            args.extend(crate::native_job_storage::native::arguments(&job)?);
             args.extend([
+                format!(
+                    "--timeout={}",
+                    if agent.live {
+                        crate::native_live_spec::PREPARATION_SECONDS
+                    } else {
+                        240
+                    }
+                ),
                 format!("--name={}", agent.name),
                 format!("--security-opt=apparmor={}", agent.name),
                 format!("--cgroup-parent=holgauntletrust{job}.slice"),
@@ -245,7 +269,11 @@ impl NativeSdkAgent {
             args.extend([
                 "--entrypoint=/usr/bin/sleep".into(),
                 NATIVE_SDK_AGENT_IMAGE.into(),
-                "240".into(),
+                if agent.live {
+                    crate::native_live_spec::PREPARATION_SECONDS.to_string()
+                } else {
+                    "240".into()
+                },
             ]);
             agent.create_attempted = true;
             let output = agent.command(false, args, 30, cancel)?;
@@ -299,7 +327,12 @@ impl NativeSdkAgent {
             agent.kernel = Some(json!({"pid":pid,"start_ticks":stat.start_ticks,
                 "cgroup":cgroup,"limits":limits,"lsm_label":label.trim(),
                 "declared_lsm_label":expected_label}));
-            let boundary = NativeSdkBoundary::observe(
+            let observe = if agent.live {
+                NativeSdkBoundary::observe_live
+            } else {
+                NativeSdkBoundary::observe
+            };
+            let boundary = observe(
                 agent.cid.as_ref().unwrap(),
                 &SdkWirePeerPin {
                     pid,
@@ -348,6 +381,7 @@ impl NativeSdkAgent {
         if self.closed {
             return Ok(());
         }
+        self.commands.begin_cleanup();
         let cancel = AtomicBool::new(false);
         let removed: Result<(), String> = (|| {
             if self.create_attempted {

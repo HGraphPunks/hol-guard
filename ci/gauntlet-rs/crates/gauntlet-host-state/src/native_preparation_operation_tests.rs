@@ -1,5 +1,7 @@
 use super::super::tests::{intent, journal};
 use super::*;
+use initialization::storage::verify_abort;
+use initialization::{abort_context, abort_execute, require_not_aborted};
 use std::{
     fs,
     os::unix::fs::{symlink, PermissionsExt},
@@ -65,6 +67,132 @@ fn preparation_fixture(j: &Journal, readonly: bool) -> (Intent, Vec<u8>, Value, 
 }
 fn rehash(v: &mut Value) {
     v["receipt_sha256"] = json!(sha(&bytes(&v["receipt"]).unwrap()));
+}
+
+fn storage_fixture(i: &Intent, formatter: &str) -> Value {
+    job_storage_fixture(
+        i.text("source_sha"),
+        i.job(),
+        i.text("worker_generation"),
+        formatter,
+        "native-v1",
+    )
+}
+
+#[test]
+fn bounded_initialization_requires_original_capacity_loop_mount_and_formatter_after_rehash() {
+    let (_temp, j) = journal();
+    let i = intent(&"1".repeat(16), &j.path);
+    let (legacy, mut reply) = initialized(&j, &i, false);
+    let formatter = "a".repeat(64);
+    let mut declaration = legacy.0.clone();
+    declaration["schema"] = json!("hol-gauntlet-host-native-initialization-intent.v2");
+    declaration["mke2fs_sha256"] = json!(formatter);
+    let bounded = Initialization::parse(&bytes(&declaration).unwrap()).unwrap();
+    reply["schema"] = json!("hol-gauntlet-native-job-initialization-result.v2");
+    reply["receipt"]["schema"] = json!("hol-gauntlet-native-job-initialization.v2");
+    reply["receipt"]["storage"] = storage_fixture(&i, &formatter);
+    reply["receipt"]["job_directory"] =
+        reply["receipt"]["storage"]["receipt"]["root_directory"].clone();
+    reply["receipt"]["workspace"]["device"] = json!(1795);
+    rehash(&mut reply);
+    assert!(verify_initialization(&bounded, &bytes(&reply).unwrap()).is_ok());
+    assert!(verify_initialization(&legacy, &bytes(&reply).unwrap()).is_err());
+    for (pointer, replacement) in [
+        ("/receipt/limits/bytes", json!(3_u64 * 1024 * 1024 * 1024)),
+        ("/receipt/limits/inodes", json!(65537)),
+        ("/receipt/filesystem/inodes", json!(65537)),
+        ("/receipt/backing/allocated_bytes", json!(1)),
+        ("/receipt/backing/links", json!(2)),
+        ("/receipt/loop/backing_inode", json!(81)),
+        ("/receipt/loop/flags", json!(0)),
+        ("/receipt/mount/private", json!(false)),
+        ("/receipt/mount/nodev", json!(false)),
+        ("/receipt/mount/source", json!("/tmp/caller-device")),
+        ("/receipt/schema", json!("hol-gauntlet-job-storage.v1")),
+        ("/receipt/namespace_owner/source_sha", json!("f".repeat(40))),
+        ("/receipt/namespace_owner/job_id", json!("f".repeat(16))),
+        (
+            "/receipt/namespace_owner/executable_sha256",
+            json!("f".repeat(64)),
+        ),
+        ("/receipt/namespace_owner/owner_nonce_hex", json!(true)),
+        ("/receipt/namespace_owner/process/pid", json!(1)),
+        ("/receipt/namespace_owner/namespace/inode", json!(701)),
+        (
+            "/receipt/namespace_owner/original_namespace/inode",
+            json!(700),
+        ),
+        (
+            "/receipt/namespace_owner/cgroup/path",
+            json!("/system.slice/sshd.service"),
+        ),
+        (
+            "/receipt/namespace_owner/deadline_boottime_ns",
+            json!(u64::MAX),
+        ),
+        ("/receipt/namespace_owner/state", json!("adopted")),
+        ("/receipt/root_directory/inode", json!(51)),
+        ("/receipt/covered_directory/uid", json!(10001)),
+        ("/receipt/mke2fs_sha256", json!("b".repeat(64))),
+        (
+            "/receipt/formatter/configuration_sha256",
+            json!("b".repeat(64)),
+        ),
+        ("/receipt/storage_state", json!("removed")),
+        ("/receipt/qualification_eligible", json!(true)),
+    ] {
+        let mut wrong = reply.clone();
+        *wrong["receipt"]["storage"].pointer_mut(pointer).unwrap() = replacement;
+        rehash(&mut wrong["receipt"]["storage"]);
+        rehash(&mut wrong);
+        assert!(
+            verify_initialization(&bounded, &bytes(&wrong).unwrap()).is_err(),
+            "{pointer}"
+        );
+    }
+    let mut fd_mount = reply.clone();
+    fd_mount["receipt"]["storage"]["receipt"]["mount"]["source"] = json!("/proc/self/fd/16");
+    rehash(&mut fd_mount["receipt"]["storage"]);
+    rehash(&mut fd_mount);
+    assert!(verify_initialization(&bounded, &bytes(&fd_mount).unwrap()).is_ok());
+}
+
+#[test]
+fn bounded_preparation_cannot_drop_substitute_or_borrow_legacy_storage_binding() {
+    let (_temp, j) = journal();
+    let (i, raw, legacy, initialization) = preparation_fixture(&j, false);
+    let storage = "3".repeat(64);
+    let mut reply = legacy.clone();
+    reply["schema"] = json!("hol-gauntlet-native-host-pinned-preparation-result.v2");
+    reply["receipt"]["schema"] = json!("hol-gauntlet-native-host-pinned-preparation.v2");
+    reply["receipt"]["storage_receipt_sha256"] = json!(storage);
+    rehash(&mut reply);
+    assert!(verify_preparation(
+        &i,
+        &bytes(&reply).unwrap(),
+        &raw,
+        &initialization,
+        Some(&storage)
+    )
+    .is_ok());
+    assert!(verify_preparation(&i, &bytes(&reply).unwrap(), &raw, &initialization, None).is_err());
+    assert!(verify_preparation(
+        &i,
+        &bytes(&legacy).unwrap(),
+        &raw,
+        &initialization,
+        Some(&storage)
+    )
+    .is_err());
+    assert!(verify_preparation(
+        &i,
+        &bytes(&reply).unwrap(),
+        &raw,
+        &initialization,
+        Some(&"4".repeat(64))
+    )
+    .is_err());
 }
 
 #[test]
@@ -145,7 +273,7 @@ fn preparation_reply_and_bundle_require_original_inode_exact_role_and_all_pins()
         let (i, raw, value, init_sha) = preparation_fixture(&j, readonly);
         assert!(bundle(&j, &i, &raw).is_ok());
         assert_eq!(
-            verify_preparation(&i, &bytes(&value).unwrap(), &raw, &init_sha).unwrap(),
+            verify_preparation(&i, &bytes(&value).unwrap(), &raw, &init_sha, None).unwrap(),
             value
         );
         for (pointer, bad) in [
@@ -161,7 +289,7 @@ fn preparation_reply_and_bundle_require_original_inode_exact_role_and_all_pins()
             *bad_value.pointer_mut(pointer).unwrap() = bad;
             rehash(&mut bad_value);
             assert!(
-                verify_preparation(&i, &bytes(&bad_value).unwrap(), &raw, &init_sha).is_err(),
+                verify_preparation(&i, &bytes(&bad_value).unwrap(), &raw, &init_sha, None).is_err(),
                 "{pointer}"
             );
         }
@@ -197,4 +325,176 @@ fn preparation_input_custody_refuses_wrong_hash_links_and_oversize() {
     fs::write(&oversized, vec![b'x'; BUNDLE_LIMIT as usize + 1]).unwrap();
     fs::set_permissions(&oversized, fs::Permissions::from_mode(0o600)).unwrap();
     assert!(read_bundle(&oversized, &"0".repeat(64)).is_err());
+}
+
+pub(super) fn abort_fixture(j: &Journal) -> (Initialization, Value, Value) {
+    let i = intent(&"1".repeat(16), &j.path);
+    let (legacy, mut v) = initialized(j, &i, false);
+    let mut declaration = legacy.0;
+    declaration["schema"] = json!("hol-gauntlet-host-native-initialization-intent.v2");
+    declaration["mke2fs_sha256"] = json!("a".repeat(64));
+    let init = Initialization::parse(&bytes(&declaration).unwrap()).unwrap();
+    v["schema"] = json!("hol-gauntlet-native-job-initialization-result.v2");
+    v["receipt"]["schema"] = json!("hol-gauntlet-native-job-initialization.v2");
+    v["receipt"]["storage"] = storage_fixture(&i, &"a".repeat(64));
+    v["receipt"]["job_directory"] = v["receipt"]["storage"]["receipt"]["root_directory"].clone();
+    v["receipt"]["workspace"]["device"] = json!(1795);
+    rehash(&mut v);
+    // Replace only this temporary fixture's synthetic legacy setup.
+    fs::write(
+        j.path
+            .join(Journal::name(i.job(), "initialize-intent").unwrap()),
+        bytes(&init.0).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        j.path
+            .join(Journal::name(i.job(), "initialize-dispatch").unwrap()),
+        init.dispatch().unwrap(),
+    )
+    .unwrap();
+    j.write(i.job(), "initialize-result", &bytes(&v).unwrap())
+        .unwrap();
+    for (suffix, raw) in [
+        ("prepare-bundle", b"{invalid preparation}".as_slice()),
+        ("prepare-dispatch", b"{consumed}"),
+        ("prepare-return", b"{rejected}"),
+    ] {
+        j.write(i.job(), suffix, raw).unwrap();
+    }
+    let a = abort_context(
+        j,
+        &init,
+        &v,
+        v["receipt_sha256"].as_str().unwrap(),
+        v["receipt"]["storage"]["receipt_sha256"].as_str().unwrap(),
+        &"b".repeat(64),
+        &"c".repeat(64),
+    )
+    .unwrap();
+    (init, v, a)
+}
+pub(super) fn abort_reply(i: &Initialization, v: &Value, a: &Value) -> Value {
+    let snapshot = json!({"schema":"hol-gauntlet-native-unstarted-snapshot.v1","source_sha":i.text("source_sha"),"job_id":i.job(),
+        "worker_generation":i.text("worker_generation"),"initialization_sha256":a["initialization_sha256"],"storage_receipt_sha256":a["storage_receipt_sha256"],
+        "workspace":v["receipt"]["workspace"],"preparation":{"sha256":sha(b"{invalid preparation}"),"bytes":21,"device":1795,"inode":53,"uid":0,"gid":0,"mode":384,"links":1}});
+    let authority = json!({"schema":"hol-gauntlet-native-unstarted-storage-authority.v1","initialization_sha256":a["initialization_sha256"],
+        "storage_receipt_sha256":a["storage_receipt_sha256"],"snapshot_sha256":sha(&bytes(&snapshot).unwrap()),"podman_sha256":a["podman_sha256"]});
+    let context = json!({"schema":"hol-gauntlet-job-storage-retirement-intent.v1","source_sha":i.text("source_sha"),"job_id":i.job(),
+        "worker_generation":i.text("worker_generation"),"mke2fs_sha256":i.text("mke2fs_sha256"),"profile":"native-v1","retirer_generation":a["aborter_generation"],
+        "authority":authority,"storage_receipt_sha256":a["storage_receipt_sha256"],"archive_sha256":null});
+    let receipt = json!({"schema":"hol-gauntlet-job-storage-retired.v1","source_sha":i.text("source_sha"),"job_id":i.job(),"worker_generation":i.text("worker_generation"),
+        "profile":"native-v1","retirer_generation":a["aborter_generation"],"retirement_intent_sha256":sha(&bytes(&context).unwrap()),"storage_receipt_sha256":a["storage_receipt_sha256"],
+        "archive_sha256":null,"partial":false,"volume_unmounted":true,"loop_detached":true,"backing_absent":true,"retained_storage":false,
+        "job_consumed":true,"execution_eligible":false,"qualification_eligible":false,"model_requests":null});
+    json!({"schema":"hol-gauntlet-native-initialization-abort-result.v1","snapshot":snapshot,"receipt_sha256":sha(&bytes(&receipt).unwrap()),"receipt":receipt})
+}
+#[test]
+fn unstarted_abort_preserves_failed_preparation_and_requires_explicit_partial_resume() {
+    let (_temp, j) = journal();
+    let (i, v, a) = abort_fixture(&j);
+    let run = |read: bool, resume: bool, reply: Result<Vec<u8>, String>| {
+        abort_execute(&j, &i, &v, &a, read, resume, |argv| {
+            assert_eq!(argv.len(), 10);
+            assert_eq!(argv[2], i.text("source_sha"));
+            assert_eq!(argv[6], a["initialization_sha256"].as_str().unwrap());
+            assert_eq!(argv[8], a["podman_sha256"].as_str().unwrap());
+            assert_eq!(argv[1].starts_with("--read-"), read);
+            reply
+        })
+    };
+    assert!(run(false, false, Err("reply lost after unmount".into())).is_err());
+    assert!(run(true, false, Err("cleanup incomplete".into())).is_err());
+    assert!(j.absent(i.job(), "initialize-abort-result").unwrap());
+    let raw = bytes(&abort_reply(&i, &v, &a)).unwrap();
+    let summary = run(false, true, Ok(raw.clone())).unwrap();
+    assert_eq!(summary["model_requests"], Value::Null);
+    assert_eq!(summary["exit_code"], Value::Null);
+    assert_eq!(
+        j.read(i.job(), "prepare-bundle").unwrap(),
+        b"{invalid preparation}"
+    );
+    assert_eq!(j.read(i.job(), "prepare-return").unwrap(), b"{rejected}");
+    assert!(j.require_idle().is_ok());
+    assert!(run(true, false, Ok(raw)).is_ok());
+    assert!(abort_execute(&j, &i, &v, &a, false, false, |_| panic!("replay")).is_err());
+}
+#[test]
+fn unstarted_abort_refuses_rehashed_substitution_and_every_orphan_or_live_marker() {
+    let (_temp, j) = journal();
+    let (i, v, a) = abort_fixture(&j);
+    let good = abort_reply(&i, &v, &a);
+    assert!(verify_abort(&i, &v, &a, &bytes(&good).unwrap()).is_ok());
+    for (pointer, bad) in [
+        ("/snapshot/workspace/inode", json!(999)),
+        ("/snapshot/preparation/links", json!(2)),
+        ("/receipt/model_requests", json!(0)),
+        ("/receipt/archive_sha256", json!("d".repeat(64))),
+        ("/receipt/partial", json!(true)),
+        ("/receipt/retirement_intent_sha256", json!("e".repeat(64))),
+    ] {
+        let mut wrong = good.clone();
+        *wrong.pointer_mut(pointer).unwrap() = bad;
+        rehash(&mut wrong);
+        assert!(
+            verify_abort(&i, &v, &a, &bytes(&wrong).unwrap()).is_err(),
+            "{pointer}"
+        );
+    }
+    for suffix in [
+        "dispatch",
+        "prelaunch",
+        "live-provision-dispatch",
+        "turn-1",
+        "unknown",
+    ] {
+        let (_temp, j) = journal();
+        let (i, v, _) = abort_fixture(&j);
+        j.write(i.job(), suffix, b"{}").unwrap();
+        assert!(
+            abort_context(
+                &j,
+                &i,
+                &v,
+                v["receipt_sha256"].as_str().unwrap(),
+                v["receipt"]["storage"]["receipt_sha256"].as_str().unwrap(),
+                &"b".repeat(64),
+                &"c".repeat(64)
+            )
+            .is_err(),
+            "{suffix}"
+        );
+    }
+    for suffix in ["return", "result", "read-intent", "frame-dead"] {
+        let (_temp, j) = journal();
+        let (i, v, a) = abort_fixture(&j);
+        j.write(i.job(), &format!("initialize-abort-{suffix}"), b"{}")
+            .unwrap();
+        assert!(require_not_aborted(&j, i.job()).is_err());
+        assert!(abort_execute(&j, &i, &v, &a, false, false, |_| panic!("orphan replay")).is_err());
+        assert!(j.absent(i.job(), "initialize-abort-intent").unwrap());
+    }
+}
+#[test]
+fn unstarted_abort_missing_original_dispatch_or_changed_host_records_never_reconcile() {
+    let (_temp, j) = journal();
+    let (i, v, a) = abort_fixture(&j);
+    assert!(abort_execute(&j, &i, &v, &a, false, true, |_| panic!("missing dispatch")).is_err());
+    assert!(abort_execute(&j, &i, &v, &a, false, false, |_| Err("lost".into())).is_err());
+    fs::remove_file(
+        j.path
+            .join(Journal::name(i.job(), "initialize-abort-intent").unwrap()),
+    )
+    .unwrap();
+    assert!(abort_execute(&j, &i, &v, &a, false, false, |_| panic!("orphan dispatch")).is_err());
+    assert!(abort_execute(&j, &i, &v, &a, true, false, |_| panic!("missing original")).is_err());
+    j.write(i.job(), "initialize-abort-intent", &bytes(&a).unwrap())
+        .unwrap();
+    fs::write(
+        j.path
+            .join(Journal::name(i.job(), "prepare-return").unwrap()),
+        b"{different rejection}",
+    )
+    .unwrap();
+    assert!(abort_execute(&j, &i, &v, &a, false, true, |_| panic!("changed history")).is_err());
 }

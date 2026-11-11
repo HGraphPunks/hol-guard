@@ -34,6 +34,7 @@ pub(crate) struct NativeSdkPublic {
     directory: OwnedFd,
     stat: Stat,
     files: Vec<PublicFile>,
+    entrypoint: crate::native_sdk_peer::SdkEntrypoint,
 }
 fn digest(raw: &[u8]) -> String {
     format!("{:x}", Sha256::digest(raw))
@@ -84,12 +85,71 @@ pub(crate) fn write_file(
 }
 impl NativeSdkPublic {
     pub(crate) fn prepare(job: &Path) -> Result<Self, String> {
-        Self::prepare_profile(job, false)
+        Self::prepare_profile(job, false, None)
     }
     pub(crate) fn prepare_mcp(job: &Path) -> Result<Self, String> {
-        Self::prepare_profile(job, true)
+        Self::prepare_profile(job, true, None)
     }
-    fn prepare_profile(job: &Path, mcp: bool) -> Result<Self, String> {
+    pub(crate) fn prepare_live(
+        job: &Path,
+        prompt: &str,
+        live: &crate::NativeLiveJob,
+        worker: &str,
+    ) -> Result<Self, String> {
+        if prompt.is_empty() || prompt.len() > 65536 {
+            return Err("bounded source-selected live task prompt required".into());
+        }
+        let mut public = Self::prepare_profile(job, true, Some((prompt, live)))?;
+        public.add_live_bridge(worker)?;
+        Ok(public)
+    }
+    fn add_live_bridge(&mut self, worker: &str) -> Result<(), String> {
+        crate::verify_running_binary(worker).map_err(|e| e.to_string())?;
+        let input = File::open("/proc/self/exe").map_err(|e| e.to_string())?;
+        let before = fstat(&input).map_err(|e| e.to_string())?;
+        let fd = openat(
+            &self.directory,
+            "gauntlet-vm-worker",
+            OFlags::RDWR | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::from_bits_truncate(0o600),
+        )
+        .map_err(|e| e.to_string())?;
+        let mut output = File::from(fd);
+        let count = std::io::copy(&mut (&input).take(128 * 1024 * 1024 + 1), &mut output)
+            .map_err(|e| e.to_string())?;
+        if count != before.st_size as u64
+            || count > 128 * 1024 * 1024
+            || !crate::dependency_prefix_meta::same(
+                &before,
+                &fstat(&input).map_err(|e| e.to_string())?,
+            )
+        {
+            return Err("live bridge copy differs from running worker".into());
+        }
+        fchmod(&output, Mode::from_bits_truncate(0o555))
+            .and_then(|_| fsync(&output))
+            .and_then(|_| fsync(&self.directory))
+            .map_err(|e| e.to_string())?;
+        self.files.push(PublicFile {
+            name: "gauntlet-vm-worker",
+            stat: fstat(&output).map_err(|e| e.to_string())?,
+            file: output,
+            sha256: worker.into(),
+        });
+        self.verify()
+    }
+    pub(crate) fn live_bridge(&self) -> Result<&File, String> {
+        self.files
+            .iter()
+            .find(|f| f.name == "gauntlet-vm-worker")
+            .map(|f| &f.file)
+            .ok_or("live bridge artifact absent".into())
+    }
+    fn prepare_profile(
+        job: &Path,
+        mcp: bool,
+        live: Option<(&str, &crate::NativeLiveJob)>,
+    ) -> Result<Self, String> {
         let root = crate::open_root_owned_public_directory(job).map_err(|e| e.to_string())?;
         let stat = fstat(&root).map_err(|e| e.to_string())?;
         if stat.st_uid != 0 || stat.st_gid != 0 || stat.st_mode & 0o7777 != 0o700 {
@@ -108,6 +168,19 @@ impl NativeSdkPublic {
                 "env":{},"type":"stdio","envPolicy":"literal","cwd":"/runtime/home/project","timeout":30000,
                 "requestIdFormat":"string","instructions":false}))).collect::<serde_json::Map<_,_>>();
             config["resourceEndpoints"] = Value::Object(endpoints);
+        }
+        if let Some((prompt, live)) = live {
+            let endpoints=["crm","docs","mail","tickets"].into_iter().map(|family|(family.to_owned(),json!({
+                "command":"/usr/bin/python3","args":["/runtime/public/service_relay.py","--socket",format!("/runtime/resources/{family}.sock")],
+                "env":{},"type":"stdio","envPolicy":"literal","cwd":"/runtime/home/project","timeout":30000,
+                "requestIdFormat":"string","instructions":false}))).collect::<serde_json::Map<_,_>>();
+            config = json!({"schema":"developer-omp-episode.v3","builtinToolProfile":"mcp-only.v1","sdkRoot":"/sdk/node_modules/@oh-my-pi/pi-coding-agent",
+                "workspace":"/runtime/home/project","agentDir":"/runtime/agent","modelId":live.model.model_id,"prompt":prompt,
+                "deadlineSeconds":crate::native_live_spec::EPISODE_SECONDS,"maxToolCalls":128,"maxModelTokens":live.model.token_limit,"sdkGate":"/runtime/sdk-gate/ready.sock",
+                "resourceEndpoints":endpoints});
+            if live.protected() {
+                config["guardExtension"] = json!("/runtime/public/builtin_guard_bridge.ts");
+            }
         }
         let config = canonicalize(config.to_string().as_bytes()).map_err(|e| e.to_string())?;
         let mut files = Vec::new();
@@ -137,6 +210,11 @@ impl NativeSdkPublic {
             stat: fstat(&directory).map_err(|e| e.to_string())?,
             directory,
             files,
+            entrypoint: if live.is_some() {
+                crate::native_sdk_peer::SdkEntrypoint::Developer
+            } else {
+                crate::native_sdk_peer::SdkEntrypoint::Conformance
+            },
         };
         public.verify()?;
         Ok(public)
@@ -183,7 +261,11 @@ impl NativeSdkPublic {
             .map_err(|e| e.to_string())?;
             let mut raw = Vec::new();
             File::from(fd)
-                .take(1024 * 1024 + 1)
+                .take(if file.name == "gauntlet-vm-worker" {
+                    128 * 1024 * 1024 + 1
+                } else {
+                    1024 * 1024 + 1
+                })
                 .read_to_end(&mut raw)
                 .map_err(|e| e.to_string())?;
             if digest(&raw) != file.sha256 || raw.len() as i64 != file.stat.st_size {
@@ -195,10 +277,13 @@ impl NativeSdkPublic {
     pub(crate) fn path(&self) -> &Path {
         &self.root
     }
+    pub(crate) fn entrypoint(&self) -> crate::native_sdk_peer::SdkEntrypoint {
+        self.entrypoint
+    }
     pub(crate) fn observation(&self) -> Value {
         json!({"schema":"hol-gauntlet-native-sdk-public-helpers.v1","directory":self.root,
             "files":self.files.iter().map(|f|json!({"name":f.name,"sha256":f.sha256,"bytes":f.stat.st_size,
-                "device":f.stat.st_dev,"inode":f.stat.st_ino,"uid":0,"gid":0,"mode":0o444})).collect::<Vec<_>>(),
+                "device":f.stat.st_dev,"inode":f.stat.st_ino,"uid":0,"gid":0,"mode":f.stat.st_mode&0o7777})).collect::<Vec<_>>(),
             "entrypoint_bytes_verified":true,"sdk_imported_by_root":false,"execution_eligible":false})
     }
 }

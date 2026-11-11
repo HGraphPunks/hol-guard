@@ -66,7 +66,17 @@ fn consume(mut file: File, expected_public: &str) -> Result<Ed25519KeyPair, Stri
 pub(crate) fn consume_inherited_native_controller_key(
     expected_public: &str,
 ) -> Result<Ed25519KeyPair, String> {
-    let descriptor = NATIVE_CONTROLLER_KEY_FD;
+    consume_inherited(NATIVE_CONTROLLER_KEY_FD, expected_public)
+}
+pub(crate) fn consume_inherited_native_world_key(
+    expected_public: &str,
+) -> Result<Ed25519KeyPair, String> {
+    consume_inherited(5, expected_public)
+}
+fn consume_inherited(
+    descriptor: libc::c_int,
+    expected_public: &str,
+) -> Result<Ed25519KeyPair, String> {
     let flags = unsafe { libc::fcntl(descriptor, libc::F_GETFD) };
     if flags < 0 || unsafe { libc::fcntl(descriptor, libc::F_SETFD, flags | libc::FD_CLOEXEC) } < 0
     {

@@ -14,6 +14,11 @@ pub(crate) const ACTIVE_SECONDS: u64 = 300;
 
 #[derive(Debug, Clone)]
 pub enum NativeJobExecution {
+    HostPinnedLive {
+        guard: NativeGuardPins,
+        sdk: NativeSdkPins,
+        live: crate::NativeLiveJob,
+    },
     Apparatus(NativeCase),
     HookTransport(NativeGuardPins),
     HostPinnedReadonlyHook(NativeGuardPins),
@@ -138,6 +143,8 @@ impl NativeJobSpec {
         let value: Value = serde_json::from_slice(&canonical).map_err(|_| "native run JSON")?;
         let readonly_hook = value["schema"] == "hol-gauntlet-native-worker-job.v8"
             && value["profile"] == "native-host-pinned-readonly-hook-v1";
+        let live = value["schema"] == "hol-gauntlet-native-worker-job.v9"
+            && value["profile"] == "native-host-pinned-live-omp-v1";
         let hook = readonly_hook
             || (value["schema"] == "hol-gauntlet-native-worker-job.v2"
                 && value["profile"] == "native-hook-transport-v1");
@@ -159,22 +166,25 @@ impl NativeJobSpec {
             "job_id",
             "worker_generation",
             "preparation_sha256",
-            if hook || sdk || mcp || sdk_mcp || control {
+            if hook || sdk || mcp || sdk_mcp || control || live {
                 "guard"
             } else {
                 "case"
             },
         ];
-        if sdk || sdk_mcp || control {
+        if sdk || sdk_mcp || control || live {
             fields.push("sdk");
         }
         if control {
             fields.push("role");
         }
+        if live {
+            fields.push("live");
+        }
         if value
             .as_object()
             .is_none_or(|o| o.len() != fields.len() || fields.iter().any(|k| !o.contains_key(*k)))
-            || (!(hook || sdk || mcp || sdk_mcp || control)
+            || (!(hook || sdk || mcp || sdk_mcp || control || live)
                 && (value["schema"] != "hol-gauntlet-native-worker-job.v1"
                     || value["profile"] != "native-apparatus-v1"))
             || value["source_sha"] != request.source_sha()
@@ -189,12 +199,18 @@ impl NativeJobSpec {
             .filter(|s| hex(s, 64))
             .ok_or("outside native preparation pin required")?
             .to_owned();
-        let execution = if hook || sdk || mcp || sdk_mcp || control {
+        let execution = if hook || sdk || mcp || sdk_mcp || control || live {
             let pins = NativeGuardPins::parse(&value["guard"])?;
             if pins.source_sha != request.source_sha() {
                 return Err("Native hook product source differs from job source".into());
             }
-            if control {
+            if live {
+                NativeJobExecution::HostPinnedLive {
+                    guard: pins,
+                    sdk: NativeSdkPins::parse(&value["sdk"])?,
+                    live: crate::NativeLiveJob::parse(&value["live"])?,
+                }
+            } else if control {
                 let sdk = NativeSdkPins::parse(&value["sdk"])?;
                 let role = value["role"]
                     .as_str()
@@ -249,6 +265,7 @@ impl NativeJobSpec {
 
     pub fn profile(&self) -> &'static str {
         match self.execution {
+            NativeJobExecution::HostPinnedLive { .. } => "native-host-pinned-live-omp-v1",
             NativeJobExecution::Apparatus(_) => "native-apparatus-v1",
             NativeJobExecution::HookTransport(_) => "native-hook-transport-v1",
             NativeJobExecution::HostPinnedReadonlyHook(_) => "native-host-pinned-readonly-hook-v1",
@@ -262,6 +279,7 @@ impl NativeJobSpec {
 
     pub fn case(&self) -> &'static str {
         match self.execution {
+            NativeJobExecution::HostPinnedLive { ref live, .. } => live.role(),
             NativeJobExecution::Apparatus(case) => case.as_str(),
             NativeJobExecution::HookTransport(_) => "native-hook-transport",
             NativeJobExecution::HostPinnedReadonlyHook(_) => "readonly-utility",
@@ -277,6 +295,7 @@ impl NativeJobSpec {
             self.execution,
             NativeJobExecution::HostPinnedControl { .. }
                 | NativeJobExecution::HostPinnedReadonlyHook(_)
+                | NativeJobExecution::HostPinnedLive { .. }
         )
     }
 
@@ -313,7 +332,12 @@ impl NativeJobSpec {
         let root = self.job_root();
         let workspace = &spec.task_mounts["workspace"];
         if spec.stage != root.join("cell")
-            || spec.wall_seconds() != 180
+            || spec.wall_seconds()
+                != if matches!(self.execution, NativeJobExecution::HostPinnedLive { .. }) {
+                    crate::native_live_spec::PREPARATION_SECONDS
+                } else {
+                    180
+                }
             || spec.job_slice()
                 != Some(
                     rust_job_slice_name(&self.job_id)

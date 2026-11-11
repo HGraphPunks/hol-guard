@@ -207,7 +207,40 @@ impl Write for Capped {
         Ok(())
     }
 }
-pub(crate) fn encode(mut captured: PublicFiles, binding: Value) -> Result<Vec<u8>, String> {
+pub(crate) fn encode(captured: PublicFiles, binding: Value) -> Result<Vec<u8>, String> {
+    encode_profile(
+        captured,
+        binding,
+        "hol-gauntlet-native-public-artifacts.v1",
+        0,
+    )
+}
+pub(crate) fn encode_live(
+    captured: PublicFiles,
+    binding: Value,
+    model_requests: u64,
+) -> Result<Vec<u8>, String> {
+    if model_requests > 64
+        || !matches!(
+            binding["control_role"].as_str(),
+            Some("feature-ai-unprotected" | "feature-ai-protected")
+        )
+    {
+        return Err("bounded explicit live Native export role/count required".into());
+    }
+    encode_profile(
+        captured,
+        binding,
+        "hol-gauntlet-native-public-artifacts.v2",
+        model_requests,
+    )
+}
+fn encode_profile(
+    mut captured: PublicFiles,
+    binding: Value,
+    schema: &str,
+    model_requests: u64,
+) -> Result<Vec<u8>, String> {
     if !captured.files.keys().eq(captured.metadata.keys()) {
         return Err("Native export requires original metadata for every member".into());
     }
@@ -220,12 +253,12 @@ pub(crate) fn encode(mut captured: PublicFiles, binding: Value) -> Result<Vec<u8
     if !index.is_object() {
         return Err("public Native export binding required".into());
     }
-    index["schema"] = json!("hol-gauntlet-native-public-artifacts.v1");
+    index["schema"] = json!(schema);
     index["files"] = json!(pins);
     index["filesystem"] = json!(captured.metadata);
     index["execution_eligible"] = json!(false);
     index["guard_causality_verified"] = json!(false);
-    index["model_requests"] = json!(0);
+    index["model_requests"] = json!(model_requests);
     let raw = canonicalize(index.to_string().as_bytes()).map_err(|e| e.to_string())?;
     if raw.len() > MAX_FILE || raw.len() > MAX_ARCHIVE.saturating_sub(captured.total) {
         return Err("public Native manifest bound exceeded".into());
@@ -339,6 +372,34 @@ mod tests {
             .capture_report(&fd, &"b".repeat(16), owner)
             .is_err());
         assert_eq!(index["execution_eligible"], false);
+        assert_eq!(index["schema"], "hol-gauntlet-native-public-artifacts.v1");
+        assert_eq!(index["model_requests"], 0);
+        let live =
+            encode_live(capture(), json!({"control_role":"feature-ai-protected"}), 3).unwrap();
+        let mut live = tar::Archive::new(live.as_slice());
+        let mut manifest = None;
+        for entry in live.entries().unwrap() {
+            let mut entry = entry.unwrap();
+            if entry.path().unwrap().as_ref() == std::path::Path::new("results.sha256.json") {
+                let mut raw = Vec::new();
+                entry.read_to_end(&mut raw).unwrap();
+                manifest = Some(serde_json::from_slice::<Value>(&raw).unwrap());
+            }
+        }
+        let manifest = manifest.unwrap();
+        assert_eq!(
+            manifest["schema"],
+            "hol-gauntlet-native-public-artifacts.v2"
+        );
+        assert_eq!(manifest["model_requests"], 3);
+        assert_eq!(manifest["filesystem"], index["filesystem"]);
+        assert!(encode_live(capture(), json!({"control_role":"readonly-utility"}), 3).is_err());
+        assert!(encode_live(
+            capture(),
+            json!({"control_role":"feature-ai-protected"}),
+            65
+        )
+        .is_err());
     }
     #[test]
     fn public_capture_refuses_links_wrong_owner_loose_modes_and_unsafe_names() {

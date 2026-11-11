@@ -64,6 +64,7 @@ pub(crate) struct RootCommands {
     counter: u32,
     podman: String,
     parser: String,
+    cleanup_calls: Option<u32>,
 }
 pub(crate) struct RootChild {
     child: Child,
@@ -123,9 +124,13 @@ impl RootCommands {
             counter: 0,
             podman: podman.into(),
             parser: parser.into(),
+            cleanup_calls: None,
         })
     }
     pub(crate) fn spawn(&mut self, parser: bool, args: &[String]) -> Result<RootChild, String> {
+        if self.cleanup_calls.is_some() {
+            return Err("runtime helper launch refused after cleanup begins".into());
+        }
         let (path, pin) = if parser {
             ("/usr/sbin/apparmor_parser", &self.parser)
         } else {
@@ -166,6 +171,22 @@ impl RootCommands {
         seconds: u64,
         cancel: &AtomicBool,
     ) -> Result<Output, String> {
+        if let Some(count) = &mut self.cleanup_calls {
+            if *count >= 32 {
+                return Err("bounded Root cleanup helper budget exceeded".into());
+            }
+            *count += 1;
+            return run_pinned_helper(
+                if parser {
+                    "/usr/sbin/apparmor_parser"
+                } else {
+                    "/usr/bin/podman"
+                },
+                if parser { &self.parser } else { &self.podman },
+                args,
+                seconds,
+            );
+        }
         let mut child = self.spawn(parser, args)?;
         let output = child.wait(seconds, cancel)?;
         verify_helper(
@@ -178,8 +199,27 @@ impl RootCommands {
         )?;
         Ok(output)
     }
+    pub(crate) fn begin_cleanup(&mut self) {
+        self.cleanup_calls.get_or_insert(0);
+    }
+    pub(crate) fn is_cleanup(&self) -> bool {
+        self.cleanup_calls.is_some()
+    }
 }
 impl RootChild {
+    pub(crate) fn stdout_prefix(&self, limit: usize) -> Result<Vec<u8>, String> {
+        use std::os::unix::fs::FileExt;
+        if limit > 4096 {
+            return Err("fixed readiness prefix bound required".into());
+        }
+        let mut raw = vec![0; limit];
+        let count = self
+            .output
+            .read_at(&mut raw, 0)
+            .map_err(|e| e.to_string())?;
+        raw.truncate(count);
+        Ok(raw)
+    }
     fn spawn(path: &str, args: &[String], output: File, errors: File) -> Result<Self, String> {
         let mut command = Command::new(path);
         command
@@ -201,6 +241,17 @@ impl RootChild {
                 Ok(())
             });
         }
+        Self::spawn_prepared(command, output, errors)
+    }
+    pub(crate) fn spawn_prepared(
+        mut command: Command,
+        output: File,
+        errors: File,
+    ) -> Result<Self, String> {
+        command
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
         let mut child = command.spawn().map_err(|e| e.to_string())?;
         drop(child.stdin.take());
         let output_pipe = child.stdout.take().ok_or("SDK stdout pipe absent")?.into();
@@ -230,7 +281,7 @@ impl RootChild {
         }
         Ok(owner)
     }
-    fn wait(&mut self, seconds: u64, cancel: &AtomicBool) -> Result<Output, String> {
+    pub(crate) fn wait(&mut self, seconds: u64, cancel: &AtomicBool) -> Result<Output, String> {
         let deadline = Instant::now() + Duration::from_secs(seconds);
         loop {
             if let Some(output) = self.poll()? {
@@ -335,7 +386,18 @@ impl Drop for RootChild {
 /// Pinned helper calls with bounded output in anonymous non-executable memory
 /// files. Post/repair readback can repeat without creating another disk slot.
 pub(crate) fn run_pinned_podman(pin: &str, args: &[String]) -> Result<Output, String> {
-    verify_helper("/usr/bin/podman", pin)?;
+    run_pinned_helper("/usr/bin/podman", pin, args, 20)
+}
+fn run_pinned_helper(
+    path: &str,
+    pin: &str,
+    args: &[String],
+    seconds: u64,
+) -> Result<Output, String> {
+    if !(1..=30).contains(&seconds) {
+        return Err("fixed bounded cleanup/read helper deadline required".into());
+    }
+    verify_helper(path, pin)?;
     let anonymous = || -> Result<File, String> {
         // SAFETY: the static name is NUL-terminated; a successful syscall
         // returns a newly owned FD. 0x8 is Linux MFD_NOEXEC_SEAL (kernel >=6.3).
@@ -354,9 +416,9 @@ pub(crate) fn run_pinned_podman(pin: &str, args: &[String]) -> Result<Output, St
         rustix::fs::fchmod(&file, Mode::from_bits_truncate(0o600)).map_err(|e| e.to_string())?;
         Ok(file)
     };
-    let mut child = RootChild::spawn("/usr/bin/podman", args, anonymous()?, anonymous()?)?;
-    let output = child.wait(20, &AtomicBool::new(false))?;
-    verify_helper("/usr/bin/podman", pin)?;
+    let mut child = RootChild::spawn(path, args, anonymous()?, anonymous()?)?;
+    let output = child.wait(seconds, &AtomicBool::new(false))?;
+    verify_helper(path, pin)?;
     Ok(output)
 }
 
