@@ -1,4 +1,4 @@
-//! Passive lifecycle and explicit build, dependency and feature operations.
+//! Passive lifecycle and explicit build, dependency, feature and native operations.
 
 use gauntlet_host_state::{
     collect_observer_once, compose_observer_snapshot, open_observer_store,
@@ -48,13 +48,21 @@ fn run() -> Result<(), String> {
             "gauntlet-host dependencies {}",
             gauntlet_host_state::DEPENDENCY_COMMAND_USAGE
         );
+        println!(
+            "gauntlet-host deterministic {}",
+            gauntlet_host_state::NATIVE_OPERATION_USAGE
+        );
         return Ok(());
     }
-    if matches!(command.as_str(), "features" | "build" | "dependencies") {
+    if matches!(
+        command.as_str(),
+        "features" | "build" | "dependencies" | "deterministic"
+    ) {
         let args: Vec<String> = args.collect();
         let usage = match command.as_str() {
             "features" => gauntlet_host_state::FEATURE_AUDIT_USAGE,
             "dependencies" => gauntlet_host_state::DEPENDENCY_COMMAND_USAGE,
+            "deterministic" => gauntlet_host_state::NATIVE_OPERATION_USAGE,
             _ => gauntlet_host_state::CANDIDATE_BUILD_USAGE,
         };
         if matches!(args.as_slice(), [arg] if matches!(arg.as_str(), "--help" | "-h")) {
@@ -64,6 +72,7 @@ fn run() -> Result<(), String> {
         let value = match command.as_str() {
             "features" => gauntlet_host_state::run_feature_audit_command(&args)?,
             "dependencies" => gauntlet_host_state::run_dependency_command(&args)?,
+            "deterministic" => gauntlet_host_state::run_native_operation_command(&args)?,
             _ => gauntlet_host_state::run_candidate_build_command(&args)?,
         };
         println!("{value}");

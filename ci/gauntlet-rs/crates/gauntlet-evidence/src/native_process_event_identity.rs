@@ -7,6 +7,30 @@ use crate::{EvidenceError, Result};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::Value;
 
+#[path = "native_task_isolation.rs"]
+pub(crate) mod isolation;
+
+pub(super) fn checkpoint_profile(checkpoint: &Value) -> Result<(bool, Option<&Value>)> {
+    let isolated = checkpoint["schema"] == "hol-gauntlet-native-process-events.v3";
+    let stdio = match checkpoint["schema"].as_str() {
+        Some("hol-gauntlet-native-process-events.v1") => None,
+        Some("hol-gauntlet-native-process-events.v2") => Some(&checkpoint["native_stdio"]),
+        Some("hol-gauntlet-native-process-events.v3") => {
+            require(checkpoint["task_isolation_schema"] == isolation::SCHEMA)?;
+            checkpoint.get("native_stdio")
+        }
+        _ => {
+            return Err(EvidenceError::Invalid(
+                "closed Native process checkpoint version required",
+            ))
+        }
+    };
+    if let Some(capture) = stdio {
+        crate::native_stdio_contract::checkpoint(capture)?;
+    }
+    Ok((isolated, stdio.map(|value| &value["declaration"])))
+}
+
 #[derive(Clone, Copy)]
 pub(super) struct Task {
     pub tid: u64,
@@ -30,18 +54,25 @@ fn integers(value: &str, maximum: usize) -> Result<Vec<u64>> {
     Ok(values)
 }
 
-pub(super) fn task(value: &Value, cgroup: &str, tracer: &mut Option<u64>) -> Result<Task> {
-    require(exact_keys(
-        value,
-        &[
-            "tid",
-            "tgid",
-            "start_ticks",
-            "parent_pid",
-            "cgroup",
-            "status",
-        ],
-    ))?;
+pub(super) fn task(
+    value: &Value,
+    cgroup: &str,
+    tracer: &mut Option<u64>,
+    isolated: bool,
+) -> Result<Task> {
+    let mut fields = vec![
+        "tid",
+        "tgid",
+        "start_ticks",
+        "parent_pid",
+        "cgroup",
+        "status",
+    ];
+    if isolated {
+        fields.push("isolation");
+        isolation::validate(&value["isolation"])?;
+    }
+    require(exact_keys(value, &fields))?;
     let result = Task {
         tid: pid(&value["tid"])?,
         tgid: pid(&value["tgid"])?,
@@ -103,7 +134,12 @@ pub(super) fn task(value: &Value, cgroup: &str, tracer: &mut Option<u64>) -> Res
     Ok(result)
 }
 
-pub(super) fn image(value: &Value, cgroup: &str, tracer: &mut Option<u64>) -> Result<Task> {
+pub(super) fn image(
+    value: &Value,
+    cgroup: &str,
+    tracer: &mut Option<u64>,
+    isolated: bool,
+) -> Result<Task> {
     require(exact_keys(
         value,
         &[
@@ -115,7 +151,10 @@ pub(super) fn image(value: &Value, cgroup: &str, tracer: &mut Option<u64>) -> Re
             "namespaces",
         ],
     ))?;
-    let result = task(&value["task"], cgroup, tracer)?;
+    let result = task(&value["task"], cgroup, tracer, isolated)?;
+    if isolated {
+        isolation::matches_image(value)?;
+    }
     let encoded = text(value, "argv_base64")?;
     require(encoded.len() <= 87384)?;
     let argv = STANDARD

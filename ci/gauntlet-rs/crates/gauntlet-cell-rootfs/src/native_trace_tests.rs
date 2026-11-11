@@ -173,7 +173,7 @@ fn records(stage: &Path) -> Vec<Value> {
         .map(|line| serde_json::from_str(line).unwrap())
         .collect()
 }
-fn run(mode: &str) -> (Value, Vec<Value>) {
+pub(crate) fn run(mode: &str) -> (Value, Vec<Value>) {
     let stage = stage(mode);
     let mut fixture = Fixture::start(mode);
     let mut recorder =
@@ -183,6 +183,49 @@ fn run(mode: &str) -> (Value, Vec<Value>) {
     let rows = records(&stage);
     fixture.success(&rows);
     assert_eq!(report["complete"], true);
+    assert_eq!(report["schema"], "hol-gauntlet-native-process-events.v3");
+    assert_eq!(
+        report["task_isolation_schema"],
+        "hol-gauntlet-native-task-isolation.v1"
+    );
+    for row in &rows {
+        let task = match row["kind"].as_str() {
+            Some("trace-start") => Some(&row["data"]["actor"]["task"]),
+            Some("task-created") => Some(&row["data"]["task"]),
+            Some("task-exec") => Some(&row["data"]["image"]["task"]),
+            _ => None,
+        };
+        if let Some(task) = task {
+            let isolation = &task["isolation"];
+            assert_eq!(isolation["schema"], "hol-gauntlet-native-task-isolation.v1");
+            if mode.starts_with("nested-userns") {
+                continue;
+            }
+            assert_eq!(
+                isolation["uid_map"],
+                serde_json::json!([[0, 0, 4294967295u64]])
+            );
+            assert_eq!(
+                isolation["gid_map"],
+                serde_json::json!([[0, 0, 4294967295u64]])
+            );
+            assert_eq!(
+                isolation["user_namespace_chain"].as_array().unwrap().len(),
+                1
+            );
+            assert_eq!(
+                isolation["user_namespace_chain_end_reason"],
+                "parent-unavailable"
+            );
+            assert!(isolation["namespaces"]["user"]["owner_user_namespace"].is_null());
+            for name in ["cgroup", "ipc", "mnt", "net", "pid", "uts"] {
+                assert_eq!(
+                    isolation["namespaces"][name]["owner_user_namespace"],
+                    isolation["user_namespace_chain"][0]
+                );
+            }
+        }
+    }
     assert_eq!(report["execution_eligible"], false);
     let mut file = std::fs::OpenOptions::new()
         .write(true)

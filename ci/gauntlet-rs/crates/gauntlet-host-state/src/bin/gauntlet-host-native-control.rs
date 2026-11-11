@@ -1,7 +1,7 @@
 //! Explicit zero-model host-pinned Native run/readback over the owned Lima VM.
 use gauntlet_contracts::{canonicalize, is_git_sha, WorkerRequest};
 use gauntlet_host_state::{HostControllerKeyPinJournal, HostKeyPinError, HostPrelaunchIdentity};
-use serde_json::{json, Value};
+use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{
     fs::File,
@@ -221,10 +221,10 @@ fn run() -> Result<(), String> {
     lima.recheck()?;
     let completion = output.strip_suffix(b"\n").unwrap_or(&output);
     let raw = canonicalize(completion).map_err(|e| e.to_string())?;
-    let frame: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
     let result = journal.verify_native_completion(&raw, &expected, preparation, role);
-    let message = json!({"schema":"hol-gauntlet-host-native-control-result.v1","operation":action,
-        "vm":vm,"lima_sha256":lima_pin,"host_pin":accepted.record().to_json(),"completion":frame,
+    let message = json!({"schema":"hol-gauntlet-host-native-control-result.v2","operation":action,
+        "vm":vm,"lima_sha256":lima_pin,"host_pin_sha256":accepted.record().raw_sha256,
+        "completion_sha256":format!("{:x}",Sha256::digest(&raw)),
         "readback":result.as_ref().ok().map(|r|r.observation()),"readback_error":result.as_ref().err().map(|e|e.to_string()),
         "execution_eligible":false,"guard_causality_verified":false,"model_requests":0});
     println!("{message}");

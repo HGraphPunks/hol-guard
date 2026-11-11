@@ -91,6 +91,32 @@ fn encode(rows: &[(&str, Value)], checkpoint: &Value) -> (Vec<u8>, Value) {
         "execution_eligible":false});
     (raw, checkpoint)
 }
+
+#[test]
+fn v3_stdio_replay_requires_the_closed_capture_and_every_new_task_isolation_snapshot() {
+    use crate::native_process_event_identity::isolation::tests::{attach, packed};
+    let (process, _, stdio) = fixture();
+    let events = crate::native_stdio_process::events(&process).unwrap();
+    let mut process = events
+        .iter()
+        .map(|row| (row["kind"].as_str().unwrap(), row["data"].clone()))
+        .collect::<Vec<_>>();
+    attach(&mut process);
+    let (raw, checkpoint) = packed(&process);
+    let (wire, checkpoint) = encode(&stdio, &checkpoint);
+    let grade = verify_native_stdio_events(&wire, &raw, &checkpoint).unwrap();
+    assert_eq!(
+        grade["task_history"]["task_isolation_snapshots_validated"],
+        2
+    );
+    let mut old = checkpoint.clone();
+    old["schema"] = json!("hol-gauntlet-native-process-events.v2");
+    old.as_object_mut().unwrap().remove("task_isolation_schema");
+    assert!(verify_native_stdio_events(&wire, &raw, &old).is_err());
+    let mut absent = checkpoint;
+    absent.as_object_mut().unwrap().remove("native_stdio");
+    assert!(verify_native_stdio_events(&wire, &raw, &absent).is_err());
+}
 #[test]
 fn actual_exec_end_relation_and_complete_json_frames_do_not_grant_wire_or_custody_credit() {
     let (process, checkpoint, rows) = fixture();

@@ -341,7 +341,8 @@ mod native_sdk_mcp_result;
 mod native_startup_repair;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_keyed_startup_repair::{
-    repair_native_host_pinned_pre_controller, NativePrelaunchRepairPins,
+    read_native_host_pinned_pre_controller_repair, repair_native_host_pinned_pre_controller,
+    NativePrelaunchRepairPins,
 };
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_startup_repair::repair_native_pre_controller;
@@ -398,7 +399,19 @@ pub use native_sdk_peer::{
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_initialize;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-pub use native_initialize::initialize_native_worker;
+pub use native_initialize::{
+    initialize_native_job, initialize_native_worker, read_native_job_initialization,
+};
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_job_prepare;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_job_prepare::{stage_native_host_pinned_preparation, NativeJobPreparationPins};
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+mod native_public_archive;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_public_export;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_public_export::{export_native_host_pinned_public, NativePublicExportPins};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_source_capture;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
@@ -410,7 +423,9 @@ mod native_repair;
 #[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_repair_receipt;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-pub use native_repair::repair_native_worker;
+pub use native_repair::{
+    read_native_host_pinned_repair, repair_native_host_pinned, repair_native_worker,
+};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_controller_exec;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

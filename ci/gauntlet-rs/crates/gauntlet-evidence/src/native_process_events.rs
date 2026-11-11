@@ -2,7 +2,9 @@
 //! separate; neither a hash chain nor a producer's complete flag admits a run.
 use crate::crypto::sha256;
 use crate::native_diagnostic_artifacts::{parse, require, text};
-use crate::native_process_event_identity::{final_status, image, pid, task, Task};
+use crate::native_process_event_identity::{
+    checkpoint_profile, final_status, image, pid, task, Task,
+};
 use crate::native_process_kernel::number;
 use crate::payload::exact_keys;
 use crate::{canonical_value, EvidenceError, Result};
@@ -22,6 +24,7 @@ struct Birth {
 }
 struct Replay {
     cgroup: String,
+    isolated: bool,
     tracer: Option<u64>,
     active: BTreeMap<u64, Entry>,
     births: BTreeMap<u64, Birth>,
@@ -35,7 +38,7 @@ struct Replay {
 }
 
 impl Replay {
-    fn start(data: &Value, stdio: Option<&Value>) -> Result<Self> {
+    fn start(data: &Value, stdio: Option<&Value>, isolated: bool) -> Result<Self> {
         let mut fields = vec![
             "id",
             "actor",
@@ -76,10 +79,11 @@ impl Replay {
                         .all(|v| !v.is_empty() && v != "." && v != "..")),
         )?;
         let mut tracer = None;
-        let actor = image(&data["actor"], &cgroup, &mut tracer)?;
+        let actor = image(&data["actor"], &cgroup, &mut tracer, isolated)?;
         require(actor.tid == actor.tgid && data["actor"]["task"]["status"]["Threads"] == "1")?;
         Ok(Self {
             cgroup,
+            isolated,
             tracer,
             active: BTreeMap::from([(
                 actor.tid,
@@ -148,7 +152,7 @@ impl Replay {
                     exact_keys(data, &["id", "parent_id", "parent_tid", "creation", "task"])
                         && data["id"].as_u64() == Some(self.next),
                 )?;
-                let child = task(&data["task"], &self.cgroup, &mut self.tracer)?;
+                let child = task(&data["task"], &self.cgroup, &mut self.tracer, self.isolated)?;
                 let birth = self
                     .births
                     .remove(&child.tid)
@@ -308,7 +312,12 @@ impl Replay {
                 && data["old_start_ticks"].as_u64() == Some(caller.task.start)
                 && !caller.exiting,
         )?;
-        let next = image(&data["image"], &self.cgroup, &mut self.tracer)?;
+        let next = image(
+            &data["image"],
+            &self.cgroup,
+            &mut self.tracer,
+            self.isolated,
+        )?;
         require(
             next.tid == group
                 && next.tgid == group
@@ -363,18 +372,7 @@ impl Replay {
 /// Verify already bounded public bytes and a caller-bound complete checkpoint.
 /// Callers must independently authenticate the checkpoint's source/custody.
 pub fn verify_native_process_events(raw: &[u8], checkpoint: &Value) -> Result<Value> {
-    let stdio = match checkpoint["schema"].as_str() {
-        Some("hol-gauntlet-native-process-events.v1") => None,
-        Some("hol-gauntlet-native-process-events.v2") => {
-            crate::native_stdio_contract::checkpoint(&checkpoint["native_stdio"])?;
-            Some(&checkpoint["native_stdio"]["declaration"])
-        }
-        _ => {
-            return Err(EvidenceError::Invalid(
-                "closed Native process checkpoint version required",
-            ))
-        }
-    };
+    let (isolated, stdio) = checkpoint_profile(checkpoint)?;
     let mut fields = vec![
         "schema",
         "complete",
@@ -387,6 +385,9 @@ pub fn verify_native_process_events(raw: &[u8], checkpoint: &Value) -> Result<Va
     ];
     if stdio.is_some() {
         fields.push("native_stdio");
+    }
+    if isolated {
+        fields.push("task_isolation_schema");
     }
     require(
         !raw.is_empty()
@@ -442,7 +443,7 @@ pub fn verify_native_process_events(raw: &[u8], checkpoint: &Value) -> Result<Va
         let kind = text(&row, "kind")?;
         if sequence == 0 {
             require(kind == "trace-start")?;
-            replay = Some(Replay::start(&row["data"], stdio)?);
+            replay = Some(Replay::start(&row["data"], stdio, isolated)?);
         } else {
             replay.as_mut().unwrap().event(kind, &row["data"])?;
         }
@@ -466,6 +467,12 @@ pub fn verify_native_process_events(raw: &[u8], checkpoint: &Value) -> Result<Va
         result["schema"] = json!("hol-gauntlet-native-process-event-readback.v2");
         result["native_stdio_capture_declared"] = json!(true);
         result["native_stdio_bytes_verified"] = json!(false);
+    }
+    if isolated {
+        result["schema"] = json!("hol-gauntlet-native-process-event-readback.v3");
+        result["task_isolation_schema"] =
+            json!(crate::native_process_event_identity::isolation::SCHEMA);
+        result["task_isolation_snapshots_validated"] = json!(replay.next + replay.execs);
     }
     Ok(result)
 }

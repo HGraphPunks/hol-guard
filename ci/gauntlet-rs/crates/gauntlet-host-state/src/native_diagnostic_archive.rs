@@ -60,7 +60,7 @@ fn parse(raw: &[u8]) -> Result<Value> {
     serde_json::from_slice(&canonicalize(raw).map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())
 }
-fn read_stable(path: &Path, expected_sha256: &str) -> Result<Vec<u8>> {
+pub(crate) fn read_stable(path: &Path, expected_sha256: &str) -> Result<Vec<u8>> {
     require(
         expected_sha256.len() == 64
             && expected_sha256
@@ -129,7 +129,7 @@ fn read_stable(path: &Path, expected_sha256: &str) -> Result<Vec<u8>> {
     require(sha(&raw) == expected_sha256)?;
     Ok(raw)
 }
-fn members(raw: &[u8]) -> Result<BTreeMap<String, Vec<u8>>> {
+pub(crate) fn members(raw: &[u8]) -> Result<BTreeMap<String, Vec<u8>>> {
     let mut archive = tar::Archive::new(Cursor::new(raw));
     let mut files = BTreeMap::new();
     for entry in archive.entries().map_err(|e| e.to_string())?.raw(true) {
@@ -174,6 +174,73 @@ fn members(raw: &[u8]) -> Result<BTreeMap<String, Vec<u8>>> {
     Ok(files)
 }
 impl HostNativeControlReadback {
+    /// Independently judge a host-authenticated completion against a bounded,
+    /// outside-pinned public export. Only the judge's allowlisted summary is
+    /// returned; raw reports, private host records and artifact bytes stay local.
+    pub fn judge_artifacts(
+        &self,
+        path: &Path,
+        expected_sha256: &str,
+        interpreter_sha256: &str,
+        observer_sha256: &str,
+    ) -> Result<Value> {
+        let raw = read_stable(path, expected_sha256)?;
+        let files = members(&raw)?;
+        let get = |name: &str| {
+            files
+                .get(name)
+                .ok_or_else(|| "required Native public artifact missing".to_owned())
+        };
+        let report_raw = get("combined/worker/report.json")?;
+        let report = parse(report_raw)?;
+        let preparation_raw = get("combined/preparation.v1.json")?;
+        let preparation = parse(preparation_raw)?;
+        let declaration_raw = get("combined/declaration.json")?;
+        let declaration = parse(declaration_raw)?;
+        let observed = self.observation();
+        let readonly = observed["schema"] == "hol-gauntlet-host-native-control-readback.v2";
+        require(
+            report["controller_report"] == *self.diagnostic()
+                && observed["report_sha256"] == sha(report_raw)
+                && self.diagnostic()["preparation_sha256"] == sha(preparation_raw)
+                && observed["deployment_digest"] == sha(declaration_raw)
+                && declaration["preparation_sha256"] == sha(preparation_raw)
+                && declaration["source_sha"] == observed["source_sha"]
+                && declaration["job_id"] == observed["job_id"]
+                && declaration["worker_generation"] == observed["worker_generation"]
+                && preparation["runtime_prefix"]
+                    == format!(
+                        "/opt/hol-gauntlet/candidates/{}/prefix",
+                        observed["source_sha"]
+                            .as_str()
+                            .ok_or("pinned Native source missing")?
+                    ),
+        )?;
+        require(if readonly {
+            declaration["schema"] == "hol-gauntlet-native-worker-job.v8"
+                && declaration["profile"] == "native-host-pinned-readonly-hook-v1"
+                && declaration["guard"] == self.diagnostic()["pins"]
+                && declaration.get("sdk").is_none()
+                && declaration.get("role").is_none()
+        } else {
+            declaration["schema"] == "hol-gauntlet-native-worker-job.v7"
+                && declaration["profile"] == "native-host-pinned-control-v1"
+                && declaration["guard"] == self.diagnostic()["guard_pins"]
+                && declaration["sdk"] == self.diagnostic()["sdk_pins"]
+                && declaration["role"] == self.diagnostic()["control_role"]
+        })?;
+        let judgment = self
+            .authenticated
+            .judge(&preparation, &files, interpreter_sha256, observer_sha256)
+            .map_err(|_| "native independent judgment unavailable".to_owned())?;
+        Ok(
+            json!({"schema":"hol-gauntlet-host-native-independent-judgment.v1",
+            "archive_sha256":expected_sha256,"archive_bytes":raw.len(),"archive_members":files.len(),
+            "authenticated_report_matches_public_archive":true,"judgment":judgment,
+            "execution_eligible":false,"qualification_eligible":false,"model_requests":0}),
+        )
+    }
+
     /// Authenticate the archived report under this already checked host pin,
     /// then recompute request/capture/physical relations in Rust. This subset
     /// does not verify outside kernel observations or grant role admission.

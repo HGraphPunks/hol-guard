@@ -101,7 +101,9 @@ fn pipe_clients(
         "cli_relations":checked,"missing_internal_client_observations":missing,"all_selected_cli_clients_observed":missing.is_empty(),
         "process_event_images":images,"native_pipe_bytes":pipes,
         "native_transport_byte_relations_checked":true,"internal_native_request_bytes_checked":false,
-        "all_native_runtime_descendants_graded":false,"independent_process_custody_checked":false,
+        "all_native_runtime_descendants_graded":images["all_native_runtime_descendants_graded"]==true,
+        "all_native_exec_images_isolation_verified":images["all_native_exec_images_isolation_verified"]==true,
+        "independent_process_custody_checked":false,
         "outside_signing_key_admitted":false,"execution_eligible":false,"guard_causality_verified":false,"model_requests":0}),
     )
 }
@@ -199,6 +201,10 @@ pub(crate) fn verify(
         "independent_process_custody_checked":false,"outside_signing_key_admitted":false,
         "execution_eligible":false,"guard_causality_verified":false,"model_requests":0});
     if let Some(images) = crate::native_runtime_trace::verify(control, preparation, artifacts)? {
+        result["all_native_runtime_descendants_graded"] =
+            images["all_native_runtime_descendants_graded"].clone();
+        result["all_native_exec_images_isolation_verified"] =
+            images["all_native_exec_images_isolation_verified"].clone();
         result["process_event_images"] = images;
     }
     if let Some(stdio) = crate::native_stdio_diagnostic::verify(

@@ -146,6 +146,21 @@ fn pipe_diagnostic_checks_client_floors_without_grading_nested_native_launchers(
     assert_eq!(value["other_native_execs_ungraded"], 1);
     assert_eq!(value["native_image_privilege_floors_checked"], false);
     assert_eq!(value["all_native_runtime_descendants_graded"], false);
+    assert_eq!(value["outer_native_exec_images_isolation_verified"], 1);
+    assert_eq!(
+        value["native_exec_images_requiring_isolation_observations"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        value["native_inherited_tasks_requiring_isolation_observations"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
     for (pointer, replacement) in [
         ("/task/status/CapEff", json!("0000000000000001")),
         ("/task/status/Uid", json!("0 0 0 0")),
@@ -154,6 +169,43 @@ fn pipe_diagnostic_checks_client_floors_without_grading_nested_native_launchers(
         let mut changed = events.clone();
         *changed[6]["data"]["image"].pointer_mut(pointer).unwrap() = replacement;
         assert!(inventory(&changed, &"b".repeat(64), &gates(), true).is_err());
+    }
+}
+
+#[test]
+fn every_outer_native_operation_requires_checked_isolation_even_in_the_readonly_dialect() {
+    let (raw, _) = pack(&graph());
+    let events = raw
+        .split(|b| *b == b'\n')
+        .filter(|v| !v.is_empty())
+        .map(parse)
+        .collect::<Result<Vec<_>>>()
+        .unwrap();
+    let result = inventory(&events, &"b".repeat(64), &gates(), true).unwrap();
+    assert_eq!(result["resident_client_execs_checked"], 0);
+    assert_eq!(result["outer_native_exec_images_isolation_verified"], 2);
+    assert_eq!(result["all_native_exec_images_isolation_verified"], true);
+    assert_eq!(result["native_image_privilege_floors_checked"], true);
+    // The old task-created snapshot lacks namespace and LSM identity.
+    assert_eq!(result["all_native_runtime_descendants_graded"], false);
+    for (pointer, value) in [
+        ("/task/status/CapEff", json!("0000000000000001")),
+        ("/task/status/Uid", json!("0 0 0 0")),
+        ("/task/status/Seccomp_filters", json!("0")),
+        ("/task/status/Seccomp_filters", json!("1")),
+        ("/executable/uid", json!(10004)),
+        ("/executable/gid", json!(10004)),
+        ("/executable/mode", json!(0o4755)),
+        ("/executable/mode", json!(0o775)),
+        ("/executable/links", json!(0)),
+        ("/lsm_label", json!("unconfined")),
+    ] {
+        let mut changed = events.clone();
+        *changed[13]["data"]["image"].pointer_mut(pointer).unwrap() = value;
+        assert!(
+            inventory(&changed, &"b".repeat(64), &gates(), true).is_err(),
+            "{pointer}"
+        );
     }
 }
 

@@ -47,6 +47,78 @@ pub struct NativeJobSpec {
     pub execution: NativeJobExecution,
 }
 
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+pub(crate) struct NativePreparationBundle {
+    pub spec: NativeJobSpec,
+    pub preparation: CellPreparation,
+    pub declaration_raw: Vec<u8>,
+    pub preparation_raw: Vec<u8>,
+}
+
+/// One exact Host-pinned bundle contains data declarations only. The existing
+/// parsers retain every role/profile refusal and derive all mutable paths.
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn parse_host_pinned_preparation_bundle(
+    raw: &[u8],
+    source: &str,
+    job: &str,
+    deployment: &str,
+    generation: &str,
+    preparation_pin: &str,
+    bundle_pin: &str,
+) -> Result<NativePreparationBundle, String> {
+    if raw.is_empty()
+        || raw.len() > 65536
+        || !hex(bundle_pin, 64)
+        || format!("{:x}", Sha256::digest(raw)) != bundle_pin
+        || canonicalize(raw).map_err(|e| e.to_string())? != raw
+    {
+        return Err("bounded canonical preparation bundle differs from outside bytes".into());
+    }
+    let value: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;
+    if value.as_object().is_none_or(|o| {
+        o.len() != 3
+            || !["schema", "declaration", "preparation"]
+                .iter()
+                .all(|k| o.contains_key(*k))
+    }) || value["schema"] != "hol-gauntlet-native-host-pinned-preparation-input.v1"
+    {
+        return Err("closed native preparation bundle required".into());
+    }
+    let declaration_raw =
+        canonicalize(value["declaration"].to_string().as_bytes()).map_err(|e| e.to_string())?;
+    let preparation_raw =
+        canonicalize(value["preparation"].to_string().as_bytes()).map_err(|e| e.to_string())?;
+    let request = WorkerRequest::parse(json_request(source, job, deployment).as_bytes())
+        .map_err(|e| e.to_string())?;
+    let spec = NativeJobSpec::parse(&declaration_raw, deployment, &request, generation)?;
+    if !spec.requires_host_pin() || spec.preparation_sha256 != preparation_pin {
+        return Err("outside host-pinned preparation/declaration profile required".into());
+    }
+    let preparation = spec.preparation(&preparation_raw)?;
+    if preparation.runtime_prefix
+        != PathBuf::from("/opt/hol-gauntlet/candidates")
+            .join(source)
+            .join("prefix")
+    {
+        return Err("preparation requires the immutable source-bound published runtime".into());
+    }
+    Ok(NativePreparationBundle {
+        spec,
+        preparation,
+        declaration_raw,
+        preparation_raw,
+    })
+}
+
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+fn json_request(source: &str, job: &str, deployment: &str) -> String {
+    serde_json::json!({"schema":"hol-gauntlet-worker-request.v1","action":"run",
+        "source_sha":source,"job_id":job,"deployment_digest":deployment})
+    .to_string()
+}
+
 impl NativeJobSpec {
     pub fn parse(
         raw: &[u8],
@@ -265,3 +337,7 @@ impl NativeJobSpec {
 #[cfg(test)]
 #[path = "native_job_spec_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "native_job_preparation_tests.rs"]
+mod preparation_tests;

@@ -177,8 +177,15 @@ impl Task {
     pub(super) fn anchor(&self, cgroup: &str) -> Result<Value> {
         self.recheck(cgroup)?;
         let fields = status(&self.proc)?;
-        if number(&fields, "TracerPid")? != unsafe { libc::syscall(libc::SYS_gettid) } as u32 {
-            return Err("kernel task is not owned by this recorder thread".into());
+        // SAFETY: gettid has no pointer arguments and returns the caller TID.
+        let tracer = unsafe { libc::syscall(libc::SYS_gettid) } as u32;
+        if number(&fields, "TracerPid")? != tracer
+            || fields
+                .get("State")
+                .and_then(|v| v.split_ascii_whitespace().next())
+                != Some("t")
+        {
+            return Err("kernel task is not stopped under this recorder thread".into());
         }
         let selected = [
             "Uid",
@@ -197,18 +204,35 @@ impl Task {
             "Threads",
             "Cpus_allowed_list",
         ];
-        let values = selected
-            .into_iter()
-            .map(|key| {
-                fields
-                    .get(key)
-                    .cloned()
-                    .map(|v| (key.to_owned(), v))
-                    .ok_or_else(|| format!("traced task status {key} missing"))
-            })
-            .collect::<Result<BTreeMap<_, _>>>()?;
+        let select = |fields: &BTreeMap<String, String>| {
+            selected
+                .iter()
+                .map(|key| {
+                    fields
+                        .get(*key)
+                        .cloned()
+                        .map(|v| ((*key).to_owned(), v))
+                        .ok_or_else(|| format!("traced task status {key} missing"))
+                })
+                .collect::<Result<BTreeMap<_, _>>>()
+        };
+        let values = select(&fields)?;
+        let isolation = crate::native_trace_isolation::snapshot(&self.proc)?;
+        let after_isolation = crate::native_trace_isolation::snapshot(&self.proc)?;
+        let after = status(&self.proc)?;
+        self.recheck(cgroup)?;
+        if isolation.value != after_isolation.value
+            || values != select(&after)?
+            || ["Pid", "Tgid", "PPid", "State"]
+                .iter()
+                .any(|key| fields.get(*key) != after.get(*key))
+            || number(&after, "Pid")? != self.tid
+            || number(&after, "Tgid")? != self.tgid
+        {
+            return Err("traced task isolation or identity changed during capture".into());
+        }
         Ok(
-            json!({"tid":self.tid,"tgid":self.tgid,"start_ticks":self.start,"parent_pid":number(&fields,"PPid")?,"cgroup":cgroup,"status":values}),
+            json!({"tid":self.tid,"tgid":self.tgid,"start_ticks":self.start,"parent_pid":number(&fields,"PPid")?,"cgroup":cgroup,"status":values,"isolation":isolation.value}),
         )
     }
 
@@ -250,26 +274,37 @@ impl Task {
         if argv.is_empty() || !argv.ends_with(b"\0") {
             return Err("traced exec argv unavailable".into());
         }
-        let label = read_at(&self.proc, "attr/current", 4096)?;
-        // Descendant sandboxes may add a user namespace. Record every kernel
-        // identity here; source-specific privilege/isolation grading is separate.
+        let task = self.anchor(cgroup)?;
+        // Project the same twice-checked stopped-task snapshot into the legacy
+        // image fields. A second independent sample cannot silently disagree.
         let mut namespaces = BTreeMap::new();
         for name in ["pid", "mnt", "net", "ipc", "uts", "cgroup", "user"] {
-            let fd = openat(
-                &self.proc,
-                format!("ns/{name}"),
-                OFlags::RDONLY | OFlags::CLOEXEC,
-                Mode::empty(),
-            )
-            .map_err(|e| e.to_string())?;
-            let info = fstat(&fd).map_err(|e| e.to_string())?;
-            namespaces.insert(name, format!("{}:{}", info.st_dev, info.st_ino));
+            let identity = &task["isolation"]["namespaces"][name];
+            let device = identity["device"]
+                .as_u64()
+                .ok_or("captured namespace device")?;
+            let inode = identity["inode"]
+                .as_u64()
+                .ok_or("captured namespace inode")?;
+            namespaces.insert(name, format!("{device}:{inode}"));
+        }
+        let visible = openat(
+            &self.proc,
+            "exe",
+            OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NONBLOCK,
+            Mode::empty(),
+        )
+        .map_err(|e| e.to_string())?;
+        if !crate::fs_input::same(before, &fstat(&visible).map_err(|e| e.to_string())?)
+            || argv != read_at(&self.proc, "cmdline", 65536)?
+        {
+            return Err("traced exec image or argv changed during isolation capture".into());
         }
         self.recheck(cgroup)?;
         Ok(
-            json!({"task":self.anchor(cgroup)?,"argv_base64":STANDARD.encode(&argv),"argv_sha256":hash(&argv),
+            json!({"task":task,"argv_base64":STANDARD.encode(&argv),"argv_sha256":hash(&argv),
             "executable":{"device":before.st_dev,"inode":before.st_ino,"uid":before.st_uid,"gid":before.st_gid,"mode":before.st_mode&0o7777,"links":before.st_nlink,"bytes":image.bytes,"sha256":image.sha256},
-            "lsm_label":std::str::from_utf8(&label).map_err(|_|"traced label UTF-8")?.trim(),"namespaces":namespaces}),
+            "lsm_label":task["isolation"]["lsm_label"],"namespaces":namespaces}),
         )
     }
 }

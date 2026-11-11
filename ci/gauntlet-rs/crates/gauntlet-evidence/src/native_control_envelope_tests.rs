@@ -188,3 +188,72 @@ fn readonly_hook_requires_explicit_v2_pins_and_cannot_be_a_six_role_report() {
     report["control_role"] = json!("success");
     assert!(native_control_signing_record(&report, &pins).is_err());
 }
+
+#[test]
+fn normal_judge_retains_unknown_for_missing_role_evidence_even_with_a_signed_pass() {
+    let (mut pins, mut report, key) = fixture();
+    let preparation = json!({"schema":"hol-gauntlet-cell-preparation.v1"});
+    let raw = canonical_value(&preparation).unwrap();
+    pins.preparation_sha256 = sha256(&raw);
+    report["preparation_sha256"] = json!(pins.preparation_sha256);
+    report["measurement"]["private_field"] = json!("must-not-be-in-public-judgment");
+    let files = BTreeMap::from([("combined/preparation.v1.json".into(), raw)]);
+    for status in ["passed", "failed"] {
+        report["status"] = json!(status);
+        report["error"] = if status == "passed" {
+            Value::Null
+        } else {
+            json!("private controller failure details")
+        };
+        let verified =
+            verify_native_control_envelope(&signed(&report, &pins, &key), &pins).unwrap();
+        let judgment = verified
+            .judge(&preparation, &files, &"a".repeat(64), &"b".repeat(64))
+            .unwrap();
+        assert_eq!(judgment["producer_status"], status);
+        assert_eq!(judgment["evidence_validity"], "incomplete");
+        assert_eq!(judgment["independent_grade"], "invalid-evidence");
+        assert_eq!(judgment["expected_outcome"], "unknown");
+        assert_eq!(
+            judgment["evidence_checks"]["controller_signature_verified"],
+            true
+        );
+        assert_eq!(
+            judgment["evidence_checks"]["required_role_artifact_relations_checked"],
+            false
+        );
+        assert_eq!(judgment["execution_eligible"], false);
+        assert!(!judgment.to_string().contains("private"));
+        assert!(!judgment
+            .to_string()
+            .contains("must-not-be-in-public-judgment"));
+    }
+}
+
+#[test]
+fn normal_judge_refuses_preparation_substitution_and_malformed_outside_pins() {
+    let (mut pins, mut report, key) = fixture();
+    let preparation = json!({"schema":"hol-gauntlet-cell-preparation.v1"});
+    let raw = canonical_value(&preparation).unwrap();
+    pins.preparation_sha256 = sha256(&raw);
+    report["preparation_sha256"] = json!(pins.preparation_sha256);
+    let verified = verify_native_control_envelope(&signed(&report, &pins, &key), &pins).unwrap();
+    let files = BTreeMap::from([("combined/preparation.v1.json".into(), raw)]);
+    assert!(verified
+        .judge(&preparation, &files, "unbound", &"b".repeat(64))
+        .is_err());
+    assert!(verified
+        .judge(&preparation, &files, &"a".repeat(64), "unbound")
+        .is_err());
+    let changed = json!({"schema":"hol-gauntlet-cell-preparation.v2"});
+    assert!(verified
+        .judge(&changed, &files, &"a".repeat(64), &"b".repeat(64))
+        .is_err());
+    let files = BTreeMap::from([(
+        "combined/preparation.v1.json".into(),
+        canonical_value(&changed).unwrap(),
+    )]);
+    assert!(verified
+        .judge(&changed, &files, &"a".repeat(64), &"b".repeat(64))
+        .is_err());
+}

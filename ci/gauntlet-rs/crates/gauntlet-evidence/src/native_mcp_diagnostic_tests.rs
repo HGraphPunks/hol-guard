@@ -1,4 +1,5 @@
 use super::*;
+use crate::native_mcp_inputs::{expected_world, grade_docs_read};
 
 fn row(sequence: u64, direction: &str, message: Value) -> Value {
     let wire = message.to_string();
@@ -119,4 +120,221 @@ fn actual_ndjson_capture_rejects_a_changed_paired_output_and_duplicate_capture()
         encode(&observed.responses),
     );
     assert!(captured(&files, &observed.requests, &observed.responses).is_err());
+}
+
+fn read_fixture(role: &str) -> (Value, Value, Value, Value, Option<String>) {
+    let (world, payload) = expected_world(role).unwrap();
+    let expected = world["records"][0].clone();
+    let request = json!({"jsonrpc":"2.0","id":"actual-read","method":"tools/call",
+        "params":{"name":"docs.read","arguments":{"record_id":"developer-spec"}}});
+    let response = json!({"jsonrpc":"2.0","id":"actual-read","result":{
+        "content":[{"type":"text","text":expected.to_string()}],
+        "structuredContent":expected,"isError":false}});
+    let sdk = json!({"results":[{"role":"toolResult","toolCallId":"sdk-mcp-control",
+        "toolName":"mcp__docs_read","isError":false,"content":response["result"]["content"],
+        "details":{"serverName":"docs","mcpToolName":"docs.read","isError":false,
+        "rawContent":response["result"]["content"],"structuredContent":expected}},{}]});
+    (request, response, sdk, expected, payload)
+}
+
+#[test]
+fn exact_source_selected_read_grades_all_roles_without_claiming_guard_or_model_success() {
+    for role in [
+        "success",
+        "input-binding",
+        "injection",
+        "boundary",
+        "timeout",
+        "cancel",
+    ] {
+        let (request, response, sdk, expected, payload) = read_fixture(role);
+        let sdk = (role != "cancel").then_some(&sdk);
+        let grade = grade_docs_read(
+            &request,
+            &response,
+            &response,
+            &expected,
+            payload.as_deref(),
+            sdk,
+        )
+        .unwrap();
+        assert_eq!(grade["operation_semantics_checked"], true);
+        assert_eq!(grade["native_disposition"], "forwarded");
+        assert_eq!(grade["sdk_delivery_checked"], sdk.is_some());
+        for field in [
+            "guard_intervention_observed",
+            "model_resistance_tested",
+            "physical_effect_causality_checked",
+            "execution_eligible",
+        ] {
+            assert_eq!(grade[field], false, "{role}: {field}");
+        }
+    }
+}
+
+#[test]
+fn complete_read_reply_rejects_extra_content_wrong_record_and_disagreeing_structured_content() {
+    let (request, response, sdk, expected, _) = read_fixture("success");
+    for (pointer, value) in [
+        (
+            "/result/content",
+            json!([
+            {"type":"text","text":expected.to_string()},
+            {"type":"text","text":"unrelated extra document"}]),
+        ),
+        ("/result/content/0/type", json!("resource")),
+        (
+            "/result/content/0/text",
+            json!(json!({"id":"message"}).to_string()),
+        ),
+        ("/result/structuredContent/id", json!("message")),
+        ("/result/isError", json!(true)),
+        ("/result/isError", json!("false")),
+        ("/id", json!("different-request")),
+        ("/jsonrpc", json!("1.0")),
+    ] {
+        let mut changed = response.clone();
+        *changed.pointer_mut(pointer).unwrap() = value;
+        assert!(
+            grade_docs_read(&request, &changed, &changed, &expected, None, Some(&sdk)).is_err(),
+            "{pointer}"
+        );
+    }
+    for pointer in ["", "/result", "/result/content/0"] {
+        let mut changed = response.clone();
+        changed
+            .pointer_mut(pointer)
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .insert("unrequested".into(), json!("extra result"));
+        assert!(
+            grade_docs_read(&request, &changed, &changed, &expected, None, Some(&sdk)).is_err(),
+            "{pointer}"
+        );
+    }
+    let mut changed = response;
+    changed["result"]["content"][0]["text"] = json!("{\"id\":\"other\",\"id\":\"developer-spec\"}");
+    assert!(grade_docs_read(&request, &changed, &changed, &expected, None, Some(&sdk)).is_err());
+}
+
+#[test]
+fn read_operation_cannot_substitute_call_arguments_or_sdk_delivery_identity() {
+    let (request, response, sdk, expected, _) = read_fixture("success");
+    for (pointer, value) in [
+        ("/method", json!("resources/read")),
+        ("/params/name", json!("mail.read")),
+        ("/params/arguments/record_id", json!("message")),
+        (
+            "/params/arguments",
+            json!({"record_id":"developer-spec","include_private":true}),
+        ),
+        ("/id", json!(false)),
+    ] {
+        let mut changed = request.clone();
+        *changed.pointer_mut(pointer).unwrap() = value;
+        assert!(
+            grade_docs_read(&changed, &response, &response, &expected, None, Some(&sdk)).is_err(),
+            "{pointer}"
+        );
+    }
+    for (pointer, value) in [
+        ("/results/0/toolCallId", json!("another-sdk-call")),
+        ("/results/0/toolName", json!("unrelated_tool")),
+        ("/results/0/role", json!("assistant")),
+        ("/results/0/isError", json!(true)),
+        ("/results/0/details/serverName", json!("mail")),
+        ("/results/0/details/structuredContent/id", json!("message")),
+        ("/results/0/details/rawContent", json!([])),
+    ] {
+        let mut changed = sdk.clone();
+        *changed.pointer_mut(pointer).unwrap() = value;
+        assert!(
+            grade_docs_read(
+                &request,
+                &response,
+                &response,
+                &expected,
+                None,
+                Some(&changed)
+            )
+            .is_err(),
+            "{pointer}"
+        );
+    }
+    let mut agent_surface = sdk;
+    agent_surface["mcpAgentSurfaces"] = json!("mcp-agent-surfaces.v1");
+    agent_surface["results"][0]["toolName"] = json!("mcp_call_tool");
+    assert!(grade_docs_read(
+        &request,
+        &response,
+        &response,
+        &expected,
+        None,
+        Some(&agent_surface)
+    )
+    .is_ok());
+}
+
+#[test]
+fn injection_withholding_requires_no_payload_in_the_complete_native_and_sdk_results() {
+    let (request, response, mut sdk, expected, payload) = read_fixture("injection");
+    let payload = payload.unwrap();
+    let withheld = json!({"jsonrpc":"2.0","id":request["id"],"result":{
+        "content":[{"type":"text","text":"Native withheld the injected result"}],"isError":true}});
+    let first = &mut sdk["results"][0];
+    first["content"] = withheld["result"]["content"].clone();
+    first["isError"] = json!(true);
+    first["details"]["rawContent"] = withheld["result"]["content"].clone();
+    first["details"]["isError"] = json!(true);
+    first["details"]
+        .as_object_mut()
+        .unwrap()
+        .remove("structuredContent");
+    let grade = grade_docs_read(
+        &request,
+        &response,
+        &withheld,
+        &expected,
+        Some(&payload),
+        Some(&sdk),
+    )
+    .unwrap();
+    assert_eq!(grade["native_disposition"], "withheld");
+    assert_eq!(grade["native_withholding_observed"], true);
+    assert_eq!(grade["guard_intervention_observed"], false);
+    assert_eq!(grade["execution_eligible"], false);
+    assert!(grade_docs_read(&request, &response, &withheld, &expected, None, Some(&sdk)).is_err());
+    for (pointer, value) in [
+        ("/result/content/0/text", json!(payload)),
+        ("/result/isError", json!(false)),
+        ("/result/content", json!([])),
+        ("/result/content/0/text", json!("  ")),
+    ] {
+        let mut changed = withheld.clone();
+        *changed.pointer_mut(pointer).unwrap() = value;
+        assert!(
+            grade_docs_read(
+                &request,
+                &response,
+                &changed,
+                &expected,
+                Some(&payload),
+                Some(&sdk)
+            )
+            .is_err(),
+            "{pointer}"
+        );
+    }
+    sdk["results"][0]["unrelated_metadata"] =
+        json!({"encoded":json!({"data":{"body":payload}}).to_string()});
+    assert!(grade_docs_read(
+        &request,
+        &response,
+        &withheld,
+        &expected,
+        Some(&payload),
+        Some(&sdk)
+    )
+    .is_err());
 }

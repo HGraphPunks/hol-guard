@@ -14,7 +14,14 @@ fn refresh(frame: &mut Value) {
 fn fixture() -> (tempfile::TempDir, HostPrelaunchIdentity, String, Value) {
     fixture_for("timeout")
 }
-fn fixture_for(role: &str) -> (tempfile::TempDir, HostPrelaunchIdentity, String, Value) {
+pub(crate) fn fixture_for(role: &str) -> (tempfile::TempDir, HostPrelaunchIdentity, String, Value) {
+    fixture_with_pins(role, &"3".repeat(64), &"7".repeat(64))
+}
+pub(crate) fn fixture_with_pins(
+    role: &str,
+    deployment: &str,
+    preparation: &str,
+) -> (tempfile::TempDir, HostPrelaunchIdentity, String, Value) {
     let readonly = role == "readonly-utility";
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().canonicalize().unwrap();
@@ -23,7 +30,7 @@ fn fixture_for(role: &str) -> (tempfile::TempDir, HostPrelaunchIdentity, String,
     let expected = HostPrelaunchIdentity {
         job_id: "1".repeat(16),
         source_sha: "2".repeat(40),
-        deployment_digest: "3".repeat(64),
+        deployment_digest: deployment.into(),
         worker_generation: "4".repeat(64),
     };
     let key = Ed25519KeyPair::from_seed_unchecked(&[37; 32]).unwrap();
@@ -49,7 +56,7 @@ fn fixture_for(role: &str) -> (tempfile::TempDir, HostPrelaunchIdentity, String,
         controller_key_pin_sha256: pin_sha.clone(),
         controller_public_key_hex: public.clone(),
     };
-    let preparation = "7".repeat(64);
+    let preparation = preparation.to_owned();
     let (retained, ack) = journal
         .accept_prepared(&prepared.to_bytes().unwrap(), &expected)
         .unwrap();

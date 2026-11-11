@@ -1,6 +1,6 @@
 # Finish the Gauntlet Rust migration
 
-Updated: 2026-11-10 UTC. Executor: **GPT-6.1 Sol, Max reasoning**.
+Updated: 2026-11-11 UTC. Executor: **GPT-6.1 Sol, Max reasoning**.
 
 ## Mission and completion rule
 
@@ -18,11 +18,21 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
+- The expedited deadline is **2026-11-11 23:14 UTC**, including integration
+  and handoff. Normal `gauntlet-host deterministic` commands now connect
+  initialize, record, prepare, run, read, private-artifact retrieval, independent
+  judgment and repair. Dispatch is durable before VM mutation; original Lima
+  homes and instance inode remain pinned. New initialized jobs require a complete
+  preparation receipt. Process checkpoint v3 records namespace ownership/maps
+  at every birth and exec; unmapped births stay incomplete. All **771 Mac tests**,
+  changed-source formatting and warnings-denied Mac/ARM workspace Clippy pass.
+  Evidence is retained in `expedited-20261110-001`. Fresh VM execution of this
+  batch, non-Native command/mapping grading, writer attribution, admission and
+  qualification remain open. Parent exits stay **24/62**, with **38 open**.
 - Continue `codex/gauntlet-rust-finish-20261105` and draft
   [child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5), based on
-  integration `f143f9ac`. Published merge `0463695b4` includes upstream
-  `4a0b5ab5a`. Catalog commit `5306c65cc` is preserved; the next merge
-  incorporates upstream `d586334a9` with all seven incoming files exact.
+  integration `f143f9ac`. Pushed baseline `269ee224` preserves catalog commit
+  `5306c65cc` and upstream `d586334a9`, with all seven incoming files exact.
 - The fixed legacy inventory now covers 308 core, 16 approval-retry,
   11 connector-setup and 15 full-task rows in the existing JSON files.
   Reader `352fe6d5…` preserves all eleven fields/defaults and listing order.

@@ -250,7 +250,12 @@ pub(crate) fn verify(
 ) -> Result<crate::native_stdio_events::Readback> {
     require(matches!(schema, V1 | V2))?;
     config(expected_config)?;
-    require(hex(connector, 64) && checkpoint["schema"] == "hol-gauntlet-native-process-events.v1")?;
+    require(
+        hex(connector, 64)
+            && (checkpoint["schema"] == "hol-gauntlet-native-process-events.v1"
+                || (checkpoint["schema"] == "hol-gauntlet-native-process-events.v3"
+                    && checkpoint.get("native_stdio").is_none())),
+    )?;
     let process = crate::verify_native_process_events(process_raw, checkpoint)?;
     let events = crate::native_stdio_process::events(process_raw)?;
     let actor = &events[0]["data"]["actor"];

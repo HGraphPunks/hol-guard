@@ -108,7 +108,11 @@ fn scalar_and_vectored_snapshots_match_both_actual_parent_pipe_streams() {
         let rows = io_rows(&stage);
         assert_eq!(captured(&rows, "read"), FRAME);
         assert_eq!(captured(&rows, "write"), output);
-        assert_eq!(result["schema"], "hol-gauntlet-native-process-events.v2");
+        assert_eq!(result["schema"], "hol-gauntlet-native-process-events.v3");
+        assert_eq!(
+            result["task_isolation_schema"],
+            "hol-gauntlet-native-task-isolation.v1"
+        );
         assert_eq!(result["native_stdio"]["counts"]["streams"], 1);
         assert_eq!(result["native_stdio"]["counts"]["bytes"], FRAME.len() * 2);
         assert_eq!(

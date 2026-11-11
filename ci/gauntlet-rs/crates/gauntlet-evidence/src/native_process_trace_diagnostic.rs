@@ -120,12 +120,14 @@ pub(crate) fn verify(
     )?;
     let checkpoint = &observation["checkpoint"];
     require(
-        checkpoint["schema"]
+        (checkpoint["schema"]
             == (if stdio {
                 "hol-gauntlet-native-process-events.v2"
             } else {
                 "hol-gauntlet-native-process-events.v1"
-            }),
+            }))
+            || (checkpoint["schema"] == "hol-gauntlet-native-process-events.v3"
+                && checkpoint.get("native_stdio").is_some() == stdio),
     )?;
     if stdio {
         require(

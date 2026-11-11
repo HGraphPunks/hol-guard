@@ -191,7 +191,7 @@ pub fn verify_native_mcp_diagnostic(
     let mut calls = Vec::new();
     let mut captures = BTreeSet::new();
     let mut frame_count = 0;
-    let mut disposition = "forwarded";
+    let mut read_grade = None;
     for family in ["docs", "mail"] {
         let front = frontends[family];
         let upstream = upstreams[family];
@@ -224,24 +224,14 @@ pub fn verify_native_mcp_diagnostic(
             if request["method"] == "tools/call" {
                 require(family == "docs" && calls.is_empty())?;
                 calls.push(request.clone());
-                let physical = parse(text(&delivered["result"]["content"][0], "text")?.as_bytes())?;
-                require(
-                    mcp["initial"]["records"]
-                        .as_array()
-                        .is_some_and(|r| r.contains(&physical)),
-                )?;
-                disposition =
-                    crate::native_mcp_inputs::disposition(delivered, native, payload.as_deref())?;
-                let withheld = disposition == "withheld";
-                if let Some(sdk) = control["measurements"].get("sdk") {
-                    let result = &sdk["result"]["results"][0];
-                    require(
-                        result["content"] == native["result"]["content"]
-                            && result["isError"] == json!(withheld),
-                    )?;
-                } else {
-                    require(control["control_role"] == "cancel")?;
-                }
+                read_grade = Some(crate::native_mcp_inputs::grade_docs_read(
+                    request,
+                    delivered,
+                    native,
+                    &expected_world["records"][0],
+                    payload.as_deref(),
+                    control["measurements"].get("sdk").map(|sdk| &sdk["result"]),
+                )?);
                 let events = control["operation_budget"]["events"].as_array().ok_or(
                     EvidenceError::Invalid("Native shared operation events missing"),
                 )?;
@@ -272,6 +262,7 @@ pub fn verify_native_mcp_diagnostic(
             && budget["pending"] == json!([]),
     )?;
     let world = verify_native_world_diagnostic(mcp, files, &calls)?;
+    let read_grade = read_grade.ok_or(EvidenceError::Invalid("Native docs.read grade missing"))?;
     let expected = [
         (
             "service_relay.py",
@@ -300,7 +291,8 @@ pub fn verify_native_mcp_diagnostic(
         json!({"schema":"hol-gauntlet-native-mcp-diagnostic-relations.v1",
         "families_checked":2,"captured_frames_checked":frame_count,"provider_world":world,
         "source_selected_inputs_checked":true,
-        "actual_native_read_disposition":disposition,"independent_process_custody_checked":false,
+        "operation_grade":read_grade,
+        "actual_native_read_disposition":read_grade["native_disposition"],"independent_process_custody_checked":false,
         "qualified_role_complete":false,"outside_signing_key_admitted":false,
         "execution_eligible":false,"guard_causality_verified":false,"model_requests":0}),
     )

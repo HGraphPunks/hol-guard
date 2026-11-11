@@ -93,7 +93,7 @@ fn untouched_root(path: &Path, expected: &Value) -> Result<Value, String> {
         "workspace_gid":10001,"workspace_empty":true,"only_preparation_and_workspace":true}),
     )
 }
-fn retained(
+pub(crate) fn retained(
     journal: &RunReservationJournal,
     source: &str,
     job: &str,
@@ -235,6 +235,16 @@ pub(crate) fn verified_receipt(
 pub fn repair_native_host_pinned_pre_controller(
     pins: &NativePrelaunchRepairPins<'_>,
 ) -> Result<Vec<u8>, String> {
+    startup_repair(pins, true)
+}
+
+pub fn read_native_host_pinned_pre_controller_repair(
+    pins: &NativePrelaunchRepairPins<'_>,
+) -> Result<Vec<u8>, String> {
+    startup_repair(pins, false)
+}
+
+fn startup_repair(pins: &NativePrelaunchRepairPins<'_>, publish: bool) -> Result<Vec<u8>, String> {
     gauntlet_cell_rootfs::require_outside_root()?;
     crate::verify_running_binary(pins.repair_generation).map_err(|e| e.to_string())?;
     pins.prelaunch.to_bytes().map_err(|e| e.to_string())?;
@@ -263,7 +273,12 @@ pub fn repair_native_host_pinned_pre_controller(
         &p.deployment_digest,
         &p.worker_generation,
     )? {
+        lease.verify(&journal.root).map_err(|e| e.to_string())?;
+        crate::builder_image_context::verify_python_lock(&python).map_err(|e| e.to_string())?;
         return Ok(raw);
+    }
+    if !publish {
+        return Err("keyed startup repair is absent; original job remains unknown".into());
     }
     let cleanup = facts(&journal, &spec)?;
     lease.verify(&journal.root).map_err(|e| e.to_string())?;

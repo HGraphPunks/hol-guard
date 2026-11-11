@@ -211,8 +211,23 @@ pub(crate) fn run_streamed(
     if !Path::new(executable).is_absolute() {
         return Err(StreamProcessError::Unavailable);
     }
-    let mut child = Command::new(executable)
-        .args(&argv[1..])
+    let mut command = Command::new(executable);
+    command.args(&argv[1..]);
+    run_streamed_command(command, input, timeout, stdout_limit)
+}
+
+/// Reuse the bounded pipe owner with a caller's fixed, clean-environment Lima
+/// command. Inert initialization may intentionally send an empty input stream.
+pub(crate) fn run_streamed_command(
+    mut command: Command,
+    input: &[u8],
+    timeout: Duration,
+    stdout_limit: usize,
+) -> Result<Vec<u8>, StreamProcessError> {
+    if input.len() > 256 * 1024 * 1024 || !Path::new(command.get_program()).is_absolute() {
+        return Err(StreamProcessError::TooLarge);
+    }
+    let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

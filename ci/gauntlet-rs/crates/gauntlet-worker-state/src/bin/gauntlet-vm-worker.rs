@@ -4,7 +4,79 @@ fn run() -> Result<(), String> {
     use std::io::{Read, Write};
     gauntlet_worker_state::install_native_worker_signals()?;
     let args = std::env::args().collect::<Vec<_>>();
-    if args.len() == 11 && args[1] == "--repair-native-keyed-pre-controller-v1" {
+    if args.len() == 12 && args[1] == "--export-native-host-pinned-v1" {
+        let prelaunch = gauntlet_contracts::PrelaunchPrepared {
+            source_sha: args[2].clone(),
+            job_id: args[3].clone(),
+            deployment_digest: args[4].clone(),
+            worker_generation: args[5].clone(),
+            started_marker_sha256: args[6].clone(),
+            controller_key_pin_sha256: args[7].clone(),
+            controller_public_key_hex: args[8].clone(),
+        };
+        let pins = gauntlet_worker_state::NativePublicExportPins {
+            prelaunch: &prelaunch,
+            preparation_sha256: &args[9],
+            role: &args[10],
+            exporter_generation: &args[11],
+        };
+        let raw = gauntlet_worker_state::export_native_host_pinned_public(&pins)?;
+        std::io::stdout()
+            .lock()
+            .write_all(&raw)
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    if args.len() == 5
+        && matches!(
+            args[1].as_str(),
+            "--initialize-native-job-v1" | "--read-native-job-initialization-v1"
+        )
+    {
+        let action = if args[1] == "--initialize-native-job-v1" {
+            gauntlet_worker_state::initialize_native_job
+        } else {
+            gauntlet_worker_state::read_native_job_initialization
+        };
+        let raw = action(&args[2], &args[3], &args[4])?;
+        println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
+        return Ok(());
+    }
+    if args.len() == 9
+        && matches!(
+            args[1].as_str(),
+            "--prepare-native-host-pinned-v1" | "--read-native-host-pinned-preparation-v1"
+        )
+    {
+        use std::os::fd::AsRawFd;
+        let pins = gauntlet_worker_state::NativeJobPreparationPins {
+            source_sha: &args[2],
+            job_id: &args[3],
+            deployment_digest: &args[4],
+            worker_generation: &args[5],
+            preparation_sha256: &args[6],
+            bundle_sha256: &args[7],
+            bundle_bytes: args[8]
+                .parse()
+                .map_err(|_| "exact preparation bundle byte count required")?,
+        };
+        let raw = gauntlet_worker_state::stage_native_host_pinned_preparation(
+            &pins,
+            std::io::stdin().as_raw_fd(),
+            args[1] == "--prepare-native-host-pinned-v1",
+        )?;
+        println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
+        return Ok(());
+    }
+    if args.len() == 11
+        && matches!(
+            args[1].as_str(),
+            "--repair-native-keyed-pre-controller-v1"
+                | "--repair-native-keyed-v1"
+                | "--read-native-keyed-repair-v1"
+                | "--read-native-keyed-pre-controller-repair-v1"
+        )
+    {
         let prelaunch = gauntlet_contracts::PrelaunchPrepared {
             source_sha: args[2].clone(),
             job_id: args[3].clone(),
@@ -19,7 +91,17 @@ fn run() -> Result<(), String> {
             preparation_sha256: &args[9],
             repair_generation: &args[10],
         };
-        let raw = gauntlet_worker_state::repair_native_host_pinned_pre_controller(&pins)?;
+        let action = match args[1].as_str() {
+            "--repair-native-keyed-v1" => gauntlet_worker_state::repair_native_host_pinned,
+            "--read-native-keyed-repair-v1" => {
+                gauntlet_worker_state::read_native_host_pinned_repair
+            }
+            "--read-native-keyed-pre-controller-repair-v1" => {
+                gauntlet_worker_state::read_native_host_pinned_pre_controller_repair
+            }
+            _ => gauntlet_worker_state::repair_native_host_pinned_pre_controller,
+        };
+        let raw = action(&pins)?;
         println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
         return Ok(());
     }

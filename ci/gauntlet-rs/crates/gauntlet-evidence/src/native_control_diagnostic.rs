@@ -378,7 +378,7 @@ pub fn verify_native_control_diagnostic(
         json!({"schema":"hol-gauntlet-native-control-artifact-relations.v1","role":role,
         "hooks":hooks,"product_launches":launches,"native_clients":native_clients,"capture_streams":streams,"role_relations":role_relations,
         "physical_fixture_and_effect_relations_checked":true,"reported_cleanup_relation_checked":true,
-        "outside_child_death_observed":false,"all_native_runtime_descendants_graded":false,
+        "outside_child_death_observed":false,"all_native_runtime_descendants_graded":native_clients["all_native_runtime_descendants_graded"]==true,
         "outside_signing_key_admitted":false,"qualified_role_complete":false,
         "execution_eligible":false,"guard_causality_verified":false,"model_requests":0}),
     )

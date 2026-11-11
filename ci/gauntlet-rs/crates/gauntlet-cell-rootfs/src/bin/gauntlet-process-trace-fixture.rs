@@ -54,6 +54,25 @@ mod fixture {
         }
         gate();
         match args[1].as_str() {
+            "nested-userns" | "nested-userns-parent-mount" => {
+                if child() {
+                    assert_eq!(unsafe { libc::unshare(libc::CLONE_NEWUSER) }, 0);
+                    std::fs::write("/proc/self/uid_map", "10004 10004 1\n").unwrap();
+                    std::fs::write("/proc/self/setgroups", "deny\n").unwrap();
+                    std::fs::write("/proc/self/gid_map", "10004 10004 1\n").unwrap();
+                    if args[1] == "nested-userns" {
+                        assert_eq!(unsafe { libc::unshare(libc::CLONE_NEWNS) }, 0);
+                    }
+                    // A birth and exec both retain the measured child userns.
+                    let code = std::process::Command::new("/proc/self/exe")
+                        .arg("leaf")
+                        .status()
+                        .unwrap();
+                    assert!(code.success());
+                    exit(0);
+                }
+                assert_eq!(reap(), 0);
+            }
             "stdio-scalar" | "stdio-vector" | "stdio-partial" | "stdio-rebind" | "stdio-linger"
             | "stdio-oversize" | "stdio-socket" => {
                 use std::os::fd::AsRawFd;

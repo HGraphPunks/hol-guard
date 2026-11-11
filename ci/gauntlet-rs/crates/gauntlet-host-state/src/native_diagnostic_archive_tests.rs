@@ -69,3 +69,106 @@ fn descriptor_reader_requires_exact_pin_and_safe_file_and_ancestry() {
     std::fs::hard_link(&path, &hard).unwrap();
     assert!(read_stable(&path, &sha(&raw)).is_err());
 }
+
+#[test]
+fn normal_report_authenticates_retained_completion_and_preserves_incomplete_judgment() {
+    use serde_json::json;
+    let encode = |v: &Value| canonicalize(v.to_string().as_bytes()).unwrap();
+    let source = "2".repeat(40);
+    let job = "1".repeat(16);
+    let generation = "4".repeat(64);
+    let preparation =
+        json!({"runtime_prefix":format!("/opt/hol-gauntlet/candidates/{source}/prefix")});
+    let prep_raw = encode(&preparation);
+    let declaration = json!({"schema":"hol-gauntlet-native-worker-job.v7","profile":"native-host-pinned-control-v1",
+        "source_sha":source,"job_id":job,"worker_generation":generation,"preparation_sha256":sha(&prep_raw),
+        "guard":{"source_sha":source},"role":"timeout"});
+    let decl_raw = encode(&declaration);
+    let (temp, expected, _, completion) = crate::native_control_readback::tests::fixture_with_pins(
+        "timeout",
+        &sha(&decl_raw),
+        &sha(&prep_raw),
+    );
+    let root = temp.path().canonicalize().unwrap();
+    std::fs::create_dir(root.join("hol-report-fixture")).unwrap();
+    let intent = json!({"schema":"hol-gauntlet-host-native-intent.v1","job_id":job,"source_sha":source,
+        "deployment_digest":expected.deployment_digest,"worker_generation":generation,"preparation_sha256":sha(&prep_raw),
+        "role":"timeout","vm":"hol-report-fixture","limactl":"/opt/homebrew/bin/limactl","lima_sha256":"8".repeat(64),
+        "interpreter_sha256":"9".repeat(64),"observer_sha256":"a".repeat(64),
+        "transport_context":crate::native_operation::context::TransportContext::from_paths(&root,&root,"hol-report-fixture").unwrap().value()});
+    let intent_raw = encode(&intent);
+    let dispatch = json!({"schema":"hol-gauntlet-host-native-dispatch.v1","job_id":job,"intent_sha256":sha(&intent_raw),"retry_allowed":false});
+    for (suffix, raw) in [
+        ("intent", intent_raw.clone()),
+        ("dispatch", encode(&dispatch)),
+        ("completion", encode(&completion)),
+    ] {
+        let path = root.join(format!("{job}.native-{suffix}.json"));
+        std::fs::write(&path, raw).unwrap();
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+    let report_raw = encode(&completion["report"]);
+    let raw = archive(&[
+        (
+            "combined/worker/report.json",
+            &report_raw,
+            tar::EntryType::Regular,
+        ),
+        (
+            "combined/preparation.v1.json",
+            &prep_raw,
+            tar::EntryType::Regular,
+        ),
+        (
+            "combined/declaration.json",
+            &decl_raw,
+            tar::EntryType::Regular,
+        ),
+    ]);
+    let path = root.join("public.tar");
+    std::fs::write(&path, &raw).unwrap();
+    let args = vec![
+        "report".into(),
+        root.to_str().unwrap().into(),
+        job.clone(),
+        sha(&intent_raw),
+        path.to_str().unwrap().into(),
+        sha(&raw),
+    ];
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+    assert!(crate::run_native_operation_command(&args).is_err());
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    let value = crate::run_native_operation_command(&args).unwrap();
+    assert_eq!(
+        value["independent_judgment"]["judgment"]["independent_grade"],
+        "invalid-evidence"
+    );
+    assert_eq!(
+        value["independent_judgment"]["judgment"]["evidence_validity"],
+        "incomplete"
+    );
+    assert_eq!(value["execution_eligible"], false);
+    assert_eq!(value["qualification_eligible"], false);
+    for forbidden in [
+        "controller_public_key_hex",
+        "controller_envelope_utf8",
+        "prelaunch_custody",
+        "task_mounts",
+    ] {
+        assert!(!value.to_string().contains(forbidden), "{forbidden}");
+    }
+    assert_eq!(crate::run_native_operation_command(&args).unwrap(), value);
+    let reports = std::fs::read_dir(&root)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_name().to_string_lossy().contains("native-judgment-"))
+        .collect::<Vec<_>>();
+    assert_eq!(reports.len(), 1);
+    assert_eq!(
+        reports[0].metadata().unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+    let mut wrong = args.clone();
+    wrong[5] = "0".repeat(64);
+    assert!(crate::run_native_operation_command(&wrong).is_err());
+}

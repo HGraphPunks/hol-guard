@@ -196,11 +196,11 @@ impl Engine {
             "exec_retirements":self.exec_retirements,"execs":self.execs,"active_tasks":0,
             "pending_births":0,"pending_stops":0,"execution_eligible":false}),
         )?;
-        let mut checkpoint = json!({"schema":"hol-gauntlet-native-process-events.v1","complete":true,
+        let mut checkpoint = json!({"schema":"hol-gauntlet-native-process-events.v3","complete":true,
+            "task_isolation_schema":"hol-gauntlet-native-task-isolation.v1",
             "created_tasks":self.next,"final_waits":self.final_waits,"exec_retirements":self.exec_retirements,
             "execs":self.execs,"journal":self.journal.binding()?,"execution_eligible":false});
         if let Some(stdio) = &mut self.stdio {
-            checkpoint["schema"] = json!("hol-gauntlet-native-process-events.v2");
             checkpoint["native_stdio"] = stdio.finish()?;
         }
         Ok(checkpoint)

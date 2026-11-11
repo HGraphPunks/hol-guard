@@ -88,10 +88,10 @@ pub(crate) fn load(
         .ok_or("native run deployment pin required")?;
     let directory = open_root_owned_public_directory(Path::new(NATIVE_DEPLOYMENTS))
         .map_err(|e| e.to_string())?;
-    let raw = read_bounded_regular(&directory, &format!("{digest}.json"), 8192)
+    let declaration_raw = read_bounded_regular(&directory, &format!("{digest}.json"), 8192)
         .map_err(|e| e.to_string())?
         .ok_or("native deployment missing")?;
-    let spec = NativeJobSpec::parse(&raw, digest, request, generation)?;
+    let spec = NativeJobSpec::parse(&declaration_raw, digest, request, generation)?;
     let root = open_root_owned_public_directory(&spec.job_root()).map_err(|e| e.to_string())?;
     let info = fstat(&root).map_err(|e| e.to_string())?;
     if info.st_gid != 0 || info.st_mode & 0o7777 != 0o700 {
@@ -101,6 +101,7 @@ pub(crate) fn load(
         .map_err(|e| e.to_string())?
         .ok_or("native preparation missing")?;
     let preparation = spec.preparation(&raw)?;
+    crate::native_job_prepare::verify_staged_job(&spec, digest, &declaration_raw, &raw)?;
     Ok((spec, preparation))
 }
 

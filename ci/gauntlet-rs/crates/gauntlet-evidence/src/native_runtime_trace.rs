@@ -2,7 +2,7 @@
 //! Fork inheritance records the last observed image; it does not attest memory,
 //! internal wire bytes, effect writers or an admitted outside observer.
 use crate::native_diagnostic_artifacts::{parse, require, text, Artifacts};
-use crate::native_process_kernel::{hex, number};
+use crate::native_process_kernel::{decimal, hex, number};
 use crate::{EvidenceError, Result};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::{json, Value};
@@ -17,6 +17,8 @@ struct TaskImage {
     parent: Option<u64>,
     native: bool,
     checked_client: bool,
+    setup: bool,
+    descendant: bool,
 }
 
 fn identifier(value: &Value) -> Result<u64> {
@@ -65,10 +67,49 @@ pub(crate) fn floors(task: &Value) -> Result<()> {
     for field in ["CapAmb", "CapBnd", "CapEff", "CapInh", "CapPrm"] {
         require(status[field] == "0000000000000000")?;
     }
-    require(status["NoNewPrivs"] == "1" && status["Seccomp"] == "2")
+    require(
+        status["NoNewPrivs"] == "1"
+            && status["Seccomp"] == "2"
+            && decimal(text(status, "Seccomp_filters")?)? > 0,
+    )
 }
 
-fn inventory(
+fn image_profile(image: &Value, actor: &Value, setup: bool) -> Result<Option<&'static str>> {
+    let executable = &image["executable"];
+    let mode = number(&executable["mode"])?;
+    // The measured Native bytes must remain an inert, Root-owned image. A
+    // matching digest does not make writable or set-id custody acceptable.
+    require(
+        executable["uid"] == 0
+            && executable["gid"] == 0
+            && executable["links"].as_u64().is_some_and(|n| n > 0)
+            && mode & 0o6022 == 0
+            && mode & 0o111 != 0
+            && image["task"]["cgroup"] == actor["task"]["cgroup"]
+            && image["lsm_label"] == actor["lsm_label"],
+    )?;
+    if image["task"].get("isolation").is_some() {
+        crate::native_process_event_identity::isolation::matches_image(image)?;
+        return crate::native_process_event_identity::isolation::profile(
+            &image["task"],
+            actor,
+            setup,
+        );
+    }
+    if image["namespaces"] != actor["namespaces"] {
+        // A namespace identity is not proof of its parent or owning user
+        // namespace. The old dialect cannot grade setup capabilities there.
+        return Ok(None);
+    }
+    floors(&image["task"])?;
+    require(
+        decimal(text(&image["task"]["status"], "Seccomp_filters")?)?
+            >= decimal(text(&actor["task"]["status"], "Seccomp_filters")?)?,
+    )?;
+    Ok(Some("outer"))
+}
+
+pub(crate) fn inventory(
     events: &[Value],
     native: &str,
     gates: &BTreeMap<GateKey, usize>,
@@ -76,6 +117,7 @@ fn inventory(
 ) -> Result<Value> {
     require(hex(native, 64) && !events.is_empty() && events.len() <= 65536)?;
     let actor = &events[0]["data"]["actor"];
+    let isolated = actor["task"].get("isolation").is_some();
     require(actor["executable"]["sha256"] != native)?;
     let mut tasks = BTreeMap::<u64, TaskImage>::new();
     let mut births = BTreeMap::<u64, TaskImage>::new();
@@ -85,6 +127,12 @@ fn inventory(
     let mut inherited = 0;
     let mut image_counts = BTreeMap::<String, usize>::new();
     let mut checked_clients = 0;
+    let mut outer_images_verified = 0;
+    let mut images_verified = 0;
+    let mut inheritances_verified = 0;
+    let mut other_descendant_execs = 0;
+    let mut incomplete_execs = Vec::new();
+    let mut incomplete_births = Vec::new();
     for (sequence, row) in events.iter().enumerate() {
         let data = &row["data"];
         match row["kind"].as_str() {
@@ -97,6 +145,8 @@ fn inventory(
                         parent: None,
                         native: false,
                         checked_client: false,
+                        setup: false,
+                        descendant: false,
                     },
                 );
                 *image_counts
@@ -115,6 +165,8 @@ fn inventory(
                     parent: Some(parent_id),
                     native: parent.native,
                     checked_client: parent.checked_client,
+                    setup: parent.setup,
+                    descendant: parent.descendant,
                 };
                 require(births.insert(number(&data["child_tid"])?, child).is_none())?;
             }
@@ -128,11 +180,29 @@ fn inventory(
                     !tasks.contains_key(&id) && child.parent == Some(parent_id) && parent_id < id,
                 )?;
                 if child.native {
-                    if !clients_only || child.checked_client {
+                    if !isolated && (!clients_only || child.checked_client) {
                         floors(&data["task"])?;
                     }
                     ever_native.insert(id);
                     inherited += 1;
+                    let profile = if isolated {
+                        crate::native_process_event_identity::isolation::birth_profile(
+                            &data["task"],
+                            actor,
+                            child.setup,
+                        )?
+                    } else {
+                        None
+                    };
+                    inheritances_verified += usize::from(profile.is_some());
+                    if profile.is_none() {
+                        incomplete_births.push(json!({"task_id":id,"parent_task_id":parent_id,
+                            "trace_sequence":sequence,"reason_code":if isolated && ["uid_map","gid_map"].iter().any(|name|
+                                data["task"]["isolation"][*name].as_array().is_some_and(Vec::is_empty)) {
+                                "user-namespace-mapping-not-established-at-birth"
+                            } else if isolated {"namespace-ancestry-bound-exceeded"}
+                            else {"task-created-isolation-observations-missing"}}));
+                    }
                 }
                 tasks.insert(id, child);
             }
@@ -163,6 +233,7 @@ fn inventory(
                 }
                 task.native = pin == native;
                 task.checked_client = false;
+                task.setup = false;
                 if task.native {
                     let args = command(&raw)?;
                     let gate = task
@@ -170,12 +241,29 @@ fn inventory(
                         .ok_or(EvidenceError::Invalid("Native image has no gated ancestor"))?;
                     require(args.len() >= 2 && !args[0].is_empty() && !args[1].is_empty())?;
                     task.checked_client = args[1] == "resident-client-stream";
-                    if !clients_only || task.checked_client {
+                    task.setup = args[1] == "restricted-linux-launch";
+                    task.descendant = true;
+                    if task.setup {
+                        require(args.len() == 3 && hex(&args[2], 64))?;
+                    }
+                    let profile = image_profile(image, actor, task.setup)?;
+                    let outer_verified = profile == Some("outer");
+                    images_verified += usize::from(profile.is_some());
+                    outer_images_verified += usize::from(outer_verified);
+                    if profile.is_none() {
+                        incomplete_execs.push(json!({"task_id":id,"trace_sequence":sequence,
+                            "reason_code":if isolated {"namespace-ancestry-bound-exceeded"}
+                            else {"namespace-ownership-observations-missing"}}));
+                    }
+                    if !isolated && (!clients_only || task.checked_client) {
                         floors(&image["task"])?;
                         require(
                             image["namespaces"] == actor["namespaces"]
                                 && image["lsm_label"] == actor["lsm_label"],
                         )?;
+                    }
+                    if task.checked_client && isolated {
+                        require(profile == Some("outer"))?;
                     }
                     checked_clients += usize::from(task.checked_client);
                     ever_native.insert(id);
@@ -188,7 +276,10 @@ fn inventory(
                         "gate_sequence":gate,"pid":image["task"]["tid"],"start_ticks":image["task"]["start_ticks"],
                         "program_sha256":crate::crypto::sha256(args[0].as_bytes()),"operation":operation,
                         "operation_sha256":crate::crypto::sha256(args[1].as_bytes()),"argument_count":args.len(),
-                        "argv_sha256":image["argv_sha256"],"executable":image["executable"]}));
+                        "argv_sha256":image["argv_sha256"],"executable":image["executable"],
+                        "outer_image_isolation_verified":outer_verified,"image_isolation_profile":profile}));
+                } else if task.descendant {
+                    other_descendant_execs += 1;
                 }
             }
             _ => {}
@@ -200,16 +291,28 @@ fn inventory(
         "created_tasks":tasks.len(),"gates_joined":joined.len(),"native_exec_images_checked":native_images.len(),
         "tasks_with_observed_or_inherited_native_image":ever_native.len(),"native_image_inheritances":inherited,
         "native_execs":native_images,"observed_image_sha256_counts":image_counts,
-        "native_image_privilege_floors_checked":true,"internal_native_request_bytes_checked":false,
+        "outer_native_exec_images_isolation_verified":outer_images_verified,
+        "native_exec_images_isolation_verified":images_verified,"native_inherited_tasks_isolation_verified":inheritances_verified,
+        "non_native_descendant_execs_requiring_outside_role_pins":other_descendant_execs,
+        "native_exec_images_requiring_isolation_observations":incomplete_execs,
+        "native_inherited_tasks_requiring_isolation_observations":incomplete_births,
+        "all_native_exec_images_isolation_verified":!native_images.is_empty()&&images_verified==native_images.len(),
+        "native_image_privilege_floors_checked":!native_images.is_empty()&&images_verified==native_images.len(),"internal_native_request_bytes_checked":false,
         "inherited_memory_contents_authenticated":false,"effect_writer_attribution_checked":false,
-        "all_native_runtime_descendants_graded":false,"outside_observer_admitted":false,
+        "all_native_runtime_descendants_graded":isolated&&!native_images.is_empty()&&images_verified==native_images.len()&&inheritances_verified==inherited&&other_descendant_execs==0,
+        "image_grade_scope":"Native exec and inherited-task isolation at observed stops","outside_observer_admitted":false,
         "outside_signing_key_admitted":false,"execution_eligible":false,"guard_causality_verified":false,"model_requests":0});
     if clients_only {
         result["schema"] = json!("hol-gauntlet-native-runtime-image-lineage.v2");
-        result["native_image_privilege_floors_checked"] = json!(false);
-        result["resident_client_privilege_floors_checked"] = json!(true);
+        result["resident_client_privilege_floors_checked"] = json!(checked_clients > 0);
         result["resident_client_execs_checked"] = json!(checked_clients);
-        result["other_native_execs_ungraded"] = json!(native_images.len() - checked_clients);
+        result["other_native_execs_ungraded"] = json!(incomplete_execs.len());
+        result["other_native_execs_isolation_verified"] = json!(images_verified - checked_clients);
+    }
+    if isolated {
+        result["schema"] = json!("hol-gauntlet-native-runtime-image-lineage.v3");
+        result["task_isolation_schema"] =
+            json!(crate::native_process_event_identity::isolation::SCHEMA);
     }
     Ok(result)
 }

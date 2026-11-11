@@ -4,6 +4,101 @@ use gauntlet_contracts::canonicalize;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub(crate) const KEYED_SCHEMA: &str = "hol-gauntlet-native-keyed-worker-repair.v1";
+
+/// Public original-key custody and observed quiescence can close uncertainty,
+/// but cannot recover a lost exit or create a controller-signed result.
+pub(crate) fn verify_keyed(
+    raw: &[u8],
+    prelaunch: &gauntlet_contracts::PrelaunchPrepared,
+    preparation: &str,
+    running: &str,
+) -> Result<Value, String> {
+    if raw.len() > 8192 || canonicalize(raw).map_err(|e| e.to_string())? != raw {
+        return Err("bounded canonical keyed repair receipt required".into());
+    }
+    let value: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;
+    let expected: Value = serde_json::from_slice(&prelaunch.to_bytes().map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    let fields = [
+        "schema",
+        "prelaunch",
+        "preparation_sha256",
+        "running_marker_sha256",
+        "repair_generation",
+        "status",
+        "controller_state",
+        "exit_code",
+        "model_requests",
+        "artifact_admitted",
+        "execution_eligible",
+        "qualification_eligible",
+        "guard_causality_verified",
+        "cleanup",
+    ];
+    let cleanup = &value["cleanup"];
+    let absent = [
+        "image_unmounted",
+        "active_pointer_absent",
+        "controller_process_absent",
+        "controller_cgroup_absent",
+        "product_slice_absent",
+        "sdk_agent_absent",
+        "sdk_profile_absent",
+        "mcp_agent_absent",
+        "mcp_profile_absent",
+        "image_lease_absent",
+        "public_key_retained",
+    ];
+    if !hex(preparation, 64)
+        || !hex(running, 64)
+        || value.as_object().is_none_or(|o| {
+            o.len() != fields.len() || fields.iter().any(|key| !o.contains_key(*key))
+        })
+        || value["schema"] != KEYED_SCHEMA
+        || value["prelaunch"] != expected
+        || value["preparation_sha256"] != preparation
+        || value["running_marker_sha256"] != running
+        || value["repair_generation"]
+            .as_str()
+            .is_none_or(|s| !hex(s, 64))
+        || value["status"] != "aborted"
+        || value["controller_state"] != "released-exit-unavailable"
+        || !value["exit_code"].is_null()
+        || value["model_requests"].as_u64() != Some(0)
+        || [
+            "artifact_admitted",
+            "execution_eligible",
+            "qualification_eligible",
+            "guard_causality_verified",
+        ]
+        .iter()
+        .any(|key| value[*key] != false)
+        || cleanup.as_object().is_none_or(|o| {
+            o.len() != absent.len() + 2
+                || !o.contains_key("quiescent")
+                || !o.contains_key("active_pointer_sha256")
+                || absent
+                    .iter()
+                    .any(|key| o.get(*key) != Some(&Value::Bool(true)))
+        })
+        || cleanup["quiescent"].as_object().is_none()
+        || !matches!(
+            cleanup["quiescent"]["image_history"].as_str(),
+            Some("already-closed-v1" | "recovered-pending-v1")
+        )
+        || !(cleanup["active_pointer_sha256"].is_null()
+            || cleanup["active_pointer_sha256"]
+                .as_str()
+                .is_some_and(|s| hex(s, 64)))
+    {
+        return Err(
+            "keyed repair differs from original public custody or claims execution credit".into(),
+        );
+    }
+    Ok(value)
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct NativeRepairReceipt {
@@ -104,6 +199,119 @@ impl NativeRepairReceipt {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn keyed_fixture() -> (gauntlet_contracts::PrelaunchPrepared, Value) {
+        let prelaunch = gauntlet_contracts::PrelaunchPrepared {
+            source_sha: "a".repeat(40),
+            job_id: "0123456789abcdef".into(),
+            deployment_digest: "b".repeat(64),
+            worker_generation: "c".repeat(64),
+            started_marker_sha256: "d".repeat(64),
+            controller_key_pin_sha256: "e".repeat(64),
+            controller_public_key_hex: "f".repeat(64),
+        };
+        let p: Value = serde_json::from_slice(&prelaunch.to_bytes().unwrap()).unwrap();
+        let value = json!({"schema":KEYED_SCHEMA,"prelaunch":p,"preparation_sha256":"1".repeat(64),
+            "running_marker_sha256":"2".repeat(64),"repair_generation":"3".repeat(64),
+            "status":"aborted","controller_state":"released-exit-unavailable","exit_code":null,
+            "model_requests":0,"artifact_admitted":false,"execution_eligible":false,
+            "qualification_eligible":false,"guard_causality_verified":false,
+            "cleanup":{"quiescent":{"image_history":"already-closed-v1"},
+                "active_pointer_sha256":null,"image_unmounted":true,"active_pointer_absent":true,
+                "controller_process_absent":true,"controller_cgroup_absent":true,"product_slice_absent":true,
+                "sdk_agent_absent":true,"sdk_profile_absent":true,"mcp_agent_absent":true,
+                "mcp_profile_absent":true,"image_lease_absent":true,"public_key_retained":true}});
+        (prelaunch, value)
+    }
+
+    #[test]
+    fn released_keyed_repair_keeps_unknown_exit_and_every_original_public_binding() {
+        let (prelaunch, value) = keyed_fixture();
+        let check = |value: &Value| {
+            verify_keyed(
+                &canonicalize(value.to_string().as_bytes()).unwrap(),
+                &prelaunch,
+                &"1".repeat(64),
+                &"2".repeat(64),
+            )
+        };
+        assert_eq!(check(&value).unwrap(), value);
+        for (pointer, bad) in [
+            ("/schema", json!("hol-gauntlet-native-worker-repair.v2")),
+            ("/prelaunch/source_sha", json!("b".repeat(40))),
+            ("/prelaunch/job_id", json!("1111111111111111")),
+            ("/prelaunch/deployment_digest", json!("4".repeat(64))),
+            ("/prelaunch/worker_generation", json!("4".repeat(64))),
+            ("/prelaunch/started_marker_sha256", json!("4".repeat(64))),
+            (
+                "/prelaunch/controller_key_pin_sha256",
+                json!("4".repeat(64)),
+            ),
+            (
+                "/prelaunch/controller_public_key_hex",
+                json!("4".repeat(64)),
+            ),
+            ("/preparation_sha256", json!("4".repeat(64))),
+            ("/running_marker_sha256", json!("4".repeat(64))),
+            ("/repair_generation", json!("unknown")),
+            ("/status", json!("passed")),
+            ("/controller_state", json!("never-released")),
+            ("/exit_code", json!(0)),
+            ("/model_requests", json!(1)),
+            ("/model_requests", json!(false)),
+            ("/artifact_admitted", json!(true)),
+            ("/execution_eligible", json!(true)),
+            ("/qualification_eligible", json!(true)),
+            ("/guard_causality_verified", json!(true)),
+            ("/cleanup/active_pointer_sha256", json!("unknown")),
+            ("/cleanup/quiescent/image_history", json!("unknown")),
+        ] {
+            let mut changed = value.clone();
+            *changed.pointer_mut(pointer).unwrap() = bad;
+            assert!(check(&changed).is_err(), "{pointer}");
+        }
+        for key in value["cleanup"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .filter(|key| !matches!(key.as_str(), "quiescent" | "active_pointer_sha256"))
+        {
+            let mut changed = value.clone();
+            changed["cleanup"][key] = json!(1);
+            assert!(check(&changed).is_err(), "{key}");
+            changed["cleanup"].as_object_mut().unwrap().remove(key);
+            assert!(check(&changed).is_err(), "missing {key}");
+        }
+        for key in value.as_object().unwrap().keys() {
+            let mut changed = value.clone();
+            changed.as_object_mut().unwrap().remove(key);
+            assert!(check(&changed).is_err(), "missing {key}");
+        }
+        let mut recovered = value;
+        recovered["cleanup"]["quiescent"]["image_history"] = json!("recovered-pending-v1");
+        recovered["cleanup"]["active_pointer_sha256"] = json!("4".repeat(64));
+        check(&recovered).unwrap();
+        recovered["extra"] = json!(true);
+        assert!(check(&recovered).is_err());
+    }
+
+    #[test]
+    fn partial_ambiguous_or_noncanonical_keyed_repair_is_retained_as_unknown() {
+        let (prelaunch, value) = keyed_fixture();
+        let canonical = canonicalize(value.to_string().as_bytes()).unwrap();
+        let spaced = serde_json::to_vec_pretty(&value).unwrap();
+        for raw in [
+            b"{".as_slice(),
+            b"{}",
+            &spaced,
+            &canonical[..canonical.len() - 1],
+            b"{\"schema\":1,\"schema\":2}",
+            &vec![b' '; 8193],
+        ] {
+            assert!(verify_keyed(raw, &prelaunch, &"1".repeat(64), &"2".repeat(64)).is_err());
+        }
+    }
+
     #[test]
     fn recovery_cannot_supply_an_exit_status_model_credit_or_success() {
         let value = json!({"schema":"hol-gauntlet-native-worker-repair.v1","source_sha":"a".repeat(40),

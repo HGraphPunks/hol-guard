@@ -51,6 +51,7 @@ pub use live_provider_manifest::{
 mod controller_key_pins;
 mod native_control_readback;
 mod native_diagnostic_archive;
+mod native_operation;
 pub use controller_key_pins::{
     HostControllerKeyPinJournal, HostControllerKeyPins, HostDeterministicReadbackObservation,
     HostEffectEventsPin, HostKeyPinError, HostKeyPinRecord, HostKeyedTerminalObservation,
@@ -58,6 +59,7 @@ pub use controller_key_pins::{
     HostStagingRestartReadbackObservation,
 };
 pub use native_control_readback::{HostNativeControlReadback, NativeControlReadbackError};
+pub use native_operation::{run_native_operation_command, NATIVE_OPERATION_USAGE};
 mod candidate_build_pins;
 mod candidate_command;
 mod dependency_intent;

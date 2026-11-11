@@ -2,7 +2,9 @@
 //! A signed controller diagnostic remains separate from independent scoring.
 use crate::{HostControllerKeyPinJournal, HostKeyPinError, HostPrelaunchIdentity};
 use gauntlet_contracts::{canonicalize, PrelaunchPrepared, NATIVE_HOST_PINNED_COMPLETION_LIMIT};
-use gauntlet_evidence::{verify_native_control_envelope, NativeControlReportPins};
+use gauntlet_evidence::{
+    verify_native_control_envelope, AuthenticatedNativeControlReport, NativeControlReportPins,
+};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::fmt;
@@ -49,6 +51,7 @@ fn require(condition: bool) -> Result<()> {
 pub struct HostNativeControlReadback {
     diagnostic: Value,
     observation: Value,
+    pub(crate) authenticated: AuthenticatedNativeControlReport,
 }
 impl HostNativeControlReadback {
     pub fn diagnostic(&self) -> &Value {
@@ -230,10 +233,11 @@ impl HostControllerKeyPinJournal {
             "controller_signature":authenticated.observation(),"host_prelaunch_tuple_bound":true,
             "reported_status":authenticated.report()["status"],"independent_effects_scored":false,"qualified_role_complete":false,
             "execution_eligible":false,"guard_causality_verified":false,"model_requests":0}),
+            authenticated,
         })
     }
 }
 
 #[cfg(test)]
 #[path = "native_control_readback_tests.rs"]
-mod tests;
+pub(crate) mod tests;

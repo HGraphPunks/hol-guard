@@ -161,6 +161,20 @@ pub(crate) fn read_regular_bytes(
     name: &str,
     owner: u32,
 ) -> Result<Vec<u8>, PrivateJobError> {
+    read_regular_bytes_bounded(dir, name, owner, MAX_JOB_BYTES)
+}
+
+/// Preserve the historical reader's bound while permitting a caller-selected
+/// native completion bound for the separate Rust operational journal.
+pub(crate) fn read_regular_bytes_bounded(
+    dir: &OwnedFd,
+    name: &str,
+    owner: u32,
+    limit: u64,
+) -> Result<Vec<u8>, PrivateJobError> {
+    if limit == 0 || limit > gauntlet_contracts::NATIVE_HOST_PINNED_COMPLETION_LIMIT as u64 {
+        return Err(PrivateJobError::TooLarge);
+    }
     let descriptor = openat(
         dir,
         name,
@@ -177,7 +191,7 @@ pub(crate) fn read_regular_bytes(
     {
         return Err(PrivateJobError::UnsafeJob);
     }
-    if before.st_size as u64 > MAX_JOB_BYTES {
+    if before.st_size as u64 > limit {
         return Err(PrivateJobError::TooLarge);
     }
     let path_before =
@@ -188,10 +202,10 @@ pub(crate) fn read_regular_bytes(
     let mut file = File::from(descriptor);
     let mut bytes = Vec::new();
     file.by_ref()
-        .take(MAX_JOB_BYTES + 1)
+        .take(limit + 1)
         .read_to_end(&mut bytes)
         .map_err(|_| PrivateJobError::Io)?;
-    if bytes.len() as u64 > MAX_JOB_BYTES {
+    if bytes.len() as u64 > limit {
         return Err(PrivateJobError::TooLarge);
     }
     let after = fstat(&file).map_err(|_| PrivateJobError::Io)?;
@@ -209,10 +223,21 @@ pub(crate) fn read_regular_bytes(
 /// Commit an isolated host record before dispatch. Any existing or partial
 /// entry consumes the name; callers must never repair it into a fresh attempt.
 pub(crate) fn write_private_once(dir: &OwnedFd, name: &str, raw: &[u8]) -> Result<(), String> {
+    write_private_once_bounded(dir, name, raw, MAX_JOB_BYTES)
+}
+
+pub(crate) fn write_private_once_bounded(
+    dir: &OwnedFd,
+    name: &str,
+    raw: &[u8],
+    limit: u64,
+) -> Result<(), String> {
     use std::io::Write;
     let owner = geteuid().as_raw();
-    if raw.is_empty()
-        || raw.len() as u64 > MAX_JOB_BYTES
+    if limit == 0
+        || limit > gauntlet_contracts::NATIVE_HOST_PINNED_COMPLETION_LIMIT as u64
+        || raw.is_empty()
+        || raw.len() as u64 > limit
         || name.is_empty()
         || matches!(name, "." | "..")
         || !name
@@ -235,7 +260,7 @@ pub(crate) fn write_private_once(dir: &OwnedFd, name: &str, raw: &[u8]) -> Resul
         .and_then(|_| file.sync_all())
         .map_err(|_| "host dispatch commit uncertain; reconcile without retry")?;
     fsync(dir).map_err(|_| "host dispatch directory commit uncertain; reconcile without retry")?;
-    if read_regular_bytes(dir, name, owner).map_err(|e| e.to_string())? != raw {
+    if read_regular_bytes_bounded(dir, name, owner, limit).map_err(|e| e.to_string())? != raw {
         return Err("host dispatch record changed after commit".into());
     }
     Ok(())

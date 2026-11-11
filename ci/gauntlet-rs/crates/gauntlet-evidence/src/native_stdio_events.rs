@@ -362,7 +362,11 @@ pub fn verify_native_stdio_events(
 }
 
 pub(crate) fn replay(raw: &[u8], process_raw: &[u8], checkpoint: &Value) -> Result<Readback> {
-    require(checkpoint["schema"] == "hol-gauntlet-native-process-events.v2")?;
+    require(
+        checkpoint["schema"] == "hol-gauntlet-native-process-events.v2"
+            || (checkpoint["schema"] == "hol-gauntlet-native-process-events.v3"
+                && checkpoint.get("native_stdio").is_some()),
+    )?;
     let task_history = crate::verify_native_process_events(process_raw, checkpoint)?;
     let capture = &checkpoint["native_stdio"];
     crate::native_stdio_contract::checkpoint(capture)?;

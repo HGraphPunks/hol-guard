@@ -260,17 +260,7 @@ fn sdk_result_matches_docs_response(audit: &Value, sdk_result: &Value) -> Result
 
 fn docs_result_matches_fixture(audit: &Value, expected: &Value) -> Result<()> {
     let result = completed_docs_result(audit)?;
-    let parts = result["content"].as_array().ok_or(INVALID)?;
-    if result["structuredContent"] != *expected || parts.len() != 1 || parts[0]["type"] != "text" {
-        return Err(INVALID);
-    }
-    let text = parts[0]["text"].as_str().ok_or(INVALID)?;
-    let canonical = canonicalize(text.as_bytes()).map_err(|_| INVALID)?;
-    let decoded: Value = serde_json::from_slice(&canonical).map_err(|_| INVALID)?;
-    if decoded != *expected {
-        return Err(INVALID);
-    }
-    Ok(())
+    crate::native_mcp_inputs::docs_result_matches_record(result, expected)
 }
 
 pub(crate) fn matching_sdk_tap_native_frames(
