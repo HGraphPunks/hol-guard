@@ -443,3 +443,26 @@ pub(crate) fn require_admissible() -> Result<(), String> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+pub(crate) fn lose_fixture_owner(job: &str) -> Result<Anchor, String> {
+    let held = anchor(job)?;
+    held.group.kill().map_err(|e| e.to_string())?;
+    use std::os::fd::AsRawFd;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    loop {
+        let mut poll = libc::pollfd {
+            fd: held.pidfd.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        if unsafe { libc::poll(&mut poll, 1, 0) } == 1 && poll.revents & libc::POLLIN != 0 {
+            break;
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err("fixture owner death uncertain".into());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    Ok(held)
+}

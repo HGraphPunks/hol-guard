@@ -14,6 +14,56 @@ pub(super) fn read(path: &Path, limit: u64) -> Result<Vec<u8>, String> {
     Ok(raw)
 }
 impl NativeSdkAgent {
+    pub(super) fn check(&self, value: &Value, running: bool) -> Result<(String, u32), String> {
+        if self.commands.is_cleanup() {
+            return Err("cleanup consumed this agent; no further execution".into());
+        }
+        crate::native_job_storage::native::check(&self.job, value, running)?;
+        self.check_shape(value, running)
+    }
+    pub(super) fn check_for_cleanup(
+        &self,
+        value: &Value,
+        running: bool,
+    ) -> Result<(String, u32), String> {
+        if !self.commands.is_cleanup() || self.cid.as_deref() != value["Id"].as_str() {
+            return Err("cleanup requires the original retained full container CID".into());
+        }
+        crate::native_job_storage::native::check_for_cleanup(&self.job, value, running)?;
+        crate::native_sdk_agent_spec::check_retained_cleanup_task(value, self.kernel.as_ref())?;
+        self.check_shape(value, running)
+    }
+    fn check_shape(&self, value: &Value, running: bool) -> Result<(String, u32), String> {
+        if self.live {
+            check_live_inspection(
+                value,
+                &self.name,
+                &self.job,
+                &self.nonce,
+                &self.mounts,
+                running,
+            )
+        } else if self.mcp {
+            check_mcp_inspection(
+                value,
+                &self.name,
+                &self.job,
+                &self.nonce,
+                &self.mounts,
+                running,
+            )
+        } else {
+            check_inspection(
+                value,
+                &self.name,
+                &self.job,
+                &self.nonce,
+                &self.mounts,
+                running,
+            )
+        }
+    }
+
     pub(crate) fn prepare_live(
         job: &str,
         spec: &CellPreparation,

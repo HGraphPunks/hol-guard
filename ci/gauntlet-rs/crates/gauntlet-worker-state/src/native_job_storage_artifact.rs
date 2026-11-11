@@ -299,3 +299,154 @@ pub(crate) fn retirement_ack(
         "host_binding_sha256":read["host_binding_sha256"],"host_receipt_sha256":host_receipt}),
     )
 }
+
+/// Completed custody survives deletion of the acknowledged source volume.
+/// This is a read of original Root records, never permission to reconstruct it.
+pub(crate) fn retired_read(job: &str, profile: JobStorageProfile) -> Result<Option<Value>, String> {
+    if !crate::hex(job, 16) || profile == JobStorageProfile::Native {
+        return Err("closed retired Source job/profile required".into());
+    }
+    if !lifecycle::present(job)? {
+        return Ok(None);
+    }
+    let slot = crate::open_root_owned_public_directory(&Path::new(lifecycle::BASE).join(job))
+        .map_err(|e| e.to_string())?;
+    let Some(raw) = crate::feature_files::read(&slot, "retired.json", (0, 0), 0o600, 8192)? else {
+        return Ok(None);
+    };
+    super::retire::verify_retired(&slot, job, &raw)?;
+    let retired: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
+    let read = value(&slot, "artifact-read.json")?;
+    let storage = value(&slot, lifecycle::RECEIPT)?;
+    let capture_raw = retired_links(job, profile, &read, &storage, &retired)?;
+    super::admission::verify_admitted(&slot, &linux::canonical(&storage)?, &capture_raw)?;
+    let ack = value(&slot, "host-artifact-received.json")?;
+    let authority = retirement_ack(&slot, &read, text(&ack["host_receipt_sha256"])?)?;
+    let expected = json!({"schema":"hol-gauntlet-job-storage-retirement-intent.v1",
+        "source_sha":storage["source_sha"],"job_id":job,"worker_generation":storage["worker_generation"],
+        "mke2fs_sha256":storage["mke2fs_sha256"],"profile":profile.as_str(),"retirer_generation":retired["retirer_generation"],
+        "authority":authority,"storage_receipt_sha256":read["storage_receipt_sha256"],"archive_sha256":read["archive_sha256"]});
+    if value(&slot, "retirement.json")? != expected
+        || retired["retirement_intent_sha256"] != linux::sha(&linux::canonical(&expected)?)
+        || retired["storage_receipt_sha256"] != read["storage_receipt_sha256"]
+        || retired["archive_sha256"] != read["archive_sha256"]
+    {
+        return Err("retired Source lacks exact original Host archive acknowledgement".into());
+    }
+    Ok(Some(read))
+}
+
+fn retired_links(
+    job: &str,
+    profile: JobStorageProfile,
+    read: &Value,
+    storage: &Value,
+    retired: &Value,
+) -> Result<Vec<u8>, String> {
+    let capture = &read["source_capture"];
+    let capture_raw = linux::canonical(capture)?;
+    if capture["builder_executed"] != false
+        || capture["execution_eligible"] != false
+        || capture["model_requests"] != 0
+        || !capture["source_archive_sha256"]
+            .as_str()
+            .is_some_and(|s| crate::hex(s, 64))
+        || !capture["source_bytes"]
+            .as_u64()
+            .is_some_and(|n| (1..=256 * 1024 * 1024).contains(&n))
+        || read.as_object().is_none_or(|o| o.len() != 10)
+        || read["schema"] != "hol-gauntlet-source-storage-artifact-read.v1"
+        || capture.as_object().is_none_or(|o| o.len() != 11)
+        || capture["schema"] != "hol-gauntlet-native-source-capture.v2"
+        || read["job_id"] != job
+        || capture["job_id"] != job
+        || storage["job_id"] != job
+        || read["profile"] != profile.as_str()
+        || capture["storage_profile"] != profile.as_str()
+        || storage["profile"] != profile.as_str()
+        || storage["schema"] != "hol-gauntlet-job-storage.v2"
+        || capture["storage"]["receipt"] != *storage
+        || capture["source_sha"] != storage["source_sha"]
+        || capture["worker_generation"] != storage["worker_generation"]
+        || capture["storage"]["receipt_sha256"] != linux::sha(&linux::canonical(storage)?)
+        || read["storage_receipt_sha256"] != capture["storage"]["receipt_sha256"]
+        || read["source_capture_sha256"] != linux::sha(&capture_raw)
+        || [
+            "archive_sha256",
+            "result_sha256",
+            "host_binding_sha256",
+            "readback_sha256",
+        ]
+        .iter()
+        .any(|k| !read[*k].as_str().is_some_and(|s| crate::hex(s, 64)))
+        || retired["partial"] != false
+        || retired["profile"] != profile.as_str()
+        || retired["source_sha"] != storage["source_sha"]
+        || retired["worker_generation"] != storage["worker_generation"]
+    {
+        return Err("retired Source custody differs from original completed storage".into());
+    }
+    Ok(capture_raw)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn retired_source_links_cannot_borrow_a_foreign_volume_result_or_capture() {
+        let job = "0123456789abcdef";
+        let source = "a".repeat(40);
+        let worker = "b".repeat(64);
+        let storage = json!({"schema":"hol-gauntlet-job-storage.v2","job_id":job,"source_sha":source,
+            "worker_generation":worker,"profile":"dependency-v1"});
+        let storage_sha = linux::sha(&linux::canonical(&storage).unwrap());
+        let capture = json!({"schema":"hol-gauntlet-native-source-capture.v2","source_sha":source,"job_id":job,
+            "worker_generation":worker,"source_archive_sha256":"c".repeat(64),"source_bytes":4096,
+            "storage_profile":"dependency-v1","storage":{"receipt":storage,"receipt_sha256":storage_sha},
+            "builder_executed":false,"execution_eligible":false,"model_requests":0});
+        let read = json!({"schema":"hol-gauntlet-source-storage-artifact-read.v1","source_capture":capture,
+            "source_capture_sha256":linux::sha(&linux::canonical(&capture).unwrap()),"profile":"dependency-v1","job_id":job,
+            "storage_receipt_sha256":storage_sha,"archive_sha256":"d".repeat(64),"result_sha256":"e".repeat(64),
+            "host_binding_sha256":"f".repeat(64),"readback_sha256":"1".repeat(64)});
+        let retired = json!({"partial":false,"profile":"dependency-v1","source_sha":source,"worker_generation":worker});
+        assert!(retired_links(
+            job,
+            JobStorageProfile::Dependency,
+            &read,
+            &storage,
+            &retired
+        )
+        .is_ok());
+        for (pointer, bad) in [
+            ("/source_capture/source_sha", json!("0".repeat(40))),
+            (
+                "/source_capture/storage/receipt/job_id",
+                json!("fedcba9876543210"),
+            ),
+            ("/source_capture_sha256", json!("0".repeat(64))),
+            ("/storage_receipt_sha256", json!("0".repeat(64))),
+            ("/source_capture/model_requests", json!(1)),
+            ("/readback_sha256", Value::Null),
+        ] {
+            let mut wrong = read.clone();
+            *wrong.pointer_mut(pointer).unwrap() = bad;
+            assert!(
+                retired_links(
+                    job,
+                    JobStorageProfile::Dependency,
+                    &wrong,
+                    &storage,
+                    &retired
+                )
+                .is_err(),
+                "{pointer}"
+            );
+        }
+        let mut wrong = retired;
+        wrong["partial"] = json!(true);
+        assert!(
+            retired_links(job, JobStorageProfile::Dependency, &read, &storage, &wrong).is_err()
+        );
+        assert!(retired_links(job, JobStorageProfile::Build, &read, &storage, &wrong).is_err());
+    }
+}

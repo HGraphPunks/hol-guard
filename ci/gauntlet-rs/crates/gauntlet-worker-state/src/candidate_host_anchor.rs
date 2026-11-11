@@ -247,6 +247,9 @@ impl<'a> CandidateContainer<'a> {
         if absent {
             return Ok(None);
         }
+        if owned_cleanup && self.cid.is_none() {
+            return Err("cleanup lacks original full candidate CID; retain unknown".into());
+        }
         let target = self
             .cid
             .clone()
@@ -259,7 +262,12 @@ impl<'a> CandidateContainer<'a> {
         if rows.len() != 1 {
             return Err("one candidate container required".into());
         }
-        let cid = crate::dependency_podman::validated_container_identity(
+        let verify = if owned_cleanup {
+            crate::dependency_podman::validated_container_identity_for_cleanup
+        } else {
+            crate::dependency_podman::validated_container_identity
+        };
+        let cid = verify(
             &rows[0],
             &self.plan.job_id,
             self.image,

@@ -207,6 +207,9 @@ impl<'a> DependencyContainer<'a> {
         if absent {
             return Ok(None);
         }
+        if owned_cleanup && self.cid.is_none() {
+            return Err("cleanup lacks original full dependency CID; retain unknown".into());
+        }
         let target = self
             .cid
             .clone()
@@ -220,7 +223,17 @@ impl<'a> DependencyContainer<'a> {
             .ok_or("one dependency container required")?
             .first()
             .ok_or("dependency container missing")?;
-        let cid = validated_identity(v, self.intent)?;
+        let cid = if owned_cleanup {
+            validated_container_identity_for_cleanup(
+                v,
+                job,
+                self.intent.pins.text("builder_image_id"),
+                "hol-gauntlet.dependency-intent",
+                &self.intent.digest()?,
+            )?
+        } else {
+            validated_identity(v, self.intent)?
+        };
         if before_client
             && (v["State"]["Status"] != "created"
                 || v["State"]["Running"] != false
@@ -347,46 +360,9 @@ fn validated_identity(v: &Value, intent: &DependencyRunIntent) -> Result<String,
     )
 }
 
-pub(crate) fn validated_container_identity(
-    v: &Value,
-    job: &str,
-    image: &str,
-    label: &str,
-    binding: &str,
-) -> Result<String, String> {
-    if !crate::hex(job, 16)
-        || !crate::hex(binding, 64)
-        || !image
-            .strip_prefix("sha256:")
-            .is_some_and(|s| crate::hex(s, 64))
-    {
-        return Err("exact outside container identity pins required".into());
-    }
-    let cid = v["Id"]
-        .as_str()
-        .filter(|s| crate::hex(s, 64))
-        .ok_or("full owned container CID required")?;
-    let image_matches = v["Image"].as_str().is_some_and(|s| {
-        s.strip_prefix("sha256:").unwrap_or(s) == image.trim_start_matches("sha256:")
-    });
-    if v["Name"] != format!("hol-gauntlet-build-{job}")
-        || !image_matches
-        || v["Config"]["Labels"][label] != binding
-        || v["Config"]["User"] != "65532:65532"
-    {
-        return Err("container identity differs from its outside binding".into());
-    }
-    crate::native_job_storage::source::verify_container(
-        job,
-        v,
-        if label == "hol-gauntlet.candidate-intent" {
-            crate::JobStorageProfile::Build
-        } else {
-            crate::JobStorageProfile::Dependency
-        },
-    )?;
-    Ok(cid.into())
-}
+pub(crate) use crate::native_job_storage::source::{
+    validated_container_identity, validated_container_identity_for_cleanup,
+};
 
 pub(crate) fn verify_completed_absent(
     intent: &DependencyRunIntent,
@@ -441,6 +417,11 @@ pub(crate) fn verify_completed_absent(
     .map_err(|e| e.to_string())?
     {
         return Err("completed dependency profile still exists".into());
+    }
+    if crate::native_job_storage::artifact::retired_read(job, crate::JobStorageProfile::Dependency)?
+        .is_some()
+    {
+        return Ok(());
     }
     crate::native_job_storage::temporary::require_absent(
         job,

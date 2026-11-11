@@ -382,6 +382,21 @@ pub(crate) fn cleanup_access(job: &str) -> Result<(), String> {
     }
     Ok(())
 }
+pub(crate) fn cleanup_receipt(job: &str) -> Result<Value, String> {
+    cleanup_access(job)?;
+    let value = read(&slot(job)?, "owner.json")?;
+    ENTERED.with(|s| {
+        if s.borrow()
+            .iter()
+            .rev()
+            .any(|f| f.job == job && f.owner == value && f.namespace == value["namespace"])
+        {
+            Ok(value)
+        } else {
+            Err("cleanup has no original retained namespace/owner custody".into())
+        }
+    })
+}
 pub(crate) struct Scope {
     original: OwnedFd,
     depth: usize,
@@ -479,3 +494,6 @@ pub(crate) fn health() -> Result<(), String> {
         Ok(())
     })
 }
+
+#[cfg(test)]
+pub(crate) use retirement::lose_fixture_owner;

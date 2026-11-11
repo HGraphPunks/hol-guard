@@ -71,6 +71,25 @@ pub(crate) fn verify_binding(
     generation: &str,
     profile: JobStorageProfile,
 ) -> Result<Value, String> {
+    verify_binding_mode(binding, source, job, generation, profile, false)
+}
+pub(crate) fn verify_cleanup_binding(
+    binding: &Value,
+    source: &str,
+    job: &str,
+    generation: &str,
+    profile: JobStorageProfile,
+) -> Result<Value, String> {
+    verify_binding_mode(binding, source, job, generation, profile, true)
+}
+fn verify_binding_mode(
+    binding: &Value,
+    source: &str,
+    job: &str,
+    generation: &str,
+    profile: JobStorageProfile,
+    cleanup: bool,
+) -> Result<Value, String> {
     let receipt = &binding["receipt"];
     let raw = linux::canonical(receipt)?;
     if binding.as_object().is_none_or(|o| o.len() != 2)
@@ -86,7 +105,11 @@ pub(crate) fn verify_binding(
             .as_str()
             .ok_or("original formatter pin absent")?,
     };
-    let volume = JobVolume::read(&p, profile)?;
+    let volume = if cleanup {
+        JobVolume::read_for_cleanup(&p, profile)?
+    } else {
+        JobVolume::read(&p, profile)?
+    };
     if volume.raw != raw {
         return Err("original initialization/source storage differs from physical custody".into());
     }
@@ -278,9 +301,27 @@ impl JobVolume {
         Ok(volume)
     }
     pub(crate) fn read(p: &JobStoragePins<'_>, profile: JobStorageProfile) -> Result<Self, String> {
+        Self::read_mode(p, profile, false)
+    }
+    pub(crate) fn read_for_cleanup(
+        p: &JobStoragePins<'_>,
+        profile: JobStorageProfile,
+    ) -> Result<Self, String> {
+        Self::read_mode(p, profile, true)
+    }
+    fn read_mode(
+        p: &JobStoragePins<'_>,
+        profile: JobStorageProfile,
+        cleanup: bool,
+    ) -> Result<Self, String> {
         gauntlet_cell_rootfs::require_outside_root()?;
         linux::pins_valid(p)?;
-        super::owner::enter_pinned(p.source_sha, p.job_id, p.worker_generation)?;
+        let owner = if cleanup {
+            super::owner::cleanup_receipt(p.job_id)?
+        } else {
+            super::owner::enter_pinned(p.source_sha, p.job_id, p.worker_generation)?;
+            super::owner::receipt(p.job_id)?
+        };
         let parent = parent(false)?;
         let slot = crate::feature_files::open_directory(&parent, p.job_id, (0, 0))?;
         let raw = crate::feature_files::required(&slot, RECEIPT, (0, 0), 0o600, 16384)?;
@@ -313,10 +354,13 @@ impl JobVolume {
             value,
             profile,
         };
-        volume.verify(p)?;
+        volume.verify_with_owner(p, &owner)?;
         Ok(volume)
     }
     pub(crate) fn verify(&self, p: &JobStoragePins<'_>) -> Result<(), String> {
+        self.verify_with_owner(p, &super::owner::receipt(p.job_id)?)
+    }
+    fn verify_with_owner(&self, p: &JobStoragePins<'_>, owner: &Value) -> Result<(), String> {
         linux::pins_valid(p)?;
         let fields = [
             "schema",
@@ -355,7 +399,7 @@ impl JobVolume {
             || self.value["namespace"] != linux::namespace()?
             || self.value["boot_id"] != linux::boot()?
             || self.value["root_directory"] != root_identity(&self.root)?
-            || self.value["namespace_owner"] != super::owner::receipt(p.job_id)?
+            || self.value["namespace_owner"] != *owner
             || self.value["formatter"]["exit_code"] != 0
             || self.value["formatter"]["configuration_sha256"] != linux::sha(linux::CONFIG)
         {

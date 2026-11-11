@@ -344,6 +344,16 @@ pub(crate) fn require_idle() -> Result<(), String> {
         }
     }
     for job in jobs {
+        if let Some(read) = crate::native_job_storage::artifact::retired_read(
+            &job,
+            crate::JobStorageProfile::Dependency,
+        )? {
+            let start = starts
+                .get(&job)
+                .ok_or("retired dependency has orphan journal entries")?;
+            crate::dependency_completion::retired_storage_completion(&journal, &job, start, &read)?;
+            continue;
+        }
         if let Some(intent) = crate::dependency_preparation::intent_from_receipt(&journal, &job)? {
             crate::dependency_preparation::verified(&journal, &intent)?
                 .ok_or("preparation retirement unavailable")?;

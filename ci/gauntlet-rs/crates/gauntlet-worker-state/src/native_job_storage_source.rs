@@ -41,6 +41,14 @@ pub(crate) fn verify(
     slot: &OwnedFd,
     required: Option<JobStorageProfile>,
 ) -> Result<Option<Value>, String> {
+    verify_mode(job, slot, required, false)
+}
+fn verify_mode(
+    job: &str,
+    slot: &OwnedFd,
+    required: Option<JobStorageProfile>,
+    cleanup: bool,
+) -> Result<Option<Value>, String> {
     let Some(v) = receipt(slot)? else {
         lifecycle::require_absent(job)?;
         return Ok(None);
@@ -58,7 +66,12 @@ pub(crate) fn verify(
     if profile == JobStorageProfile::Native || required.is_some_and(|p| p != profile) {
         return Err("original source storage profile differs from operation".into());
     }
-    lifecycle::verify_binding(
+    let verify = if cleanup {
+        lifecycle::verify_cleanup_binding
+    } else {
+        lifecycle::verify_binding
+    };
+    verify(
         &v["storage"],
         v["source_sha"].as_str().unwrap(),
         job,
@@ -124,12 +137,30 @@ pub(crate) fn verify_container(
     v: &Value,
     profile: JobStorageProfile,
 ) -> Result<(), String> {
+    verify_container_mode(job, v, profile, false)
+}
+pub(crate) fn verify_container_for_cleanup(
+    job: &str,
+    v: &Value,
+    profile: JobStorageProfile,
+) -> Result<(), String> {
+    verify_container_mode(job, v, profile, true)
+}
+fn verify_container_mode(
+    job: &str,
+    v: &Value,
+    profile: JobStorageProfile,
+    cleanup: bool,
+) -> Result<(), String> {
     if !lifecycle::present(job)? {
         return Ok(());
     }
+    if cleanup {
+        super::owner::cleanup_receipt(job)?;
+    }
     let slot =
         crate::open_root_owned_public_directory(&profile.root(job)?).map_err(|e| e.to_string())?;
-    if !require_profile(job, &slot, profile)? {
+    if verify_mode(job, &slot, Some(profile), cleanup)?.is_none() {
         return Ok(());
     }
     if v["HostConfig"]["ReadonlyRootfs"] != true {
@@ -153,7 +184,12 @@ pub(crate) fn verify_container(
         }
     }
     writable_mounts(job, mounts)?;
-    super::temporary::verify(job, super::temporary::Scope::source(profile)?, Some(v))
+    let verify = if cleanup {
+        super::temporary::verify_for_cleanup
+    } else {
+        super::temporary::verify
+    };
+    verify(job, super::temporary::Scope::source(profile)?, Some(v))
 }
 fn writable_mounts(job: &str, mounts: &[Value]) -> Result<(), String> {
     for m in mounts {
@@ -342,6 +378,71 @@ pub fn retire_source_job_storage(
             Ok(())
         },
     )
+}
+
+pub(crate) fn validated_container_identity(
+    v: &Value,
+    job: &str,
+    image: &str,
+    label: &str,
+    binding: &str,
+) -> Result<String, String> {
+    checked_identity(v, job, image, label, binding, false)
+}
+pub(crate) fn validated_container_identity_for_cleanup(
+    v: &Value,
+    job: &str,
+    image: &str,
+    label: &str,
+    binding: &str,
+) -> Result<String, String> {
+    checked_identity(v, job, image, label, binding, true)
+}
+fn checked_identity(
+    v: &Value,
+    job: &str,
+    image: &str,
+    label: &str,
+    binding: &str,
+    cleanup: bool,
+) -> Result<String, String> {
+    if !crate::hex(job, 16)
+        || !crate::hex(binding, 64)
+        || !image
+            .strip_prefix("sha256:")
+            .is_some_and(|s| crate::hex(s, 64))
+    {
+        return Err("exact outside container identity pins required".into());
+    }
+    let cid = v["Id"]
+        .as_str()
+        .filter(|s| crate::hex(s, 64))
+        .ok_or("full owned container CID required")?;
+    let image_matches = v["Image"].as_str().is_some_and(|s| {
+        s.strip_prefix("sha256:").unwrap_or(s) == image.trim_start_matches("sha256:")
+    });
+    if v["Name"] != format!("hol-gauntlet-build-{job}")
+        || !image_matches
+        || v["Config"]["Labels"][label] != binding
+        || v["Config"]["User"] != "65532:65532"
+    {
+        return Err("container identity differs from its outside binding".into());
+    }
+    let verify = if cleanup {
+        verify_container_for_cleanup
+    } else {
+        verify_container
+    };
+    verify(
+        job,
+        v,
+        if label == "hol-gauntlet.candidate-intent" {
+            crate::JobStorageProfile::Build
+        } else {
+            crate::JobStorageProfile::Dependency
+        },
+    )?;
+    Ok(cid.into())
 }
 
 #[cfg(test)]

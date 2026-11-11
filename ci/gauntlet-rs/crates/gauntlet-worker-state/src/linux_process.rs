@@ -279,6 +279,20 @@ impl HeldProcessRoot {
         Ok(serde_json::json!({"pid":self.pid,"start_ticks":self.start,
             "mount_namespace":{"device":ns.st_dev,"inode":ns.st_ino}}))
     }
+    pub(crate) fn cgroup(&self) -> Result<String, String> {
+        self.recheck()?;
+        let raw = read_proc_file(&self.directory, "cgroup")
+            .map_err(|_| "held container cgroup unavailable")?;
+        let text = std::str::from_utf8(&raw).map_err(|_| "held container cgroup UTF8")?;
+        let path = text
+            .strip_prefix("0::")
+            .and_then(|s| s.strip_suffix('\n'))
+            .filter(|s| valid_cgroup(s))
+            .ok_or("held container unified cgroup malformed")?
+            .to_owned();
+        self.recheck()?;
+        Ok(path)
+    }
 }
 
 #[cfg(test)]

@@ -132,3 +132,42 @@ pub(crate) fn closed_inventory(slot: &OwnedFd, allowed: &[&str]) -> Result<(), S
     }
     Ok(())
 }
+
+#[cfg(test)]
+pub(crate) fn test_inventory(root: &OwnedFd) -> Result<Vec<Vec<u8>>, String> {
+    let mut names = rustix::fs::Dir::read_from(root)
+        .map_err(|e| e.to_string())?
+        .map(|e| {
+            e.map(|e| e.file_name().to_bytes().to_vec())
+                .map_err(|e| e.to_string())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    names.sort();
+    Ok(names)
+}
+#[cfg(test)]
+pub(crate) fn test_file_name(n: u64) -> String {
+    format!("i{n:016x}")
+}
+#[cfg(test)]
+pub(crate) fn test_high(fd: &impl std::os::fd::AsRawFd) -> Result<OwnedFd, String> {
+    use std::os::fd::FromRawFd;
+    let n = unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 16) };
+    if n < 0 {
+        Err("fixture descriptor custody failed".into())
+    } else {
+        Ok(unsafe { OwnedFd::from_raw_fd(n) })
+    }
+}
+#[cfg(test)]
+pub(crate) fn test_capacity(fd: &OwnedFd) -> Result<serde_json::Value, String> {
+    let mut s = std::mem::MaybeUninit::<libc::statfs>::uninit();
+    if unsafe { libc::fstatfs(std::os::fd::AsRawFd::as_raw_fd(fd), s.as_mut_ptr()) } != 0 {
+        return Err("fixture statfs failed".into());
+    }
+    // SAFETY: successful fstatfs initialized every field.
+    let s = unsafe { s.assume_init() };
+    Ok(
+        serde_json::json!({"blocks":s.f_blocks,"free_blocks":s.f_bfree,"inodes":s.f_files,"free_inodes":s.f_ffree}),
+    )
+}

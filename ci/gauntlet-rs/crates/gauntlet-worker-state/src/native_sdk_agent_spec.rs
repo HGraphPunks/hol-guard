@@ -195,10 +195,87 @@ fn check_profile(
     };
     Ok((id.into(), pid))
 }
+fn cleanup_task_identity(value: &Value, kernel: Option<&Value>) -> Result<Option<u32>, String> {
+    let running = value["State"]["Running"]
+        .as_bool()
+        .ok_or("cleanup task running state unavailable")?;
+    let pid = value["State"]["Pid"]
+        .as_u64()
+        .and_then(|n| u32::try_from(n).ok())
+        .ok_or("cleanup PID unavailable")?;
+    if !running {
+        return if pid == 0 {
+            Ok(None)
+        } else {
+            Err("stopped cleanup container retains a live PID".into())
+        };
+    }
+    let original =
+        kernel.ok_or("running cleanup lacks original task identity; retain enforcement")?;
+    if pid <= 1
+        || original["pid"] != pid
+        || original["start_ticks"].as_u64().is_none_or(|n| n == 0)
+        || !original["cgroup"]
+            .as_str()
+            .is_some_and(|s| s.starts_with('/'))
+    {
+        return Err("cleanup task PID differs from retained container".into());
+    }
+    Ok(Some(pid))
+}
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub(crate) fn check_retained_cleanup_task(
+    value: &Value,
+    kernel: Option<&Value>,
+) -> Result<(), String> {
+    let Some(pid) = cleanup_task_identity(value, kernel)? else {
+        return Ok(());
+    };
+    let original = kernel.ok_or("original cleanup task unavailable")?;
+    let held = crate::linux_process::HeldProcessRoot::open(pid)?;
+    if held.observation()?["start_ticks"] != original["start_ticks"]
+        || original["cgroup"] != held.cgroup()?
+    {
+        return Err("cleanup task start/cgroup differs from retained kernel identity".into());
+    }
+    Ok(())
+}
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::native_job_storage::{check_tmpfs, tmpfs_limits};
+    #[test]
+    fn cleanup_cannot_adopt_a_running_task_or_treat_a_live_pid_as_stopped() {
+        let running = json!({"State":{"Running":true,"Pid":4312}});
+        let original =
+            json!({"pid":4312,"start_ticks":91234,"cgroup":"/machine.slice/libpod-original.scope"});
+        assert_eq!(
+            cleanup_task_identity(&running, Some(&original)).unwrap(),
+            Some(4312)
+        );
+        assert!(cleanup_task_identity(&running, None).is_err());
+        for (field, bad) in [
+            ("pid", json!(4313)),
+            ("start_ticks", json!(0)),
+            ("cgroup", json!(null)),
+        ] {
+            let mut changed = original.clone();
+            changed[field] = bad;
+            assert!(
+                cleanup_task_identity(&running, Some(&changed)).is_err(),
+                "{field}"
+            );
+        }
+        let stopped = json!({"State":{"Running":false,"Pid":0}});
+        assert_eq!(cleanup_task_identity(&stopped, None).unwrap(), None);
+        for state in [
+            json!({"Running":false,"Pid":4312}),
+            json!({"Pid":0}),
+            json!({"Running":true,"Pid":1}),
+        ] {
+            assert!(cleanup_task_identity(&json!({"State":state}), Some(&original)).is_err());
+        }
+    }
     #[test]
     fn bounded_tmpfs_binds_cannot_borrow_another_job_scope_or_lose_protections() {
         let job = "0123456789abcdef";

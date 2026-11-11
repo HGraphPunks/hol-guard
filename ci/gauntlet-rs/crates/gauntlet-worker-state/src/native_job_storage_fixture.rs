@@ -2,22 +2,23 @@
 use serde_json::{json, Value};
 use std::{
     io::Read,
-    os::fd::{AsRawFd, FromRawFd, OwnedFd},
+    os::fd::{AsRawFd, OwnedFd},
     os::unix::net::UnixStream,
 };
 
 pub(super) struct Runtime {
-    commands: Option<crate::native_sdk_process::RootCommands>,
+    pub(super) commands: Option<crate::native_sdk_process::RootCommands>,
     name: String,
     cid: Option<String>,
-    root: OwnedFd,
+    pub(super) root: OwnedFd,
     profile: std::path::PathBuf,
     policy_sha256: String,
     policy_attempted: bool,
     create_attempted: bool,
-    closed: bool,
+    pub(super) closed: bool,
     logs: Vec<Vec<u8>>,
     temporary: Option<(String, super::super::temporary::Scope)>,
+    kernel: Option<Value>,
 }
 impl Runtime {
     pub(super) fn new(path: &std::path::Path, job: &str) -> Result<Self, String> {
@@ -47,6 +48,7 @@ impl Runtime {
             create_attempted: false,
             closed: false,
             logs: Vec::new(),
+            kernel: None,
             temporary: scope.map(|scope| (job.to_owned(), scope)),
         };
         if !crate::builder_policy::profile_absent(&value.name).map_err(|e| e.to_string())?
@@ -136,7 +138,7 @@ impl Runtime {
                 &std::sync::atomic::AtomicBool::new(false),
             )
     }
-    fn inspect(&mut self, require_running: bool) -> Result<(), String> {
+    fn inspect(&mut self, require_running: bool) -> Result<Value, String> {
         let output = self.call(
             false,
             vec![
@@ -167,6 +169,9 @@ impl Runtime {
             return Err("original fixture container identity differs".into());
         }
         self.cid = Some(cid.into());
+        if self.commands.as_ref().is_some_and(|c| c.is_cleanup()) {
+            crate::native_sdk_agent_spec::check_retained_cleanup_task(v, self.kernel.as_ref())?;
+        }
         if require_running {
             if let Some((job, scope)) = &self.temporary {
                 if !super::super::temporary::observe(job, *scope, v)? {
@@ -174,7 +179,17 @@ impl Runtime {
                 }
             }
         }
-        Ok(())
+        if require_running {
+            let pid = v["State"]["Pid"]
+                .as_u64()
+                .and_then(|p| u32::try_from(p).ok())
+                .ok_or("fixture PID absent")?;
+            let held = crate::linux_process::HeldProcessRoot::open(pid)?;
+            let mut kernel = held.observation()?;
+            kernel["cgroup"] = json!(held.cgroup()?);
+            self.kernel = Some(kernel);
+        }
+        Ok(v.clone())
     }
     pub(super) fn close(&mut self) -> Result<Value, String> {
         self.commands
@@ -212,9 +227,27 @@ impl Runtime {
                     return Err("fixture container survived".into());
                 }
             }
+            if let Some(kernel) = &self.kernel {
+                let group = std::path::PathBuf::from("/sys/fs/cgroup").join(
+                    kernel["cgroup"]
+                        .as_str()
+                        .ok_or("fixture cgroup absent")?
+                        .trim_start_matches('/'),
+                );
+                let until = std::time::Instant::now() + std::time::Duration::from_secs(5);
+                while group.try_exists().map_err(|e| e.to_string())? {
+                    if std::time::Instant::now() >= until {
+                        return Err("fixture container cgroup remains".into());
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+            }
             Ok(())
         })();
         let policy = (|| -> Result<(), String> {
+            if container.is_err() {
+                return Err("fixture container uncertain; retain AppArmor enforcement".into());
+            }
             if self.policy_attempted {
                 let bytes = crate::feature_files::required(
                     &self.root,
@@ -266,33 +299,62 @@ impl Runtime {
             json!({"container_id":self.cid,"container_absent":true,"profile_absent":true,"cleanup_wrote_no_volume_logs":true}),
         )
     }
-    pub(super) fn retire(mut self) -> Result<(), String> {
-        if !self.closed {
-            return Err("fixture runtime teardown not observed".into());
+}
+impl Runtime {
+    pub(super) fn lose_owner(
+        &mut self,
+        job: &str,
+        p: &super::super::JobStoragePins<'_>,
+    ) -> Result<Value, String> {
+        use super::super::{lifecycle::JobVolume, owner, JobStoragePins, JobStorageProfile};
+        self.commands
+            .as_mut()
+            .ok_or("fixture helper absent")?
+            .begin_cleanup();
+        let held = owner::lose_fixture_owner(job)?;
+        if JobVolume::read(p, JobStorageProfile::Native).is_ok() {
+            return Err("lost owner allowed ordinary launch/read".into());
         }
-        self.commands.take();
-        let logs = crate::feature_files::open_directory(&self.root, "sdk-processes", (0, 0))?;
-        for n in 1..=5 {
-            for suffix in ["stdout", "stderr"] {
-                rustix::fs::unlinkat(
-                    &logs,
-                    format!("{n:03}.{suffix}"),
-                    rustix::fs::AtFlags::empty(),
-                )
-                .map_err(|e| e.to_string())?;
-            }
+        JobVolume::read_for_cleanup(p, JobStorageProfile::Native)?;
+        let bad = JobStoragePins {
+            source_sha: "0000000000000000000000000000000000000000",
+            job_id: job,
+            worker_generation: p.worker_generation,
+            mke2fs_sha256: p.mke2fs_sha256,
+        };
+        if JobVolume::read_for_cleanup(&bad, JobStorageProfile::Native).is_ok() {
+            return Err("cleanup adopted another Source identity".into());
         }
-        super::super::admission::closed_inventory(&logs, &[])?;
-        drop(logs);
-        rustix::fs::unlinkat(&self.root, "sdk-processes", rustix::fs::AtFlags::REMOVEDIR)
-            .map_err(|e| e.to_string())?;
-        rustix::fs::unlinkat(
-            &self.root,
-            "storage-fixture.apparmor",
-            rustix::fs::AtFlags::empty(),
+        if unsafe { libc::setns(held.original.as_raw_fd(), libc::CLONE_NEWNS) } != 0 {
+            return Err("fixture original namespace switch failed".into());
+        }
+        let refused = JobVolume::read_for_cleanup(p, JobStorageProfile::Native).is_err();
+        if unsafe { libc::setns(held.namespace.as_raw_fd(), libc::CLONE_NEWNS) } != 0 {
+            return Err("fixture held namespace restore failed".into());
+        }
+        if !refused {
+            return Err("cleanup accepted a namespace without original custody".into());
+        }
+        let value = self.inspect(false)?;
+        super::super::temporary::verify_for_cleanup(
+            job,
+            super::super::temporary::Scope::Mcp,
+            Some(&value),
+        )?;
+        let original = self.cid.clone();
+        self.cid = Some("0".repeat(64));
+        let rejected = self.close().is_err();
+        self.cid = original;
+        if !rejected
+            || !crate::builder_policy::profile_is_loaded(&self.name).map_err(|e| e.to_string())?
+        {
+            return Err("failed teardown removed a live container policy".into());
+        }
+        self.inspect(false)?;
+        Ok(
+            json!({"original_owner":held.value,"normal_launch_refused":true,"foreign_source_refused":true,
+            "foreign_namespace_refused":true,"failed_cleanup_retained_profile":true}),
         )
-        .and_then(|_| rustix::fs::fsync(&self.root))
-        .map_err(|e| e.to_string())
     }
 }
 impl Drop for Runtime {
@@ -300,28 +362,6 @@ impl Drop for Runtime {
         if !self.closed && self.commands.is_some() {
             let _ = self.close();
         }
-    }
-}
-pub(super) fn inventory(root: &OwnedFd) -> Result<Vec<Vec<u8>>, String> {
-    let mut names = rustix::fs::Dir::read_from(root)
-        .map_err(|e| e.to_string())?
-        .map(|e| {
-            e.map(|e| e.file_name().to_bytes().to_vec())
-                .map_err(|e| e.to_string())
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    names.sort();
-    Ok(names)
-}
-pub(super) fn file_name(n: u64) -> String {
-    format!("i{n:016x}")
-}
-fn high(fd: &impl AsRawFd) -> Result<OwnedFd, String> {
-    let n = unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 16) };
-    if n < 0 {
-        Err("fixture descriptor custody failed".into())
-    } else {
-        Ok(unsafe { OwnedFd::from_raw_fd(n) })
     }
 }
 pub(super) fn fill(work: &OwnedFd, inodes: bool) -> Result<serde_json::Value, String> {
@@ -450,14 +490,7 @@ pub(super) fn fill(work: &OwnedFd, inodes: bool) -> Result<serde_json::Value, St
         "errno":i32::from_le_bytes(record[16..20].try_into().unwrap()),"uid":u32::from_le_bytes(record[20..24].try_into().unwrap()),"gid":u32::from_le_bytes(record[24..28].try_into().unwrap())}),
     )
 }
-pub(super) fn capacity(fd: &OwnedFd) -> Result<serde_json::Value, String> {
-    let mut s = std::mem::MaybeUninit::<libc::statfs>::uninit();
-    if unsafe { libc::fstatfs(fd.as_raw_fd(), s.as_mut_ptr()) } != 0 {
-        return Err("fixture statfs failed".into());
-    }
-    // SAFETY: successful fstatfs initialized every field.
-    let s = unsafe { s.assume_init() };
-    Ok(
-        serde_json::json!({"blocks":s.f_blocks,"free_blocks":s.f_bfree,"inodes":s.f_files,"free_inodes":s.f_ffree}),
-    )
-}
+pub(super) use super::super::admission::{
+    test_capacity as capacity, test_file_name as file_name, test_high as high,
+    test_inventory as inventory,
+};

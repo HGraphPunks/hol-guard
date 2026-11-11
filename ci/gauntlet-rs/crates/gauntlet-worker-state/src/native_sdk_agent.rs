@@ -124,41 +124,6 @@ impl NativeSdkAgent {
         );
         Ok(agent)
     }
-    fn check(&self, value: &Value, running: bool) -> Result<(String, u32), String> {
-        if self.commands.is_cleanup() {
-            crate::native_job_storage::owner::cleanup_access(&self.job)?;
-        } else {
-            crate::native_job_storage::native::check(&self.job, value, running)?;
-        }
-        if self.live {
-            check_live_inspection(
-                value,
-                &self.name,
-                &self.job,
-                &self.nonce,
-                &self.mounts,
-                running,
-            )
-        } else if self.mcp {
-            check_mcp_inspection(
-                value,
-                &self.name,
-                &self.job,
-                &self.nonce,
-                &self.mounts,
-                running,
-            )
-        } else {
-            check_inspection(
-                value,
-                &self.name,
-                &self.job,
-                &self.nonce,
-                &self.mounts,
-                running,
-            )
-        }
-    }
     pub(crate) fn launch(
         &mut self,
         assets: &VerifiedNativeSdkAssets,
@@ -402,7 +367,7 @@ impl NativeSdkAgent {
                         let running = value["State"]["Running"]
                             .as_bool()
                             .ok_or("SDK cleanup state missing")?;
-                        let (id, _) = self.check(&value, running)?;
+                        let (id, _) = self.check_for_cleanup(&value, running)?;
                         if self.cid.as_ref().is_some_and(|cid| *cid != id) {
                             return Err("SDK cleanup CID differs".into());
                         }
@@ -438,6 +403,9 @@ impl NativeSdkAgent {
             Ok(())
         })();
         let policy: Result<(), String> = (|| {
+            if removed.is_err() {
+                return Err("SDK container/cgroup uncertain; retain AppArmor enforcement".into());
+            }
             if self.policy_attempted {
                 let bytes = read(&self.profile, 1024 * 1024)?;
                 if format!("{:x}", Sha256::digest(bytes)) != self.profile_sha256 {

@@ -79,12 +79,47 @@ mod tests {
     use super::*;
     use ring::rand::{SecureRandom, SystemRandom};
     use rustix::fs::{statat, unlinkat, AtFlags};
+    impl Runtime {
+        pub(super) fn retire(mut self) -> Result<(), String> {
+            if !self.closed {
+                return Err("fixture runtime teardown not observed".into());
+            }
+            self.commands.take();
+            let logs = crate::feature_files::open_directory(&self.root, "sdk-processes", (0, 0))?;
+            for n in 1..=5 {
+                for suffix in ["stdout", "stderr"] {
+                    rustix::fs::unlinkat(
+                        &logs,
+                        format!("{n:03}.{suffix}"),
+                        rustix::fs::AtFlags::empty(),
+                    )
+                    .map_err(|e| e.to_string())?;
+                }
+            }
+            super::super::admission::closed_inventory(&logs, &[])?;
+            drop(logs);
+            rustix::fs::unlinkat(&self.root, "sdk-processes", rustix::fs::AtFlags::REMOVEDIR)
+                .map_err(|e| e.to_string())?;
+            rustix::fs::unlinkat(
+                &self.root,
+                "storage-fixture.apparmor",
+                rustix::fs::AtFlags::empty(),
+            )
+            .and_then(|_| rustix::fs::fsync(&self.root))
+            .map_err(|e| e.to_string())
+        }
+    }
     #[test]
     #[ignore = "requires outside Root, both worker leases, pinned mke2fs and2GiB real space plus12GiB reserve"]
     fn bounded_ext4_enforces_bytes_and_inodes_then_restarts_pinned_abort() {
-        run_fixture().unwrap();
+        run_fixture(false).unwrap();
     }
-    fn run_fixture() -> Result<(), String> {
+    #[test]
+    #[ignore = "requires Root, original2GiB Native volume and pinned frozen VM worker; no candidate/model"]
+    fn lost_owner_with_running_runtime_retains_policy_and_cleans_original_resources() {
+        run_fixture(true).unwrap();
+    }
+    fn run_fixture(owner_loss: bool) -> Result<(), String> {
         gauntlet_cell_rootfs::require_outside_root()?;
         let source = std::env::var("GAUNTLET_STORAGE_TEST_SOURCE_SHA")
             .map_err(|_| "outside fixture Source SHA required")?;
@@ -137,6 +172,7 @@ mod tests {
         let locks = serde_json::json!({"active":{"device":active_stat.st_dev,"inode":active_stat.st_ino},"python":{"device":python_stat.dev(),"inode":python_stat.ino()}});
         let measurements = (|| -> Result<serde_json::Value, String> {
             let mut temporary = Vec::new();
+            let mut loss = serde_json::Value::Null;
             for (scope, inodes) in [
                 (super::super::temporary::Scope::Sdk, false),
                 (super::super::temporary::Scope::Mcp, true),
@@ -176,6 +212,9 @@ mod tests {
                     );
                 }
                 drop(tmp);
+                if owner_loss && scope == super::super::temporary::Scope::Mcp {
+                    loss = runtime.lose_owner(&job, &p)?;
+                }
                 let teardown = runtime.close()?;
                 super::super::temporary::require_absent(&job, scope)?;
                 let read = |name| -> Result<serde_json::Value, String> {
@@ -191,6 +230,11 @@ mod tests {
                 temporary.push(serde_json::json!({"scope":scope.name(),"filled":filled,"capacity":cap,
                     "inside":read("inside.json")?,"closed":read("closed.json")?,"teardown":teardown}));
                 runtime.retire()?;
+            }
+            if owner_loss {
+                return Ok(
+                    serde_json::json!({"mode":"owner-loss-runtime","temporary":temporary,"owner_loss":loss}),
+                );
             }
             let mut runtime = Runtime::new(&JobStorageProfile::Native.root(&job)?, &job)?;
             let bytes = fill(&work, false)?;
@@ -258,7 +302,11 @@ mod tests {
         )
         .and_then(|_| fsync(&work))
         .map_err(|e| e.to_string())?;
-        volume.verify(&p)?;
+        if owner_loss {
+            JobVolume::read_for_cleanup(&p, JobStorageProfile::Native)?;
+        } else {
+            volume.verify(&p)?;
+        }
         drop(work);
         drop(root);
         drop(volume);
@@ -352,24 +400,7 @@ mod tests {
         if receipt["original_namespace"] != original || receipt["namespace"] == original {
             return Err("fixture owner did not isolate original namespace".into());
         }
-        let held = owner::anchor(&job)?;
-        held.group.kill().map_err(|e| e.to_string())?;
-        use std::os::fd::AsRawFd;
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
-        loop {
-            let mut poll = libc::pollfd {
-                fd: held.pidfd.as_raw_fd(),
-                events: libc::POLLIN,
-                revents: 0,
-            };
-            if unsafe { libc::poll(&mut poll, 1, 0) } == 1 && poll.revents & libc::POLLIN != 0 {
-                break;
-            }
-            if std::time::Instant::now() >= deadline {
-                return Err("fixture owner death uncertain".into());
-            }
-            std::thread::sleep(std::time::Duration::from_millis(20));
-        }
+        let held = owner::lose_fixture_owner(&job)?;
         if owner::health().is_ok() || owner::enter_pinned(&source, &job, &generation).is_ok() {
             return Err("lost owner permitted runtime reentry".into());
         }

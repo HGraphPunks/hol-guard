@@ -10,8 +10,14 @@ pub(crate) fn verify(job: &str) -> Result<bool, String> {
     Ok(retained_storage(job)?.is_some())
 }
 pub(crate) fn retained_storage(job: &str) -> Result<Option<Value>, String> {
+    retained_storage_mode(job, false)
+}
+fn retained_storage_mode(job: &str, cleanup: bool) -> Result<Option<Value>, String> {
     if !lifecycle::present(job)? {
         return Ok(None);
+    }
+    if cleanup {
+        super::owner::cleanup_receipt(job)?;
     }
     let root = crate::open_root_owned_public_directory(Path::new(
         "/var/lib/hol-gauntlet-rust/native-initialization",
@@ -26,7 +32,12 @@ pub(crate) fn retained_storage(job: &str) -> Result<Option<Value>, String> {
     {
         return Err("original bounded Native initialization required".into());
     }
-    let binding = lifecycle::verify_binding(
+    let verify = if cleanup {
+        lifecycle::verify_cleanup_binding
+    } else {
+        lifecycle::verify_binding
+    };
+    let binding = verify(
         &v["storage"],
         v["source_sha"].as_str().ok_or("Native source pin absent")?,
         job,
@@ -44,7 +55,13 @@ pub(crate) fn arguments(job: &str, scope: super::temporary::Scope) -> Result<Vec
     super::temporary::create(job, scope)
 }
 pub(crate) fn check(job: &str, value: &Value, running: bool) -> Result<(), String> {
-    let bounded = verify(job)?;
+    check_mode(job, value, running, false)
+}
+pub(crate) fn check_for_cleanup(job: &str, value: &Value, running: bool) -> Result<(), String> {
+    check_mode(job, value, running, true)
+}
+fn check_mode(job: &str, value: &Value, running: bool, cleanup: bool) -> Result<(), String> {
+    let bounded = retained_storage_mode(job, cleanup)?.is_some();
     if !bounded {
         return Ok(());
     }
@@ -55,7 +72,11 @@ pub(crate) fn check(job: &str, value: &Value, running: bool) -> Result<(), Strin
     } else {
         return Err("bounded Native temporary scope label absent".into());
     };
-    super::temporary::verify(job, scope, Some(value))?;
+    if cleanup {
+        super::temporary::verify_for_cleanup(job, scope, Some(value))?;
+    } else {
+        super::temporary::verify(job, scope, Some(value))?;
+    }
     let count = super::check_tmpfs(value)?;
     if (count == 4) != bounded {
         return Err("Native tmpfs profile differs from original initialization".into());

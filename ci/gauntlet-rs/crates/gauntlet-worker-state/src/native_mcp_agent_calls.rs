@@ -1,6 +1,41 @@
 //! Normal unprivileged installed-product entrypoints.
 use super::*;
 impl NativeMcpAgent {
+    pub(super) fn check(&self, value: &Value, running: bool) -> Result<(String, u32), String> {
+        if self.commands.is_cleanup() {
+            return Err("cleanup consumed this agent; no further execution".into());
+        }
+        crate::native_job_storage::native::check(&self.job, value, running)?;
+        self.check_shape(value, running)
+    }
+    pub(super) fn check_for_cleanup(
+        &self,
+        value: &Value,
+        running: bool,
+    ) -> Result<(String, u32), String> {
+        if !self.commands.is_cleanup() || self.cid.as_deref() != value["Id"].as_str() {
+            return Err("cleanup requires the original retained full container CID".into());
+        }
+        crate::native_job_storage::native::check_for_cleanup(&self.job, value, running)?;
+        crate::native_sdk_agent_spec::check_retained_cleanup_task(value, self.kernel.as_ref())?;
+        self.check_shape(value, running)
+    }
+    fn check_shape(&self, value: &Value, running: bool) -> Result<(String, u32), String> {
+        let check = if self.live {
+            check_live_inspection
+        } else {
+            check_inspection
+        };
+        check(
+            value,
+            &self.name,
+            &self.job,
+            &self.nonce,
+            &self.mounts,
+            running,
+        )
+    }
+
     pub(crate) fn submit_live_prompt(&mut self, cancel: &AtomicBool) -> Result<Value, String> {
         self.public.verify()?;
         let python = self

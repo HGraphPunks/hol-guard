@@ -6,6 +6,102 @@ use rustix::fs::{statat, AtFlags};
 use serde_json::Value;
 use std::os::fd::OwnedFd;
 
+/// An acknowledged, retired source volume is not reopened for an idle scan.
+/// Its original terminal still authenticates the retained intent and report.
+pub(crate) fn retired_storage_completion(
+    journal: &RunReservationJournal,
+    job: &str,
+    start_raw: &[u8],
+    read: &Value,
+) -> Result<(), String> {
+    use gauntlet_contracts::canonicalize;
+    use sha2::{Digest, Sha256};
+    if canonicalize(start_raw).map_err(|e| e.to_string())? != start_raw {
+        return Err("canonical retired dependency start required".into());
+    }
+    let start: Value = serde_json::from_slice(start_raw).map_err(|e| e.to_string())?;
+    let text = |key: &str| {
+        start[key]
+            .as_str()
+            .ok_or("retired dependency start pin absent")
+    };
+    let (source, digest, generation) = (
+        text("source_sha")?,
+        text("deployment_digest")?,
+        text("worker_generation")?,
+    );
+    let terminal = journal
+        .terminal(job, source, digest, generation)
+        .map_err(|e| e.to_string())?
+        .ok_or("retired dependency lacks original completed terminal")?;
+    if terminal.status != crate::TerminalOutcome::InvalidEvidence
+        || terminal.exit_code != 0
+        || terminal.controller_public_key_hex.is_some()
+        || !matches!(
+            statat(
+                &journal.root,
+                format!("{job}.dependency-repair.json"),
+                AtFlags::SYMLINK_NOFOLLOW
+            ),
+            Err(rustix::io::Errno::NOENT)
+        )
+    {
+        return Err("retired dependency terminal is incomplete or conflicts with repair".into());
+    }
+    let raw = crate::dependency_io::read(
+        &journal.root,
+        &format!("{job}.report.json"),
+        0,
+        0o600,
+        16384,
+    )?;
+    let report: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
+    let intent = DependencyRunIntent::parse(
+        &canonicalize(report["intent"].to_string().as_bytes()).map_err(|e| e.to_string())?,
+    )?;
+    let public = gauntlet_contracts::verify_dependency_run_result(&intent, &raw)?;
+    let started = journal
+        .started(job, source, digest, generation)
+        .map_err(|e| e.to_string())?
+        .ok_or("retired dependency original reservation absent")?;
+    let running = journal
+        .running_marker(job, source, digest, generation)
+        .map_err(|e| e.to_string())?
+        .ok_or("retired dependency original process marker absent")?;
+    if intent.pins.text("job_id") != job
+        || intent.pins.text("source_sha") != source
+        || intent.pins.text("runner_binary_sha256") != generation
+        || intent.digest()? != digest
+        || terminal.report_sha256 != format!("{:x}", Sha256::digest(&raw))
+        || read["source_capture"]["source_sha"] != source
+        || read["result_sha256"] != terminal.report_sha256
+        || read["host_binding_sha256"] != digest
+        || read["archive_sha256"] != public["captured_dependencies_sha256"]
+        || public["exit_code"] != 0
+        || terminal.started_marker_sha256 != started.sha256
+        || report["started_marker_sha256"] != started.sha256
+        || running.process != terminal.process
+        || running.cgroup != format!("/system.slice/hol-gauntlet-rust-candidate-{job}")
+    {
+        return Err(
+            "retired dependency differs from acknowledged original terminal/archive/intent".into(),
+        );
+    }
+    match std::fs::read(format!("/proc/{}/stat", running.process.pid)) {
+        Ok(raw)
+            if crate::linux_process::parse_proc_stat(&raw, running.process.pid)
+                .is_some_and(|s| s.start_ticks != running.process.start_ticks) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        _ => return Err("retired dependency original client remains or is unknown".into()),
+    }
+    crate::dependency_podman::verify_completed_absent(
+        &intent,
+        report["container_id"]
+            .as_str()
+            .ok_or("retired dependency CID absent")?,
+    )
+}
+
 /// Bind retained-report finalization to the exact expected terminal bytes.
 /// Partial attempts remain private and supply no authority.
 pub(crate) fn report_finalization(

@@ -231,10 +231,36 @@ pub(crate) fn create(job: &str, scope: Scope) -> Result<Vec<String>, String> {
     Ok(args)
 }
 pub(crate) fn verify(job: &str, scope: Scope, container: Option<&Value>) -> Result<(), String> {
-    inspect(job, scope, container).map(|_| ())
+    inspect(job, scope, container, false).map(|_| ())
 }
-fn inspect(job: &str, scope: Scope, container: Option<&Value>) -> Result<Value, String> {
-    let (_, storage) = volume(job, scope, false)?;
+pub(crate) fn verify_for_cleanup(
+    job: &str,
+    scope: Scope,
+    container: Option<&Value>,
+) -> Result<(), String> {
+    super::owner::cleanup_receipt(job)?;
+    inspect(job, scope, container, true).map(|_| ())
+}
+fn inspect(
+    job: &str,
+    scope: Scope,
+    container: Option<&Value>,
+    cleanup: bool,
+) -> Result<Value, String> {
+    let (_, storage) = volume(job, scope, cleanup)?;
+    if cleanup {
+        lifecycle::verify_cleanup_binding(
+            &json!({"receipt":storage,"receipt_sha256":linux::sha(&linux::canonical(&storage)?)}),
+            storage["source_sha"]
+                .as_str()
+                .ok_or("original temporary Source absent")?,
+            job,
+            storage["worker_generation"]
+                .as_str()
+                .ok_or("original temporary generation absent")?,
+            scope.profile(),
+        )?;
+    }
     let root =
         crate::open_root_owned_public_directory(&path(job, scope)).map_err(|e| e.to_string())?;
     let intent = verify_context(&root, job, scope, &storage)?;
@@ -311,18 +337,27 @@ fn inspect(job: &str, scope: Scope, container: Option<&Value>) -> Result<Value, 
             filesystems.insert(target.into(), json!({"outside":receipt,"inside":inside}));
         }
     }
-    Ok(
-        json!({"schema":"hol-gauntlet-job-temporary-inside.v1","intent_sha256":digest,
+    let observed = json!({"schema":"hol-gauntlet-job-temporary-inside.v1","intent_sha256":digest,
         "container_id":container.map(|v|v["Id"].clone()),
-        "task":task.as_ref().map(|t|t.observation()).transpose()?,"filesystems":filesystems}),
-    )
+        "task":task.as_ref().map(|t|t.observation()).transpose()?,"filesystems":filesystems});
+    if cleanup
+        && !observed["task"].is_null()
+        && read(&root, "inside.json")?.is_none_or(|old| {
+            old["intent_sha256"] != observed["intent_sha256"]
+                || old["container_id"] != observed["container_id"]
+                || old["task"] != observed["task"]
+        })
+    {
+        return Err("cleanup lacks original inside task identity; retain unknown".into());
+    }
+    Ok(observed)
 }
 /// Called only by the original execution owner, never by a completed reader.
 pub(crate) fn observe(job: &str, scope: Scope, container: &Value) -> Result<bool, String> {
     if !lifecycle::present(job)? {
         return Ok(true);
     }
-    let observation = inspect(job, scope, Some(container))?;
+    let observation = inspect(job, scope, Some(container), false)?;
     if observation["task"].is_null() {
         return Ok(false);
     }
