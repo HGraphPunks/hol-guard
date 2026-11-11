@@ -285,6 +285,12 @@ mod tests {
                 serde_json::json!({"kernel_options":kernel_options,"temporary":temporary,"bytes":bytes,"byte_capacity":byte_capacity,"byte_teardown":byte_teardown,"inodes":inodes,"inode_capacity":inode_capacity,"inode_teardown":inode_teardown}),
             )
         })();
+        if let Err(error) = &measurements {
+            eprintln!(
+                "storage fixture {job}: primary measurement error: {}",
+                error.chars().take(512).collect::<String>()
+            );
+        }
         // Only exact files made by this fresh fixture can be removed.
         for name in std::iter::once("byte-enospc".to_owned()).chain((0..=65536).map(file_name)) {
             match unlinkat(&work, name.as_str(), AtFlags::empty()) {

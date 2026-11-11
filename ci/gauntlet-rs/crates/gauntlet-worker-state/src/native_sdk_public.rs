@@ -39,6 +39,23 @@ pub(crate) struct NativeSdkPublic {
 fn digest(raw: &[u8]) -> String {
     format!("{:x}", Sha256::digest(raw))
 }
+pub(crate) fn startup_input(
+    raw: &[u8],
+    expected: &[u8],
+    original: &Stat,
+    actual: &Stat,
+) -> Result<(), String> {
+    if raw != expected
+        || actual.st_mode & 0o177777 != 0o100444
+        || actual.st_nlink != 1
+        || actual.st_uid != 0
+        || actual.st_gid != 0
+        || !crate::dependency_prefix_meta::same(original, actual)
+    {
+        return Err("actual SDK startup input differs from held Root file".into());
+    }
+    Ok(())
+}
 fn directory(root: &OwnedFd, name: &str, mode: u32, agent: bool) -> Result<OwnedFd, String> {
     mkdirat(root, name, Mode::from_bits_truncate(0o700)).map_err(|e| e.to_string())?;
     let fd = openat(
@@ -192,8 +209,8 @@ impl NativeSdkPublic {
             ("contained_exec_relay.py", RELAY.as_bytes()),
             ("same_uid_peer_probe.py", PEER_PROBE.as_bytes()),
             ("episode.json", config.as_slice()),
-            ("bunfig.toml", crate::native_sdk_peer::STARTUP_CONFIG),
         ];
+        sources.extend(crate::native_sdk_peer::STARTUP_INPUTS);
         if mcp {
             sources.push(("service_relay.py", SERVICE_RELAY.as_bytes()));
             sources.push(("same_uid_mcp_peer_probe.py", MCP_PEER_PROBE.as_bytes()));
@@ -284,7 +301,7 @@ impl NativeSdkPublic {
         self.entrypoint
     }
     pub(crate) fn observation(&self) -> Value {
-        json!({"schema":"hol-gauntlet-native-sdk-public-helpers.v2","directory":self.root,
+        json!({"schema":"hol-gauntlet-native-sdk-public-helpers.v3","directory":self.root,
             "files":self.files.iter().map(|f|json!({"name":f.name,"sha256":f.sha256,"bytes":f.stat.st_size,
                 "device":f.stat.st_dev,"inode":f.stat.st_ino,"uid":0,"gid":0,"mode":f.stat.st_mode&0o7777})).collect::<Vec<_>>(),
             "entrypoint_bytes_verified":true,"sdk_imported_by_root":false,"execution_eligible":false})
@@ -316,8 +333,7 @@ pub(crate) struct NativeSdkStartup {
     process: OwnedFd,
     cwd: OwnedFd,
     root: OwnedFd,
-    config: File,
-    stat: Stat,
+    inputs: Vec<(File, Stat)>,
     value: Value,
 }
 impl NativeSdkStartup {
@@ -343,32 +359,34 @@ impl NativeSdkStartup {
             return Err("actual SDK startup cwd differs from immutable public directory".into());
         }
         cwd_value["mount_flags"] = json!(mount_flags(&cwd)?);
-        let config = File::from(
-            openat(
-                &cwd,
-                "bunfig.toml",
-                OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
-                Mode::empty(),
-            )
-            .map_err(|e| e.to_string())?,
-        );
-        let original = public
-            .files
-            .iter()
-            .find(|f| f.name == "bunfig.toml")
-            .ok_or("sealed SDK config absent")?;
-        let s = fstat(&config).map_err(|e| e.to_string())?;
-        let mut raw = Vec::new();
-        (&config)
-            .take(1024)
-            .read_to_end(&mut raw)
-            .map_err(|e| e.to_string())?;
-        if raw != crate::native_sdk_peer::STARTUP_CONFIG
-            || s.st_mode & 0o177777 != 0o100444
-            || s.st_nlink != 1
-            || !crate::dependency_prefix_meta::same(&original.stat, &s)
-        {
-            return Err("actual SDK startup config differs from held Root file".into());
+        let mut inputs = Vec::new();
+        let mut observations = Vec::new();
+        for (name, expected) in crate::native_sdk_peer::STARTUP_INPUTS {
+            let file = File::from(
+                openat(
+                    &cwd,
+                    name,
+                    OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+                    Mode::empty(),
+                )
+                .map_err(|e| e.to_string())?,
+            );
+            let original = public
+                .files
+                .iter()
+                .find(|f| f.name == name)
+                .ok_or("sealed SDK input absent")?;
+            let s = fstat(&file).map_err(|e| e.to_string())?;
+            let mut raw = Vec::new();
+            (&file)
+                .take(1024)
+                .read_to_end(&mut raw)
+                .map_err(|e| e.to_string())?;
+            startup_input(&raw, expected, &original.stat, &s)?;
+            observations.push(json!({"name":name,"sha256":digest(&raw),"bytes":raw.len(),
+                "device":s.st_dev,"inode":s.st_ino,"uid":s.st_uid,"gid":s.st_gid,"mode":s.st_mode&0o7777,
+                "mount_flags":mount_flags(&file)?}));
+            inputs.push((file, s));
         }
         let env = crate::native_sdk_peer::startup_environment(
             &crate::staging_product_process::read_at(process, "environ", 16384)?,
@@ -379,21 +397,23 @@ impl NativeSdkStartup {
                 .as_bytes(),
         )
         .map_err(|e| e.to_string())?;
-        let value = json!({"schema":"hol-gauntlet-native-sdk-startup.v1","profile":"bun-1.3.14-sealed-v1","bun_sha256":bun,
+        let value = json!({"schema":"hol-gauntlet-native-sdk-startup.v2","profile":"bun-1.3.14-sealed-v1","bun_sha256":bun,
             "argv":public.entrypoint.arguments(),"cwd":cwd_value,"public_directory":root_value,"environment":env,"environment_sha256":digest(&env_raw),
-            "config":{"name":"bunfig.toml","sha256":digest(&raw),"bytes":raw.len(),"device":s.st_dev,"inode":s.st_ino,"uid":s.st_uid,"gid":s.st_gid,"mode":s.st_mode&0o7777,"mount_flags":mount_flags(&config)?}});
+            "config":observations[0],"preload":observations[1]});
         let observed = Self {
             process: process.try_clone().map_err(|e| e.to_string())?,
             cwd,
             root: public.directory.try_clone().map_err(|e| e.to_string())?,
-            config,
-            stat: s,
+            inputs,
             value,
         };
         observed.recheck()?;
         Ok(observed)
     }
     pub(crate) fn recheck(&self) -> Result<(), String> {
+        if self.inputs.len() != crate::native_sdk_peer::STARTUP_INPUTS.len() {
+            return Err("complete sealed SDK startup input custody required".into());
+        }
         let current = openat(
             &self.process,
             "cwd",
@@ -409,24 +429,35 @@ impl NativeSdkStartup {
         if json!(mount_flags(&current)?) != self.value["cwd"]["mount_flags"] {
             return Err("SDK startup cwd mount flags changed".into());
         }
-        let fd = openat(
-            &current,
-            "bunfig.toml",
-            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
-            Mode::empty(),
-        )
-        .map_err(|e| e.to_string())?;
-        let held = fstat(&self.config).map_err(|e| e.to_string())?;
-        if !crate::dependency_prefix_meta::same(&self.stat, &held)
-            || !crate::dependency_prefix_meta::same(&held, &fstat(&fd).map_err(|e| e.to_string())?)
-            || self.value["config"]["inode"] != held.st_ino
-            || self.value["config"]["device"] != held.st_dev
-            || json!(mount_flags(&self.config)?) != self.value["config"]["mount_flags"]
+        for ((name, _), (file, original)) in crate::native_sdk_peer::STARTUP_INPUTS
+            .into_iter()
+            .zip(&self.inputs)
         {
-            return Err("SDK startup config custody changed".into());
-        }
-        if json!(mount_flags(&fd)?) != self.value["config"]["mount_flags"] {
-            return Err("visible SDK config mount flags changed".into());
+            let field = if name == "bunfig.toml" {
+                "config"
+            } else {
+                "preload"
+            };
+            let fd = openat(
+                &current,
+                name,
+                OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+                Mode::empty(),
+            )
+            .map_err(|e| e.to_string())?;
+            let held = fstat(file).map_err(|e| e.to_string())?;
+            if !crate::dependency_prefix_meta::same(original, &held)
+                || !crate::dependency_prefix_meta::same(
+                    &held,
+                    &fstat(&fd).map_err(|e| e.to_string())?,
+                )
+                || self.value[field]["inode"] != held.st_ino
+                || self.value[field]["device"] != held.st_dev
+                || json!(mount_flags(file)?) != self.value[field]["mount_flags"]
+                || json!(mount_flags(&fd)?) != self.value[field]["mount_flags"]
+            {
+                return Err("SDK startup input custody changed".into());
+            }
         }
         let env = crate::native_sdk_peer::startup_environment(
             &crate::staging_product_process::read_at(&self.process, "environ", 16384)?,

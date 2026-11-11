@@ -2,7 +2,12 @@
 use std::collections::BTreeMap;
 pub(crate) const STARTUP_BUN_SHA256: &str =
     "37141662ebed915a2ab89313156e455e2a1374395f5f6760d06407f49406f086";
-pub(crate) const STARTUP_CONFIG: &[u8] = b"preload = []\n";
+pub(crate) const STARTUP_CONFIG: &[u8] = b"preload = [\"/runtime/public/startup-noop.mjs\"]\n";
+pub(crate) const STARTUP_PRELOAD: &[u8] = b"export {};\n";
+pub(crate) const STARTUP_INPUTS: [(&str, &[u8]); 2] = [
+    ("bunfig.toml", STARTUP_CONFIG),
+    ("startup-noop.mjs", STARTUP_PRELOAD),
+];
 pub(crate) const STARTUP_ENV: [(&str, &str); 7] = [
     ("HOME", "/runtime/home"),
     ("PATH", "/usr/bin:/bin"),
@@ -221,10 +226,91 @@ pub use kernel::{NativeSdkBoundary, NativeSdkMcpPeer, NativeSdkPeer, NativeSdkRe
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    #[test]
+    fn sdk_public_export_captures_exact_inputs_and_excludes_private_or_unlisted_files() {
+        use crate::native_public_archive::PublicFiles;
+        use crate::native_public_export::capture_sdk_public;
+        use std::os::unix::fs::{symlink, MetadataExt, PermissionsExt};
+        let temp = tempfile::tempdir().unwrap();
+        let public = temp.path().join("sdk-public");
+        std::fs::create_dir(&public).unwrap();
+        std::fs::set_permissions(&public, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let root = rustix::fs::open(
+            temp.path(),
+            rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::DIRECTORY,
+            rustix::fs::Mode::empty(),
+        )
+        .unwrap();
+        let parent_metadata = std::fs::metadata(&public).unwrap();
+        let owner = (parent_metadata.uid(), parent_metadata.gid());
+        for (name, raw) in STARTUP_INPUTS.into_iter().chain([
+            ("private-key", b"private".as_slice()),
+            ("attack.mjs", b"attack".as_slice()),
+        ]) {
+            let path = public.join(name);
+            std::fs::write(&path, raw).unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o444)).unwrap();
+        }
+        let mut files = PublicFiles::default();
+        capture_sdk_public(&mut files, &root, owner).unwrap();
+        assert_eq!(files.files.len(), 2);
+        for (name, raw) in STARTUP_INPUTS {
+            let member = format!("combined/sdk-public/{name}");
+            assert_eq!(files.files[&member], raw);
+            let metadata = std::fs::metadata(public.join(name)).unwrap();
+            assert_eq!(files.metadata[&member]["device"], metadata.dev());
+            assert_eq!(files.metadata[&member]["inode"], metadata.ino());
+            assert_eq!(files.metadata[&member]["uid"], metadata.uid());
+            assert_eq!(files.metadata[&member]["gid"], metadata.gid());
+            assert_eq!(files.metadata[&member]["mode"], 0o444);
+            assert_eq!(files.metadata[&member]["links"], 1);
+            assert_eq!(files.metadata[&member]["bytes"], raw.len());
+        }
+        std::fs::remove_file(public.join("bunfig.toml")).unwrap();
+        symlink("attack.mjs", public.join("bunfig.toml")).unwrap();
+        assert!(capture_sdk_public(&mut PublicFiles::default(), &root, owner).is_err());
+    }
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    #[test]
+    fn sealed_config_and_preload_refuse_changed_bytes_custody_and_owner() {
+        use crate::native_sdk_public::startup_input;
+        let file = tempfile::tempfile().unwrap();
+        let mut original = rustix::fs::fstat(&file).unwrap();
+        original.st_uid = 0;
+        original.st_gid = 0;
+        original.st_mode = 0o100444;
+        original.st_nlink = 1;
+        for (_, bytes) in STARTUP_INPUTS {
+            startup_input(bytes, bytes, &original, &original).unwrap();
+            let mut changed = bytes.to_vec();
+            changed.push(b'x');
+            assert!(startup_input(&changed, bytes, &original, &original).is_err());
+            for mode in [0o100644, 0o120444] {
+                let mut bad = original;
+                bad.st_mode = mode;
+                assert!(startup_input(bytes, bytes, &original, &bad).is_err());
+            }
+            let mut bad = original;
+            bad.st_uid = 10001;
+            assert!(startup_input(bytes, bytes, &bad, &bad).is_err());
+            let mut bad = original;
+            bad.st_ino += 1;
+            assert!(startup_input(bytes, bytes, &original, &bad).is_err());
+        }
+        assert!(startup_input(b"preload = []\n", STARTUP_CONFIG, &original, &original).is_err());
+    }
     #[test]
     fn sealed_startup_refuses_injected_flags_and_cannot_adopt_historical_argv() {
         assert!(crate::hex(STARTUP_BUN_SHA256, 64));
-        assert_eq!(STARTUP_CONFIG, b"preload = []\n");
+        assert_eq!(
+            STARTUP_CONFIG,
+            b"preload = [\"/runtime/public/startup-noop.mjs\"]\n"
+        );
+        assert_eq!(STARTUP_PRELOAD, b"export {};\n");
+        assert_eq!(STARTUP_INPUTS.len(), 2);
+        assert_eq!(STARTUP_INPUTS[0], ("bunfig.toml", STARTUP_CONFIG));
+        assert_eq!(STARTUP_INPUTS[1], ("startup-noop.mjs", STARTUP_PRELOAD));
         for original in [SdkEntrypoint::Conformance, SdkEntrypoint::Developer] {
             let sealed = original.with_sealed_startup();
             assert!(sealed.sealed());

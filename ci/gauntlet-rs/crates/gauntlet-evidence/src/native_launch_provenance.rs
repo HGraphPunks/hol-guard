@@ -16,6 +16,7 @@ pub(crate) fn legacy_sdk_binding(context: &Value, sdk_pins: &Value, spec: &Value
     require(
         binding["schema"] == "hol-gauntlet-native-sdk-pre-import-binding.v3"
             && peer["schema"] == "hol-gauntlet-native-sdk-executable-peer.v2"
+            && peer["startup"]["schema"] == "hol-gauntlet-native-sdk-startup.v2"
             && binding["assets"]["schema"] == "hol-gauntlet-verified-native-sdk-assets.v1"
             && binding["assets"]["pins"] == *sdk_pins
             && binding["assets"]["sdk_version"] == spec["sdk_version"]
@@ -115,114 +116,7 @@ pub(crate) fn legacy_sdk_binding(context: &Value, sdk_pins: &Value, spec: &Value
 }
 
 pub(crate) fn sdk_startup(peer: &Value, sdk_pins: &Value, public: &Value) -> Result<()> {
-    const BUN: &str = "37141662ebed915a2ab89313156e455e2a1374395f5f6760d06407f49406f086";
-    const CONFIG: &[u8] = b"preload = []\n";
-    let value = &peer["startup"];
-    let expected_argv = json!([
-        "/runtime/bun",
-        "--no-env-file",
-        "--no-install",
-        "--config=/runtime/public/bunfig.toml",
-        "--cwd=/runtime/public",
-        "/runtime/public/developer_omp_episode.ts",
-        "/runtime/public/episode.json"
-    ]);
-    let expected_env = json!({"HOME":"/runtime/home","PATH":"/usr/bin:/bin","TMPDIR":"/tmp",
-        "XDG_CONFIG_HOME":"/runtime/public","BUN_RUNTIME_TRANSPILER_CACHE_PATH":"0","DO_NOT_TRACK":"1","NO_COLOR":"1"});
-    require(
-        exact_keys(
-            value,
-            &[
-                "schema",
-                "profile",
-                "bun_sha256",
-                "argv",
-                "cwd",
-                "public_directory",
-                "environment",
-                "environment_sha256",
-                "config",
-            ],
-        ) && value["schema"] == "hol-gauntlet-native-sdk-startup.v1"
-            && value["profile"] == "bun-1.3.14-sealed-v1"
-            && value["bun_sha256"] == BUN
-            && sdk_pins["bun_sha256"] == BUN
-            && peer["executable_sha256"] == BUN
-            && value["argv"] == expected_argv
-            && value["environment"] == expected_env
-            && value["environment_sha256"] == digest(&expected_env)?
-            && public["schema"] == "hol-gauntlet-native-sdk-public-helpers.v2",
-    )?;
-    let argv = expected_argv
-        .as_array()
-        .expect("source argv")
-        .iter()
-        .map(|v| v.as_str().expect("source arg"))
-        .collect::<Vec<_>>();
-    require(peer["argv_sha256"] == sha256(argv.join("\0").as_bytes()))?;
-    let cwd = &value["cwd"];
-    let directory = &value["public_directory"];
-    let config = &value["config"];
-    require(
-        exact_keys(
-            cwd,
-            &["device", "inode", "uid", "gid", "mode", "mount_flags"],
-        ) && exact_keys(directory, &["device", "inode", "uid", "gid", "mode"])
-            && exact_keys(
-                config,
-                &[
-                    "name",
-                    "sha256",
-                    "bytes",
-                    "device",
-                    "inode",
-                    "uid",
-                    "gid",
-                    "mode",
-                    "mount_flags",
-                ],
-            ),
-    )?;
-    for entry in [cwd, directory, config] {
-        require(
-            entry["uid"] == 0
-                && entry["gid"] == 0
-                && ["device", "inode"]
-                    .iter()
-                    .all(|k| entry[*k].as_u64().is_some_and(|n| n > 0)),
-        )?;
-    }
-    require(
-        cwd["mode"] == 0o755
-            && directory["mode"] == 0o755
-            && ["device", "inode", "uid", "gid", "mode"]
-                .iter()
-                .all(|key| cwd[*key] == directory[*key])
-            && cwd["mount_flags"]
-                .as_u64()
-                .is_some_and(|flags| flags & 1 == 1)
-            && config["mount_flags"]
-                .as_u64()
-                .is_some_and(|flags| flags & 1 == 1)
-            && config["mode"] == 0o444
-            && config["name"] == "bunfig.toml"
-            && config["bytes"] == CONFIG.len()
-            && config["sha256"] == sha256(CONFIG),
-    )?;
-    let files = public["files"]
-        .as_array()
-        .filter(|v| v.len() <= 32)
-        .ok_or(EvidenceError::Invalid("actual SDK public files missing"))?;
-    let selected = files
-        .iter()
-        .filter(|v| v["name"] == "bunfig.toml")
-        .collect::<Vec<_>>();
-    require(
-        selected.len() == 1
-            && ["device", "inode", "uid", "gid", "mode", "bytes", "sha256"]
-                .iter()
-                .all(|key| selected[0][*key] == config[*key]),
-    )
+    crate::native_process_public::sdk_startup(peer, sdk_pins, public)
 }
 
 pub(crate) const PIPE_HOST_HELPERS_V5: &[&str] = &[

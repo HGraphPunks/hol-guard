@@ -15,6 +15,34 @@ pub struct NativePublicExportPins<'a> {
     pub exporter_generation: &'a str,
 }
 
+pub(crate) fn capture_sdk_public(
+    files: &mut PublicFiles,
+    job: &OwnedFd,
+    owner: (u32, u32),
+) -> Result<(), String> {
+    for name in [
+        "private_cell_sdk_conformance.ts",
+        "developer_omp_episode.ts",
+        "builtin_guard_bridge.ts",
+        "contained_exec_relay.py",
+        "same_uid_peer_probe.py",
+        "episode.json",
+        "bunfig.toml",
+        "startup-noop.mjs",
+        "service_relay.py",
+        "same_uid_mcp_peer_probe.py",
+    ] {
+        files.capture(
+            job,
+            &format!("sdk-public/{name}"),
+            &format!("combined/sdk-public/{name}"),
+            owner,
+            0o444,
+        )?;
+    }
+    Ok(())
+}
+
 fn collect(
     journal: &OwnedFd,
     job_id: &str,
@@ -23,6 +51,7 @@ fn collect(
     deployment: &str,
 ) -> Result<PublicFiles, String> {
     let mut files = PublicFiles::default();
+    capture_sdk_public(&mut files, job, (0, 0))?;
     if crate::native_job_storage::native::verify(job_id)? {
         let storage = crate::open_root_owned_public_directory(
             &Path::new(crate::native_job_storage::lifecycle::BASE).join(job_id),

@@ -368,3 +368,88 @@ fn sealed_sdk_startup_requires_actual_cwd_config_environment_and_exact_argv() {
     changed["startup"]["startup_verified"] = json!(true);
     assert!(crate::native_launch_provenance::sdk_startup(&changed, &pins, &public).is_err());
 }
+
+#[test]
+fn corrected_sdk_startup_requires_source_noop_and_refuses_mixed_generations() {
+    let bun = "37141662ebed915a2ab89313156e455e2a1374395f5f6760d06407f49406f086";
+    let argv = json!([
+        "/runtime/bun",
+        "--no-env-file",
+        "--no-install",
+        "--config=/runtime/public/bunfig.toml",
+        "--cwd=/runtime/public",
+        "/runtime/public/developer_omp_episode.ts",
+        "/runtime/public/episode.json"
+    ]);
+    let env = json!({"HOME":"/runtime/home","PATH":"/usr/bin:/bin","TMPDIR":"/tmp","XDG_CONFIG_HOME":"/runtime/public",
+        "BUN_RUNTIME_TRANSPILER_CACHE_PATH":"0","DO_NOT_TRACK":"1","NO_COLOR":"1"});
+    let file = |name, raw: &[u8], inode| {
+        json!({"name":name,"sha256":sha256(raw),"bytes":raw.len(),
+        "device":1,"inode":inode,"uid":0,"gid":0,"mode":0o444,"mount_flags":1})
+    };
+    let config = file(
+        "bunfig.toml",
+        b"preload = [\"/runtime/public/startup-noop.mjs\"]\n",
+        3,
+    );
+    let preload = file("startup-noop.mjs", b"export {};\n", 4);
+    let startup = json!({"schema":"hol-gauntlet-native-sdk-startup.v2","profile":"bun-1.3.14-sealed-v1","bun_sha256":bun,
+        "argv":argv,"cwd":{"device":1,"inode":2,"uid":0,"gid":0,"mode":0o755,"mount_flags":1},
+        "public_directory":{"device":1,"inode":2,"uid":0,"gid":0,"mode":0o755},"environment":env,
+        "environment_sha256":digest(&env).unwrap(),"config":config,"preload":preload});
+    let peer = json!({"startup":startup,"executable_sha256":bun,
+        "argv_sha256":sha256(argv.as_array().unwrap().iter().map(|v|v.as_str().unwrap()).collect::<Vec<_>>().join("\0").as_bytes())});
+    let files: Vec<_> = [config, preload]
+        .into_iter()
+        .map(|mut row| {
+            row.as_object_mut().unwrap().remove("mount_flags");
+            row
+        })
+        .collect();
+    let public = json!({"schema":"hol-gauntlet-native-sdk-public-helpers.v3","files":files});
+    let pins = json!({"bun_sha256":bun});
+    crate::native_launch_provenance::sdk_startup(&peer, &pins, &public).unwrap();
+    for (pointer, value) in [
+        (
+            "/startup/schema",
+            json!("hol-gauntlet-native-sdk-startup.v1"),
+        ),
+        ("/startup/config/sha256", json!(sha256(b"preload = []\n"))),
+        ("/startup/preload/name", json!("foreign.mjs")),
+        (
+            "/startup/preload/sha256",
+            json!(sha256(b"console.log('foreign');\n")),
+        ),
+        ("/startup/preload/bytes", json!(0)),
+        ("/startup/preload/uid", json!(10001)),
+        ("/startup/preload/mode", json!(0o600)),
+        ("/startup/preload/mount_flags", json!(0)),
+        ("/startup/preload/inode", json!(3)),
+    ] {
+        let mut altered = peer.clone();
+        *altered.pointer_mut(pointer).unwrap() = value;
+        assert!(
+            crate::native_launch_provenance::sdk_startup(&altered, &pins, &public).is_err(),
+            "{pointer}"
+        );
+    }
+    let mut altered = peer.clone();
+    altered["startup"]
+        .as_object_mut()
+        .unwrap()
+        .remove("preload");
+    assert!(crate::native_launch_provenance::sdk_startup(&altered, &pins, &public).is_err());
+    for mutation in 0..3 {
+        let mut altered = public.clone();
+        match mutation {
+            0 => altered["schema"] = json!("hol-gauntlet-native-sdk-public-helpers.v2"),
+            1 => altered["files"][1]["inode"] = json!(5),
+            2 => {
+                let duplicate = altered["files"][1].clone();
+                altered["files"].as_array_mut().unwrap().push(duplicate);
+            }
+            _ => unreachable!(),
+        }
+        assert!(crate::native_launch_provenance::sdk_startup(&peer, &pins, &altered).is_err());
+    }
+}
