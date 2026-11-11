@@ -6,30 +6,42 @@ Historical proof and parent-exit counts remain unchanged until new validation
 actually closes an exit.
 
 Latest expedited checkpoint (2026-11-11): **24/62 parent exits remain
-complete; 38 remain open**. The genuine Rust-controlled `bb69ca40` build,
-separate dependency resolution, inert prefix cloning and runtime publication
-have completed using historical v1 storage. They remain ineligible for
-qualification. New finite ext4 storage, original namespace ownership and
-completed-read recovery require their separate physical flow checks.
+complete; 38 remain open**. The migration includes upstream `62fe5d573`.
+Current stable source passes 933 full macOS tests, zero failures/skips,
+formatting and full warnings-denied macOS/ARM Clippy. Native library/CLI/tests
+compile with `--no-run` on macOS and ARM; final ARM Gauntlet results and exact
+source snapshots are recorded in the
+[proof index](gauntlet-rust-pr-readiness-proof-20261026.md).
 
-The next registered batch passes 930 full macOS tests and warnings-denied
-macOS/ARM Clippy. Explicit observer attachments, sealed SDK startup inputs,
-closed legacy denial verification and exact outside provider observations are
-implemented. The updated ARM storage fixture passes SDK byte/MCP inode ENOSPC,
-inside/outside tmpfs identity, while-full teardown and restarted ext4 abort.
-Independent cleanup verifies all owned resources absent and 345 unchanged
-historical Worker rows, excluding the active lease. This replaces unsupported
-Podman `--tmpfs nr_inodes` syntax with finite Root kernel mounts and fixed binds.
-The pure ARM Native pipe identity guard passes separately.
+Current Python replay reproduces 360 historical current-generation results.
+Separate 27-vector eval/launchctl coverage preserves all original goldens and
+the frozen suite of 128 cases. Current catalog: 310 Core/352 total. Source SDK
+18.18.6 is distinct from actual SDK 18.4.12; no newer-SDK or frozen-suite execution
+parity is credited. The source map is 441 files/93 changed/21 added. Independent
+Python and Rust agree on 410 installed files, 11 directories/421 entries and
+planned digest
+`eedaa25b8a3ea7eb642159a2e64d71ed47222c624e882a8e318aa478c618faf2`.
+The inert archive matches that independent row set without installation.
 
-These results close no parent exit. Normal allowed Bash remains unadmitted:
-actual brush commands could reopen raw SDK output pipes and its memory object
-(open/fstat/close only; no memory contents). Sealed startup physical proof,
-production stream custody, successful complete roles, source/VM admission,
-model workflows, required CI/review and rollout remain open. Unregistered
-legacy execution drafts supply no execution credit. The current reviewed map
-is 440 files/91 changed/20 added; the independent controller digest is
-`41955c2d2f7a91e0fb80fe8967436588e48da859c92a0adff291bb52c19e6869`.
+An earlier frozen ARM generation passes bounded tmpfs/ext4 byte/inode
+exhaustion, exact mount checks, while-full teardown and restarted abort.
+The newer running-runtime owner-loss fixture **failed**. Its unverified 2-GiB
+backing, empty original cgroup and stale socket remain retained. Original
+namespace authority is lost; pinned abort refuses and fresh admission stays
+blocked. A fixture-only profile-mode check is corrected, with no fresh
+physical rerun or cleanup credit. The last normal Native control also remains
+a failed, independently invalid result.
+
+Actual pinned Bun/SDK hostile Settings startup passes with the corrected
+Root-readonly config/no-op pair. The cold FIFO/LSM experiment is bounded
+component evidence. Normal SDK output/socket/result custody, descendant and
+cancellation proof, successful complete roles and legacy execution remain
+open. The two excluded legacy drafts are archived privately outside the tree.
+
+Source/VM admission, authorized model workflows, host/parity/rollout coverage,
+all five current-head CI jobs and independent repository approval remain
+required. No new Gauntlet model request or quota mutation is claimed.
+Historical checkpoints below retain their original versions and claim limits.
 
 Closed supervisor v6 retains v5 Native pipe semantics and adds one fixed,
 outside-pinned namespace helper. Eleven ARM declaration tests and the actual

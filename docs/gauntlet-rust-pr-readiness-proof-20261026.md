@@ -291,3 +291,109 @@ Provider grading now exhausts current-job outside turns and binds actual usage
 and quota snapshots. Missing review storage remains incomplete. The parent
 count stays 24/62, all model and rollout claims remain withheld, and the five
 current-head CI jobs plus independent review are still required before merge.
+
+## November 11 upstream compatibility and sealed startup
+
+Merge `168e9b33f` incorporates upstream `62fe5d573`; the immutable Python
+baseline and historical goldens remain unchanged. The current catalog has
+310 Core cases and 352 total cases. Independent current Python replay
+reproduces all 360 historical current-generation results. A separate,
+48,720-byte reference fixture supplies 27 new eval/launchctl result vectors;
+its digest is `e902408b5baac3513faff5e9c27d13dcdae5649147ba8a2361fb1acc96ebcdd4`.
+The eval oracle requires the exact JavaScript `sh` copy attempt, a
+protection-class block, zero queued approvals and absent copied output.
+Review and reapproval cannot satisfy that oracle. These are reducer and
+compatibility results, with no live SDK 18.18 qualification.
+
+The reviewed source delta is 441 files, 93 changed and 21 added. Independently
+extracted actual Python bootstrap selection agrees with Rust on 410 installed
+files and 11 directories, 421 entries, and planned controller digest
+`eedaa25b8a3ea7eb642159a2e64d71ed47222c624e882a8e318aa478c618faf2`.
+The existing fixture builder's corresponding exact counts are updated. Its
+4,331,520-byte inert archive matches every independently derived member,
+mode, owner header and file digest. It was neither extracted nor installed.
+The first independent archive check mistakenly rejected its expected top-level
+`ci` directory; the corrected check preserves the identical archive bytes.
+
+The actual pinned Bun 1.3.14 rejects the old empty-preload config. The corrected
+startup uses an exact 47-byte config and an 11-byte no-op module, embedded in
+Rust and held as distinct Root0444 read-only objects. Startup observation v2
+and public-helper schema v3 bind both objects; historical readers retain their
+original schemas. A real SDK 18.4.12 Settings/startup fixture passes three hostile
+project/agent/home configurations and a genuine fixed `executeBash` call. This
+is standalone startup compatibility, not normal Rust peer capture or role
+admission. Source SDK 18.18.6 remains separate from actual SDK 18.4.12.
+
+The cold SDK output experiment also passes its bounded component checks:
+Root holds and seals both actual output FIFOs before release; the loaded
+enforcing profile denies the tested Bun-memory opens; child raw-output reopens
+fail. Root observes 32 contiguous raw frames; checked Bash results match complete
+captured callback bytes. Builtin output redirections can succeed inside captured
+chunks, and the observed child retains
+read-only random-device descriptors. No top-level forged marker is observed.
+This does not prove only-stdio inheritance, other memory/descriptor mechanisms,
+production Native/model sockets, per-call authorization/results, descendant
+cleanup or cancellation. Production FIFO/LSM integration remains open.
+
+The newer running-runtime owner-loss fixture **failed**. Strict retirement
+refused unexpected private storage entries; no cleanup credit is granted.
+Offline review found a fixture-only error: it loaded the named unconfined SDK
+profile but checked for an enforcing profile. The correction uses the existing
+bounded named-profile presence check; production enforcing checks are unchanged.
+That correction has not had a fresh physical owner-loss rerun. Fresh job
+`ceb3663cc45c4c45` retains an unverified 2-GiB backing, empty original owner cgroup
+and stale socket. Independent checks find no owned runtime/container/profile,
+mount or loop attachment, but the original namespace owner is lost. Existing
+pinned abort correctly refuses that missing authority. Admission stays blocked;
+the retained backing is neither deleted nor adopted.
+
+| Retained private recording | Scope and result | SHA-256 |
+| --- | --- | --- |
+| `python-upstream-62fe-compatibility-001.json` | 360 historical Python results and old-branch AST compatibility | `7183564623d8b4322f5a8b243de08eccccc8d23d0dba59a627a49b04730c3f78` |
+| `python-controller-plan-source93-20261111-001.json` | Independent actual Python selector/digest oracle | `90c37d455198ab4650b4a786a326bdd255516452d4ce9cbea35060346b76b2a6` |
+| `controller-source93-fixture-oracle-join-003.json` | Exact inert archive joins independent Python rows | `e9c913cd17e9cb95129d44b609aa78b7657befce28cffd4228353fb0e68395df` |
+| `upstream-eval-python-pure-tests-001.json` | 42 pure Python eval regressions pass; no product runtime | `935bb8944c985cd5134df61e2eaf57beead7368ed4ffe34d141edf6d93d87938` |
+| `upstream-current-source-pin-recheck-001.json` | Unchanged host-call/transcript ASTs; 31+15 pure replays pass | `27fa595915702ab44027223ad399dfc51f282e7652ac1438a1f5b85a9ae8272b` |
+| `vm-sdk-sealed-settings-002.json` | Genuine pinned SDK hostile Settings/startup component passes | `fea858aa1a67a29eb68ad25a8eddf53456e5657c100695338e36aadd834db5e2` |
+| `vm-sdk-brush-fd-probe-011-cold.json` | Cold gated FIFO/LSM experiment; production admission withheld | `5be304ff45426c9065b8aff2cee4d889495323fbee7a68814841c14c4a45a251` |
+| `vm-owner-loss-runtime-002.json` | Failed physical owner-loss test; original failure retained | `02239a078b97157d79ca9d415eb4d6a47ea491e2cdaa7859a72c23a6f8786acb` |
+| `vm-owner-loss-runtime-independent-release-001.json` | Quiescence/history checks; backing remains unverified | `eb54470a69bad667226faa65e9dbac51c8becfddab4e89b78c6d9bd8ee2db2bb` |
+| `unregistered-legacy-drafts-archive-001.json` | Both excluded drafts preserved privately outside worktree | `90adcf8793c87aa981e808bbb72555c0471ad921a7d1bac536277424f4bb52c8` |
+
+All physical recordings retain their own executable/source generation. The
+earlier positive storage proof cannot substitute for the failed newer owner-loss
+flow or for a final-source qualification. Targeted internal source review found
+no actionable issue in the startup/export and upstream compatibility changes;
+it is not independent repository approval or a complete security scan. Parent
+acceptance remains 24/62, with no new Gauntlet model requests or rollout credit.
+
+## Final local integration checks on November 11
+
+The final Gauntlet input snapshot contains 1,606 files and hashes to
+`167cd786824d42dd9bc6460ba4a45991e0110141a18c387b8d522f149cf6181c`.
+Inputs remained byte-identical through the complete tests, formatting, both
+Clippy checks and ARM libtest build. Documentation updates are outside that
+code snapshot. The two failed complete runs remain retained: the first found
+a stale current catalog source pin; the second reached all 229 targets and
+found only the stale 440-versus-441 source-count assertion. The assertions now
+use the independently derived current source and counts; none was removed.
+
+| Private recording | Actual result | SHA-256 |
+| --- | --- | --- |
+| `registered-macos-workspace-tests-004.json` | 933 passed, zero failed/ignored, 229 targets; 215.56s | `bf5b0408f4b305284cf30754d617b5933b10ef154c9b2e8eece34c68b3facf9d` |
+| `registered-final-macos-format-clippy-003.json` | Full formatting and warnings-denied workspace Clippy pass | `9437d25f87b9da29411d179269599330755f1f22199bf51df7bc4f11c9366a82` |
+| `registered-final-arm-clippy-002.json` | ARM all-target/all-feature warnings-denied Clippy passes; 146.72s | `6ffc808329525eac5fdb05a4810003246f3611b89256a7185f942768555d8bae` |
+| `native-main62-macos-compile-002.json` | Merged Native library/CLI/tests compile with no execution; 1,160.36s | `bc5315737d933bfdce71b66bc1a9ddb72b4d49c79304bfc752a1fc4bc1908245` |
+| `native-main62-arm-compile-002.json` | Same merged Native targets compile on ARM with no execution; 1,005.00s | `adf69fcc01e9e37524ca353e7c2950095bd1f5b5aff48ab0de3793ef082b21ec` |
+| `final-arm-worker-tests-build-001.json` | Final ARM libtest built from the unchanged snapshot; 576.48s | `62405a84938643720800df7c6453186662f9859fcbd7114eb5e22a460b0cf6fe` |
+| `vm-final-sdk-peer-tests-001.json` | Nine actual Linux regressions pass as UID/GID 65534, zero capabilities and NNP; no candidate/model | `54e5511def79e752a7103bf6d948578349f9df9ad9a62d7a69205d2832f43440` |
+
+The actual Linux tests include changed-byte/owner/mode/inode startup refusal
+and the fixed public-export allowlist, including exclusion of private/unlisted
+files and symlink refusal. Test executable digest is
+`e300a7832880150b61f5c7fe51da6f401e901827a7c69bb4bfcdc3131b259c46`.
+Outside checks held all four leases, verified the transient unit cgroup gone,
+and found all 345 historical metadata entries and the retained unknown backing
+unchanged. They do not retire that backing or qualify the normal SDK path.
+All five actual current-head CI jobs, independent repository review, successful
+functional qualification and rollout requirements remain open.

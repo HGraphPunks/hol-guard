@@ -18,131 +18,85 @@ with evidence. Code volume and checked substeps do not establish completion.
 
 ## Resume from this checkpoint
 
-- The fixed deadline is **2026-11-11 23:14 UTC**; reserve the final three
-  hours for integration and handoff. Continue branch
+- Keep the original deadline: **2026-11-11 23:14 UTC**. Continue
   `codex/gauntlet-rust-finish-20261105` and draft
   [child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5), targeting
-  integration `f143f9ac`. The pushed baseline is
-  `3b807835df09b45ef7f962f0d33974ab3d1eb72f`, incorporating upstream
-  `6b658c378c6d73718d081c7b4853982ca650cad4` and functional batch `055652542`.
-  Verify the actual current branch/remote head before resuming.
-  Parent exits remain **24/62 complete, 38 open**.
-- The next registered batch passes **930 macOS workspace tests**, with zero
-  failures/skips, plus full warnings-denied macOS/ARM Clippy and formatting.
-  It adds explicit passive `attach-job`/`refresh-job` observer links, a closed
-  SDK18.4.12 secret-copy denial consumer, exact provider-turn exhaustion and
-  an outside hash of actual usage/quota snapshots. Missing review, execution
-  or result custody remains incomplete. The legacy execution drafts are not
-  registered, and no new model role is claimed.
-- Pinned Podman 4.9.3 rejected the original `--tmpfs nr_inodes` arguments.
-  Rust now creates finite kernel tmpfs mounts and binds their exact objects.
-  The expanded ARM fixture passes separate SDK byte/MCP inode exhaustion,
-  inside/outside identity checks, teardown while full and restarted ext4 abort.
-  Independent four-lease cleanup verifies all eight temporary mounts, main
-  volume/backing/loop, owner, containers, profiles and cgroups absent, with
-  345 historical Worker rows unchanged (excluding `active.lock`). The actual
-  ARM Native pipe live-process identity guard also passes. These component
-  results do not establish a successful complete bounded build or SDK role.
-- Sealed Bun arguments and cached genuine SDK Settings are implemented.
-  Physical hostile-startup and normal-entrypoint evidence remains required.
-  Actual original brush commands reopened Bun stdout/stderr and Bun memory;
-  no memory contents were accessed. Ordinary Bash result custody stays
-  unadmitted. A separate enforcing-profile/FIFO experiment is diagnostic only;
-  it cannot qualify the normal agent, Native/model sockets or call lifecycle.
-- The reviewed source map remains 440 files: 91 changed and 20 added against
-  the unchanged baseline. Independent Python AST selection and Rust agree on
-  409 installed files, 420 entries and controller digest `41955c2d2f7a91e0fb80fe8967436588e48da859c92a0adff291bb52c19e6869`.
-  The merged product library/CLI/tests compile with `--no-run` on macOS and
-  ARM; neither is a product execution or qualification.
-- Normal Rust commands have completed a genuine unprivileged ARM build of
-  `bb69ca40`, separate dependency resolution, inert dependency staging,
-  candidate cloning and immutable runtime publication. Build result
-  `e051986d…`, dependency result `aad6bf89…` and publication receipt
-  `418818a7…` bind the same source. These use historical v1 storage and remain
-  ineligible; they do not prove the new bounded flow, conformance or model use.
-  Preserve both original build volumes while runtime verification needs them.
-- New bounded jobs use finite ext4 volumes with byte/inode limits and a pinned,
-  per-job mount-namespace owner. Host checks original initialization and storage
-  claims before run/read/repair; public summaries omit process and owner details.
-  The first physical storage test refused Linux's normalized mount-option
-  listing and its failed partial job was retired without replay. The corrected
-  Native-profile retest passes: UID/GID 10001 reached ENOSPC after 2,046,599,168
-  bytes and separately after 65,513 files. Both full-volume teardowns removed
-  their containers/policies without new volume logs; restarted abort removed
-  backing, loop and owner. Evidence `vm-ext4-enospc-storage-002.json` hashes to
-  `439da51165b39f6aa069a187848cb0f04b6b0adac7757bd342803ad2e78621c5`.
-  This is a test-only initializer/owner pairing, not normal Host admission.
-  Owner-loss cleanup exposed a dead-child reap-order bug; independent resumed
-  empty abort and the corrected same-process retest both passed. New Worker
-  `756ab02b…` and test initializer `0537012f…` also passed a fresh full-quota
-  test with independent backing/loop/owner absence checks. Six cancellation
-  tests passed in the actual ARM VM, including interrupted helper exits 0/1.
-  Full bounded build/dependency/Native flow still requires separate validation.
-- Normal bounded Native preparation recovered through `prepare-read` after the
-  original Host transport timed out. Its first run then failed during the
-  50-second prelaunch window with no Root start record or Host pin. The new
-  explicit `initialize-abort-unreleased` route consumed that original dispatch,
-  preserved preparation evidence and removed its volume/loop/owner; readback
-  returned the identical receipt. Four independent leases verified no execution
-  resources and all 341 historical Worker metadata rows unchanged. The same
-  journal admitted a fresh job, whose caller then exposed the unchanged generic
-  handshake's 60-second cap. That never-handed-off job was explicitly aborted.
-  The corrected Native-only handoff keeps one 210-second deadline while generic
-  APIs retain 60 seconds. Host library 138/138 and process 11/11 tests pass.
-  Fresh job `27558527d8f3377b` then completed normal initialization, preparation,
-  one-use run, separate read and private artifact/report retrieval with Worker
-  `e4649a90…` and Host `50906e0b…`. Its signed control failed with `Native process
-  changed before pipe forwarding`; Rust independently reports invalid evidence,
-  not a passing control. The 3,761,664-byte archive remains private and pinned;
-  normal completed-storage retirement and identical retirement readback passed.
-  Four-lease independent checks found no owned execution resources or original
-  backing/loop/owner; all 341 old metadata rows and five new terminal-job rows
-  remain. No model inference or
-  parent-exit success is credited by this failed control.
-- The consolidated registered implementation passes 912 macOS workspace tests
-  with zero failures/skips, formatting, and full all-target/all-feature
-  warnings-denied Clippy on macOS and ARM musl. These checks do not replace the
-  five required current-head CI jobs, independent review or actual qualifications.
-- Supervisor v6 adds only the fixed, outside-pinned `/usr/bin/nsenter` helper
-  to v5's Native pipe contract. V1–v5 retain their original helper sets.
-  Eleven ARM declaration checks and an actual private-namespace/full-journal
-  cleanup test passed. The latter observes the service's real namespace and
-  private file, exhausts its journal filesystem, and removes the service and
-  AppArmor policy while retaining unknown cleanup credit. It does not run a
-  candidate. Evidence record `vm-rootfs-enospc-cleanup-003.json` hashes to
-  `961577372564262e1676bdac46fa7130027964db9d531af9b964af9a0c4e1ccc`.
-- The actual pinned OMP SDK passes the MCP-only tool-inventory check and four
-  MCP bridge/formatter cases without inference. Rust has source-derived
-  current/frozen legacy reducers and explicit signed AI-support evidence
-  checks, but catalogs and reducer parity do not establish workflow execution.
-  Ordinary allowed Bash still needs an execution lifecycle bound to the SDK's
-  real persistent brush process; a different shell backend cannot supply parity.
-  Full legacy and wider campaign execution remain open.
-- Normal artifact retrieval, prefix publication, bounded source recovery,
-  provider ownership and two-cell live commands are implemented or undergoing
-  focused recovery validation. A successful completed read must retain original
-  intents, consumed dispatch and outside authority; never replay a lost reply.
-  Failed Native preparation `08fd53f059a2e548` exposed legitimate zero-byte
-  Python package markers. Its job stays consumed; the narrow public-code fix
-  requires a fresh job and does not permit empty private receipts.
-- Preserve **341 historical Worker metadata rows** unchanged. Custom historical
-  inspection remains lstat-only. Deployment and independent cleanup checks take
-  all four existing leases; APIs acquire their own Worker/Python leases and
-  must not be nested under those same external locks. All evidence and failed
-  attempts remain in the private `expedited-20261110-001` evidence directory;
-  sanitized reviewer delivery remains required. No new model request or quota
-  mutation has occurred.
-- External gates remain open: Actions dispatch returned HTTP 422, "Actions has
-  been disabled"; five current-head jobs and independent review remain required.
-  Current candidate source is outside the original model authorization, and
-  721,979 retained tokens cannot cover the 1,600,000-token pair/beta reservation.
-  Source reauthorization, any allowance increase, and additional VM/disk
-  capacity require the pending operator actions. Do not infer approval from
-  elapsed time. The failed CI-excluding security scan is not a clean report.
-- Rust/MSRV/workflow/builder use **1.89.0**. Run the consolidated affected-platform
-  checks after the batch stabilizes, refresh the explicit source delta, update
-  the PR around the final behavior and preserve Python compatibility. No
-  upstream-main merge, release, protection change or active PR gate is authorized.
+  integration `f143f9ac`. Merge `168e9b33f` incorporates upstream
+  `62fe5d5734b77d405195f9e3711a1e755088b3cf`; it preserves batches
+  `055652542`, `5928a4596`, `1f60818cc` and `0ef1a0e59`.
+  Verify the current local and remote heads before acting.
+  Acceptance remains **24/62 parent exits complete, 38 open**.
+- The current stable Gauntlet source passes **933 full macOS tests**, zero
+  failures/skips, formatting and full warnings-denied macOS/ARM Clippy. The
+  merged Native library/CLI/tests compile with `--no-run` on macOS and ARM. Final ARM
+  Gauntlet checks and their exact source snapshots are recorded in the
+  [proof index](gauntlet-rust-pr-readiness-proof-20261026.md).
+  Compilation and test counts grant no runtime qualification.
+- Current Python reproduces **360 historical current-generation results**.
+  A separate small fixture supplies 27 eval/launchctl vectors; the original
+  goldens and frozen suite of 128 cases remain unchanged. The new eval oracle
+  requires the exact JS `sh` copy, a protection-class block, zero approvals and absent copy.
+  Review/reapproval cannot count as protection. Current catalog: 310 Core,
+  352 total. Source SDK 18.18.6 is separate from actual SDK 18.4.12.
+- The source map is **441 files/93 changed/21 added**, against the unchanged
+  420-file baseline. Independent actual Python bootstrap selection and Rust
+  agree on 410 installed files, 11 directories, 421 entries and planned digest
+  `eedaa25b8a3ea7eb642159a2e64d71ed47222c624e882a8e318aa478c618faf2`.
+  The inert fixture archive matches every independent row; no new controller
+  installation or final-source admission is claimed.
+- Rust owns the supported source/build/dependency/staging/publication,
+  Native run/read/report/export/retirement and recovery command paths.
+  Earlier normal commands built and published `bb69ca40` using historical
+  v1 storage; those results remain ineligible. Its latest normal bounded
+  Native control failed during pipe forwarding and remains invalid evidence.
+  Preserve both original build/dependency volumes while runtime verification
+  needs them. No complete final-source role has passed.
+- Finite Root-created tmpfs binds replace unsupported Podman 4.9.3 inode options.
+  Frozen Worker `ab5f0230…` passes SDK-byte/MCP-inode ENOSPC, exact inside/outside
+  mounts, teardown while full and restarted ext4 abort, with independent
+  cleanup and 345 unchanged historical Worker rows. This earlier component
+  proof does not qualify the newer lifecycle generation.
+- The newer owner-loss/runtime fixture **failed**. Job `ceb3663cc45c4c45`
+  retains an unverified 2-GiB backing, empty original owner cgroup and stale
+  socket; no runtime, profile, mount or loop attachment remains observed.
+  The original namespace owner is lost and pinned abort refuses missing
+  authority. Fresh volume admission stays blocked. A fixture-only correction
+  now checks the declared named-unconfined profile's presence; production
+  enforcement checks are unchanged. No fresh physical rerun is credited.
+  Resolve original authority and cleanup without deletion, adoption or replay.
+- Sealed startup uses exact Root0444 config/no-op inputs, held read-only
+  descriptors, startup.v2 and helpers.v3. Actual pinned Bun 1.3.14/SDK 18.4.12
+  passes three hostile Settings configurations and a genuine fixed Bash call.
+  A separate cold FIFO/LSM experiment also passes bounded output/memory-open
+  checks. Neither proves the normal Rust peer, Native/model socket custody,
+  per-call results, all inherited descriptors, descendants or cancellation.
+  Production SDK output custody remains an implementation and proof gap.
+- Next functional work must address that normal SDK boundary and a successful
+  bounded control. The prior control's 9-second Native startup cancellation is
+  consistent with repeated executable hashing and durable journal overhead;
+  this is an evidence-backed inference, not per-event latency proof. Measure
+  before optimizing. Preserve image identity checks, mutable-image regressions,
+  approval behavior and existing timeouts.
+- Observer `attach-job`/`refresh-job` links remain passive. Provider grading
+  exhausts actual current-job turns and binds outside usage/quota snapshots.
+  Missing review, execution or cleanup remains incomplete. Both unregistered
+  legacy execution drafts are preserved privately outside the worktree and
+  supply no execution credit. This compatibility batch adds one necessary
+  reference JSON; it adds no runtime module, crate, binary or dependency.
+- External gates remain open: Actions rejected dispatch with HTTP 422,
+  “Actions has been disabled”; all five final-head jobs and independent
+  repository approval remain required. Original model authorization does not
+  cover current source. Last verified retained quota was 721,979 tokens,
+  below the 1,600,000-token pair/beta reservation. Additional VM/capacity
+  admission remains pending; host free space was separately observed at 89 GiB.
+  No new Gauntlet model request, quota reset or allowance expansion is claimed.
+- Preserve all historical evidence and failed attempts under the private
+  `expedited-20261110-001` evidence directory. Custom historical Worker readers
+  remain lstat-only. Deployment/independent checks hold all four leases; APIs
+  acquire their own Worker/Python leases. The prior CI-excluding security scan
+  is not a clean report. Internal source review does not replace repository
+  approval. Toolchain/MSRV is 1.89.0. No upstream-main merge, release, protection
+  change or active benchmark gate is authorized.
 
 ## Keep the implementation small
 
