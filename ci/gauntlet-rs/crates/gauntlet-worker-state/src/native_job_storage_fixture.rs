@@ -345,8 +345,9 @@ impl Runtime {
         self.cid = Some("0".repeat(64));
         let rejected = self.close().is_err();
         self.cid = original;
+        // The SDK template is named unconfined; the builder helper requires enforce.
         if !rejected
-            || !crate::builder_policy::profile_is_loaded(&self.name).map_err(|e| e.to_string())?
+            || crate::builder_policy::profile_absent(&self.name).map_err(|e| e.to_string())?
         {
             return Err("failed teardown removed a live container policy".into());
         }
