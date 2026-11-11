@@ -7,6 +7,105 @@ use gauntlet_contracts::{PrelaunchPrepared, WorkerRequest};
 use serde_json::{json, Value};
 use std::time::Duration;
 
+pub(crate) fn observe_native_job(
+    path: &std::path::Path,
+    job: &str,
+    expected: &str,
+) -> Result<Value, String> {
+    let j = Journal::open(path)?;
+    let i = j.intent(job)?;
+    if !hex(expected, 64) || i.digest()? != expected {
+        return Err("original Native attachment intent differs".into());
+    }
+    super::context::TransportContext::parse(&i.0["transport_context"])?;
+    let reference = json!({"schema":"hol-gauntlet-host-operation-reference.v1","operation":"native","job_id":job,"source_sha":i.text("source_sha"),
+        "intent_sha256":expected,"vm":i.text("vm"),"transport_context":i.0["transport_context"],"deployment_digest":i.text("deployment_digest"),"source_binding_sha256":null});
+    type Phase = (
+        &'static str,
+        &'static str,
+        Option<String>,
+        Option<String>,
+        Option<u64>,
+    );
+    let observed = (|| -> Result<Phase, String> {
+        if !j.absent(job, "initialize-abort-intent")? {
+            super::preparation::verify_idle_record(
+                &j,
+                &Journal::name(job, "initialize-abort-intent")?,
+            )?;
+            return Ok((
+                "invalid-evidence",
+                "aborted-unstarted",
+                Some(sha(&j.read(job, "initialize-abort-result")?)),
+                None,
+                None,
+            ));
+        }
+        super::preparation::retained_storage(&j, &i)?;
+        if !j.absent(job, "storage-retirement-intent")? {
+            super::public_export::verify_retirement_idle_record(
+                &j,
+                &Journal::name(job, "storage-retirement-intent")?,
+            )?;
+            return Ok((
+                "invalid-evidence",
+                "storage-retired",
+                Some(sha(&j.read(job, "storage-retirement-result")?)),
+                Some(sha(&j.read(job, "completion")?)),
+                None,
+            ));
+        }
+        if !j.absent(job, "dispatch")? {
+            j.require_dispatch(&i)?;
+            if !j.absent(job, "repair-intent")? {
+                let repaired = if i.is_live() {
+                    super::live::verify_retained_repair(&j, &i)?
+                } else {
+                    verify_retained_repair(&j, &i)?
+                };
+                return Ok((
+                    "invalid-evidence",
+                    "repaired",
+                    Some(sha(&j.read(job, "repair")?)),
+                    None,
+                    repaired["model_requests"].as_u64(),
+                ));
+            }
+            let raw = j.read(job, "completion")?;
+            let verified = j.verify(&i, &raw)?;
+            return Ok((
+                "invalid-evidence",
+                "completed",
+                Some(
+                    verified.observation()["host_pin_sha256"]
+                        .as_str()
+                        .ok_or("Native pin absent")?
+                        .into(),
+                ),
+                Some(sha(&raw)),
+                verified.observation()["model_requests"].as_u64(),
+            ));
+        }
+        if !j.absent(job, "prepare-dispatch")? {
+            super::preparation::require_prepared(&j, &i)?;
+            return Ok((
+                "waiting",
+                "prepared",
+                Some(sha(&j.read(job, "prepare-result")?)),
+                None,
+                None,
+            ));
+        }
+        Ok(("waiting", "recorded", None, None, None))
+    })();
+    j.stable()?;
+    let (state, phase, authority, completion, model) =
+        observed.unwrap_or(("unknown", "reconciliation-required", None, None, None));
+    Ok(crate::observer_runtime::operation_projection(
+        reference, state, phase, authority, completion, model, None,
+    ))
+}
+
 fn pin(
     journal: &Journal,
     intent: &Intent,

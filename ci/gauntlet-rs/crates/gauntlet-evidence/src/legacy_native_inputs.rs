@@ -1,5 +1,71 @@
 //! Shared file-tool input identity, task scope and mixed-read business rules.
 use super::*;
+use crate::native_diagnostic_artifacts::require;
+
+pub(crate) fn legacy_sdk_status(status: &Value) -> Result<()> {
+    require(
+        status["Uid"] == "10001 10001 10001 10001"
+            && status["Gid"] == "10001 10001 10001 10001"
+            && matches!(status["Groups"].as_str(), Some("" | "10001"))
+            && status["NoNewPrivs"] == "1"
+            && status["Seccomp"] == "2"
+            && status["Seccomp_filters"]
+                .as_str()
+                .and_then(|s| s.parse::<u64>().ok())
+                .is_some_and(|n| n > 0)
+            && ["CapAmb", "CapBnd", "CapEff", "CapInh", "CapPrm"]
+                .iter()
+                .all(|key| status[*key] == "0000000000000000"),
+    )
+}
+
+pub(crate) fn legacy_sdk_events(artifacts: &Value, context: &Value) -> Result<Value> {
+    let events = crate::feature_ai_support::projection::sdk_events(artifacts)?;
+    let starts: Vec<_> = events
+        .iter()
+        .filter(|e| e["type"] == "episode_start")
+        .collect();
+    let ends: Vec<_> = events
+        .iter()
+        .filter(|e| e["type"] == "episode_end")
+        .collect();
+    require(
+        starts.len() == 1
+            && ends.len() == 1
+            && starts[0]["harness"] == "omp"
+            && starts[0]["version"] == "18.4.12"
+            && starts[0]["activeTools"] == json!(["bash"])
+            && starts[0]["resourceTools"] == json!([])
+            && starts[0]["agentUid"] == 10001
+            && starts[0]["guardExtensionAttached"] == true
+            && ends[0]["hardCancellation"] == false
+            && matches!(
+                ends[0]["status"].as_str(),
+                Some("finished" | "budget-exhausted")
+            )
+            && events
+                .iter()
+                .filter(|e| e["type"] == "inference_start")
+                .count()
+                == 1
+            && !events.iter().any(|e| {
+                matches!(
+                    e["type"].as_str(),
+                    Some("episode_error" | "budget_cancellation_error")
+                )
+            })
+            && context["sdk_terminal"]["returncode"] == 0
+            && context["sdk_terminal"]["timed_out"] == false,
+    )?;
+    let mut normalized =
+        crate::feature_ai_support::projection::normalized_sdk_events(&events, artifacts)?;
+    let accounting = crate::reconcile_host_calls(&normalized)?;
+    require(ends[0]["toolCalls"] == accounting["calls"].as_array().map(Vec::len).unwrap_or(0))?;
+    // The real owned SDK terminal and retained episode_end replace the old CLI
+    // reader's completed-process backstop. No model text creates this event.
+    normalized.push(json!({"type":"agent_end","terminal":true}));
+    Ok(json!({"events":normalized,"accounting":accounting}))
+}
 use regex::Regex;
 use std::sync::OnceLock;
 

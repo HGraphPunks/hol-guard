@@ -7,12 +7,12 @@ use crate::{
     NativeSdkBoundary, NativeSdkSockets, SdkWirePeerPin, VerifiedNativeSdkAssets,
     NATIVE_SDK_AGENT_IMAGE,
 };
+use calls::read;
 use gauntlet_cell_rootfs::CellPreparation;
 use ring::rand::{SecureRandom, SystemRandom};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
@@ -35,21 +35,10 @@ pub(crate) struct NativeSdkAgent {
     closed: bool,
     mcp: bool,
     live: bool,
+    entrypoint: crate::native_sdk_peer::SdkEntrypoint,
 }
 fn strings(args: &[&str]) -> Vec<String> {
     args.iter().map(|s| (*s).into()).collect()
-}
-fn read(path: &Path, limit: u64) -> Result<Vec<u8>, String> {
-    let mut raw = Vec::new();
-    std::fs::File::open(path)
-        .map_err(|e| e.to_string())?
-        .take(limit + 1)
-        .read_to_end(&mut raw)
-        .map_err(|e| e.to_string())?;
-    if raw.len() as u64 > limit {
-        return Err("SDK kernel read bound".into());
-    }
-    Ok(raw)
 }
 impl NativeSdkAgent {
     pub(crate) fn prepare(
@@ -59,8 +48,10 @@ impl NativeSdkAgent {
         sockets: &NativeSdkSockets,
         public: &NativeSdkPublic,
     ) -> Result<Self, String> {
-        if !crate::hex(job, 16) {
-            return Err("fixed SDK job required".into());
+        if !crate::hex(job, 16)
+            || assets.pins().bun_sha256 != crate::native_sdk_peer::STARTUP_BUN_SHA256
+        {
+            return Err("fixed SDK job and sealed Bun1.3.14 pin required".into());
         }
         let root = PathBuf::from(crate::native_job_spec::NATIVE_JOBS).join(job);
         let parser = spec
@@ -109,6 +100,7 @@ impl NativeSdkAgent {
             closed: false,
             mcp: false,
             live: false,
+            entrypoint: public.entrypoint(),
         };
         Ok(agent)
     }
@@ -233,7 +225,10 @@ impl NativeSdkAgent {
                 "--env=PATH=/usr/bin:/bin",
                 "--workdir=/runtime/home/project",
             ]);
-            args.extend(crate::native_job_storage::native::arguments(&job)?);
+            args.extend(crate::native_job_storage::native::arguments(
+                &job,
+                crate::native_job_storage::temporary::Scope::Sdk,
+            )?);
             args.extend([
                 format!(
                     "--timeout={}",
@@ -292,6 +287,11 @@ impl NativeSdkAgent {
             agent.command(false, strings(&["start", cid]), 20, cancel)?;
             let value = agent.inspect(cancel)?;
             let (_, pid) = agent.check(&value, true)?;
+            crate::native_job_storage::temporary::observe(
+                &job,
+                crate::native_job_storage::temporary::Scope::Sdk,
+                &value,
+            )?;
             let proc = PathBuf::from(format!("/proc/{pid}"));
             let raw = read(&proc.join("stat"), 4096)?;
             let stat = crate::linux_process::parse_proc_stat(&raw, pid)
@@ -457,6 +457,12 @@ impl NativeSdkAgent {
             }
             Ok(())
         })();
+        let removed = removed.and_then(|_| {
+            crate::native_job_storage::temporary::close(
+                &self.job,
+                crate::native_job_storage::temporary::Scope::Sdk,
+            )
+        });
         match (removed, policy) {
             (Ok(()), Ok(())) => {
                 self.closed = true;

@@ -330,6 +330,20 @@ fn keyed_repair(
         keyed_exclusive(&journal, &p.job_id)?;
         keyed_quiescence(&spec, &preparation, &running)
     };
+    if publish {
+        controller_absent(&running)?;
+        crate::require_no_product_cell_units().map_err(|e| e.to_string())?;
+        crate::native_sdk_quiescence::require_sdk_base_quiescence(&spec, &preparation)?;
+        crate::native_mcp_quiescence::require_mcp_base_quiescence(&spec, &preparation)?;
+        crate::native_job_storage::temporary::close(
+            &p.job_id,
+            crate::native_job_storage::temporary::Scope::Sdk,
+        )?;
+        crate::native_job_storage::temporary::close(
+            &p.job_id,
+            crate::native_job_storage::temporary::Scope::Mcp,
+        )?;
+    }
     stable()?;
     if let Some(raw) = read_bounded_regular(
         &journal.root,

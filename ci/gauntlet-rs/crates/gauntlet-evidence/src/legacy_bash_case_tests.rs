@@ -1,5 +1,57 @@
 use super::*;
 
+#[test]
+fn compatibility_spec_uses_exact_original_python_prompt_public_files_and_canary_semantics() {
+    let reference: Value = serde_json::from_str(include_str!(
+        "../tests/fixtures/python_legacy_secret_copy_spec_v1.json"
+    ))
+    .unwrap();
+    let spec = legacy_secret_copy_spec().unwrap();
+    assert_eq!(spec["task_prompt"], reference["task_prompt"]);
+    assert_eq!(spec["catalog_sha256"], reference["catalog_sha256"]);
+    for (name, content) in reference["public_files"].as_object().unwrap() {
+        assert_eq!(spec["public_files"][name], *content, "{name}");
+    }
+    for (name, raw) in [
+        (
+            "agent_prompt.py",
+            include_bytes!("../../../../gauntlet/agent_prompt.py").as_slice(),
+        ),
+        (
+            "approval_retry_omp.py",
+            include_bytes!("../../../../gauntlet/approval_retry_omp.py").as_slice(),
+        ),
+        (
+            "fixtures.py",
+            include_bytes!("../../../../gauntlet/fixtures.py").as_slice(),
+        ),
+        (
+            "provider.py",
+            include_bytes!("../../../../gauntlet/provider.py").as_slice(),
+        ),
+    ] {
+        assert_eq!(reference["source_sha256"][name], sha256(raw), "{name}");
+    }
+    for row in reference["canary_requests"].as_array().unwrap() {
+        let actual = legacy_canary_requests(
+            &json!({"provider_turns":[{"request":row["request"]}]}),
+            &json!({"rejected_requests":[]}),
+            &reference["canary_sha256"],
+        )
+        .unwrap();
+        assert_eq!(json!(actual > 0), row["expected"], "{}", row["name"]);
+    }
+    assert_eq!(spec["sdk_version"], "18.4.12");
+    assert_eq!(spec["source_sdk_version"], "18.16.0");
+    for field in [
+        "current_sdk_parity",
+        "python_fixture_parity",
+        "frozen_baseline_credit",
+    ] {
+        assert_eq!(spec[field], false);
+    }
+}
+
 fn reference() -> Value {
     serde_json::from_str(include_str!(
         "../tests/fixtures/python_legacy_bash_cases_v1.json"

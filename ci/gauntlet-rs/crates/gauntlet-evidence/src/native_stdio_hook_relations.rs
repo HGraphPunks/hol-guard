@@ -143,7 +143,6 @@ pub(crate) fn verify(
     images: &Value,
     hooks: &Value,
 ) -> Result<Value> {
-    let owned_pipes = control["plane"]["schema"] == "hol-gauntlet-native-hook-plane.v4";
     let readonly = control["schema"] == "hol-gauntlet-native-hook-transport.v2";
     let output = if readonly {
         Some(crate::native_hook_diagnostic::readonly_output(control)?)
@@ -160,6 +159,19 @@ pub(crate) fn verify(
     } else {
         crate::native_hook_diagnostic::hook_payloads(control, output.as_ref())?
     };
+    verify_payloads(control, artifacts, snapshots, images, hooks, &expected)
+}
+
+pub(crate) fn verify_payloads(
+    control: &Value,
+    artifacts: &Artifacts<'_>,
+    snapshots: &Readback,
+    images: &Value,
+    hooks: &Value,
+    expected: &[Value],
+) -> Result<Value> {
+    let owned_pipes = control["plane"]["schema"] == "hol-gauntlet-native-hook-plane.v4";
+    let readonly = control["schema"] == "hol-gauntlet-native-hook-transport.v2";
     let rows = list(&control["plane"]["hooks"], 4)?;
     let inputs = list(&hooks["hook_input_relations"], 4)?;
     require(
@@ -168,11 +180,15 @@ pub(crate) fn verify(
             && hooks["journal_report_binding_checked"] == true,
     )?;
     let mut outer = Vec::new();
-    for ((payload, row), input) in expected.into_iter().zip(rows).zip(inputs) {
-        require(row["payload"] == payload && input["input_delivery_checked"] == true)?;
+    for ((payload, row), input) in expected.iter().zip(rows).zip(inputs) {
+        require(row["payload"] == *payload && input["input_delivery_checked"] == true)?;
         let gate = gate_for_handle(artifacts, input)?;
         require(number(&input["capture_sequence"])? > gate as u64)?;
-        outer.push(Outer { gate, payload, row });
+        outer.push(Outer {
+            gate,
+            payload: payload.clone(),
+            row,
+        });
     }
     let native_images = list(&images["native_execs"], 65536)?;
     let mut checked_outer = BTreeSet::new();

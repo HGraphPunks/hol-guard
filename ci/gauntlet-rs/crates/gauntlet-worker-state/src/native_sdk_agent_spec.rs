@@ -160,7 +160,7 @@ fn check_profile(
     let mut seen = std::collections::BTreeSet::new();
     for m in actual {
         let dest = m["Destination"].as_str().ok_or("SDK destination missing")?;
-        if m["Type"] == "tmpfs"
+        if matches!(m["Type"].as_str(), Some("tmpfs" | "bind"))
             && tmpfs == 4
             && crate::native_job_storage::tmpfs_limits()
                 .iter()
@@ -198,6 +198,83 @@ fn check_profile(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::native_job_storage::{check_tmpfs, tmpfs_limits};
+    #[test]
+    fn bounded_tmpfs_binds_cannot_borrow_another_job_scope_or_lose_protections() {
+        let job = "0123456789abcdef";
+        let mounts:Vec<_>=[("/tmp","tmp"),("/var/tmp","var-tmp"),("/run","run"),("/dev/shm","shm")]
+            .into_iter().map(|(target,name)|json!({"Destination":target,"Type":"bind","RW":true,
+                "Propagation":"rprivate","Source":format!("/var/lib/hol-gauntlet-rust/job-volumes/{job}/temporary/sdk/{name}")})).collect();
+        let value = json!({"Config":{"Labels":{"hol.gauntlet.sdk.job":job}},"HostConfig":{"Tmpfs":{}},"Mounts":mounts});
+        assert_eq!(check_tmpfs(&value).unwrap(), 4);
+        for (field, bad) in [
+            (
+                "Source",
+                json!("/var/lib/hol-gauntlet-rust/job-volumes/fedcba9876543210/temporary/sdk/tmp"),
+            ),
+            (
+                "Source",
+                json!(format!(
+                    "/var/lib/hol-gauntlet-rust/job-volumes/{job}/temporary/mcp/tmp"
+                )),
+            ),
+            ("RW", json!(false)),
+            ("Propagation", json!("shared")),
+            ("Type", json!("volume")),
+        ] {
+            let mut changed = value.clone();
+            changed["Mounts"][0][field] = bad;
+            assert!(check_tmpfs(&changed).is_err(), "{field}");
+        }
+        let mut missing = value.clone();
+        missing["Mounts"].as_array_mut().unwrap().pop();
+        assert!(check_tmpfs(&missing).is_err());
+        let mut duplicate = value.clone();
+        duplicate["Mounts"]
+            .as_array_mut()
+            .unwrap()
+            .push(mounts[0].clone());
+        assert!(check_tmpfs(&duplicate).is_err());
+    }
+    #[test]
+    fn explicit_tmpfs_cannot_lose_either_capacity_or_a_mount() {
+        let mut tmpfs = serde_json::Map::new();
+        for (target, bytes, inodes) in tmpfs_limits() {
+            tmpfs.insert(
+                target.into(),
+                json!(format!(
+                    "rw,nosuid,nodev,noexec,size={bytes},nr_inodes={inodes},mode=1777"
+                )),
+            );
+        }
+        let value = json!({"HostConfig":{"Tmpfs":tmpfs}});
+        assert_eq!(check_tmpfs(&value).unwrap(), 4);
+        for (target, _, _) in tmpfs_limits() {
+            for (from, to) in [
+                ("nr_inodes=4096", "nr_inodes=0"),
+                ("size=16777216", "size=0"),
+                ("noexec", "exec"),
+                ("nosuid", "suid"),
+            ] {
+                let mut altered = value.clone();
+                let text = altered["HostConfig"]["Tmpfs"][target]
+                    .as_str()
+                    .unwrap()
+                    .replace(from, to);
+                if text == altered["HostConfig"]["Tmpfs"][target].as_str().unwrap() {
+                    continue;
+                }
+                altered["HostConfig"]["Tmpfs"][target] = json!(text);
+                assert!(check_tmpfs(&altered).is_err());
+            }
+            let mut missing = value.clone();
+            missing["HostConfig"]["Tmpfs"]
+                .as_object_mut()
+                .unwrap()
+                .remove(target);
+            assert!(check_tmpfs(&missing).is_err());
+        }
+    }
     use serde_json::json;
     #[test]
     fn sdk_inspection_refuses_changed_owner_boundary_and_extra_mounts() {

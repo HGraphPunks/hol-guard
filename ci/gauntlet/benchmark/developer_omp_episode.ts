@@ -11,8 +11,36 @@ type Config = {
   modelId: string; prompt: string; deadlineSeconds: number; maxToolCalls: number;
   maxModelTokens: number; guardExtension?: string; sdkGate?: string;
   resourceEndpoints?: Record<string, any>;
+  startupProfile?: 'bun-1.3.14-sealed-v1';
 };
 const emit = (value: unknown) => process.stdout.write(JSON.stringify(value) + '\n');
+
+/** Keep one genuine global Settings object, including executeBash's later init(). */
+export async function initializeEpisodeSettings(sdk: any, workspace: string, agentDir: string,
+  startupProfile?: 'bun-1.3.14-sealed-v1') {
+  if (startupProfile !== undefined && startupProfile !== 'bun-1.3.14-sealed-v1') {
+    throw new Error('unsupported SDK startup profile');
+  }
+  if (startupProfile && process.cwd() !== '/runtime/public') throw new Error('sealed SDK startup cwd differs');
+  const settings = await sdk.Settings.init({ cwd: startupProfile ? '/runtime/public' : workspace,
+    agentDir, inMemory: true });
+  if (startupProfile) await assertEpisodeSettings(sdk, settings, agentDir);
+  return settings;
+}
+export async function assertEpisodeSettings(sdk: any, settings: any, agentDir: string) {
+  if (await sdk.Settings.init() !== settings || settings.getCwd() !== '/runtime/public'
+      || settings.getAgentDir() !== agentDir) throw new Error('sealed SDK Settings instance or scope changed');
+}
+export async function loadEpisodeSdk(sdkRoot: string, workspace: string, agentDir: string,
+  startupProfile?: 'bun-1.3.14-sealed-v1') {
+  // Seal the real singleton before broad SDK imports or AuthStorage can ask
+  // for a default Settings instance. The SDK reuses this exact module/class.
+  const settings = startupProfile ? await initializeEpisodeSettings(
+    await import(join(sdkRoot, 'src/config/settings.ts')), workspace, agentDir, startupProfile) : undefined;
+  const sdk = await import(join(sdkRoot, 'src/index.ts'));
+  if (startupProfile) await assertEpisodeSettings(sdk, settings, agentDir);
+  return { sdk, settings };
+}
 
 /** Keep the MCP-only live profile explicit; historical inventories stay fixed. */
 export function developerBuiltinToolNames(config: Pick<Config,
@@ -142,9 +170,10 @@ async function main() {
   const metadata = JSON.parse(await readFile(join(config.sdkRoot, 'package.json'), 'utf8'));
   if (metadata.version !== '18.4.12') throw new Error('actual OMP version mismatch');
   await mkdir(config.agentDir, { recursive: true, mode: 0o700 });
-  const sdk = await import(join(config.sdkRoot, 'src/index.ts'));
+  const loaded = await loadEpisodeSdk(config.sdkRoot, config.workspace, config.agentDir, config.startupProfile);
+  const sdk = loaded.sdk;
   const auth = await sdk.AuthStorage.create(join(config.agentDir, 'benchmark-auth.db'));
-  const settings = await sdk.Settings.init({ cwd: config.workspace, agentDir: config.agentDir, inMemory: true });
+  const settings = loaded.settings ?? await initializeEpisodeSettings(sdk, config.workspace, config.agentDir);
   // Native contained execution can run for 300s plus controller capture and
   // cleanup. OMP's default 30s tool_call cap otherwise aborts the Guard hook
   // while the verified product command is still running.
@@ -174,6 +203,7 @@ async function main() {
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }],
   });
   const model = registry.find('benchmark-local', config.modelId);
+  if (config.startupProfile) await assertEpisodeSettings(sdk, settings, config.agentDir);
   if (!model) throw new Error('declared local model unavailable');
   let manager: any;
   let resourceTools: any[] = [];
@@ -215,6 +245,7 @@ async function main() {
     }));
     const activeNames = [...toolNames, ...resourceTools.map((tool: any) => tool.name)];
     await pinDeclaredToolInventory(session, activeNames);
+    if (config.startupProfile) await assertEpisodeSettings(sdk, settings, config.agentDir);
     if (config.mcpAgentSurfaces && manager) {
       manager.setOnToolsChanged(async () => { await pinDeclaredToolInventory(session, activeNames); });
     }
@@ -239,6 +270,7 @@ async function main() {
       Math.max(1, started + config.deadlineSeconds * 1000 - Date.now()));
     emit({ type: 'inference_start' });
     await session.prompt(config.prompt);
+    if (config.startupProfile) await assertEpisodeSettings(sdk, settings, config.agentDir);
     emit({ type: 'episode_end', status: budget.stopped ? 'budget-exhausted' : 'finished',
       ...budget.snapshot(), durationMs: Date.now() - started, qualification: false });
   } catch (error) {

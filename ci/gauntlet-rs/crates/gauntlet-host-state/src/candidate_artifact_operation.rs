@@ -16,6 +16,7 @@ mod dependencies;
 #[path = "candidate_prefix_operation.rs"]
 mod prefix;
 pub use archives::{run_source_artifact_command, SOURCE_ARTIFACT_USAGE};
+pub(crate) use dependencies::observe_build_job;
 pub(crate) fn run_dependency_bounded_command(args: &[String]) -> Result<Value, String> {
     if args.first().is_some_and(|a| prefix::handles(a)) {
         return prefix::run_command(args);

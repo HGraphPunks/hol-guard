@@ -35,6 +35,19 @@ fn collect(
             (0, 0),
             0o600,
         )?;
+        for scope in ["sdk", "mcp"] {
+            for leaf in [
+                "intent", "complete", "inside", "closed", "tmp", "var-tmp", "run", "shm",
+            ] {
+                files.capture(
+                    &storage,
+                    &format!("temporary/{scope}/{leaf}.json"),
+                    &format!("combined/storage/temporary/{scope}/{leaf}.json"),
+                    (0, 0),
+                    0o600,
+                )?;
+            }
+        }
         let initialized = crate::open_root_owned_public_directory(Path::new(
             "/var/lib/hol-gauntlet-rust/native-initialization",
         ))

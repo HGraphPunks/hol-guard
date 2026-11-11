@@ -180,6 +180,107 @@ pub fn observe_process(
     })
 }
 
+/// Hold the kernel task, proc directory and root across filesystem samples.
+/// A numeric PID alone cannot bind a container mount to the sampled task.
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub(crate) struct HeldProcessRoot {
+    pub(crate) root: OwnedFd,
+    directory: OwnedFd,
+    pidfd: OwnedFd,
+    namespace: OwnedFd,
+    pid: u32,
+    start: u64,
+}
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+impl HeldProcessRoot {
+    pub(crate) fn open(pid: u32) -> Result<Self, String> {
+        let raw = i32::try_from(pid)
+            .ok()
+            .filter(|p| *p > 1)
+            .and_then(Pid::from_raw)
+            .ok_or("actual container PID required")?;
+        let pidfd = pidfd_open(raw, PidfdFlags::empty()).map_err(|e| e.to_string())?;
+        let directory = open(
+            format!("/proc/{pid}"),
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| e.to_string())?;
+        let first = parse_proc_stat(
+            &read_proc_file(&directory, "stat").map_err(|_| "container stat unavailable")?,
+            pid,
+        )
+        .ok_or("container stat malformed")?;
+        let root = openat(
+            &directory,
+            "root",
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| e.to_string())?;
+        let namespace = openat(
+            &directory,
+            "ns/mnt",
+            OFlags::RDONLY | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| e.to_string())?;
+        let held = Self {
+            root,
+            directory,
+            pidfd,
+            namespace,
+            pid,
+            start: first.start_ticks,
+        };
+        held.recheck()?;
+        Ok(held)
+    }
+    pub(crate) fn recheck(&self) -> Result<(), String> {
+        crate::staging_product_process::alive(&self.pidfd)?;
+        let stat = parse_proc_stat(
+            &read_proc_file(&self.directory, "stat")
+                .map_err(|_| "held container stat unavailable")?,
+            self.pid,
+        )
+        .ok_or("held container stat malformed")?;
+        if stat.start_ticks != self.start || !matches!(stat.state, 'R' | 'S' | 'D') {
+            return Err("held container task changed or exited".into());
+        }
+        let visible = openat(
+            &self.directory,
+            "root",
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| e.to_string())?;
+        let a = rustix::fs::fstat(&self.root).map_err(|e| e.to_string())?;
+        let b = rustix::fs::fstat(&visible).map_err(|e| e.to_string())?;
+        if (a.st_dev, a.st_ino) != (b.st_dev, b.st_ino) {
+            return Err("held container root changed".into());
+        }
+        let visible = openat(
+            &self.directory,
+            "ns/mnt",
+            OFlags::RDONLY | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| e.to_string())?;
+        let a = rustix::fs::fstat(&self.namespace).map_err(|e| e.to_string())?;
+        let b = rustix::fs::fstat(&visible).map_err(|e| e.to_string())?;
+        if (a.st_dev, a.st_ino) != (b.st_dev, b.st_ino) {
+            return Err("held container mount namespace changed".into());
+        }
+        crate::staging_product_process::alive(&self.pidfd)
+    }
+    pub(crate) fn observation(&self) -> Result<serde_json::Value, String> {
+        self.recheck()?;
+        let ns = rustix::fs::fstat(&self.namespace).map_err(|e| e.to_string())?;
+        Ok(serde_json::json!({"pid":self.pid,"start_ticks":self.start,
+            "mount_namespace":{"device":ns.st_dev,"inode":ns.st_ino}}))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

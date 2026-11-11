@@ -6,6 +6,7 @@ use serde_json::{json, Value};
 use std::collections::HashSet;
 
 pub(crate) const SCHEMA: &str = "hol-gauntlet-rust-host-state.v1";
+pub(crate) const ATTACHED_SCHEMA: &str = "hol-gauntlet-rust-host-state.v2";
 pub(crate) const TAGS: [&str; 2] = ["v3.48.0", "v3.49.0"];
 pub(crate) const RESTART_REASON: &str =
     "Agent restarted during work; reconcile the same VM job before continuing";
@@ -91,6 +92,87 @@ pub(crate) fn valid_job(job: &Value, checkpoint_time: u64) -> bool {
         })
 }
 
+pub(crate) fn normal_job(job: &Value) -> bool {
+    matches!(job["kind"].as_str(), Some("normal-native" | "normal-build"))
+}
+pub(crate) fn valid_result(v: &Value) -> bool {
+    exact_keys(
+        v,
+        &[
+            "authority_sha256",
+            "completion_sha256",
+            "model_requests",
+            "exit_code",
+            "execution_eligible",
+            "qualification_eligible",
+        ],
+    ) && ["authority_sha256", "completion_sha256"]
+        .iter()
+        .all(|k| v[*k].is_null() || v[*k].as_str().is_some_and(|s| hex(s, 64)))
+        && (v["model_requests"].is_null() || v["model_requests"].as_u64().is_some_and(|n| n <= 64))
+        && (v["exit_code"].is_null() || v["exit_code"].as_i64().is_some())
+        && v["execution_eligible"] == false
+        && v["qualification_eligible"] == false
+}
+pub(crate) fn valid_projection(v: &Value) -> bool {
+    matches!(
+        v["state"].as_str(),
+        Some("waiting" | "unknown" | "invalid-evidence" | "build-failed" | "diagnostic-passed")
+    ) && matches!(
+        v["phase"].as_str(),
+        Some(
+            "recorded"
+                | "preparation-pending"
+                | "prepared"
+                | "dispatch-consumed"
+                | "completed"
+                | "repaired"
+                | "storage-retired"
+                | "cleanup-pending"
+                | "aborted-unstarted"
+                | "readiness-pending"
+                | "build-returned"
+                | "result-reconciled"
+                | "reconciliation-required"
+        )
+    ) && valid_result(&v["result"])
+}
+pub(crate) fn valid_normal_job(job: &Value, now: u64) -> bool {
+    exact_keys(
+        job,
+        &[
+            "id",
+            "kind",
+            "tag",
+            "sha",
+            "state",
+            "created_at_ms",
+            "updated_at_ms",
+            "reason",
+            "deployment_digest",
+            "attachment_sha256",
+            "phase",
+            "result",
+        ],
+    ) && normal_job(job)
+        && job["tag"].is_null()
+        && job["id"].as_str().is_some_and(|s| hex(s, 16))
+        && job["sha"].as_str().is_some_and(is_git_sha)
+        && job["attachment_sha256"]
+            .as_str()
+            .is_some_and(|s| hex(s, 64))
+        && valid_projection(job)
+        && (job["deployment_digest"].is_null()
+            || job["deployment_digest"]
+                .as_str()
+                .is_some_and(|s| hex(s, 64)))
+        && job["reason"]
+            .as_str()
+            .is_some_and(|s| s.len() <= 1000 && !s.chars().any(char::is_control))
+        && timestamp(&job["created_at_ms"])
+            .is_some_and(|a| timestamp(&job["updated_at_ms"]).is_some_and(|b| a <= b && b <= now))
+}
+
 pub(crate) fn validate(value: &Value) -> Result<(), Error> {
     if !exact_keys(
         value,
@@ -105,7 +187,7 @@ pub(crate) fn validate(value: &Value) -> Result<(), Error> {
             "observer",
             "jobs",
         ],
-    ) || value["schema"] != SCHEMA
+    ) || (value["schema"] != SCHEMA && value["schema"] != ATTACHED_SCHEMA)
         || !value["instance_id"].as_str().is_some_and(|s| hex(s, 32))
         || !value["repository"].as_str().is_some_and(repository)
         || value["generation"].as_u64().is_none()
@@ -137,11 +219,15 @@ pub(crate) fn validate(value: &Value) -> Result<(), Error> {
     }
     let mut ids = HashSet::new();
     let mut tags = HashSet::new();
+    let mut normal = 0;
     for job in jobs {
-        if !valid_job(job, now)
-            || !ids.insert(job["id"].as_str().ok_or(Error::InvalidState)?)
-            || !tags.insert(job["tag"].as_str().ok_or(Error::InvalidState)?)
-        {
+        let valid = if normal_job(job) {
+            normal += 1;
+            value["schema"] == ATTACHED_SCHEMA && normal <= 16 && valid_normal_job(job, now)
+        } else {
+            valid_job(job, now) && tags.insert(job["tag"].as_str().ok_or(Error::InvalidState)?)
+        };
+        if !valid || !ids.insert(job["id"].as_str().ok_or(Error::InvalidState)?) {
             return Err(Error::InvalidState);
         }
     }

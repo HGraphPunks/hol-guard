@@ -143,6 +143,14 @@ fn actual_host_turn_pins_join_temporary_quota_and_refuse_rehashed_usage_or_orpha
     validate_request(&i, &req, 1).unwrap();
     let rsp = response(&i, &w, &req);
     let pins = response_pins(&i, &req, &rsp).unwrap();
+    assert_eq!(pins.as_object().unwrap().len(), 10);
+    assert_eq!(
+        pins["observation_sha256"],
+        sha(&bytes(&json!({
+            "usage":rsp["usage_receipt"],"before":rsp["before"],"after":rsp["after"]
+        }))
+        .unwrap())
+    );
     j.write(i.job(), &suffix(1, "request"), &bytes(&req).unwrap())
         .unwrap();
     j.write(i.job(), &suffix(1, "response"), &bytes(&rsp).unwrap())
@@ -157,6 +165,26 @@ fn actual_host_turn_pins_join_temporary_quota_and_refuse_rehashed_usage_or_orpha
     let mut bad = rsp;
     bad["body_b64"] = json!(base64::engine::general_purpose::STANDARD.encode(b"{\"forged\":true}"));
     assert!(response_pins(&i, &req, &bad).is_err());
+}
+#[test]
+fn old_identity_only_turn_pin_stays_incomplete_without_rewriting_private_evidence() {
+    let (_temp, j, i, w) = fixture();
+    let req = request(&i, 1);
+    let rsp = response(&i, &w, &req);
+    let mut old = response_pins(&i, &req, &rsp).unwrap();
+    old.as_object_mut().unwrap().remove("observation_sha256");
+    let original = bytes(&old).unwrap();
+    j.write(i.job(), &suffix(1, "request"), &bytes(&req).unwrap())
+        .unwrap();
+    j.write(i.job(), &suffix(1, "response"), &bytes(&rsp).unwrap())
+        .unwrap();
+    j.write(i.job(), &suffix(1, "pins"), &original).unwrap();
+    assert!(turn_pins(&j, &i, 1).is_err());
+    assert_eq!(j.read(i.job(), &suffix(1, "pins")).unwrap(), original);
+    assert_eq!(
+        j.read(i.job(), &suffix(1, "response")).unwrap(),
+        bytes(&rsp).unwrap()
+    );
 }
 #[test]
 fn live_pipe_refuses_partial_or_late_frames_and_keeps_newline_boundaries() {

@@ -17,9 +17,17 @@ pub(super) struct Runtime {
     create_attempted: bool,
     closed: bool,
     logs: Vec<Vec<u8>>,
+    temporary: Option<(String, super::super::temporary::Scope)>,
 }
 impl Runtime {
     pub(super) fn new(path: &std::path::Path, job: &str) -> Result<Self, String> {
+        Self::new_scoped(path, job, None)
+    }
+    pub(super) fn new_scoped(
+        path: &std::path::Path,
+        job: &str,
+        scope: Option<super::super::temporary::Scope>,
+    ) -> Result<Self, String> {
         let podman = std::env::var("GAUNTLET_STORAGE_TEST_PODMAN_SHA")
             .map_err(|_| "outside fixture Podman SHA required")?;
         let parser = std::env::var("GAUNTLET_STORAGE_TEST_APPARMOR_SHA")
@@ -39,6 +47,7 @@ impl Runtime {
             create_attempted: false,
             closed: false,
             logs: Vec::new(),
+            temporary: scope.map(|scope| (job.to_owned(), scope)),
         };
         if !crate::builder_policy::profile_absent(&value.name).map_err(|e| e.to_string())?
             || value
@@ -69,29 +78,30 @@ impl Runtime {
             return Err("fixture profile load failed".into());
         }
         value.create_attempted = true;
-        let output = value.call(
-            false,
-            vec![
-                "create".into(),
-                "--pull=never".into(),
-                "--network=none".into(),
-                "--read-only".into(),
-                "--read-only-tmpfs=false".into(),
-                "--user=10001:10001".into(),
-                "--cap-drop=ALL".into(),
-                "--security-opt=no-new-privileges".into(),
-                "--memory=64m".into(),
-                "--pids-limit=16".into(),
-                "--cpus=0.25".into(),
-                format!("--name={}", value.name),
-                format!("--security-opt=apparmor={}", value.name),
-                "--volume".into(),
-                format!("{}:/work:rw,rprivate", path.join("workspace").display()),
-                "--entrypoint=/usr/bin/sleep".into(),
-                crate::NATIVE_SDK_AGENT_IMAGE.into(),
-                "600".into(),
-            ],
-        )?;
+        let mut args = vec![
+            "create".into(),
+            "--pull=never".into(),
+            "--network=none".into(),
+            "--read-only".into(),
+            "--read-only-tmpfs=false".into(),
+            "--user=10001:10001".into(),
+            "--cap-drop=ALL".into(),
+            "--security-opt=no-new-privileges".into(),
+            "--memory=64m".into(),
+            "--pids-limit=16".into(),
+            "--cpus=0.25".into(),
+            format!("--name={}", value.name),
+            format!("--security-opt=apparmor={}", value.name),
+            "--volume".into(),
+            format!("{}:/work:rw,rprivate", path.join("workspace").display()),
+            "--entrypoint=/usr/bin/sleep".into(),
+            crate::NATIVE_SDK_AGENT_IMAGE.into(),
+            "600".into(),
+        ];
+        if let Some(scope) = scope {
+            args.splice(1..1, super::super::temporary::create(job, scope)?);
+        }
+        let output = value.call(false, args)?;
         let cid = String::from_utf8(output.stdout)
             .map_err(|_| "fixture CID UTF8")?
             .trim()
@@ -157,6 +167,13 @@ impl Runtime {
             return Err("original fixture container identity differs".into());
         }
         self.cid = Some(cid.into());
+        if require_running {
+            if let Some((job, scope)) = &self.temporary {
+                if !super::super::temporary::observe(job, *scope, v)? {
+                    return Err("fixture temporary task was not actually running".into());
+                }
+            }
+        }
         Ok(())
     }
     pub(super) fn close(&mut self) -> Result<Value, String> {
@@ -225,8 +242,17 @@ impl Runtime {
             }
             Ok(())
         })();
+        let temporary = if container.is_ok() {
+            self.temporary
+                .as_ref()
+                .map(|(job, scope)| super::super::temporary::close(job, *scope))
+                .transpose()
+        } else {
+            Ok(None)
+        };
         container?;
         policy?;
+        temporary?;
         let logs = inventory(&crate::feature_files::open_directory(
             &self.root,
             "sdk-processes",

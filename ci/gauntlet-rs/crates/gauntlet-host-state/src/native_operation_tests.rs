@@ -398,6 +398,10 @@ fn keyed_repairs_resolve_only_the_original_unknown_job_without_inventing_an_exit
         assert_eq!(result["execution_eligible"], false);
         assert!(!result.to_string().contains("controller_public_key_hex"));
         assert!(j.require_idle().is_err());
+        assert_eq!(
+            transport::observe_native_job(&j.path, i.job(), &i.digest().unwrap()).unwrap()["state"],
+            "unknown"
+        );
         for (pointer, bad) in [
             ("/prelaunch/source_sha", json!("9".repeat(40))),
             (
@@ -420,6 +424,11 @@ fn keyed_repairs_resolve_only_the_original_unknown_job_without_inventing_an_exit
         }
         j.write(i.job(), "repair", &raw).unwrap();
         assert!(Journal::open(&j.path).unwrap().require_idle().is_ok());
+        let observed =
+            transport::observe_native_job(&j.path, i.job(), &i.digest().unwrap()).unwrap();
+        assert_eq!(observed["phase"], "repaired");
+        assert_eq!(observed["state"], "invalid-evidence");
+        assert_eq!(observed["result"]["exit_code"], Value::Null);
         assert!(j
             .write(i.job(), "dispatch", &Journal::dispatch_raw(&i).unwrap())
             .is_err());

@@ -184,6 +184,20 @@ still under focused validation.
 | `artifacts` | record/download/download-read; ack/ack-read; retire/retire-read/retire-resume |
 | `deterministic`, `live` | initialize/initialize-read; record; prepare/prepare-read; run/read/report/repair; live adds provision/provision-read/pair |
 | `provider` | prepare/start/read/stop; source/job-bound serial Unix model relay with retained quota cap/history checks |
+| Lifecycle | attach-job/refresh-job; status/agent/up remain passive |
+
+Explicit observer attachment uses `attach-job --state-parent ABS_PRIVATE_PARENT
+--operation native|bounded-build --journal ABS_PRIVATE_JOURNAL --job-id HEX16
+--intent-sha256 HEX64`. It retains the original journal identity, Source/VM
+context and intent digest in a private binding; stdout returns its hash.
+`refresh-job --state-parent ABS_PRIVATE_PARENT --job-id HEX16 --binding-sha256
+HEX64` rechecks that same authority. Status and the passive dashboard refresh
+already attached jobs and show verified phases and sanitized result hashes.
+Missing or changed authority becomes unknown and blocks admission. These
+commands send no workload request and establish no worker availability or gate
+activation. Existing v1 lifecycle histories remain readable; the first successful
+attachment upgrades only the isolated Rust checkpoint to v2 and preserves its
+release rows. Mocked attachment/recovery checks do not qualify execution.
 
 The sequence is source/dependency preparation, bounded build, inert artifact
 capture, prefix/runtime publication, then separately authorized Native/live and

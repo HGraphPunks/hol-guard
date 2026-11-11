@@ -12,7 +12,7 @@ mod history;
 #[path = "feature_ai_support_pair.rs"]
 pub(crate) mod pair;
 #[path = "feature_ai_support_projection.rs"]
-mod projection;
+pub(crate) mod projection;
 pub use projection::project_feature_ai_mcp_arguments;
 #[path = "feature_ai_support_security.rs"]
 mod security;

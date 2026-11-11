@@ -1,7 +1,7 @@
 //! Native container temporary files remain separately byte/inode bounded.
 use super::{lifecycle, linux, JobStorageProfile};
 use serde_json::Value;
-use std::{os::fd::AsRawFd, path::Path};
+use std::path::Path;
 #[path = "native_job_storage_unstarted.rs"]
 pub(crate) mod unstarted;
 pub use unstarted::abort_initialized_native_job_storage;
@@ -37,84 +37,35 @@ pub(crate) fn retained_storage(job: &str) -> Result<Option<Value>, String> {
     )?;
     Ok(Some(binding))
 }
-pub(crate) fn arguments(job: &str) -> Result<Vec<String>, String> {
+pub(crate) fn arguments(job: &str, scope: super::temporary::Scope) -> Result<Vec<String>, String> {
     if !verify(job)? {
         return Ok(Vec::new());
     }
-    let mut args = vec!["--read-only-tmpfs=false".into()];
-    for (target, bytes, inodes) in super::tmpfs_limits() {
-        args.extend([
-            "--tmpfs".into(),
-            format!("{target}:rw,nosuid,nodev,noexec,size={bytes},nr_inodes={inodes},mode=1777"),
-        ]);
-    }
-    Ok(args)
+    super::temporary::create(job, scope)
 }
 pub(crate) fn check(job: &str, value: &Value, running: bool) -> Result<(), String> {
     let bounded = verify(job)?;
     if !bounded {
         return Ok(());
     }
+    let scope = if value["Config"]["Labels"]["hol.gauntlet.sdk.job"] == job {
+        super::temporary::Scope::Sdk
+    } else if value["Config"]["Labels"]["hol.gauntlet.mcp.job"] == job {
+        super::temporary::Scope::Mcp
+    } else {
+        return Err("bounded Native temporary scope label absent".into());
+    };
+    super::temporary::verify(job, scope, Some(value))?;
     let count = super::check_tmpfs(value)?;
     if (count == 4) != bounded {
         return Err("Native tmpfs profile differs from original initialization".into());
     }
-    if !running {
-        return Ok(());
-    }
-    let pid = value["State"]["Pid"]
-        .as_u64()
-        .and_then(|n| u32::try_from(n).ok())
-        .filter(|n| *n > 1)
-        .ok_or("actual Native init PID absent")?;
-    // Hold the task's actual root while sampling its mounted tmpfs objects.
-    let task = rustix::fs::open(
-        format!("/proc/{pid}"),
-        rustix::fs::OFlags::RDONLY
-            | rustix::fs::OFlags::DIRECTORY
-            | rustix::fs::OFlags::NOFOLLOW
-            | rustix::fs::OFlags::CLOEXEC,
-        rustix::fs::Mode::empty(),
-    )
-    .map_err(|e| e.to_string())?;
-    let root = rustix::fs::openat(
-        &task,
-        "root",
-        rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::DIRECTORY | rustix::fs::OFlags::CLOEXEC,
-        rustix::fs::Mode::empty(),
-    )
-    .map_err(|e| e.to_string())?;
-    for (target, bytes, inodes) in super::tmpfs_limits() {
-        let fd = rustix::fs::openat(
-            &root,
-            &target[1..],
-            rustix::fs::OFlags::RDONLY
-                | rustix::fs::OFlags::DIRECTORY
-                | rustix::fs::OFlags::NOFOLLOW
-                | rustix::fs::OFlags::CLOEXEC,
-            rustix::fs::Mode::empty(),
-        )
-        .map_err(|e| e.to_string())?;
-        let mut s = std::mem::MaybeUninit::<libc::statfs>::uninit();
-        if unsafe { libc::fstatfs(fd.as_raw_fd(), s.as_mut_ptr()) } != 0 {
-            return Err("actual Native tmpfs statfs unavailable".into());
-        }
-        // SAFETY: successful fstatfs initialized the full structure.
-        let s = unsafe { s.assume_init() };
-        let capacity = i128::from(s.f_bsize)
-            .checked_mul(i128::from(s.f_blocks))
-            .ok_or("Native tmpfs capacity overflow")?;
-        if s.f_type != 0x01021994
-            || capacity <= 0
-            || capacity > i128::from(bytes)
-            || s.f_files == 0
-            || i128::from(s.f_files) > i128::from(inodes)
-        {
-            return Err("actual Native tmpfs capacity exceeds closed byte/inode limits".into());
-        }
+    if running && value["State"]["Running"] != true {
+        return Err("bounded Native container is not running".into());
     }
     Ok(())
 }
+
 pub(crate) fn record_export(
     p: &crate::NativePublicExportPins<'_>,
     raw: &[u8],

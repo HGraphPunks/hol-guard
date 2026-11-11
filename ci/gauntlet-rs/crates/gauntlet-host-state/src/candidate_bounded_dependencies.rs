@@ -7,6 +7,57 @@ use serde_json::{json, Value};
 use std::{path::Path, time::Duration};
 const INTENT: &str = "bounded-dependency-intent";
 const DISPATCH: &str = "bounded-dependency-dispatch";
+
+pub(crate) fn observe_build_job(path: &Path, job: &str, expected: &str) -> Result<Value, String> {
+    let j = Journal::open(path)?;
+    let i = super::bounded::parse(&j.read(job, super::bounded::INTENT)?)?;
+    if !super::super::hex(expected, 64) || sha(&bytes(&i)?) != expected || i["job_id"] != job {
+        return Err("original bounded build attachment differs".into());
+    }
+    let source = &i["source"]["intent"];
+    let reference = json!({"schema":"hol-gauntlet-host-operation-reference.v1","operation":"bounded-build","job_id":job,"source_sha":source["source_sha"],
+        "intent_sha256":expected,"vm":source["vm"],"transport_context":source["transport_context"],"deployment_digest":null,"source_binding_sha256":sha(&bytes(&i["source"])?) });
+    let observed = (|| -> Result<Value, String> {
+        let claim = super::bounded::retained_claim(&j, &i)?;
+        let mut state = "build-failed";
+        let mut phase = "build-returned";
+        if claim["status"] == "exited-zero" {
+            state = "waiting";
+            if !j.absent(job, "bounded-build-read-result")? {
+                super::bounded::flow(
+                    path,
+                    &i["source"],
+                    job,
+                    text(&claim, "result_sha256")?,
+                    text(&claim, "unadmitted_export_sha256")?,
+                )?;
+                state = "diagnostic-passed";
+                phase = "result-reconciled";
+            }
+        }
+        Ok(crate::observer_runtime::operation_projection(
+            reference.clone(),
+            state,
+            phase,
+            Some(sha(&bytes(&claim)?)),
+            claim["result_sha256"].as_str().map(str::to_owned),
+            None,
+            claim["exit_code"].as_i64(),
+        ))
+    })();
+    j.stable()?;
+    Ok(observed.unwrap_or_else(|_| {
+        crate::observer_runtime::operation_projection(
+            reference,
+            "unknown",
+            "reconciliation-required",
+            None,
+            None,
+            None,
+            None,
+        )
+    }))
+}
 const BINDING: &str = "bounded-dependency-binding";
 const COMPLETE: &str = "bounded-dependency-complete";
 pub(super)const USAGE:&str="run-bounded PRIVATE_INTENT_DIR PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 PRIVATE_RUN_PINS_JSON\nread-bounded PRIVATE_INTENT_DIR PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 JOB_ID READER_SHA256\nrepair-bounded PRIVATE_INTENT_DIR PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 JOB_ID EXPECTED_STARTED_SHA256 REPAIR_SHA256\nOnly completed dependency-v1 Source contexts may create the new binding. Original Lima/homes/instance and opaque nonce stay retained; old v1 cannot borrow bounded authority.";

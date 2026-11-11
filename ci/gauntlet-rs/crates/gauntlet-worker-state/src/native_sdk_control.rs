@@ -98,19 +98,19 @@ pub(crate) fn bind(
         return Err("SDK ready handshake differs".into());
     }
     let mut response = gate.try_clone().map_err(|e| e.to_string())?;
-    let peer = NativeSdkPeer::bind_entrypoint(
+    let peer = NativeSdkPeer::bind_public(
         gate,
         boundary,
         assets.bun(),
         &assets.pins().bun_sha256,
-        public.entrypoint(),
+        public,
     )?;
     public.verify()?;
     assets.recheck_custody()?;
     let negative = same_uid_negative(agent, sockets, &peer, &cgroup, cancel)?;
     peer.recheck()?;
     write_native_sdk_line(&mut response, b"developer-sdk-bound.v1", deadline, cancel)?;
-    let joined = json!({"schema":"hol-gauntlet-native-sdk-pre-import-binding.v1","peer":peer.observation(),
+    let joined = json!({"schema":"hol-gauntlet-native-sdk-pre-import-binding.v3","peer":peer.observation(),
         "public_helpers":public.observation(),"assets":assets.observation(),"same_uid_negative":negative,
         "entrypoint_bytes_verified":true,"readonly_mounts_verified":true,"sdk_source_pinned":true,
         "bound_before_sdk_import":true,"guard_causality_verified":false,"execution_eligible":false});

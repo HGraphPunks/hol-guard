@@ -387,3 +387,100 @@ pub(crate) fn require_private_ancestor(target: &Path) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     super::private_ancestor(&raw, target.to_str().ok_or("fixed storage target UTF8")?)
 }
+
+fn temporary_rows() -> Result<String, String> {
+    let mut raw = String::new();
+    File::open("/proc/thread-self/mountinfo")
+        .map_err(|e| e.to_string())?
+        .take(2 * 1024 * 1024 + 1)
+        .read_to_string(&mut raw)
+        .map_err(|e| e.to_string())?;
+    if raw.len() > 2 * 1024 * 1024 {
+        return Err("temporary mount inventory bound exceeded".into());
+    }
+    Ok(raw)
+}
+pub(crate) fn temporary_mount(target: &Path) -> Result<Option<Value>, String> {
+    parse_temporary_mount(&temporary_rows()?, target)
+}
+fn parse_temporary_mount(raw: &str, target: &Path) -> Result<Option<Value>, String> {
+    let mut found = None;
+    for line in raw.lines() {
+        let (left, right) = line
+            .split_once(" - ")
+            .ok_or("temporary mount inventory malformed")?;
+        let a = left.split_ascii_whitespace().collect::<Vec<_>>();
+        let b = right.split_ascii_whitespace().collect::<Vec<_>>();
+        if a.len() < 6 || b.len() != 3 {
+            return Err("temporary mount inventory fields malformed".into());
+        }
+        if a[4] != target.to_str().ok_or("temporary path UTF8")? {
+            continue;
+        }
+        if found.is_some() || a.len() != 6 {
+            return Err("temporary mount is duplicated or not private".into());
+        }
+        let opts = a[5].split(',').collect::<std::collections::BTreeSet<_>>();
+        if !["rw", "nosuid", "nodev", "noexec"]
+            .iter()
+            .all(|s| opts.contains(s))
+            || opts.contains("ro")
+            || b[0] != "tmpfs"
+            || a[3] != "/"
+        {
+            return Err("temporary mount protections or type differ".into());
+        }
+        found = Some(
+            json!({"id":a[0],"parent":a[1],"device":a[2],"root":a[3],"target":a[4],"options":a[5],"filesystem":b[0],"source":b[1],"super_options":b[2]}),
+        );
+    }
+    Ok(found)
+}
+pub(crate) fn temporary_identity(fd: &OwnedFd, bytes: u64, inodes: u64) -> Result<Value, String> {
+    let s = fstat(fd).map_err(|e| e.to_string())?;
+    let mut fs = std::mem::MaybeUninit::<libc::statfs>::uninit();
+    // SAFETY: successful fstatfs fills the entire supplied structure.
+    if unsafe { libc::fstatfs(fd.as_raw_fd(), fs.as_mut_ptr()) } != 0 {
+        return Err("temporary statfs unavailable".into());
+    }
+    let fs = unsafe { fs.assume_init() };
+    let capacity = i128::from(fs.f_bsize)
+        .checked_mul(i128::from(fs.f_blocks))
+        .ok_or("temporary capacity overflow")?;
+    if s.st_uid != 0
+        || s.st_gid != 0
+        || s.st_mode & 0o177777 != 0o041777
+        || fs.f_type != 0x01021994
+        || capacity <= 0
+        || capacity > i128::from(bytes)
+        || fs.f_files == 0
+        || i128::from(fs.f_files) > i128::from(inodes)
+        || fs.f_flags & 14 != 14
+        || fs.f_flags & 1 != 0
+    {
+        return Err("actual temporary byte/inode/protection limits differ".into());
+    }
+    Ok(
+        json!({"device":s.st_dev,"inode":s.st_ino,"uid":0,"gid":0,"mode":0o1777,"filesystem":fs.f_type,"bytes":capacity,"inodes":fs.f_files,"flags":fs.f_flags}),
+    )
+}
+#[cfg(test)]
+mod temporary_tests {
+    use super::*;
+    #[test]
+    fn tmpfs_kernel_row_requires_private_security_flags_and_a_unique_mount() {
+        let target =
+            Path::new("/var/lib/hol-gauntlet-rust/job-volumes/0123456789abcdef/temporary/sdk/tmp");
+        let row=format!("357 52 0:123 / {} rw,nosuid,nodev,noexec,relatime - tmpfs hol-gauntlet-0123456789abcdef-sdk-tmp rw,size=16384k,nr_inodes=4096",target.display());
+        let value = parse_temporary_mount(&row, target).unwrap().unwrap();
+        assert_eq!(value["source"], "hol-gauntlet-0123456789abcdef-sdk-tmp");
+        for raw in [
+            row.replace(",noexec", ""),
+            row.replace(",nodev", ""),
+            row.replace(" - ", " shared:1 - "),
+            format!("{row}\n{row}"),
+        ] {
+            assert!(parse_temporary_mount(&raw, target).is_err());
+        }
+    }
+}

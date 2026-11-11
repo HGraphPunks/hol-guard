@@ -23,14 +23,14 @@ fn array(value: &Value, maximum: usize) -> Result<&[Value]> {
         .ok_or(invalid("bounded live observations required"))
 }
 
-pub(super) fn sdk_events(artifacts: &Value) -> Result<Vec<Value>> {
+pub(crate) fn sdk_events(artifacts: &Value) -> Result<Vec<Value>> {
     let raw = artifacts["sdk_events"]
         .as_str()
         .ok_or(invalid("exact raw SDK transcript required"))?;
     crate::parse_omp_transcript(raw.as_bytes())
 }
 
-pub(super) fn contains_prompt(content: &Value, prompt: &str) -> bool {
+pub(crate) fn contains_prompt(content: &Value, prompt: &str) -> bool {
     if let Some(text) = content.as_str() {
         return text.contains(prompt);
     }
@@ -68,7 +68,7 @@ pub(super) fn contains_result(value: &Value, expected: &Value, depth: usize) -> 
     }
 }
 
-pub(super) fn normalized_sdk_events(events: &[Value], artifacts: &Value) -> Result<Vec<Value>> {
+pub(crate) fn normalized_sdk_events(events: &[Value], artifacts: &Value) -> Result<Vec<Value>> {
     let mut flat = Vec::new();
     let mut observed = Vec::new();
     for envelope in events {

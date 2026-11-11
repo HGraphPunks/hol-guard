@@ -117,7 +117,7 @@ impl LifecycleFiles {
     fn private_file(&self, stat: &Stat) -> bool {
         FileType::from_raw_mode(stat.st_mode) == FileType::RegularFile
             && stat.st_uid == self.owner
-            && stat.st_mode & 0o777 == 0o600
+            && stat.st_mode & 0o7777 == 0o600
             && stat.st_nlink == 1
             && stat.st_size >= 0
     }

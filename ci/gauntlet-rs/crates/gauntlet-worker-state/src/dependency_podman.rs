@@ -327,7 +327,10 @@ impl<'a> DependencyContainer<'a> {
                 std::thread::sleep(Duration::from_millis(25));
             }
         }
-        Ok(())
+        crate::native_job_storage::temporary::close(
+            self.intent.pins.text("job_id"),
+            crate::native_job_storage::temporary::Scope::Dependency,
+        )
     }
     pub(crate) fn id(&self) -> Option<&str> {
         self.cid.as_deref()
@@ -439,7 +442,10 @@ pub(crate) fn verify_completed_absent(
     {
         return Err("completed dependency profile still exists".into());
     }
-    Ok(())
+    crate::native_job_storage::temporary::require_absent(
+        job,
+        crate::native_job_storage::temporary::Scope::Dependency,
+    )
 }
 
 pub(crate) fn verify_recovered_absent(

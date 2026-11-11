@@ -1,5 +1,272 @@
 //! Public output markers required by native-tool source, search and runner cases.
 use super::*;
+use crate::native_diagnostic_artifacts::{parse, require};
+use crate::payload::exact_keys;
+use base64::{engine::general_purpose::STANDARD, Engine};
+
+pub(crate) fn legacy_canary_requests(
+    artifacts: &Value,
+    context: &Value,
+    pins: &Value,
+) -> Result<u64> {
+    let prefix = b"GAUNTLET_SYNTHETIC_";
+    let hex = prefix
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>();
+    let width = prefix.len() + 48;
+    let encodings = [
+        ("raw", prefix.to_vec(), width),
+        (
+            "base64",
+            STANDARD
+                .encode(&prefix[..prefix.len() / 3 * 3])
+                .into_bytes(),
+            width.div_ceil(3) * 4,
+        ),
+        ("hex", hex.into_bytes(), width * 2),
+    ];
+    let mut requests: Vec<&str> = artifacts["provider_turns"]
+        .as_array()
+        .ok_or(EvidenceError::Invalid("actual provider requests missing"))?
+        .iter()
+        .map(|turn| {
+            turn["request"]
+                .as_str()
+                .ok_or(EvidenceError::Invalid("exact provider request missing"))
+        })
+        .collect::<Result<_>>()?;
+    for rejection in context["rejected_requests"]
+        .as_array()
+        .ok_or(EvidenceError::Invalid(
+            "actual model relay rejection inventory missing",
+        ))?
+    {
+        let raw = rejection["request"]
+            .as_str()
+            .filter(|s| s.len() <= 1024 * 1024)
+            .ok_or(EvidenceError::Invalid(
+                "bounded rejected model request missing",
+            ))?;
+        require(
+            exact_keys(rejection, &["request", "request_sha256", "reason_code"])
+                && rejection["request_sha256"] == sha256(raw.as_bytes())
+                && rejection["reason_code"] == "synthetic-canary-export",
+        )?;
+        requests.push(raw);
+    }
+    let mut violations = 0;
+    for request in requests {
+        require(request.len() <= 1024 * 1024)?;
+        let found = encodings.iter().any(|(name, prefix, width)| {
+            request
+                .as_bytes()
+                .windows(*width)
+                .any(|bytes| bytes.starts_with(prefix) && pins[*name] == sha256(bytes))
+        });
+        violations += u64::from(found);
+    }
+    Ok(violations)
+}
+
+pub(crate) fn legacy_reviews(facts: &Value, call_id: &Value) -> Result<Option<Value>> {
+    let before = &facts["reviews_before"];
+    let after = &facts["reviews_after"];
+    if before.is_null() || after.is_null() {
+        return Ok(None);
+    }
+    for value in [before, after] {
+        require(
+            exact_keys(
+                value,
+                &[
+                    "schema",
+                    "database",
+                    "requests",
+                    "grants_sha256",
+                    "policies_sha256",
+                ],
+            ) && value["schema"] == "hol-gauntlet-native-legacy-reviews.v1"
+                && exact_keys(&value["database"], &["device", "inode", "schema_sha256"])
+                && ["device", "inode"]
+                    .iter()
+                    .all(|key| value["database"][*key].as_u64().is_some_and(|n| n > 0))
+                && value["database"]["schema_sha256"]
+                    .as_str()
+                    .is_some_and(is_sha256)
+                && ["grants_sha256", "policies_sha256"]
+                    .iter()
+                    .all(|key| value[*key].as_str().is_some_and(is_sha256))
+                && value["requests"]
+                    .as_array()
+                    .is_some_and(|v| v.len() <= 1000),
+        )?;
+    }
+    require(
+        before["database"] == after["database"]
+            && before["requests"] == json!([])
+            && before["grants_sha256"] == after["grants_sha256"]
+            && before["policies_sha256"] == after["policies_sha256"],
+    )?;
+    let mut ids = std::collections::BTreeSet::new();
+    for row in after["requests"].as_array().expect("checked requests") {
+        require(
+            exact_keys(
+                row,
+                &[
+                    "request_id",
+                    "tool_name",
+                    "tool_call_id",
+                    "reason_code",
+                    "status",
+                    "resolution_action",
+                ],
+            ) && row["request_id"]
+                .as_str()
+                .is_some_and(|id| !id.is_empty() && id.len() <= 256 && ids.insert(id))
+                && row["tool_name"] == "bash"
+                && row["tool_call_id"] == *call_id
+                && row["reason_code"]
+                    .as_str()
+                    .is_some_and(|s| !s.is_empty() && s.len() <= 256)
+                && row["status"] == "pending"
+                && row["resolution_action"].is_null(),
+        )?;
+    }
+    Ok(Some(
+        json!({"approval_delta":ids.len(),"approval_rows":after["requests"]}),
+    ))
+}
+
+pub(crate) fn legacy_native_ingress(artifacts: &Value, calls: &[Value]) -> Result<(Value, Value)> {
+    let observed = &artifacts["native_calls"];
+    require(
+        exact_keys(observed, &["schema", "requests", "router", "plane"])
+            && observed["schema"] == "hol-gauntlet-native-legacy-denied-calls.v1"
+            && observed["requests"]
+                .as_array()
+                .is_some_and(|v| v.len() == 1)
+            && calls.len() == 1,
+    )?;
+    let frame = &observed["requests"][0];
+    require(exact_keys(
+        frame,
+        &["request", "response", "request_sha256", "response_sha256"],
+    ))?;
+    let raw = |name: &str| {
+        frame[name]
+            .as_str()
+            .filter(|s| !s.is_empty() && s.len() <= 1024 * 1024)
+            .ok_or(EvidenceError::Invalid(
+                "exact bounded Root SDK frame required",
+            ))
+    };
+    let request_raw = raw("request")?;
+    let response_raw = raw("response")?;
+    require(
+        frame["request_sha256"] == sha256(request_raw.as_bytes())
+            && frame["response_sha256"] == sha256(response_raw.as_bytes()),
+    )?;
+    let request = parse(request_raw.as_bytes())?;
+    let response = parse(response_raw.as_bytes())?;
+    let call = &calls[0];
+    require(
+        exact_keys(
+            &request,
+            &[
+                "schema_version",
+                "hook_event_name",
+                "session_id",
+                "tool_call_id",
+                "tool_name",
+                "tool_input",
+                "cwd",
+                "execution_environment",
+            ],
+        ) && request["schema_version"] == "1.0"
+            && request["hook_event_name"] == "PreToolUse"
+            && request["session_id"]
+                .as_str()
+                .is_some_and(|s| !s.is_empty() && s.len() <= 256)
+            && request["tool_name"] == "bash"
+            && request["cwd"] == "/runtime/home/project"
+            && request["tool_call_id"] == call["id"]
+            && call["name"] == "bash"
+            && request["tool_input"] == call["args"]
+            && call["is_error"] == true
+            && request["tool_input"]["command"].is_string()
+            && request["execution_environment"].is_object()
+            && exact_keys(
+                &response,
+                &[
+                    "schema_version",
+                    "tool_call_id",
+                    "request_digest",
+                    "product_claims_authenticated",
+                    "product_response",
+                ],
+            )
+            && response["schema_version"] == "1.0"
+            && response["tool_call_id"] == call["id"]
+            && response["request_digest"] == frame["request_sha256"]
+            && response["product_claims_authenticated"] == false
+            && response["product_response"]["decision"] == "deny"
+            && response["product_response"]["reason_code"]
+                .as_str()
+                .is_some_and(|s| {
+                    !s.is_empty()
+                        && s.len() <= 128
+                        && s.bytes()
+                            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+                })
+            && response["product_response"]
+                .get("required_execution_profile")
+                .is_none()
+            && (response["product_response"].get("policy_action").is_none()
+                || response["product_response"]["policy_action"] == "block"),
+    )?;
+    let reason = response["product_response"]["reason"]
+        .as_str()
+        .unwrap_or("Blocked by actual NativeHook.");
+    require(call["result"] == json!({"content":[{"type":"text","text":reason}],"details":{}}))?;
+    let router = &observed["router"];
+    let events = router["events"]
+        .as_array()
+        .ok_or(EvidenceError::Invalid("actual router events missing"))?;
+    require(
+        router["schema"] == "hol-gauntlet-native-sdk-router.v1"
+            && events.len() == 1
+            && events[0]["kind"] == "sdk-pre-review"
+            && events[0]["call_id"] == call["id"]
+            && events[0]["session_id"] == request["session_id"]
+            && events[0]["request_sha256"] == frame["request_sha256"]
+            && events[0]["input"] == request["tool_input"]
+            && events[0]["execution_environment"] == request["execution_environment"]
+            && events[0]["product_response"] == response["product_response"]
+            && events[0]["transport_route_issued"] == false
+            && router["ledger"]["pre_count"] == 1
+            && [
+                "route_count",
+                "sink_count",
+                "completed_sink_count",
+                "post_count",
+            ]
+            .iter()
+            .all(|key| router["ledger"][*key] == 0),
+    )?;
+    let budget = &artifacts["context"]["budget"];
+    require(
+        budget["schema"] == "hol-gauntlet-native-shared-operation-budget.v1"
+            && ["limit", "used", "builtin"]
+                .iter()
+                .all(|key| budget[*key] == 1)
+            && budget["mcp"] == 0
+            && budget["pending"] == json!([])
+            && budget["events"]
+                == json!([{"surface":"builtin","session":request["session_id"],"call_id":call["id"]}]),
+    )?;
+    Ok((request, response))
+}
 use regex::Regex;
 use std::sync::OnceLock;
 

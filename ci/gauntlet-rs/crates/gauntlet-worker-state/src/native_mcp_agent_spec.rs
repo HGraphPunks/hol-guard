@@ -131,7 +131,7 @@ fn check_profile(
     let mut seen = std::collections::BTreeSet::new();
     for m in actual {
         let dest = m["Destination"].as_str().ok_or("MCP destination missing")?;
-        if m["Type"] == "tmpfs"
+        if matches!(m["Type"].as_str(), Some("tmpfs" | "bind"))
             && tmpfs == 4
             && crate::native_job_storage::tmpfs_limits()
                 .iter()

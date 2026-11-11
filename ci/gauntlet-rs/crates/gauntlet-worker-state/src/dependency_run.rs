@@ -186,12 +186,31 @@ pub fn run_native_dependencies(
                 return Err(error);
             }
         };
+        let measured = std::cell::Cell::new(false);
+        let during = || {
+            still_owned()?;
+            if !measured.get() {
+                measured.set(
+                    crate::native_job_storage::source::observe_running(
+                        job,
+                        crate::JobStorageProfile::Dependency,
+                        p.text("podman_sha256"),
+                        &plan.argv[3],
+                        p.text("builder_image_id"),
+                        "hol-gauntlet.dependency-intent",
+                        &digest,
+                    )
+                    .map_err(|_| CandidateProcessError::ContainerUnknown)?,
+                );
+            }
+            Ok(())
+        };
         run_precreated_dependency_process(
             &plan,
             &slot,
             &digest,
             group,
-            &still_owned,
+            &during,
             &|| {
                 container
                     .drain()

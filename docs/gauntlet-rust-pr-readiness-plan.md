@@ -22,10 +22,38 @@ with evidence. Code volume and checked substeps do not establish completion.
   hours for integration and handoff. Continue branch
   `codex/gauntlet-rust-finish-20261105` and draft
   [child PR #5](https://github.com/HGraphPunks/hol-guard/pull/5), targeting
-  integration `f143f9ac`. This batch begins at pushed source
-  `bb69ca40e301670b94cedc2a44090d5ec26bdd90`, preserving upstream `d586334a9`.
+  integration `f143f9ac`. The pushed baseline is
+  `3b807835df09b45ef7f962f0d33974ab3d1eb72f`, incorporating upstream
+  `6b658c378c6d73718d081c7b4853982ca650cad4` and functional batch `055652542`.
   Verify the actual current branch/remote head before resuming.
   Parent exits remain **24/62 complete, 38 open**.
+- The next registered batch passes **930 macOS workspace tests**, with zero
+  failures/skips, plus full warnings-denied macOS/ARM Clippy and formatting.
+  It adds explicit passive `attach-job`/`refresh-job` observer links, a closed
+  SDK18.4.12 secret-copy denial consumer, exact provider-turn exhaustion and
+  an outside hash of actual usage/quota snapshots. Missing review, execution
+  or result custody remains incomplete. The legacy execution drafts are not
+  registered, and no new model role is claimed.
+- Pinned Podman 4.9.3 rejected the original `--tmpfs nr_inodes` arguments.
+  Rust now creates finite kernel tmpfs mounts and binds their exact objects.
+  The expanded ARM fixture passes separate SDK byte/MCP inode exhaustion,
+  inside/outside identity checks, teardown while full and restarted ext4 abort.
+  Independent four-lease cleanup verifies all eight temporary mounts, main
+  volume/backing/loop, owner, containers, profiles and cgroups absent, with
+  345 historical Worker rows unchanged (excluding `active.lock`). The actual
+  ARM Native pipe live-process identity guard also passes. These component
+  results do not establish a successful complete bounded build or SDK role.
+- Sealed Bun arguments and cached genuine SDK Settings are implemented.
+  Physical hostile-startup and normal-entrypoint evidence remains required.
+  Actual original brush commands reopened Bun stdout/stderr and Bun memory;
+  no memory contents were accessed. Ordinary Bash result custody stays
+  unadmitted. A separate enforcing-profile/FIFO experiment is diagnostic only;
+  it cannot qualify the normal agent, Native/model sockets or call lifecycle.
+- The reviewed source map remains 440 files: 91 changed and 20 added against
+  the unchanged baseline. Independent Python AST selection and Rust agree on
+  409 installed files, 420 entries and controller digest `41955c2d2f7a91e0fb80fe8967436588e48da859c92a0adff291bb52c19e6869`.
+  The merged product library/CLI/tests compile with `--no-run` on macOS and
+  ARM; neither is a product execution or qualification.
 - Normal Rust commands have completed a genuine unprivileged ARM build of
   `bb69ca40`, separate dependency resolution, inert dependency staging,
   candidate cloning and immutable runtime publication. Build result

@@ -374,7 +374,11 @@ impl<'a> CandidateContainer<'a> {
                 &["rm".into(), "--force".into(), "--time=5".into(), cid],
             )?;
         }
-        self.verify_absent()
+        self.verify_absent()?;
+        crate::native_job_storage::temporary::close(
+            &self.plan.job_id,
+            crate::native_job_storage::temporary::Scope::Build,
+        )
     }
 
     pub(crate) fn verify_absent(&self) -> Result<(), String> {

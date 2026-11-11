@@ -102,12 +102,12 @@ pub(crate) fn bind(
         return Err("SDK ready handshake differs".into());
     }
     let mut reply = gate.try_clone().map_err(|e| e.to_string())?;
-    let peer = Arc::new(NativeSdkPeer::bind_entrypoint(
+    let peer = Arc::new(NativeSdkPeer::bind_public(
         gate,
         boundary,
         artifacts.assets.bun(),
         &artifacts.assets.pins().bun_sha256,
-        artifacts.public.entrypoint(),
+        artifacts.public,
     )?);
     artifacts.public.verify()?;
     artifacts.assets.recheck_custody()?;
@@ -116,7 +116,7 @@ pub(crate) fn bind(
     let mcp_negative = mcp_negative(agent, mcp_sockets, &peer, &cgroup, cancel)?;
     peer.recheck()?;
     write_native_sdk_line(&mut reply, b"developer-sdk-bound.v1", deadline, cancel)?;
-    let observation = json!({"schema":"hol-gauntlet-native-sdk-pre-import-binding.v2","peer":peer.observation(),
+    let observation = json!({"schema":"hol-gauntlet-native-sdk-pre-import-binding.v4","peer":peer.observation(),
         "public_helpers":artifacts.public.observation(),"assets":artifacts.assets.observation(),
         "same_uid_negative":hook_negative,"mcp_same_uid_negative":mcp_negative,
         "entrypoint_bytes_verified":true,"readonly_mounts_verified":true,"sdk_source_pinned":true,

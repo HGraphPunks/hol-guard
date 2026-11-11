@@ -308,6 +308,7 @@ pub(crate) fn retire(
     }
     active.verify(&journal.root).map_err(|e| e.to_string())?;
     crate::builder_image_context::verify_python_lock(&python).map_err(|e| e.to_string())?;
+    super::temporary::require_all_absent(p.job_id)?;
     let original_backing = original
         .as_ref()
         .map(|v| &v["backing"])
@@ -434,6 +435,7 @@ pub fn abort_native_job_storage(
                     "mke2fs.conf",
                     "allocation.json",
                     "storage.json",
+                    "temporary",
                 ],
             )?;
             let journal = RunReservationJournal::open_root_owned(Path::new(

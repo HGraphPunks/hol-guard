@@ -94,6 +94,7 @@ fn pipes(
     checkpoint: &Value,
     images: &Value,
     hooks: &Value,
+    payloads: Option<&[Value]>,
 ) -> Result<Value> {
     let plane = &control["plane"];
     let pins = if control["schema"] == "hol-gauntlet-native-hook-transport.v2" {
@@ -200,11 +201,17 @@ fn pipes(
     let copied = if images.is_null() && hooks.is_null() {
         None
     } else {
-        Some(
-            crate::native_stdio_hook_relations::verify(
-                control, artifacts, &readback, images, hooks,
+        let relations = if let Some(payloads) = payloads {
+            crate::native_stdio_hook_relations::verify_payloads(
+                control, artifacts, &readback, images, hooks, payloads,
             )
-            .map_err(|e| EvidenceError::Context("Native pipe hook byte relations", Box::new(e)))?,
+        } else {
+            crate::native_stdio_hook_relations::verify(control, artifacts, &readback, images, hooks)
+        };
+        Some(
+            relations.map_err(|e| {
+                EvidenceError::Context("Native pipe hook byte relations", Box::new(e))
+            })?,
         )
     };
     let mut result = readback.summary;
@@ -223,6 +230,36 @@ pub(crate) fn verify(
     images: &Value,
     hooks: &Value,
 ) -> Result<Option<Value>> {
+    verify_selected(control, preparation, artifacts, images, hooks, None)
+}
+pub(crate) fn verify_with_payloads(
+    control: &Value,
+    preparation: &Value,
+    artifacts: &Artifacts<'_>,
+    images: &Value,
+    hooks: &Value,
+    payloads: &[Value],
+) -> Result<Option<Value>> {
+    require(crate::native_launch_provenance::pipe_launch(
+        &preparation["launch"],
+    )?)?;
+    verify_selected(
+        control,
+        preparation,
+        artifacts,
+        images,
+        hooks,
+        Some(payloads),
+    )
+}
+fn verify_selected(
+    control: &Value,
+    preparation: &Value,
+    artifacts: &Artifacts<'_>,
+    images: &Value,
+    hooks: &Value,
+    payloads: Option<&[Value]>,
+) -> Result<Option<Value>> {
     let launch = &preparation["launch"];
     let pipe = crate::native_launch_provenance::pipe_launch(launch)?;
     if !pipe && launch["schema"] != "hol-gauntlet-cell-supervisor.v4" {
@@ -238,7 +275,16 @@ pub(crate) fn verify(
     let checkpoint = &plane["process_events"]["checkpoint"];
     if pipe {
         require(bound && launch["native_stdio"] == "outside-root-native-pipes.v1")?;
-        return pipes(control, preparation, artifacts, checkpoint, images, hooks).map(Some);
+        return pipes(
+            control,
+            preparation,
+            artifacts,
+            checkpoint,
+            images,
+            hooks,
+            payloads,
+        )
+        .map(Some);
     }
     let capture = &checkpoint["native_stdio"];
     require(

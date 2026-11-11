@@ -10,7 +10,7 @@ mod signals;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-const USAGE: &str = "usage: gauntlet-host <init|configure|up|status|doctor|hold|resume|agent|down|enqueue-release> --state-parent ABSOLUTE_PRIVATE_DIRECTORY\ninit: --repository OWNER/REPO\nconfigure/up: --operations ABSOLUTE_PRIVATE_CONFIG_JSON --vm-probe-sha256 HEX64\nup/agent/doctor/status: --config-sha256 HEX64\nup: [--port 8794] [--once]; agent: [--once]\nenqueue-release: --job-id HEX16 --tag v3.48.0|v3.49.0 --source-sha HEX40\nState is isolated in rust-host-v1. The passive observer never dispatches VM work or publishes GitHub status.";
+const USAGE: &str = "usage: gauntlet-host <init|configure|up|status|doctor|hold|resume|agent|down|enqueue-release|attach-job|refresh-job> --state-parent ABSOLUTE_PRIVATE_DIRECTORY\ninit: --repository OWNER/REPO\nconfigure/up: --operations ABSOLUTE_PRIVATE_CONFIG_JSON --vm-probe-sha256 HEX64\nup/agent/doctor/status: --config-sha256 HEX64\nup: [--port 8794] [--once]; agent: [--once]\nenqueue-release: --job-id HEX16 --tag v3.48.0|v3.49.0 --source-sha HEX40\nattach-job: --operation native|bounded-build --journal ABSOLUTE_PRIVATE_JOURNAL --job-id HEX16 --intent-sha256 HEX64\nrefresh-job: --job-id HEX16 --binding-sha256 HEX64\nAttached jobs retain their original workflow authority; status only observes verified phases. State is isolated in rust-host-v1. The passive observer never dispatches VM work or publishes GitHub status.";
 
 fn now() -> Result<u64, String> {
     SystemTime::now()
@@ -114,6 +114,10 @@ fn run() -> Result<(), String> {
                 | "--vm-probe-sha256"
                 | "--config-sha256"
                 | "--port"
+                | "--operation"
+                | "--journal"
+                | "--intent-sha256"
+                | "--binding-sha256"
         ) {
             return Err(USAGE.to_owned());
         }
@@ -133,6 +137,10 @@ fn run() -> Result<(), String> {
     let operations_path = options.remove("--operations");
     let probe_sha = options.remove("--vm-probe-sha256");
     let config_sha = options.remove("--config-sha256");
+    let operation = options.remove("--operation");
+    let journal = options.remove("--journal");
+    let intent_sha = options.remove("--intent-sha256");
+    let binding_sha = options.remove("--binding-sha256");
     let port = options
         .remove("--port")
         .map(|value| value.parse::<u16>())
@@ -146,10 +154,15 @@ fn run() -> Result<(), String> {
         || (config_sha.is_some()
             && !matches!(command.as_str(), "agent" | "up" | "doctor" | "status"))
         || (port.is_some() && command != "up")
-        || ([id.is_some(), tag.is_some(), sha.is_some()]
-            .into_iter()
-            .any(|v| v)
-            && command != "enqueue-release")
+        || (id.is_some()
+            && !matches!(
+                command.as_str(),
+                "enqueue-release" | "attach-job" | "refresh-job"
+            ))
+        || ((tag.is_some() || sha.is_some()) && command != "enqueue-release")
+        || ((operation.is_some() || journal.is_some() || intent_sha.is_some())
+            && command != "attach-job")
+        || (binding_sha.is_some() && command != "refresh-job")
     {
         return Err(USAGE.to_owned());
     }
@@ -252,6 +265,38 @@ fn run() -> Result<(), String> {
             let tag = tag.as_deref().ok_or(USAGE)?;
             let sha = sha.as_deref().ok_or(USAGE)?;
             state_operation(|at| store.enqueue_release(id, tag, sha, at))?;
+        }
+        "attach-job" => {
+            let result = state_operation(|at| {
+                store.attach_job(
+                    operation
+                        .as_deref()
+                        .ok_or(HostLifecycleError::InvalidState)?,
+                    std::path::Path::new(
+                        journal.as_deref().ok_or(HostLifecycleError::InvalidState)?,
+                    ),
+                    id.as_deref().ok_or(HostLifecycleError::InvalidState)?,
+                    intent_sha
+                        .as_deref()
+                        .ok_or(HostLifecycleError::InvalidState)?,
+                    at,
+                )
+            })?;
+            println!("{result}");
+            return Ok(());
+        }
+        "refresh-job" => {
+            let result = state_operation(|at| {
+                store.refresh_job(
+                    id.as_deref().ok_or(HostLifecycleError::InvalidState)?,
+                    binding_sha
+                        .as_deref()
+                        .ok_or(HostLifecycleError::InvalidState)?,
+                    at,
+                )
+            })?;
+            println!("{result}");
+            return Ok(());
         }
         "agent" => {
             if let Some(digest) = config_sha.as_deref() {

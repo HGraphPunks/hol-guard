@@ -1,16 +1,55 @@
 //! Exact saved-ID/capability checks shared by the Native SDK kernel observer.
 use std::collections::BTreeMap;
+pub(crate) const STARTUP_BUN_SHA256: &str =
+    "37141662ebed915a2ab89313156e455e2a1374395f5f6760d06407f49406f086";
+pub(crate) const STARTUP_CONFIG: &[u8] = b"preload = []\n";
+pub(crate) const STARTUP_ENV: [(&str, &str); 7] = [
+    ("HOME", "/runtime/home"),
+    ("PATH", "/usr/bin:/bin"),
+    ("TMPDIR", "/tmp"),
+    ("XDG_CONFIG_HOME", "/runtime/public"),
+    ("BUN_RUNTIME_TRANSPILER_CACHE_PATH", "0"),
+    ("DO_NOT_TRACK", "1"),
+    ("NO_COLOR", "1"),
+];
+pub(crate) fn startup_environment(raw: &[u8]) -> Result<BTreeMap<String, String>, String> {
+    let raw = raw
+        .strip_suffix(&[0])
+        .ok_or("complete SDK initial environment required")?;
+    let mut actual = BTreeMap::new();
+    for entry in raw.split(|b| *b == 0) {
+        let entry = std::str::from_utf8(entry).map_err(|_| "SDK initial environment UTF8")?;
+        let (name, value) = entry
+            .split_once('=')
+            .ok_or("SDK initial environment entry malformed")?;
+        if actual.insert(name.to_owned(), value.to_owned()).is_some() {
+            return Err("duplicate SDK initial environment name".into());
+        }
+    }
+    let expected = STARTUP_ENV
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+        .collect();
+    if actual != expected {
+        return Err("SDK initial environment differs from closed startup profile".into());
+    }
+    Ok(actual)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SdkEntrypoint {
     Conformance,
     Developer,
+    SealedConformance,
+    SealedDeveloper,
 }
 impl SdkEntrypoint {
     pub(crate) fn argv(self) -> &'static [u8] {
         match self {
             Self::Conformance => b"/runtime/bun\0/runtime/public/private_cell_sdk_conformance.ts\0/runtime/public/episode.json\0",
             Self::Developer => b"/runtime/bun\0/runtime/public/developer_omp_episode.ts\0/runtime/public/episode.json\0",
+            Self::SealedConformance => b"/runtime/bun\0--no-env-file\0--no-install\0--config=/runtime/public/bunfig.toml\0--cwd=/runtime/public\0/runtime/public/private_cell_sdk_conformance.ts\0/runtime/public/episode.json\0",
+            Self::SealedDeveloper => b"/runtime/bun\0--no-env-file\0--no-install\0--config=/runtime/public/bunfig.toml\0--cwd=/runtime/public\0/runtime/public/developer_omp_episode.ts\0/runtime/public/episode.json\0",
         }
     }
     pub(crate) fn digest_input(self) -> &'static [u8] {
@@ -18,6 +57,23 @@ impl SdkEntrypoint {
     }
     pub(crate) fn matches(self, raw: &[u8]) -> bool {
         raw == self.argv()
+    }
+    pub(crate) fn sealed(self) -> bool {
+        matches!(self, Self::SealedConformance | Self::SealedDeveloper)
+    }
+    pub(crate) fn with_sealed_startup(self) -> Self {
+        match self {
+            Self::Conformance => Self::SealedConformance,
+            Self::Developer => Self::SealedDeveloper,
+            sealed => sealed,
+        }
+    }
+    pub(crate) fn arguments(self) -> Vec<String> {
+        self.argv()
+            .split(|b| *b == 0)
+            .filter(|s| !s.is_empty())
+            .map(|s| std::str::from_utf8(s).unwrap().to_owned())
+            .collect()
     }
 }
 
@@ -165,6 +221,63 @@ pub use kernel::{NativeSdkBoundary, NativeSdkMcpPeer, NativeSdkPeer, NativeSdkRe
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn sealed_startup_refuses_injected_flags_and_cannot_adopt_historical_argv() {
+        assert!(crate::hex(STARTUP_BUN_SHA256, 64));
+        assert_eq!(STARTUP_CONFIG, b"preload = []\n");
+        for original in [SdkEntrypoint::Conformance, SdkEntrypoint::Developer] {
+            let sealed = original.with_sealed_startup();
+            assert!(sealed.sealed());
+            assert_eq!(sealed.with_sealed_startup(), sealed);
+            assert!(sealed.matches(sealed.argv()));
+            assert!(!sealed.matches(original.argv()));
+            assert!(!original.matches(sealed.argv()));
+            let argv = sealed.arguments();
+            assert_eq!(argv.len(), 7);
+            for unsafe_flag in [
+                "--env-file=/runtime/home/project/.env",
+                "--preload=/runtime/home/project/attack.ts",
+                "--config=/runtime/home/project/bunfig.toml",
+                "--cwd=/runtime/home/project",
+            ] {
+                let mut changed = argv.clone();
+                changed[1] = unsafe_flag.into();
+                let raw = changed
+                    .iter()
+                    .flat_map(|s| s.as_bytes().iter().copied().chain([0]))
+                    .collect::<Vec<_>>();
+                assert!(!sealed.matches(&raw));
+            }
+        }
+    }
+    #[test]
+    fn initial_environment_refuses_injected_runtime_and_sdk_configuration() {
+        let raw = STARTUP_ENV
+            .iter()
+            .flat_map(|(k, v)| format!("{k}={v}\0").into_bytes())
+            .collect::<Vec<_>>();
+        let expected = startup_environment(&raw).unwrap();
+        assert_eq!(expected.len(), 7);
+        let reversed = STARTUP_ENV
+            .iter()
+            .rev()
+            .flat_map(|(k, v)| format!("{k}={v}\0").into_bytes())
+            .collect::<Vec<_>>();
+        assert_eq!(startup_environment(&reversed).unwrap(), expected);
+        for extra in [
+            "BUN_OPTIONS=--preload=attack.ts\0",
+            "NODE_OPTIONS=--require=attack.js\0",
+            "LD_PRELOAD=attack.so\0",
+            "PI_CONFIG_FILES=/runtime/home/project/config.yml\0",
+            "HOME=/runtime/home\0",
+        ] {
+            let mut changed = raw.clone();
+            changed.extend_from_slice(extra.as_bytes());
+            assert!(startup_environment(&changed).is_err());
+        }
+        assert!(startup_environment(&raw[..raw.len() - 1]).is_err());
+        assert!(startup_environment(b"HOME=/runtime/home\0\0").is_err());
+    }
     #[test]
     fn sdk_entrypoint_is_selected_before_binding_and_cannot_change_profiles() {
         for selected in [SdkEntrypoint::Conformance, SdkEntrypoint::Developer] {

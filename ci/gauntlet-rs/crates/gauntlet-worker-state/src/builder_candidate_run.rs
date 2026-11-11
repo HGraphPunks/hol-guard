@@ -385,7 +385,26 @@ fn run_fixed_local_candidate_inner(
         let attached = container
             .create(&job)
             .map_err(|_| CandidateProcessError::ContainerUnknown)?;
-        run_candidate_process(&attached, &job, &binding, &still_owned, &|| {
+        let measured = std::cell::Cell::new(false);
+        let during = || {
+            still_owned()?;
+            if !measured.get() {
+                measured.set(
+                    crate::native_job_storage::source::observe_running(
+                        job_id,
+                        crate::JobStorageProfile::Build,
+                        &runtime.podman_sha256,
+                        &attached.argv[3],
+                        image_id,
+                        "hol-gauntlet.candidate-intent",
+                        &binding,
+                    )
+                    .map_err(|_| CandidateProcessError::ContainerUnknown)?,
+                );
+            }
+            Ok(())
+        };
+        run_candidate_process(&attached, &job, &binding, &during, &|| {
             container
                 .drain()
                 .map_err(|_| CandidateProcessError::CleanupUncertain)

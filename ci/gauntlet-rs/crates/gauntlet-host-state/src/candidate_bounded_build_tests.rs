@@ -278,6 +278,42 @@ fn complete_original_return_without_claim_recovers_and_refuses_substituted_ancho
     }
 }
 #[test]
+fn attached_build_observes_original_unknown_then_verified_recovery_without_dispatch() {
+    let f = fixture();
+    let result_sha = lost_terminal(&f, false);
+    let job = text(&f.i, "job_id").unwrap();
+    let root = f._temp.path().canonicalize().unwrap();
+    let store =
+        crate::HostLifecycleStore::initialize(&root, "hashgraph-online/hol-guard", 1000).unwrap();
+    let attached = store
+        .attach_job(
+            "bounded-build",
+            &f.j.path,
+            job,
+            &sha(&bytes(&f.i).unwrap()),
+            1100,
+        )
+        .unwrap();
+    assert_eq!(attached["state"], "unknown");
+    assert_eq!(store.status(1200).unwrap()["unknown_jobs"], 1);
+    let original = f.j.read(job, DISPATCH).unwrap();
+    read(&f.j, &f.i, &result_sha, &"e".repeat(64), |i, _, _, _| {
+        Ok(frame(&read_reply(&f.j, i, &result_sha)))
+    })
+    .unwrap();
+    let refreshed = store
+        .refresh_job(job, attached["attachment_sha256"].as_str().unwrap(), 1300)
+        .unwrap();
+    assert_eq!(refreshed["phase"], "result-reconciled");
+    assert_eq!(refreshed["state"], "diagnostic-passed");
+    assert_eq!(refreshed["execution_eligible"], false);
+    assert_eq!(f.j.read(job, DISPATCH).unwrap(), original);
+    let status = store.status(1400).unwrap();
+    assert_eq!(status["unknown_jobs"], 0);
+    assert_eq!(status["gate"]["status"], "unavailable");
+    assert!(!status.to_string().contains(f.j.path.to_str().unwrap()));
+}
+#[test]
 fn pending_capture_cannot_bypass_other_unknown_jobs_or_missing_original_launch() {
     let f = fixture();
     lost_terminal(&f, false);

@@ -23,7 +23,8 @@ pub struct FeatureAiPairPins {
     pub cells: [NativeControlReportPins; 2],
     pub world: [FeatureAiWorldPins; 2],
     /// Exact {status_pins,turn_pins}; each turn pin is the outside provider's
-    /// status identity plus complete request/reservation/prepared-input identity.
+    /// request/reservation/prepared-input identity plus observation_sha256 of
+    /// canonical {usage,before,after} from the actual retained provider response.
     pub provider: Value,
     pub cleanup_public_keys: [[u8; 32]; 2],
     /// Actual candidate runtime trees from the two outside preparation receipts.

@@ -248,3 +248,46 @@ The earlier metadata assertion expected controller streams in Worker state;
 the measured five-record layout and exported streams are retained separately.
 That failed diagnostic remains preserved. No passing control, model inference,
 final-source qualification, current-head CI or independent approval is claimed.
+
+## November 11 registered storage, startup and observer checkpoint
+
+The batch based on `3b807835d` passes 930 complete macOS workspace tests with
+zero failures/skips. Formatting and full warnings-denied macOS/ARM Clippy pass.
+Only export ordering was formatted after that stable test run. No new crate,
+binary or dependency is added. New source files hold the necessary temporary
+mount boundary, the closed legacy denial consumer and its regression tests;
+the two legacy execution drafts remain unregistered.
+
+The expanded physical fixture uses frozen Worker `ab5f0230…` and test binary
+`4b1090ce…`. It independently exhausts SDK temporary bytes and MCP temporary
+inodes, checks all four inside/outside tmpfs identities for each scope, tears
+down while full, then exhausts the ext4 volume and verifies restarted abort.
+Independent four-lease inspection confirms all owned resources absent and
+345 unchanged historical Worker rows excluding `active.lock`. The separate
+actual ARM live-process pipe identity guard passes. No candidate/model runs.
+
+| Retained private record | Result | SHA-256 |
+| --- | --- | --- |
+| `registered-macos-workspace-tests-001.json` | 930 passed, stable source inputs | `e45c2696a00b2613d6e1a4206c7039b83e268c1317da5e1da8080ee8c7012277` |
+| `registered-final-format-clippy-001.json` | Format and macOS/ARM workspace Clippy pass | `549df05e1a68bd6a95060cb85ed0b124bba73a5f989d9c12b5c5d817e177032c` |
+| `registered-arm-freeze-build-001.json` | Worker, constructor and both libtests; 1,604 unchanged inputs | `38f42b59b341b37a99526056e989946b5ae80cc222412a2821ced5b43885232b` |
+| `vm-ext4-enospc-storage-004.json` | Expanded physical fixture passes | `ab699ca6d41625fae6154943b0b870cd30e6facb9fc9c6e03666338cfbbbacc5` |
+| `vm-ext4-enospc-storage-004-independent-cleanup.json` | All resources absent; history unchanged | `1239ac204156d89dfe7d9a34de29a84ba4a7b7b727baaa3170ba7483d1446d27` |
+| `vm-native-pipe-identity-unit-001.json` | Actual ARM identity guard passes | `7a74a8a4b46901c2b968e65c3e18928d86e62a39111ec1ee0b5bae4a8463b508` |
+| `python-controller-plan-source91-20261111-001.json` | Independent Python AST oracle; 409 files/420 entries | `9f6606e4b8284e99e1b5a86a0fccb26df0d22e7f64055bb80714d4db2c8bd371` |
+| `native-main6b-macos-compile-001.json` | Merged product library/CLI/tests compile only | `82f14812c787eb91fe6c3c4810d4ac1e064b98b1350ce5a68ac222891b17c4f9` |
+| `native-main6b-arm-compile-001.json` | ARM compile only; existing libc deprecation retained | `134228732316d2313437ac16e54fc30674efafb9304da4291df5f5a2fc03d8e4` |
+
+The source map is 440 files/91 changed/20 added; its independent controller
+digest is `41955c2d2f7a91e0fb80fe8967436588e48da859c92a0adff291bb52c19e6869`.
+SDK startup producers and consumers are implemented, but physical startup and
+normal-agent result custody remain open. Original genuine brush probes proved
+raw output forgery and writable access to Bun's memory object (no contents).
+Separate diagnostic hardening experiments cannot supply normal-agent,
+per-call authorization/result, descendant or qualification evidence.
+
+Explicit observer attachments remain passive; unknown journals block admission.
+Provider grading now exhausts current-job outside turns and binds actual usage
+and quota snapshots. Missing review storage remains incomplete. The parent
+count stays 24/62, all model and rollout claims remain withheld, and the five
+current-head CI jobs plus independent review are still required before merge.

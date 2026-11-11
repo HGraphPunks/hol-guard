@@ -1,7 +1,5 @@
 //! Actual request, service receipt, SDK result, provider and cleanup joins.
-use super::super::projection::{
-    contains_prompt, contains_result, normalized_sdk_events, sdk_events,
-};
+use super::super::projection::{contains_result, normalized_sdk_events, sdk_events};
 use super::*;
 use crate::payload::segment_ok;
 
@@ -270,97 +268,11 @@ pub(super) fn sdk_and_native(artifacts: &Value, protected: bool, context: &Value
 }
 
 pub(super) fn provider(artifacts: &Value, report: &Value, pins: &Value) -> Result<Value> {
-    require(exact_keys(pins, &["status_pins", "turn_pins"]))?;
-    let turns = array(&artifacts["provider_turns"], 64)?;
-    require(!turns.is_empty() && report["model_requests"] == turns.len())?;
-    let outside = array(&pins["turn_pins"], 128)?;
     let spec = feature_ai_support_spec()?;
     let prompt = spec["task_prompt"]
         .as_str()
         .ok_or(invalid("source-selected live prompt missing"))?;
-    let mut tokens = 0u64;
-    let mut previous: Option<&Value> = None;
-    let mut rounds = Vec::new();
-    let mut requests = Vec::new();
-    for (index, turn) in turns.iter().enumerate() {
-        require(exact_keys(
-            turn,
-            &["request", "response", "usage", "before", "after"],
-        ))?;
-        let request_raw = turn["request"]
-            .as_str()
-            .filter(|r| !r.is_empty() && r.len() <= 1024 * 1024)
-            .ok_or(invalid("exact bounded original provider request required"))?;
-        let response_raw = turn["response"]
-            .as_str()
-            .filter(|r| !r.is_empty() && r.len() <= 4 * 1024 * 1024)
-            .ok_or(invalid("exact bounded original provider response required"))?;
-        let request = crate::native_diagnostic_artifacts::parse(request_raw.as_bytes())?;
-        let response = crate::native_diagnostic_artifacts::parse(response_raw.as_bytes())?;
-        let usage = &turn["usage"];
-        let messages = array(&request["messages"], 256)?;
-        require(
-            !messages.is_empty()
-                && messages.iter().any(|message| {
-                    message["role"] == "user" && contains_prompt(&message["content"], prompt)
-                })
-                && request.get("stream_options").is_none()
-                && request.get("n").is_none_or(|n| n == 1),
-        )?;
-        require(
-            request["stream"] == false
-                && request["model"] == usage["model_id"]
-                && request["max_tokens"]
-                    .as_u64()
-                    .is_some_and(|n| (1..=4096).contains(&n))
-                && response["model"] == request["model"]
-                && response["choices"].as_array().is_some_and(|c| c.len() == 1)
-                && response["usage"]["prompt_tokens"] == usage["prompt_tokens"]
-                && response["usage"]["completion_tokens"] == usage["output_tokens"]
-                && usage["output_tokens"]
-                    .as_u64()
-                    .zip(request["max_tokens"].as_u64())
-                    .is_some_and(|(actual, maximum)| actual <= maximum)
-                && usage["source_sha"] == report["guard_pins"]["source_sha"]
-                && usage["cell_job_id"] == report["job_id"]
-                && usage["turn"].as_u64() == Some(index as u64 + 1)
-                && usage["request_sha256"] == sha256(request_raw.as_bytes())
-                && usage["response_sha256"] == sha256(response_raw.as_bytes())
-                && usage["response_bytes"] == response_raw.len(),
-        )?;
-        let matching: Vec<_> = outside
-            .iter()
-            .filter(|p| p["cell_job_id"] == usage["cell_job_id"] && p["turn"] == usage["turn"])
-            .collect();
-        require(matching.len() == 1)?;
-        let mut expected = matching[0].clone();
-        let status = &pins["status_pins"];
-        for (key, value) in status
-            .as_object()
-            .ok_or(invalid("outside provider identity pins missing"))?
-        {
-            require(expected.get(key).is_none())?;
-            expected[key] = value.clone();
-        }
-        let verified =
-            crate::verify_rust_provider_usage(usage, &expected, &turn["before"], &turn["after"])?;
-        if let Some(previous) = previous {
-            require(previous == &turn["before"])?;
-        }
-        previous = Some(&turn["after"]);
-        tokens = tokens
-            .checked_add(verified["model_tokens"].as_u64().expect("verified usage"))
-            .ok_or(invalid("live token sum overflow"))?;
-        require(tokens <= 100_000)?;
-        rounds.push(json!({"status":"completed","request_sha256":usage["request_sha256"],
-            "response_sha256":usage["response_sha256"],"response_bytes":response_raw.len(),"response_models":[response["model"]]}));
-        requests.push(json!({"turn":index+1,"request_sha256":usage["request_sha256"],"response_sha256":usage["response_sha256"]}));
-    }
-    require(crate::reconcile_provider_rounds(&rounds).0)?;
-    Ok(
-        json!({"completed_requests":turns.len(),"model_tokens":tokens,"requests":requests,"usage_known":true,
-        "qualification_eligible":false}),
-    )
+    crate::provider_rust_status::verify_rust_provider_turns(artifacts, report, pins, prompt)
 }
 
 pub(super) fn cleanup(envelope: &Value, report: &Value, key: &[u8; 32]) -> Result<bool> {
@@ -426,6 +338,10 @@ pub(super) fn cleanup(envelope: &Value, report: &Value, key: &[u8; 32]) -> Resul
     }
     Ok(!owned.is_empty()
         && !resources.is_empty()
+        && owned.iter().any(|task| {
+            task["pid"] == report["controller_identity"]["pid"]
+                && task["start_ticks"] == report["controller_identity"]["start_ticks"]
+        })
         && owned.iter().all(|task| before.contains(task))
         && before.iter().all(|task| owned.contains(task))
         && after.is_empty()

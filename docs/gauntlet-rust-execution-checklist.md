@@ -12,6 +12,25 @@ have completed using historical v1 storage. They remain ineligible for
 qualification. New finite ext4 storage, original namespace ownership and
 completed-read recovery require their separate physical flow checks.
 
+The next registered batch passes 930 full macOS tests and warnings-denied
+macOS/ARM Clippy. Explicit observer attachments, sealed SDK startup inputs,
+closed legacy denial verification and exact outside provider observations are
+implemented. The updated ARM storage fixture passes SDK byte/MCP inode ENOSPC,
+inside/outside tmpfs identity, while-full teardown and restarted ext4 abort.
+Independent cleanup verifies all owned resources absent and 345 unchanged
+historical Worker rows, excluding the active lease. This replaces unsupported
+Podman `--tmpfs nr_inodes` syntax with finite Root kernel mounts and fixed binds.
+The pure ARM Native pipe identity guard passes separately.
+
+These results close no parent exit. Normal allowed Bash remains unadmitted:
+actual brush commands could reopen raw SDK output pipes and its memory object
+(open/fstat/close only; no memory contents). Sealed startup physical proof,
+production stream custody, successful complete roles, source/VM admission,
+model workflows, required CI/review and rollout remain open. Unregistered
+legacy execution drafts supply no execution credit. The current reviewed map
+is 440 files/91 changed/20 added; the independent controller digest is
+`41955c2d2f7a91e0fb80fe8967436588e48da859c92a0adff291bb52c19e6869`.
+
 Closed supervisor v6 retains v5 Native pipe semantics and adds one fixed,
 outside-pinned namespace helper. Eleven ARM declaration tests and the actual
 private-namespace/full-journal cleanup regression pass. The regression proves

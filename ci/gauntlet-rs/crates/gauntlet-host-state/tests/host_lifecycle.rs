@@ -29,6 +29,120 @@ fn queue(store: &HostLifecycleStore) {
         .enqueue_release("2222222222222222", "v3.49.0", &"b".repeat(40), 1200)
         .unwrap();
 }
+fn native_journal(root: &Path) -> (std::path::PathBuf, String, String) {
+    let path = root.join("normal-native");
+    fs::create_dir(&path).unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
+    fs::create_dir(path.join("hol-observer-test")).unwrap();
+    let job = "a".repeat(16);
+    let args = vec![
+        "record".into(),
+        path.to_str().unwrap().into(),
+        "hol-observer-test".into(),
+        "b".repeat(64),
+        "c".repeat(40),
+        job.clone(),
+        "d".repeat(64),
+        "e".repeat(64),
+        "f".repeat(64),
+        "timeout".into(),
+        "1".repeat(64),
+        "2".repeat(64),
+        path.to_str().unwrap().into(),
+        path.to_str().unwrap().into(),
+    ];
+    let v = gauntlet_host_state::run_native_operation_command(&args).unwrap();
+    (path, job, v["intent_sha256"].as_str().unwrap().into())
+}
+
+#[test]
+fn explicit_attachment_preserves_release_history_and_never_publishes_private_references() {
+    let root = parent();
+    let store = initialize(root.path());
+    queue(&store);
+    let (path, job, intent) = native_journal(root.path());
+    let before = read(root.path())["jobs"].clone();
+    let attached = store
+        .attach_job("native", &path, &job, &intent, 1300)
+        .unwrap();
+    assert_eq!(
+        read(root.path())["schema"],
+        "hol-gauntlet-rust-host-state.v2"
+    );
+    assert_eq!(
+        &read(root.path())["jobs"].as_array().unwrap()[..2],
+        before.as_array().unwrap().as_slice()
+    );
+    assert_eq!(attached["state"], "waiting");
+    assert_eq!(attached["phase"], "recorded");
+    let hash = attached["attachment_sha256"].as_str().unwrap();
+    assert_eq!(
+        store
+            .attach_job("native", &path, &job, &intent, 1400)
+            .unwrap()["attachment_sha256"],
+        hash
+    );
+    let reopened = HostLifecycleStore::open(root.path()).unwrap();
+    let status = reopened.status(1500).unwrap();
+    assert_eq!(status["jobs"].as_array().unwrap().len(), 3);
+    assert!(!status.to_string().contains(path.to_str().unwrap()));
+    assert_eq!(status["execution_eligible"], false);
+    let dispatch = json!({"schema":"hol-gauntlet-host-native-dispatch.v1","job_id":job,"intent_sha256":intent,"retry_allowed":false});
+    let marker = path.join(format!("{job}.native-dispatch.json"));
+    fs::write(
+        &marker,
+        canonicalize(dispatch.to_string().as_bytes()).unwrap(),
+    )
+    .unwrap();
+    fs::set_permissions(marker, fs::Permissions::from_mode(0o600)).unwrap();
+    assert_eq!(
+        reopened.refresh_job(&job, hash, 1600).unwrap()["state"],
+        "unknown"
+    );
+    assert_eq!(reopened.status(1700).unwrap()["unresolved_jobs"], 1);
+    assert!(reopened.refresh_job(&job, &"0".repeat(64), 1800).is_err());
+}
+
+#[test]
+fn replaced_journal_and_attachment_bytes_become_unknown_without_adopting_new_authority() {
+    let root = parent();
+    let store = initialize(root.path());
+    let (path, job, intent) = native_journal(root.path());
+    let attached = store
+        .attach_job("native", &path, &job, &intent, 1100)
+        .unwrap();
+    let binding = attached["attachment_sha256"].as_str().unwrap();
+    let private = root
+        .path()
+        .join("rust-host-v1")
+        .join(format!("{job}.normal-job-binding.json"));
+    fs::set_permissions(&private, fs::Permissions::from_mode(0o4600)).unwrap();
+    assert_eq!(
+        store.refresh_job(&job, binding, 1150).unwrap()["state"],
+        "unknown"
+    );
+    fs::set_permissions(&private, fs::Permissions::from_mode(0o600)).unwrap();
+    assert_eq!(
+        store.refresh_job(&job, binding, 1160).unwrap()["state"],
+        "waiting"
+    );
+    fs::rename(&path, root.path().join("retained-original")).unwrap();
+    fs::create_dir(&path).unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
+    assert_eq!(
+        store.refresh_job(&job, binding, 1200).unwrap()["state"],
+        "unknown"
+    );
+    assert_eq!(store.status(1300).unwrap()["unresolved_jobs"], 1);
+    fs::write(&private, b"{}").unwrap();
+    assert_eq!(
+        store.refresh_job(&job, binding, 1400).unwrap()["state"],
+        "unknown"
+    );
+    assert!(store
+        .attach_job("native", &path, &job, &intent, 1500)
+        .is_err());
+}
 
 #[test]
 fn isolated_default_hold_and_idempotent_operator_commands_survive_reopen() {
@@ -223,7 +337,7 @@ fn rejects_unknown_keys_duplicate_json_versions_and_clock_or_generation_overflow
     value["private_secret"] = json!("must not be exposed");
     cases.push(value);
     let mut value = original.clone();
-    value["schema"] = json!("hol-gauntlet-rust-host-state.v2");
+    value["schema"] = json!("hol-gauntlet-rust-host-state.v99");
     cases.push(value);
     let mut value = original.clone();
     value["held"] = json!(0);

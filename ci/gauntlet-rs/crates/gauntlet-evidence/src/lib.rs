@@ -33,11 +33,13 @@ mod feature_report_files;
 pub use feature_report_files::verify_feature_report_files_v2;
 mod feature_ai_support;
 mod legacy_bash_case;
+mod legacy_native_denied;
 pub use legacy_bash_case::{
     assess_audited_frozen_legacy_case, assess_audited_legacy_bash_case, assess_audited_legacy_case,
     assess_audited_legacy_connector_case, assess_audited_legacy_full_task_case,
     frozen_legacy_catalog_observation, legacy_secret_copy_spec,
 };
+pub use legacy_native_denied::LegacySecretCopyPins;
 mod host_calls;
 mod io;
 #[cfg(target_os = "linux")]

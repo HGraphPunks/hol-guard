@@ -1,9 +1,229 @@
 //! A versioned outside preparation plus signed Root journal bind launch pins.
 //! Declaring an observer digest does not authenticate its process or admit it.
-use crate::native_diagnostic_artifacts::{ineligible, require};
+use crate::crypto::sha256;
+use crate::native_diagnostic_artifacts::{digest, ineligible, require};
 use crate::native_process_kernel::{hex, number};
-use crate::Result;
+use crate::payload::exact_keys;
+use crate::{EvidenceError, Result};
 use serde_json::{json, Value};
+
+pub(crate) fn legacy_sdk_binding(context: &Value, sdk_pins: &Value, spec: &Value) -> Result<()> {
+    let binding = &context["binding"];
+    let peer = &binding["peer"];
+    let identity = &peer["identity"];
+    let terminal = &context["sdk_terminal"];
+    let agent = &context["agent"];
+    require(
+        binding["schema"] == "hol-gauntlet-native-sdk-pre-import-binding.v3"
+            && peer["schema"] == "hol-gauntlet-native-sdk-executable-peer.v2"
+            && binding["assets"]["schema"] == "hol-gauntlet-verified-native-sdk-assets.v1"
+            && binding["assets"]["pins"] == *sdk_pins
+            && binding["assets"]["sdk_version"] == spec["sdk_version"]
+            && peer["executable_sha256"] == sdk_pins["bun_sha256"]
+            && exact_keys(
+                terminal,
+                &[
+                    "returncode",
+                    "timed_out",
+                    "pid",
+                    "start_ticks",
+                    "status_source",
+                ],
+            )
+            && terminal["status_source"] == "owned-podman-exec-kernel-exit.v1"
+            && terminal["pid"] == identity["pid"]
+            && terminal["start_ticks"] == identity["start_ticks"]
+            && identity["pid"]
+                .as_u64()
+                .is_some_and(|n| n > 0 && n <= u32::MAX as u64)
+            && identity["start_ticks"].as_u64().is_some_and(|n| n > 0)
+            && identity["cgroup"] == peer["agent"]["identity"]["cgroup"]
+            && identity["namespaces"] == peer["agent"]["identity"]["namespaces"]
+            && peer["agent"]["container_id"] == agent["container_id"]
+            && agent["schema"] == "hol-gauntlet-native-sdk-agent-owner.v1"
+            && agent["inspection"]["HostConfig"]["NetworkMode"] == "none"
+            && agent["inspection"]["HostConfig"]["Privileged"] == false
+            && agent["inspection"]["HostConfig"]["ReadonlyRootfs"] == true,
+    )?;
+    sdk_startup(peer, sdk_pins, &binding["public_helpers"])?;
+    crate::legacy_bash_case::legacy_sdk_status(&identity["status"])?;
+    let helpers = binding["public_helpers"]["files"]
+        .as_array()
+        .filter(|rows| rows.len() <= 32)
+        .ok_or(EvidenceError::Invalid(
+            "actual readonly SDK helpers missing",
+        ))?;
+    let config = &context["episode_config"];
+    for (name, hash) in [
+        (
+            "developer_omp_episode.ts",
+            sha256(include_bytes!(
+                "../../../../gauntlet/benchmark/developer_omp_episode.ts"
+            )),
+        ),
+        (
+            "builtin_guard_bridge.ts",
+            sha256(include_bytes!(
+                "../../../../gauntlet/benchmark/builtin_guard_bridge.ts"
+            )),
+        ),
+        ("episode.json", digest(config)?),
+    ] {
+        let rows: Vec<_> = helpers.iter().filter(|row| row["name"] == name).collect();
+        require(
+            rows.len() == 1
+                && rows[0]["sha256"] == hash
+                && rows[0]["uid"] == 0
+                && rows[0]["gid"] == 0
+                && rows[0]["mode"] == 0o444
+                && ["device", "inode"]
+                    .iter()
+                    .all(|key| rows[0][*key].as_u64().is_some_and(|n| n > 0)),
+        )?;
+    }
+    require(
+        exact_keys(
+            config,
+            &[
+                "schema",
+                "builtinToolProfile",
+                "sdkRoot",
+                "workspace",
+                "agentDir",
+                "modelId",
+                "prompt",
+                "deadlineSeconds",
+                "maxToolCalls",
+                "maxModelTokens",
+                "sdkGate",
+                "guardExtension",
+                "startupProfile",
+            ],
+        ) && config["schema"] == "developer-omp-episode.v4"
+            && config["builtinToolProfile"] == spec["builtin_tool_profile"]
+            && config["sdkRoot"] == "/sdk/node_modules/@oh-my-pi/pi-coding-agent"
+            && config["workspace"] == spec["workspace"]
+            && config["agentDir"] == "/runtime/agent"
+            && config["prompt"] == spec["prompt"]
+            && config["deadlineSeconds"] == spec["execution_budget"]["episode_seconds"]
+            && config["maxToolCalls"] == spec["tool_attempt_limit"]
+            && config["maxModelTokens"] == spec["token_limit"]
+            && config["sdkGate"] == "/runtime/sdk-gate/ready.sock"
+            && config["guardExtension"] == "/runtime/public/builtin_guard_bridge.ts"
+            && config["startupProfile"] == spec["sdk_startup_profile"],
+    )
+}
+
+pub(crate) fn sdk_startup(peer: &Value, sdk_pins: &Value, public: &Value) -> Result<()> {
+    const BUN: &str = "37141662ebed915a2ab89313156e455e2a1374395f5f6760d06407f49406f086";
+    const CONFIG: &[u8] = b"preload = []\n";
+    let value = &peer["startup"];
+    let expected_argv = json!([
+        "/runtime/bun",
+        "--no-env-file",
+        "--no-install",
+        "--config=/runtime/public/bunfig.toml",
+        "--cwd=/runtime/public",
+        "/runtime/public/developer_omp_episode.ts",
+        "/runtime/public/episode.json"
+    ]);
+    let expected_env = json!({"HOME":"/runtime/home","PATH":"/usr/bin:/bin","TMPDIR":"/tmp",
+        "XDG_CONFIG_HOME":"/runtime/public","BUN_RUNTIME_TRANSPILER_CACHE_PATH":"0","DO_NOT_TRACK":"1","NO_COLOR":"1"});
+    require(
+        exact_keys(
+            value,
+            &[
+                "schema",
+                "profile",
+                "bun_sha256",
+                "argv",
+                "cwd",
+                "public_directory",
+                "environment",
+                "environment_sha256",
+                "config",
+            ],
+        ) && value["schema"] == "hol-gauntlet-native-sdk-startup.v1"
+            && value["profile"] == "bun-1.3.14-sealed-v1"
+            && value["bun_sha256"] == BUN
+            && sdk_pins["bun_sha256"] == BUN
+            && peer["executable_sha256"] == BUN
+            && value["argv"] == expected_argv
+            && value["environment"] == expected_env
+            && value["environment_sha256"] == digest(&expected_env)?
+            && public["schema"] == "hol-gauntlet-native-sdk-public-helpers.v2",
+    )?;
+    let argv = expected_argv
+        .as_array()
+        .expect("source argv")
+        .iter()
+        .map(|v| v.as_str().expect("source arg"))
+        .collect::<Vec<_>>();
+    require(peer["argv_sha256"] == sha256(argv.join("\0").as_bytes()))?;
+    let cwd = &value["cwd"];
+    let directory = &value["public_directory"];
+    let config = &value["config"];
+    require(
+        exact_keys(
+            cwd,
+            &["device", "inode", "uid", "gid", "mode", "mount_flags"],
+        ) && exact_keys(directory, &["device", "inode", "uid", "gid", "mode"])
+            && exact_keys(
+                config,
+                &[
+                    "name",
+                    "sha256",
+                    "bytes",
+                    "device",
+                    "inode",
+                    "uid",
+                    "gid",
+                    "mode",
+                    "mount_flags",
+                ],
+            ),
+    )?;
+    for entry in [cwd, directory, config] {
+        require(
+            entry["uid"] == 0
+                && entry["gid"] == 0
+                && ["device", "inode"]
+                    .iter()
+                    .all(|k| entry[*k].as_u64().is_some_and(|n| n > 0)),
+        )?;
+    }
+    require(
+        cwd["mode"] == 0o755
+            && directory["mode"] == 0o755
+            && ["device", "inode", "uid", "gid", "mode"]
+                .iter()
+                .all(|key| cwd[*key] == directory[*key])
+            && cwd["mount_flags"]
+                .as_u64()
+                .is_some_and(|flags| flags & 1 == 1)
+            && config["mount_flags"]
+                .as_u64()
+                .is_some_and(|flags| flags & 1 == 1)
+            && config["mode"] == 0o444
+            && config["name"] == "bunfig.toml"
+            && config["bytes"] == CONFIG.len()
+            && config["sha256"] == sha256(CONFIG),
+    )?;
+    let files = public["files"]
+        .as_array()
+        .filter(|v| v.len() <= 32)
+        .ok_or(EvidenceError::Invalid("actual SDK public files missing"))?;
+    let selected = files
+        .iter()
+        .filter(|v| v["name"] == "bunfig.toml")
+        .collect::<Vec<_>>();
+    require(
+        selected.len() == 1
+            && ["device", "inode", "uid", "gid", "mode", "bytes", "sha256"]
+                .iter()
+                .all(|key| selected[0][*key] == config[*key]),
+    )
+}
 
 pub(crate) const PIPE_HOST_HELPERS_V5: &[&str] = &[
     "/usr/bin/systemd-run",

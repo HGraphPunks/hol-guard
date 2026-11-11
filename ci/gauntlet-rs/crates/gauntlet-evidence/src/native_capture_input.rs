@@ -5,6 +5,116 @@ use crate::native_diagnostic_artifacts::{argv, digest, require, text, Artifacts}
 use crate::{EvidenceError, Result};
 use serde_json::{json, Value};
 
+/// Source-selected outer payloads must reconcile with both actual capture stdin
+/// and the same measured Native pipe/process chain used by fixed controls.
+pub(crate) fn source_hook_relations(
+    control: &Value,
+    preparation: &Value,
+    files: &std::collections::BTreeMap<String, Vec<u8>>,
+    expected: &[Value],
+) -> Result<Value> {
+    use crate::native_diagnostic_artifacts::{digest, guard_argv, transport_argv, Artifacts};
+    require(
+        !expected.is_empty()
+            && expected.len() <= 4
+            && crate::native_launch_provenance::pipe_launch(&preparation["launch"])?,
+    )?;
+    let artifacts = Artifacts::new(files)?;
+    let plane = &control["plane"];
+    require(
+        plane["schema"] == "hol-gauntlet-native-hook-plane.v4"
+            && plane["cleanup_complete"] == true
+            && plane["product_claims_authenticated"] == false
+            && plane["guard_causality_verified"] == false
+            && plane["execution_eligible"] == false
+            && plane["model_requests"] == 0
+            && journal_binding(plane, &artifacts)?,
+    )?;
+    let rows = plane["hooks"]
+        .as_array()
+        .filter(|v| v.len() == expected.len())
+        .ok_or(EvidenceError::Invalid(
+            "exact source-selected hook captures required",
+        ))?;
+    let command = transport_argv(
+        plane,
+        guard_argv(
+            text(preparation, "runtime_prefix")?,
+            &[
+                "hook",
+                "--json",
+                "--harness",
+                "omp",
+                "--guard-home",
+                "/product/guard",
+                "--home",
+                "/runtime/home",
+                "--workspace",
+                "/runtime/home/project",
+            ],
+        ),
+    )?;
+    let mut after = None;
+    let mut inputs = Vec::new();
+    let mut sequences = Vec::new();
+    for (row, payload) in rows.iter().zip(expected) {
+        require(
+            row["payload"] == *payload
+                && row["payload_digest"] == digest(payload)?
+                && row["hook_event_name"] == payload["hook_event_name"]
+                && row.get("normalization_error").is_some_and(Value::is_null)
+                && row["product_claims_authenticated"] == false,
+        )?;
+        let code = row["returncode"]
+            .as_i64()
+            .filter(|n| (-255..=255).contains(n))
+            .ok_or(EvidenceError::Invalid("actual captured hook exit required"))?;
+        let captured = artifacts.capture(
+            &command,
+            code,
+            text(row, "stdout_sha256")?,
+            text(row, "stderr_sha256")?,
+            after,
+        )?;
+        require(
+            captured.stderr.is_empty()
+                && crate::normalize_native_hook_response(
+                    captured.stdout,
+                    code,
+                    Some(text(payload, "hook_event_name")?),
+                )? == row["response"],
+        )?;
+        if payload["hook_event_name"] == "UserPromptSubmit" {
+            require(
+                row["response"]["decision"] == "allow"
+                    && plane["prompt"]["response"] == row["response"],
+            )?;
+        }
+        let mut raw = crate::canonical_value(payload)?;
+        raw.push(b'\n');
+        let input =
+            verify_native_capture_input(&artifacts.events, captured.sequence, &command, &raw)?;
+        require(input["input_delivery_checked"] == true)?;
+        inputs.push(input);
+        sequences.push(captured.sequence);
+        after = Some(captured.sequence);
+    }
+    let hooks = json!({"journal_report_binding_checked":true,"hook_input_relations":inputs,"capture_sequences":sequences});
+    let images = crate::native_runtime_trace::verify(control, preparation, &artifacts)?.ok_or(
+        EvidenceError::Invalid("actual Native image history missing"),
+    )?;
+    let pipes = crate::native_stdio_diagnostic::verify_with_payloads(
+        control,
+        preparation,
+        &artifacts,
+        &images,
+        &hooks,
+        expected,
+    )?
+    .ok_or(EvidenceError::Invalid("actual Native pipe history missing"))?;
+    Ok(json!({"hook_inputs":hooks,"runtime_images":images,"native_pipes":pipes}))
+}
+
 pub(crate) fn journal_binding(plane: &Value, artifacts: &Artifacts<'_>) -> Result<bool> {
     let receipts = artifacts.events.iter().any(|r| {
         matches!(

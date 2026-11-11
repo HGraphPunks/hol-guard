@@ -213,6 +213,7 @@ pub struct NativeSdkPeer {
     executable_sha256: String,
     argv_sha256: String,
     entrypoint: SdkEntrypoint,
+    startup: Option<crate::native_sdk_public::NativeSdkStartup>,
 }
 
 impl NativeSdkPeer {
@@ -230,6 +231,35 @@ impl NativeSdkPeer {
         bun: &File,
         bun_sha256: &str,
         entrypoint: SdkEntrypoint,
+    ) -> Result<Self, String> {
+        if entrypoint.sealed() {
+            return Err("sealed SDK binding requires original public input custody".into());
+        }
+        Self::bind_inner(gate, agent, bun, bun_sha256, entrypoint, None)
+    }
+    pub(crate) fn bind_public(
+        gate: UnixStream,
+        agent: NativeSdkBoundary,
+        bun: &File,
+        bun_sha256: &str,
+        public: &crate::native_sdk_public::NativeSdkPublic,
+    ) -> Result<Self, String> {
+        Self::bind_inner(
+            gate,
+            agent,
+            bun,
+            bun_sha256,
+            public.entrypoint(),
+            Some(public),
+        )
+    }
+    fn bind_inner(
+        gate: UnixStream,
+        agent: NativeSdkBoundary,
+        bun: &File,
+        bun_sha256: &str,
+        entrypoint: SdkEntrypoint,
+        public: Option<&crate::native_sdk_public::NativeSdkPublic>,
     ) -> Result<Self, String> {
         agent.snapshot.recheck()?;
         if !crate::hex(bun_sha256, 64) {
@@ -270,6 +300,15 @@ impl NativeSdkPeer {
         if !same_executable(&outside, &executable_stat) {
             return Err("SDK executable is not the held frozen Bun inode".into());
         }
+        let startup = public
+            .map(|p| {
+                crate::native_sdk_public::NativeSdkStartup::capture(
+                    p,
+                    &snapshot.process,
+                    bun_sha256,
+                )
+            })
+            .transpose()?;
         let bound = Self {
             gate,
             pin,
@@ -282,6 +321,7 @@ impl NativeSdkPeer {
             executable_sha256: sampled.executable_sha256,
             argv_sha256: sampled.argv_sha256,
             entrypoint,
+            startup,
         };
         bound.recheck()?;
         Ok(bound)
@@ -290,6 +330,9 @@ impl NativeSdkPeer {
         self.agent.snapshot.recheck()?;
         self.peer.recheck(&self.gate)?;
         self.snapshot.recheck()?;
+        if let Some(startup) = &self.startup {
+            startup.recheck()?;
+        }
         let current =
             File::open(format!("/proc/{}/exe", self.pin.pid)).map_err(|e| e.to_string())?;
         for file in [&current, &self.executable, &self.bun] {
@@ -338,11 +381,16 @@ impl NativeSdkPeer {
         })
     }
     pub fn observation(&self) -> Value {
-        json!({"schema":"hol-gauntlet-native-sdk-executable-peer.v1","identity":self.snapshot.value(),
+        let mut value = json!({"schema":"hol-gauntlet-native-sdk-executable-peer.v1","identity":self.snapshot.value(),
             "agent":self.agent.observation(),"executable_sha256":self.executable_sha256,"argv_sha256":self.argv_sha256,
             "kernel_peer_authenticated":true,"bun_executable_pinned":true,"fixed_entrypoint_argv_verified":true,
             "entrypoint_bytes_verified":false,"bound_before_sdk_import":false,
-            "sdk_source_pinned":false,"guard_causality_verified":false,"execution_eligible":false})
+            "sdk_source_pinned":false,"guard_causality_verified":false,"execution_eligible":false});
+        if let Some(startup) = &self.startup {
+            value["schema"] = json!("hol-gauntlet-native-sdk-executable-peer.v2");
+            value["startup"] = startup.observation().clone();
+        }
+        value
     }
 }
 

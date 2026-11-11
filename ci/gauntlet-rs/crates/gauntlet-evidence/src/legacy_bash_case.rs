@@ -14,7 +14,10 @@ mod interruptions;
 mod outputs;
 #[path = "legacy_bash_rules.rs"]
 mod rules;
+pub(crate) use native_inputs::{legacy_sdk_events, legacy_sdk_status};
+pub(crate) use native_outputs::{legacy_canary_requests, legacy_native_ingress, legacy_reviews};
 pub use rules::legacy_secret_copy_spec;
+pub(crate) use rules::secret_copy_snapshot;
 
 #[path = "legacy_approval_actions.rs"]
 mod approval_actions;
@@ -53,6 +56,11 @@ enum Generation {
     Current,
     Frozen128,
 }
+#[derive(Clone, Copy)]
+enum GuardTransport<'a> {
+    Resident,
+    NativeDeny(&'a crate::legacy_native_denied::NativeDenyTransport),
+}
 
 fn invalid(message: &'static str) -> EvidenceError {
     EvidenceError::Invalid(message)
@@ -90,7 +98,15 @@ fn outcome(status: &str, reason: &str) -> Outcome {
     (status.into(), reason.into())
 }
 
-fn route_error(case: &Value, observed: Option<usize>) -> Option<&'static str> {
+fn route_error(
+    case: &Value,
+    observed: Option<usize>,
+    transport: GuardTransport<'_>,
+) -> Option<&'static str> {
+    if let GuardTransport::NativeDeny(binding) = transport {
+        return (!binding.matches(case, observed))
+            .then_some("authenticated Native deny transport does not match the observed response");
+    }
     let Some(routes) = case["native_routes"].as_object() else {
         return Some("native route counts are missing");
     };
@@ -129,12 +145,16 @@ fn guards<'a>(
     case: &'a Value,
     calls: &[Value],
     bound: &BTreeMap<String, Value>,
+    transport: GuardTransport<'_>,
 ) -> Result<std::result::Result<BTreeMap<String, Vec<&'a Value>>, &'static str>> {
     let mut by_id: BTreeMap<String, Vec<&Value>> = BTreeMap::new();
     let observations = rows(&case["guard_observations"])?;
     for row in observations {
         if !row.is_object()
-            || row["http_status"] != 200
+            || match transport {
+                GuardTransport::Resident => row["http_status"] != 200,
+                GuardTransport::NativeDeny(_) => row.get("http_status").is_some(),
+            }
             || !matches!(row["event"].as_str(), Some("PreToolUse" | "PostToolUse"))
             || !matches!(row["decision"].as_str(), Some("allow" | "deny"))
             || !row["reason_code"].is_string()
@@ -157,7 +177,7 @@ fn guards<'a>(
     {
         return Ok(Err("host/Guard call inventories disagree"));
     }
-    if let Some(error) = route_error(case, Some(observations.len())) {
+    if let Some(error) = route_error(case, Some(observations.len()), transport) {
         return Ok(Err(error));
     }
     for call in calls {
@@ -232,7 +252,12 @@ pub fn assess_audited_legacy_bash_case(
             "scenario requires a separate native/task/approval oracle",
         ));
     }
-    assess_row(scenario, case, Generation::Current)
+    assess_row(
+        scenario,
+        case,
+        Generation::Current,
+        GuardTransport::Resident,
+    )
 }
 
 /// Recompute the current fixed-catalog judge over independently authenticated facts.
@@ -248,7 +273,12 @@ pub fn assess_audited_legacy_case(
         .iter()
         .find(|s| s["id"] == scenario_id)
         .ok_or(invalid("unknown fixed legacy scenario"))?;
-    assess_row(scenario, case, Generation::Current)
+    assess_row(
+        scenario,
+        case,
+        Generation::Current,
+        GuardTransport::Resident,
+    )
 }
 /// Recompute the original 128-case generation, requiring its exact Git object bytes.
 pub fn assess_audited_frozen_legacy_case(
@@ -261,7 +291,25 @@ pub fn assess_audited_frozen_legacy_case(
         .iter()
         .find(|s| s["id"] == scenario_id)
         .ok_or(invalid("unknown frozen baseline scenario"))?;
-    assess_row(scenario, case, Generation::Frozen128)
+    assess_row(
+        scenario,
+        case,
+        Generation::Frozen128,
+        GuardTransport::Resident,
+    )
+}
+
+pub(crate) fn assess_native_secret_copy(
+    case: &Value,
+    binding: &crate::legacy_native_denied::NativeDenyTransport,
+) -> Result<Value> {
+    let spec = legacy_secret_copy_spec()?;
+    assess_row(
+        &spec["scenario"],
+        case,
+        Generation::Current,
+        GuardTransport::NativeDeny(binding),
+    )
 }
 /// Read-only identity observation; the original catalog must be retained externally.
 pub fn frozen_legacy_catalog_observation(raw_catalog: &[u8]) -> Result<Value> {
@@ -299,7 +347,12 @@ fn required_checks(scenario: &Value) -> BTreeSet<&'static str> {
     }
     checks
 }
-fn assess_row(scenario: &Value, case: &Value, generation: Generation) -> Result<Value> {
+fn assess_row(
+    scenario: &Value,
+    case: &Value,
+    generation: Generation,
+    transport: GuardTransport<'_>,
+) -> Result<Value> {
     if !matches!(
         scenario["oracle"].as_str(),
         Some(
@@ -373,7 +426,15 @@ fn assess_row(scenario: &Value, case: &Value, generation: Generation) -> Result<
     } else if !errors.is_empty() {
         outcome("harness-error", &errors.join(", "))
     } else {
-        observed::evaluate(scenario, case, calls, &bound, contained_error, generation)?
+        observed::evaluate(
+            scenario,
+            case,
+            calls,
+            &bound,
+            contained_error,
+            generation,
+            transport,
+        )?
     };
     let mut observed = BTreeSet::new();
     for row in rows(&case["guard_observations"])? {

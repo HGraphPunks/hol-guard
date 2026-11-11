@@ -223,7 +223,10 @@ impl NativeMcpAgent {
                 "--env=PATH=/usr/bin:/bin",
                 "--workdir=/product/home/project",
             ]);
-            args.extend(crate::native_job_storage::native::arguments(&job)?);
+            args.extend(crate::native_job_storage::native::arguments(
+                &job,
+                crate::native_job_storage::temporary::Scope::Mcp,
+            )?);
             args.extend([
                 format!(
                     "--timeout={}",
@@ -275,6 +278,11 @@ impl NativeMcpAgent {
             agent.command(false, strings(&["start", cid]), 20, cancel)?;
             let value = agent.inspect(cancel)?;
             let (_, pid) = agent.check(&value, true)?;
+            crate::native_job_storage::temporary::observe(
+                &job,
+                crate::native_job_storage::temporary::Scope::Mcp,
+                &value,
+            )?;
             let proc = PathBuf::from(format!("/proc/{pid}"));
             let raw = read(&proc.join("stat"), 4096)?;
             let stat = crate::linux_process::parse_proc_stat(&raw, pid)
@@ -440,6 +448,12 @@ impl NativeMcpAgent {
             }
             Ok(())
         })();
+        let removed = removed.and_then(|_| {
+            crate::native_job_storage::temporary::close(
+                &self.job,
+                crate::native_job_storage::temporary::Scope::Mcp,
+            )
+        });
         match (removed, policy) {
             (Ok(()), Ok(())) => {
                 self.closed = true;

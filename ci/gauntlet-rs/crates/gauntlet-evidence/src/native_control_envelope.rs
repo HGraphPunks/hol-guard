@@ -1,10 +1,35 @@
 //! A controller signature binds a diagnostic to prelaunch pins. It supplies
 //! neither independent effect scoring nor benchmark admission.
 use crate::crypto::{decode_hex, is_sha256, sha256};
+use crate::native_diagnostic_artifacts::{digest, parse, require};
+use crate::payload::exact_keys;
 use crate::{canonical_value, verify_controller_envelope, EvidenceError, Result};
 use gauntlet_contracts::PrelaunchPrepared;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
+
+pub(crate) fn legacy_artifacts(
+    report: &Value,
+    files: &BTreeMap<String, Vec<u8>>,
+) -> Result<Option<Value>> {
+    use crate::legacy_native_denied::{ARTIFACT_NAMES, CELL};
+    let Some(raw) = files.get("combined/live/evidence.v1.json") else {
+        return Ok(None);
+    };
+    require(raw.len() <= 32 * 1024 * 1024)?;
+    let value = parse(raw)?;
+    require(
+        exact_keys(&value, &["schema", "cell_id", "artifacts"])
+            && value["schema"] == "hol-gauntlet-native-legacy-denied-cell.v1"
+            && value["cell_id"] == CELL
+            && exact_keys(&value["artifacts"], ARTIFACT_NAMES)
+            && value["artifacts"]["cleanup"].is_null(),
+    )?;
+    for name in ARTIFACT_NAMES {
+        require(report["artifact_sha256"][*name] == digest(&value["artifacts"][*name])?)?;
+    }
+    Ok(Some(value["artifacts"].clone()))
+}
 
 pub const NATIVE_CONTROL_ENVELOPE_LIMIT: usize = 1024 * 1024;
 const INVALID: EvidenceError =
@@ -33,11 +58,15 @@ pub fn native_control_signing_record(
 ) -> Result<Value> {
     let prepared = pins.prelaunch.to_bytes().map_err(|_| INVALID)?;
     let readonly = pins.role == "readonly-utility";
+    let legacy = pins.role == crate::legacy_native_denied::ROLE;
     let live = matches!(
         pins.role.as_str(),
         "feature-ai-unprotected" | "feature-ai-protected"
     );
-    let profile_matches = if live {
+    let profile_matches = if legacy {
+        crate::legacy_native_denied::signing_profile(report)?
+            && report["guard_pins"]["source_sha"] == pins.prelaunch.source_sha
+    } else if live {
         let spec = crate::feature_ai_support::feature_ai_support_spec()?;
         let index = usize::from(pins.role == "feature-ai-protected");
         report["schema"] == "hol-gauntlet-native-live-omp.v1"
@@ -72,7 +101,7 @@ pub fn native_control_signing_record(
         || report["execution_eligible"] != false
         || report["guard_causality_verified"] != false
         || report["qualified_role_complete"] != false
-        || (!live && report["model_requests"].as_u64() != Some(0))
+        || (!(live || legacy) && report["model_requests"].as_u64() != Some(0))
         || report.get("error").is_none()
         || report["controller_identity"]["pid"]
             .as_u64()
@@ -86,7 +115,7 @@ pub fn native_control_signing_record(
     {
         return Err(INVALID);
     }
-    let record = json!({"schema":if live {"hol-gauntlet-native-controller-record.v3"}else if readonly {"hol-gauntlet-native-controller-record.v2"}else{"hol-gauntlet-native-controller-record.v1"},
+    let record = json!({"schema":if legacy {"hol-gauntlet-native-controller-record.v4"}else if live {"hol-gauntlet-native-controller-record.v3"}else if readonly {"hol-gauntlet-native-controller-record.v2"}else{"hol-gauntlet-native-controller-record.v1"},
         "prelaunch":serde_json::from_slice::<Value>(&prepared).map_err(|_|INVALID)?,
         "preparation_sha256":pins.preparation_sha256,"control_role":pins.role,"controller_report":report});
     // Leave room for the envelope keys and base64 Ed25519 signature.
@@ -104,16 +133,20 @@ pub struct AuthenticatedNativeControlReport {
     record_sha256: String,
     envelope_sha256: String,
     worker_generation: String,
+    deployment_digest: String,
 }
 impl AuthenticatedNativeControlReport {
     pub(crate) fn worker_generation(&self) -> &str {
         &self.worker_generation
     }
+    pub(crate) fn deployment_digest(&self) -> &str {
+        &self.deployment_digest
+    }
     pub fn report(&self) -> &Value {
         &self.report
     }
     pub fn observation(&self) -> Value {
-        json!({"schema":if self.report["schema"]=="hol-gauntlet-native-live-omp.v1" {"hol-gauntlet-authenticated-native-controller-record.v3"}else if self.report["schema"]=="hol-gauntlet-native-hook-transport.v2" {"hol-gauntlet-authenticated-native-controller-record.v2"}else{"hol-gauntlet-authenticated-native-controller-record.v1"},
+        json!({"schema":if self.report["schema"]==crate::legacy_native_denied::REPORT {"hol-gauntlet-authenticated-native-controller-record.v4"}else if self.report["schema"]=="hol-gauntlet-native-live-omp.v1" {"hol-gauntlet-authenticated-native-controller-record.v3"}else if self.report["schema"]=="hol-gauntlet-native-hook-transport.v2" {"hol-gauntlet-authenticated-native-controller-record.v2"}else{"hol-gauntlet-authenticated-native-controller-record.v1"},
             "record_sha256":self.record_sha256,"envelope_sha256":self.envelope_sha256,
             "signature_verified":true,"reported_status":self.report["status"],
             "independent_effects_scored":false,"qualified_role_complete":false,
@@ -146,6 +179,9 @@ impl AuthenticatedNativeControlReport {
             || crate::native_diagnostic_artifacts::parse(preparation_raw)? != *preparation
         {
             return Err(INVALID);
+        }
+        if self.report["schema"] == crate::legacy_native_denied::REPORT {
+            return crate::legacy_native_denied::judge_from_files(self, preparation, files, None);
         }
         if self.report["schema"] == "hol-gauntlet-native-live-omp.v1" {
             return crate::feature_ai_support::pair::judge_from_files(
@@ -259,6 +295,7 @@ pub fn verify_native_control_envelope(
     }
     Ok(AuthenticatedNativeControlReport {
         worker_generation: pins.prelaunch.worker_generation.clone(),
+        deployment_digest: pins.prelaunch.deployment_digest.clone(),
         report: report.clone(),
         record_sha256: sha256(&canonical_value(&record)?),
         envelope_sha256: sha256(raw),

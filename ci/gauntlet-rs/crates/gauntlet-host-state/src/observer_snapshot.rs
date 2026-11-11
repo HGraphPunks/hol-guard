@@ -152,6 +152,26 @@ pub fn compose_observer_snapshot(
                 json!(job[source].as_u64().ok_or(Error::InvalidState)? as f64 / 1000.0),
             );
         }
+        if crate::lifecycle_document::normal_job(job) {
+            if !crate::lifecycle_document::valid_normal_job(job, now_ms) {
+                return Err(Error::InvalidState);
+            }
+            row.insert(
+                "title".into(),
+                json!(if job["kind"] == "normal-native" {
+                    "Native Rust workflow"
+                } else {
+                    "Bounded Rust build"
+                }),
+            );
+            for key in ["phase", "result", "attachment_sha256", "deployment_digest"] {
+                row.insert(key.into(), job[key].clone());
+            }
+            row.insert("execution_eligible".into(), json!(false));
+            row.insert("qualification_eligible".into(), json!(false));
+            public_jobs.push(Value::Object(row));
+            continue;
+        }
         let tag = job["tag"].as_str().ok_or(Error::InvalidState)?;
         row.insert("title".into(), json!(format!("{tag} release benchmark")));
         row.insert(

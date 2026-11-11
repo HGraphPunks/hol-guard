@@ -135,7 +135,7 @@ fn response_pins(i: &Intent, request: &Value, response: &Value) -> Result<Value,
     {
         return Err("actual provider reservation pins absent".into());
     }
-    let pins = json!({"cell_job_id":i.job(),"budget_digest":request["budget_digest"],"turn":request["turn"],"request_sha256":request["request_sha256"],"response_sha256":response["response_sha256"],"response_bytes":raw.len(),"model_id":binding(i)["model_id"],"reservation_id":usage["reservation_id"],"prepared_input_sha256":usage["prepared_input_sha256"]});
+    let mut pins = json!({"cell_job_id":i.job(),"budget_digest":request["budget_digest"],"turn":request["turn"],"request_sha256":request["request_sha256"],"response_sha256":response["response_sha256"],"response_bytes":raw.len(),"model_id":binding(i)["model_id"],"reservation_id":usage["reservation_id"],"prepared_input_sha256":usage["prepared_input_sha256"]});
     let mut expected = binding(i)["status_pins"].clone();
     for (k, v) in pins.as_object().ok_or("turn pins invalid")? {
         expected[k] = v.clone();
@@ -147,6 +147,11 @@ fn response_pins(i: &Intent, request: &Value, response: &Value) -> Result<Value,
         &response["after"],
     )
     .map_err(|_| "actual provider usage does not reconcile retained quota")?;
+    // Bind the actual retained observation after the unchanged usage verifier.
+    // Aggregate-provided snapshots cannot replace this outside byte pin.
+    pins["observation_sha256"] = json!(sha(&bytes(&json!({
+        "usage":usage,"before":response["before"],"after":response["after"]
+    }))?));
     Ok(pins)
 }
 pub(super) fn turn_pins(j: &Journal, i: &Intent, count: u64) -> Result<Value, String> {

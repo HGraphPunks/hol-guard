@@ -30,7 +30,9 @@ pub(crate) use preparation::job_storage_fixture;
 pub(crate) use preparation::verify_storage as verify_job_storage;
 #[path = "native_public_export.rs"]
 mod public_export;
+pub(crate) use artifact::observe_build_job;
 pub use live::{run_live_campaign_command, LIVE_CAMPAIGN_USAGE};
+pub(crate) use transport::observe_native_job;
 #[path = "native_operation_transport.rs"]
 mod transport;
 

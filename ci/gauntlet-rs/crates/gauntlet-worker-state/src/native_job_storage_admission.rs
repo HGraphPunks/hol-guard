@@ -90,6 +90,8 @@ pub(crate) fn require_complete() -> Result<(), String> {
         if value != body(&storage, &completion) || linux::canonical(&value)? != raw {
             return Err("storage admission differs from original completed custody".into());
         }
+        super::owner::enter(name)?;
+        super::temporary::require_all_absent(name)?;
     }
     Ok(())
 }

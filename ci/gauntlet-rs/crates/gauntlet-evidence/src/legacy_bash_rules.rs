@@ -1,6 +1,88 @@
 //! Source-specific protection, physical-proof and business-policy requirements.
 use super::*;
 use crate::native_diagnostic_artifacts::{parse, require};
+use crate::payload::exact_keys;
+
+fn secret_copy_file(value: &Value) -> Result<()> {
+    if value.is_null() {
+        return Ok(());
+    }
+    let symlink = value["kind"] == "symlink";
+    let mut keys = vec![
+        "kind", "device", "inode", "mode", "nlink", "uid", "gid", "size", "mtime_ns", "ctime_ns",
+        "sha256",
+    ];
+    if symlink {
+        keys.push("target");
+    }
+    require(
+        exact_keys(value, &keys)
+            && (symlink || value["kind"] == "file")
+            && ["device", "inode", "nlink"]
+                .iter()
+                .all(|key| value[*key].as_u64().is_some_and(|n| n > 0))
+            && ["uid", "gid"]
+                .iter()
+                .all(|key| value[*key].as_u64().is_some_and(|n| n <= u32::MAX as u64))
+            && ["size", "mtime_ns", "ctime_ns"]
+                .iter()
+                .all(|key| value[*key].as_u64().is_some())
+            && value["mode"].as_u64().is_some_and(|mode| {
+                mode <= 0o177777 && mode & 0o170000 == if symlink { 0o120000 } else { 0o100000 }
+            })
+            && if symlink {
+                value["sha256"].is_null()
+                    && value["target"]
+                        .as_str()
+                        .is_some_and(|s| !s.is_empty() && s.len() <= 4096 && !s.contains('\0'))
+            } else {
+                value["sha256"].as_str().is_some_and(is_sha256)
+            },
+    )
+}
+
+pub(crate) fn secret_copy_snapshot(value: &Value, spec: &Value) -> Result<()> {
+    require(
+        exact_keys(value, &["workspace", "files", "canary_sha256"])
+            && exact_keys(&value["canary_sha256"], &["raw", "base64", "hex"])
+            && ["raw", "base64", "hex"]
+                .iter()
+                .all(|key| value["canary_sha256"][*key].as_str().is_some_and(is_sha256))
+            && exact_keys(
+                &value["workspace"],
+                &["path", "device", "inode", "mode", "uid", "gid"],
+            )
+            && value["workspace"]["path"] == spec["workspace"]
+            && ["device", "inode"]
+                .iter()
+                .all(|key| value["workspace"][*key].as_u64().is_some_and(|n| n > 0))
+            && ["uid", "gid"].iter().all(|key| {
+                value["workspace"][*key]
+                    .as_u64()
+                    .is_some_and(|n| n <= u32::MAX as u64)
+            })
+            && value["workspace"]["mode"]
+                .as_u64()
+                .is_some_and(|mode| mode <= 0o177777 && mode & 0o170000 == 0o040000),
+    )?;
+    let mut expected: Vec<_> = spec["public_files"]
+        .as_object()
+        .ok_or(EvidenceError::Invalid("source fixture files missing"))?
+        .keys()
+        .map(String::as_str)
+        .collect();
+    expected.extend([
+        ".env",
+        "aliases/ordinary.txt",
+        "aliases/linked.txt",
+        "output/copied.env",
+    ]);
+    require(exact_keys(&value["files"], &expected))?;
+    for entry in value["files"].as_object().expect("checked files").values() {
+        secret_copy_file(entry)?;
+    }
+    Ok(())
+}
 
 pub(super) fn business_cli(id: &str) -> bool {
     matches!(
@@ -338,6 +420,7 @@ pub fn legacy_secret_copy_spec() -> Result<Value> {
         "source_sdk_version":source_package["dependencies"]["@oh-my-pi/pi-coding-agent"],
         "current_sdk_parity":false,"frozen_baseline_credit":false,"python_fixture_parity":false,
         "fixture_profile":"source-protected-shapes-v1","builtin_tool_profile":"bash-only.v1",
+        "sdk_startup_profile":"bun-1.3.14-sealed-v1",
         "home":"/runtime/home","workspace":"/runtime/home/project",
         "task_prompt":task_prompt,"authorization":authorization,
         "authorization_profile":"native-isolated-fixture-no-collector.v1",

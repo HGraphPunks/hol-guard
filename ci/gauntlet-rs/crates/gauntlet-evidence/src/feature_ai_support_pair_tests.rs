@@ -200,7 +200,10 @@ fn fixture_pair() -> (Value, FeatureAiPairPins) {
             .as_object_mut()
             .unwrap()
             .extend(identity.as_object().unwrap().clone());
-        turn_pins.push(identity);
+        let mut outside_turn = identity;
+        outside_turn["observation_sha256"] =
+            json!(hash(&json!({"usage":usage,"before":before,"after":after})).unwrap());
+        turn_pins.push(outside_turn);
         let final_snapshot = world.snapshot().unwrap();
         let receipts = world.receipts().unwrap();
         let artifacts = json!({"initial_snapshot":initial,"final_snapshot":final_snapshot,"world_receipts":receipts,

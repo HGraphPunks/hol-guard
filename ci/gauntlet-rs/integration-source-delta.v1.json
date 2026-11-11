@@ -219,7 +219,7 @@
       "disposition": "retain_external_agent_adapter",
       "path": "ci/gauntlet/benchmark/developer_omp_episode.ts",
       "phase": 4,
-      "sha256": "daea441bbaecbe39cb31e66e4ae7ce8d8afdd9662005f545c97a09a88e088184"
+      "sha256": "d03a6f991d3a7981c31ce4000a2f08d7f6f2d12cddf32c9c30a659eed9372b7f"
     },
     {
       "base_sha256": "50e64dcc1b8365cc33cc4ab0b0e0de97c9155f7ba50be14311ab174555a722ae",
@@ -233,7 +233,7 @@
       "disposition": "retain_external_agent_adapter",
       "path": "ci/gauntlet/benchmark/developer_tool_inventory_conformance.ts",
       "phase": 4,
-      "sha256": "31c2812477be77887891b6d0dfe2e4ae49bab772ab04ecb1ccdf9f822f7be802"
+      "sha256": "de4967111655c95319e8159842976ca87ceb8d6c6db173de42da70a935ff978a"
     },
     {
       "base_sha256": "cc1513d6b9318ee5884de399568f49de709e863350584a61a0d6439753d0dc9b",
@@ -255,6 +255,13 @@
       "path": "ci/gauntlet/benchmark/private_cell_factory.py",
       "phase": 4,
       "sha256": "83a18c88165678f39321e5f9cb1c11bb47f2cd41a81717b36e4ee231a5d21712"
+    },
+    {
+      "base_sha256": "ffdcf1b5fb604e5b168a8b1f79e094f60e98e77d202664b61bb8964243d42d07",
+      "disposition": "retain_external_agent_adapter",
+      "path": "ci/gauntlet/benchmark/private_cell_sdk_conformance.ts",
+      "phase": 4,
+      "sha256": "2c819980a9a3e5ea4d9c3b75f54ad36e6a9fa8e0339409556c31581f3d9726bc"
     },
     {
       "base_sha256": "5767f9811494de0ea636fbf0f7a7d80942878eb81676a8fd48b5d5ed4b5e4579",
@@ -423,6 +430,13 @@
       "path": "ci/gauntlet/control_plane/live_provider.py",
       "phase": 3,
       "sha256": "650b1964a1aba988ccd239f13a933ea0697d9b169656f72a86999d5b015a25db"
+    },
+    {
+      "base_sha256": "442b18a39b71ef666cebb401e6fa029e0e831db89dc85cc53845856a1a57d150",
+      "disposition": "retain_execution_asset",
+      "path": "ci/gauntlet/control_plane/static/app.js",
+      "phase": 2,
+      "sha256": "b441ad5041b67b0f65d0e1c077804adf6c52c3a1c7488e0c2e36442442e1e2f2"
     },
     {
       "base_sha256": "48f5525cc04cfd0dc3ba14cee03849d4a2870e24ba23e118be2142a525ed3a98",

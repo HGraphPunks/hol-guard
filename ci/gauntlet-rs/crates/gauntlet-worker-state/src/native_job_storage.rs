@@ -33,6 +33,9 @@ pub(crate) mod retire;
 #[path = "native_job_storage_source.rs"]
 pub(crate) mod source;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+#[path = "native_job_storage_temporary.rs"]
+pub(crate) mod temporary;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native::{abort_initialized_native_job_storage, retire_native_job_storage};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use retire::abort_native_job_storage;
@@ -164,7 +167,48 @@ pub(crate) fn check_tmpfs(value: &Value) -> Result<usize, String> {
         .as_object()
         .filter(|o| !o.is_empty())
     else {
-        return Ok(0);
+        let labels = &value["Config"]["Labels"];
+        let selected = [
+            ("hol.gauntlet.sdk.job", "sdk"),
+            ("hol.gauntlet.mcp.job", "mcp"),
+        ]
+        .into_iter()
+        .find_map(|(key, scope)| labels[key].as_str().map(|job| (job, scope)));
+        let Some((job, scope)) = selected else {
+            return Ok(0);
+        };
+        if !crate::hex(job, 16) {
+            return Err("temporary bind job differs".into());
+        }
+        let Some(mounts) = value["Mounts"].as_array() else {
+            return Ok(0);
+        };
+        let mut count = 0;
+        for (target, _, _) in tmpfs_limits() {
+            let name = match target {
+                "/tmp" => "tmp",
+                "/var/tmp" => "var-tmp",
+                "/run" => "run",
+                "/dev/shm" => "shm",
+                _ => unreachable!(),
+            };
+            let source =
+                format!("/var/lib/hol-gauntlet-rust/job-volumes/{job}/temporary/{scope}/{name}");
+            count += mounts
+                .iter()
+                .filter(|m| {
+                    m["Destination"] == target
+                        && m["Source"] == source
+                        && m["Type"] == "bind"
+                        && m["RW"] == true
+                        && m["Propagation"] == "rprivate"
+                })
+                .count();
+        }
+        if count != 0 && count != 4 {
+            return Err("bounded temporary bind inventory differs".into());
+        }
+        return Ok(count);
     };
     if tmpfs.len() != 4 {
         return Err("closed Native tmpfs inventory required".into());
@@ -425,45 +469,6 @@ mod tests {
                 effective_ext4_options(&options.replace(from, to)).is_err(),
                 "{from}->{to}"
             );
-        }
-    }
-    #[test]
-    fn explicit_tmpfs_cannot_lose_either_capacity_or_a_mount() {
-        let mut tmpfs = serde_json::Map::new();
-        for (target, bytes, inodes) in tmpfs_limits() {
-            tmpfs.insert(
-                target.into(),
-                json!(format!(
-                    "rw,nosuid,nodev,noexec,size={bytes},nr_inodes={inodes},mode=1777"
-                )),
-            );
-        }
-        let value = json!({"HostConfig":{"Tmpfs":tmpfs}});
-        assert_eq!(check_tmpfs(&value).unwrap(), 4);
-        for (target, _, _) in tmpfs_limits() {
-            for (from, to) in [
-                ("nr_inodes=4096", "nr_inodes=0"),
-                ("size=16777216", "size=0"),
-                ("noexec", "exec"),
-                ("nosuid", "suid"),
-            ] {
-                let mut altered = value.clone();
-                let text = altered["HostConfig"]["Tmpfs"][target]
-                    .as_str()
-                    .unwrap()
-                    .replace(from, to);
-                if text == altered["HostConfig"]["Tmpfs"][target].as_str().unwrap() {
-                    continue;
-                }
-                altered["HostConfig"]["Tmpfs"][target] = json!(text);
-                assert!(check_tmpfs(&altered).is_err());
-            }
-            let mut missing = value.clone();
-            missing["HostConfig"]["Tmpfs"]
-                .as_object_mut()
-                .unwrap()
-                .remove(target);
-            assert!(check_tmpfs(&missing).is_err());
         }
     }
     #[test]

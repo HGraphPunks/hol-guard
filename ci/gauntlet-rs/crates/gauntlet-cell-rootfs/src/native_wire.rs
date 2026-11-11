@@ -275,7 +275,13 @@ fn session(mut socket: UnixStream, context: Context, id: u64) -> Result<()> {
                     current.event,
                     current.final_wait.is_some(),
                     direction,
-                )? {
+                )
+                .map_err(|error| {
+                    format!(
+                        "{error}: session={id} pid={} start={} direction={direction} expected_exec={} current_exec={} finished={}",
+                        child.tid, child.start, actual.event, current.event, current.final_wait.is_some()
+                    )
+                })? {
                     child.recheck(context.cgroup()?)?;
                 }
                 return Ok(());

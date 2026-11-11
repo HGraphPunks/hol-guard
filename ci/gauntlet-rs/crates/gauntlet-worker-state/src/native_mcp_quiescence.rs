@@ -8,6 +8,16 @@ pub(crate) fn require_mcp_quiescence(
     job: &NativeJobSpec,
     spec: &CellPreparation,
 ) -> Result<(), String> {
+    require_mcp_base_quiescence(job, spec)?;
+    crate::native_job_storage::temporary::require_absent(
+        &job.job_id,
+        crate::native_job_storage::temporary::Scope::Mcp,
+    )
+}
+pub(crate) fn require_mcp_base_quiescence(
+    job: &NativeJobSpec,
+    spec: &CellPreparation,
+) -> Result<(), String> {
     let output = run_pinned_podman(
         &spec.podman_sha256,
         &[

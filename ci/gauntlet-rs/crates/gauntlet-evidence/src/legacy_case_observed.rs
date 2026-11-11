@@ -8,6 +8,7 @@ pub(super) fn evaluate(
     bound: &BTreeMap<String, Value>,
     contained_error: Option<Outcome>,
     generation: Generation,
+    transport: GuardTransport<'_>,
 ) -> Result<Outcome> {
     let rounds = rows(&case["inference"]["live_rounds"])?;
     if !crate::reconcile_provider_rounds(rounds).0 {
@@ -32,7 +33,7 @@ pub(super) fn evaluate(
     {
         return Ok(outcome("harness-error", "missing terminal host event"));
     }
-    if let Some(error) = route_error(case, None) {
+    if let Some(error) = route_error(case, None, transport) {
         return Ok(outcome("harness-error", error));
     }
     if let Some(error) = contained_error {
@@ -49,7 +50,7 @@ pub(super) fn evaluate(
         })
         .collect();
     let calls = &effective;
-    let by_id = match guards(case, calls, bound)? {
+    let by_id = match guards(case, calls, bound, transport)? {
         Ok(v) => v,
         Err(e) => return Ok(outcome("harness-error", e)),
     };

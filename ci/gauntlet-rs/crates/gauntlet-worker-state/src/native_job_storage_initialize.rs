@@ -136,6 +136,62 @@ mod tests {
         use std::os::unix::fs::MetadataExt;
         let locks = serde_json::json!({"active":{"device":active_stat.st_dev,"inode":active_stat.st_ino},"python":{"device":python_stat.dev(),"inode":python_stat.ino()}});
         let measurements = (|| -> Result<serde_json::Value, String> {
+            let mut temporary = Vec::new();
+            for (scope, inodes) in [
+                (super::super::temporary::Scope::Sdk, false),
+                (super::super::temporary::Scope::Mcp, true),
+            ] {
+                let mut runtime =
+                    Runtime::new_scoped(&JobStorageProfile::Native.root(&job)?, &job, Some(scope))?;
+                let path = Path::new(super::super::lifecycle::BASE)
+                    .join(&job)
+                    .join("temporary")
+                    .join(scope.name());
+                let metadata =
+                    crate::open_root_owned_public_directory(&path).map_err(|e| e.to_string())?;
+                let tmp = rustix::fs::openat(
+                    &metadata,
+                    "tmp",
+                    rustix::fs::OFlags::RDONLY
+                        | rustix::fs::OFlags::DIRECTORY
+                        | rustix::fs::OFlags::NOFOLLOW
+                        | rustix::fs::OFlags::CLOEXEC,
+                    rustix::fs::Mode::empty(),
+                )
+                .map_err(|e| e.to_string())?;
+                let filled = fill(&tmp, inodes)?;
+                let cap = capacity(&tmp)?;
+                if filled["errno"] != libc::ENOSPC
+                    || filled["uid"] != 10001
+                    || filled["gid"] != 10001
+                    || if inodes {
+                        cap["free_inodes"] != 0 || cap["free_blocks"].as_u64() == Some(0)
+                    } else {
+                        cap["free_inodes"].as_u64() == Some(0)
+                    }
+                {
+                    return Err(
+                        "actual finite temporary bind did not independently enforce bytes/inodes"
+                            .into(),
+                    );
+                }
+                drop(tmp);
+                let teardown = runtime.close()?;
+                super::super::temporary::require_absent(&job, scope)?;
+                let read = |name| -> Result<serde_json::Value, String> {
+                    serde_json::from_slice(&crate::feature_files::required(
+                        &metadata,
+                        name,
+                        (0, 0),
+                        0o600,
+                        24576,
+                    )?)
+                    .map_err(|e| e.to_string())
+                };
+                temporary.push(serde_json::json!({"scope":scope.name(),"filled":filled,"capacity":cap,
+                    "inside":read("inside.json")?,"closed":read("closed.json")?,"teardown":teardown}));
+                runtime.retire()?;
+            }
             let mut runtime = Runtime::new(&JobStorageProfile::Native.root(&job)?, &job)?;
             let bytes = fill(&work, false)?;
             let byte_capacity = capacity(&work)?;
@@ -182,7 +238,7 @@ mod tests {
             active.verify(&journal.root).map_err(|e| e.to_string())?;
             crate::builder_image_context::verify_python_lock(&python).map_err(|e| e.to_string())?;
             Ok(
-                serde_json::json!({"kernel_options":kernel_options,"bytes":bytes,"byte_capacity":byte_capacity,"byte_teardown":byte_teardown,"inodes":inodes,"inode_capacity":inode_capacity,"inode_teardown":inode_teardown}),
+                serde_json::json!({"kernel_options":kernel_options,"temporary":temporary,"bytes":bytes,"byte_capacity":byte_capacity,"byte_teardown":byte_teardown,"inodes":inodes,"inode_capacity":inode_capacity,"inode_teardown":inode_teardown}),
             )
         })();
         // Only exact files made by this fresh fixture can be removed.

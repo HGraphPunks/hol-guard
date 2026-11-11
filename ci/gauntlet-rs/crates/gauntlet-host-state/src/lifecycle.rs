@@ -42,7 +42,7 @@ impl fmt::Display for HostLifecycleError {
             Self::DashboardUnavailable => "loopback dashboard port or public state is unavailable",
             Self::InvalidRelease => "exact v3.48.0/v3.49.0 release and source identities required",
             Self::SourceMoved => "release tag already has a different source pin; queue unchanged",
-            Self::DuplicateJob => "job identity already belongs to another release",
+            Self::DuplicateJob => "job identity already belongs to another operation",
             Self::Busy => "Rust host lifecycle lock is already owned",
             Self::Changed => "Rust host state identity changed during the operation",
             Self::TooLarge => "Rust host checkpoint exceeds its bounds",
@@ -114,7 +114,7 @@ impl HostLifecycleStore {
         Ok((bytes, value))
     }
 
-    fn transact<T>(
+    pub(crate) fn transact<T>(
         &self,
         now: u64,
         operation: impl FnOnce(&mut Value) -> Result<T, HostLifecycleError>,
@@ -225,6 +225,7 @@ impl HostLifecycleStore {
     /// Coherent bounded metadata only. A held kernel lease and a heartbeat are
     /// reported separately; neither constitutes VM or benchmark readiness.
     pub fn status(&self, now_ms: u64) -> Result<Value, HostLifecycleError> {
+        self.refresh_attached_jobs(now_ms)?;
         let lock = self.files.lock(false, false)?;
         let (bytes, value) = self.read()?;
         let updated = value["updated_at_ms"]

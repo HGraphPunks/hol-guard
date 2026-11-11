@@ -103,7 +103,7 @@ pub(crate) fn container_arguments(
     }
     rustix::fs::fsync(&scratch).map_err(|e| e.to_string())?;
     let root = format!("/var/lib/hol-gauntlet/builds/{job}/scratch");
-    Ok(vec![
+    let mut args = vec![
         "--read-only".into(),
         "--read-only-tmpfs=false".into(),
         "--volume".into(),
@@ -112,9 +112,12 @@ pub(crate) fn container_arguments(
         format!("{root}/tmp:/tmp:rw"),
         "--volume".into(),
         format!("{root}/tmp:/var/tmp:rw"),
-        "--tmpfs".into(),
-        "/dev/shm:rw,nosuid,nodev,noexec,size=67108864,nr_inodes=16384,mode=1777".into(),
-    ])
+    ];
+    args.extend(super::temporary::create(
+        job,
+        super::temporary::Scope::source(profile)?,
+    )?);
+    Ok(args)
 }
 pub(crate) fn verify_container(
     job: &str,
@@ -149,39 +152,64 @@ pub(crate) fn verify_container(
             return Err("actual writable scratch must bind the original bounded volume".into());
         }
     }
+    writable_mounts(job, mounts)?;
+    super::temporary::verify(job, super::temporary::Scope::source(profile)?, Some(v))
+}
+fn writable_mounts(job: &str, mounts: &[Value]) -> Result<(), String> {
     for m in mounts {
-        if m["RW"] == true
-            && m["Type"] == "bind"
-            && !matches!(
-                m["Destination"].as_str(),
-                Some("/work" | "/tmp" | "/var/tmp" | "/output")
-            )
+        let writable = m["RW"]
+            .as_bool()
+            .ok_or("actual writable mount state absent")?;
+        if writable
+            && (m["Type"] != "bind"
+                || !matches!(
+                    m["Destination"].as_str(),
+                    Some("/work" | "/tmp" | "/var/tmp" | "/output" | "/dev/shm")
+                ))
         {
-            return Err("unexpected writable container bind outside bounded job paths".into());
+            return Err("unexpected writable container mount outside bounded job paths".into());
         }
     }
-    let tmpfs = v["HostConfig"]["Tmpfs"]
-        .as_object()
-        .ok_or("explicit bounded shared-memory tmpfs absent")?;
-    if tmpfs.len() != 1
-        || !tmpfs
-            .get("/dev/shm")
-            .and_then(Value::as_str)
-            .is_some_and(|s| {
-                [
-                    "size=67108864",
-                    "nr_inodes=16384",
-                    "nosuid",
-                    "nodev",
-                    "noexec",
-                ]
-                .iter()
-                .all(|x| s.split(',').any(|a| a == *x))
-            })
+    let output = mounts
+        .iter()
+        .filter(|m| m["Destination"] == "/output")
+        .collect::<Vec<_>>();
+    if output.len() != 1
+        || output[0]["Type"] != "bind"
+        || output[0]["RW"] != true
+        || output[0]["Source"] != format!("/var/lib/hol-gauntlet/builds/{job}/export")
     {
-        return Err("explicit tmpfs byte and inode ceilings differ".into());
+        return Err("original bounded export bind required".into());
     }
     Ok(())
+}
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn observe_running(
+    job: &str,
+    profile: JobStorageProfile,
+    podman: &str,
+    cid: &str,
+    image: &str,
+    label: &str,
+    binding: &str,
+) -> Result<bool, String> {
+    if !lifecycle::present(job)? {
+        return Ok(true);
+    }
+    if !crate::hex(cid, 64) {
+        return Err("original temporary container CID required".into());
+    }
+    let raw =
+        crate::dependency_podman::run(podman, &["container".into(), "inspect".into(), cid.into()])?;
+    let rows: Vec<Value> = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
+    if rows.len() != 1
+        || crate::dependency_podman::validated_container_identity(
+            &rows[0], job, image, label, binding,
+        )? != cid
+    {
+        return Err("temporary measurement container binding changed".into());
+    }
+    super::temporary::observe(job, super::temporary::Scope::source(profile)?, &rows[0])
 }
 pub(crate) fn record_read(
     job: &str,
@@ -194,6 +222,7 @@ pub(crate) fn record_read(
     if !lifecycle::present(job)? {
         return Ok(());
     }
+    super::temporary::require_absent(job, super::temporary::Scope::source(profile)?)?;
     let root =
         crate::open_root_owned_public_directory(&profile.root(job)?).map_err(|e| e.to_string())?;
     let source = verify(job, &root, Some(profile))?
@@ -313,4 +342,28 @@ pub fn retire_source_job_storage(
             Ok(())
         },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn bounded_sources_refuse_anonymous_writable_volumes_and_foreign_exports() {
+        let job = "0123456789abcdef";
+        let output = serde_json::json!({"Destination":"/output","Type":"bind","RW":true,
+            "Source":format!("/var/lib/hol-gauntlet/builds/{job}/export")});
+        assert!(writable_mounts(job, std::slice::from_ref(&output)).is_ok());
+        for extra in [
+            serde_json::json!({"Destination":"/cache","Type":"volume","RW":true}),
+            serde_json::json!({"Destination":"/work","Type":"tmpfs","RW":true}),
+            serde_json::json!({"Destination":"/elsewhere","Type":"bind","RW":true}),
+        ] {
+            assert!(writable_mounts(job, &[output.clone(), extra]).is_err());
+        }
+        let mut foreign = output;
+        foreign["Source"] =
+            serde_json::json!("/var/lib/hol-gauntlet/builds/fedcba9876543210/export");
+        assert!(writable_mounts(job, &[foreign]).is_err());
+        assert!(writable_mounts(job, &[]).is_err());
+    }
 }

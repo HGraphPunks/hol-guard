@@ -1,5 +1,18 @@
 //! Fixed SDK and negative-control launches inside the owned agent.
 use super::*;
+use std::io::Read;
+pub(super) fn read(path: &Path, limit: u64) -> Result<Vec<u8>, String> {
+    let mut raw = Vec::new();
+    std::fs::File::open(path)
+        .map_err(|e| e.to_string())?
+        .take(limit + 1)
+        .read_to_end(&mut raw)
+        .map_err(|e| e.to_string())?;
+    if raw.len() as u64 > limit {
+        return Err("SDK kernel read bound".into());
+    }
+    Ok(raw)
+}
 impl NativeSdkAgent {
     pub(crate) fn prepare_live(
         job: &str,
@@ -48,19 +61,29 @@ impl NativeSdkAgent {
         )
     }
     pub(crate) fn launch_live_sdk(&mut self, cancel: &AtomicBool) -> Result<RootChild, String> {
+        self.launch_selected_sdk(cancel)
+    }
+    fn launch_selected_sdk(&mut self, cancel: &AtomicBool) -> Result<RootChild, String> {
         let value = self.inspect(cancel)?;
         self.check(&value, true)?;
-        self.commands.spawn(
-            false,
-            &strings(&[
-                "exec",
-                "--interactive",
-                self.cid.as_ref().ok_or("SDK CID absent")?,
-                "/runtime/bun",
-                "/runtime/public/developer_omp_episode.ts",
-                "/runtime/public/episode.json",
-            ]),
-        )
+        if !self.entrypoint.sealed() {
+            return Err("fresh SDK launch requires sealed startup profile".into());
+        }
+        let mut args = strings(&[
+            "exec",
+            "--interactive",
+            "--workdir=/runtime/public",
+            self.cid.as_ref().ok_or("SDK CID absent")?,
+            "/usr/bin/env",
+            "-i",
+        ]);
+        args.extend(
+            crate::native_sdk_peer::STARTUP_ENV
+                .into_iter()
+                .map(|(k, v)| format!("{k}={v}")),
+        );
+        args.extend(self.entrypoint.arguments());
+        self.commands.spawn(false, &args)
     }
     pub(crate) fn boundary_canary_positive(
         &mut self,
@@ -89,19 +112,7 @@ impl NativeSdkAgent {
         )
     }
     pub(crate) fn launch_sdk(&mut self, cancel: &AtomicBool) -> Result<RootChild, String> {
-        let value = self.inspect(cancel)?;
-        self.check(&value, true)?;
-        self.commands.spawn(
-            false,
-            &strings(&[
-                "exec",
-                "--interactive",
-                self.cid.as_ref().ok_or("SDK CID absent")?,
-                "/runtime/bun",
-                "/runtime/public/private_cell_sdk_conformance.ts",
-                "/runtime/public/episode.json",
-            ]),
-        )
+        self.launch_selected_sdk(cancel)
     }
     pub(crate) fn launch_peer_probe(&mut self) -> Result<RootChild, String> {
         self.commands.spawn(
