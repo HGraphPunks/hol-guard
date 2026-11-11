@@ -367,6 +367,7 @@ fn assess_row(
                 | "home-copy-task"
                 | "blocked-read"
                 | "blocked-memory-note"
+                | "blocked-eval-shell"
                 | "blocked-extension"
                 | "approved-retry"
                 | "approved-bash-lifecycle"

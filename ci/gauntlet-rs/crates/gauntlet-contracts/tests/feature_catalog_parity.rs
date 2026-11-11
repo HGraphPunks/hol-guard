@@ -81,7 +81,7 @@ def prevent_runtime(event,args):
 sys.addaudithook(prevent_runtime)
 root=Path(sys.argv[1])
 source=root/'ci/gauntlet/catalog.py'
-assert hashlib.sha256(source.read_bytes()).hexdigest()=='1acb014b980db01f026b71655474e353f277bc0e7ea316704a5c150a74ef869c'
+assert hashlib.sha256(source.read_bytes()).hexdigest()=='d13b78214fddf6550f5e4e2712d116f7ade0c34b5a6ff54407a3645dc4b036ac'
 sys.path.insert(0,str(root))
 from ci.gauntlet.catalog import load_catalog
 def digest(value):

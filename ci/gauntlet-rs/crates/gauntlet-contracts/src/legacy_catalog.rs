@@ -36,7 +36,7 @@ impl LegacyCatalogKind {
 
     pub fn sha256(self) -> &'static str {
         match self {
-            Self::Core => "20b85a784c707e472eb1231d8a3a6f02db8776a8c2b62a48386415a3e6f7ef54",
+            Self::Core => "414970688ed3c105821c5961c3bdcd8897c7e018c4cd2d28c46510e570852517",
             Self::ApprovalRetry => {
                 "9f27cef5f9312cd6fdd3c4084dbb47f6cc07bc06acc3afc87897c00dbb19d7d7"
             }
@@ -58,7 +58,7 @@ impl LegacyCatalogKind {
 
     fn count(self) -> usize {
         match self {
-            Self::Core => 308,
+            Self::Core => 310,
             Self::ApprovalRetry => 16,
             Self::ConnectorSetup => 11,
             Self::FullTasks => 15,
@@ -226,12 +226,12 @@ mod tests {
     #[test]
     fn all_fields_and_defaults_match_frozen_python_v1_vectors() {
         // SHA-256 of canonical JSON over dataclasses.asdict(load_catalog(...)):
-        // the Python source is 1acb014b980db01f026b71655474e353f277bc0e7ea316704a5c150a74ef869c.
+        // the Python source is d13b78214fddf6550f5e4e2712d116f7ade0c34b5a6ff54407a3645dc4b036ac.
         let vectors = [
             (
                 LegacyCatalogKind::Core,
-                308,
-                "275d2e2cb1656e8391749b35e35714cfc57e6251ef1775122a5bd070c8111458",
+                310,
+                "71818dac320f69dcb37b7392dc97d123dad3d3174af3339669f9e00d9b934bf3",
             ),
             (
                 LegacyCatalogKind::ApprovalRetry,

@@ -33,8 +33,8 @@ fn merged_gauntlet_source_matches_the_explicit_pinned_delta() {
     // Reviewed upstream changes and bounded Git/service/build observations
     // update these bytes; the 420-file oracle remains immutable. Every tracked
     // byte is still checked against the reviewed source map.
-    assert_eq!(changed.len(), 91);
-    assert_eq!(added.len(), 20);
+    assert_eq!(changed.len(), 93);
+    assert_eq!(added.len(), 21);
     for entry in changed {
         let path = entry["path"].as_str().unwrap();
         assert_eq!(expected.get(path), entry["base_sha256"].as_str().as_ref());

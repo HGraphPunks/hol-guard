@@ -22,6 +22,7 @@ NEW_FILES = {
     "ci/gauntlet/approval_retry_persistent.py": ("port_to_rust", 5),
     "ci/gauntlet/codex_contained.py": ("port_to_rust", 5),
     "ci/gauntlet/decision_coverage.py": ("port_to_rust", 5),
+    "ci/gauntlet/eval_shell.py": ("port_to_rust", 5),
     "ci/gauntlet/docker_stub_fixtures.py": ("port_to_rust", 5),
     "ci/gauntlet/extension_allow_fixtures.py": ("port_to_rust", 5),
     "ci/gauntlet/runtime_cases.py": ("port_to_rust", 5),

@@ -68,7 +68,7 @@ def main(destination: Path) -> None:
     if destination.exists() or destination.is_symlink():
         raise ValueError("fixture destination already exists")
     files = {path: digest for path, digest in source_hashes().items() if selected(path)}
-    if len(files) != 409:
+    if len(files) != 410:
         raise ValueError("current controller selection changed")
     directories = set()
     for name in files:

@@ -45,11 +45,18 @@ fn full_task_source_and_catalog_kind_are_pinned_without_trusting_pass_flags() {
     let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../gauntlet");
     for (name, expected) in reference["source_sha256"].as_object().unwrap() {
         assert!(!name.contains('/') && name.ends_with(".py"));
-        assert_eq!(
-            sha256(&std::fs::read(source.join(name)).unwrap()),
-            expected.as_str().unwrap(),
-            "{name}"
-        );
+        let observed = sha256(&std::fs::read(source.join(name)).unwrap());
+        if name == "evidence.py" {
+            let compatibility: Value = serde_json::from_str(include_str!(
+                "../tests/fixtures/python_legacy_upstream_62fe_v1.json"
+            ))
+            .unwrap();
+            let relation = &compatibility["source_compatibility"][name];
+            assert_eq!(*expected, relation["historical"]);
+            assert_eq!(observed, relation["current"]);
+        } else {
+            assert_eq!(observed, expected.as_str().unwrap(), "{name}");
+        }
     }
     let mut case = reference["vectors"][0]["case"].clone();
     case["passed"] = json!(true);

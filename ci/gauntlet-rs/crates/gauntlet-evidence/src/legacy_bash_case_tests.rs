@@ -1,5 +1,25 @@
 use super::*;
 
+fn upstream_reference() -> Value {
+    serde_json::from_str(include_str!(
+        "../tests/fixtures/python_legacy_upstream_62fe_v1.json"
+    ))
+    .unwrap()
+}
+
+fn assert_source_pin(name: &str, raw: &[u8], historical: &Value) {
+    let reference = upstream_reference();
+    let relation = &reference["source_compatibility"][name];
+    if relation.is_null() {
+        assert_eq!(*historical, sha256(raw), "{name}");
+    } else {
+        // Independent current Python replays and gated-branch AST equality
+        // establish this relation; immutable goldens keep their original pins.
+        assert_eq!(*historical, relation["historical"], "{name}");
+        assert_eq!(sha256(raw), relation["current"], "{name}");
+    }
+}
+
 #[test]
 fn compatibility_spec_uses_exact_original_python_prompt_public_files_and_canary_semantics() {
     let reference: Value = serde_json::from_str(include_str!(
@@ -8,7 +28,14 @@ fn compatibility_spec_uses_exact_original_python_prompt_public_files_and_canary_
     .unwrap();
     let spec = legacy_secret_copy_spec().unwrap();
     assert_eq!(spec["task_prompt"], reference["task_prompt"]);
-    assert_eq!(spec["catalog_sha256"], reference["catalog_sha256"]);
+    assert_eq!(
+        reference["catalog_sha256"],
+        "20b85a784c707e472eb1231d8a3a6f02db8776a8c2b62a48386415a3e6f7ef54"
+    );
+    assert_eq!(
+        spec["catalog_sha256"],
+        upstream_reference()["source_sha256"]["scenarios.json"]
+    );
     for (name, content) in reference["public_files"].as_object().unwrap() {
         assert_eq!(spec["public_files"][name], *content, "{name}");
     }
@@ -30,7 +57,7 @@ fn compatibility_spec_uses_exact_original_python_prompt_public_files_and_canary_
             include_bytes!("../../../../gauntlet/provider.py").as_slice(),
         ),
     ] {
-        assert_eq!(reference["source_sha256"][name], sha256(raw), "{name}");
+        assert_source_pin(name, raw, &reference["source_sha256"][name]);
     }
     for row in reference["canary_requests"].as_array().unwrap() {
         let actual = legacy_canary_requests(
@@ -42,7 +69,7 @@ fn compatibility_spec_uses_exact_original_python_prompt_public_files_and_canary_
         assert_eq!(json!(actual > 0), row["expected"], "{}", row["name"]);
     }
     assert_eq!(spec["sdk_version"], "18.4.12");
-    assert_eq!(spec["source_sdk_version"], "18.16.0");
+    assert_eq!(spec["source_sdk_version"], "18.18.6");
     for field in [
         "current_sdk_parity",
         "python_fixture_parity",
@@ -123,7 +150,7 @@ fn all_current_ordinary_rule_requirements_match_real_python_source() {
 }
 
 #[test]
-fn reference_vectors_are_bound_to_current_authoritative_sources() {
+fn historical_vectors_keep_original_pins_with_independent_current_compatibility() {
     let reference = reference();
     for (name, source) in [
         (
@@ -176,11 +203,7 @@ fn reference_vectors_are_bound_to_current_authoritative_sources() {
             include_str!("../../../../gauntlet/supply_chain.py"),
         ),
     ] {
-        assert_eq!(
-            reference["source_sha256"][name],
-            sha256(source.as_bytes()),
-            "{name}"
-        );
+        assert_source_pin(name, source.as_bytes(), &reference["source_sha256"][name]);
     }
 }
 
@@ -282,11 +305,7 @@ fn expanded_reference_is_bound_to_current_and_frozen_source_implementations() {
         let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../gauntlet");
         for (name, expected) in reference["source_sha256"].as_object().unwrap() {
             assert!(!name.contains('/') && name.ends_with(".py"));
-            assert_eq!(
-                sha256(&std::fs::read(source.join(name)).unwrap()),
-                expected.as_str().unwrap(),
-                "{name}"
-            );
+            assert_source_pin(name, &std::fs::read(source.join(name)).unwrap(), expected);
         }
         for (name, expected) in reference["frozen_source_sha256"].as_object().unwrap() {
             assert!(!name.contains('/') && name.ends_with(".py"));
@@ -307,6 +326,53 @@ fn expanded_reference_is_bound_to_current_and_frozen_source_implementations() {
             );
         }
     }
+}
+
+#[test]
+fn upstream_eval_and_launchctl_full_results_match_independent_current_python() {
+    assert_eq!(
+        sha256(include_bytes!(
+            "../tests/fixtures/python_legacy_upstream_62fe_v1.json"
+        )),
+        "e902408b5baac3513faff5e9c27d13dcdae5649147ba8a2361fb1acc96ebcdd4"
+    );
+    let reference = upstream_reference();
+    let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../gauntlet");
+    for (name, expected) in reference["source_sha256"].as_object().unwrap() {
+        assert!(!name.contains('/') && (name.ends_with(".py") || name.ends_with(".json")));
+        assert_eq!(
+            sha256(&std::fs::read(source.join(name)).unwrap()),
+            *expected,
+            "{name}"
+        );
+    }
+    assert_eq!(reference["vectors"].as_array().unwrap().len(), 27);
+    for row in reference["vectors"].as_array().unwrap() {
+        let base = &reference["bases"][row["base"].as_str().unwrap()];
+        let mut case = base["case"].clone();
+        for operation in row["patches"].as_array().unwrap() {
+            patch(&mut case, operation);
+        }
+        assert_eq!(
+            assess_audited_legacy_case(
+                LegacyCatalogKind::Core,
+                base["id"].as_str().unwrap(),
+                &case
+            )
+            .unwrap(),
+            row["expected"],
+            "{}",
+            row["name"]
+        );
+    }
+    let mut unsupported = reference["bases"]["eval"]["case"].clone();
+    unsupported["guard_observations"][0]["policy_action"] = json!({"producer_passed":true});
+    assert!(assess_audited_legacy_case(
+        LegacyCatalogKind::Core,
+        "omp-eval-sh-secret-copy",
+        &unsupported
+    )
+    .is_err());
 }
 
 #[test]
