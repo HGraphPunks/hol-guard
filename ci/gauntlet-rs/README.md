@@ -5,6 +5,16 @@ This independent Cargo workspace is an implementation slice of the
 Gauntlet's trusted code separately from the HOL Guard product workspace in
 `rust/`; a candidate product build must never supply its own verifier.
 
+The [current execution checkpoint](../../docs/gauntlet-rust-pr-readiness-plan.md)
+and [acceptance ledger](../../docs/gauntlet-rust-execution-checklist.md) record
+current source pins, supported commands and remaining qualification gaps.
+Python compatibility paths remain available. Runtime cutover and rollback are
+still unqualified: require no active or unknown job, preserve original ledgers
+and quota, and verify receipt reconciliation before changing ownership. The
+retained owner-loss volume currently blocks fresh admission; switching to
+Python or replacing state cannot resolve that missing authority. Retire Python
+orchestration only after the required parity, conformance and rollback proofs.
+
 The native product-cell actor has a separate
 [GNU/glibc release build contract](../../docs/gauntlet-rust-native-actor-build.md).
 The Root worker and constructor may be static musl; the actor must support
@@ -30,7 +40,7 @@ declarations, rejects symlinked private-cell paths, and checks v5–v7 installed
 version metadata against outside source/native/version pins. It does not
 authenticate the full installed prefix or admit a candidate to execution.
 
-The contracts library's fixed legacy catalog reader pins the existing 308-case
+The contracts library's fixed legacy catalog reader pins the existing 310-case
 core, 16-case approval-retry, 11-case connector-setup and 15-case full-task
 catalogs. Its normalized rows and listing match the actual Python reader,
 including every default. It accepts no caller path or source pin. Inventory
@@ -123,8 +133,8 @@ Python-exported valid and signed hostile fixtures provide differential tests.
 The [parity manifest](parity-manifest.v1.json) records SHA-256 hashes for all
 420 pinned Gauntlet source files and a preliminary owner phase.
 The separate [integration source delta](integration-source-delta.v1.json) records the
-48 files changed and seven files added when that pinned source is combined with
-current `main` in draft PR #5402. A Rust test reconstructs and hashes all 427
+93 files changed and 21 files added when that pinned source is combined with
+reviewed upstream source in the migration branch. A Rust test reconstructs and hashes all 441
 tracked `ci/gauntlet` files; the original 420-file manifest remains the
 immutable #5263 fixture baseline. Neither manifest makes candidate code a
 trusted controller generation.
