@@ -340,7 +340,7 @@ pub(in crate::native_operation::artifact) fn failure_fixture(
     ])
     .unwrap();
     let mut j = Journal::open(&path).unwrap();
-    j.lock().unwrap();
+    super::super::tests::lock_after_record(&mut j);
     let i = failure::parse(&j.read(job, failure::INTENT).unwrap()).unwrap();
     let mut m = protocol::failure_pins(&i);
     m["schema"] = json!("hol-gauntlet-failed-build-evidence.v1");

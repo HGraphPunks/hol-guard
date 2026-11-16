@@ -73,8 +73,8 @@ fn descriptor_reader_requires_exact_pin_and_safe_file_and_ancestry() {
 fn local_report(args: &[String]) -> Result<Value> {
     assert_eq!(args.len(), 6);
     assert_eq!(args[0], "report");
-    // Parallel process tests can inherit a CLOEXEC lock until exec. Only this
-    // local, idempotent report may wait for the pre-operation owner refusal.
+    // A parallel fixture can briefly report a busy lease. Only this local,
+    // idempotent report may wait for the pre-operation owner refusal.
     // Exhaustion must fail even a negative test: busy is not a file verdict.
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     loop {

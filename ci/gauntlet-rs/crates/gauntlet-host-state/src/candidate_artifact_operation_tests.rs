@@ -4,6 +4,23 @@ use std::{cell::Cell, fs, os::unix::fs::PermissionsExt};
 
 const JOB: &str = "c04e7f93a2b15d68";
 const VM: &str = "hol-artifact-fixture";
+pub(super) fn lock_after_record(journal: &mut Journal) {
+    // A parallel fixture can briefly report a busy lease. Wait only for that
+    // pre-operation refusal, never retry a mutation.
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        match journal.lock() {
+            Err(error) if error == "another native operation owns the journal" => {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "artifact fixture journal remained busy"
+                );
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            result => return result.unwrap(),
+        }
+    }
+}
 pub(super) fn pins(job: &str) -> HostCandidateBuildPins {
     HostCandidateBuildPins {
         job_id: job.into(),
