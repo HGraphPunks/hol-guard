@@ -127,7 +127,7 @@ pub(super) struct ReadConfig {
 }
 
 impl ReadConfig {
-    fn from_line(line: &[u8]) -> Option<Self> {
+    pub(in crate::daemon_edge) fn from_line(line: &[u8]) -> Option<Self> {
         let handshake: Handshake = serde_json::from_slice(line).ok()?;
         if handshake.schema != HANDSHAKE_SCHEMA
             || handshake.auth_token.is_empty()
@@ -252,7 +252,8 @@ impl NativeReads {
             .elapsed()
     }
 
-    fn touch(&self) {
+    /// Restarts the idle clock, as a connection beginning or ending does.
+    pub(super) fn touch(&self) {
         *self
             .touched
             .lock()
@@ -685,6 +686,7 @@ fn answer_request(
             config.dashboard_dir.as_deref(),
             &config.token,
             config.dashboard_build.as_deref(),
+            config.guard_home(),
         ) {
             return write_answer(client, &response, reads, stalled_write);
         }

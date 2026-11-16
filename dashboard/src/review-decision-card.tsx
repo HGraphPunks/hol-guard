@@ -140,6 +140,7 @@ export function ReviewDecisionCard(props: {
     approvalPassword,
     approvalTotpCode,
     errorMessage,
+    freshCodeRequired,
     handleAllow,
     handleApprovalPasswordChange,
     handleApprovalTotpCodeChange,
@@ -381,6 +382,7 @@ export function ReviewDecisionCard(props: {
             exactActionPersistenceEligible={item.exact_action_persistence_eligible === true}
             versionBoundScript={versionBoundScript}
             rememberExactAction={rememberExactAction}
+            persistExactBlock={persistExactBlock}
             oneTimeRetryBlocked={retryCannotReuseApproval(item)}
             retryWindowMinutes={oneTimeRetryWindowMinutes(item)}
             allowScope={allowScope}
@@ -487,6 +489,7 @@ export function ReviewDecisionCard(props: {
           onUseCooldownChange={handleUseCooldownChange}
           onSubmit={handleModalSubmit}
           busy={submitting !== null}
+          requireFreshTotp={freshCodeRequired}
           onCancel={handleModalCancel}
           submitLabel={pendingAction === "allow" ? resolvedAllowButtonLabel : resolvedBlockButtonLabel}
         />

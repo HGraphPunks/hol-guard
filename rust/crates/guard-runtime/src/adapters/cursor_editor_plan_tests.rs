@@ -73,8 +73,12 @@ fn guard_proxy_entries_are_named_by_their_index() {
         {"command": "HOL-GUARD.exe", "args": ["mcp-relay", "py", "-m", "codex_plugin_scanner.cli", "guard", "mcp-proxy"]},
         {"command": "hol-guard", "args": ["guard", "cursor-mcp-proxy"]},
         null,
+        {"command": "hol-guard", "args": ["guard", "omp-mcp-proxy"]},
+        {"command": "/prefix/python3", "args": ["-m", "codex_plugin_scanner.cli", "guard", "omp-mcp-proxy"]},
+        {"command": "node", "args": ["omp-mcp-proxy"]},
+        {"command": "hol-guard", "args": ["guard", "omp-mcp-proxy-fake"]},
     ]);
     let answer = plan(&request(servers)).expect("plan");
-    assert_eq!(answer["refresh"], json!([1, 2]));
+    assert_eq!(answer["refresh"], json!([1, 2, 4, 5]));
     assert_eq!(answer["notes"].as_array().map(Vec::len), Some(2));
 }

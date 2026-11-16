@@ -13,7 +13,7 @@ use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde_json::{json, Map, Value};
 
@@ -139,6 +139,33 @@ pub(in crate::daemon_edge) fn call_resident_within(
     args: Value,
     wait: Duration,
 ) -> Result<Value, CallError> {
+    // One budget covers both attempts, including the time either spends
+    // finding or starting a process before it sends the call.
+    let deadline = Instant::now() + wait;
+    match call_resident_once(config, name, args.clone(), wait, deadline) {
+        // The process was already gone, so the call never reached it. Under
+        // host load a child that died (or was stopped by an earlier call that
+        // gave up on it) is the usual reason the next hook found no resident;
+        // the replacement starts here instead of failing this hook and
+        // leaving the start to the one after it. A call that was delivered and
+        // then lost its answer is not repeated: it may have run.
+        Err(CallError::Unavailable) => {
+            if Instant::now() >= deadline {
+                return Err(CallError::Unavailable);
+            }
+            call_resident_once(config, name, args, wait, deadline)
+        }
+        other => other,
+    }
+}
+
+fn call_resident_once(
+    config: &ReadConfig,
+    name: &str,
+    args: Value,
+    wait: Duration,
+    deadline: Instant,
+) -> Result<Value, CallError> {
     let (_, guard_home, _) = config.cli().ok_or(CallError::Unavailable)?;
     let guard_home = guard_home.to_owned();
     let resident = {
@@ -182,7 +209,13 @@ pub(in crate::daemon_edge) fn call_resident_within(
             .is_ok()
     };
     let answer = if written {
-        receiver.recv_timeout(wait.min(CALL_TIMEOUT)).ok()
+        receiver
+            .recv_timeout(
+                deadline
+                    .saturating_duration_since(Instant::now())
+                    .min(CALL_TIMEOUT),
+            )
+            .ok()
     } else {
         None
     };
@@ -322,22 +355,49 @@ pub(in crate::daemon_edge) fn run_host(
     // Held, never written: the host stops when this end closes.
     let _input = child.stdin.take();
     if let Some(output) = child.stdout.take() {
+        let journal = std::path::PathBuf::from(guard_home);
         let _ = thread::Builder::new()
             .name("daemon-worker-host-output".into())
             .spawn(move || {
                 let mut lines = BufReader::new(output);
-                let mut line = String::new();
-                if lines.read_line(&mut line).is_ok() && line.trim_end() == "ready" {
-                    if let Some(ready) = ready {
-                        let _ = ready.send(());
-                    }
-                }
+                read_host_start(&mut lines, &journal, ready);
                 // Anything later is drained so the host never blocks on it.
                 let _ = std::io::copy(&mut lines, &mut std::io::sink());
             });
     }
     let _ = child.wait();
     Some(())
+}
+
+/// The most start steps one host may journal before it says `ready`.
+const MAX_HOST_PHASES: usize = 16;
+
+/// Reads the host's start lines up to `ready`. Each `phase <step>` line is
+/// journaled as `host_<step>`, so a slow start names the step that spent it;
+/// `ready` is heard once, and any other line ends the start without it.
+pub(in crate::daemon_edge) fn read_host_start(
+    lines: &mut impl BufRead,
+    guard_home: &std::path::Path,
+    ready: Option<mpsc::Sender<()>>,
+) {
+    let mut line = String::new();
+    for _ in 0..=MAX_HOST_PHASES {
+        line.clear();
+        if !matches!(lines.read_line(&mut line), Ok(read) if read > 0) {
+            return;
+        }
+        let text = line.trim_end();
+        if text == "ready" {
+            if let Some(ready) = ready {
+                let _ = ready.send(());
+            }
+            return;
+        }
+        let Some(step) = text.strip_prefix("phase ") else {
+            return;
+        };
+        super::lifecycle::record(guard_home, &format!("host_{step}"), None, None, None);
+    }
 }
 
 fn stop(mut child: Child) {

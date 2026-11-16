@@ -198,6 +198,7 @@ def _resident_request(
             "codex_request_resume",
             "daemon_route",
             "context_assistance",
+            "swarm",
             "context_agent",
             "daemon_handler",
             "extension_control",
@@ -218,6 +219,7 @@ def _resident_request(
             "reviewed_invocation_bindings_validate",
             "tool_action_request_identity",
             "verified_read_execute",
+            "adapter_state_integrity",
         }:
             accepted = frozenset({"ok", "error"})
         elif operation == "mcp_tool_policy_decide":
