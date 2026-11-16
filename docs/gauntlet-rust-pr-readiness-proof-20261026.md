@@ -1,5 +1,59 @@
 # Rust migration restart: integration and regression proof
 
+## Rust v1 checkpoint — November 16, 2026, in progress
+
+The [bounded v1 contract](gauntlet-rust-pr-readiness-plan.md) expires on
+**2026-11-17 17:07 UTC**. Its eight exits remain open until their required
+evidence is complete. The historical full-migration ledger stays **24/62
+complete, 38 open**; extended features remain uncompleted on the roadmap.
+
+Production source is frozen at `4edfc22e3260cac6c2c0fa2316748a4c41b882f2`,
+including upstream `2a5488a4e119f051162d0c191c356c3562360b69`.
+Follow-ups through `8ffa848d5f36c96bf4192082671008b0d32be5ad` change only nine
+test inputs. Six are dedicated test modules; three change only their
+`cfg(test)` tails. Their production prefixes are byte-identical. The retained
+equivalence record has SHA-256
+`a45872fcab6a87009133f0639d8b20446ef39c078c1a4d26164135557d004a80`.
+
+The release build now disables Cargo release LTO and uses 16 codegen units.
+This preserves the existing isolation, 12-GiB memory, CPU, process, disk and
+deadline limits. A new failure-evidence route retains actual result-bound
+binary logs, performs Host custody/readback and acknowledgement, and retires
+only the original verified volume. Unknown usage stays null; a failed build
+never becomes a candidate ZIP or admitted artifact.
+
+| Verified observation | Retained record SHA-256 |
+| --- | --- |
+| Full macOS Rust workspace/all-target/all-feature command exits 0; log capture is partial, so no exact total count is claimed. | `9556bc8a78d32b5c59248b73f576342c3a49c6a79cfe8e4cc492e2a90e333f4b` |
+| ARM Worker: 250 unprivileged tests pass, 37 explicit Root/integration tests remain ignored; the initialized-VM Root-only identity case passes separately. | `3f8d1209f6b1efd6091fbe14afe06261dcc668f8911f5c97e8285b95d855ca5c` |
+| All 22 selected Root recovery/staging cases pass, including five explicitly invoked ignored fixtures and the identity case above. | `0f2b236289d5d467176ca49eaee64585985089224fe218e003df835bf4ebf24c` |
+| Fresh final-source dependency build exits 0; independent readback verifies 2,291 files and 336 directories with container/cgroup/profile cleanup. | `3ab5e385c019a5d02a1eea996b27c5f3698d72016838215909316f8f16dc42ae` |
+| Normal dependency-prefix staging completes with original Source/transport custody. | `a3e33a3638ff96ffc5bb866e813b6e5225da46016cdbd617d5fe50ae8a9c6140` |
+| The earlier candidate's actual OOM/build exit 1 is exported, acknowledged and retired through the new normal failure CLI. | `e248f9042a7dc9a5f0bf09c0ce3fb42699c902386a896d40b8b0fe2ae1ad3f35` |
+| Independent four-lease checks confirm both superseded volumes, loop references, owner cgroups and job AppArmor profiles absent. | `b157882b612bbb3c1cac41a3d25cd51169dc6643984d2fa72997c8e3f4c2abd0` |
+| Actual VM Python 3.12.3 bytes match the independently pinned executor-image interpreter; UV's build interpreter is not used as its patch-version oracle. | `c78048436f0503e79ca767bd4a5e3697f5196807e60ff184cce5d5f53bce4370` |
+
+Formatting and warnings-denied macOS/ARM all-target/all-feature Clippy pass.
+The unchanged 420-file Python baseline remains intact; the current controller
+map contains 449 sources, with 418 installed files. Independent Python and
+Rust agree on tree
+`b486ec6936966b8643117dc6c1fc03486eff6c466738f6e5186847726018b6b8`.
+
+The isolated final-source candidate build is still running. Runtime
+publication, fresh Native utility execution, the genuine MCP-only pair and
+their cleanup are not yet credited. The new 200,000-token provider binding is
+prepared but has started no inference. Actual SDK remains 18.4.12/Bun 1.3.14;
+this does not establish newer-SDK or general SDK/Bash qualification. The old
+unknown-owner VM and its evidence remain quarantined and unchanged.
+
+GitHub reports repository Actions enabled and the Rust workflow active, but
+fresh dispatch still returns HTTP 422, “Actions has been disabled for this
+repository.” All five actual final-head jobs and independent repository
+approval remain required before integration merge. No local result replaces
+those gates. Raw recordings remain private outside Git.
+
+## Original October 26 checkpoint
+
 Date: 2026-10-26. Branch: `codex/gauntlet-rust-pr-ready-20261026`.
 This is a local implementation checkpoint, with no new model requests,
 conformance package, eligible benchmark verdict or production cutover.
