@@ -2,15 +2,13 @@ use super::*;
 use rustix::fs::open;
 use serde_json::json;
 use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 
 #[test]
 fn failed_build_ustar_preserves_binary_empty_logs_and_unknown_usage() {
     use crate::native_public_archive::{encode_failed, PublicFiles};
-    use std::{
-        io::Read,
-        os::unix::fs::{MetadataExt, PermissionsExt},
-    };
+    use std::{io::Read, os::unix::fs::MetadataExt};
     let temp = tempfile::tempdir().unwrap();
     let root = open(
         temp.path(),
@@ -129,6 +127,7 @@ fn inert_stage_reads_back_every_file_and_refuses_replay_or_bad_wheel() {
         wheel_bytes: wheel.len() as u64,
     };
     let scratch = tempfile::tempdir().unwrap();
+    std::fs::set_permissions(scratch.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
     let job = open(
         scratch.path(),
         OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
@@ -183,6 +182,7 @@ fn inert_stage_reads_back_every_file_and_refuses_replay_or_bad_wheel() {
         Err(CandidateWheelStageError::ExistingStage)
     );
     let bad = tempfile::tempdir().unwrap();
+    std::fs::set_permissions(bad.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
     let bad_job = open(
         bad.path(),
         OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,

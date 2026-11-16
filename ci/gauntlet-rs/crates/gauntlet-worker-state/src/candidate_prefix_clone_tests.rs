@@ -29,6 +29,7 @@ fn unprivileged_clone_refuses_before_any_pins_or_files() {
 fn clone_keeps_reviewed_dependencies_and_replaces_only_product_files() {
     assert_eq!(geteuid().as_raw(), 0);
     let scratch = tempfile::tempdir().unwrap();
+    fs::set_permissions(scratch.path(), fs::Permissions::from_mode(0o700)).unwrap();
     let baseline = scratch.path().join("baseline");
     let stage = scratch.path().join("stage");
     let target = scratch.path().join("target");

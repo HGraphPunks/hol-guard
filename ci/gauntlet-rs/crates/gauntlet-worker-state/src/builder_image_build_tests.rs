@@ -130,10 +130,12 @@ fn captured_builder_input_cannot_prepare_after_a_later_native_job_becomes_unknow
     use std::os::unix::fs::PermissionsExt;
     gauntlet_cell_rootfs::require_outside_root().unwrap();
     let journal_dir = tempfile::tempdir_in("/var/lib").unwrap();
+    std::fs::set_permissions(journal_dir.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
     let journal = crate::RunReservationJournal::open_root_owned(journal_dir.path()).unwrap();
     let lease = journal.acquire_active_lease().unwrap();
     crate::native_job_io::require_no_unknown_jobs(&journal).unwrap();
     let captured = tempfile::tempdir_in("/run").unwrap();
+    std::fs::set_permissions(captured.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
     let raw = b"previously retained inert source bytes";
     std::fs::write(captured.path().join("source.tar.gz"), raw).unwrap();
     std::fs::set_permissions(
