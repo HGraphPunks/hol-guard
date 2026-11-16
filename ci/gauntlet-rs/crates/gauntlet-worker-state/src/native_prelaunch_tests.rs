@@ -215,3 +215,91 @@ fn exact_ack_retains_only_the_sealed_key_and_cancellation_before_ack_consumes_no
         assert_ne!((after.dev(), after.ino()), (held.dev(), held.ino()));
     }
 }
+
+#[test]
+fn unsigned_readonly_failure_requires_actual_exit_and_original_host_ack() {
+    let pre = PrelaunchPrepared {
+        source_sha: "a".repeat(40),
+        job_id: "b".repeat(16),
+        deployment_digest: "c".repeat(64),
+        worker_generation: "d".repeat(64),
+        started_marker_sha256: "e".repeat(64),
+        controller_key_pin_sha256: "f".repeat(64),
+        controller_public_key_hex: "1".repeat(64),
+    };
+    let hash = |v: &Value| {
+        crate::native_job_storage::linux::sha(
+            &crate::native_job_storage::linux::canonical(v).unwrap(),
+        )
+    };
+    let storage = json!({"receipt_sha256":"2".repeat(64)});
+    let ack = pre
+        .acknowledgement(&pre.host_record_sha256().unwrap())
+        .unwrap();
+    let mut frame = json!({"schema":"hol-gauntlet-native-host-pinned-completion.v2","terminal_sha256":"3".repeat(64),"model_requests":0,
+        "terminal":{"exit_code":2,"status":"invalid-evidence"},"report":{
+        "schema":"hol-gauntlet-native-worker-report.v8","profile":"native-host-pinned-readonly-hook-v1","preparation_sha256":"4".repeat(64),"retained_storage":storage,
+        "exit_code":2,"status":"invalid-evidence","execution_error":null,"interruption":null,"controller_report":null,"controller_signature_verification":null,
+        "controller_envelope_utf8":"","controller_stdout_sha256":crate::native_job_storage::linux::sha(b""),"controller_signature_error":"bounded native controller envelope required",
+        "execution_eligible":false,"guard_causality_verified":false,"model_requests":0,"controller_cgroup_drained":true,"product_slice_absent":true,"image_lease_absent":true,
+        "prelaunch_custody":{"prepared":serde_json::from_slice::<Value>(&pre.to_bytes().unwrap()).unwrap(),"host_ack_received_before_controller_spawn":true,"acknowledgement_sha256":crate::native_job_storage::linux::sha(&ack)}}});
+    let report_sha = hash(&frame["report"]);
+    frame["terminal"]["report_sha256"] = json!(report_sha);
+    let p = ReadonlyFailurePins(
+        json!({"preparation_sha256":"4".repeat(64),"terminal_sha256":"3".repeat(64),"report_sha256":report_sha}),
+    );
+    let check = |f: &Value, p: &ReadonlyFailurePins| {
+        crate::native_completion::validate_readonly_failure(f, p, &pre, &storage)
+    };
+    check(&frame, &p).unwrap();
+    for (pointer, bad) in [
+        (
+            "/report/schema",
+            json!("hol-gauntlet-native-worker-report.v9"),
+        ),
+        ("/report/profile", json!("native-host-pinned-live-omp-v1")),
+        ("/report/execution_error", json!("synthetic worker failure")),
+        ("/report/interruption", json!("deadline")),
+        ("/report/controller_report", json!({})),
+        ("/report/controller_signature_error", Value::Null),
+        (
+            "/report/controller_envelope_utf8",
+            json!("unsigned replacement"),
+        ),
+        (
+            "/report/prelaunch_custody/acknowledgement_sha256",
+            json!("0".repeat(64)),
+        ),
+        (
+            "/report/prelaunch_custody/host_ack_received_before_controller_spawn",
+            json!(false),
+        ),
+        (
+            "/report/retained_storage",
+            json!({"receipt_sha256":"0".repeat(64)}),
+        ),
+        ("/report/controller_cgroup_drained", json!(false)),
+        ("/model_requests", json!(1)),
+    ] {
+        let mut changed = frame.clone();
+        *changed.pointer_mut(pointer).unwrap() = bad;
+        let digest = hash(&changed["report"]);
+        changed["terminal"]["report_sha256"] = json!(digest);
+        let mut pins = ReadonlyFailurePins(p.0.clone());
+        pins.0["report_sha256"] = json!(digest);
+        assert!(check(&changed, &pins).is_err(), "{pointer}");
+    }
+    for bad in [json!(-1), json!(0), Value::Null, json!(256)] {
+        let mut changed = frame.clone();
+        changed["report"]["exit_code"] = bad.clone();
+        changed["terminal"]["exit_code"] = bad;
+        let digest = hash(&changed["report"]);
+        changed["terminal"]["report_sha256"] = json!(digest);
+        let mut pins = ReadonlyFailurePins(p.0.clone());
+        pins.0["report_sha256"] = json!(digest);
+        assert!(check(&changed, &pins).is_err());
+    }
+    let mut changed = ReadonlyFailurePins(p.0.clone());
+    changed.0["terminal_sha256"] = json!("0".repeat(64));
+    assert!(check(&frame, &changed).is_err());
+}

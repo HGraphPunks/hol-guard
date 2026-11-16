@@ -21,6 +21,8 @@ pub(crate) mod artifact;
 pub use artifact::{run_source_artifact_command, SOURCE_ARTIFACT_USAGE};
 #[path = "native_transport_context.rs"]
 pub(crate) mod context;
+#[path = "native_failed_operation.rs"]
+mod failure;
 #[path = "live_campaign_operation.rs"]
 pub(crate) mod live;
 #[path = "native_preparation_operation.rs"]
@@ -37,7 +39,7 @@ pub(crate) use transport::observe_native_job;
 mod transport;
 
 const LIMIT: u64 = NATIVE_HOST_PINNED_COMPLETION_LIMIT as u64;
-pub const NATIVE_OPERATION_USAGE: &str = "deterministic commands (Rust v1):\ninitialize PRIVATE_0700_JOURNAL VM LIMA_SHA256 SOURCE_SHA JOB_ID WORKER_SHA256 MKE2FS_SHA256 SSH_HOME LIMA_HOME\ninitialize-read PRIVATE_JOURNAL JOB_ID INITIALIZATION_INTENT_SHA256\ninitialize-abort|initialize-abort-unreleased PRIVATE_JOURNAL JOB_ID INITIALIZATION_INTENT_SHA256 INITIALIZATION_RECEIPT_SHA256 STORAGE_SHA256 PODMAN_SHA256 ABORTER_SHA256\ninitialize-abort-read|initialize-abort-resume PRIVATE_JOURNAL JOB_ID ABORT_INTENT_SHA256\nrecord PRIVATE_0700_JOURNAL VM LIMA_SHA256 SOURCE_SHA JOB_ID DEPLOYMENT_SHA256 WORKER_SHA256 PREPARATION_SHA256 readonly-utility INTERPRETER_SHA256 OBSERVER_SHA256 SSH_HOME LIMA_HOME\nprepare PRIVATE_JOURNAL JOB_ID INTENT_SHA256 PRIVATE_BUNDLE_JSON BUNDLE_SHA256\nprepare-read PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nrun|read PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nreport PRIVATE_JOURNAL JOB_ID INTENT_SHA256 [PRIVATE_ARTIFACT_USTAR ARCHIVE_SHA256]\nretire PRIVATE_JOURNAL JOB_ID INTENT_SHA256 RETIRER_SHA256\nretire-read|retire-resume PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nrepair PRIVATE_JOURNAL JOB_ID INTENT_SHA256 REPAIR_SHA256 [--never-released]\nNew prepare/run require readonly-utility and original bounded initialization. Ordinary SDK/Bash work is unavailable; historical reads and cleanup retain their original authority. Closed MCP-only work uses the live command. Execution retains the original VM and one-use dispatch; unknown work blocks new runs. Reports distinguish producer status, independent judgment and qualification. Artifact USTARs stay private (0700 parent/0600 file); stdout contains hashes and sanitized judgments.";
+pub const NATIVE_OPERATION_USAGE: &str = "deterministic commands (Rust v1):\ninitialize PRIVATE_0700_JOURNAL VM LIMA_SHA256 SOURCE_SHA JOB_ID WORKER_SHA256 MKE2FS_SHA256 SSH_HOME LIMA_HOME\ninitialize-read PRIVATE_JOURNAL JOB_ID INITIALIZATION_INTENT_SHA256\ninitialize-abort|initialize-abort-unreleased PRIVATE_JOURNAL JOB_ID INITIALIZATION_INTENT_SHA256 INITIALIZATION_RECEIPT_SHA256 STORAGE_SHA256 PODMAN_SHA256 ABORTER_SHA256\ninitialize-abort-read|initialize-abort-resume PRIVATE_JOURNAL JOB_ID ABORT_INTENT_SHA256\nrecord PRIVATE_0700_JOURNAL VM LIMA_SHA256 SOURCE_SHA JOB_ID DEPLOYMENT_SHA256 WORKER_SHA256 PREPARATION_SHA256 readonly-utility INTERPRETER_SHA256 OBSERVER_SHA256 SSH_HOME LIMA_HOME\nprepare PRIVATE_JOURNAL JOB_ID INTENT_SHA256 PRIVATE_BUNDLE_JSON BUNDLE_SHA256\nprepare-read PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nrun|read PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nreport PRIVATE_JOURNAL JOB_ID INTENT_SHA256 [PRIVATE_ARTIFACT_USTAR ARCHIVE_SHA256]\nretire PRIVATE_JOURNAL JOB_ID INTENT_SHA256 RETIRER_SHA256\nretire-read|retire-resume PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nrepair PRIVATE_JOURNAL JOB_ID INTENT_SHA256 REPAIR_SHA256 [--never-released]\nfailure-record PRIVATE_JOURNAL JOB_ID ORIGINAL_NATIVE_INTENT_SHA READER_SHA\nfailure-download|failure-download-read|failure-download-resume|failure-ack|failure-ack-read|failure-ack-resume PRIVATE_JOURNAL JOB_ID FAILURE_INTENT_SHA\nfailure-retire PRIVATE_JOURNAL JOB_ID FAILURE_INTENT_SHA RETIRER_SHA\nfailure-retire-read|failure-retire-resume PRIVATE_JOURNAL JOB_ID FAILURE_INTENT_SHA\nFailure custody is limited to original bounded readonly startup failures. It never authenticates an absent controller signature; unknown usage remains null. Actual private Host archive bytes and Root ACK are required before resumable original cleanup.\nNew prepare/run require readonly-utility and original bounded initialization. Ordinary SDK/Bash work is unavailable; historical reads and cleanup retain their original authority. Closed MCP-only work uses the live command. Execution retains the original VM and one-use dispatch; unknown work blocks new runs. Reports distinguish producer status, independent judgment and qualification. Artifact USTARs stay private (0700 parent/0600 file); stdout contains hashes and sanitized judgments.";
 
 fn hex(s: &str, n: usize) -> bool {
     s.len() == n
@@ -322,6 +324,7 @@ impl Journal {
                 .to_str()
                 .map_err(|_| "native journal name invalid")?;
             public_export::verify_retirement_idle_record(self, name)?;
+            failure::verify_idle_record(self, name)?;
             if preparation::verify_idle_record(self, name)? {
                 continue;
             }
@@ -333,7 +336,9 @@ impl Journal {
                 }
                 let intent = self.intent(job)?;
                 self.require_dispatch(&intent)?;
-                if !self.absent(job, "repair-intent")? {
+                if !self.absent(job, failure::INTENT)? {
+                    failure::verify_idle(self, &intent)?;
+                } else if !self.absent(job, "repair-intent")? {
                     if intent.is_live() {
                         live::verify_retained_repair(self, &intent)?;
                     } else {
@@ -376,6 +381,9 @@ impl Journal {
 
 /// Parse the complete operation before opening private state or contacting Lima.
 pub fn run_native_operation_command(args: &[String]) -> Result<Value, String> {
+    if failure::handles(args) {
+        return failure::run_command(args);
+    }
     if args
         .first()
         .is_some_and(|s| matches!(s.as_str(), "retire" | "retire-read" | "retire-resume"))

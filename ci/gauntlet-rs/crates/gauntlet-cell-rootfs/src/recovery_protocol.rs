@@ -101,9 +101,136 @@ pub(crate) fn closed_supervisor(records: &[Value]) -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn failed_supervisor(records: &[Value]) -> Result<()> {
+    if records.first().is_none_or(|row| row["kind"] != "prepared") {
+        return Err("failed startup lacks original prepared ownership".into());
+    }
+    let mut startup = 0;
+    let mut recorder = 0;
+    let mut pipe = 0;
+    let mut cleanup = 0;
+    let mut image = 0;
+    for (index, row) in records.iter().enumerate() {
+        match row["kind"].as_str() {
+            Some("prepared") if index == 0 => {}
+            Some("image-interpreter-pinned" | "private-parent-mount-namespace") if startup == 0 => {
+            }
+            Some("startup-failure") if startup == 0 => {
+                if row["data"]
+                    != serde_json::json!({"error":"product management pipe exited before ready marker"})
+                {
+                    return Err(
+                        "failed startup did not prove the first ready marker was missing".into(),
+                    );
+                }
+                startup += 1;
+            }
+            Some("cell-stderr") if startup == 1 => {}
+            Some("process-events-closed") if startup == 1 && recorder == 0 && cleanup == 0 => {
+                if row["data"]
+                    != serde_json::json!({"available":false,"error":"required process recorder was not established","schema":"hol-gauntlet-native-process-recorder.v1"})
+                {
+                    return Err("failed startup process recorder was established or unknown".into());
+                }
+                recorder += 1;
+            }
+            Some("native-pipe-owner-terminal") if recorder == 1 && pipe == 0 && cleanup == 0 => {
+                if row["data"]
+                    != serde_json::json!({"available":false,"error":"Native pipe owner was not established","execution_eligible":false})
+                {
+                    return Err(
+                        "failed startup Native pipe owner was established or unknown".into(),
+                    );
+                }
+                pipe += 1;
+            }
+            Some("terminal-cleanup") if startup == 1 && recorder == 1 && pipe == 1 => {
+                let data = &row["data"];
+                if data.as_object().is_none_or(|o| o.len() != 3)
+                    || data["cgroup_absent"] != true
+                    || data["rootfs_mount_absent"] != true
+                    || data["failures"]
+                        .as_array()
+                        .is_none_or(|v| v.iter().any(|s| s.as_str().is_none_or(str::is_empty)))
+                {
+                    return Err("failed startup cleanup observations differ".into());
+                }
+                cleanup += 1;
+            }
+            Some("rust-image-cleanup") if cleanup > 0 => {
+                if row["data"]
+                    != serde_json::json!({"image_mount_absent":true,"active_lease_removed":true})
+                {
+                    return Err("failed startup image cleanup differs".into());
+                }
+                image += 1;
+            }
+            _ => {
+                return Err(
+                    "failed startup history reached a gate or has unknown observations".into(),
+                )
+            }
+        }
+    }
+    if startup != 1 || recorder != 1 || pipe != 1 || cleanup == 0 || image == 0 {
+        return Err("failed startup history is incomplete".into());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn failed_startup_preserves_errors_without_becoming_clean_history() {
+        let rows = vec![
+            serde_json::json!({"kind":"prepared"}),
+            serde_json::json!({"kind":"image-interpreter-pinned"}),
+            serde_json::json!({"kind":"private-parent-mount-namespace"}),
+            serde_json::json!({"kind":"startup-failure","data":{"error":"product management pipe exited before ready marker"}}),
+            serde_json::json!({"kind":"cell-stderr","data":{"data":"original diagnostic"}}),
+            serde_json::json!({"kind":"process-events-closed","data":{"available":false,"error":"required process recorder was not established","schema":"hol-gauntlet-native-process-recorder.v1"}}),
+            serde_json::json!({"kind":"native-pipe-owner-terminal","data":{"available":false,"error":"Native pipe owner was not established","execution_eligible":false}}),
+            serde_json::json!({"kind":"terminal-cleanup","data":{"cgroup_absent":true,"rootfs_mount_absent":true,"failures":["original stop refusal","required process recorder was not established","Native pipe owner was not established"]}}),
+            serde_json::json!({"kind":"rust-image-cleanup","data":{"image_mount_absent":true,"active_lease_removed":true}}),
+            serde_json::json!({"kind":"terminal-cleanup","data":{"cgroup_absent":true,"rootfs_mount_absent":true,"failures":["original stop refusal","required process recorder was not established","Native pipe owner was not established"]}}),
+            serde_json::json!({"kind":"rust-image-cleanup","data":{"image_mount_absent":true,"active_lease_removed":true}}),
+        ];
+        failed_supervisor(&rows).unwrap();
+        assert!(closed_supervisor(&rows).is_err());
+        for pointer in ["/data/cgroup_absent", "/data/rootfs_mount_absent"] {
+            let mut changed = rows.clone();
+            *changed[7].pointer_mut(pointer).unwrap() = serde_json::json!(false);
+            assert!(failed_supervisor(&changed).is_err());
+        }
+        let mut changed = rows.clone();
+        changed.insert(1, serde_json::json!({"kind":"before-cell-gate"}));
+        assert!(failed_supervisor(&changed).is_err());
+        assert!(failed_supervisor(&rows[..8]).is_err());
+        assert!(failed_supervisor(&rows[1..]).is_err());
+        for error in [
+            "no unique outside-measured product process",
+            "kernel idmap differs from pinned physical custody",
+        ] {
+            let mut changed = rows.clone();
+            changed[3]["data"]["error"] = serde_json::json!(error);
+            assert!(failed_supervisor(&changed).is_err());
+        }
+        for index in [5, 6] {
+            for (field, bad) in [
+                ("available", serde_json::json!(true)),
+                ("error", serde_json::json!("unknown close result")),
+                ("binding", serde_json::json!({})),
+            ] {
+                let mut changed = rows.clone();
+                changed[index]["data"][field] = bad;
+                assert!(failed_supervisor(&changed).is_err());
+            }
+            let mut changed = rows.clone();
+            changed.remove(index);
+            assert!(failed_supervisor(&changed).is_err());
+        }
+    }
     use serde_json::json;
     #[test]
     fn pending_ownership_cannot_masquerade_as_a_completed_release() {

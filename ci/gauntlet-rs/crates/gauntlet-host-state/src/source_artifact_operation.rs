@@ -8,6 +8,10 @@ mod failure;
 mod file;
 #[path = "source_artifact_protocol.rs"]
 mod protocol;
+pub(in crate::native_operation) use file::{
+    create_named as create_private_archive, open_named as open_private_archive,
+    Held as HeldPrivateArchive,
+};
 pub(super) use protocol::{candidate_proof, candidate_read_args, candidate_read_header};
 const INTENT: &str = "source-artifact-intent";
 const DOWNLOAD: &str = "source-artifact-download-dispatch";

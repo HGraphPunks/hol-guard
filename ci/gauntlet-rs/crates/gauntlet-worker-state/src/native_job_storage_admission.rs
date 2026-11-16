@@ -61,6 +61,27 @@ pub(crate) fn require_complete() -> Result<(), String> {
         {
             return Err("unfinished failed-build export blocks fresh volume admission; explicit readback required".into());
         }
+        let failed_native = [
+            "readonly-failure-prelaunch.json",
+            "readonly-failure-intent.json",
+        ]
+        .into_iter()
+        .map(|name| crate::feature_files::read(&slot, name, (0, 0), 0o600, 8192))
+        .collect::<Result<Vec<_>, _>>()?;
+        if failed_native.iter().any(Option::is_some)
+            && crate::feature_files::read(
+                &slot,
+                "readonly-failure-export.json",
+                (0, 0),
+                0o600,
+                8192,
+            )?
+            .is_none()
+        {
+            return Err(
+                "unfinished unsigned Native failure export blocks fresh volume admission".into(),
+            );
+        }
         let raw = crate::feature_files::required(&slot, "admitted.json", (0, 0), 0o600, 1024)
             .map_err(|_| {
                 "unfinished storage allocation/source/initialization blocks all fresh volumes"

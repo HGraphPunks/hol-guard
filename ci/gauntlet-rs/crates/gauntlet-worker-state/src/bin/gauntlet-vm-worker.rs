@@ -16,6 +16,9 @@ fn run() -> Result<(), String> {
                     | "--export-failed-build-evidence-v1"
                     | "--resume-failed-build-evidence-v1"
                     | "--read-failed-build-evidence-v1"
+                    | "--export-native-readonly-failure-v1"
+                    | "--resume-native-readonly-failure-v1"
+                    | "--read-native-readonly-failure-v1"
             )
         ) {
             std::io::stdout()

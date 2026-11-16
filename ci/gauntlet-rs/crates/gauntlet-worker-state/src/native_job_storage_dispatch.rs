@@ -1,6 +1,9 @@
 //! Versioned selectors on the existing worker; no free path or command input.
 use super::{JobStoragePins, JobStorageProfile};
 pub fn dispatch_native_job_storage(args: &[String]) -> Result<Option<Vec<u8>>, String> {
+    if let Some(raw) = crate::native_readonly_failure::dispatch(args)? {
+        return Ok(Some(raw));
+    }
     if let Some(raw) = crate::candidate_failure::dispatch(args)? {
         return Ok(Some(raw));
     }

@@ -9,7 +9,7 @@ use std::{
     io::{Read, Seek, SeekFrom},
 };
 pub(super) const LIMIT: usize = 256 * 1024 * 1024;
-pub(super) struct Held {
+pub(in crate::native_operation) struct Held {
     pub file: File,
     pub name: String,
     pub facts: Value,
@@ -64,7 +64,7 @@ pub(super) fn create(j: &Journal, job: &str, attempt: u64) -> Result<Held, Strin
 pub(super) fn create_failure(j: &Journal, job: &str, attempt: u64) -> Result<Held, String> {
     create_named(j, failure_name(job, attempt)?)
 }
-fn create_named(j: &Journal, name: String) -> Result<Held, String> {
+pub(in crate::native_operation) fn create_named(j: &Journal, name: String) -> Result<Held, String> {
     j.stable()?;
     let fd = openat(
         &j.root,
@@ -92,7 +92,7 @@ pub(super) fn open_attempt(j: &Journal, job: &str, attempt: u64) -> Result<Held,
 pub(super) fn open_failure(j: &Journal, job: &str, attempt: u64) -> Result<Held, String> {
     open_named(j, failure_name(job, attempt)?)
 }
-fn open_named(j: &Journal, name: String) -> Result<Held, String> {
+pub(in crate::native_operation) fn open_named(j: &Journal, name: String) -> Result<Held, String> {
     let fd = openat(
         &j.root,
         name.as_str(),

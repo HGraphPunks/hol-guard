@@ -12,6 +12,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{
     fs::File,
+    os::fd::OwnedFd,
     sync::atomic::{AtomicBool, Ordering},
 };
 
@@ -127,6 +128,165 @@ pub(crate) fn reserve_native(
     };
     custody.recheck(journal, lease, &started)?;
     Ok((started, Some(custody)))
+}
+
+pub(crate) const READONLY_FAILURE_PREFIX: &str = "hol-gauntlet-native-readonly-failure";
+const FIELDS: [&str; 9] = [
+    "source_sha",
+    "job_id",
+    "deployment_digest",
+    "original_worker_generation",
+    "preparation_sha256",
+    "storage_receipt_sha256",
+    "terminal_sha256",
+    "report_sha256",
+    "reader_generation",
+];
+pub(crate) struct ReadonlyFailurePins(pub(crate) Value);
+impl ReadonlyFailurePins {
+    pub(crate) fn new(args: &[String]) -> Result<Self, String> {
+        let mut v = serde_json::Map::new();
+        for (key, raw) in FIELDS.into_iter().zip(&args[2..11]) {
+            let n = match key {
+                "source_sha" => 40,
+                "job_id" => 16,
+                _ => 64,
+            };
+            if !crate::hex(raw, n) {
+                return Err("exact original unsigned-failure pins required".into());
+            }
+            v.insert(key.into(), json!(raw));
+        }
+        Ok(Self(Value::Object(v)))
+    }
+    pub(crate) fn text(&self, key: &str) -> &str {
+        self.0[key].as_str().unwrap_or("")
+    }
+    pub(crate) fn body(&self, suffix: &str) -> Value {
+        let mut v = self.0.clone();
+        v["schema"] = json!(format!("{READONLY_FAILURE_PREFIX}-{suffix}.v1"));
+        v
+    }
+    pub(crate) fn slot(&self) -> Result<std::os::fd::OwnedFd, String> {
+        let root = crate::open_root_owned_public_directory(std::path::Path::new(
+            crate::native_job_storage::lifecycle::BASE,
+        ))
+        .map_err(|e| e.to_string())?;
+        crate::feature_files::open_directory(&root, self.text("job_id"), (0, 0))
+    }
+}
+pub(crate) fn failure_read(
+    root: &std::os::fd::OwnedFd,
+    name: &str,
+) -> Result<Option<Value>, String> {
+    crate::feature_files::read(root, name, (0, 0), 0o600, 49152)?
+        .map(|raw| {
+            let v: Value =
+                serde_json::from_slice(&raw).map_err(|_| "unsigned-failure metadata JSON")?;
+            if crate::native_job_storage::linux::canonical(&v)? != raw {
+                return Err("canonical unsigned-failure metadata required".into());
+            }
+            Ok(v)
+        })
+        .transpose()
+}
+pub(crate) fn failure_required(root: &std::os::fd::OwnedFd, name: &str) -> Result<Value, String> {
+    failure_read(root, name)?.ok_or_else(|| format!("original unsigned-failure {name} absent"))
+}
+pub(crate) fn failure_wrap(suffix: &str, body: Value) -> Result<Value, String> {
+    crate::native_job_storage::artifact::failure_wrapper(
+        &format!("{READONLY_FAILURE_PREFIX}-{suffix}-result.v1"),
+        body,
+    )
+}
+pub(crate) fn failure_prepared(
+    raw: &[u8],
+    p: &ReadonlyFailurePins,
+) -> Result<PrelaunchPrepared, String> {
+    let v = PrelaunchPrepared::parse(raw).map_err(|e| e.to_string())?;
+    if v.source_sha != p.text("source_sha")
+        || v.job_id != p.text("job_id")
+        || v.deployment_digest != p.text("deployment_digest")
+        || v.worker_generation != p.text("original_worker_generation")
+    {
+        return Err("unsigned-failure original prelaunch differs".into());
+    }
+    Ok(v)
+}
+pub(crate) fn failure_retained_prelaunch(
+    root: &std::os::fd::OwnedFd,
+    p: &ReadonlyFailurePins,
+) -> Result<PrelaunchPrepared, String> {
+    failure_prepared(
+        &crate::native_job_storage::linux::canonical(&failure_required(
+            root,
+            "readonly-failure-prelaunch.json",
+        )?)?,
+        p,
+    )
+}
+pub(crate) fn failure_intent(
+    p: &ReadonlyFailurePins,
+    pre: &PrelaunchPrepared,
+) -> Result<Value, String> {
+    let mut v = p.body("export-intent");
+    v["prelaunch"] = serde_json::from_slice(&pre.to_bytes().map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    Ok(v)
+}
+
+pub(crate) const READONLY_FAILURE_ARCHIVE_LIMIT: usize = 32 * 1024 * 1024 + 65536;
+pub(crate) fn failure_export_body(
+    p: &ReadonlyFailurePins,
+    raw: &[u8],
+    m: &Value,
+) -> Result<Value, String> {
+    let mut v = p.body("export");
+    v["archive_sha256"] = json!(crate::native_job_storage::linux::sha(raw));
+    v["archive_bytes"] = json!(raw.len());
+    v["manifest_sha256"] = json!(crate::native_job_storage::linux::sha(
+        &crate::native_job_storage::linux::canonical(m)?
+    ));
+    v["exit_code"] = m["exit_code"].clone();
+    v["execution_eligible"] = json!(false);
+    v["qualification_eligible"] = json!(false);
+    failure_wrap("export", v)
+}
+pub(crate) fn failure_retained_export(
+    p: &ReadonlyFailurePins,
+    root: &OwnedFd,
+) -> Result<Value, String> {
+    let pre = failure_retained_prelaunch(root, p)?;
+    if failure_required(root, "readonly-failure-intent.json")? != failure_intent(p, &pre)? {
+        return Err("original unsigned failure intent changed".into());
+    }
+    let v = failure_required(root, "readonly-failure-export.json")?;
+    let r = &v["receipt"];
+    let m = failure_required(root, "readonly-failure-manifest.json")?;
+    let mut expected = p.body("export");
+    for key in ["archive_sha256", "archive_bytes"] {
+        expected[key] = r[key].clone();
+    }
+    expected["manifest_sha256"] = json!(crate::native_job_storage::linux::sha(
+        &crate::native_job_storage::linux::canonical(&m)?
+    ));
+    expected["exit_code"] = m["exit_code"].clone();
+    expected["execution_eligible"] = json!(false);
+    expected["qualification_eligible"] = json!(false);
+    let initial = failure_required(root, "readonly-failure-initialization.json")?;
+    if v != failure_wrap("export", expected)?
+        || !crate::hex(r["archive_sha256"].as_str().unwrap_or(""), 64)
+        || !r["archive_bytes"]
+            .as_u64()
+            .is_some_and(|n| (1..=READONLY_FAILURE_ARCHIVE_LIMIT as u64).contains(&n))
+        || initial["source_sha"] != p.0["source_sha"]
+        || initial["job_id"] != p.0["job_id"]
+        || initial["worker_generation"] != p.0["original_worker_generation"]
+        || initial["storage"]["receipt_sha256"] != p.0["storage_receipt_sha256"]
+    {
+        return Err("original unsigned failure export changed".into());
+    }
+    Ok(v)
 }
 
 #[cfg(test)]

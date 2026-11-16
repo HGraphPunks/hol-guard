@@ -16,6 +16,10 @@ fn retained(spec: &CellPreparation) -> Result<Retained> {
 }
 
 fn retained_history(spec: &CellPreparation, closed: bool) -> Result<Retained> {
+    retained_history_mode(spec, closed, false)
+}
+
+fn retained_history_mode(spec: &CellPreparation, closed: bool, failed: bool) -> Result<Retained> {
     crate::kernel_process::root_proc()?;
     fs_input::directory(&spec.stage)?;
     let image_raw = fs_input::read(
@@ -84,7 +88,9 @@ fn retained_history(spec: &CellPreparation, closed: bool) -> Result<Retained> {
         64 * 1024 * 1024,
     )?;
     let records = crate::recovery_protocol::events(&events_raw)?;
-    if closed {
+    if failed {
+        crate::recovery_protocol::failed_supervisor(&records)?;
+    } else if closed {
         crate::recovery_protocol::closed_supervisor(&records)?;
     }
     let first = &records[0];
@@ -103,6 +109,9 @@ fn retained_history(spec: &CellPreparation, closed: bool) -> Result<Retained> {
     }
     if !absent(&cgroup)? {
         return Err("product cgroup remains; quiescent repair refused".into());
+    }
+    if failed {
+        failed_unit_absent(profile, &supervisor)?;
     }
     if let Some(slice) = spec.job_slice() {
         if !absent(&Path::new("/sys/fs/cgroup").join(slice))? {
@@ -146,13 +155,131 @@ fn retained_history(spec: &CellPreparation, closed: bool) -> Result<Retained> {
     if tree.digest != spec.runtime_tree_digest {
         return Err("runtime changed before recovery".into());
     }
-    Ok(Retained {
-        system,
-        facts: json!({"image_events_sha256":hash(&image_raw),"supervisor_events_sha256":hash(&events_raw),
+    let mut facts = json!({"image_events_sha256":hash(&image_raw),"supervisor_events_sha256":hash(&events_raw),
         "rootfs_declaration_sha256":hash(&raw),"supervisor_declaration_sha256":hash(&supervisor_raw),"profile":profile,
         "product_cgroup_absent":true,"product_slice_absent":true,"rootfs_mount_absent":true,"apparmor_profile_absent":true,
-        "runtime_tree_digest":tree.digest,"image_id":spec.image_id}),
-    })
+        "runtime_tree_digest":tree.digest,"image_id":spec.image_id});
+    if failed {
+        facts["startup_error"] = records
+            .iter()
+            .find(|v| v["kind"] == "startup-failure")
+            .unwrap()["data"]["error"]
+            .clone();
+        facts["recorded_cleanup_failures"] = serde_json::Value::Array(
+            records
+                .iter()
+                .filter(|v| v["kind"] == "terminal-cleanup")
+                .map(|v| v["data"]["failures"].clone())
+                .collect(),
+        );
+        facts["idmap_runtime"] = json!(rootfs.idmap_runtime);
+        facts["product_unit_absent"] = json!(true);
+    }
+    Ok(Retained { system, facts })
+}
+
+/// An unsigned pre-ready failure is retained separately from successful cleanup
+/// history. Recorded cleanup errors survive; only current absence is measured.
+pub fn verify_failed_native_preparation(spec: &CellPreparation) -> Result<Value> {
+    if spec.control_profile() != gauntlet_evidence::NativeContainmentRoute::PythonReadonlyV1 {
+        return Err("failed preparation requires the read-only control profile".into());
+    }
+    let retained = retained_history_mode(spec, true, true)?;
+    crate::require_image_lease_absent(&spec.image_id, &spec.podman_sha256)?;
+    Ok(retained.facts)
+}
+
+fn failed_unit_absent(profile: &str, spec: &SupervisorSpec) -> Result<()> {
+    use std::{
+        os::fd::OwnedFd,
+        os::unix::process::CommandExt,
+        process::{Command, Stdio},
+        time::{Duration, Instant},
+    };
+    let pin = spec
+        .host_helpers
+        .get("/usr/bin/systemctl")
+        .ok_or("original systemctl pin absent")?;
+    fs_input::pinned(Path::new("/usr/bin/systemctl"), 16 * 1024 * 1024, pin)?;
+    let mut child = Command::new("/usr/bin/systemctl")
+        .args([
+            "show",
+            "--property=LoadState",
+            "--value",
+            &format!("{profile}.service"),
+        ])
+        .env_clear()
+        .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    let result = (|| -> Result<()> {
+        let output: OwnedFd = child
+            .stdout
+            .take()
+            .ok_or("unit observation stdout missing")?
+            .into();
+        let errors: OwnedFd = child
+            .stderr
+            .take()
+            .ok_or("unit observation stderr missing")?
+            .into();
+        crate::supervisor_io::nonblocking(&output)?;
+        crate::supervisor_io::nonblocking(&errors)?;
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let mut exited: Option<std::process::ExitStatus> = None;
+        loop {
+            for (fd, bytes) in [(&output, &mut stdout), (&errors, &mut stderr)] {
+                loop {
+                    let mut buffer = [0u8; 1024];
+                    match rustix::io::read(fd, &mut buffer) {
+                        Ok(0) => break,
+                        Ok(n) => bytes.extend_from_slice(&buffer[..n]),
+                        Err(rustix::io::Errno::INTR) => continue,
+                        Err(rustix::io::Errno::AGAIN) => break,
+                        Err(e) => return Err(e.to_string()),
+                    }
+                    if bytes.len() > 8192 {
+                        return Err("unit observation byte bound".into());
+                    }
+                }
+            }
+            if let Some(status) = exited {
+                if !matches!(status.code(), Some(0 | 1)) || stdout != b"not-found\n" {
+                    return Err(
+                        "original product unit remains loaded or observation unknown".into(),
+                    );
+                }
+                break;
+            }
+            exited = child.try_wait().map_err(|e| e.to_string())?;
+            if Instant::now() >= deadline {
+                return Err("unit observation deadline".into());
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        fs_input::pinned(Path::new("/usr/bin/systemctl"), 16 * 1024 * 1024, pin)?;
+        Ok(())
+    })();
+    if result.is_err() && child.try_wait().map_err(|e| e.to_string())?.is_none() {
+        // The unreaped owned child pins this exact helper process group.
+        unsafe {
+            libc::kill(-(child.id() as i32), libc::SIGKILL);
+        }
+        let deadline = Instant::now() + Duration::from_secs(1);
+        while child.try_wait().map_err(|e| e.to_string())?.is_none() {
+            if Instant::now() >= deadline {
+                return Err("unit observation helper cleanup uncertain".into());
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+    result
 }
 
 pub fn verify_quiescent_preparation(spec: &CellPreparation) -> Result<Value> {

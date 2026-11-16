@@ -299,10 +299,10 @@ pub(super) fn report(j: &Journal, i: &Intent, args: &[String]) -> Result<Value, 
 }
 
 #[cfg(test)]
-mod tests {
+pub(in crate::native_operation) mod tests {
     use super::*;
     use std::{collections::BTreeMap, os::unix::fs::PermissionsExt};
-    pub(super) fn archive(files: &BTreeMap<String, Vec<u8>>) -> Vec<u8> {
+    pub(in crate::native_operation) fn archive(files: &BTreeMap<String, Vec<u8>>) -> Vec<u8> {
         let mut builder = tar::Builder::new(Vec::new());
         for (name, raw) in files {
             let mut header = tar::Header::new_ustar();

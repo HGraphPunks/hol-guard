@@ -97,6 +97,7 @@ pub fn prepare_and_start(
     if cancelled.load(std::sync::atomic::Ordering::Acquire) {
         return Err("cell preparation cancelled".into());
     }
+    let idmap_runtime = crate::mounts::select_idmap_runtime()?;
     let manifest_raw = fs_input::pinned(
         &spec.artifacts.join("manifest.json"),
         1024 * 1024,
@@ -193,7 +194,7 @@ pub fn prepare_and_start(
     let mut rootfs = json!({"schema":"hol-gauntlet-product-rootfs.v1","stage":spec.stage,
         "initializer_sha256":spec.initializer_sha256,"artifact_manifest_sha256":spec.artifact_manifest_sha256,
         "system_spec_sha256":system_sha256,"task_spec_sha256":task_sha256,"runtime_spec_sha256":runtime_sha256,
-        "idmap_runtime":"ubuntu2404-controller-v1","state":"persistent-v1","network_profile":"private-loopback-v1","parent_network_namespace":parent_network});
+        "idmap_runtime":idmap_runtime,"state":"persistent-v1","network_profile":"private-loopback-v1","parent_network_namespace":parent_network});
     if launch.native_pipe_transport {
         let config = gauntlet_product_cell::NativeWireConfig {
             endpoint: format!("hol-native-wire-{}", crate::nonce()?),

@@ -1,7 +1,7 @@
 //! Read back the exact public keyed records; never reopen or export a seed.
 use crate::terminal::{digest, report_name, terminal_name, MAX_TERMINAL_BYTES};
 use crate::{hex, read_bounded_regular, ReservationError, RunReservationJournal, TerminalOutcome};
-use gauntlet_contracts::{canonicalize, WorkerAction, WorkerRequest};
+use gauntlet_contracts::{canonicalize, PrelaunchPrepared, WorkerAction, WorkerRequest};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::path::Path;
@@ -223,4 +223,66 @@ impl RunReservationJournal {
             "execution_eligible":false,
         }))
     }
+}
+
+pub(crate) fn validate_readonly_failure(
+    f: &Value,
+    p: &crate::native_prelaunch::ReadonlyFailurePins,
+    pre: &PrelaunchPrepared,
+    storage: &Value,
+) -> Result<(), String> {
+    let r = &f["report"];
+    let t = &f["terminal"];
+    let pre_value: Value = serde_json::from_slice(&pre.to_bytes().map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    let ack = pre
+        .acknowledgement(&pre.host_record_sha256().map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    let null = |key| r.get(key).is_some_and(Value::is_null);
+    if f["schema"] != "hol-gauntlet-native-host-pinned-completion.v2"
+        || r["schema"] != "hol-gauntlet-native-worker-report.v8"
+        || r["profile"] != "native-host-pinned-readonly-hook-v1"
+        || r["preparation_sha256"] != p.0["preparation_sha256"]
+        || r["retained_storage"] != *storage
+        || f["terminal_sha256"] != p.0["terminal_sha256"]
+        || t["report_sha256"] != p.0["report_sha256"]
+        || crate::native_job_storage::linux::sha(&crate::native_job_storage::linux::canonical(r)?)
+            != p.text("report_sha256")
+        || !t["exit_code"]
+            .as_i64()
+            .is_some_and(|n| (1..=255).contains(&n))
+        || r["exit_code"] != t["exit_code"]
+        || !null("execution_error")
+        || !null("interruption")
+        || !null("controller_report")
+        || !null("controller_signature_verification")
+        || r["controller_envelope_utf8"] != ""
+        || r["controller_stdout_sha256"] != crate::native_job_storage::linux::sha(b"")
+        || r["controller_signature_error"]
+            .as_str()
+            .is_none_or(str::is_empty)
+        || r["status"] != "invalid-evidence"
+        || t["status"] != "invalid-evidence"
+        || r["model_requests"] != 0
+        || f["model_requests"] != 0
+        || r["execution_eligible"] != false
+        || r["guard_causality_verified"] != false
+        || r["prelaunch_custody"]["prepared"] != pre_value
+        || r["prelaunch_custody"]["host_ack_received_before_controller_spawn"] != true
+        || r["prelaunch_custody"]["acknowledgement_sha256"]
+            != crate::native_job_storage::linux::sha(&ack)
+        || [
+            "controller_cgroup_drained",
+            "product_slice_absent",
+            "image_lease_absent",
+        ]
+        .iter()
+        .any(|k| r[*k] != true)
+    {
+        return Err(
+            "original actual unsigned read-only failure differs; no exit/signature may be inferred"
+                .into(),
+        );
+    }
+    Ok(())
 }

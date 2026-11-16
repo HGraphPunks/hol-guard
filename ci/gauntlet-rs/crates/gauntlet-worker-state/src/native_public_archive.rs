@@ -257,7 +257,7 @@ pub(crate) fn encode_failed(captured: PublicFiles, binding: Value) -> Result<Vec
     }
     Ok(raw)
 }
-fn encode_profile(
+pub(crate) fn encode_profile(
     mut captured: PublicFiles,
     binding: Value,
     schema: &str,

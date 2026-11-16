@@ -108,8 +108,8 @@ pub(crate) fn tmpfs(
     Ok(())
 }
 
-pub(crate) fn verify_idmap_runtime(profile: &str) -> Result<()> {
-    let (mount, library) = match profile {
+fn idmap_pins(profile: &str) -> Result<(&'static str, &'static str)> {
+    Ok(match profile {
         "ubuntu2404-product-v1" => (
             "d1f8e1f8e0b78f702f9d4ee0d996abd27f290ce0aa8a5490aa497d1c87b39092",
             "507b07264482e5e29171d9bf202abcac55ce85d0eb5d8b7100f07f1081578a63",
@@ -119,7 +119,34 @@ pub(crate) fn verify_idmap_runtime(profile: &str) -> Result<()> {
             "cfa453687fb8eee3c6f8e06de6ab2c1f9dfc59b94d05477593fae99fe7fe1e6d",
         ),
         _ => return Err("fixed idmap runtime required".into()),
-    };
+    })
+}
+
+fn matching_idmap_runtime(mount: &str, library: &str) -> Result<&'static str> {
+    for profile in ["ubuntu2404-product-v1", "ubuntu2404-controller-v1"] {
+        if idmap_pins(profile)? == (mount, library) {
+            return Ok(profile);
+        }
+    }
+    Err("unknown or mixed fixed idmap runtime pair".into())
+}
+
+pub(crate) fn select_idmap_runtime() -> Result<&'static str> {
+    let mount = crate::hash(&fs_input::read(
+        Path::new("/usr/bin/mount"),
+        2 * 1024 * 1024,
+    )?);
+    let library = crate::hash(&fs_input::read(
+        Path::new("/usr/lib/aarch64-linux-gnu/libmount.so.1.1.0"),
+        2 * 1024 * 1024,
+    )?);
+    let profile = matching_idmap_runtime(&mount, &library)?;
+    verify_idmap_runtime(profile)?;
+    Ok(profile)
+}
+
+pub(crate) fn verify_idmap_runtime(profile: &str) -> Result<()> {
+    let (mount, library) = idmap_pins(profile)?;
     fs_input::pinned(Path::new("/usr/bin/mount"), 2 * 1024 * 1024, mount)?;
     fs_input::pinned(
         Path::new("/usr/lib/aarch64-linux-gnu/libmount.so.1.1.0"),
@@ -200,6 +227,27 @@ pub(crate) fn raise_loopback() -> Result<()> {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn idmap_selection_requires_one_complete_previously_approved_pair() {
+        let product = idmap_pins("ubuntu2404-product-v1").unwrap();
+        let controller = idmap_pins("ubuntu2404-controller-v1").unwrap();
+        for (profile, pair) in [
+            ("ubuntu2404-product-v1", product),
+            ("ubuntu2404-controller-v1", controller),
+        ] {
+            assert_eq!(matching_idmap_runtime(pair.0, pair.1).unwrap(), profile);
+        }
+        for pair in [
+            (product.0, controller.1),
+            (controller.0, product.1),
+            ("", product.1),
+            (product.0, ""),
+        ] {
+            assert!(matching_idmap_runtime(pair.0, pair.1).is_err());
+        }
+        assert!(idmap_pins("automatic").is_err());
+    }
 
     struct PrivateMount(PathBuf);
     impl Drop for PrivateMount {

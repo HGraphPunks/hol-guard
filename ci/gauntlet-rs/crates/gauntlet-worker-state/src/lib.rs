@@ -481,6 +481,8 @@ mod native_controller_key;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_prelaunch;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_readonly_failure;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_completion::{read_native_host_pinned_result, NATIVE_HOST_PINNED_COMPLETION_LIMIT};
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_job_io;
