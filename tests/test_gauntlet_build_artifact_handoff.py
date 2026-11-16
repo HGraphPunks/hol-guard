@@ -24,6 +24,8 @@ def test_native_wheel_assembly_receives_the_verified_compiler(tmp_path, monkeypa
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("HOL_GUARD_BUILD_SHA", source)
     monkeypatch.setenv("HOL_GUARD_BUILD_SOURCE_COMPILER", "/outside/stale/compiler")
+    monkeypatch.setenv("CARGO_PROFILE_RELEASE_LTO", "fat")
+    monkeypatch.setenv("CARGO_PROFILE_RELEASE_CODEGEN_UNITS", "1")
     monkeypatch.setattr(build_artifact.os, "geteuid", lambda: 501)
     monkeypatch.setattr(build_artifact.os, "uname", lambda: SimpleNamespace(machine="aarch64"))
 
@@ -41,11 +43,19 @@ def test_native_wheel_assembly_receives_the_verified_compiler(tmp_path, monkeypa
                                "rule_digest": rule_digest})
         raise AssertionError(argv)
 
+    cargo_calls = []
+
     def run(argv, *, env, check):
         assert check is True
         assert env["HOL_GUARD_PACKAGE_VERSION"] == version
-        if argv[0] == str(build_artifact.sys.executable):
+        if argv[0] == "cargo":
+            cargo_calls.append(argv)
+            assert env["CARGO_PROFILE_RELEASE_LTO"] == "false"
+            assert env["CARGO_PROFILE_RELEASE_CODEGEN_UNITS"] == "16"
+        elif argv[0] == str(build_artifact.sys.executable):
             assert env["HOL_GUARD_BUILD_SOURCE_COMPILER"] == str(runtime)
+        else:
+            raise AssertionError(argv)
         return SimpleNamespace(returncode=0)
 
     def build_native_wheel(**arguments):
@@ -73,6 +83,12 @@ def test_native_wheel_assembly_receives_the_verified_compiler(tmp_path, monkeypa
         build_artifact.sys.modules.pop(spec.name, None)
 
     assert os.environ["HOL_GUARD_BUILD_SOURCE_COMPILER"] == "/outside/stale/compiler"
+    assert os.environ["CARGO_PROFILE_RELEASE_LTO"] == "fat"
+    assert os.environ["CARGO_PROFILE_RELEASE_CODEGEN_UNITS"] == "1"
+    assert cargo_calls == [["cargo", "build", "--manifest-path", "rust/Cargo.toml",
+                            "--locked", "--release", "-p", "hol-guard-runtime",
+                            "-p", "guard-command", "--bin", "hol-guard-runtime",
+                            "--bin", "guard-command-source"]]
     record = json.loads((tmp_path / "gauntlet-artifact/artifact.json").read_text())
     assert record["source_sha"] == source
     assert record["native_sha256"] == hashlib.sha256(native).hexdigest()

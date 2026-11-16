@@ -212,7 +212,7 @@ pub(crate) fn encode(captured: PublicFiles, binding: Value) -> Result<Vec<u8>, S
         captured,
         binding,
         "hol-gauntlet-native-public-artifacts.v1",
-        0,
+        json!(0),
     )
 }
 pub(crate) fn encode_live(
@@ -232,14 +232,36 @@ pub(crate) fn encode_live(
         captured,
         binding,
         "hol-gauntlet-native-public-artifacts.v2",
-        model_requests,
+        json!(model_requests),
     )
+}
+pub(crate) fn encode_failed(captured: PublicFiles, binding: Value) -> Result<Vec<u8>, String> {
+    if captured.files.len() != 2
+        || captured.files.iter().any(|(name, raw)| {
+            !matches!(
+                name.as_str(),
+                "candidate-run.stdout.log" | "candidate-run.stderr.log"
+            ) || raw.len() > 16 * 1024 * 1024
+        })
+    {
+        return Err("closed failed-build log inventory required".into());
+    }
+    let raw = encode_profile(
+        captured,
+        binding,
+        "hol-gauntlet-failed-build-evidence.v1",
+        Value::Null,
+    )?;
+    if raw.len() > 32 * 1024 * 1024 + 65536 {
+        return Err("failed-build archive bound exceeded".into());
+    }
+    Ok(raw)
 }
 fn encode_profile(
     mut captured: PublicFiles,
     binding: Value,
     schema: &str,
-    model_requests: u64,
+    model_requests: Value,
 ) -> Result<Vec<u8>, String> {
     if !captured.files.keys().eq(captured.metadata.keys()) {
         return Err("Native export requires original metadata for every member".into());
@@ -400,6 +422,7 @@ mod tests {
             65
         )
         .is_err());
+        assert!(encode_failed(capture(), json!({})).is_err());
     }
     #[test]
     fn public_capture_refuses_links_wrong_owner_loose_modes_and_unsafe_names() {

@@ -184,9 +184,7 @@ impl VmCandidateBuildPlan {
 }
 
 impl VmCandidateBuildInvocation {
-    /// Recompute the fixed Root marker from the original opaque pin. Neither
-    /// its canonical bytes nor the private nonce leave this API.
-    pub(crate) fn anchor_sha256(record: &HostCandidateBuildPinRecord) -> Result<String, String> {
+    fn anchor_bytes(record: &HostCandidateBuildPinRecord) -> Result<Vec<u8>, String> {
         let p = &record.pins;
         let tagged = record.schema != "hol-gauntlet-host-candidate-build-pin.v2";
         let mut v = json!({"schema":"hol-gauntlet-candidate-host-anchor.v1","job_id":p.job_id,"source_sha":p.source_sha,
@@ -201,9 +199,21 @@ impl VmCandidateBuildInvocation {
             v["schema"] = json!("hol-gauntlet-candidate-host-anchor.v2");
             v["tag"] = json!(p.tag);
         }
-        let raw = canonicalize(v.to_string().as_bytes())
-            .map_err(|_| "original anchor encoding invalid")?;
-        Ok(format!("{:x}", Sha256::digest(raw)))
+        canonicalize(v.to_string().as_bytes())
+            .map_err(|_| "original anchor encoding invalid".into())
+    }
+    /// Recompute the fixed Root marker without publishing its private nonce.
+    pub(crate) fn anchor_sha256(record: &HostCandidateBuildPinRecord) -> Result<String, String> {
+        Ok(format!("{:x}", Sha256::digest(Self::anchor_bytes(record)?)))
+    }
+    /// Only the fixed failure reader receives this private body over the
+    /// original encrypted pipe; it is never an operator argument or archive.
+    pub(crate) fn failure_anchor_bytes(&self, expected: &str) -> Result<Vec<u8>, String> {
+        let raw = Self::anchor_bytes(&self.record)?;
+        if raw.len() > 8192 || format!("{:x}", Sha256::digest(&raw)) != expected {
+            return Err("original private failure anchor differs".into());
+        }
+        Ok(raw)
     }
     /// Only a response already checked by the fixed host-bound reader may
     /// supply these facts. That Root reader admits only a complete zero exit,

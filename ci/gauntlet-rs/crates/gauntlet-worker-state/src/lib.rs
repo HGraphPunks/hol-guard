@@ -209,6 +209,8 @@ mod candidate_dependencies;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_dependencies_live;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod candidate_failure;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_host_anchor;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod candidate_prefix_clone;

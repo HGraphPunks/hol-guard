@@ -70,6 +70,27 @@ fn descriptor_reader_requires_exact_pin_and_safe_file_and_ancestry() {
     assert!(read_stable(&path, &sha(&raw)).is_err());
 }
 
+fn local_report(args: &[String]) -> Result<Value> {
+    assert_eq!(args.len(), 6);
+    assert_eq!(args[0], "report");
+    // Parallel process tests can inherit a CLOEXEC lock until exec. Only this
+    // local, idempotent report may wait for the pre-operation owner refusal.
+    // Exhaustion must fail even a negative test: busy is not a file verdict.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        match crate::run_native_operation_command(args) {
+            Err(error) if error == "another native operation owns the journal" => {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "local report journal remained busy"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+            result => return result,
+        }
+    }
+}
+
 #[test]
 fn normal_report_authenticates_retained_completion_and_preserves_incomplete_judgment() {
     use serde_json::json;
@@ -136,9 +157,9 @@ fn normal_report_authenticates_retained_completion_and_preserves_incomplete_judg
         sha(&raw),
     ];
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
-    assert!(crate::run_native_operation_command(&args).is_err());
+    assert!(local_report(&args).is_err());
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
-    let value = crate::run_native_operation_command(&args).unwrap();
+    let value = local_report(&args).unwrap();
     assert_eq!(
         value["independent_judgment"]["judgment"]["independent_grade"],
         "invalid-evidence"
@@ -157,7 +178,7 @@ fn normal_report_authenticates_retained_completion_and_preserves_incomplete_judg
     ] {
         assert!(!value.to_string().contains(forbidden), "{forbidden}");
     }
-    assert_eq!(crate::run_native_operation_command(&args).unwrap(), value);
+    assert_eq!(local_report(&args).unwrap(), value);
     let reports = std::fs::read_dir(&root)
         .unwrap()
         .filter_map(|e| e.ok())
@@ -170,5 +191,5 @@ fn normal_report_authenticates_retained_completion_and_preserves_incomplete_judg
     );
     let mut wrong = args.clone();
     wrong[5] = "0".repeat(64);
-    assert!(crate::run_native_operation_command(&wrong).is_err());
+    assert!(local_report(&wrong).is_err());
 }

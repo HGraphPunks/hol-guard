@@ -299,7 +299,7 @@ mod tests {
     #[test]
     fn python_context_identity_and_policy_bytes_match() {
         // Current-source oracle, independently recomputed from vm_build.py's
-        // exact expression after the 84549fd4 Native test-order correction.
+        // exact expression after the bounded Native compiler-profile change.
         // Historical context receipts and baseline fixtures remain unchanged.
         let proof = derive_from_bytes(
             &"a".repeat(64),
@@ -312,15 +312,15 @@ mod tests {
         .unwrap();
         assert_eq!(
             proof.context_sha256,
-            "721957934870b8e8a4f424e0deb72490a9771b6c50de1f44af3c18ca8dc402f0"
+            "269b49dacdcd731be26bf1bd3bc63acc921497e9f5f699d0d0df37e15cf5c9a5"
         );
         assert_eq!(
             proof.image_tag(),
-            "localhost/hol-gauntlet-builder:721957934870b8e8a4f4"
+            "localhost/hol-gauntlet-builder:269b49dacdcd731be26b"
         );
         assert_eq!(
             proof.policy_sha256,
-            "17608141e218fdc371147199930ea01c6efc1cacdc72ff33252b126c6b0ec2ea"
+            "297dffadcc79dae8f2ff9f75802551323966d86cb37eb8eb5de7bab0b8303fa2"
         );
         assert!(!proof
             .policy_bytes()

@@ -462,7 +462,7 @@
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/control_plane/build_artifact.py",
       "phase": 3,
-      "sha256": "5ccc33ace975a72228fbb1a4e859efe47b43642f08814cd0c5b3dbf068446f94"
+      "sha256": "d8e4449670764a3875d3ca5e2e979b67a58d0fb0bf7edd9056841136ca537cf4"
     },
     {
       "base_sha256": "33c69bdcd4e1805f8487f5f86c91c5181f83317cd23bd4305a29922735c43130",

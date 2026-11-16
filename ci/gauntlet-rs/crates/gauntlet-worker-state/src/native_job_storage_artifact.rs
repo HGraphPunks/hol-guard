@@ -389,6 +389,40 @@ fn retired_links(
     Ok(capture_raw)
 }
 
+pub(crate) fn failed_ack_body(export: &Value, host: &str) -> Result<Value, String> {
+    if !crate::hex(host, 64) {
+        return Err("exact durable Host failure-file receipt SHA required".into());
+    }
+    let mut body = export["receipt"].clone();
+    body["schema"] = json!("hol-gauntlet-failed-build-ack.v1");
+    body["export_receipt_sha256"] = export["receipt_sha256"].clone();
+    body["host_receipt_sha256"] = json!(host);
+    Ok(
+        json!({"schema":"hol-gauntlet-failed-build-ack-result.v1","receipt_sha256":linux::sha(&linux::canonical(&body)?),"receipt":body}),
+    )
+}
+
+pub(crate) fn failure_wrapper(schema: &str, receipt: Value) -> Result<Value, String> {
+    Ok(
+        json!({"schema":schema,"receipt_sha256":linux::sha(&linux::canonical(&receipt)?),"receipt":receipt}),
+    )
+}
+pub(crate) fn failed_export_body(
+    p: &Value,
+    archive: &[u8],
+    manifest: &Value,
+) -> Result<Value, String> {
+    let mut r = p.clone();
+    r["schema"] = json!("hol-gauntlet-failed-build-export.v1");
+    r["archive_sha256"] = json!(linux::sha(archive));
+    r["archive_bytes"] = json!(archive.len());
+    r["manifest_sha256"] = json!(linux::sha(&linux::canonical(manifest)?));
+    r["exit_code"] = manifest["exit_code"].clone();
+    r["execution_eligible"] = json!(false);
+    r["qualification_eligible"] = json!(false);
+    failure_wrapper("hol-gauntlet-failed-build-export-result.v1", r)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

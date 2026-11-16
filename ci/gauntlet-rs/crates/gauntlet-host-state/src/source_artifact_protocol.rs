@@ -248,3 +248,245 @@ pub(super) fn retirement(i: &Value, intent: &Value, v: &Value) -> Result<Value, 
     }
     Ok(v.clone())
 }
+
+pub(super) fn failure_pins(i: &Value) -> Value {
+    let s = &i["source"]["intent"];
+    json!({"source_sha":s["source_sha"],"job_id":i["job_id"],"original_worker_generation":s["worker_generation"],
+        "storage_receipt_sha256":i["source"]["storage_receipt_sha256"],"source_archive_sha256":s["source_archive_sha256"],
+        "result_sha256":i["flow"]["result_sha256"],"host_pin_sha256":i["flow"]["host_pin_sha256"],
+        "host_anchor_sha256":i["flow"]["host_anchor_sha256"],"reader_generation":i["reader_generation"]})
+}
+pub(super) fn failure_args(i: &Value, selector: &str) -> Result<Vec<String>, String> {
+    let p = failure_pins(i);
+    let mut a = vec![
+        format!(
+            "/opt/hol-gauntlet/rust-native-dependency-worker-{}",
+            text(i, "reader_generation")?
+        ),
+        selector.into(),
+    ];
+    for k in [
+        "source_sha",
+        "job_id",
+        "original_worker_generation",
+        "storage_receipt_sha256",
+        "source_archive_sha256",
+        "result_sha256",
+        "host_pin_sha256",
+        "host_anchor_sha256",
+        "reader_generation",
+    ] {
+        a.push(text(&p, k)?.into());
+    }
+    Ok(a)
+}
+pub(super) fn failure_export(i: &Value, v: &Value) -> Result<Value, String> {
+    let mut intent = failure_pins(i);
+    intent["schema"] = json!("hol-gauntlet-failed-build-export-intent.v1");
+    if !closed(
+        v,
+        &[
+            "schema",
+            "intent_sha256",
+            "export",
+            "export_complete",
+            "retry_allowed",
+        ],
+    ) || v["schema"] != "hol-gauntlet-failed-build-export-state.v1"
+        || v["intent_sha256"] != sha(&bytes(&intent)?)
+        || v["export_complete"] != true
+        || v["retry_allowed"] != false
+    {
+        return Err("original failed-build export remains unknown or changed".into());
+    }
+    let e = &v["export"];
+    let r = &e["receipt"];
+    let mut expected = failure_pins(i);
+    expected["schema"] = json!("hol-gauntlet-failed-build-export.v1");
+    for k in ["archive_sha256", "archive_bytes", "manifest_sha256"] {
+        expected[k] = r[k].clone();
+    }
+    expected["exit_code"] = i["flow"]["exit_code"].clone();
+    expected["execution_eligible"] = json!(false);
+    expected["qualification_eligible"] = json!(false);
+    if !closed(e, &["schema", "receipt", "receipt_sha256"])
+        || e["schema"] != "hol-gauntlet-failed-build-export-result.v1"
+        || *r != expected
+        || ["archive_sha256", "manifest_sha256"]
+            .iter()
+            .any(|k| !r[*k].as_str().is_some_and(|s| hex(s, 64)))
+        || r["archive_bytes"]
+            .as_u64()
+            .is_none_or(|n| !(1024..=super::file::FAILURE_LIMIT as u64).contains(&n))
+        || e["receipt_sha256"] != sha(&bytes(r)?)
+    {
+        return Err("failed-build export differs from original terminal and outside pins".into());
+    }
+    Ok(e.clone())
+}
+pub(super) fn failure_state(i: &Value, v: &Value) -> Result<Option<Value>, String> {
+    let mut intent = failure_pins(i);
+    intent["schema"] = json!("hol-gauntlet-failed-build-export-intent.v1");
+    if !closed(
+        v,
+        &[
+            "schema",
+            "intent_sha256",
+            "export",
+            "export_complete",
+            "retry_allowed",
+        ],
+    ) || v["schema"] != "hol-gauntlet-failed-build-export-state.v1"
+        || v["intent_sha256"] != sha(&bytes(&intent)?)
+        || v["retry_allowed"] != false
+    {
+        return Err("original failed-build export state differs".into());
+    }
+    if v["export_complete"] == false && v["export"].is_null() {
+        return Ok(None);
+    }
+    failure_export(i, v).map(Some)
+}
+pub(super) fn failure_ack_body(e: &Value, host: &str) -> Value {
+    let mut r = e["receipt"].clone();
+    r["schema"] = json!("hol-gauntlet-failed-build-ack.v1");
+    r["export_receipt_sha256"] = e["receipt_sha256"].clone();
+    r["host_receipt_sha256"] = json!(host);
+    r
+}
+pub(super) fn failure_ack(e: &Value, host: &str, v: &Value) -> Result<Value, String> {
+    let r = failure_ack_body(e, host);
+    if !closed(v, &["schema", "receipt", "receipt_sha256"])
+        || v["schema"] != "hol-gauntlet-failed-build-ack-result.v1"
+        || v["receipt"] != r
+        || v["receipt_sha256"] != sha(&bytes(&r)?)
+    {
+        return Err("failed-build acknowledgement differs from actual Host bytes".into());
+    }
+    Ok(v.clone())
+}
+pub(super) fn failure_retirement(
+    i: &Value,
+    e: &Value,
+    a: &Value,
+    host: &str,
+    generation: &str,
+) -> Value {
+    let s = &i["source"]["intent"];
+    let authority = json!({"schema":"hol-gauntlet-failed-build-storage-retirement-authority.v1",
+        "export_receipt_sha256":e["receipt_sha256"],"host_ack_sha256":a["receipt_sha256"],"host_receipt_sha256":host,
+        "result_sha256":i["flow"]["result_sha256"],"host_pin_sha256":i["flow"]["host_pin_sha256"],
+        "host_anchor_sha256":i["flow"]["host_anchor_sha256"],"manifest_sha256":e["receipt"]["manifest_sha256"]});
+    json!({"schema":"hol-gauntlet-job-storage-retirement-intent.v1","source_sha":s["source_sha"],"job_id":i["job_id"],
+        "worker_generation":s["worker_generation"],"mke2fs_sha256":s["mke2fs_sha256"],"profile":"build-v1","retirer_generation":generation,
+        "authority":authority,"storage_receipt_sha256":i["source"]["storage_receipt_sha256"],"archive_sha256":e["receipt"]["archive_sha256"]})
+}
+pub(super) fn failure_retirement_request(i: &Value, intent: &Value) -> Result<Value, String> {
+    Ok(
+        json!({"schema":"hol-gauntlet-host-failed-build-retirement-request.v1",
+        "intent_sha256":sha(&bytes(i)?),"retirer_generation":intent["retirer_generation"],
+        "retirement_intent_sha256":sha(&bytes(intent)?)}),
+    )
+}
+pub(super) fn failure_marker(i: &Value, operation: &str) -> Result<Vec<u8>, String> {
+    bytes(
+        &json!({"schema":"hol-gauntlet-host-failed-build-dispatch.v1","intent_sha256":sha(&bytes(i)?),"operation":operation,"retry_allowed":false}),
+    )
+}
+pub(super) fn retained_failure_export(j: &super::Journal, i: &Value) -> Result<Value, String> {
+    let e = super::value(j, i, super::failure::EXPORT)?;
+    let mut intent = failure_pins(i);
+    intent["schema"] = json!("hol-gauntlet-failed-build-export-intent.v1");
+    failure_export(
+        i,
+        &json!({"schema":"hol-gauntlet-failed-build-export-state.v1","intent_sha256":sha(&bytes(&intent)?),"export":e,"export_complete":true,"retry_allowed":false}),
+    )
+}
+
+#[cfg(test)]
+mod failure_tests {
+    use super::super::{failure, tests::failure_fixture, value, Journal};
+    use super::*;
+    use std::{fs, path::Path};
+    #[test]
+    fn failed_build_changed_original_nonce_anchor_result_or_missing_authority_refuses_before_contact(
+    ) {
+        for kind in ["nonce", "anchor", "log", "dispatch", "pin", "claim"] {
+            let (_temp, j, i, mut rpc) = failure_fixture("");
+            let job = text(&i, "job_id").unwrap();
+            let path = Path::new(text(&i["flow"], "journal").unwrap());
+            if matches!(kind, "nonce" | "anchor" | "log") {
+                let result = path.join(Journal::name(job, "bounded-build-return").unwrap());
+                let mut v: Value = serde_json::from_slice(&fs::read(&result).unwrap()).unwrap();
+                v[match kind {
+                    "nonce" => "host_nonce_hex",
+                    "anchor" => "host_anchor_sha256",
+                    _ => "stderr_sha256",
+                }] = json!("0".repeat(64));
+                v.as_object_mut().unwrap().remove("result_sha256");
+                v["result_sha256"] = json!(sha(&bytes(&v).unwrap()));
+                let mut raw = bytes(&v).unwrap();
+                raw.push(b'\n');
+                fs::write(result, raw).unwrap();
+                let claim = path.join(Journal::name(job, "bounded-build-claim").unwrap());
+                let mut c: Value = serde_json::from_slice(&fs::read(&claim).unwrap()).unwrap();
+                c["result_sha256"] = v["result_sha256"].clone();
+                fs::write(claim, bytes(&c).unwrap()).unwrap();
+            } else {
+                let name = if kind == "pin" {
+                    format!("{job}.candidate-build-pin.json")
+                } else {
+                    Journal::name(
+                        job,
+                        if kind == "dispatch" {
+                            "bounded-build-dispatch"
+                        } else {
+                            "bounded-build-claim"
+                        },
+                    )
+                    .unwrap()
+                };
+                fs::remove_file(path.join(name)).unwrap();
+            }
+            assert!(failure::parse(&bytes(&i).unwrap()).is_err(), "{kind}");
+            assert!(
+                failure::download(&j, &i, "failure-download", &mut rpc).is_err(),
+                "{kind}"
+            );
+            assert_eq!(rpc.calls, 0);
+            assert!(j.absent(job, failure::DOWNLOAD).unwrap());
+        }
+    }
+    #[test]
+    fn failed_build_export_state_and_ack_cannot_substitute_pins_or_promote_unknown() {
+        let (_temp, j, i, mut rpc) = failure_fixture("");
+        let mut original = failure_pins(&i);
+        original["schema"] = json!("hol-gauntlet-failed-build-export-intent.v1");
+        let unknown = json!({"schema":"hol-gauntlet-failed-build-export-state.v1","intent_sha256":sha(&bytes(&original).unwrap()),"export":null,"export_complete":false,"retry_allowed":false});
+        assert_eq!(failure_state(&i, &unknown).unwrap(), None);
+        assert!(failure_export(&i, &unknown).is_err());
+        failure::download(&j, &i, "failure-download", &mut rpc).unwrap();
+        let e = value(&j, &i, failure::EXPORT).unwrap();
+        let state = json!({"schema":"hol-gauntlet-failed-build-export-state.v1","intent_sha256":sha(&bytes(&original).unwrap()),"export":e,"export_complete":true,"retry_allowed":false});
+        for key in [
+            "result_sha256",
+            "host_pin_sha256",
+            "host_anchor_sha256",
+            "reader_generation",
+            "source_archive_sha256",
+        ] {
+            let mut changed = state.clone();
+            changed["export"]["receipt"][key] = json!("0".repeat(64));
+            changed["export"]["receipt_sha256"] =
+                json!(sha(&bytes(&changed["export"]["receipt"]).unwrap()));
+            assert!(failure_export(&i, &changed).is_err(), "{key}");
+        }
+        let host = "a".repeat(64);
+        let body = failure_ack_body(&e, &host);
+        let mut ack = json!({"schema":"hol-gauntlet-failed-build-ack-result.v1","receipt":body,"receipt_sha256":sha(&bytes(&body).unwrap())});
+        assert!(failure_ack(&e, &host, &ack).is_ok());
+        ack["receipt"]["host_receipt_sha256"] = json!("b".repeat(64));
+        ack["receipt_sha256"] = json!(sha(&bytes(&ack["receipt"]).unwrap()));
+        assert!(failure_ack(&e, &host, &ack).is_err());
+    }
+}

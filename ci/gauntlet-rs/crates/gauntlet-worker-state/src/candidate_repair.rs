@@ -16,6 +16,19 @@ use std::path::Path;
 
 const REPAIR: &str = "candidate-run.repair.v1.json";
 
+pub(crate) fn retain_failed_metadata(
+    root: &std::os::fd::OwnedFd,
+    name: &str,
+    v: &Value,
+) -> Result<(), String> {
+    let raw = canonicalize(v.to_string().as_bytes()).map_err(|e| e.to_string())?;
+    match files::read(root, name, (0, 0), 0o600, 49152)? {
+        Some(old) if old == raw => Ok(()),
+        Some(_) => Err("original failed-build evidence binding changed".into()),
+        None => files::write(root, name, &raw, (0, 0), 0o600),
+    }
+}
+
 fn text<'a>(v: &'a Value, key: &str) -> Result<&'a str, String> {
     v[key]
         .as_str()
@@ -25,13 +38,18 @@ fn digest(raw: &[u8]) -> String {
     format!("{:x}", Sha256::digest(raw))
 }
 
-struct Context {
-    anchor: Value,
-    runtime: CandidateRuntimePins,
-    plan: crate::BuilderRunPlan,
+pub(crate) struct Context {
+    pub(crate) anchor: Value,
+    pub(crate) runtime: CandidateRuntimePins,
+    pub(crate) plan: crate::BuilderRunPlan,
 }
 
-fn context(raw: &[u8], job: &str, source: &str, expected: &str) -> Result<Context, String> {
+pub(crate) fn context(
+    raw: &[u8],
+    job: &str,
+    source: &str,
+    expected: &str,
+) -> Result<Context, String> {
     if !hex(job, 16) || !is_git_sha(source) || !hex(expected, 64) || digest(raw) != expected {
         return Err("outside candidate recovery identity differs".into());
     }

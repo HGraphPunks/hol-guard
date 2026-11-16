@@ -250,6 +250,20 @@ pub(crate) fn run_streamed_to_file(
 ) -> Result<usize, StreamProcessError> {
     capture_command(command, b"", timeout, limit, file)
 }
+/// Preserve received evidence in the one-use file even when the fixed private
+/// request or its response fails. The original child owner still kills/reaps.
+pub(crate) fn run_streamed_input_to_file(
+    command: Command,
+    input: &[u8],
+    file: &mut std::fs::File,
+    timeout: Duration,
+    limit: usize,
+) -> Result<usize, StreamProcessError> {
+    if input.len() > 8192 {
+        return Err(StreamProcessError::TooLarge);
+    }
+    capture_command(command, input, timeout, limit, file)
+}
 fn capture_command(
     mut command: Command,
     input: &[u8],
@@ -353,6 +367,43 @@ mod tests {
                 assert!(raw.len() <= limit);
                 assert!(raw.iter().all(|b| *b == b'z'));
             }
+        }
+    }
+    #[test]
+    fn private_input_file_stream_preserves_received_evidence_on_nonzero_and_size_failures() {
+        use std::os::unix::fs::OpenOptionsExt;
+        let temp = tempfile::tempdir().unwrap();
+        for (name, limit, exit) in [("failed.tar", 8192, 7), ("bounded.tar", 4096, 0)] {
+            let path = temp.path().join(name);
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(&path)
+                .unwrap();
+            let argv = python(&format!("import sys; b=sys.stdin.buffer.read(); sys.stdout.buffer.write(b*1024); sys.stdout.buffer.flush(); sys.exit({exit})"));
+            let mut command = Command::new(&argv[0]);
+            command.args(&argv[1..]);
+            let result = run_streamed_input_to_file(
+                command,
+                b"anchor",
+                &mut file,
+                Duration::from_secs(10),
+                limit,
+            );
+            assert_eq!(
+                result,
+                Err(if exit == 0 {
+                    StreamProcessError::TooLarge
+                } else {
+                    StreamProcessError::Failed
+                })
+            );
+            file.sync_all().unwrap();
+            let raw = std::fs::read(&path).unwrap();
+            assert!(!raw.is_empty());
+            assert!(raw.len() <= limit);
+            assert_eq!(raw, (b"anchor".repeat(1024))[..raw.len()]);
         }
     }
 }

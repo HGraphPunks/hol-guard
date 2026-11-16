@@ -201,10 +201,23 @@ still under focused validation.
 | --- | --- |
 | `build` | source/transfer; transfer-bounded/transfer-bounded-read; run-bounded/read-bounded; capture/wheel-stage; prefix-clone/prefix-clone-read; runtime-publish/runtime-publish-read |
 | `dependencies` | inputs/transfer/transfer-read; run-bounded/read-bounded/repair-bounded; prefix-stage/prefix-stage-read |
-| `artifacts` | record/download/download-read; ack/ack-read; retire/retire-read/retire-resume |
+| `artifacts` | record/download/download-read; ack/ack-read; retire/retire-read/retire-resume; separate failure-record/download/ack/retire with explicit read/resume commands |
 | `deterministic`, `live` | initialize/initialize-read; record; prepare/prepare-read; run/read/report/repair; live adds provision/provision-read/pair |
 | `provider` | prepare/start/read/stop; source/job-bound serial Unix model relay with retained quota cap/history checks |
 | Lifecycle | attach-job/refresh-job; status/agent/up remain passive |
+
+For a completed nonzero build with no wheel, use `artifacts failure-record`
+with its original build and Source journals, then `failure-download`,
+`failure-ack` and `failure-retire`. The bounded failure USTAR contains the
+actual result-bound logs and a sanitized manifest. Host bytes must be synced
+and rehashed before acknowledgement or storage retirement. Partial files remain
+retained; download, download-read and download-resume share four attempts.
+Explicit `failure-download-resume`, `failure-ack-resume` and
+`failure-retire-resume` continue the original evidence or cleanup transaction.
+Their corresponding read commands observe without mutation. The result keeps
+its real nonzero exit, unknown model usage and false qualification/admission.
+The trusted builder fixes Cargo release LTO to false and code generation units
+to 16 within the existing resource and execution limits.
 
 Explicit observer attachment uses `attach-job --state-parent ABS_PRIVATE_PARENT
 --operation native|bounded-build --journal ABS_PRIVATE_JOURNAL --job-id HEX16

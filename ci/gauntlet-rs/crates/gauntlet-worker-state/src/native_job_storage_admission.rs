@@ -48,6 +48,19 @@ pub(crate) fn require_complete() -> Result<(), String> {
         {
             return Err("unfinished artifact export blocks fresh volume admission; explicit readback required".into());
         }
+        if crate::feature_files::read(
+            &slot,
+            "failed-build-export-intent.json",
+            (0, 0),
+            0o600,
+            8192,
+        )?
+        .is_some()
+            && crate::feature_files::read(&slot, "failed-build-export.json", (0, 0), 0o600, 8192)?
+                .is_none()
+        {
+            return Err("unfinished failed-build export blocks fresh volume admission; explicit readback required".into());
+        }
         let raw = crate::feature_files::required(&slot, "admitted.json", (0, 0), 0o600, 1024)
             .map_err(|_| {
                 "unfinished storage allocation/source/initialization blocks all fresh volumes"

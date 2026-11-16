@@ -30,9 +30,11 @@ fn bounded_builder_preparation_retains_partial_and_refuses_replay_or_tampering()
     use crate::builder_image_context::{
         bounded_inputs, prepare_bounded_inputs, BuilderInputsState,
     };
+    use std::os::unix::fs::PermissionsExt;
     gauntlet_cell_rootfs::require_outside_root().unwrap();
     let (context, plan) = inert_preparation_plan();
     let temp = tempfile::tempdir_in("/run").unwrap();
+    std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
     let job = crate::open_root_owned_public_directory(temp.path()).unwrap();
     let inspect = || bounded_inputs(&job, &plan, context.policy_sha256());
     assert_eq!(inspect().unwrap(), BuilderInputsState::Preparable);
@@ -41,16 +43,28 @@ fn bounded_builder_preparation_retains_partial_and_refuses_replay_or_tampering()
     ))
     .is_err());
     assert_eq!(inspect().unwrap(), BuilderInputsState::Preparable);
-    let checks = std::cell::Cell::new(0);
-    assert!(prepare_bounded_inputs(&job, &plan, &context, || {
-        checks.set(checks.get() + 1);
-        if checks.get() == 2 {
+    let interrupted = std::cell::Cell::new(false);
+    let result = prepare_bounded_inputs(&job, &plan, &context, || {
+        if [
+            "Builder.Dockerfile",
+            "builder_entry.py",
+            "build_artifact.py",
+        ]
+        .iter()
+        .all(|name| {
+            temp.path()
+                .join("builder-image-context")
+                .join(name)
+                .is_file()
+        }) {
+            interrupted.set(true);
             Err("owner lost between context and policy".into())
         } else {
             Ok(())
         }
-    })
-    .is_err());
+    });
+    assert_eq!(result, Err("owner lost between context and policy".into()));
+    assert!(interrupted.get());
     assert!(temp
         .path()
         .join("builder-image-context/builder_entry.py")
@@ -59,6 +73,7 @@ fn bounded_builder_preparation_retains_partial_and_refuses_replay_or_tampering()
     assert!(inspect().is_err());
     assert!(prepare_bounded_inputs(&job, &plan, &context, || Ok(())).is_err());
     let complete = tempfile::tempdir_in("/run").unwrap();
+    std::fs::set_permissions(complete.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
     let held = crate::open_root_owned_public_directory(complete.path()).unwrap();
     prepare_bounded_inputs(&held, &plan, &context, || Ok(())).unwrap();
     assert_eq!(

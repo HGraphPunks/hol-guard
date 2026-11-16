@@ -2,6 +2,8 @@
 use super::super::{bytes, context, hex, sha, Journal};
 use serde_json::{json, Value};
 use std::{fs::File, path::Path, time::Duration};
+#[path = "source_failed_artifact.rs"]
+mod failure;
 #[path = "source_artifact_file.rs"]
 mod file;
 #[path = "source_artifact_protocol.rs"]
@@ -16,7 +18,7 @@ const ACK_DISPATCH: &str = "source-artifact-ack-dispatch";
 const RETIRE: &str = "source-artifact-retirement-intent";
 const RETIRE_DISPATCH: &str = "source-artifact-retirement-dispatch";
 const RETIRED: &str = "source-artifact-retired";
-pub const SOURCE_ARTIFACT_USAGE:&str="artifacts commands:\nrecord PRIVATE_0700_JOURNAL PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 PRIVATE_FLOW_DIR JOB_ID candidate|dependency RESULT_SHA256 ARCHIVE_SHA256 EXPORTER_SHA256\ndownload|download-read|ack|ack-read PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nretire PRIVATE_JOURNAL JOB_ID INTENT_SHA256 RETIRER_SHA256\nretire-read|retire-resume PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nZIP bytes stay in files created once with mode 0600 under the 0700 journal. Partial files are preserved; at most 4 explicit read attempts. Ack and retirement verify actual retained bytes and the original bounded Source/readback. Retire-resume continues only the original consumed cleanup; retire-read never mutates Root state. Host receipt hashes are derived internally; workloads are never replayed.";
+pub const SOURCE_ARTIFACT_USAGE:&str="artifacts commands:\nrecord PRIVATE_0700_JOURNAL PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 PRIVATE_FLOW_DIR JOB_ID candidate|dependency RESULT_SHA256 ARCHIVE_SHA256 EXPORTER_SHA256\ndownload|download-read|ack|ack-read PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nretire PRIVATE_JOURNAL JOB_ID INTENT_SHA256 RETIRER_SHA256\nretire-read|retire-resume PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nfailure-record PRIVATE_0700_JOURNAL PRIVATE_TRANSFER_DIR SOURCE_INTENT_SHA PRIVATE_PIN_DIR JOB_ID READER_SHA\nfailure-download|failure-download-read|failure-download-resume|failure-ack|failure-ack-read|failure-ack-resume PRIVATE_JOURNAL JOB_ID FAILURE_INTENT_SHA\nfailure-retire PRIVATE_JOURNAL JOB_ID FAILURE_INTENT_SHA RETIRER_SHA\nfailure-retire-read|failure-retire-resume PRIVATE_JOURNAL JOB_ID FAILURE_INTENT_SHA\nZIP bytes stay in files created once with mode 0600 under the 0700 journal. Failed builds instead retain a closed USTAR of actual result-bound logs and a sanitized manifest; it grants no artifact admission and usage stays unknown. Partial files are preserved; at most 4 explicit read attempts. Ack and retirement verify actual retained bytes and the original bounded Source/readback. Retire-resume continues only the original consumed cleanup; retire-read never mutates Root state. Host receipt hashes are derived internally; workloads are never replayed.";
 fn text<'a>(v: &'a Value, k: &str) -> Result<&'a str, String> {
     v[k].as_str()
         .ok_or_else(|| format!("Source artifact {k} absent"))
@@ -92,9 +94,27 @@ fn value(j: &Journal, i: &Value, suffix: &str) -> Result<Value, String> {
     }
     Ok(v)
 }
+fn failure_summary(j: &Journal, i: &Value, state: &str) -> Result<Value, String> {
+    let (archive, host) = if j.absent(text(i, "job_id")?, failure::RECEIPT)? {
+        (Value::Null, Value::Null)
+    } else {
+        let e = protocol::retained_failure_export(j, i)?;
+        let (_, host) = file::retained_failure(j, i, &e)?;
+        (e["receipt"]["archive_sha256"].clone(), json!(host))
+    };
+    Ok(
+        json!({"schema":"hol-gauntlet-host-failed-build-evidence.v1","state":state,"job_id":i["job_id"],"source_sha":i["source"]["intent"]["source_sha"],
+        "intent_sha256":sha(&bytes(i)?),"result_sha256":i["flow"]["result_sha256"],"status":"build-failed","exit_code":i["flow"]["exit_code"],
+        "archive_sha256":archive,"host_receipt_sha256":host,"model_requests":null,"artifact_admitted":false,"execution_eligible":false,"qualification_eligible":false}),
+    )
+}
 trait Rpc {
     fn control(&mut self, argv: &[String]) -> Result<Vec<u8>, String>;
     fn archive(&mut self, argv: &[String], file: &mut File) -> Result<usize, String>;
+}
+pub(super) trait FailureRpc {
+    fn control(&mut self, argv: &[String]) -> Result<Vec<u8>, String>;
+    fn archive(&mut self, argv: &[String], input: &[u8], file: &mut File) -> Result<usize, String>;
 }
 struct Owned<'a> {
     lima: context::Lima,
@@ -129,6 +149,34 @@ impl Rpc for Owned<'_> {
         .map_err(|_| "Source ZIP download uncertain; preserve partial private file")?;
         self.lima.recheck()?;
         Ok(n)
+    }
+}
+impl failure::Rpc for Owned<'_> {
+    fn control(&mut self, argv: &[String]) -> Result<Vec<u8>, String> {
+        let command = self.command(argv)?;
+        let raw = crate::stream_process::run_streamed_command(
+            command,
+            b"",
+            Duration::from_secs(360),
+            32769,
+        )
+        .map_err(|_| "failed-build control return uncertain")?;
+        self.lima.recheck()?;
+        Ok(raw)
+    }
+    fn archive(&mut self, argv: &[String], input: &[u8], file: &mut File) -> Result<usize, String> {
+        let command = self.command(argv)?;
+        let result = crate::stream_process::run_streamed_input_to_file(
+            command,
+            input,
+            file,
+            Duration::from_secs(360),
+            file::FAILURE_LIMIT,
+        );
+        file.sync_all()
+            .map_err(|_| "partial failure evidence sync uncertain")?;
+        self.lima.recheck()?;
+        result.map_err(|_| "failure evidence download uncertain; retain original attempt".into())
     }
 }
 fn reply(raw: &[u8]) -> Result<Value, String> {
@@ -349,6 +397,7 @@ fn summary(j: &Journal, i: &Value, state: &str) -> Result<Value, String> {
     )
 }
 pub(super) fn verify_idle_record(j: &Journal, name: &str) -> Result<(), String> {
+    failure::verify_idle_record(j, name)?;
     if let Some(job) = name.strip_suffix(".native-source-artifact-download-dispatch.json") {
         let i = parse(&j.read(job, INTENT)?)?;
         stable(j, &i)?;
@@ -389,6 +438,9 @@ fn record(args: &[String]) -> Result<Value, String> {
     summary(&j, &i, "recorded")
 }
 pub fn run_source_artifact_command(args: &[String]) -> Result<Value, String> {
+    if args.first().is_some_and(|a| a.starts_with("failure-")) {
+        return failure::run_command(args);
+    }
     match (args.first().map(String::as_str), args.len()) {
         (Some("record"), 10) => return record(args),
         (

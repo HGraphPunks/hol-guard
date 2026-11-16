@@ -445,6 +445,35 @@ fn checked_identity(
     Ok(cid.into())
 }
 
+pub(crate) fn failed_source_matches(p: &Value, v: &Value) -> Result<(), String> {
+    if v.as_object().is_none_or(|o| o.len() != 11)
+        || v["schema"] != "hol-gauntlet-native-source-capture.v2"
+        || v["job_id"] != p["job_id"]
+        || v["source_sha"] != p["source_sha"]
+        || v["worker_generation"] != p["original_worker_generation"]
+        || v["source_archive_sha256"] != p["source_archive_sha256"]
+        || v["storage_profile"] != "build-v1"
+        || v["storage"]["receipt_sha256"] != p["storage_receipt_sha256"]
+        || super::linux::sha(&super::linux::canonical(&v["storage"]["receipt"])?)
+            != p["storage_receipt_sha256"].as_str().unwrap_or("")
+    {
+        return Err("failed-build Source differs from original outside volume pins".into());
+    }
+    Ok(())
+}
+
+pub(crate) const FAILED_BUILD_FIELDS: [&str; 9] = [
+    "source_sha",
+    "job_id",
+    "original_worker_generation",
+    "storage_receipt_sha256",
+    "source_archive_sha256",
+    "result_sha256",
+    "host_pin_sha256",
+    "host_anchor_sha256",
+    "reader_generation",
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;

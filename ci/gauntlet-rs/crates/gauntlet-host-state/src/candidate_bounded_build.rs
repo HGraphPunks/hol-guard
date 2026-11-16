@@ -318,7 +318,7 @@ fn invoke(
     lima.recheck()?;
     Ok(raw)
 }
-fn run(
+pub(super) fn run(
     j: &Journal,
     i: &Value,
     mut transport: impl FnMut(&Value, &[String], Duration, usize) -> Result<Vec<u8>, String>,

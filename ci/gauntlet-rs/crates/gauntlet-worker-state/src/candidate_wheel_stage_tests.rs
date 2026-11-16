@@ -5,6 +5,79 @@ use std::io::Write;
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 
 #[test]
+fn failed_build_ustar_preserves_binary_empty_logs_and_unknown_usage() {
+    use crate::native_public_archive::{encode_failed, PublicFiles};
+    use std::{
+        io::Read,
+        os::unix::fs::{MetadataExt, PermissionsExt},
+    };
+    let temp = tempfile::tempdir().unwrap();
+    let root = open(
+        temp.path(),
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .unwrap();
+    let capture = || {
+        let mut files = PublicFiles::default();
+        for (name, raw) in [
+            ("candidate-run.stdout.log", b"".as_slice()),
+            ("candidate-run.stderr.log", b"\0\xff\n".as_slice()),
+        ] {
+            let path = temp.path().join(name);
+            if !path.exists() {
+                std::fs::write(&path, raw).unwrap();
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+            }
+            let s = std::fs::metadata(path).unwrap();
+            assert!(files
+                .capture(&root, name, name, (s.uid(), s.gid()), 0o600)
+                .unwrap());
+        }
+        files
+    };
+    let raw = encode_failed(capture(), json!({"exit_code":1})).unwrap();
+    assert_eq!(
+        raw,
+        encode_failed(capture(), json!({"exit_code":1})).unwrap()
+    );
+    let mut archive = tar::Archive::new(raw.as_slice());
+    let mut names = Vec::new();
+    for row in archive.entries().unwrap() {
+        let mut row = row.unwrap();
+        assert!(row.header().as_ustar().is_some());
+        assert_eq!(row.header().mode().unwrap(), 0o600);
+        let name = row.path().unwrap().to_str().unwrap().to_owned();
+        let mut bytes = Vec::new();
+        row.read_to_end(&mut bytes).unwrap();
+        if name == "results.sha256.json" {
+            let v: Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(v["schema"], "hol-gauntlet-failed-build-evidence.v1");
+            assert_eq!(v["exit_code"], 1);
+            assert!(v["model_requests"].is_null());
+        } else {
+            assert_eq!(
+                bytes,
+                if name.ends_with("stdout.log") {
+                    b"".as_slice()
+                } else {
+                    b"\0\xff\n".as_slice()
+                }
+            );
+        }
+        names.push(name);
+    }
+    assert_eq!(
+        names,
+        [
+            "candidate-run.stderr.log",
+            "candidate-run.stdout.log",
+            "results.sha256.json"
+        ]
+    );
+}
+
+#[test]
 fn unprivileged_staging_refuses_before_any_pins_or_files() {
     if geteuid().as_raw() == 0 {
         return;

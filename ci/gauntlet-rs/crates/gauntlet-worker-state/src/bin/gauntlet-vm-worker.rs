@@ -10,7 +10,13 @@ fn run() -> Result<(), String> {
     if let Some(raw) = gauntlet_worker_state::dispatch_native_job_storage(&args)? {
         if matches!(
             args.get(1).map(String::as_str),
-            Some("--export-source-job-artifact-v1" | "--read-source-job-artifact-v1")
+            Some(
+                "--export-source-job-artifact-v1"
+                    | "--read-source-job-artifact-v1"
+                    | "--export-failed-build-evidence-v1"
+                    | "--resume-failed-build-evidence-v1"
+                    | "--read-failed-build-evidence-v1"
+            )
         ) {
             std::io::stdout()
                 .lock()

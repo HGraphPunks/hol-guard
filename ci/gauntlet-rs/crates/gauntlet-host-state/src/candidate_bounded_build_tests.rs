@@ -1,12 +1,12 @@
 //! Pure mocked fixed-protocol boundaries; no candidate, VM or volume runs.
 use super::*;
 use std::{cell::Cell, fs, os::unix::fs::PermissionsExt};
-struct Fixture {
-    _temp: tempfile::TempDir,
-    j: Journal,
-    i: Value,
+pub(in crate::native_operation::artifact) struct Fixture {
+    pub(in crate::native_operation::artifact) _temp: tempfile::TempDir,
+    pub(in crate::native_operation::artifact) j: Journal,
+    pub(in crate::native_operation::artifact) i: Value,
 }
-fn fixture() -> Fixture {
+pub(in crate::native_operation::artifact) fn fixture() -> Fixture {
     let (temp, source) = super::super::source::tests::completed_fixture();
     let root = temp.path().canonicalize().unwrap();
     let path = root.join("build-pins");
@@ -22,19 +22,19 @@ fn fixture() -> Fixture {
     j.lock().unwrap();
     Fixture { _temp: temp, j, i }
 }
-fn ready(i: &Value) -> Value {
+pub(in crate::native_operation::artifact) fn ready(i: &Value) -> Value {
     let p = &i["build_pins"];
     json!({"schema":"hol-gauntlet-candidate-build-ready-shadow.v3","job_id":p["job_id"],"source_sha":p["source_sha"],
         "source_archive_sha256":p["source_archive_sha256"],"tag":p["tag"],"image_id":p["builder_image_id"],"policy_sha256":p["policy_sha256"],
         "free_disk_bytes":24_u64*1024*1024*1024,"ready_at_probe":true,"host_pin_recorded":false,"candidate_started":false,"artifact_admitted":false,"execution_eligible":false,
         "storage_receipt_sha256":i["source"]["storage_receipt_sha256"],"builder_inputs_state":"preparable"})
 }
-fn frame(v: &Value) -> Vec<u8> {
+pub(in crate::native_operation::artifact) fn frame(v: &Value) -> Vec<u8> {
     let mut raw = bytes(v).unwrap();
     raw.push(b'\n');
     raw
 }
-fn terminal(j: &Journal, i: &Value) -> Value {
+pub(in crate::native_operation::artifact) fn terminal(j: &Journal, i: &Value) -> Value {
     // The nonce exists only inside the official temporary Rust pin API/wire.
     let r = HostCandidateBuildPinJournal::open(&j.path)
         .unwrap()

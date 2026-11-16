@@ -1,6 +1,9 @@
 //! Versioned selectors on the existing worker; no free path or command input.
 use super::{JobStoragePins, JobStorageProfile};
 pub fn dispatch_native_job_storage(args: &[String]) -> Result<Option<Vec<u8>>, String> {
+    if let Some(raw) = crate::candidate_failure::dispatch(args)? {
+        return Ok(Some(raw));
+    }
     let selector = args.get(1).map(String::as_str).unwrap_or("");
     let raw = match selector {
         "--abort-native-initialization-v1" | "--read-native-initialization-abort-v1"
