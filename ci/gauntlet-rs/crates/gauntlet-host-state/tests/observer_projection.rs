@@ -41,7 +41,7 @@ fn explicit_cli_attachment_reaches_dashboard_without_dispatch_or_false_availabil
         "d".repeat(64),
         "e".repeat(64),
         "f".repeat(64),
-        "timeout".into(),
+        "readonly-utility".into(),
         "1".repeat(64),
         "2".repeat(64),
         path.into(),

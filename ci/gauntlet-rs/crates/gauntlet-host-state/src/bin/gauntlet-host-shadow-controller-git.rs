@@ -94,7 +94,7 @@ mod tests {
     #[test]
     fn current_source_map_is_available_before_git_verification() {
         let files = super::embedded_source_map().unwrap();
-        assert_eq!(files.len(), 441);
+        assert_eq!(files.len(), 449);
         gauntlet_evidence::plan_controller_install(&files).unwrap();
     }
 }

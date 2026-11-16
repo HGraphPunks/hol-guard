@@ -64,14 +64,18 @@ print(json.dumps(dict(groups=scope['catalog'](),schedule=[r[0]for r in scope['or
 }
 
 #[test]
-fn legacy_inventory_and_listing_match_the_actual_python_reader() {
+fn retained_legacy_v1_normalization_and_listing_match_pinned_python_nodes() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(4)
         .unwrap();
+    // V1's original full reader SHA d13b78214fddf6550f5e4e2712d116f7ade0c34b5a6ff54407a3645dc4b036ac
+    // remains historical. Main's validator rejects old Watch commands. Only its
+    // byte-identical Scenario and constructor are used for normalization here;
+    // this is not current loader acceptance or support for expanded catalogs.
     let code = r#"
-import hashlib,json,sys
-from dataclasses import asdict
+import ast,hashlib,json,sys
+from dataclasses import asdict,dataclass
 from pathlib import Path
 def prevent_runtime(event,args):
  if event in {'subprocess.Popen','os.system','os.exec','os.posix_spawn','socket.connect','socket.bind'}:
@@ -81,14 +85,45 @@ def prevent_runtime(event,args):
 sys.addaudithook(prevent_runtime)
 root=Path(sys.argv[1])
 source=root/'ci/gauntlet/catalog.py'
-assert hashlib.sha256(source.read_bytes()).hexdigest()=='d13b78214fddf6550f5e4e2712d116f7ade0c34b5a6ff54407a3645dc4b036ac'
-sys.path.insert(0,str(root))
-from ci.gauntlet.catalog import load_catalog
+raw=source.read_bytes()
+assert hashlib.sha256(raw).hexdigest()=='4ac590490a62dae40b038efb66c7d449b98a5ad6c23c540a731fbfb586c9877b'
+def pinned_nodes(text):
+ tree=ast.parse(text)
+ scenario=next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name=='Scenario')
+ loader=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='load_catalog_data')
+ constructor=next(n for n in ast.walk(loader) if isinstance(n,ast.Assign) and isinstance(n.value,ast.Call) and isinstance(n.value.func,ast.Name) and n.value.func.id=='Scenario')
+ for node,pin in [(scenario,'b1918b30c4d44cf75ec4dda3bd385aa72b2855db1770d2d3ba9000b3547eeb13'),(constructor,'a351d82b3924e922a05ec47317cb8706dd93adc0c513f5537ecc202521be8708')]:
+  if hashlib.sha256(ast.get_source_segment(text,node).encode()).hexdigest()!=pin:
+   raise ValueError('retained v1 Python normalization node drifted')
+ return scenario,constructor
+text=raw.decode()
+scenario,constructor=pinned_nodes(text)
+changed=text.replace('tuple(row.get("commands", ()))','()',1)
+assert changed!=text
+try:pinned_nodes(changed)
+except ValueError:pass
+else:raise AssertionError('changed constructor acquired retained v1 identity')
+scope={'dataclass':dataclass,'__name__':'__main__'}
+future=ast.parse('from __future__ import annotations').body[0]
+exec(compile(ast.Module(body=[future,scenario],type_ignores=[]),'pinned-legacy-v1-fields','exec'),scope)
+construct=compile(ast.Module(body=[constructor],type_ignores=[]),'pinned-legacy-v1-constructor','exec')
 def digest(value):
  return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False).encode()).hexdigest()
 result={}
-for profile,file in {'core':'scenarios.json','approval-retry':'approval_retry.json','connector-setup':'connector_setup.json','full-tasks':'full_tasks.json'}.items():
- rows=load_catalog(root/'ci/gauntlet'/file)
+fixtures=Path(sys.argv[2])
+catalogs={'core':(fixtures/'legacy_core_catalog_v1.json','414970688ed3c105821c5961c3bdcd8897c7e018c4cd2d28c46510e570852517'),
+ 'approval-retry':(fixtures/'legacy_approval_retry_catalog_v1.json','9f27cef5f9312cd6fdd3c4084dbb47f6cc07bc06acc3afc87897c00dbb19d7d7'),
+ 'connector-setup':(root/'ci/gauntlet/connector_setup.json','df96a3ef882dc1c1b8f064cdb9f42b3382cbba350db6abc7c380e689b2a500e6'),
+ 'full-tasks':(root/'ci/gauntlet/full_tasks.json','fd335da0b43599061661ab0e3f4ef2b390cf01039f3473b5d15d550f24d9f6e2')}
+for profile,(path,pin) in catalogs.items():
+ catalog=path.read_bytes()
+ assert hashlib.sha256(catalog).hexdigest()==pin
+ rows=[]
+ for row in json.loads(catalog)['scenarios']:
+  scope['row']=row
+  exec(construct,scope)
+  rows.append(scope['scenario'])
+ assert all(len(asdict(row))==11 for row in rows)
  result[profile]={'count':len(rows),'rows_sha256':digest([asdict(row) for row in rows]),'listing_sha256':digest([{'id':row.id,'expectation':row.expectation,'oracle':row.oracle} for row in rows])}
 assert not any(name in {'hol_guard','src'} or name.startswith(('hol_guard.','src.','ci.native_runtime')) for name in sys.modules)
 print(json.dumps(result,sort_keys=True))
@@ -96,6 +131,7 @@ print(json.dumps(result,sort_keys=True))
     let output = Command::new("python3")
         .args(["-I", "-S", "-B", "-c", code])
         .arg(root)
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures"))
         .output()
         .unwrap();
     assert!(

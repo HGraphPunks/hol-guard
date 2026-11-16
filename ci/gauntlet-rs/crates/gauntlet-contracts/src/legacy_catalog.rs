@@ -1,7 +1,9 @@
 //! Inert, source-pinned legacy scenario inventory. No fixture or product executes.
 //!
-//! Only the four compiled catalogs are accepted. This is not the general Python
+//! Only the four compiled retained-v1 catalogs are accepted. This is not the general Python
 //! catalog loader, a candidate catalog admission API, or a qualification result.
+//! Later upstream catalogs require a separate supported profile; new source
+//! files never replace these historical rows or acquire their fixed identity.
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, fmt};
@@ -49,8 +51,10 @@ impl LegacyCatalogKind {
 
     fn raw(self) -> &'static [u8] {
         match self {
-            Self::Core => include_bytes!("../../../../gauntlet/scenarios.json"),
-            Self::ApprovalRetry => include_bytes!("../../../../gauntlet/approval_retry.json"),
+            Self::Core => include_bytes!("../tests/fixtures/legacy_core_catalog_v1.json"),
+            Self::ApprovalRetry => {
+                include_bytes!("../tests/fixtures/legacy_approval_retry_catalog_v1.json")
+            }
             Self::ConnectorSetup => include_bytes!("../../../../gauntlet/connector_setup.json"),
             Self::FullTasks => include_bytes!("../../../../gauntlet/full_tasks.json"),
         }
@@ -275,6 +279,34 @@ mod tests {
                 parse_fixed_catalog(kind, &raw).unwrap_err(),
                 LegacyCatalogError::SourcePin
             );
+        }
+    }
+
+    #[test]
+    fn expanded_main_catalogs_do_not_acquire_retained_v1_identity() {
+        let current: &[(LegacyCatalogKind, &[u8], usize, &str)] = &[
+            (
+                LegacyCatalogKind::Core,
+                include_bytes!("../../../../gauntlet/scenarios.json"),
+                378,
+                "4fcccda4f7a663e884fa39a31824f8176a97b0c5f3bf88d3441b046349beac43",
+            ),
+            (
+                LegacyCatalogKind::ApprovalRetry,
+                include_bytes!("../../../../gauntlet/approval_retry.json"),
+                18,
+                "35993e792fd4dc3c5a3c9e654cecbb020098ed2a36a0bc7fea5aeb316e066f53",
+            ),
+        ];
+        for &(kind, raw, count, digest) in current {
+            assert_eq!(format!("{:x}", Sha256::digest(raw)), digest);
+            let document: Value = serde_json::from_slice(raw).unwrap();
+            assert_eq!(document["scenarios"].as_array().unwrap().len(), count);
+            assert_eq!(
+                parse_fixed_catalog(kind, raw).unwrap_err(),
+                LegacyCatalogError::SourcePin
+            );
+            assert_ne!(raw, kind.raw());
         }
     }
 

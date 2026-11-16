@@ -35,7 +35,7 @@ fn current_source_map() -> BTreeMap<String, String> {
             )
             .is_none());
     }
-    assert_eq!(files.len(), 441);
+    assert_eq!(files.len(), 449);
     files
 }
 
@@ -43,14 +43,14 @@ fn current_source_map() -> BTreeMap<String, String> {
 fn current_source_map_matches_python_bootstrap_tree_plan() {
     // Independently derived by Python AST extraction of bootstrap.py's actual
     // selector and fresh 0755/0444 modes, including the explicit MCP-only adapter.
-    // The data-only oracle checks all 410 source hashes and 11 directory modes.
+    // The data-only oracle checks all 418 source hashes and 11 directory modes.
     // Older installed generations and their immutable evidence stay separate.
     let plan = plan_controller_install(&current_source_map()).unwrap();
-    assert_eq!(plan.installed_files.len(), 410);
-    assert_eq!(plan.entries, 421);
+    assert_eq!(plan.installed_files.len(), 418);
+    assert_eq!(plan.entries, 429);
     assert_eq!(
         plan.tree_digest,
-        "eedaa25b8a3ea7eb642159a2e64d71ed47222c624e882a8e318aa478c618faf2"
+        "66d10a080cefc353df7add224ad13afcd5388613f6ec4547f35f4e469d5a3de3"
     );
     assert!(plan
         .installed_files

@@ -16,6 +16,14 @@ REPOSITORY = WORKSPACE.parents[1]
 BASELINE = WORKSPACE / "parity-manifest.v1.json"
 DELTA = WORKSPACE / "integration-source-delta.v1.json"
 NEW_FILES = {
+    "ci/gauntlet/approval_retry_relay.py": ("port_to_rust", 5),
+    "ci/gauntlet/file_write_cases.py": ("port_to_rust", 5),
+    "ci/gauntlet/fixture_remotes.py": ("port_to_rust", 5),
+    "ci/gauntlet/heredoc_commit_fixtures.py": ("port_to_rust", 5),
+    "ci/gauntlet/installed_startup.py": ("port_to_rust", 5),
+    "ci/gauntlet/output_cases.py": ("port_to_rust", 5),
+    "ci/gauntlet/release_budgets.py": ("port_to_rust", 4),
+    "ci/gauntlet/task_brief_cases.py": ("port_to_rust", 5),
     "ci/gauntlet/case_retry.py": ("port_to_rust", 5),
     "ci/gauntlet/benchmark/stage_control_adapter.py": ("port_to_rust", 2),
     "ci/gauntlet/approval_retry_action.py": ("port_to_rust", 5),

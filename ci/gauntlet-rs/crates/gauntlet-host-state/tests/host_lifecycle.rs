@@ -45,7 +45,7 @@ fn native_journal(root: &Path) -> (std::path::PathBuf, String, String) {
         "d".repeat(64),
         "e".repeat(64),
         "f".repeat(64),
-        "timeout".into(),
+        "readonly-utility".into(),
         "1".repeat(64),
         "2".repeat(64),
         path.to_str().unwrap().into(),

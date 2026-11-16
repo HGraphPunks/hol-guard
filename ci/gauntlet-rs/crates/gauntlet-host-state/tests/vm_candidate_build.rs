@@ -446,12 +446,13 @@ fn primary_and_historical_read_and_repair_refuse_a_different_vm_without_host_mut
         let output = Command::new(primary).args(args).output().unwrap();
         assert_eq!(output.status.code(), Some(2));
         assert!(output.stdout.is_empty());
-        assert!(String::from_utf8_lossy(&output.stderr).contains("candidate commands:"));
+        assert!(String::from_utf8_lossy(&output.stderr)
+            .contains(gauntlet_host_state::CANDIDATE_BUILD_USAGE));
     }
 }
 
 #[test]
-fn both_run_entrypoints_require_the_pinned_readiness_executable_before_recording() {
+fn both_run_entrypoints_refuse_new_unbounded_work_before_recording() {
     let dir = tempdir().unwrap();
     let root = dir.path().canonicalize().unwrap();
     fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
@@ -492,8 +493,7 @@ fn both_run_entrypoints_require_the_pinned_readiness_executable_before_recording
             .unwrap();
         assert_eq!(output.status.code(), Some(2));
         assert!(output.stdout.is_empty());
-        assert!(String::from_utf8_lossy(&output.stderr)
-            .contains("exact outside candidate readiness binary SHA-256 required"));
+        assert!(String::from_utf8_lossy(&output.stderr).contains("new unbounded builds"));
         assert_eq!(fs::read_dir(&root).unwrap().count(), 0);
     }
 }

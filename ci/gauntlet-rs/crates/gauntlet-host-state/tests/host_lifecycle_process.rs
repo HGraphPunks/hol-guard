@@ -350,7 +350,7 @@ fn observer_start_has_a_finite_wait_and_preserves_the_checkpoint_when_blocked() 
 }
 
 #[test]
-fn both_feature_entrypoints_keep_recorded_intents_private_and_refuse_unstarted_reads() {
+fn both_feature_entrypoints_refuse_new_work_and_keep_historical_intents_private() {
     let parent = parent();
     let pins_path = parent.path().join("pins.json");
     let mut pins = json!({"executor_spec":{
@@ -392,6 +392,8 @@ fn both_feature_entrypoints_keep_recorded_intents_private_and_refuse_unstarted_r
         pins["executor_spec"]["audit_id"] = json!(id);
         fs::write(&pins_path, pins.to_string()).unwrap();
         fs::set_permissions(&pins_path, fs::Permissions::from_mode(0o600)).unwrap();
+        let pins_before = fs::read(&pins_path).unwrap();
+        let entries_before = fs::read_dir(parent.path()).unwrap().count();
         let record = || {
             Command::new(binary)
                 .args(&prefix)
@@ -403,27 +405,36 @@ fn both_feature_entrypoints_keep_recorded_intents_private_and_refuse_unstarted_r
                 .unwrap()
         };
         let output = record();
-        assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("new legacy feature jobs"));
+        assert_eq!(fs::read(&pins_path).unwrap(), pins_before);
+        assert_eq!(fs::read_dir(parent.path()).unwrap().count(), entries_before);
         let intent_path = parent.path().join(format!("{id}.feature-intent.json"));
+        assert!(!intent_path.exists());
+        // Model a retained historical row without using a fresh CLI mutator.
+        let journal = gauntlet_host_state::FeatureIntentJournal::open(parent.path()).unwrap();
+        let intent = journal
+            .record(
+                gauntlet_contracts::FeatureRunPins::from_value(pins.clone()).unwrap(),
+                &gauntlet_host_state::public_vm_operations(Some("owned-vm")).unwrap(),
+            )
+            .unwrap();
         let original = fs::read(&intent_path).unwrap();
         let private: Value = serde_json::from_slice(&original).unwrap();
-        let intent = gauntlet_contracts::FeatureRunIntent::parse(&original).unwrap();
+        assert_eq!(journal.read(id).unwrap(), intent);
         assert_eq!(
-            value,
-            json!({"schema":"hol-gauntlet-host-feature-record.v1",
-            "audit_id":id,"source_sha":"a".repeat(40),"intent_sha256":intent.digest().unwrap(),
-            "execution_eligible":false,"qualification_eligible":false})
+            fs::metadata(&intent_path).unwrap().permissions().mode() & 0o777,
+            0o600
         );
-        assert!(!String::from_utf8_lossy(&output.stdout)
-            .contains(private["host_nonce_hex"].as_str().unwrap()));
-        assert_eq!(record().status.code(), Some(2));
+        let nonce = private["host_nonce_hex"].as_str().unwrap();
+        let refused = record();
+        assert_eq!(refused.status.code(), Some(2));
+        assert!(refused.stdout.is_empty());
+        assert!(!String::from_utf8_lossy(&refused.stderr).contains(nonce));
         for (action, digest) in [
             ("run", "0".repeat(64)),
+            ("run", intent.digest().unwrap()),
             ("read", intent.digest().unwrap()),
             ("repair", intent.digest().unwrap()),
         ] {
@@ -437,7 +448,12 @@ fn both_feature_entrypoints_keep_recorded_intents_private_and_refuse_unstarted_r
             if action == "repair" {
                 command.arg("d".repeat(64));
             }
-            assert_eq!(command.output().unwrap().status.code(), Some(2));
+            let output = command.output().unwrap();
+            assert_eq!(output.status.code(), Some(2));
+            assert!(output.stdout.is_empty());
+            let error = String::from_utf8_lossy(&output.stderr);
+            assert!(!error.contains(nonce));
+            assert_eq!(error.contains("new legacy feature jobs"), action == "run");
         }
         assert_eq!(fs::read(intent_path).unwrap(), original);
         assert!(!parent
