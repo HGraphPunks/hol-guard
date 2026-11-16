@@ -1,8 +1,8 @@
 """Replay frozen host-event vectors against reviewed, unchanged Python reducers.
 
-Main at b2da1b2b and 62fe5d573 changed other parts of evidence.py. The historical vectors
-and generators remain immutable. This proof accepts only that exact reviewed
-source pair, checks normalized function ASTs against 7eba6064, and executes
+Reviewed Main generations changed other parts of evidence.py. The historical vectors
+and generators remain immutable. This proof accepts only the exact reviewed
+source generation, checks normalized function ASTs against 7eba6064, and executes
 only the generators' isolated stdlib-only functions, never controller imports.
 """
 
@@ -22,8 +22,8 @@ PROOFS = ROOT / "ci/gauntlet-rs/proofs"
 FIXTURES = ROOT / "ci/gauntlet-rs/crates/gauntlet-evidence/tests"
 HISTORICAL = "b76344cf9700c73abebd5d65a81d34aa28c960b591fc2bc485423afa038efe2f"
 # Prior reviewed generation: b5a2ba7d80f6bb16eb60d125299b0f7874e1befded2680b0394cb065e4ba2a51.
-# Upstream added error redaction and eval-shell judgement; neither reducer below changed.
-CURRENT = "67c2477bca5264350eb679e4397afee485a6af84743ae212935888a6a252dfa1"
+# Main2a changed whole-case lifecycle grading. Neither host-event reducer changed.
+CURRENT = "a5a14240089ce24010c0befa0acbdd7cf45cd29a91bcaf20a7aaa153cf82c533"
 FUNCTIONS = {
     "reconcile": "a70ae54c39ced369635adfab98f73cf8f719b359bdee92704fdf6459db584605",
     "read_events": "408a5d0412c2b2e91031b017e84bbbcb377495226bdeffe04757cec950e62c40",
@@ -58,7 +58,72 @@ def normalized(node):
         return [type(node).__name__, fields]
     if isinstance(node, list):
         return [normalized(value) for value in node]
+    if isinstance(node, bytes):
+        return ["bytes", node.hex()]
+    if node is Ellipsis:
+        return ["ellipsis"]
     return node
+
+
+def retained_legacy_scope() -> dict:
+    """Verify historical identity and scoped ASTs, not current legacy grading."""
+    directory = FIXTURES / "fixtures"
+    raw = (directory / "python_legacy_source_scope_main2a_v1.json").read_bytes()
+    if hashlib.sha256(raw).hexdigest() != "79b9b02eac0a0a5483d9dce294314304a457588daf19d408dc4888e612f02dee":
+        raise ValueError("retained legacy lineage changed")
+    scope = json.loads(raw)
+    if (scope["schema"] != "gauntlet-retained-legacy-source-scope.v1"
+            or scope["supported_generation"] != "retained-legacy-v1-core310-approval16"
+            or scope["current_generation"] != "main2a-core378-approval18"
+            or scope["full_current_assessment_parity"] is not False
+            or scope["current_legacy_generation_supported"] is not False):
+        raise ValueError("historical and current legacy generations must remain distinct")
+    identities = {}
+    for name, digest in scope["immutable_fixtures"].items():
+        if Path(name).name != name or not name.endswith(".json"):
+            raise ValueError("invalid immutable fixture name")
+        frozen = (directory / name).read_bytes()
+        if hashlib.sha256(frozen).hexdigest() != digest:
+            raise ValueError("historical full-result golden changed")
+        for source, original in json.loads(frozen).get("source_sha256", {}).items():
+            path = source if "/" in source else "ci/gauntlet/" + source
+            identities.setdefault(path, set()).add(original)
+    unchanged = changed = 0
+    for path, row in scope["source_lineage"].items():
+        if (".." in Path(path).parts or Path(path).is_absolute()
+                or set(row["historical_sha256"]) != identities[path]
+                or row["full_current_assessment_parity"] is not False):
+            raise ValueError("legacy source identity or claim scope changed")
+        current = (ROOT / path).read_bytes()
+        if hashlib.sha256(current).hexdigest() != row["current_sha256"]:
+            raise ValueError("Source is outside the reviewed historical/current pair")
+        if not path.endswith(".py"):
+            if row["current_data_generation_supported"] is not False:
+                raise ValueError("new catalog generation is not admitted")
+            continue
+        actual = {}
+        for node in ast.parse(current).body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                if node.name in actual:
+                    raise ValueError("ambiguous Source definition")
+                canonical = json.dumps(normalized(node), sort_keys=True, separators=(",", ":"),
+                                       ensure_ascii=False).encode()
+                actual[node.name] = hashlib.sha256(canonical).hexdigest()
+        expected = dict(row["unchanged_definition_asts"])
+        unchanged += len(expected)
+        for name, pair in row["changed_definition_asts"].items():
+            if pair["historical"] == pair["current"]:
+                raise ValueError("changed oracle cannot claim AST identity")
+            expected[name] = pair["current"]
+            changed += 1
+        expected.update(row["added_definition_asts"])
+        if actual != expected or set(actual) & set(row["removed_definition_asts"]):
+            raise ValueError("scoped Source AST changed")
+    if len(scope["immutable_fixtures"]) != 9 or len(scope["source_lineage"]) != 17:
+        raise ValueError("historical fixture/source scope changed")
+    return {"schema":scope["schema"], "historical_fixtures":9, "source_files":17,
+            "unchanged_definition_asts":unchanged, "changed_definition_asts":changed,
+            "current_legacy_generation_supported":False, "full_current_assessment_parity":False}
 
 
 def verify(kind: str) -> dict:
@@ -107,6 +172,7 @@ def verify(kind: str) -> dict:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2 or sys.argv[1] not in GENERATORS:
-        raise SystemExit("usage: verify_host_event_fixture_compatibility.py host-calls|omp-transcript")
-    print(json.dumps(verify(sys.argv[1]), sort_keys=True))
+    if len(sys.argv) != 2 or sys.argv[1] not in {*GENERATORS, "retained-legacy-v1"}:
+        raise SystemExit("usage: verify_host_event_fixture_compatibility.py host-calls|omp-transcript|retained-legacy-v1")
+    result = retained_legacy_scope() if sys.argv[1] == "retained-legacy-v1" else verify(sys.argv[1])
+    print(json.dumps(result, sort_keys=True))

@@ -7,7 +7,33 @@ fn upstream_reference() -> Value {
     .unwrap()
 }
 
-fn assert_source_pin(name: &str, raw: &[u8], historical: &Value) {
+pub(super) fn assert_source_pin(name: &str, raw: &[u8], historical: &Value) {
+    let scope_raw = include_bytes!("../tests/fixtures/python_legacy_source_scope_main2a_v1.json");
+    assert_eq!(
+        sha256(scope_raw),
+        "79b9b02eac0a0a5483d9dce294314304a457588daf19d408dc4888e612f02dee"
+    );
+    let scope: Value = serde_json::from_slice(scope_raw).unwrap();
+    let path = if name.contains('/') {
+        name.to_owned()
+    } else {
+        format!("ci/gauntlet/{name}")
+    };
+    if let Some(row) = scope["source_lineage"].get(&path) {
+        // Retained full-result vectors keep their own oracle generation. The
+        // scoped AST proof explicitly refuses whole current-oracle equivalence.
+        assert_eq!(scope["current_legacy_generation_supported"], false);
+        assert_eq!(scope["full_current_assessment_parity"], false);
+        assert!(
+            row["historical_sha256"]
+                .as_array()
+                .unwrap()
+                .contains(historical),
+            "{path}"
+        );
+        assert_eq!(sha256(raw), row["current_sha256"], "{path}");
+        return;
+    }
     let reference = upstream_reference();
     let relation = &reference["source_compatibility"][name];
     if relation.is_null() {
@@ -69,7 +95,13 @@ fn compatibility_spec_uses_exact_original_python_prompt_public_files_and_canary_
         assert_eq!(json!(actual > 0), row["expected"], "{}", row["name"]);
     }
     assert_eq!(spec["sdk_version"], "18.4.12");
-    assert_eq!(spec["source_sdk_version"], "18.18.6");
+    // Declaration metadata follows Main; the executed compatibility SDK remains
+    // 18.4.12 and the three parity/credit claims below stay false.
+    assert_eq!(spec["source_sdk_version"], "18.20.0");
+    assert_eq!(
+        spec["source_hashes"]["sdk_package"],
+        "04bd5f67aa8f5a662d1c74545e4dc1fd5473ee04ad04663e654d0661a2602f0f"
+    );
     for field in [
         "current_sdk_parity",
         "python_fixture_parity",
@@ -112,7 +144,7 @@ fn patch(value: &mut Value, patch: &Value) {
 }
 
 #[test]
-fn thirty_current_python_exact_case_vectors_match_rust_outcomes_and_interruptions() {
+fn thirty_retained_v1_python_exact_case_vectors_match_rust_outcomes_and_interruptions() {
     let reference = reference();
     for case in reference["cases"].as_array().unwrap() {
         let base = &reference["bases"][case["base"].as_str().unwrap()];
@@ -131,7 +163,7 @@ fn thirty_current_python_exact_case_vectors_match_rust_outcomes_and_interruption
 }
 
 #[test]
-fn all_current_ordinary_rule_requirements_match_real_python_source() {
+fn all_retained_v1_ordinary_rule_requirements_match_real_python_source() {
     let reference = reference();
     let rules = reference["requirements"].as_object().unwrap();
     assert_eq!(rules.len(), 102);
@@ -150,7 +182,7 @@ fn all_current_ordinary_rule_requirements_match_real_python_source() {
 }
 
 #[test]
-fn historical_vectors_keep_original_pins_with_independent_current_compatibility() {
+fn historical_vectors_keep_original_pins_with_versioned_source_scope() {
     let reference = reference();
     for (name, source) in [
         (
@@ -241,7 +273,7 @@ fn actual_stdout_timing_tail_uses_javascript_half_up_on_exact_binary_values() {
 }
 
 #[test]
-fn current_and_frozen_full_python_native_result_vectors_match() {
+fn retained_v1_and_frozen_full_python_native_result_vectors_match() {
     let reference: Value = serde_json::from_str(include_str!(
         "../tests/fixtures/python_legacy_native_cases_v1.json"
     ))
@@ -296,7 +328,7 @@ fn frozen_catalog_refuses_absence_mutation_and_current_substitution() {
 }
 
 #[test]
-fn expanded_reference_is_bound_to_current_and_frozen_source_implementations() {
+fn expanded_reference_is_bound_to_retained_v1_and_frozen_source_implementations() {
     for raw in [
         include_str!("../tests/fixtures/python_legacy_native_cases_v1.json"),
         include_str!("../tests/fixtures/python_legacy_native_extended_v1.json"),
@@ -329,7 +361,7 @@ fn expanded_reference_is_bound_to_current_and_frozen_source_implementations() {
 }
 
 #[test]
-fn upstream_eval_and_launchctl_full_results_match_independent_current_python() {
+fn upstream_eval_and_launchctl_full_results_match_retained_62fe_python() {
     assert_eq!(
         sha256(include_bytes!(
             "../tests/fixtures/python_legacy_upstream_62fe_v1.json"
@@ -340,11 +372,7 @@ fn upstream_eval_and_launchctl_full_results_match_independent_current_python() {
     let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../gauntlet");
     for (name, expected) in reference["source_sha256"].as_object().unwrap() {
         assert!(!name.contains('/') && (name.ends_with(".py") || name.ends_with(".json")));
-        assert_eq!(
-            sha256(&std::fs::read(source.join(name)).unwrap()),
-            *expected,
-            "{name}"
-        );
+        assert_source_pin(name, &std::fs::read(source.join(name)).unwrap(), expected);
     }
     assert_eq!(reference["vectors"].as_array().unwrap().len(), 27);
     for row in reference["vectors"].as_array().unwrap() {

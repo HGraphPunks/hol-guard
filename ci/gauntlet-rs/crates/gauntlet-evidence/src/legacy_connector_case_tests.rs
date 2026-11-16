@@ -44,10 +44,10 @@ fn connector_source_kind_and_unavailable_identity_are_not_producer_pass_flags() 
             path.starts_with("ci/gauntlet/")
                 || path == "src/codex_plugin_scanner/guard/blocked_request_mode.py"
         );
-        assert_eq!(
-            sha256(&std::fs::read(root.join(path)).unwrap()),
-            expected.as_str().unwrap(),
-            "{path}"
+        super::super::tests::assert_source_pin(
+            path,
+            &std::fs::read(root.join(path)).unwrap(),
+            expected,
         );
     }
     let row = reference["vectors"]
@@ -82,10 +82,10 @@ fn windows_tokens_shell_envelopes_and_full_cases_match_original_python() {
     let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../gauntlet");
     for (name, expected) in reference["source_sha256"].as_object().unwrap() {
         assert!(!name.contains('/') && name.ends_with(".py"));
-        assert_eq!(
-            sha256(&std::fs::read(source.join(name)).unwrap()),
-            expected.as_str().unwrap(),
-            "{name}"
+        super::super::tests::assert_source_pin(
+            name,
+            &std::fs::read(source.join(name)).unwrap(),
+            expected,
         );
     }
     for row in reference["tokens"].as_array().unwrap() {
@@ -122,10 +122,10 @@ fn codex_routes_match_exact_python_proof_sink_run_and_interruption_results() {
     for (name, expected) in reference["source_sha256"].as_object().unwrap() {
         assert!(!name.split('/').any(|part| part == ".."));
         assert!(name.starts_with("ci/gauntlet/") || name.starts_with("tests/test_guard_gauntlet_"));
-        assert_eq!(
-            sha256(&std::fs::read(source.join(name)).unwrap()),
-            expected.as_str().unwrap(),
-            "{name}"
+        super::super::tests::assert_source_pin(
+            name,
+            &std::fs::read(source.join(name)).unwrap(),
+            expected,
         );
     }
     for row in reference["sink_vectors"].as_array().unwrap() {
@@ -183,4 +183,77 @@ fn codex_routes_match_exact_python_proof_sink_run_and_interruption_results() {
         .unwrap()
         .bound
         .is_empty());
+}
+
+#[test]
+fn retained_v1_lineage_keeps_goldens_and_current_generation_separate() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../..");
+    let output = std::process::Command::new("python3")
+        .args(["-I", "-B"])
+        .arg(root.join("ci/gauntlet-rs/proofs/verify_host_event_fixture_compatibility.py"))
+        .arg("retained-legacy-v1")
+        .output()
+        .expect("isolated stdlib-only historical Source verification");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let proof: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(proof["historical_fixtures"], 9);
+    assert_eq!(proof["source_files"], 17);
+    assert_eq!(proof["unchanged_definition_asts"], 113);
+    assert_eq!(proof["changed_definition_asts"], 22);
+    assert_eq!(proof["full_current_assessment_parity"], false);
+    assert_eq!(proof["current_legacy_generation_supported"], false);
+    let retained = fixed_legacy_catalog(LegacyCatalogKind::Core).unwrap();
+    assert_eq!(retained.scenarios().len(), 310);
+    assert_eq!(
+        fixed_legacy_catalog(LegacyCatalogKind::ApprovalRetry)
+            .unwrap()
+            .scenarios()
+            .len(),
+        16
+    );
+    let current: Value =
+        serde_json::from_slice(include_bytes!("../../../../gauntlet/scenarios.json")).unwrap();
+    assert_eq!(current["scenarios"].as_array().unwrap().len(), 378);
+    let new_case = current["scenarios"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| {
+            !retained
+                .scenarios()
+                .iter()
+                .any(|old| old["id"] == row["id"])
+        })
+        .expect("current-only cases remain unsupported");
+    assert!(matches!(
+        assess_audited_legacy_case(
+            LegacyCatalogKind::Core,
+            new_case["id"].as_str().unwrap(),
+            &json!({})
+        ),
+        Err(EvidenceError::Invalid("unknown fixed legacy scenario"))
+    ));
+    let current = include_bytes!("../../../../gauntlet/evidence.py");
+    assert!(
+        std::panic::catch_unwind(|| super::super::tests::assert_source_pin(
+            "evidence.py",
+            current,
+            &json!("0".repeat(64))
+        ))
+        .is_err()
+    );
+    let mut changed = current.to_vec();
+    changed.push(b'\n');
+    assert!(
+        std::panic::catch_unwind(|| super::super::tests::assert_source_pin(
+            "evidence.py",
+            &changed,
+            &json!("67c2477bca5264350eb679e4397afee485a6af84743ae212935888a6a252dfa1")
+        ))
+        .is_err()
+    );
 }
