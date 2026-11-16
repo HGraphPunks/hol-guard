@@ -165,6 +165,7 @@ mod tests {
     #[test]
     fn writer_preserves_all_alias_bytes_on_replay_and_refuses_foreign_metadata() {
         let tmp = tempfile::tempdir().unwrap();
+        std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
         let test_root = rustix::fs::open(
             tmp.path(),
             OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
@@ -176,8 +177,12 @@ mod tests {
         let stage = tmp.path().join("stage");
         let prefix = tmp.path().join("prefix");
         let info = stage.join("hol_guard-3.57.0.dist-info");
+        let bin = prefix.join("bin");
         std::fs::create_dir_all(&info).unwrap();
-        std::fs::create_dir_all(prefix.join("bin")).unwrap();
+        std::fs::create_dir_all(&bin).unwrap();
+        for path in [&stage, &prefix, &info, &bin] {
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700)).unwrap();
+        }
         let mut text = String::from("[console_scripts]\n");
         for (name, target) in ENTRIES {
             text.push_str(&format!("{name} = {target}\n"));

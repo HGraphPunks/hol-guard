@@ -280,15 +280,19 @@ pub(crate) fn archive_dependencies(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::unix::fs::symlink;
+    use std::os::unix::fs::{symlink, PermissionsExt};
 
     #[test]
     fn captures_binary_files_and_manifest_without_executing_package_content_and_refuses_replay() {
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path().canonicalize().unwrap();
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).unwrap();
         let site = root.join("site");
         std::fs::create_dir(&site).unwrap();
         std::fs::create_dir(site.join("nested")).unwrap();
+        for path in [&site, &site.join("nested")] {
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700)).unwrap();
+        }
         std::fs::write(site.join("nested/bytes.bin"), b"a\0\xff\n").unwrap();
         std::fs::write(
             site.join("untrusted.pth"),
@@ -298,6 +302,10 @@ mod tests {
             ),
         )
         .unwrap();
+        for name in ["nested/bytes.bin", "untrusted.pth"] {
+            std::fs::set_permissions(site.join(name), std::fs::Permissions::from_mode(0o644))
+                .unwrap();
+        }
         let path = root.join("dependencies.zip");
         let binding = json!({"job_id":"0123456789abcdef","source_sha":"a".repeat(40),"wheel_only_install":true});
         let report = archive_dependencies(&site, &path, &binding).unwrap();

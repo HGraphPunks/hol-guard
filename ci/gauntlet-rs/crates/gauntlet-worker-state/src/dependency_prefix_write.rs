@@ -242,6 +242,10 @@ mod tests {
         );
         std::fs::write(source.join("malicious.pth"), &payload).unwrap();
         std::fs::write(source.join("binary.bin"), b"\0\xffbytes").unwrap();
+        for name in ["malicious.pth", "binary.bin"] {
+            std::fs::set_permissions(source.join(name), std::fs::Permissions::from_mode(0o644))
+                .unwrap();
+        }
         let output = base.join("dependencies.zip");
         let binding = serde_json::json!({"job_id":"0123456789abcdef","source_sha":"a".repeat(40),"pyproject_sha256":"b".repeat(64),"uv_lock_sha256":"c".repeat(64),"wheel_only_install":true});
         crate::native_dependency_archive::archive_dependencies(&source, &output, &binding).unwrap();
