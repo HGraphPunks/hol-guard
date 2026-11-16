@@ -253,6 +253,45 @@ pub fn inspect_fixed_builder_context(
     Ok(proof)
 }
 
+/// The caller already consumed its Root reservation and holds both leases.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_bounded_from_controller(
+    job: &std::os::fd::OwnedFd,
+    source: &Value,
+    controller: &Path,
+    tree: &str,
+    uv: &str,
+    rust: &str,
+    leases: impl Fn() -> Result<(), String>,
+) -> Result<(), String> {
+    let id = source["job_id"]
+        .as_str()
+        .ok_or("bounded source job absent")?;
+    let profile = source["storage_profile"]
+        .as_str()
+        .ok_or("bounded source profile absent")?
+        .parse()?;
+    let check = || -> Result<(), String> {
+        leases()?;
+        if crate::native_worker::cancellation_requested()
+            || crate::native_job_storage::source::verify(id, job, Some(profile))?.as_ref()
+                != Some(source)
+        {
+            return Err("original bounded Source or owner changed before preparation".into());
+        }
+        Ok(())
+    };
+    check()?;
+    let context = inspect_fixed_builder_context(controller, tree, id).map_err(|e| e.to_string())?;
+    let plan = crate::builder_image::fixed_builder_image_plan(&context, id, uv, rust)
+        .map_err(|e| e.to_string())?;
+    crate::builder_image_context::prepare_bounded_inputs(job, &plan, &context, check)?;
+    if inspect_fixed_builder_context(controller, tree, id).map_err(|e| e.to_string())? != context {
+        return Err("bounded builder controller changed during preparation".into());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

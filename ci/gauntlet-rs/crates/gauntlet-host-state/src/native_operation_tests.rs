@@ -25,7 +25,8 @@ pub(super) fn journal() -> (tempfile::TempDir, Journal) {
     (temp, journal)
 }
 fn record_args(path: &Path) -> Vec<String> {
-    let i = intent(&"1".repeat(16), path);
+    let mut i = intent(&"1".repeat(16), path);
+    i.0["role"] = json!("readonly-utility");
     vec![
         "record".into(),
         path.to_str().unwrap().into(),
@@ -61,7 +62,8 @@ fn record_has_only_public_identity_and_restart_preserves_original_vm_and_pins() 
     let (_temp, j) = journal();
     let args = record_args(&j.path);
     let value = run_native_operation_command(&args).unwrap();
-    let expected = intent(&"1".repeat(16), &j.path);
+    let mut expected = intent(&"1".repeat(16), &j.path);
+    expected.0["role"] = json!("readonly-utility");
     assert_eq!(
         value,
         json!({"schema":"hol-gauntlet-host-deterministic-record.v1","job_id":expected.job(),

@@ -311,6 +311,43 @@ fn missing_signed_context_never_admits_a_new_live_pair() {
 }
 
 #[test]
+fn historical_measurements_cannot_supply_new_mcp_only_sdk_admission() {
+    let (mut pair, pins) = fixture_pair();
+    let historical = judge_feature_ai_support_pair(&pair, &pins).unwrap();
+    assert_eq!(
+        historical["mcp_only_release_admission"]["operational_status"],
+        "unsupported-historical-context"
+    );
+    let mut context: Value =
+        serde_json::from_str(pair["cells"][1]["context"].as_str().unwrap()).unwrap();
+    context["schema"] = json!("hol-gauntlet-native-live-context.v2");
+    for key in ["binding", "agent", "sdk_terminal", "budget"] {
+        context[key] = Value::Null;
+    }
+    let raw = String::from_utf8(canonical_value(&context).unwrap()).unwrap();
+    pair["cells"][1]["context"] = json!(raw);
+    let mut report = pair["cells"][1]["envelope"]["record"]["controller_report"].clone();
+    report["context_sha256"] = json!(sha256(raw.as_bytes()));
+    pair["cells"][1]["envelope"] = signed(
+        crate::native_control_signing_record(&report, &pins.cells[1]).unwrap(),
+        &key(121),
+    );
+    let result = judge_feature_ai_support_pair(&pair, &pins).unwrap();
+    assert_eq!(
+        result["schema"],
+        "hol-gauntlet-feature-ai-support-pair-judgment.v2"
+    );
+    assert_eq!(result["evidence_validity"], "incomplete");
+    assert_eq!(
+        result["mcp_only_release_admission"]["operational_status"],
+        "incomplete"
+    );
+    assert!(result["mcp_only_release_admission"]["security_block_credit"].is_null());
+    assert!(result["cells"][1]["native_observations"]["guard_intervention_observed"].is_null());
+    assert_eq!(result["guard_causality_verified"], false);
+}
+
+#[test]
 fn signed_aggregate_cannot_replace_independently_retained_native_frames() {
     let (mut pair, pins) = fixture_pair();
     pair["cells"][1]["evidence"]["artifacts"]["native_calls"][0]["native_response"]["result"]
@@ -407,4 +444,52 @@ fn remaining_descendant_missing_before_capture_and_provider_replay_stay_incomple
         assert_eq!(result["status"], "failed", "{variant}");
         assert_eq!(result["evidence_validity"], "incomplete", "{variant}");
     }
+}
+
+#[test]
+fn unavailable_rpc_error_remains_a_v2_observation_without_legacy_intervention_credit() {
+    let (pair, pins) = fixture_pair();
+    let mut artifacts = pair["cells"][0]["evidence"]["artifacts"].clone();
+    let observed: Value = serde_json::from_slice(include_bytes!(
+        "../tests/fixtures/omp_mcp_wire_observed_v1.json"
+    ))
+    .unwrap();
+    let error = &observed["observation"]["error_observations"][0];
+    let mut response = error["response"].clone();
+    let call = &mut artifacts["native_calls"][0];
+    let id = call["tool_call_id"].clone();
+    response["id"] = call["request"]["id"].clone();
+    call["native_response"] = response;
+    call["upstream_request"] = Value::Null;
+    call["upstream_response"] = Value::Null;
+    artifacts["world_calls"].as_array_mut().unwrap().remove(0);
+    let mut events =
+        crate::parse_omp_transcript(artifacts["sdk_events"].as_str().unwrap().as_bytes()).unwrap();
+    for row in events.iter_mut().filter(|row| row["type"] == "agent_event") {
+        let event = &mut row["event"];
+        if event["type"] == "tool_execution_end" && event["toolCallId"] == id {
+            event["isError"] = json!(true);
+            event["result"] = error["output"].clone();
+        }
+        if event["message"]["role"] == "toolResult" && event["message"]["toolCallId"] == id {
+            for name in ["content", "details", "isError"] {
+                event["message"][name] = error["output"][name].clone();
+            }
+        }
+    }
+    artifacts["sdk_events"] = json!(events
+        .iter()
+        .map(|row| format!("{row}\n"))
+        .collect::<String>());
+    let mut report = pair["cells"][0]["envelope"]["record"]["controller_report"].clone();
+    report["control_role"] = json!("feature-ai-protected");
+    let mut context: Value =
+        serde_json::from_str(&retained_context(&report, &pins.cells[0], &artifacts)).unwrap();
+    assert!(observations::sdk_and_native(&artifacts, true, &context).is_err());
+    context["schema"] = json!("hol-gauntlet-native-live-context.v2");
+    let result = observations::sdk_and_native(&artifacts, true, &context).unwrap();
+    assert_eq!(result["proxy_rejected_call_ids"], json!([id]));
+    assert_eq!(result["proxy_withholding_observed"], true);
+    assert!(result["guard_intervention_observed"].is_null());
+    assert_eq!(result["guard_policy_classification"], "unproven");
 }

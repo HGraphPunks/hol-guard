@@ -464,6 +464,15 @@ fn dependency_reconciliation_reads_legacy_intents_without_authorizing_dispatch()
 fn both_dependency_read_entrypoints_refuse_foreign_vm_before_transport() {
     let (_temp, root, journal, intent) = transport_fixture();
     let original = intent.bytes().unwrap();
+    for (action, length) in [("run", 3), ("run", 5), ("transfer", 12)] {
+        let mut args = vec![root.to_str().unwrap().to_owned(); length];
+        args[0] = action.into();
+        assert!(gauntlet_host_state::run_dependency_command(&args)
+            .unwrap_err()
+            .contains("new unbounded dependencies"));
+        assert!(!root.join("limactl.calls").exists());
+        assert_eq!(journal.read("0123456789abcdef").unwrap(), intent);
+    }
     for (binary, prefix) in [
         (env!("CARGO_BIN_EXE_gauntlet-host"), vec!["dependencies"]),
         (env!("CARGO_BIN_EXE_gauntlet-host-run-dependencies"), vec![]),

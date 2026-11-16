@@ -324,7 +324,7 @@ pub fn read_feature_run_pins(path: &Path) -> Result<FeatureRunPins, String> {
     FeatureRunPins::parse(&read_regular_bytes(&root, name, owner).map_err(|e| e.to_string())?)
 }
 
-pub const FEATURE_AUDIT_USAGE: &str = "feature commands: record PRIVATE_JOURNAL PRIVATE_PINS VM | run|read PRIVATE_JOURNAL AUDIT_ID INTENT_SHA256 | repair PRIVATE_JOURNAL AUDIT_ID INTENT_SHA256 REPAIR_BINARY_SHA256";
+pub const FEATURE_AUDIT_USAGE: &str = "feature historical recovery only: read PRIVATE_JOURNAL AUDIT_ID INTENT_SHA256 | repair PRIVATE_JOURNAL AUDIT_ID INTENT_SHA256 REPAIR_BINARY_SHA256. New legacy feature record/run are unavailable in Rust v1; use the closed MCP-only live pair.";
 
 /// Explicit diagnostic operations shared by both host entrypoints. Recording
 /// returns public pins only; the complete nonce-bearing intent stays private.
@@ -333,6 +333,12 @@ pub fn run_feature_audit_command(args: &[String]) -> Result<Value, String> {
         (Some(action @ ("record" | "run" | "read")), 4) | (Some(action @ "repair"), 5) => action,
         _ => return Err(FEATURE_AUDIT_USAGE.into()),
     };
+    if matches!(action, "record" | "run") {
+        return Err(
+            "Rust v1 does not admit new legacy feature jobs; use the closed MCP-only live pair"
+                .into(),
+        );
+    }
     let journal = FeatureIntentJournal::open(Path::new(&args[1]))?;
     if action == "record" {
         let pins = read_feature_run_pins(Path::new(&args[2]))?;

@@ -312,7 +312,7 @@ pub use native_live_prepare::{prepare_native_live_omp, NativeLivePreparationPins
 mod native_live_transport;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_live_transport::dispatch_native_worker_live_pipe;
-#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
 mod native_live_artifacts;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_live_cleanup;

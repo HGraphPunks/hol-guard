@@ -5,30 +5,38 @@
 use crate::native_operation::artifact;
 use crate::{
     prepare_local_source_archive_one_use, public_vm_operations, HostCandidateBuildPinJournal,
-    HostCandidateBuildPins, VmCandidateBuildPlan, VmHostBoundCandidateRepairPlan,
-    VmHostBoundCandidateResultPlan,
+    VmHostBoundCandidateRepairPlan, VmHostBoundCandidateResultPlan,
 };
 use serde_json::Value;
 use std::path::Path;
 
-pub const CANDIDATE_BUILD_USAGE: &str = concat!("candidate commands:\nsource PRIVATE_STATE JOB_ID ABSOLUTE_REPOSITORY SOURCE_SHA\ntransfer PRIVATE_SOURCE_STATE PRIVATE_TRANSFER_DIR JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 CAPTURE_BINARY_SHA256 [--vm VM_NAME]\ntransfer-bounded PRIVATE_SOURCE_STATE PRIVATE_TRANSFER_DIR JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 CAPTURE_WORKER_SHA256 MKE2FS_SHA256 STORAGE_PROFILE VM LIMA_SHA256 SSH_HOME LIMA_HOME\nrun PRIVATE_PIN_DIR JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 VERSION TAG CONTROLLER_ROOT CONTROLLER_TREE_SHA256 UV_BASE_IMAGE_ID RUST_BASE_IMAGE_ID BUILDER_IMAGE_ID POLICY_SHA256 PODMAN_SHA256 SLIRP_SHA256 APPARMOR_PARSER_SHA256 SECCOMP_SHA256 RUNNER_BINARY_SHA256 RESULT_READER_BINARY_SHA256 READINESS_BINARY_SHA256 [--vm VM_NAME]\nread PRIVATE_PIN_DIR JOB_ID RESULT_SHA256 EXPORT_ARCHIVE_SHA256 [--vm VM_NAME]\nrepair PRIVATE_PIN_DIR JOB_ID REPAIR_BINARY_SHA256 [--vm VM_NAME]\ncapture PRIVATE_PIN_DIR JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 EXPORT_ARCHIVE_SHA256 VERSION BUILD_PIN_SHA256 CAPTURE_BINARY_SHA256 VM LIMA_SHA256 SSH_HOME LIMA_HOME\nwheel-stage PRIVATE_PIN_DIR JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 EXPORT_ARCHIVE_SHA256 VERSION BUILD_PIN_SHA256 CAPTURE_PROOF_SHA256 WHEEL_STAGE_BINARY_SHA256 VM LIMA_SHA256 SSH_HOME LIMA_HOME\n",
-"transfer-bounded-read takes the same arguments as transfer-bounded; it reads the original completed capture with empty stdin and never retransmits source.\n",
-"capture-read|wheel-stage-read take their original command's arguments plus READER_SHA256; they require the consumed original dispatch and authenticated bounded terminal, send empty stdin and never recreate data. A first inert capture may precede terminal readback; staging/export require authenticated terminal.\n",
-"prefix-clone|prefix-clone-read PRIVATE_PIN_DIR PRIVATE_CANDIDATE_TRANSFER_DIR CANDIDATE_SOURCE_INTENT_SHA256 CANDIDATE_JOB_ID PRIVATE_DEPENDENCY_INTENT_DIR PRIVATE_DEPENDENCY_TRANSFER_DIR DEPENDENCY_SOURCE_INTENT_SHA256 DEPENDENCY_JOB_ID CLONER_SHA256\nruntime-publish|runtime-publish-read PRIVATE_PIN_DIR PRIVATE_TRANSFER_DIR SOURCE_INTENT_SHA256 JOB_ID PYTHON_FULL_VERSION PUBLISHER_SHA256\nPrefix operations derive pins from original bounded readbacks and require the same original Lima instance.\n",
-"run-bounded PRIVATE_PIN_DIR PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 VERSION TAG CONTROLLER_ROOT CONTROLLER_TREE_SHA256 UV_BASE_IMAGE_ID RUST_BASE_IMAGE_ID BUILDER_IMAGE_ID POLICY_SHA256 PODMAN_SHA256 SLIRP_SHA256 APPARMOR_PARSER_SHA256 SECCOMP_SHA256 RUNNER_SHA256 RESULT_READER_SHA256 READINESS_SHA256\nread-bounded PRIVATE_PIN_DIR PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 JOB_ID RESULT_SHA256 EXPORT_ARCHIVE_SHA256\nAll private state directories must already exist with mode 0700. New bounded builds use the completed source's original transport. Unknown dispatches cannot be retried. All operations remain ineligible for execution admission and qualification.");
+pub const CANDIDATE_BUILD_USAGE: &str = concat!(
+"candidate commands (Rust v1):\nsource PRIVATE_STATE JOB_ID ABSOLUTE_REPOSITORY SOURCE_SHA\n",
+"transfer-bounded|transfer-bounded-read PRIVATE_SOURCE_STATE PRIVATE_TRANSFER_DIR JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 CAPTURE_WORKER_SHA256 MKE2FS_SHA256 STORAGE_PROFILE VM LIMA_SHA256 SSH_HOME LIMA_HOME\n",
+"run-bounded PRIVATE_PIN_DIR PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 VERSION TAG CONTROLLER_ROOT CONTROLLER_TREE_SHA256 UV_BASE_IMAGE_ID RUST_BASE_IMAGE_ID BUILDER_IMAGE_ID POLICY_SHA256 PODMAN_SHA256 SLIRP_SHA256 APPARMOR_PARSER_SHA256 SECCOMP_SHA256 RUNNER_SHA256 RESULT_READER_SHA256 READINESS_SHA256\nread-bounded PRIVATE_PIN_DIR PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 JOB_ID RESULT_SHA256 EXPORT_ARCHIVE_SHA256\n",
+"capture PRIVATE_PIN_DIR JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 EXPORT_ARCHIVE_SHA256 VERSION BUILD_PIN_SHA256 CAPTURE_BINARY_SHA256 VM LIMA_SHA256 SSH_HOME LIMA_HOME\nwheel-stage PRIVATE_PIN_DIR JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 EXPORT_ARCHIVE_SHA256 VERSION BUILD_PIN_SHA256 CAPTURE_PROOF_SHA256 WHEEL_STAGE_BINARY_SHA256 VM LIMA_SHA256 SSH_HOME LIMA_HOME\n",
+"capture-read|wheel-stage-read take their original command's arguments plus READER_SHA256 and require its consumed dispatch and authenticated bounded terminal. A first inert capture may precede terminal readback; staging/export require authenticated terminal.\n",
+"prefix-clone|prefix-clone-read PRIVATE_PIN_DIR PRIVATE_CANDIDATE_TRANSFER_DIR CANDIDATE_SOURCE_INTENT_SHA256 CANDIDATE_JOB_ID PRIVATE_DEPENDENCY_INTENT_DIR PRIVATE_DEPENDENCY_TRANSFER_DIR DEPENDENCY_SOURCE_INTENT_SHA256 DEPENDENCY_JOB_ID CLONER_SHA256\nruntime-publish|runtime-publish-read PRIVATE_PIN_DIR PRIVATE_TRANSFER_DIR SOURCE_INTENT_SHA256 JOB_ID PYTHON_FULL_VERSION PUBLISHER_SHA256\n",
+"Historical read/recovery only:\nread PRIVATE_PIN_DIR JOB_ID RESULT_SHA256 EXPORT_ARCHIVE_SHA256 [--vm VM_NAME]\nrepair PRIVATE_PIN_DIR JOB_ID REPAIR_BINARY_SHA256 [--vm VM_NAME]\nLegacy transfer and run are unavailable for new work; use the bounded forms.\n",
+"All private state directories require mode 0700. Bounded operations retain the original Source/Lima instance. Completed reads use empty stdin and never replay work. Unknown dispatches block retry. All operations remain ineligible for execution admission and qualification.");
 
 /// Parse the entire command before opening a journal or contacting the VM.
 /// The private host nonce is never an operator argument or a public result.
 pub fn run_candidate_build_command(args: &[String]) -> Result<Value, String> {
+    if args
+        .first()
+        .is_some_and(|v| matches!(v.as_str(), "transfer" | "run"))
+    {
+        return Err(
+            "Rust v1 does not admit new unbounded builds; use transfer-bounded and run-bounded"
+                .into(),
+        );
+    }
     if args.first().is_some_and(|v| artifact::handles(v)) {
         return artifact::run_candidate_artifact_command(args);
     }
     let action = match (args.first().map(String::as_str), args.len()) {
         (Some("source"), 5) => "source",
-        (Some("transfer"), 7) => "transfer",
-        (Some("transfer"), 9) if args[7] == "--vm" => "transfer",
-        (Some("run"), 20) => "run",
-        (Some("run"), 22) if args[20] == "--vm" => "run",
         (Some("read"), 5) => "read",
         (Some("read"), 7) if args[5] == "--vm" => "read",
         (Some("repair"), 4) => "repair",
@@ -43,14 +51,6 @@ pub fn run_candidate_build_command(args: &[String]) -> Result<Value, String> {
             &args[4],
         )
         .map_err(|e| e.to_string());
-    }
-    if action == "run" {
-        return run(args);
-    }
-    if action == "transfer" {
-        let operations =
-            public_vm_operations(args.get(8).map(String::as_str)).map_err(|e| e.to_string())?;
-        return transfer(args, &operations);
     }
     let vm_index = if action == "repair" { 5 } else { 6 };
     let operations =
@@ -68,6 +68,7 @@ pub fn run_candidate_build_command(args: &[String]) -> Result<Value, String> {
     }
 }
 
+#[cfg(test)]
 fn transfer(args: &[String], operations: &Value) -> Result<Value, String> {
     use crate::private_jobs::{read_regular_bytes, write_private_once};
     use gauntlet_contracts::canonicalize;
@@ -203,41 +204,6 @@ fn transfer(args: &[String], operations: &Value) -> Result<Value, String> {
     Ok(result)
 }
 
-fn run(args: &[String]) -> Result<Value, String> {
-    let operations =
-        public_vm_operations(args.get(21).map(String::as_str)).map_err(|e| e.to_string())?;
-    let pins = HostCandidateBuildPins {
-        job_id: args[2].clone(),
-        source_sha: args[3].clone(),
-        source_archive_sha256: args[4].clone(),
-        version: args[5].clone(),
-        tag: args[6].clone(),
-        controller_root: args[7].clone(),
-        controller_tree_sha256: args[8].clone(),
-        uv_base_image_id: args[9].clone(),
-        rust_base_image_id: args[10].clone(),
-        builder_image_id: args[11].clone(),
-        policy_sha256: args[12].clone(),
-        podman_sha256: args[13].clone(),
-        slirp4netns_sha256: args[14].clone(),
-        apparmor_parser_sha256: args[15].clone(),
-        seccomp_sha256: args[16].clone(),
-        runner_binary_sha256: args[17].clone(),
-        result_reader_binary_sha256: args[18].clone(),
-    };
-    let plan = VmCandidateBuildPlan::new(&operations, pins).map_err(|e| e.to_string())?;
-    let journal =
-        HostCandidateBuildPinJournal::open(Path::new(&args[1])).map_err(|e| e.to_string())?;
-    plan.preflight_plan(&args[19])
-        .map_err(|e| e.to_string())?
-        .execute_read_only()
-        .map_err(|e| e.to_string())?;
-    plan.record_before_launch(&journal)
-        .map_err(|e| e.to_string())?
-        .execute_once(&journal)
-        .map_err(|e| e.to_string())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,6 +214,28 @@ mod tests {
     use std::process::Command;
 
     const JOB: &str = "4fc83e91ab520067";
+    #[test]
+    fn unbounded_new_builds_refuse_before_private_state_or_transport() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("absent-private-state");
+        for (action, length) in [("transfer", 7), ("transfer", 9), ("run", 20), ("run", 22)] {
+            let mut args = vec!["unused".into(); length];
+            args[0] = action.into();
+            args[1] = path.to_str().unwrap().into();
+            assert!(run_candidate_build_command(&args)
+                .unwrap_err()
+                .contains("new unbounded builds"));
+            assert!(!path.exists());
+        }
+        for action in ["read", "repair"] {
+            let mut args = vec!["unused".into(); if action == "read" { 5 } else { 4 }];
+            args[0] = action.into();
+            args[1] = path.to_str().unwrap().into();
+            assert!(!run_candidate_build_command(&args)
+                .unwrap_err()
+                .contains("new unbounded builds"));
+        }
+    }
     struct Fixture {
         _temp: tempfile::TempDir,
         root: PathBuf,

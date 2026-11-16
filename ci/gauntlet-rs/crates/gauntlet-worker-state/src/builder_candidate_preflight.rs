@@ -20,6 +20,109 @@ const MAX_BINARY: u64 = 64 * 1024 * 1024;
 const MAX_SECCOMP: u64 = 1024 * 1024;
 const INFO_WAIT: Duration = Duration::from_secs(30);
 
+pub(crate) struct BoundedCandidatePreparation<'a> {
+    pub journal: &'a crate::RunReservationJournal,
+    pub job: &'a std::os::fd::OwnedFd,
+    pub source: &'a Value,
+    pub context: &'a crate::builder_context::BuilderContextProof,
+    pub plan: &'a crate::builder_image::BuilderImagePlan,
+    pub runtime: &'a CandidateRuntimePins,
+    pub anchor: &'a crate::candidate_host_anchor::HostCandidateRunAnchor,
+    pub controller_root: &'a std::path::Path,
+    pub tree_digest: &'a str,
+    pub image_id: &'a str,
+    pub version: &'a str,
+    pub tag: &'a str,
+}
+impl BoundedCandidatePreparation<'_> {
+    pub(crate) fn consume_and_prepare(
+        &self,
+        leases: impl Fn() -> Result<(), String>,
+    ) -> Result<String, String> {
+        let job = self.plan.job_id.as_str();
+        leases()?;
+        crate::native_job_io::require_no_unknown_jobs(self.journal)?;
+        let check = || -> Result<(), String> {
+            leases()?;
+            if crate::native_worker::cancellation_requested()
+                || crate::native_job_storage::source::verify(
+                    job,
+                    self.job,
+                    Some(crate::JobStorageProfile::Build),
+                )?
+                .as_ref()
+                    != Some(self.source)
+            {
+                return Err("original bounded candidate Source or owner changed".into());
+            }
+            Ok(())
+        };
+        check()?;
+        if self.anchor.policy_sha256 != self.context.policy_sha256()
+            || self
+                .anchor
+                .tag
+                .as_deref()
+                .is_some_and(|tag| tag != self.tag)
+        {
+            return Err("bounded candidate preparation differs from original Host anchor".into());
+        }
+        verify_candidate_runtime(self.runtime).map_err(|e| e.to_string())?;
+        crate::builder_image::inspect_fixed_builder_base_images(self.plan)
+            .map_err(|e| e.to_string())?;
+        if crate::builder_image_build::inspect_result(self.plan).map_err(|e| e.to_string())?
+            != self.image_id
+            || !crate::builder_policy::profile_absent(self.context.profile_name())
+                .map_err(|e| e.to_string())?
+            || !container_absent(job).map_err(|e| e.to_string())?
+            || crate::builder_image_build::free_bytes().map_err(|e| e.to_string())?
+                < 12 * 1024 * 1024 * 1024
+        {
+            return Err(
+                "bounded candidate preparation requires original idle image/runtime".into(),
+            );
+        }
+        crate::builder_image_context::bounded_inputs(
+            self.job,
+            self.plan,
+            self.context.policy_sha256(),
+        )?;
+        let text = |key: &str| {
+            self.source[key]
+                .as_str()
+                .ok_or("bounded source identity missing")
+        };
+        let body = self.anchor.body(
+            job,
+            text("source_sha")?,
+            text("source_archive_sha256")?,
+            self.version,
+            self.tree_digest,
+            self.image_id,
+            self.runtime,
+        );
+        let digest = crate::candidate_host_anchor::write_host_anchor(self.job, &body)
+            .map_err(|e| e.to_string())?;
+        crate::builder_image_context::prepare_bounded_inputs(
+            self.job,
+            self.plan,
+            self.context,
+            check,
+        )?;
+        if crate::builder_context::inspect_fixed_builder_context(
+            self.controller_root,
+            self.tree_digest,
+            job,
+        )
+        .map_err(|e| e.to_string())?
+            != *self.context
+        {
+            return Err("bounded builder controller changed during preparation".into());
+        }
+        Ok(digest)
+    }
+}
+
 pub(crate) fn podman_command() -> Command {
     let mut command = Command::new(PODMAN);
     command.env_clear();

@@ -1,5 +1,22 @@
 # Gauntlet command and state ownership matrix
 
+## November 16 bounded release
+
+The [Rust v1 acceptance table](gauntlet-rust-execution-checklist.md#rust-v1-release-acceptance)
+now governs the 24-hour release. The original 62-exit inventory below stays
+unchanged as the full-migration roadmap; implemented interfaces are not
+automatically qualified.
+
+| Surface | V1 disposition |
+| --- | --- |
+| Finite source/build/dependency/staging/artifact lifecycle | Required normal CLI flow, original-authority readback and cleanup. Historical unbounded mutations are outside new v1 work. |
+| Native read-only utility | Required bounded operational control; missing benchmark authorities keep qualification false. |
+| Fixed two-cell MCP-only live/provider path | Required genuine inference and independent SDK/Host/MCP/World/usage/cleanup joins; at most 200,000 job tokens within retained allowance. |
+| Passive host status, explicit attachments and historical readers | Retained; unknown work blocks admission, and Python remains available. |
+| General SDK shell/eval, full legacy, beta/wide campaigns, full conformance and automatic rollout | **Uncompleted roadmap.** No new qualification, activation or retirement claim. |
+
+## Full-migration inventory
+
 This inventories Python Gauntlet PR #5263 at `b4efd8171b06d0e13cbe12a077c376ecdc891fd1` and its explicit Rust successors. Command availability, historical evidence and fresh execution acceptance are separate. The [execution checklist](gauntlet-rust-execution-checklist.md) remains the acceptance ledger: **24/62 parent exits complete, 38 open**. All external source and asset pins must arrive from outside the candidate build. No Python entrypoint or reader has been removed.
 
 ## CLI surfaces

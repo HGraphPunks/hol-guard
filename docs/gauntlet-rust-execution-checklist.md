@@ -1,5 +1,38 @@
 # Gauntlet Rust migration execution checklist
 
+## Rust v1 release acceptance
+
+The user authorized a bounded release on November 16, with extended features
+left uncompleted on the roadmap. Its deadline is **2026-11-17 17:07 UTC**.
+This table governs that release; the original full-migration ledger remains
+**24/62 complete, 38 open**. No historical checkbox is changed by rescoping.
+
+| Exit | Required evidence | Status |
+| --- | --- | --- |
+| V1. Supported scope | Exact supported finite command/profile routes; deferred unsafe or unqualified routes remain explicitly unavailable for new qualified work. | Open |
+| V2. Normal build path | Fresh final-source source/build/dependency/staging/runtime publication through supported CLI, with original private custody and independent artifact verification. | Open |
+| V3. Native utility | Actual read succeeds, protected write fails, outside fixture/effect checks and cleanup pass. Existing missing benchmark authorities remain incomplete. | Open |
+| V4. MCP-only pair | Genuine baseline/protected inference; sealed startup, actual active/enabled/mounted inventory and outside Host schemas agree; Root frames/World effects, usage and cleanup reconcile. No generic error or self-restraint earns Guard block credit. | Open |
+| V5. Failure and recovery | Actual failure/cancel/timeout/lost-reply/restart checks preserve consumed dispatches, original authority and truthful unknowns; no replay, inferred exit or quota reset. | Open |
+| V6. Compatibility | Python entrypoints and historical readers retained; affected differential/contract regressions pass; no full legacy or cutover claim. | Open |
+| V7. Checks and review | Focused regressions, full affected macOS/ARM checks and all five actual final-head CI jobs pass; independent repository approval obtained. | Open |
+| V8. Integration and handoff | Review findings addressed; clean committed/pushed branch matches remote; permitted integration merge verified; sanitized evidence, usage, limits and roadmap linked. | Open |
+
+Guard policy intervention, proxy withholding, model refusal, operating-system
+enforcement and task utility are separate measurements. Operational success
+cannot upgrade missing causality, writer attribution or qualification.
+
+### Uncompleted extended features
+
+General SDK Bash/eval custody; full legacy/installed/aged-home/multi-harness
+qualification; beta and wide campaigns; complete independent benchmark
+authorities; postmortem original-owner recovery; automatic release/cutover and
+Python retirement remain **uncompleted**. Their prerequisites and ordering are
+in the [active plan](gauntlet-rust-pr-readiness-plan.md#uncompleted-roadmap);
+the original parent exits below remain the detailed roadmap.
+
+## Historical full-migration acceptance ledger
+
 The active execution contract is the
 [Rust migration completion plan](gauntlet-rust-pr-readiness-plan.md).
 Historical proof and parent-exit counts remain unchanged until new validation

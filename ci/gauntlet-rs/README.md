@@ -5,13 +5,23 @@ This independent Cargo workspace is an implementation slice of the
 Gauntlet's trusted code separately from the HOL Guard product workspace in
 `rust/`; a candidate product build must never supply its own verifier.
 
+The November 16 delivery targets a bounded Rust v1: finite build/dependency/
+staging/artifact commands, the Native read-only utility control, the fixed
+MCP-only model smoke pair and truthful independent reports/readback/cleanup.
+New unbounded build/dependency/feature work and ordinary SDK/Bash deterministic
+work are refused; their historical reads and cleanup remain available. Extended
+legacy qualification, wide campaigns and automatic rollout remain uncompleted
+on the [roadmap](../../docs/gauntlet-rust-pr-readiness-plan.md#uncompleted-roadmap).
+This scope grants no general SDK safety, Guard causality, benchmark qualification
+or Python retirement claim.
+
 The [current execution checkpoint](../../docs/gauntlet-rust-pr-readiness-plan.md)
 and [acceptance ledger](../../docs/gauntlet-rust-execution-checklist.md) record
 current source pins, supported commands and remaining qualification gaps.
 Python compatibility paths remain available. Runtime cutover and rollback are
 still unqualified: require no active or unknown job, preserve original ledgers
 and quota, and verify receipt reconciliation before changing ownership. The
-retained owner-loss volume currently blocks fresh admission; switching to
+retained owner-loss volume blocks fresh admission in its original VM; switching to
 Python or replacing state cannot resolve that missing authority. Retire Python
 orchestration only after the required parity, conformance and rollback proofs.
 

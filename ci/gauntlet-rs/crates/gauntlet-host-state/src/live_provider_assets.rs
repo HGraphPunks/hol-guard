@@ -9,6 +9,9 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
+const MLX_METAL: &str = "mlx/lib/mlx.metallib";
+const MAX_MLX_METAL_BYTES: u64 = 256 * 1024 * 1024;
+
 fn open_file(path: &Path) -> Result<File, String> {
     if !path.is_absolute() || path.as_os_str().len() > 4096 {
         return Err("absolute bounded provider asset required".into());
@@ -214,6 +217,20 @@ pub(super) fn validate_scope(spec: &Value) -> Result<(), String> {
     let pins = spec["assets"]
         .as_object()
         .ok_or("numerical manifest absent")?;
+    let metal = site.join(MLX_METAL);
+    let metal_pin = pins
+        .get(metal.to_str().ok_or("MLX Metal path invalid")?)
+        .ok_or("fixed MLX Metal library absent from outside-pinned inventory")?;
+    if metal_pin.as_object().is_none_or(|p| p.len() != 2)
+        || !metal_pin["sha256"]
+            .as_str()
+            .is_some_and(|s| super::hex(s, 64))
+        || !metal_pin["bytes"]
+            .as_u64()
+            .is_some_and(|n| (1..=MAX_MLX_METAL_BYTES).contains(&n))
+    {
+        return Err("exact bounded MLX Metal library pin required".into());
+    }
     if pins
         .get(producer.to_str().ok_or("producer path invalid")?)
         .is_none_or(|p| p["sha256"] != spec["producer_sha256"])
@@ -256,6 +273,7 @@ pub(super) fn validate_scope(spec: &Value) -> Result<(), String> {
             );
         if path != python
             && path != producer
+            && path != metal
             && !((path.starts_with(site) || path.starts_with(runtime)) && code)
             && !(path.starts_with(model) && model_data)
         {
@@ -296,6 +314,7 @@ fn inventory(spec: &Value) -> Result<Value, String> {
         .ok_or("CPython distribution absent")?;
     let site = Path::new(text(spec, "site_packages")?);
     let model = Path::new(text(spec, "model_directory")?);
+    let metal = site.join(MLX_METAL);
     let stdlib = runtime.join("lib/python3.11");
     let mut roots = serde_json::Map::new();
     let mut entries = serde_json::Map::new();
@@ -339,7 +358,8 @@ fn inventory(spec: &Value) -> Result<Value, String> {
                 if ext == "pyc" {
                     return Err("source-less numerical bytecode is unsupported".into());
                 }
-                let loaded = matches!(ext, "py" | "pyi" | "so" | "dylib" | "zip")
+                let loaded = path == metal
+                    || matches!(ext, "py" | "pyi" | "so" | "dylib" | "zip")
                     || (root == model
                         && matches!(ext, "json" | "safetensors" | "model" | "txt" | "jinja"));
                 if loaded

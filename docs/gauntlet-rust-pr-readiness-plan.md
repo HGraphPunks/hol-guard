@@ -1,4 +1,98 @@
-# Finish the Gauntlet Rust migration
+# Gauntlet Rust v1: bounded functional release
+
+Updated: 2026-11-16 UTC. Executor: **GPT-6.1 Sol, Max reasoning**.
+
+## Active goal
+
+Deliver a usable, secure Rust Gauntlet v1 within the new 24-hour window:
+**2026-11-16 17:07 UTC → 2026-11-17 17:07 UTC**. The user explicitly narrowed
+the release to implemented functionality and moved extended features to a
+later roadmap. This replaces the previous all-62-exit release scope; it does
+not erase its missed November 11 deadline or mark its open exits complete.
+
+Finish the supported command flow:
+**source → bounded build/dependencies → inert staging → isolated execution →
+independent observations/report → authenticated readback → verified cleanup**.
+Include the fixed two-cell MCP-only model pair within the existing retained
+allowance. Keep Python and historical readers available. Reuse the current
+11 crates, commands and tests; add a file only for a necessary boundary or
+maintainable regression. Keep all evidence outside Git except small references.
+
+The [v1 acceptance table](gauntlet-rust-execution-checklist.md#rust-v1-release-acceptance)
+is the active release ledger. The original **24/62 complete, 38 open** ledger
+remains the full-migration roadmap. A v1 operational result does not establish
+general SDK/Bash safety, Guard causality, benchmark qualification or cutover.
+
+## Release scope
+
+- Normal finite-storage source/build/dependency/staging/artifact commands,
+  original-authority readback and retirement.
+- One fresh final-source Native read-only utility control, with actual success,
+  denied write, independently checked fixture/effects and bounded cleanup.
+  Retain the existing incomplete benchmark judgment wherever its additional
+  authorities are missing; report the operational observations separately.
+- The existing MCP-only support pair: genuine inference, sealed startup,
+  actual closed tool inventory, outside Host request/usage joins, Root MCP/World
+  requests and effects, and parent cleanup. Limit the job to 200,000 accounted
+  tokens (100,000 per cell), with no allowance reset or increase.
+- Truthful outcomes: useful allowed effects, forbidden effects, proxy withholding,
+  model refusal and Guard intervention stay distinct. Generic proxy errors or
+  model self-restraint cannot establish a Guard policy block. Missing evidence
+  remains unknown/incomplete.
+- Failure, timeout, cancellation, lost-reply and restart handling without replay.
+  Unknown resources remain quarantined; automatic recovery after loss of the
+  original namespace owner is outside v1. A fresh isolated VM must preserve the
+  old unknown job and its evidence.
+- Passive operator status/doctor/hold/readback; explicit source/job admission.
+  No automatic release dispatch or benchmark gate activation.
+
+## Execution order and time budget
+
+| Elapsed time | Delivery |
+| --- | --- |
+| 0–1 hour | Freeze this scope, fix baseline SDK startup and retained evidence checks, assess CI/quota/capacity. |
+| 1–5 hours | Prepare one isolated VM and immutable tools; complete the normal finite build/dependency/staging path. |
+| 5–12 hours | Run the Native utility control and genuine MCP pair; independently reduce/report original evidence. |
+| 12–18 hours | Exercise failure/cancel/timeout/restart and cleanup; fix only release blockers. |
+| 18–21 hours | Run final affected macOS/ARM and repository checks, address review findings, update PR and evidence. |
+| 21–24 hours | Reserve for integration fixes, required checks/approval, clean push and handoff. |
+
+Use up to three agents with disjoint file ownership; one owner serializes VM,
+deployment and shared-state mutations. Start long builds/runs as dependencies
+become ready. Do not repeat passing unchanged checks or expand feature scope.
+
+## Uncompleted roadmap
+
+| Deferred capability | Status / prerequisite |
+| --- | --- |
+| General SDK shell/eval and full output/memory/descriptor custody | **Uncompleted.** Production boundary plus genuine per-call, descendant and cancellation proof required before admission. |
+| Full 128-case legacy, installed/repeated/aged-home and multi-harness qualification | **Uncompleted.** Preserve historical Python/goldens; no replacement or retirement claim. |
+| Twelve-cell beta and 800/140/160 campaigns | **Uncompleted.** Explicit campaign/source admission and sufficient retained allowance required. |
+| Complete policy/writer/causality attribution and benchmark conformance | **Uncompleted.** Retain the original independent-authority requirements and incomplete judgments. |
+| Automatic postmortem namespace-owner recovery | **Uncompleted.** Original authority cannot be adopted, reconstructed or deleted to obtain a pass. |
+| Automatic release observer, active PR gate, cutover/rollback and Python retirement | **Uncompleted.** Full required parity/rollout evidence and separate operator authorization required. |
+
+## Non-negotiable release gates
+
+Follow [repository instructions](../ci/gauntlet-rs/AGENTS.md) and HOL safety
+guidance. Keep candidate execution inside the approved unprivileged VM/container
+boundary. Preserve approvals, finite resources, outside pins, exact identities,
+leases, one-use dispatch and all failed/history/quota records.
+
+Run focused regressions during edits and full affected platform checks once
+stable. Merge into integration only after all five **actual current-head**
+jobs and independent repository approval pass; no overrides. Do not merge
+upstream main, publish a release, enable the benchmark gate or expand spending.
+
+Finish with a clean committed/pushed branch, matching remote SHA, updated
+reviewable PR, precise operational claims and sanitized retrievable evidence.
+If an external gate remains unavailable at the deadline, return the exact
+verified state and blocking action; do not label the release merged or complete.
+
+<details>
+<summary>Historical November 11 full-migration plan (superseded release scope)</summary>
+
+## Historical full-migration mission
 
 Updated: 2026-11-11 UTC. Executor: **GPT-6.1 Sol, Max reasoning**.
 
@@ -199,3 +293,5 @@ Detailed checkpoint history remains in Git at
 Prior execution notes also remain at
 `95b25964ec8d0e8a2576988a35db121d1ca5f02a:docs/gauntlet-rust-pr-readiness-plan.md`.
 Existing proof documents and immutable artifacts remain the evidence record.
+
+</details>

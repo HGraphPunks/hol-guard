@@ -62,6 +62,24 @@ export function developerBuiltinToolNames(config: Pick<Config,
   return ['read', 'write', 'edit', 'bash'];
 }
 
+/** Bind both MCP-only cells before importing the SDK, including the baseline. */
+export async function bindEpisodeController(config: Pick<Config, 'schema' | 'mcpAgentSurfaces'
+  | 'builtinToolProfile' | 'resourceEndpoints' | 'guardExtension' | 'sdkGate'>,
+  bind: (path: string) => Promise<void> = awaitControllerBinding) {
+  developerBuiltinToolNames(config);
+  if (config.guardExtension !== undefined && (typeof config.guardExtension !== 'string'
+      || !isAbsolute(config.guardExtension))) throw new Error('invalid Guard extension path');
+  if (config.sdkGate === undefined) {
+    if (config.schema === 'developer-omp-episode.v3') throw new Error('MCP-only episode requires controller binding');
+    return;
+  }
+  if (config.sdkGate !== '/runtime/sdk-gate/ready.sock'
+      || (!config.guardExtension && config.schema !== 'developer-omp-episode.v3')) {
+    throw new Error('invalid protected SDK binding transport');
+  }
+  await bind(config.sdkGate);
+}
+
 /** SDK-local scheduling only; independent controller accounting remains authoritative. */
 export class DeveloperBudgetStop {
   toolCalls = 0;
@@ -109,9 +127,12 @@ export async function pinDeclaredToolInventory(session: any, names: string[]) {
   // exact public top-level partition instead; every declared MCP tool remains
   // enabled through its genuine manager transport and normal extension hooks.
   await session.setActiveToolPresentation(names, []);
-  const actual = [...session.getActiveToolNames()].sort();
-  const enabled = [...session.getEnabledToolNames()].sort();
-  const mounted = [...session.getMountedXdevToolNames()].sort();
+  const inventory = { activeTools: [...session.getActiveToolNames()] as string[],
+    enabledTools: [...session.getEnabledToolNames()] as string[],
+    mountedXdevTools: [...session.getMountedXdevToolNames()] as string[] };
+  const actual = [...inventory.activeTools].sort();
+  const enabled = [...inventory.enabledTools].sort();
+  const mounted = [...inventory.mountedXdevTools].sort();
   if (JSON.stringify(actual) !== JSON.stringify(expected) || JSON.stringify(enabled) !== JSON.stringify(expected)
       || mounted.length !== 0) {
     throw new Error('actual developer tool inventory differs from declared transports: ' + JSON.stringify({
@@ -120,6 +141,21 @@ export async function pinDeclaredToolInventory(session: any, names: string[]) {
       unexpected: actual.filter(name => !expected.includes(name)),
     }));
   }
+  return inventory;
+}
+
+export function developerEpisodeStart(config: Pick<Config, 'schema' | 'builtinToolProfile' | 'modelId' | 'guardExtension'>,
+  version: string, inventory: Awaited<ReturnType<typeof pinDeclaredToolInventory>>, resourceTools: any[]) {
+  return { type: 'episode_start', harness: 'omp', version, model: config.modelId,
+    activeTools: inventory.activeTools, guardExtensionAttached: Boolean(config.guardExtension),
+    resourceTools: resourceTools.map((tool: any) => ({ name: tool.name,
+      server: tool.mcpServerName, rawTool: tool.mcpToolName })),
+    ...(config.schema === 'developer-omp-episode.v3' ? {
+      schema: 'hol-gauntlet-developer-episode-start.v2', episodeSchema: config.schema,
+      builtinToolProfile: config.builtinToolProfile, enabledTools: inventory.enabledTools,
+      mountedXdevTools: inventory.mountedXdevTools,
+    } : {}),
+    agentUid: process.getuid?.(), qualification: false };
 }
 
 async function awaitControllerBinding(path: string) {
@@ -155,13 +191,7 @@ async function main() {
   for (const key of ['sdkRoot', 'workspace', 'agentDir'] as const) {
     if (!isAbsolute(config[key])) throw new Error('episode paths must be absolute');
   }
-  if (config.guardExtension && !isAbsolute(config.guardExtension)) throw new Error('invalid Guard extension path');
-  if (config.sdkGate) {
-    if (!config.guardExtension || config.sdkGate !== '/runtime/sdk-gate/ready.sock') {
-      throw new Error('invalid protected SDK binding transport');
-    }
-    await awaitControllerBinding(config.sdkGate);
-  }
+  await bindEpisodeController(config);
   if (!Number.isInteger(config.deadlineSeconds) || config.deadlineSeconds < 1 || config.deadlineSeconds > 900
       || !Number.isInteger(config.maxToolCalls) || config.maxToolCalls < 1 || config.maxToolCalls > 200
       || !Number.isInteger(config.maxModelTokens) || config.maxModelTokens < 1 || config.maxModelTokens > 100000) {
@@ -244,7 +274,7 @@ async function main() {
       deadline: started + config.deadlineSeconds * 1000,
     }));
     const activeNames = [...toolNames, ...resourceTools.map((tool: any) => tool.name)];
-    await pinDeclaredToolInventory(session, activeNames);
+    const inventory = await pinDeclaredToolInventory(session, activeNames);
     if (config.startupProfile) await assertEpisodeSettings(sdk, settings, config.agentDir);
     if (config.mcpAgentSurfaces && manager) {
       manager.setOnToolsChanged(async () => { await pinDeclaredToolInventory(session, activeNames); });
@@ -252,11 +282,7 @@ async function main() {
     // Add, never replace, the SDK/host gates. A soft stop must not abort a
     // tool already admitted while its Native PostToolUse review is pending.
     detachBudgetGate = installDeveloperBudgetStop(session, budget);
-    emit({ type: 'episode_start', harness: 'omp', version: metadata.version, model: config.modelId,
-      activeTools: session.getActiveToolNames(), guardExtensionAttached: Boolean(config.guardExtension),
-      resourceTools: resourceTools.map((tool: any) => ({ name: tool.name,
-        server: tool.mcpServerName, rawTool: tool.mcpToolName })),
-      agentUid: process.getuid?.(), qualification: false });
+    emit(developerEpisodeStart(config, metadata.version, inventory, resourceTools));
     session.subscribe((event: any) => {
       if (event.type !== 'message_update') emit({ type: 'agent_event', event });
     });

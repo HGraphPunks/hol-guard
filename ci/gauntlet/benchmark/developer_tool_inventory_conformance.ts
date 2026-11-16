@@ -1,10 +1,78 @@
 /** Locked SDK registration; optional sealed Settings fixture runs one fixed trusted shell command. */
+import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { developerBuiltinToolNames, pinDeclaredToolInventory, loadEpisodeSdk, assertEpisodeSettings } from './developer_omp_episode.ts';
+import { developerBuiltinToolNames, pinDeclaredToolInventory, loadEpisodeSdk, assertEpisodeSettings,
+  bindEpisodeController, developerEpisodeStart } from './developer_omp_episode.ts';
+
+async function verifyStartupContracts() {
+  const mcpProfile = { schema: 'developer-omp-episode.v3' as const,
+    builtinToolProfile: 'mcp-only.v1' as const, resourceEndpoints: { docs: {} },
+    sdkGate: '/runtime/sdk-gate/ready.sock' };
+  const protectedProfile = { ...mcpProfile, guardExtension: '/runtime/public/builtin_guard_bridge.ts' };
+  const bound: string[] = [];
+  let release!: () => void;
+  let finished = false;
+  const baseline = bindEpisodeController(mcpProfile, async path => {
+    bound.push(path); await new Promise<void>(resolve => { release = resolve; });
+  }).then(() => { finished = true; });
+  assert.equal(finished, false);
+  assert.deepEqual(bound, [mcpProfile.sdkGate]);
+  release(); await baseline;
+  assert.equal(finished, true);
+  await bindEpisodeController(protectedProfile, async path => { bound.push(path); });
+  assert.deepEqual(bound, [mcpProfile.sdkGate, mcpProfile.sdkGate]);
+  const disconnected = new Error('test controller binding disconnected');
+  await assert.rejects(bindEpisodeController(mcpProfile, async () => { throw disconnected; }),
+    error => error === disconnected);
+  let invalidBindingsRejected = 0;
+  for (const invalid of [
+    { ...mcpProfile, sdkGate: undefined }, { ...mcpProfile, sdkGate: '/tmp/foreign.sock' },
+    { ...mcpProfile, builtinToolProfile: undefined }, { ...mcpProfile, resourceEndpoints: {} },
+    { ...mcpProfile, mcpAgentSurfaces: 'mcp-agent-surfaces.v1' },
+    { ...protectedProfile, guardExtension: 'relative-extension.ts' },
+    { schema: 'developer-omp-episode.v1', sdkGate: mcpProfile.sdkGate },
+    { schema: 'developer-omp-episode.v2', mcpAgentSurfaces: 'mcp-agent-surfaces.v1', sdkGate: mcpProfile.sdkGate },
+  ]) {
+    let called = false;
+    await assert.rejects(bindEpisodeController(invalid as any, async () => { called = true; }));
+    assert.equal(called, false); invalidBindingsRejected++;
+  }
+  await bindEpisodeController({ schema: 'developer-omp-episode.v1' }, async () => { assert.fail('historical binding invented'); });
+  await bindEpisodeController({ schema: 'developer-omp-episode.v2', mcpAgentSurfaces: 'mcp-agent-surfaces.v1',
+    guardExtension: protectedProfile.guardExtension, sdkGate: mcpProfile.sdkGate }, async path => { assert.equal(path, mcpProfile.sdkGate); });
+  assert.deepEqual(developerBuiltinToolNames(mcpProfile), []);
+  const names = ['mcp__docs__read'];
+  const state = { active: [...names], enabled: [...names], mounted: [] as string[] };
+  const session = { setActiveToolPresentation: async (active: string[], mounted: string[]) => {
+    assert.deepEqual(active, names); assert.deepEqual(mounted, []);
+  }, getActiveToolNames: () => state.active, getEnabledToolNames: () => state.enabled,
+  getMountedXdevToolNames: () => state.mounted };
+  const inventory = await pinDeclaredToolInventory(session, names);
+  state.active.push('bash'); state.enabled.push('bash'); state.mounted.push('xd://foreign');
+  assert.deepEqual(inventory, { activeTools: names, enabledTools: names, mountedXdevTools: [] });
+  await assert.rejects(pinDeclaredToolInventory(session, names), /inventory differs/);
+  const tool = { name: names[0], mcpServerName: 'docs', mcpToolName: 'read' };
+  const event = developerEpisodeStart({ ...mcpProfile, modelId: 'fixture-only' }, '18.4.12', inventory, [tool]);
+  assert.equal(event.type, 'episode_start'); assert.equal(event.schema, 'hol-gauntlet-developer-episode-start.v2');
+  assert.equal(event.episodeSchema, mcpProfile.schema); assert.equal(event.builtinToolProfile, mcpProfile.builtinToolProfile);
+  assert.deepEqual(event.activeTools, names); assert.deepEqual(event.enabledTools, names);
+  assert.deepEqual(event.mountedXdevTools, []); assert.deepEqual(event.resourceTools, [{ name: names[0], server: 'docs', rawTool: 'read' }]);
+  assert.equal(event.guardExtensionAttached, false);
+  assert.equal(developerEpisodeStart({ ...protectedProfile, modelId: 'fixture-only' }, '18.4.12', inventory, [tool]).guardExtensionAttached, true);
+  const historical = developerEpisodeStart({ schema: 'developer-omp-episode.v1', modelId: 'fixture-only' }, '18.4.12', inventory, [tool]);
+  assert.equal('schema' in historical, false); assert.equal('enabledTools' in historical, false);
+  return { schema: 'developer-sdk-startup-contract-conformance.v1', invalidBindingsRejected,
+    baselineBindingAwaited: true, actualInventoryRetained: true, historicalStartPreserved: true,
+    actualModelEpisode: false, providerCalls: 0, toolCalls: 0, qualificationEligible: false };
+}
 
 async function main() {
+  if (process.argv.length === 3 && process.argv[2] === '--startup-unit-only') {
+    console.log(JSON.stringify(await verifyStartupContracts())); return;
+  }
+  await verifyStartupContracts();
   const sdkRoot = process.argv[2];
   if (!sdkRoot || !isAbsolute(sdkRoot)) throw new Error('exact absolute installed SDK root required');
   const sealed = process.argv[3] === '--sealed-startup-v1';

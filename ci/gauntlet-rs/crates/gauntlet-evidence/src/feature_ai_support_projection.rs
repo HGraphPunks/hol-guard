@@ -184,7 +184,16 @@ pub(super) fn displayed_content(result: &Value, response_wire: &str) -> Result<V
     Ok(json!(displayed))
 }
 
-fn tools(family: &str) -> Result<Value> {
+pub(super) fn displayed_rpc_error(
+    response: &Value,
+    wire: &str,
+    family: &str,
+    operation: &str,
+) -> Result<Value> {
+    json_render::rpc_error(response, wire, family, operation)
+}
+
+pub(super) fn tools(family: &str) -> Result<Value> {
     if !matches!(family, "docs" | "mail" | "crm" | "tickets") || sha256(CATALOG) != CATALOG_SHA {
         return Err(invalid(
             "source-pinned feature-ai MCP family catalog required",

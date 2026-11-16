@@ -24,9 +24,10 @@ fn fixture() -> Fixture {
 }
 fn ready(i: &Value) -> Value {
     let p = &i["build_pins"];
-    json!({"schema":"hol-gauntlet-candidate-build-ready-shadow.v2","job_id":p["job_id"],"source_sha":p["source_sha"],
+    json!({"schema":"hol-gauntlet-candidate-build-ready-shadow.v3","job_id":p["job_id"],"source_sha":p["source_sha"],
         "source_archive_sha256":p["source_archive_sha256"],"tag":p["tag"],"image_id":p["builder_image_id"],"policy_sha256":p["policy_sha256"],
-        "free_disk_bytes":24_u64*1024*1024*1024,"ready_at_probe":true,"host_pin_recorded":false,"candidate_started":false,"artifact_admitted":false,"execution_eligible":false})
+        "free_disk_bytes":24_u64*1024*1024*1024,"ready_at_probe":true,"host_pin_recorded":false,"candidate_started":false,"artifact_admitted":false,"execution_eligible":false,
+        "storage_receipt_sha256":i["source"]["storage_receipt_sha256"],"builder_inputs_state":"preparable"})
 }
 fn frame(v: &Value) -> Vec<u8> {
     let mut raw = bytes(v).unwrap();

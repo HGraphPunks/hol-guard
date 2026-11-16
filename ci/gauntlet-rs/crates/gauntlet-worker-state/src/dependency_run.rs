@@ -1,6 +1,8 @@
 //! Native Root ownership of one fixed unprivileged dependency preparation.
 //! Its terminal is always invalid-evidence and supplies no Guard authority.
-use crate::builder_candidate_preflight::{verify_candidate_runtime, CandidateRuntimePins};
+use crate::builder_candidate_preflight::{
+    verify_candidate_runtime, verify_candidate_runtime_files, CandidateRuntimePins,
+};
 use crate::builder_candidate_process::{run_precreated_dependency_process, CandidateProcessError};
 use crate::builder_context::inspect_fixed_builder_context;
 use crate::builder_image::{fixed_builder_image_plan, inspect_fixed_builder_base_images};
@@ -47,8 +49,24 @@ pub fn receive_native_dependency_intent(
     Ok(())
 }
 
-fn preflight(intent: &DependencyRunIntent) -> Result<(), String> {
+fn preflight(intent: &DependencyRunIntent, preparable: bool) -> Result<(), String> {
     let p = &intent.pins;
+    let runtime = CandidateRuntimePins::parse(
+        p.text("podman_sha256"),
+        p.text("slirp4netns_sha256"),
+        p.text("apparmor_parser_sha256"),
+        p.text("seccomp_sha256"),
+    )
+    .map_err(|e| e.to_string())?;
+    let slot = crate::builder_candidate_source::open_fixed_build_slot(p.text("job_id"))
+        .map_err(|e| e.to_string())?;
+    verify_candidate_runtime_files(&runtime).map_err(|e| e.to_string())?;
+    let bounded = crate::native_job_storage::source::verify(
+        p.text("job_id"),
+        &slot,
+        Some(crate::JobStorageProfile::Dependency),
+    )?;
+    crate::dependency_io::verify_inputs(&slot, intent)?;
     let context = inspect_fixed_builder_context(
         Path::new(p.text("controller_root")),
         p.text("controller_tree_sha256"),
@@ -66,21 +84,16 @@ fn preflight(intent: &DependencyRunIntent) -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
     inspect_fixed_builder_base_images(&plan).map_err(|e| e.to_string())?;
-    verify_existing_context(&plan).map_err(|e| e.to_string())?;
+    if bounded.is_some() && preparable {
+        crate::builder_image_context::bounded_inputs(&slot, &plan, p.text("policy_sha256"))?;
+    } else {
+        verify_existing_context(&plan).map_err(|e| e.to_string())?;
+        read_policy(p.text("job_id"), p.text("policy_sha256")).map_err(|e| e.to_string())?;
+    }
     if inspect_result(&plan).map_err(|e| e.to_string())? != p.text("builder_image_id") {
         return Err("dependency builder image differs".into());
     }
-    read_policy(p.text("job_id"), p.text("policy_sha256")).map_err(|e| e.to_string())?;
-    let runtime = CandidateRuntimePins::parse(
-        p.text("podman_sha256"),
-        p.text("slirp4netns_sha256"),
-        p.text("apparmor_parser_sha256"),
-        p.text("seccomp_sha256"),
-    )
-    .map_err(|e| e.to_string())?;
     verify_candidate_runtime(&runtime).map_err(|e| e.to_string())?;
-    let slot = crate::builder_candidate_source::open_fixed_build_slot(p.text("job_id"))
-        .map_err(|e| e.to_string())?;
     crate::dependency_io::verify_inputs(&slot, intent)
 }
 
@@ -104,7 +117,7 @@ pub fn run_native_dependencies(
     let legacy = python_worker_lock().map_err(|e| e.to_string())?;
     crate::native_job_io::require_no_unknown_jobs(&main)?;
     crate::dependency_state::require_idle()?;
-    preflight(&intent)?;
+    preflight(&intent, true)?;
     let profile = format!("hol-gauntlet-build-{job}");
     if !profile_absent(&profile).map_err(|e| e.to_string())? {
         return Err("dependency profile already exists".into());
@@ -151,6 +164,33 @@ pub fn run_native_dependencies(
         &serde_json::from_slice::<Value>(raw).map_err(|e| e.to_string())?,
     )
     .map_err(|e| e.to_string())?;
+    if let Some(source) = crate::native_job_storage::source::verify(
+        job,
+        &slot,
+        Some(crate::JobStorageProfile::Dependency),
+    )? {
+        crate::builder_context::prepare_bounded_from_controller(
+            &slot,
+            &source,
+            Path::new(p.text("controller_root")),
+            p.text("controller_tree_sha256"),
+            p.text("uv_base_image_id"),
+            p.text("rust_base_image_id"),
+            || {
+                lease.verify(&main.root).map_err(|e| e.to_string())?;
+                verify_python_lock(&legacy).map_err(|e| e.to_string())?;
+                job_lease.verify(&journal.root).map_err(|e| e.to_string())
+            },
+        )?;
+        preflight(&intent, false)?;
+        if !profile_absent(&profile).map_err(|e| e.to_string())?
+            || !crate::builder_candidate_process::container_absent(job)
+                .map_err(|e| e.to_string())?
+            || free_bytes().map_err(|e| e.to_string())? < 12 * 1024 * 1024 * 1024
+        {
+            return Err("dependency resources appeared during bounded preparation".into());
+        }
+    }
     crate::builder_candidate_source::prepare_export(&slot).map_err(|e| e.to_string())?;
     let policy = format!("/var/lib/hol-gauntlet/builds/{job}/Builder.apparmor");
     if crate::native_worker::cancellation_requested() {
@@ -249,7 +289,7 @@ pub fn run_native_dependencies(
     lease.verify(&main.root).map_err(|e| e.to_string())?;
     job_lease.verify(&journal.root).map_err(|e| e.to_string())?;
     verify_python_lock(&legacy).map_err(|e| e.to_string())?;
-    preflight(&intent)?;
+    preflight(&intent, false)?;
     crate::verify_running_binary(generation).map_err(|e| e.to_string())?;
     if free_bytes().map_err(|e| e.to_string())? < 8 * 1024 * 1024 * 1024 {
         return Err("dependency completion disk reserve crossed".into());

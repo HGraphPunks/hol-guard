@@ -225,7 +225,7 @@
       "disposition": "retain_external_agent_adapter",
       "path": "ci/gauntlet/benchmark/developer_omp_episode.ts",
       "phase": 4,
-      "sha256": "d03a6f991d3a7981c31ce4000a2f08d7f6f2d12cddf32c9c30a659eed9372b7f"
+      "sha256": "322fecad42db3bcfb65cf3a4830c17daa4ad27ce11a2a657a7d2c2f25f2602dc"
     },
     {
       "base_sha256": "50e64dcc1b8365cc33cc4ab0b0e0de97c9155f7ba50be14311ab174555a722ae",
@@ -239,7 +239,7 @@
       "disposition": "retain_external_agent_adapter",
       "path": "ci/gauntlet/benchmark/developer_tool_inventory_conformance.ts",
       "phase": 4,
-      "sha256": "de4967111655c95319e8159842976ca87ceb8d6c6db173de42da70a935ff978a"
+      "sha256": "4911836cbd3157c90c9ca7f16ae42eb45bea9384d1a73f164c3de83bab676797"
     },
     {
       "base_sha256": "cc1513d6b9318ee5884de399568f49de709e863350584a61a0d6439753d0dc9b",

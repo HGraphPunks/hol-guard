@@ -140,17 +140,19 @@ pub(super) fn require_launch(
 ) -> Result<(), String> {
     stable(j, i)?;
     let job = text(i, "job_id")?;
-    let readiness = plan(i)?
-        .preflight_plan(text(i, "readiness_binary_sha256")?)
-        .map_err(|e| e.to_string())?;
-    let ready = readiness
-        .parse_response(&j.read(job, "bounded-build-ready-return")?)
+    if j.read(job, BINDING)? != binding(i, inv)? || j.read(job, LAUNCH)? != binding(i, inv)? {
+        return Err("original bounded build launch binding unavailable".into());
+    }
+    let original = j.read(job, "bounded-build-ready-return")?;
+    let ready = plan(i)?
+        .parse_retained_bounded_preflight(
+            text(i, "readiness_binary_sha256")?,
+            &i["source"],
+            &original,
+        )
         .map_err(|_| "original bounded readiness record unavailable or changed")?;
     if j.read(job, "bounded-build-ready")? != bytes(&ready)? {
         return Err("original bounded readiness summary changed".into());
-    }
-    if j.read(job, BINDING)? != binding(i, inv)? || j.read(job, LAUNCH)? != binding(i, inv)? {
-        return Err("original bounded build launch binding unavailable".into());
     }
     let keys = HostCandidateBuildPinJournal::open(&j.path).map_err(|e| e.to_string())?;
     if keys.read(job).map_err(|e| e.to_string())? != *inv.record() {
@@ -352,7 +354,7 @@ fn run(
     stable(j, i)?;
     let plan = plan(i)?;
     let readiness = plan
-        .preflight_plan(text(i, "readiness_binary_sha256")?)
+        .bounded_preflight_plan(text(i, "readiness_binary_sha256")?, &i["source"])
         .map_err(|e| e.to_string())?;
     let raw = transport(i, readiness.argv(), Duration::from_secs(120), 2049)?;
     stable(j, i)?;

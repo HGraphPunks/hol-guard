@@ -245,7 +245,19 @@ fn write_policy(job_id: &str, bytes: &[u8], expected: &str) -> Result<String, Bu
         Mode::empty(),
     )
     .map_err(|_| BuilderPolicyError::ContextMismatch)?;
-    let stat = fstat(&job).map_err(|_| BuilderPolicyError::ContextMismatch)?;
+    write_policy_at(&job, bytes, expected)?;
+    Ok(format!("{BUILDS}/{job_id}/{POLICY}"))
+}
+
+pub(crate) fn write_policy_at(
+    job: &std::os::fd::OwnedFd,
+    bytes: &[u8],
+    expected: &str,
+) -> Result<(), BuilderPolicyError> {
+    if bytes.is_empty() || bytes.len() > MAX_POLICY_BYTES {
+        return Err(BuilderPolicyError::PolicyUncertain);
+    }
+    let stat = fstat(job).map_err(|_| BuilderPolicyError::ContextMismatch)?;
     if FileType::from_raw_mode(stat.st_mode) != FileType::Directory
         || stat.st_uid != 0
         || stat.st_mode & 0o077 != 0
@@ -253,7 +265,7 @@ fn write_policy(job_id: &str, bytes: &[u8], expected: &str) -> Result<String, Bu
         return Err(BuilderPolicyError::ContextMismatch);
     }
     let descriptor = match openat(
-        &job,
+        job,
         POLICY,
         OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
         Mode::from_bits_truncate(0o600),
@@ -267,12 +279,12 @@ fn write_policy(job_id: &str, bytes: &[u8], expected: &str) -> Result<String, Bu
         .map_err(|_| BuilderPolicyError::PolicyUncertain)?;
     file.sync_all()
         .map_err(|_| BuilderPolicyError::PolicyUncertain)?;
-    fsync(&job).map_err(|_| BuilderPolicyError::PolicyUncertain)?;
-    let digest = read_policy_at(&job, expected)?;
+    fsync(job).map_err(|_| BuilderPolicyError::PolicyUncertain)?;
+    let digest = read_policy_at(job, expected)?;
     if digest != expected {
         return Err(BuilderPolicyError::PolicyUncertain);
     }
-    Ok(format!("{BUILDS}/{job_id}/{POLICY}"))
+    Ok(())
 }
 
 fn read_policy_at(

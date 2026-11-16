@@ -71,22 +71,28 @@ fn transport_failure_leaves_consumed_dispatch_and_never_implicitly_retries() {
     ];
     assert!(run_feature_audit_command(&args)
         .unwrap_err()
-        .contains("digest differs"));
+        .contains("new legacy feature jobs"));
     let dispatch = path.join("0123456789abcdef.feature-dispatch.json");
     assert!(!dispatch.exists());
     args[3] = intent.digest().unwrap();
     assert!(run_feature_audit_command(&args)
         .unwrap_err()
+        .contains("new legacy feature jobs"));
+    assert!(!dispatch.exists());
+    assert!(journal
+        .execute_once(&intent)
+        .unwrap_err()
         .contains("uncertain"));
     let original = std::fs::read(&dispatch).unwrap();
-    assert!(run_feature_audit_command(&args)
+    assert!(journal
+        .execute_once(&intent)
         .unwrap_err()
         .contains("consumed"));
     assert_eq!(std::fs::read(dispatch).unwrap(), original);
 }
 
 #[test]
-fn feature_record_command_keeps_nonce_private_and_preserves_consumed_intent() {
+fn feature_new_work_refusal_preserves_private_legacy_intents_and_recovery() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().canonicalize().unwrap();
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
@@ -99,20 +105,16 @@ fn feature_record_command_keeps_nonce_private_and_preserves_consumed_intent() {
         pins_path.to_str().unwrap().into(),
         "owned-vm".into(),
     ];
-    let result = run_feature_audit_command(&args).unwrap();
+    let result = run_feature_audit_command(&args).unwrap_err();
+    assert!(result.contains("new legacy feature jobs"));
+    assert!(!path.join("0123456789abcdef.feature-intent.json").exists());
     let journal = FeatureIntentJournal::open(&path).unwrap();
-    let intent = journal.read("0123456789abcdef").unwrap();
-    assert_eq!(
-        result,
-        json!({"schema":"hol-gauntlet-host-feature-record.v1",
-            "audit_id":"0123456789abcdef","source_sha":"a".repeat(40),
-            "intent_sha256":intent.digest().unwrap(),
-            "execution_eligible":false,"qualification_eligible":false})
-    );
+    let operations = crate::public_vm_operations(Some("owned-vm")).unwrap();
+    let intent = journal
+        .record(pins("0123456789abcdef"), &operations)
+        .unwrap();
     let private: Value = serde_json::from_slice(&intent.bytes().unwrap()).unwrap();
-    assert!(!result
-        .to_string()
-        .contains(private["host_nonce_hex"].as_str().unwrap()));
+    assert!(!result.contains(private["host_nonce_hex"].as_str().unwrap()));
     let original = std::fs::read(path.join("0123456789abcdef.feature-intent.json")).unwrap();
     assert!(run_feature_audit_command(&args).is_err());
     assert_eq!(
@@ -120,6 +122,24 @@ fn feature_record_command_keeps_nonce_private_and_preserves_consumed_intent() {
         original
     );
     assert!(!path.join("0123456789abcdef.feature-dispatch.json").exists());
+    for action in ["read", "repair"] {
+        let mut recovery = vec![
+            action.into(),
+            path.to_str().unwrap().into(),
+            intent.pins().audit_id().into(),
+            intent.digest().unwrap(),
+        ];
+        if action == "repair" {
+            recovery.push("d".repeat(64));
+        }
+        assert!(!run_feature_audit_command(&recovery)
+            .unwrap_err()
+            .contains("new legacy feature jobs"));
+        assert_eq!(
+            std::fs::read(path.join("0123456789abcdef.feature-intent.json")).unwrap(),
+            original
+        );
+    }
     for malformed in [vec![], vec!["unknown".into()], args[..3].to_vec(), {
         let mut extra = args.clone();
         extra.push("unexpected".into());
@@ -180,7 +200,16 @@ fn read_reconciles_only_a_completed_result_after_consumed_dispatch() {
     let mut raw = expected.clone();
     raw.push(b'\n');
     std::fs::write(&reply, raw).unwrap();
-    assert_eq!(journal.read_retained(&intent).unwrap(), result);
+    assert_eq!(
+        run_feature_audit_command(&[
+            "read".into(),
+            path.to_str().unwrap().into(),
+            intent.pins().audit_id().into(),
+            intent.digest().unwrap()
+        ])
+        .unwrap(),
+        result
+    );
     assert_eq!(
         std::fs::read(path.join("0123456789abcdef.feature-result.json")).unwrap(),
         expected

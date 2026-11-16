@@ -393,11 +393,21 @@ impl DependencyIntentJournal {
     }
 }
 
-pub const DEPENDENCY_COMMAND_USAGE:&str=concat!("dependency commands:\ninputs PRIVATE_SOURCE_STATE JOB_ID SOURCE_ARCHIVE_SHA256 REPOSITORY SOURCE_SHA EXPORTER_ELF EXPORTER_SHA256\ntransfer PRIVATE_SOURCE_STATE PRIVATE_TRANSFER_DIR VM LIMA_SHA256 JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 PAYLOAD_SHA256 WORKER_SHA256 SSH_HOME LIMA_HOME [STORAGE_RECEIPT_SHA256]\nrun PRIVATE_INTENT_DIR PRIVATE_RUN_PINS_JSON [--vm VM_NAME]\nread PRIVATE_INTENT_DIR JOB_ID READER_BINARY_SHA256 [--vm VM_NAME]\nrepair PRIVATE_INTENT_DIR JOB_ID EXPECTED_STARTED_MARKER_SHA256 REPAIR_BINARY_SHA256 [--vm VM_NAME]\n",
+pub const DEPENDENCY_COMMAND_USAGE: &str = concat!(
+"dependency commands (Rust v1):\ninputs PRIVATE_SOURCE_STATE JOB_ID SOURCE_ARCHIVE_SHA256 REPOSITORY SOURCE_SHA EXPORTER_ELF EXPORTER_SHA256\n",
+"transfer|transfer-read PRIVATE_SOURCE_STATE PRIVATE_TRANSFER_DIR VM LIMA_SHA256 JOB_ID SOURCE_SHA SOURCE_ARCHIVE_SHA256 PAYLOAD_SHA256 WORKER_SHA256 SSH_HOME LIMA_HOME STORAGE_RECEIPT_SHA256\n",
+"run-bounded PRIVATE_INTENT_DIR PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 PRIVATE_RUN_PINS_JSON\nread-bounded PRIVATE_INTENT_DIR PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 JOB_ID READER_SHA256\nrepair-bounded PRIVATE_INTENT_DIR PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 JOB_ID EXPECTED_STARTED_SHA256 REPAIR_SHA256\n",
 "prefix-stage|prefix-stage-read PRIVATE_INTENT_DIR PRIVATE_TRANSFER_DIR SOURCE_INTENT_SHA256 JOB_ID PYTHON_SHA256 STAGER_SHA256\n",
-"run-bounded PRIVATE_INTENT_DIR PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 PRIVATE_RUN_PINS_JSON\nread-bounded PRIVATE_INTENT_DIR PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 JOB_ID READER_SHA256\nrepair-bounded PRIVATE_INTENT_DIR PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 JOB_ID EXPECTED_STARTED_SHA256 REPAIR_SHA256\ntransfer-read uses the bounded transfer arguments and never retransmits capsule bytes.\nFor partial preparation, use the expected reservation hash from read. Incomplete completion retirement preserves original files and has unknown exit. Read never authorizes cleanup or a new launch. Bounded operations use the completed Source's original transport. Repair supplies no execution admission.");
+"Historical read/recovery only:\nread PRIVATE_INTENT_DIR JOB_ID READER_BINARY_SHA256 [--vm VM_NAME]\nrepair PRIVATE_INTENT_DIR JOB_ID EXPECTED_STARTED_MARKER_SHA256 REPAIR_BINARY_SHA256 [--vm VM_NAME]\nLegacy run and transfer without STORAGE_RECEIPT_SHA256 are unavailable for new work.\n",
+"Completed transfer reads never retransmit capsule bytes. For partial preparation, use the reservation hash from read. Incomplete cleanup preserves original files and an unknown exit. Bounded operations retain the original Source/Lima instance; read and repair grant no execution admission.");
 
 pub fn run_dependency_command(args: &[String]) -> Result<Value, String> {
+    if args
+        .first()
+        .is_some_and(|s| s == "run" || (s == "transfer" && args.len() == 12))
+    {
+        return Err("Rust v1 does not admit new unbounded dependencies; use run-bounded and transfer with STORAGE_RECEIPT_SHA256".into());
+    }
     if args.first().is_some_and(|s| {
         matches!(
             s.as_str(),

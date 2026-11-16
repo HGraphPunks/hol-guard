@@ -1,5 +1,6 @@
 //! Genuine source-selected OMP episodes over the actual Root World and normal
 //! Native MCP transport. The deterministic synthetic-stream profiles stay separate.
+use crate::native_live_artifacts::{LiveContext, SdkObservation};
 use crate::native_live_provider::NativeLiveProvider;
 use crate::native_operation_budget::NativeOperationBudget;
 use crate::native_sdk_agent::NativeSdkAgent;
@@ -35,7 +36,8 @@ fn serve(
     router: &mut NativeSdkRouter,
     plane: &mut NativeHookPlane,
     cancel: &AtomicBool,
-) -> Result<Vec<u8>, String> {
+    observed: &mut SdkObservation,
+) -> Result<(), String> {
     let deadline =
         Instant::now() + Duration::from_secs(crate::native_live_spec::PREPARATION_SECONDS);
     let mut count = 0;
@@ -63,10 +65,16 @@ fn serve(
             crate::write_native_sdk_line(&mut stream, &raw, deadline, cancel)?;
         }
         if let Some(output) = sdk.poll()? {
-            if !output.status.success() {
+            let success = output.status.success();
+            let expired = Instant::now() >= deadline;
+            observed.observe_exit(output, expired);
+            if expired || cancel.load(Ordering::Acquire) {
+                return Err("live OMP controller cancelled or expired".into());
+            }
+            if !success {
                 return Err("actual live OMP process did not complete".into());
             }
-            let rows = gauntlet_evidence::parse_omp_transcript(&output.stdout)
+            let rows = gauntlet_evidence::parse_omp_transcript(&observed.stdout)
                 .map_err(|_| "actual live OMP transcript malformed")?;
             if !rows
                 .iter()
@@ -75,9 +83,14 @@ fn serve(
             {
                 return Err("actual live OMP episode did not finish normally".into());
             }
-            return Ok(output.stdout);
+            return Ok(());
         }
-        paused(cancel, deadline)?;
+        if let Err(error) = paused(cancel, deadline) {
+            if Instant::now() >= deadline {
+                observed.observe_deadline();
+            }
+            return Err(error);
+        }
     }
 }
 
@@ -145,7 +158,7 @@ pub(crate) fn run(
     let mut bridge = None;
     let mut provider = None;
     let mut channel = Some(channel);
-    let mut sdk_raw = Vec::new();
+    let mut sdk_observation = SdkObservation::default();
     let mut binding = Value::Null;
     let attempted = (|| -> Result<(), String> {
         plane.start()?;
@@ -219,7 +232,15 @@ pub(crate) fn run(
         )?;
         binding = observed;
         mcp.connect_sdk(&peer, &cancel)?;
-        sdk_raw = serve(&sockets, &peer, process, &mut router, &mut plane, &cancel)?;
+        serve(
+            &sockets,
+            &peer,
+            process,
+            &mut router,
+            &mut plane,
+            &cancel,
+            &mut sdk_observation,
+        )?;
         budget
             .lock()
             .map_err(|_| "live operation budget poisoned")?
@@ -236,6 +257,11 @@ pub(crate) fn run(
     let bridge_cleanup = bridge.as_mut().map_or(Ok(()), RootChild::stop);
     let mcp_cleanup = mcp.close(attempted.is_err());
     let agent_cleanup = agent.as_mut().map_or(Ok(()), NativeSdkAgent::close);
+    let agent_value = agent
+        .as_ref()
+        .map(NativeSdkAgent::observation)
+        .unwrap_or(Value::Null);
+    let sdk_terminal = sdk_observation.terminal(&binding, sdk.as_ref().map(|_| &sdk_cleanup));
     let socket_cleanup = sockets.close();
     let cell_cleanup = plane.close();
     let mcp_value = mcp.observation();
@@ -255,10 +281,15 @@ pub(crate) fn run(
     let artifact_hashes = crate::native_live_artifacts::retain(
         job,
         live,
-        &sdk_raw,
+        &sdk_observation.stdout,
         mcp_value.as_ref().unwrap_or(&Value::Null),
         &provider_value,
-        &budget_value,
+        &LiveContext {
+            binding: &binding,
+            agent: &agent_value,
+            sdk_terminal: &sdk_terminal,
+            budget: &budget_value,
+        },
     );
     let model_requests = provider_value["ledger"]["turns_consumed"]
         .as_u64()

@@ -207,8 +207,15 @@ pub(super) fn sdk_and_native(artifacts: &Value, protected: bool, context: &Value
         let message = messages[0];
         let response_wire =
             super::super::projection::native_response_wire(context, family, &request["id"])?;
-        let displayed =
-            super::super::projection::displayed_content(&output["result"], response_wire)?;
+        let rpc_error = output.get("error").is_some();
+        let displayed = if rpc_error {
+            // V1 had no RPC-error display contract and its intervention field
+            // predates unavailable decisions. Preserve that historical refusal.
+            require(context["schema"] == "hol-gauntlet-native-live-context.v2")?;
+            super::super::projection::displayed_rpc_error(output, response_wire, family, operation)?
+        } else {
+            super::super::projection::displayed_content(&output["result"], response_wire)?
+        };
         require(
             message["toolName"] == sdk["name"]
                 && message["content"] == displayed
@@ -216,12 +223,23 @@ pub(super) fn sdk_and_native(artifacts: &Value, protected: bool, context: &Value
                 && sdk["result"]["details"] == message["details"]
                 && message["details"]["serverName"] == family
                 && message["details"]["mcpToolName"] == operation
-                && message["details"]["rawContent"] == output["result"]["content"]
-                && message["details"].get("structuredContent")
-                    == output["result"].get("structuredContent")
-                && message["isError"] == sdk["is_error"]
-                && message["isError"] == output["result"]["isError"],
+                && message["isError"] == sdk["is_error"],
         )?;
+        if rpc_error {
+            require(
+                message["isError"] == true
+                    && message["details"]["isError"] == true
+                    && message["details"].get("rawContent").is_none()
+                    && message["details"].get("structuredContent").is_none(),
+            )?;
+        } else {
+            require(
+                message["details"]["rawContent"] == output["result"]["content"]
+                    && message["details"].get("structuredContent")
+                        == output["result"].get("structuredContent")
+                    && message["isError"] == output["result"]["isError"],
+            )?;
+        }
         if row["upstream_request"].is_null() {
             require(protected && row["upstream_response"].is_null() && message["isError"] == true)?;
             denied.push(json!(id));
@@ -258,13 +276,23 @@ pub(super) fn sdk_and_native(artifacts: &Value, protected: bool, context: &Value
         }
     }
     require(used_world.len() == world.len())?;
-    Ok(
-        json!({"native_mcp_observed":protected,"actual_tool_calls":native.len(),"world_calls_joined":world.len(),
+    let mut observation = json!({"native_mcp_observed":protected,"actual_tool_calls":native.len(),"world_calls_joined":world.len(),
         "denied_call_ids":denied,"withheld_result_ids":withheld,
         "changed_error_result_ids":changed_errors,
         "guard_intervention_observed":!denied.is_empty() || !withheld.is_empty(),
-        "product_attribution":"pending-independent-runtime-source-admission"}),
-    )
+        "product_attribution":"pending-independent-runtime-source-admission"});
+    if context["schema"] == "hol-gauntlet-native-live-context.v2" {
+        observation["proxy_rejected_call_ids"] = observation["denied_call_ids"].clone();
+        observation
+            .as_object_mut()
+            .unwrap()
+            .remove("denied_call_ids");
+        observation["proxy_withholding_observed"] =
+            json!(!denied.is_empty() || !withheld.is_empty());
+        observation["guard_intervention_observed"] = Value::Null;
+        observation["guard_policy_classification"] = json!("unproven");
+    }
+    Ok(observation)
 }
 
 pub(super) fn provider(artifacts: &Value, report: &Value, pins: &Value) -> Result<Value> {

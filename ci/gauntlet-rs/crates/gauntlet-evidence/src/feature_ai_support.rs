@@ -28,6 +28,9 @@ const PUBLIC_INTERFACE: &str = include_str!("../../../../gauntlet/benchmark/publ
 const ARTIFACT_SOURCE: &str = include_str!("../../../../gauntlet/benchmark/artifact_contracts.py");
 type Records = BTreeMap<String, Value>;
 
+#[path = "feature_ai_support_admission.rs"]
+mod admission;
+
 fn invalid(message: &'static str) -> EvidenceError {
     EvidenceError::Invalid(message)
 }

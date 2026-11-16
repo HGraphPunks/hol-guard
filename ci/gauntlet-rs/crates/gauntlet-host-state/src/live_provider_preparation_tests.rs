@@ -5,7 +5,12 @@ fn inputs(f: &Fixture) -> (Value, Value) {
     let site = root.join("site-packages");
     let model = root.join("model");
     let socket = root.join("socket");
-    for dir in [site.join("mlx_lm/models"), model.clone(), socket.clone()] {
+    for dir in [
+        site.join("mlx_lm/models"),
+        site.join("mlx/lib"),
+        model.clone(),
+        socket.clone(),
+    ] {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700)).unwrap();
     }
@@ -16,6 +21,7 @@ fn inputs(f: &Fixture) -> (Value, Value) {
         std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700)).unwrap();
     }
     let mut paths = vec![python.clone()];
+    paths.push(site.join("mlx/lib/mlx.metallib"));
     for leaf in [
         "server.py",
         "generate.py",
@@ -233,4 +239,55 @@ fn numerical_inventory_covers_added_code_and_retains_directory_membership() {
     std::fs::set_permissions(&added, std::fs::Permissions::from_mode(0o600)).unwrap();
     assert!(captured.stable().is_err());
     assert!(Assets::capture_spec(&spec).is_err());
+}
+
+#[test]
+fn fixed_mlx_metal_library_is_required_and_uses_original_asset_custody() {
+    let f = fixture();
+    let (spec, _auth) = inputs(&f);
+    let metal = Path::new(spec["site_packages"].as_str().unwrap()).join("mlx/lib/mlx.metallib");
+    let key = metal.to_str().unwrap();
+    let original = Assets::capture_spec(&spec).unwrap();
+    assert_eq!(original.facts[key]["sha256"], sha(b"mock"));
+    let mut missing = spec.clone();
+    missing["assets"].as_object_mut().unwrap().remove(key);
+    assert!(assets::validate_scope(&missing)
+        .unwrap_err()
+        .contains("Metal library absent"));
+    assert!(Assets::capture_spec(&missing).is_err());
+    let mut bad_pin = spec.clone();
+    bad_pin["assets"][key]["sha256"] = json!("0".repeat(64));
+    assert!(Assets::capture_spec(&bad_pin).is_err());
+    std::fs::write(&metal, b"changed Metal bytes").unwrap();
+    assert!(original.stable().is_err());
+    assert!(Assets::capture_spec(&spec).is_err());
+    std::fs::remove_file(&metal).unwrap();
+    std::os::unix::fs::symlink("../../mlx_lm/server.py", &metal).unwrap();
+    assert!(Assets::capture_spec(&spec).is_err());
+}
+
+#[test]
+fn foreign_or_unbounded_metal_files_cannot_expand_numerical_roles() {
+    let f = fixture();
+    let (spec, _auth) = inputs(&f);
+    let site = Path::new(spec["site_packages"].as_str().unwrap());
+    for foreign in [
+        site.join("mlx/lib/foreign.metallib"),
+        site.join("foreign/mlx.metallib"),
+        f.journal.path.join("mlx.metallib"),
+    ] {
+        let mut changed = spec.clone();
+        changed["assets"][foreign.to_str().unwrap()] = json!({"sha256":sha(b"mock"),"bytes":4});
+        assert!(assets::validate_scope(&changed)
+            .unwrap_err()
+            .contains("outside fixed numerical"));
+    }
+    let metal = site.join("mlx/lib/mlx.metallib");
+    for size in [0, 256 * 1024 * 1024 + 1] {
+        let mut changed = spec.clone();
+        changed["assets"][metal.to_str().unwrap()]["bytes"] = json!(size);
+        assert!(assets::validate_scope(&changed)
+            .unwrap_err()
+            .contains("bounded MLX Metal"));
+    }
 }

@@ -1,6 +1,189 @@
 use super::*;
 use crate::builder_context::derive_from_bytes;
 
+fn inert_preparation_plan() -> (
+    crate::builder_context::BuilderContextProof,
+    BuilderImagePlan,
+) {
+    let context = derive_from_bytes(
+        &"a".repeat(64),
+        "0123456789abcdef",
+        include_bytes!("../../../../gauntlet/control_plane/Builder.Dockerfile"),
+        include_bytes!("../../../../gauntlet/control_plane/builder_entry.py"),
+        include_bytes!("../../../../gauntlet/control_plane/build_artifact.py"),
+        include_bytes!("../../../../gauntlet/control_plane/Builder.apparmor"),
+    )
+    .unwrap();
+    let plan = fixed_builder_image_plan(
+        &context,
+        "0123456789abcdef",
+        &"b".repeat(64),
+        &"c".repeat(64),
+    )
+    .unwrap();
+    (context, plan)
+}
+
+#[test]
+#[ignore = "Root-only inert held-directory preparation; no container or candidate"]
+fn bounded_builder_preparation_retains_partial_and_refuses_replay_or_tampering() {
+    use crate::builder_image_context::{
+        bounded_inputs, prepare_bounded_inputs, BuilderInputsState,
+    };
+    gauntlet_cell_rootfs::require_outside_root().unwrap();
+    let (context, plan) = inert_preparation_plan();
+    let temp = tempfile::tempdir_in("/run").unwrap();
+    let job = crate::open_root_owned_public_directory(temp.path()).unwrap();
+    let inspect = || bounded_inputs(&job, &plan, context.policy_sha256());
+    assert_eq!(inspect().unwrap(), BuilderInputsState::Preparable);
+    assert!(prepare_bounded_inputs(&job, &plan, &context, || Err(
+        "owner lost before write".into()
+    ))
+    .is_err());
+    assert_eq!(inspect().unwrap(), BuilderInputsState::Preparable);
+    let checks = std::cell::Cell::new(0);
+    assert!(prepare_bounded_inputs(&job, &plan, &context, || {
+        checks.set(checks.get() + 1);
+        if checks.get() == 2 {
+            Err("owner lost between context and policy".into())
+        } else {
+            Ok(())
+        }
+    })
+    .is_err());
+    assert!(temp
+        .path()
+        .join("builder-image-context/builder_entry.py")
+        .is_file());
+    assert!(!temp.path().join("Builder.apparmor").exists());
+    assert!(inspect().is_err());
+    assert!(prepare_bounded_inputs(&job, &plan, &context, || Ok(())).is_err());
+    let complete = tempfile::tempdir_in("/run").unwrap();
+    let held = crate::open_root_owned_public_directory(complete.path()).unwrap();
+    prepare_bounded_inputs(&held, &plan, &context, || Ok(())).unwrap();
+    assert_eq!(
+        bounded_inputs(&held, &plan, context.policy_sha256()).unwrap(),
+        BuilderInputsState::Complete
+    );
+    let extra = complete.path().join("builder-image-context/unexpected");
+    std::fs::write(&extra, b"not a declared builder input").unwrap();
+    assert!(bounded_inputs(&held, &plan, context.policy_sha256()).is_err());
+    std::fs::remove_file(extra).unwrap();
+    let file = complete
+        .path()
+        .join("builder-image-context/builder_entry.py");
+    std::fs::write(&file, b"changed pinned builder input").unwrap();
+    assert!(bounded_inputs(&held, &plan, context.policy_sha256()).is_err());
+    assert!(prepare_bounded_inputs(&held, &plan, &context, || Ok(())).is_err());
+}
+
+#[test]
+#[ignore = "Root-only inert original-directory custody; no volume or workload"]
+fn bounded_builder_preparation_checks_original_custody_before_creating_inputs() {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    gauntlet_cell_rootfs::require_outside_root().unwrap();
+    let (context, plan) = inert_preparation_plan();
+    let temp = tempfile::tempdir_in("/run").unwrap();
+    let visible = temp.path().join("job");
+    std::fs::create_dir(&visible).unwrap();
+    std::fs::set_permissions(&visible, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let held = crate::open_root_owned_public_directory(&visible).unwrap();
+    let original = rustix::fs::fstat(&held).unwrap();
+    let retained = temp.path().join("original");
+    std::fs::rename(&visible, &retained).unwrap();
+    std::fs::create_dir(&visible).unwrap();
+    let recheck = || {
+        let current = std::fs::symlink_metadata(&visible).map_err(|e| e.to_string())?;
+        if current.dev() != original.st_dev || current.ino() != original.st_ino {
+            return Err("original source mount/directory was replaced".into());
+        }
+        Ok(())
+    };
+    assert!(
+        crate::builder_image_context::prepare_bounded_inputs(&held, &plan, &context, recheck)
+            .is_err()
+    );
+    assert_eq!(std::fs::read_dir(&visible).unwrap().count(), 0);
+    assert_eq!(std::fs::read_dir(&retained).unwrap().count(), 0);
+}
+
+#[test]
+#[ignore = "requires initialized idle Root worker; private inert journals only, no candidate"]
+fn captured_builder_input_cannot_prepare_after_a_later_native_job_becomes_unknown() {
+    use crate::builder_candidate_preflight::{BoundedCandidatePreparation, CandidateRuntimePins};
+    use crate::candidate_host_anchor::HostCandidateRunAnchor;
+    use std::os::unix::fs::PermissionsExt;
+    gauntlet_cell_rootfs::require_outside_root().unwrap();
+    let journal_dir = tempfile::tempdir_in("/var/lib").unwrap();
+    let journal = crate::RunReservationJournal::open_root_owned(journal_dir.path()).unwrap();
+    let lease = journal.acquire_active_lease().unwrap();
+    crate::native_job_io::require_no_unknown_jobs(&journal).unwrap();
+    let captured = tempfile::tempdir_in("/run").unwrap();
+    let raw = b"previously retained inert source bytes";
+    std::fs::write(captured.path().join("source.tar.gz"), raw).unwrap();
+    std::fs::set_permissions(
+        captured.path().join("source.tar.gz"),
+        std::fs::Permissions::from_mode(0o444),
+    )
+    .unwrap();
+    let job = crate::open_root_owned_public_directory(captured.path()).unwrap();
+    let source = json!({"job_id":"0123456789abcdef","source_sha":"a".repeat(40),
+        "source_archive_sha256":format!("{:x}",Sha256::digest(raw))});
+    let request = gauntlet_contracts::WorkerRequest::parse(
+        json!({
+        "schema":"hol-gauntlet-worker-request.v1","action":"run","job_id":"fedcba9876543210",
+        "source_sha":"a".repeat(40),"deployment_digest":"b".repeat(64)})
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
+    journal
+        .reserve_under_lease(
+            &lease,
+            &request,
+            &"a".repeat(40),
+            &"b".repeat(64),
+            &"c".repeat(64),
+        )
+        .unwrap();
+    let (context, plan) = inert_preparation_plan();
+    let pin = "f".repeat(64);
+    let runtime = CandidateRuntimePins::parse(&pin, &pin, &pin, &pin).unwrap();
+    let anchor = HostCandidateRunAnchor::parse_with_tag(
+        context.policy_sha256(),
+        &pin,
+        &pin,
+        &pin,
+        &pin,
+        "v3.49.0",
+    )
+    .unwrap();
+    // Source admission is a caller precondition. This inert regression proves
+    // the later unknown refuses BEFORE any Source reinspection, helper or write.
+    let error = BoundedCandidatePreparation {
+        journal: &journal,
+        job: &job,
+        source: &source,
+        context: &context,
+        plan: &plan,
+        runtime: &runtime,
+        anchor: &anchor,
+        controller_root: Path::new("/not-opened-before-admission"),
+        tree_digest: &"a".repeat(64),
+        image_id: &format!("sha256:{pin}"),
+        version: "3.49.0",
+        tag: "v3.49.0",
+    }
+    .consume_and_prepare(|| lease.verify(&journal.root).map_err(|e| e.to_string()))
+    .unwrap_err();
+    assert_eq!(error, "active or unknown prior job blocks new work");
+    assert_eq!(
+        std::fs::read(captured.path().join("source.tar.gz")).unwrap(),
+        raw.as_slice()
+    );
+    assert_eq!(std::fs::read_dir(captured.path()).unwrap().count(), 1);
+}
+
 #[test]
 fn build_argv_is_local_only_and_excludes_candidate_source() {
     let context = derive_from_bytes(

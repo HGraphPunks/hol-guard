@@ -248,6 +248,18 @@ pub(super) fn retained_storage(j: &Journal, intent: &Intent) -> Result<Option<Va
     Ok(initial["receipt"].get("storage").cloned())
 }
 
+pub(super) fn require_new_work(j: &Journal, intent: &Intent) -> Result<(), String> {
+    if !intent.is_live() && intent.text("role") != "readonly-utility" {
+        return Err("Rust v1 new deterministic work requires readonly-utility; ordinary SDK/Bash work is unavailable".into());
+    }
+    if retained_storage(j, intent)?.is_none() {
+        return Err(
+            "Rust v1 new Native work requires original bounded initialization storage".into(),
+        );
+    }
+    Ok(())
+}
+
 pub(super) fn verify_completion(
     j: &Journal,
     intent: &Intent,
@@ -286,6 +298,9 @@ fn prepare(args: &[String]) -> Result<Value, String> {
     let intent = j.intent(&args[2])?;
     if intent.digest()? != args[3] {
         return Err("outside native preparation intent digest differs".into());
+    }
+    if publish {
+        require_new_work(&j, &intent)?;
     }
     let raw = if publish {
         read_bundle(Path::new(&args[4]), &args[5])?
@@ -391,7 +406,10 @@ pub(super) fn verify_idle_record(j: &Journal, name: &str) -> Result<bool, String
 }
 pub(super) fn run_command(args: &[String]) -> Result<Value, String> {
     match (args.first().map(String::as_str), args.len()) {
-        (Some("initialize"), 9 | 10) | (Some("initialize-read"), 4) => initialize(args),
+        (Some("initialize"), 9) => Err(
+            "Rust v1 new Native initialization requires MKE2FS_SHA256 and bounded storage".into(),
+        ),
+        (Some("initialize"), 10) | (Some("initialize-read"), 4) => initialize(args),
         (Some("initialize-abort" | "initialize-abort-unreleased"), 8)
         | (Some("initialize-abort-read" | "initialize-abort-resume"), 4) => {
             initialization::abort(args)
