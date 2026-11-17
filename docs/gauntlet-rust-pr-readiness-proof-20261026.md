@@ -3,8 +3,9 @@
 ## Rust v1 checkpoint — November 16–17, 2026, in progress
 
 The [bounded v1 contract](gauntlet-rust-pr-readiness-plan.md) expires on
-**2026-11-17 17:07 UTC**. Build/publication (V2) and operational Native utility
-(V3) have the scoped evidence below; the other six exits remain open. The
+**2026-11-17 17:07 UTC**. Supported scope (V1), build/publication (V2), operational
+Native utility (V3) and retained-generation compatibility (V6) have the scoped
+evidence below; V4, V5, V7 and V8 remain open. The
 historical full-migration ledger stays **24/62
 complete, 38 open**; extended features remain uncompleted on the roadmap.
 
@@ -50,6 +51,15 @@ never becomes a candidate ZIP or admitted artifact.
 | Fresh standalone bounded authentication matches the original Host pin, signed completion and separately retained initialization storage. | `8e080e8b84c86bc2671b484428392cf3e5f388636502d20a7131eaf9726a44d7` |
 | Current Python/readiness adapters: six static export/call-arity checks pass and the removed module refuses; no product runtime is imported or executed by these checks. | `ac5ccd0fbdf511f366ad4defe38b6a8ce19077fbf93e7f6f87adf29c5c4d3d7b` |
 | Bounded SDK/MCP mount and failure-stage regressions: seven actual ARM tests pass; three affected SDK tests also pass on macOS. These are inert metadata/diagnostic tests, not a completed model pair. | `b8a4bb9b4d02e65edb71e7bfcc4efddc32dc049284b030281b9498c0e878a53b` |
+| Signed Live failure custody and never-dispatched preparation retirement at `ece1f9ee9`: all 170 Host library tests pass. | `7f623bde317d081de67eb77c856f31729f0742405ad7b5d12ac0e466a66f46f7` |
+| Original unused protected cell `ff5b821c6874ac8c` is retired through the new prepared-abort command; independent backing/loop/owner/mount/profile checks pass. Public inputs are preserved; private keys are not exported. | `d55b30df172a2f9663b78c6f622958e979e3059916a61d09e83d16007b272cf2` |
+| Baseline `00e4ae813cb7b6ab` completes with an authenticated failed report, zero model requests and independently verified cleanup. Its judgment remains incomplete; no policy block or successful smoke test is credited. | `ea4285fa4d88cdd45de22913a0d9bad163059eba41b7334ec6d0575cdb569b06` |
+| That completed failure is exported and retired through the normal command path; independent physical absence checks pass. The original archive and consumed dispatch remain retained. | `c8d94afc7d2aae723596689cea3e8f51aa36f8834a6485929d49c2eaae91e98f` |
+| Rust bridge fixes at `96f8f33cc`: 259 unprivileged ARM tests pass, with 37 explicit integration cases ignored and the separately tested identity case filtered on the initialized VM. | `9bb924fe6761078fa50fcde1ecb16d3e14b2d165256a002db44048c129322911` |
+| The same bridge source passes all 102 macOS Worker library tests. Actual executable/hash/inode/argv and namespace credential refusal regressions are included across the affected platforms. | `bda72df55e4ec73119f9c3900445fcce4f03bb025038282f4e4b77fdfd126221` |
+| Read-only bridge handoff at `a7c6089a5`: 261 unprivileged ARM tests pass. The direct ELF regression observes ETXTBSY with a held writer, then successful bounded execution after the same inode is retained read-only. | `805570bfa7ff8dc917cb97757731ab48c362d79b4dad04fc28d015d49477f3ee` |
+| The subsequent zero-turn failed baseline `01272ffba97f8889` is authenticated, reported, exported and retired. Independent backing/loop/owner/mount/profile absence checks pass; the failed result remains incomplete. | `551f889e0d3aaee97c1b10c557fbfedc95b80526c9f97beead3f3c02fa5dc597` |
+| CI checkout configuration preserves the exact PR head and disabled credential persistence; the two jobs running historical Evidence tests fetch the required baseline history. YAML and baseline-object checks pass; this is not a CI run. | `2a2e71fce4c17998e54174ed134828d3bbb1a8da916435981ae26966593c2658` |
 
 Formatting and warnings-denied macOS/ARM all-target/all-feature Clippy pass.
 The unchanged 420-file Python baseline remains intact. The frozen controller
@@ -83,8 +93,10 @@ The original independent judgment remains incomplete/invalid-evidence.
 The genuine MCP pair remains open. The first baseline attempt stopped at SDK
 container inspection before any retained model turn: four actual bounded
 temporary bind mounts were omitted from the inspector's count. The original
-dispatch is consumed. Its never-started SDK metadata and failure evidence need
-explicit recovery before retirement. The provider was stopped with its owned
+dispatch is consumed. Its exact never-started SDK metadata has since been
+removed through the keyed cleanup command, followed by the original quiescent
+Live repair. Exit and model usage remain unknown in those repair records;
+signed failure export and volume retirement remain pending. The provider was stopped with its owned
 child reaped, process group stopped and private socket removed. Retained quota
 is unchanged: 13,746,906 known tokens and 721,979 remaining. A fresh pair must
 use new job identities; no old dispatch or provider is restarted.
@@ -93,13 +105,47 @@ job/scope/source/permission checks and historical readers. Its affected
 regressions and ARM warnings-denied Clippy pass; a fresh live run is still
 required. Live errors now retain a closed stage label without logging private
 arguments, bodies or credentials.
+
+The next baseline, `00e4ae813cb7b6ab`, starts the SDK and passes its actual
+boundary checks, then fails at the closed `provider-bind` stage before inference.
+Normal read/report/export/retirement and fresh cleanup reads succeed; the unused
+protected cell is also retired and independently checked. Its provider is
+stopped with the child reaped, owned process group stopped and private socket
+removed. The retained quota remains unchanged.
+
+Commit `96f8f33cc` corrects two bridge identity checks: the fixed Rust process
+is verified against its own exact executable, inode, hash and six arguments;
+the Root listener has PID zero when observed from the SDK's descendant PID
+namespace and must retain UID/GID zero. Socket custody, reverse process and
+namespace authentication, capabilities and LSM checks remain required. The
+affected tests, formatting and macOS/ARM warnings-denied Clippy pass against
+CI input snapshot `abe833a2724deafc9a49710f7a1e577156810b7accfca78f5c1de531b8d3fc30`.
+These checks do not replace a genuine model run. Baseline `01272ffba97f8889`
+also fails before inference at `provider-bind`; its authenticated failure and
+the unused protected cell are retired through the normal commands and fresh
+independent checks. Source review identifies a further unconditional blocker:
+the copied bridge ELF retains an open writable descriptor, so Linux refuses
+its execution with ETXTBSY.
+
+Commit `a7c6089a5` closes that writer before retaining the same inode read-only,
+preserving full metadata and byte verification. The direct execution regression
+and all 261 unprivileged ARM tests pass, as do warnings-denied ARM Clippy and
+formatting, against input snapshot
+`1a22e2546d55fcdfe86669007ab68a20caf25c74392a4a6752a25c09576ddcad`.
+Closed handshake substages expose no raw errors, arguments or credentials.
+The next pair uses Worker `e136f027` and the original 200,000-token ceiling;
+genuine inference remains uncompleted at this checkpoint.
 Actual SDK remains 18.4.12/Bun 1.3.14;
 this does not establish newer-SDK or general SDK/Bash qualification. The old
 unknown-owner VM and its evidence remain quarantined and unchanged.
 
 GitHub reports repository Actions enabled and the Rust workflow active, but
-fresh dispatch still returns HTTP 422, “Actions has been disabled for this
-repository.” All five actual final-head jobs and independent repository
+the source-head dispatch at **2026-11-17 04:31:24 UTC** still returns HTTP 422,
+“Actions has been disabled for this repository.” Request ID:
+`CEB3:FE7FC:68CDE:14D9DA:6AFBD89C`; retained observation SHA-256
+`eeac5de9e03af10a73bb562dd4eed344b942022c9ab1f8fa31162a426a7bbae5`.
+No PR-triggered runs exist for pushed head `96f8f33cc` at the later check.
+All five actual final-head jobs and independent repository
 approval remain required before integration merge. No local result replaces
 those gates. Raw recordings remain private outside Git.
 

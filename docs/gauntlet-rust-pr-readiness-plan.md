@@ -25,6 +25,12 @@ general SDK/Bash safety, Guard causality, benchmark qualification or cutover.
 
 ## Release scope
 
+The primary CLI admits new bounded build/dependency work, readonly utility
+cells and the fixed MCP-only pair. Historical standalone SDK run commands
+remain diagnostics and grant no v1 qualified admission. Python entrypoints
+and historical readers remain available; whole-current legacy parity and
+Python retirement are outside this release.
+
 - Normal finite-storage source/build/dependency/staging/artifact commands,
   original-authority readback and retirement.
 - One fresh final-source Native read-only utility control, with actual success,
@@ -70,6 +76,7 @@ become ready. Do not repeat passing unchanged checks or expand feature scope.
 | Twelve-cell beta and 800/140/160 campaigns | **Uncompleted.** Explicit campaign/source admission and sufficient retained allowance required. |
 | Complete policy/writer/causality attribution and benchmark conformance | **Uncompleted.** Retain the original independent-authority requirements and incomplete judgments. |
 | Automatic postmortem namespace-owner recovery | **Uncompleted.** Original authority cannot be adopted, reconstructed or deleted to obtain a pass. |
+| SDK source-input retirement | **Uncompleted.** The installed SDK reader still requires the original source/publication metadata. Keep its original input state retained until a supported retirement authority exists. |
 | Automatic release observer, active PR gate, cutover/rollback and Python retirement | **Uncompleted.** Full required parity/rollout evidence and separate operator authorization required. |
 
 ## Non-negotiable release gates
