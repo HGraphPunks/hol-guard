@@ -2,7 +2,7 @@
 use super::super::bounded::tests::frame;
 use super::*;
 use std::{fs, io::Write, os::unix::fs::PermissionsExt};
-fn fixture() -> (tempfile::TempDir, Journal, Value, Fake) {
+pub(super) fn fixture() -> (tempfile::TempDir, Journal, Value, Fake) {
     let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
     writer
         .start_file("inert.txt", zip::write::SimpleFileOptions::default())
@@ -42,14 +42,14 @@ fn fixture() -> (tempfile::TempDir, Journal, Value, Fake) {
     };
     (temp, j, i, fake)
 }
-struct Fake {
+pub(super) struct Fake {
     i: Value,
-    payload: Vec<u8>,
-    initial: usize,
-    reads: usize,
-    controls: usize,
-    partial: bool,
-    exported: bool,
+    pub(super) payload: Vec<u8>,
+    pub(super) initial: usize,
+    pub(super) reads: usize,
+    pub(super) controls: usize,
+    pub(super) partial: bool,
+    pub(super) exported: bool,
     ack: Option<Value>,
     retired: Option<Value>,
     forged_retirement: bool,
@@ -71,14 +71,24 @@ impl Fake {
 impl Rpc for Fake {
     fn archive(&mut self, args: &[String], file: &mut File) -> Result<usize, String> {
         assert_eq!(args.len(), 11);
+        assert_eq!(
+            args,
+            protocol::export_args(&self.i, &args[1]).unwrap().as_slice()
+        );
         match args[1].as_str() {
             "--export-source-job-artifact-v1" => {
-                assert_eq!(self.initial, 0);
+                if self.exported {
+                    return Err(
+                        "Root export intent already consumed; O_EXCL refuses replacement".into(),
+                    );
+                }
                 self.initial += 1;
                 self.exported = true;
             }
             "--read-source-job-artifact-v1" => {
-                assert!(self.exported);
+                if !self.exported {
+                    return Err("original Root export intent absent".into());
+                }
                 self.reads += 1;
             }
             _ => panic!("unexpected archive selector"),
@@ -167,44 +177,6 @@ fn actual_private_zip_receipt_precedes_ack_and_independently_bound_retirement() 
     assert_eq!(rpc.initial, 1);
     assert_eq!(rpc.reads, 0);
     assert!(download(&j, &i, false, &mut rpc).is_err());
-}
-#[test]
-fn partial_stream_is_preserved_and_explicit_read_uses_new_one_use_file() {
-    let (_temp, j, i, mut rpc) = fixture();
-    rpc.partial = true;
-    assert!(download(&j, &i, false, &mut rpc).is_err());
-    let job = text(&i, "job_id").unwrap();
-    let partial = j.path.join(format!("{job}.source-artifact-0001.zip"));
-    assert_eq!(fs::read(&partial).unwrap(), rpc.payload[..8]);
-    assert!(j.absent(job, RECEIPT).unwrap());
-    download(&j, &i, true, &mut rpc).unwrap();
-    assert_eq!(fs::read(&partial).unwrap(), rpc.payload[..8]);
-    assert_eq!(rpc.initial, 1);
-    assert_eq!(rpc.reads, 1);
-    assert!(text(&value(&j, &i, RECEIPT).unwrap()["file"], "name")
-        .unwrap()
-        .ends_with("0002.zip"));
-}
-#[test]
-fn complete_local_file_with_lost_metadata_reconciles_without_any_zip_replay() {
-    let (_temp, j, i, mut rpc) = fixture();
-    struct Lost<'a>(&'a mut Fake);
-    impl Rpc for Lost<'_> {
-        fn archive(&mut self, a: &[String], f: &mut File) -> Result<usize, String> {
-            self.0.archive(a, f)
-        }
-        fn control(&mut self, _: &[String]) -> Result<Vec<u8>, String> {
-            Err("lost metadata reply".into())
-        }
-    }
-    assert!(download(&j, &i, false, &mut Lost(&mut rpc)).is_err());
-    assert!(j.absent(text(&i, "job_id").unwrap(), RECEIPT).unwrap());
-    download(&j, &i, true, &mut rpc).unwrap();
-    assert_eq!(rpc.initial, 1);
-    assert_eq!(rpc.reads, 0);
-    assert!(text(&value(&j, &i, RECEIPT).unwrap()["file"], "name")
-        .unwrap()
-        .ends_with("0001.zip"));
 }
 #[test]
 fn changed_missing_linked_or_public_archive_refuses_ack_before_root_contact() {

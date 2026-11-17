@@ -44,6 +44,18 @@ pub(crate) struct LifecycleLock {
     descriptor: OwnedFd,
     before: Stat,
     name: &'static str,
+    acquiring_pid: u32,
+}
+
+impl Drop for LifecycleLock {
+    fn drop(&mut self) {
+        // CLOEXEC does not close an inherited descriptor until exec. Release
+        // this guard's lock now, even if a concurrent child still holds a copy.
+        // A child dropping its inherited guard must not unlock its live parent.
+        if std::process::id() == self.acquiring_pid {
+            let _ = flock(&self.descriptor, FlockOperation::Unlock);
+        }
+    }
 }
 
 impl LifecycleFiles {
@@ -155,34 +167,45 @@ impl LifecycleFiles {
         if !self.private_file(&before) || before.st_size != 0 {
             return Err(Error::UnsafeFile);
         }
-        let lock = LifecycleLock {
-            descriptor,
-            before,
-            name,
-        };
-        self.check_lock(&lock)?;
+        self.check_lock_identity(&descriptor, &before, name)?;
         let operation = if exclusive {
             FlockOperation::NonBlockingLockExclusive
         } else {
             FlockOperation::NonBlockingLockShared
         };
-        flock(&lock.descriptor, operation).map_err(|e| {
+        flock(&descriptor, operation).map_err(|e| {
             if e == Errno::AGAIN {
                 Error::Busy
             } else {
                 Error::Io
             }
         })?;
+        // A failed acquisition owns no lock and must never run the unlock Drop.
+        let lock = LifecycleLock {
+            descriptor,
+            before,
+            name,
+            acquiring_pid: std::process::id(),
+        };
         self.check_lock(&lock)?;
         Ok(lock)
     }
 
     pub(crate) fn check_lock(&self, lock: &LifecycleLock) -> Result<(), Error> {
+        self.check_lock_identity(&lock.descriptor, &lock.before, lock.name)
+    }
+
+    fn check_lock_identity(
+        &self,
+        descriptor: &OwnedFd,
+        before: &Stat,
+        name: &str,
+    ) -> Result<(), Error> {
         self.stable()?;
-        let held = fstat(&lock.descriptor).map_err(|_| Error::Changed)?;
-        let visible = statat(&self.directory, lock.name, AtFlags::SYMLINK_NOFOLLOW)
-            .map_err(|_| Error::Changed)?;
-        if !same_file(&lock.before, &held) || !same_file(&lock.before, &visible) {
+        let held = fstat(descriptor).map_err(|_| Error::Changed)?;
+        let visible =
+            statat(&self.directory, name, AtFlags::SYMLINK_NOFOLLOW).map_err(|_| Error::Changed)?;
+        if !same_file(before, &held) || !same_file(before, &visible) {
             return Err(Error::Changed);
         }
         Ok(())
@@ -273,5 +296,76 @@ impl LifecycleFiles {
             return Err(Error::CommitUncertain);
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rustix::io::{dup, fcntl_getfd, FdFlags};
+    use std::os::unix::fs::PermissionsExt;
+
+    fn fixture() -> (tempfile::TempDir, LifecycleFiles) {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap();
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let files = LifecycleFiles::initialize(&root, b"{}").unwrap();
+        (temp, files)
+    }
+
+    #[test]
+    fn guard_drop_releases_its_lock_while_an_inherited_description_remains_open() {
+        let (_temp, files) = fixture();
+        for observer in [false, true] {
+            let guard = files.lock(observer, true).unwrap();
+            assert!(fcntl_getfd(&guard.descriptor)
+                .unwrap()
+                .contains(FdFlags::CLOEXEC));
+            let inherited = dup(&guard.descriptor).unwrap();
+            assert!(matches!(files.lock(observer, true), Err(Error::Busy)));
+            drop(guard);
+            let current = files.lock(observer, true).unwrap();
+            files.check_lock(&current).unwrap();
+            assert_eq!(fstat(&inherited).unwrap().st_ino, current.before.st_ino);
+            drop(inherited);
+            // Closing a stale copy cannot release this independently opened guard.
+            assert!(matches!(files.lock(observer, true), Err(Error::Busy)));
+            drop(current);
+            files.lock(observer, true).unwrap();
+        }
+    }
+
+    #[test]
+    fn dropping_one_shared_guard_preserves_other_independent_live_guards() {
+        let (_temp, files) = fixture();
+        let first = files.lock(false, false).unwrap();
+        let inherited = dup(&first.descriptor).unwrap();
+        let other = files.lock(false, false).unwrap();
+        drop(first);
+        assert!(matches!(files.lock(false, true), Err(Error::Busy)));
+        drop(inherited);
+        assert!(matches!(files.lock(false, true), Err(Error::Busy)));
+        files.check_lock(&other).unwrap();
+        drop(other);
+        files.lock(false, true).unwrap();
+    }
+
+    #[test]
+    fn failed_acquisitions_and_foreign_process_drop_cannot_unlock_the_owner() {
+        let (_temp, files) = fixture();
+        let mut owner = files.lock(false, true).unwrap();
+        let inherited = dup(&owner.descriptor).unwrap();
+        for _ in 0..3 {
+            assert!(matches!(files.lock(false, false), Err(Error::Busy)));
+            assert!(matches!(files.lock(false, true), Err(Error::Busy)));
+            files.check_lock(&owner).unwrap();
+        }
+        // Emulate a destructor in the forked child, without forking this test process.
+        owner.acquiring_pid = 0;
+        drop(owner);
+        assert!(matches!(files.lock(false, true), Err(Error::Busy)));
+        flock(&inherited, FlockOperation::Unlock).unwrap();
+        drop(inherited);
+        files.lock(false, true).unwrap();
     }
 }

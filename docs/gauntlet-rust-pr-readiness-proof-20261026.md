@@ -4,10 +4,11 @@
 
 The [bounded v1 contract](gauntlet-rust-pr-readiness-plan.md) expires on
 **2026-11-17 17:07 UTC**. Supported scope (V1), build/publication (V2), operational
-Native utility (V3), bounded recovery truthfulness (V5) and retained-generation
-compatibility (V6) have the scoped evidence below; V4, V7 and V8 remain open. The
-historical full-migration ledger stays **24/62
-complete, 38 open**; extended features remain uncompleted on the roadmap.
+Native utility (V3), one genuine MCP-only operational smoke (V4), bounded recovery
+truthfulness (V5) and retained-generation compatibility (V6) have the scoped
+evidence below; V7 and V8 remain open. The business task and protected pair have
+not passed. The historical full-migration ledger stays **24/62 complete, 38 open**;
+extended features remain uncompleted on the roadmap.
 
 Product candidate source is frozen at `4edfc22e3260cac6c2c0fa2316748a4c41b882f2`,
 including upstream `2a5488a4e119f051162d0c191c356c3562360b69`.
@@ -70,6 +71,14 @@ never becomes a candidate ZIP or admitted artifact.
 | The socket source passes macOS workspace and ARM Host warnings-denied Clippy, formatting and optimized Host compilation. | `6facefd58e03b5f7c49d1a6b3897dbba741429504f7bbe1741b14b2972095e83`, `5532551d22653f610141ac7fceb9cd7fc12f4327b4f6c3b8c858aa37a068857f`, `e09606617c84b54eba519593c2645dd90a51ca009381c2a421f81520dbe04e48`, `2eb86af8028c93ba7285df9d0fde422861c4e1809d4a6e90d6764dad4707900d` |
 | Original signed failure `1b8a46b5d840b1a1` is downloaded, independently read back, acknowledged and retired through the normal failure path. Its original archive and truthful unknown exit/usage remain retained; fresh outside checks confirm physical absence. | `96c1421eaee2a3c31f9fd0748b0cc664da8e246dcd24d1858c273ca657c8979a`, `f314d62c55949b93f1fb291da3be750674fd2e60de72ff531d31205147748e8c` |
 | Later post-start failure `94b57a857a0e966b` is repaired and freshly authenticated through its original released-Live authority. Exit and usage remain null; its bounded volume stays retained. Its unused protected cell is normally aborted with outside absence checks. | `708963855284d4238cb932fc9e71b8b04e4e9425e65b7149413e19f51263965a`, `0c97d7e383fd7ee88072d96da37b0f366a31834c6a302603c39652779cf9c1f6` |
+| Baseline `8aeaa56247605da4`: independently valid evidence, three genuine completed requests, 29,514 tokens, seven joined World calls and exact 24-tool MCP-only admission. The business task fails five actual artifact/provenance checks; evidence and security error lists are empty. | `67bcddd6fb881a852c6b53ed4404d80df30d5a931f69b43f6e291cd7ea25a382` |
+| Protected `43623a9070ae2ba2` stops at prompt policy before inference: zero model requests, failed producer, incomplete judgment and verified cleanup. The pair reports failed/incomplete, with baseline measurement complete and protected secure completion false. | `5e62043911197bb74f8088b44f38cbfce70c3b4d9057a685556425ca68e9e49e`, `3cc2a079dfe39258e8c72c4c490c69e0209b8dc4a70b2eafbdb6928609cf3ac0` |
+| Strict retained-frame decoding: all 242 macOS Evidence library tests and 29 selected ARM tests pass, including ten provider, ten projection and nine pair cases. | `4afed1abd3d691c0c8835b959943eccb7117fd453f584b594c8b171dd155c709`, `5c7f643d0e9ffd37e2b64e3ed7758405129d400a2c040eec992333dee89bc4ec` |
+| Baseline retirement/readback and fresh four-lease outside checks verify backing, loop, owner/product cgroups, mounts and profiles absent. The original archive remains retained. | `fcf8405ab4677c9496943572c9b280816e16661260f6559da496e59a2db697c1`, `8229e7290fdcf7dc5f2d171f51ab2860aa248bf5f41075a83545e0abde185e94` |
+| Protected retirement/readback and fresh four-lease outside checks likewise verify the original resources absent. Its failed report and archive remain retained. | `8edd7bc213acbe87627fb30f25e1ea07eb5c85032f296802ff503b2c90921bcf`, `1aad3f8858436b1df589039400861e96510909f70c3b553ef2f4d17a9bbd6916` |
+| Final macOS workspace/all-target/all-feature run: 992 passed across 229 targets, zero failures/ignored/filtered; inputs unchanged. | `792ae79b84ad6ff1d282fc06d3ab1b231c7222b67fb4f84c5bdf48d54aaf4868` |
+| The same source passes full warnings-denied macOS workspace Clippy. Three deterministic lifecycle-lock ownership regressions also pass. | `88cff292e9703227113840fd39e77447f0ff798de046ba4f0867e77d43687f38`, `7c3633cf176e8c603e0190d659b469c77bc77da8c7a2f9862e5862b2d5276df2` |
+| Dependency Source ZIP is privately downloaded, acknowledged, independently read back and retired. Fresh four-lease checks verify the original backing/loop/owner/socket/container/cgroup/mount/profile absence. | `bfa74ebac0ac06bd9c643873568de412be5333b28749f69bf63da838bd574d8d`, `01fc3f297d243fd167126b3242e2d4768de1d5b4190670435fa9d64e2b1f5ea1` |
 
 Formatting and warnings-denied macOS/ARM all-target/all-feature Clippy pass.
 The unchanged 420-file Python baseline remains intact. The frozen controller
@@ -100,20 +109,22 @@ the product clears them before executing the target. This observation does
 not grant image-history admission, writer attribution or benchmark causality.
 The original independent judgment remains incomplete/invalid-evidence.
 
-The genuine MCP pair remains open. The first baseline attempt stopped at SDK
-container inspection before any retained model turn: four actual bounded
-temporary bind mounts were omitted from the inspector's count. The original
+Before the socket and retained-frame fixes, the original pair's first baseline
+attempt stopped at SDK container inspection before any retained model turn:
+four actual bounded temporary bind mounts were omitted from the inspector's
+count. The original
 dispatch is consumed. Its exact never-started SDK metadata has since been
 removed through the keyed cleanup command, followed by the original quiescent
-Live repair. Exit and model usage remain unknown in those repair records;
-signed failure export and volume retirement remain pending. The provider was stopped with its owned
-child reaped, process group stopped and private socket removed. Retained quota
-is unchanged: 13,746,906 known tokens and 721,979 remaining. A fresh pair must
-use new job identities; no old dispatch or provider is restarted.
+Live repair. Exit and model usage remain unknown in those repair records.
+At that earlier checkpoint, signed failure export and volume retirement were
+pending; their subsequent verified completion is linked above. That provider
+stopped with its owned child reaped, process group stopped and private socket
+removed. Quota then remained at 13,746,906 known tokens and 721,979 remaining.
+Later attempts used fresh job identities; no old dispatch or provider restarted.
 Commit `4e1bb3069` fixes SDK/MCP temporary-mount counting while retaining exact
 job/scope/source/permission checks and historical readers. Its affected
-regressions and ARM warnings-denied Clippy pass; a fresh live run is still
-required. Live errors now retain a closed stage label without logging private
+regressions and ARM warnings-denied Clippy passed before the later live attempts.
+Live errors retain a closed stage label without logging private
 arguments, bodies or credentials.
 
 The next baseline, `00e4ae813cb7b6ab`, starts the SDK and passes its actual
@@ -157,8 +168,8 @@ fails promptly, retains a closed substage and follows existing cleanup.
 The regression covers actual terminal threads and normalized request/usage
 joins. Four existing files change; none is added. Final affected checks use
 snapshot `1e7a8914390b5351ea5ac0bcbfca5cac5db9a12aa11c895c24f0b40ed20ace84`.
-The fresh pair retains the original 200,000-token ceiling; genuine inference
-remains uncompleted at this checkpoint.
+Those attempts retained the original 200,000-token ceiling and supplied no
+genuine inference.
 
 The next baseline, `94b57a857a0e966b`, loses its outside provider request before
 a verified result. Its consumed dispatch is repaired without inventing an
@@ -175,16 +186,62 @@ requests remain unchanged. Input snapshot
 passes the affected checks above. The separately frozen optimized Host is used
 for fresh preparation; Worker `e406a956` remains independently pinned. The
 unstarted setup preparations and every earlier failed attempt remain preserved.
+
+Source `6aa9a564b515038bef827b57f4127316e98e79c5` then adds strict interpretation
+of the actual eight-field request and twelve-field response transport frames.
+It checks canonical bodies, exact context, hashes and retained usage/snapshots
+before applying the existing outside Host, SDK and World joins. Legacy body
+readers retain their original byte-hash contract. The unchanged baseline archive
+has SHA-256 `d20fa58f7943aadda324460027d27448d03a5a91715eea7a3663bf0b5a2fbc35`.
+The affected checks use CI input snapshot
+`52f1aeb93fb5e27981b80ccccdaaa31ca6b0ad589f4ed0b4b6324309127b0fef`.
+
+That baseline completes the user's selected one-smoke operational harness scope:
+genuine inference, independently valid evidence, sealed SDK startup, 24 actual
+and enabled MCP tools, zero builtins/mounted tools, matching outside schemas on
+all three requests, seven SDK/World call joins and verified cleanup. Its business
+task remains failed with five artifact/provenance errors and no evidence or
+security errors. The protected attempt makes no model request; its prompt-policy
+refusal does not establish a protected MCP-tool block or successful inference.
+The pair remains failed/incomplete, with protected secure completion false.
+Execution eligibility, Guard causality and benchmark qualification remain false;
+authoritative Guard-policy intervention remains unproven. Passing business tasks,
+protected inference and a passing pair remain uncompleted roadmap work.
+
+Provider `011` retains 13,776,420 known tokens after the 29,514-token baseline.
+The unchanged task ceiling is 13,946,906, leaving 170,486 of its original 200,000
+tokens. Both model-job volumes are normally retired and independently checked;
+the SDK input state, post-start failure `94b57a857a0e966b` and old unknown-owner VM
+remain retained under their existing limits and authorities.
+
+Source ZIP recovery now has an explicit `download-resume` operation for a
+consumed Host transfer whose original Root export intent was never created.
+It preserves the original Source, exporter and transport pins, partial private
+files and shared four-attempt cap. Root's exclusive creation refuses every
+existing intent; recovering an existing export still requires explicit read.
+One cohesive recovery module moves the existing download/seal boundary and
+holds its restart regressions; no crate, binary or dependency is added.
+
+The full Host run also exposed lifecycle-lock contention consistent with a
+concurrent child retaining an inherited locked descriptor after its parent
+guard closed. Successful guards now explicitly unlock in the acquiring process;
+failed acquisitions and child drops cannot unlock a live owner. Original file
+identity/custody checks, CLOEXEC and Busy refusal remain unchanged. Three
+duplicated-descriptor regressions cover those ownership boundaries. Initial
+fixture failures remain retained; only their canonical private-directory setup
+was corrected. The original attached-build test remains unchanged. Final CI
+input snapshot is `9f37a93099b608322d6f75def7f815598ff25ae38c9fe2e19d57eda34e26f2e9`.
+
 Actual SDK remains 18.4.12/Bun 1.3.14;
 this does not establish newer-SDK or general SDK/Bash qualification. The old
 unknown-owner VM and its evidence remain quarantined and unchanged.
 
 GitHub reports repository Actions enabled and the Rust workflow active, but
-the source-head dispatch at **2026-11-17 04:31:24 UTC** still returns HTTP 422,
-“Actions has been disabled for this repository.” Request ID:
-`CEB3:FE7FC:68CDE:14D9DA:6AFBD89C`; retained observation SHA-256
+fresh dispatch of source head `6aa9a564b` at **2026-11-17 09:09 UTC** returns HTTP 422,
+“Actions has been disabled for this repository.” Retained observation SHA-256:
+`24a0bf3fdcf9750b36b1efabf7e19b392c9f04e5b319da2b1c63ff39fbb9e2ac`.
+The earlier 04:31:24 UTC observation remains retained as
 `eeac5de9e03af10a73bb562dd4eed344b942022c9ab1f8fa31162a426a7bbae5`.
-No PR-triggered runs exist for pushed head `96f8f33cc` at the later check.
 All five actual final-head jobs and independent repository
 approval remain required before integration merge. No local result replaces
 those gates. Raw recordings remain private outside Git.

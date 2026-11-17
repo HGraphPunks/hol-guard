@@ -1,6 +1,6 @@
 # Gauntlet Rust v1: bounded functional release
 
-Updated: 2026-11-16 UTC. Executor: **GPT-6.1 Sol, Max reasoning**.
+Updated: 2026-11-17 UTC. Executor: **GPT-6.1 Sol, Max reasoning**.
 
 ## Active goal
 
@@ -13,8 +13,11 @@ not erase its missed November 11 deadline or mark its open exits complete.
 Finish the supported command flow:
 **source → bounded build/dependencies → inert staging → isolated execution →
 independent observations/report → authenticated readback → verified cleanup**.
-Include the fixed two-cell MCP-only model pair within the existing retained
-allowance. Keep Python and historical readers available. Reuse the current
+Require the user's selected one genuine MCP-only model smoke within the existing
+retained allowance, with truthful task scoring and paired reporting. A failed
+business task does not fail the harness smoke when its evidence is complete and
+the independent report correctly identifies the failure. Keep Python and
+historical readers available. Reuse the current
 11 crates, commands and tests; add a file only for a necessary boundary or
 maintainable regression. Keep all evidence outside Git except small references.
 
@@ -26,7 +29,7 @@ general SDK/Bash safety, Guard causality, benchmark qualification or cutover.
 ## Release scope
 
 The primary CLI admits new bounded build/dependency work, readonly utility
-cells and the fixed MCP-only pair. Historical standalone SDK run commands
+cells and the fixed MCP-only smoke/pair reporting commands. Historical standalone SDK run commands
 remain diagnostics and grant no v1 qualified admission. Python entrypoints
 and historical readers remain available; whole-current legacy parity and
 Python retirement are outside this release.
@@ -37,10 +40,13 @@ Python retirement are outside this release.
   denied write, independently checked fixture/effects and bounded cleanup.
   Retain the existing incomplete benchmark judgment wherever its additional
   authorities are missing; report the operational observations separately.
-- The existing MCP-only support pair: genuine inference, sealed startup,
+- One existing MCP-only support smoke: genuine inference, sealed startup,
   actual closed tool inventory, outside Host request/usage joins, Root MCP/World
   requests and effects, and parent cleanup. Limit the job to 200,000 accounted
-  tokens (100,000 per cell), with no allowance reset or increase.
+  tokens total (100,000 per cell), with no allowance reset or increase. Preserve
+  the protected attempt and paired report, including any pre-inference policy
+  refusal. Protected inference/task success and a passing security benchmark
+  remain uncompleted when the retained evidence does not establish them.
 - Truthful outcomes: useful allowed effects, forbidden effects, proxy withholding,
   model refusal and Guard intervention stay distinct. Generic proxy errors or
   model self-restraint cannot establish a Guard policy block. Missing evidence
@@ -58,7 +64,7 @@ Python retirement are outside this release.
 | --- | --- |
 | 0–1 hour | Freeze this scope, fix baseline SDK startup and retained evidence checks, assess CI/quota/capacity. |
 | 1–5 hours | Prepare one isolated VM and immutable tools; complete the normal finite build/dependency/staging path. |
-| 5–12 hours | Run the Native utility control and genuine MCP pair; independently reduce/report original evidence. |
+| 5–12 hours | Run the Native utility control and genuine MCP smoke; independently reduce/report both original cells. |
 | 12–18 hours | Exercise failure/cancel/timeout/restart and cleanup; fix only release blockers. |
 | 18–21 hours | Run final affected macOS/ARM and repository checks, address review findings, update PR and evidence. |
 | 21–24 hours | Reserve for integration fixes, required checks/approval, clean push and handoff. |
@@ -74,6 +80,7 @@ become ready. Do not repeat passing unchanged checks or expand feature scope.
 | General SDK shell/eval and full output/memory/descriptor custody | **Uncompleted.** Production boundary plus genuine per-call, descendant and cancellation proof required before admission. |
 | Full 128-case legacy, installed/repeated/aged-home and multi-harness qualification | **Uncompleted.** Preserve historical Python/goldens; no replacement or retirement claim. |
 | Twelve-cell beta and 800/140/160 campaigns | **Uncompleted.** Explicit campaign/source admission and sufficient retained allowance required. |
+| Successful model business task and protected inference pair | **Uncompleted.** The genuine baseline's draft fails five artifact requirements. The protected cell stops before inference because product prompt policy flags the benign heading `Public artifact format:`. Keep both failures and their original oracles; a product-policy fix and a fresh admitted pair require separate evidence within the remaining allowance. |
 | Complete policy/writer/causality attribution and benchmark conformance | **Uncompleted.** Retain the original independent-authority requirements and incomplete judgments. |
 | Automatic postmortem namespace-owner recovery | **Uncompleted.** Original authority cannot be adopted, reconstructed or deleted to obtain a pass. |
 | General post-start failed-Live archive and volume retirement | **Uncompleted.** The released-Live repair preserves quiescence and unknown exit/usage, but its original bounded volume remains retained until a supported archival authority exists. The separately supported signed failure from a never-started SDK has its own authenticated custody and retirement path. |

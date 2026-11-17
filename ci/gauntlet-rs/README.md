@@ -7,7 +7,9 @@ Gauntlet's trusted code separately from the HOL Guard product workspace in
 
 The November 16 delivery targets a bounded Rust v1: finite build/dependency/
 staging/artifact commands, the Native read-only utility control, the fixed
-MCP-only model smoke pair and truthful independent reports/readback/cleanup.
+MCP-only model smoke and truthful paired reports/readback/cleanup. A model task
+failure remains a failure in the report; protected-task success is still open
+where product policy prevents inference.
 New unbounded build/dependency/feature work and ordinary SDK/Bash deterministic
 work are refused; their historical reads and cleanup remain available. Extended
 legacy qualification, wide campaigns and automatic rollout remain uncompleted
@@ -201,10 +203,16 @@ still under focused validation.
 | --- | --- |
 | `build` | source/transfer; transfer-bounded/transfer-bounded-read; run-bounded/read-bounded; capture/wheel-stage; prefix-clone/prefix-clone-read; runtime-publish/runtime-publish-read |
 | `dependencies` | inputs/transfer/transfer-read; run-bounded/read-bounded/repair-bounded; prefix-stage/prefix-stage-read |
-| `artifacts` | record/download/download-read; ack/ack-read; retire/retire-read/retire-resume; separate failure-record/download/ack/retire with explicit read/resume commands |
+| `artifacts` | record/download/download-read/download-resume; ack/ack-read; retire/retire-read/retire-resume; separate failure-record/download/ack/retire with explicit read/resume commands |
 | `deterministic`, `live` | initialize/initialize-read; record; prepare/prepare-read; run/read/report/repair; live adds provision/provision-read/pair |
 | `provider` | prepare/start/read/stop; source/job-bound serial Unix model relay with retained quota cap/history checks |
 | Lifecycle | attach-job/refresh-job; status/agent/up remain passive |
+
+For a Source ZIP transfer consumed before Root created its export intent,
+`artifacts download-resume` uses the original authority and exporter. Root
+creates only an absent export intent; an existing intent requires explicit
+`download-read`. Partial private files remain intact and all three commands
+share four attempts. This recovery never reruns a build or model workload.
 
 For a completed nonzero build with no wheel, use `artifacts failure-record`
 with its original build and Source journals, then `failure-download`,

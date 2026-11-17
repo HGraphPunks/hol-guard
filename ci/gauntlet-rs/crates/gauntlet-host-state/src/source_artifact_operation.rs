@@ -8,11 +8,14 @@ mod failure;
 mod file;
 #[path = "source_artifact_protocol.rs"]
 mod protocol;
+#[path = "source_artifact_recovery.rs"]
+mod recovery;
 pub(in crate::native_operation) use file::{
     create_named as create_private_archive, open_named as open_private_archive,
     Held as HeldPrivateArchive,
 };
 pub(super) use protocol::{candidate_proof, candidate_read_args, candidate_read_header};
+use recovery::download;
 const INTENT: &str = "source-artifact-intent";
 const DOWNLOAD: &str = "source-artifact-download-dispatch";
 const EXPORT: &str = "source-artifact-export";
@@ -22,7 +25,7 @@ const ACK_DISPATCH: &str = "source-artifact-ack-dispatch";
 const RETIRE: &str = "source-artifact-retirement-intent";
 const RETIRE_DISPATCH: &str = "source-artifact-retirement-dispatch";
 const RETIRED: &str = "source-artifact-retired";
-pub const SOURCE_ARTIFACT_USAGE:&str="artifacts commands:\nrecord PRIVATE_0700_JOURNAL PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 PRIVATE_FLOW_DIR JOB_ID candidate|dependency RESULT_SHA256 ARCHIVE_SHA256 EXPORTER_SHA256\ndownload|download-read|ack|ack-read PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nretire PRIVATE_JOURNAL JOB_ID INTENT_SHA256 RETIRER_SHA256\nretire-read|retire-resume PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nfailure-record PRIVATE_0700_JOURNAL PRIVATE_TRANSFER_DIR SOURCE_INTENT_SHA PRIVATE_PIN_DIR JOB_ID READER_SHA\nfailure-download|failure-download-read|failure-download-resume|failure-ack|failure-ack-read|failure-ack-resume PRIVATE_JOURNAL JOB_ID FAILURE_INTENT_SHA\nfailure-retire PRIVATE_JOURNAL JOB_ID FAILURE_INTENT_SHA RETIRER_SHA\nfailure-retire-read|failure-retire-resume PRIVATE_JOURNAL JOB_ID FAILURE_INTENT_SHA\nZIP bytes stay in files created once with mode 0600 under the 0700 journal. Failed builds instead retain a closed USTAR of actual result-bound logs and a sanitized manifest; it grants no artifact admission and usage stays unknown. Partial files are preserved; at most 4 explicit read attempts. Ack and retirement verify actual retained bytes and the original bounded Source/readback. Retire-resume continues only the original consumed cleanup; retire-read never mutates Root state. Host receipt hashes are derived internally; workloads are never replayed.";
+pub const SOURCE_ARTIFACT_USAGE:&str="artifacts commands:\nrecord PRIVATE_0700_JOURNAL PRIVATE_TRANSFER_DIR SOURCE_TRANSFER_INTENT_SHA256 PRIVATE_FLOW_DIR JOB_ID candidate|dependency RESULT_SHA256 ARCHIVE_SHA256 EXPORTER_SHA256\ndownload|download-read|download-resume|ack|ack-read PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nretire PRIVATE_JOURNAL JOB_ID INTENT_SHA256 RETIRER_SHA256\nretire-read|retire-resume PRIVATE_JOURNAL JOB_ID INTENT_SHA256\nfailure-record PRIVATE_0700_JOURNAL PRIVATE_TRANSFER_DIR SOURCE_INTENT_SHA PRIVATE_PIN_DIR JOB_ID READER_SHA\nfailure-download|failure-download-read|failure-download-resume|failure-ack|failure-ack-read|failure-ack-resume PRIVATE_JOURNAL JOB_ID FAILURE_INTENT_SHA\nfailure-retire PRIVATE_JOURNAL JOB_ID FAILURE_INTENT_SHA RETIRER_SHA\nfailure-retire-read|failure-retire-resume PRIVATE_JOURNAL JOB_ID FAILURE_INTENT_SHA\nZIP bytes stay in files created once with mode 0600 under the 0700 journal. Download-resume can create a missing Root export intent under the original pins; existing intents are never overwritten. Failed builds instead retain a closed USTAR of actual result-bound logs and a sanitized manifest; it grants no artifact admission and usage stays unknown. Partial files are preserved; download/read/resume share at most 4 attempts. Ack and retirement verify actual retained bytes and the original bounded Source/readback. Retire-resume continues only the original consumed cleanup; retire-read never mutates Root state. Host receipt hashes are derived internally; workloads are never replayed.";
 fn text<'a>(v: &'a Value, k: &str) -> Result<&'a str, String> {
     v[k].as_str()
         .ok_or_else(|| format!("Source artifact {k} absent"))
@@ -209,76 +212,6 @@ fn observe_export(j: &Journal, i: &Value, rpc: &mut impl Rpc) -> Result<Value, S
     j.retain(text(i, "job_id")?, EXPORT, &bytes(&state)?)?;
     Ok(state)
 }
-fn seal(j: &Journal, i: &Value, export: &Value, h: &mut file::Held) -> Result<Value, String> {
-    h.finish(j, text(i, "archive_sha256")?)?;
-    if h.facts["bytes"] != export["receipt"]["archive_bytes"] {
-        return Err("actual Host file length differs from Root export".into());
-    }
-    stable(j, i)?;
-    let receipt = file::receipt(j, i, export, h)?;
-    j.write(text(i, "job_id")?, RECEIPT, &bytes(&receipt)?)?;
-    h.verify(j, text(i, "archive_sha256")?)?;
-    Ok(receipt)
-}
-fn download(j: &Journal, i: &Value, read: bool, rpc: &mut impl Rpc) -> Result<Value, String> {
-    stable(j, i)?;
-    let job = text(i, "job_id")?;
-    if !read {
-        if !j.absent(job, DOWNLOAD)? || !j.absent(job, RECEIPT)? {
-            return Err("Source download already consumed; use explicit download-read".into());
-        }
-        for n in 1..=4 {
-            if !file::absent(j, job, n)? {
-                return Err("orphan archive file blocks initial download".into());
-            }
-        }
-        super::idle(j)?;
-        j.write(job, DOWNLOAD, &marker(i, "download")?)?;
-    } else if j.read(job, DOWNLOAD)? != marker(i, "download")? {
-        return Err("original consumed Source download required".into());
-    }
-    if !j.absent(job, RECEIPT)? {
-        let e = exported(j, i)?;
-        file::retained(j, i, &e)?;
-        return summary(j, i, "downloaded");
-    }
-    if read {
-        // A complete file whose SSH completion was lost can be reconciled
-        // without downloading again. Partial attempts are never truncated.
-        for n in 1..=4 {
-            if !file::absent(j, job, n)? {
-                let mut h = file::open_attempt(j, job, n)?;
-                if h.verify(j, text(i, "archive_sha256")?).is_ok() {
-                    let e = observe_export(j, i, rpc)?;
-                    seal(j, i, &e, &mut h)?;
-                    return summary(j, i, "downloaded");
-                }
-            }
-        }
-    }
-    let attempt = (1..=4)
-        .find(|n| file::absent(j, job, *n).unwrap_or(false))
-        .ok_or("Source download attempts exhausted; preserve all private evidence")?;
-    let mut h = file::create(j, job, attempt)?;
-    j.write(job,&format!("source-artifact-attempt-{attempt:04}"),&bytes(&json!({"schema":"hol-gauntlet-host-source-artifact-attempt.v1","intent_sha256":sha(&bytes(i)?),"attempt":attempt,"read_only":read,"file":h.name}))?)?;
-    stable(j, i)?;
-    rpc.archive(
-        &protocol::export_args(
-            i,
-            if read {
-                "--read-source-job-artifact-v1"
-            } else {
-                "--export-source-job-artifact-v1"
-            },
-        )?,
-        &mut h.file,
-    )?;
-    h.finish(j, text(i, "archive_sha256")?)?;
-    stable(j, i)?;
-    let e = observe_export(j, i, rpc)?;
-    seal(j, i, &e, &mut h)?;
-    summary(j, i, "downloaded")
-}
 fn acknowledge(j: &Journal, i: &Value, read: bool, rpc: &mut impl Rpc) -> Result<Value, String> {
     stable(j, i)?;
     let job = text(i, "job_id")?;
@@ -449,7 +382,8 @@ pub fn run_source_artifact_command(args: &[String]) -> Result<Value, String> {
         (Some("record"), 10) => return record(args),
         (
             Some(
-                "download" | "download-read" | "ack" | "ack-read" | "retire-read" | "retire-resume",
+                "download" | "download-read" | "download-resume" | "ack" | "ack-read"
+                | "retire-read" | "retire-resume",
             ),
             4,
         ) => {}
@@ -478,6 +412,7 @@ pub fn run_source_artifact_command(args: &[String]) -> Result<Value, String> {
     let mut rpc = Owned { lima, i: &i };
     match args[0].as_str() {
         "download" | "download-read" => download(&j, &i, args[0] == "download-read", &mut rpc),
+        "download-resume" => recovery::resume(&j, &i, &mut rpc),
         "ack" | "ack-read" => acknowledge(&j, &i, args[0] == "ack-read", &mut rpc),
         "retire" => retire(&j, &i, Some(&args[4]), &mut rpc),
         "retire-read" => retire(&j, &i, None, &mut rpc),
