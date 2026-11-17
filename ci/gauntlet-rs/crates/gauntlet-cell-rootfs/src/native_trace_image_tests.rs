@@ -75,6 +75,62 @@ fn accelerated_digest_matches_the_existing_engine_across_read_boundaries() {
 mod root {
     use super::*;
 
+    #[test]
+    fn concurrent_sibling_creation_retains_actual_counts_and_all_final_waits() {
+        let (report, rows) = crate::native_trace_tests::run("thread-churn");
+        assert_eq!(report["created_tasks"], 19);
+        assert_eq!(report["final_waits"], 19);
+        assert_eq!(report["exec_retirements"], 0);
+        assert_eq!(report["execs"], 0);
+        assert_eq!(report["complete"], true);
+        assert_eq!(
+            rows.iter()
+                .filter(|row| row["kind"] == "kernel-creation")
+                .count(),
+            18
+        );
+        assert_eq!(
+            rows.iter()
+                .filter(|row| row["kind"] == "task-created")
+                .count(),
+            18
+        );
+        assert_eq!(
+            rows.iter()
+                .filter(|row| row["kind"] == "task-final-wait")
+                .count(),
+            19
+        );
+        assert!(!rows.iter().any(|row| row["kind"] == "trace-failed"));
+        let actor = &rows
+            .iter()
+            .find(|row| row["kind"] == "trace-start")
+            .unwrap()["data"]["actor"]["task"];
+        let mut counts = std::collections::BTreeSet::new();
+        for row in rows.iter().filter(|row| row["kind"] == "task-created") {
+            let task = &row["data"]["task"];
+            assert_eq!(task["tgid"], actor["tgid"]);
+            assert_eq!(task["isolation"], actor["isolation"]);
+            assert_eq!(row["data"]["creation"], "clone");
+            let count = task["status"]["Threads"]
+                .as_str()
+                .unwrap()
+                .parse::<u32>()
+                .unwrap();
+            assert!((1..=128).contains(&count));
+            counts.insert(count);
+        }
+        assert!(
+            counts.len() > 1,
+            "the recorder retained changing actual thread counts"
+        );
+        assert_eq!(
+            counts.last(),
+            Some(&19),
+            "all sixteen leaf threads overlap both creators and the leader"
+        );
+    }
+
     fn root_input() -> tempfile::NamedTempFile {
         assert_eq!(
             unsafe { libc::geteuid() },

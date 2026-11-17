@@ -1,19 +1,27 @@
 # Rust migration restart: integration and regression proof
 
-## Rust v1 checkpoint — November 16, 2026, in progress
+## Rust v1 checkpoint — November 16–17, 2026, in progress
 
 The [bounded v1 contract](gauntlet-rust-pr-readiness-plan.md) expires on
 **2026-11-17 17:07 UTC**. Its eight exits remain open until their required
 evidence is complete. The historical full-migration ledger stays **24/62
 complete, 38 open**; extended features remain uncompleted on the roadmap.
 
-Production source is frozen at `4edfc22e3260cac6c2c0fa2316748a4c41b882f2`,
+Product candidate source is frozen at `4edfc22e3260cac6c2c0fa2316748a4c41b882f2`,
 including upstream `2a5488a4e119f051162d0c191c356c3562360b69`.
 Follow-ups through `8ffa848d5f36c96bf4192082671008b0d32be5ad` change only nine
 test inputs. Six are dedicated test modules; three change only their
 `cfg(test)` tails. Their production prefixes are byte-identical. The retained
 equivalence record has SHA-256
 `a45872fcab6a87009133f0639d8b20446ef39c078c1a4d26164135557d004a80`.
+
+Later orchestration tools are separately pinned. Native failure custody and
+exact approved helper-pair selection are committed in `28fabe8f5`; the
+observer refresh-lock race is fixed in `20e691901`. Seven product input groups
+are byte-identical between the candidate source and `28fabe8f5`, including
+the product Rust/Python trees and actor/adapter inputs. The retained Git-object
+comparison has SHA-256
+`9bd671e3a7dbd6a5cdca0876a24438a5a27c2ffce2bb34df0acdb6604d0e19ba`.
 
 The release build now disables Cargo release LTO and uses 16 codegen units.
 This preserves the existing isolation, 12-GiB memory, CPU, process, disk and
@@ -24,14 +32,19 @@ never becomes a candidate ZIP or admitted artifact.
 
 | Verified observation | Retained record SHA-256 |
 | --- | --- |
-| Full macOS Rust workspace/all-target/all-feature command exits 0; log capture is partial, so no exact total count is claimed. | `9556bc8a78d32b5c59248b73f576342c3a49c6a79cfe8e4cc492e2a90e333f4b` |
-| ARM Worker: 250 unprivileged tests pass, 37 explicit Root/integration tests remain ignored; the initialized-VM Root-only identity case passes separately. | `3f8d1209f6b1efd6091fbe14afe06261dcc668f8911f5c97e8285b95d855ca5c` |
+| Full macOS Rust workspace/all-target/all-feature check after the observer race fix: 965 pass, zero failed/ignored, complete retained log. | `4de7575084e2884e57a60a750880127394d51fdb6e0513d844791e39170ca2ee` |
+| ARM Worker at `28fabe8f5`: 251 unprivileged tests pass, 37 explicit Root/integration tests remain ignored; the unchanged Root-only identity case has separate earlier evidence. | `b81ec8c104fe3a2b9d1a707dce9490d9a9fdf4db9f54382c86cbfffb29a9718c` |
 | All 22 selected Root recovery/staging cases pass, including five explicitly invoked ignored fixtures and the identity case above. | `0f2b236289d5d467176ca49eaee64585985089224fe218e003df835bf4ebf24c` |
 | Fresh final-source dependency build exits 0; independent readback verifies 2,291 files and 336 directories with container/cgroup/profile cleanup. | `3ab5e385c019a5d02a1eea996b27c5f3698d72016838215909316f8f16dc42ae` |
 | Normal dependency-prefix staging completes with original Source/transport custody. | `a3e33a3638ff96ffc5bb866e813b6e5225da46016cdbd617d5fe50ae8a9c6140` |
 | The earlier candidate's actual OOM/build exit 1 is exported, acknowledged and retired through the new normal failure CLI. | `e248f9042a7dc9a5f0bf09c0ce3fb42699c902386a896d40b8b0fe2ae1ad3f35` |
 | Independent four-lease checks confirm both superseded volumes, loop references, owner cgroups and job AppArmor profiles absent. | `b157882b612bbb3c1cac41a3d25cd51169dc6643984d2fa72997c8e3f4c2abd0` |
 | Actual VM Python 3.12.3 bytes match the independently pinned executor-image interpreter; UV's build interpreter is not used as its patch-version oracle. | `c78048436f0503e79ca767bd4a5e3697f5196807e60ff184cce5d5f53bce4370` |
+| Normal isolated candidate build exits 0, including its installed Native contract checks. | `64ce84f1ebb1921f3f47ba44814f4e9063eae310dd62c8de4b242d4a34296487` |
+| Independent candidate readback, wheel staging, prefix clone and runtime publication complete; Native bytes and runtime tree remain pinned. | `4687fc5bb913b0a711e5e26a1ad26eea74814f7add33a02f86f3d21223a2f475` |
+| Original unsigned Native startup failure is privately exported, acknowledged and retired; independent backing/loop/cgroup/unit/mount/profile checks pass. | `f608df06a4d8c83810587952b5e92c7382dd042bb0c759b880157249afffce45` |
+| The next Native run produces an authenticated failed report; its actual archive is retained and independent retirement checks pass. This is not a successful utility result. | `ebecd5c4c3f10894c0fd08b6b1d7200a7a70708fd3dda61fab4dc3819f1b5826` |
+| ARM recorder regression observes all 19 tasks/final waits. Security-field refusal and three existing fork/exec/socket-refusal cases also pass; the reference record links the two new test results. | `4b4c10acf4bb3897c3ebfb953334a168a5d006fa7bfe4826e1c70e8a6620e59b` |
 
 Formatting and warnings-denied macOS/ARM all-target/all-feature Clippy pass.
 The unchanged 420-file Python baseline remains intact; the current controller
@@ -39,10 +52,17 @@ map contains 449 sources, with 418 installed files. Independent Python and
 Rust agree on tree
 `b486ec6936966b8643117dc6c1fc03486eff6c466738f6e5186847726018b6b8`.
 
-The isolated final-source candidate build is still running. Runtime
-publication, fresh Native utility execution, the genuine MCP-only pair and
-their cleanup are not yet credited. The new 200,000-token provider binding is
-prepared but has started no inference. Actual SDK remains 18.4.12/Bun 1.3.14;
+The first full macOS run exposed an unlocked preliminary observer read during
+an atomic checkpoint replacement. The fix preserves genuine identity-change
+refusal, passes its nine process regressions and the complete 965-test rerun.
+The fresh Native utility reached its signed controller but stopped when the
+process recorder detected changing task metadata. A narrow fix validates both
+dynamic thread-count samples, retains the first actual observation and keeps
+all identity/isolation comparisons exact. Its real concurrency regression
+passes in the ARM VM; the original failed field was not recorded, so a fresh
+successful utility run remains required. The genuine MCP-only
+pair has not run. Its 200,000-token provider binding is prepared but has started
+no inference. Actual SDK remains 18.4.12/Bun 1.3.14;
 this does not establish newer-SDK or general SDK/Bash qualification. The old
 unknown-owner VM and its evidence remain quarantined and unchanged.
 

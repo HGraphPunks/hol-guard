@@ -221,15 +221,51 @@ impl Task {
         let after_isolation = crate::native_trace_isolation::snapshot(&self.proc)?;
         let after = status(&self.proc)?;
         self.recheck(cgroup)?;
-        if isolation.value != after_isolation.value
-            || values != select(&after)?
-            || ["Pid", "Tgid", "PPid", "State"]
-                .iter()
-                .any(|key| fields.get(*key) != after.get(*key))
-            || number(&after, "Pid")? != self.tid
-            || number(&after, "Tgid")? != self.tgid
-        {
-            return Err("traced task isolation or identity changed during capture".into());
+        let mut changes = crate::native_trace_identity::status_changes(&values, &select(&after)?)?;
+        if isolation.value != after_isolation.value {
+            changes.push("isolation".into());
+            for name in ["pid", "mnt", "net", "ipc", "uts", "cgroup", "user"] {
+                if isolation.value["namespaces"][name] != after_isolation.value["namespaces"][name]
+                {
+                    changes.push(format!("isolation.namespaces.{name}"));
+                }
+            }
+            for key in [
+                "namespaces",
+                "user_namespace_chain",
+                "user_namespace_chain_end_reason",
+                "uid_map",
+                "gid_map",
+                "setgroups",
+                "lsm_label",
+            ] {
+                if isolation.value[key] != after_isolation.value[key] {
+                    changes.push(format!("isolation.{key}"));
+                }
+            }
+        }
+        for key in ["Pid", "Tgid", "PPid", "State"] {
+            if fields.get(key) != after.get(key) {
+                changes.push(format!("identity.{key}"));
+            }
+        }
+        if number(&after, "Pid")? != self.tid {
+            changes.push("identity.Pid".into());
+        }
+        if number(&after, "Tgid")? != self.tgid {
+            changes.push("identity.Tgid".into());
+        }
+        if !changes.is_empty() {
+            changes.sort();
+            changes.dedup();
+            // Only fixed field names and public kernel task IDs are exposed;
+            // namespace/label contents and private process arguments stay out.
+            let error = format!("traced task isolation or identity changed during capture: tid={}, tgid={}, fields={}", self.tid, self.tgid, changes.join(","));
+            return Err(if error.len() <= 2048 {
+                error
+            } else {
+                "traced task identity changed; field diagnostic bound exceeded".into()
+            });
         }
         Ok(
             json!({"tid":self.tid,"tgid":self.tgid,"start_ticks":self.start,"parent_pid":number(&fields,"PPid")?,"cgroup":cgroup,"status":values,"isolation":isolation.value}),
@@ -275,7 +311,7 @@ impl Task {
             return Err("traced exec argv unavailable".into());
         }
         let task = self.anchor(cgroup)?;
-        // Project the same twice-checked stopped-task snapshot into the legacy
+        // Project the same security-checked stopped-task snapshot into the legacy
         // image fields. A second independent sample cannot silently disagree.
         let mut namespaces = BTreeMap::new();
         for name in ["pid", "mnt", "net", "ipc", "uts", "cgroup", "user"] {

@@ -131,6 +131,36 @@ mod fixture {
                     std::thread::park();
                 }
             }
+            "thread-churn" => {
+                use std::sync::{Arc, Barrier};
+                let start = Arc::new(Barrier::new(3));
+                let finish = Arc::new(Barrier::new(17));
+                let creators = (0..2)
+                    .map(|_| {
+                        let start = start.clone();
+                        let finish = finish.clone();
+                        std::thread::spawn(move || {
+                            start.wait();
+                            let children = (0..8)
+                                .map(|_| {
+                                    let finish = finish.clone();
+                                    std::thread::spawn(move || {
+                                        finish.wait();
+                                    })
+                                })
+                                .collect::<Vec<_>>();
+                            for child in children {
+                                child.join().unwrap();
+                            }
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                start.wait();
+                finish.wait();
+                for creator in creators {
+                    creator.join().unwrap();
+                }
+            }
             "group-stop" => {
                 let pid = unsafe { libc::fork() };
                 assert!(pid >= 0);
