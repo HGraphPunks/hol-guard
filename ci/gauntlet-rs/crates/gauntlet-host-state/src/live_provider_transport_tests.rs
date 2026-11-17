@@ -82,6 +82,97 @@ fn private_unix_long_journal_uses_outside_pinned_short_directory_and_authenticat
     assert!(!journal.socket_path().unwrap().exists());
 }
 #[test]
+fn nonblocking_provider_listener_partial_post_waits_for_authenticated_complete_body() {
+    use rustix::fs::{fcntl_getfl, OFlags};
+    use std::net::Shutdown;
+    let (_temp, journal) = journal();
+    let intent = intent();
+    let digest = intent.digest().unwrap();
+    journal.put("provider-channel.json",&json!({"schema":"hol-gauntlet-rust-provider-private-channel.v1","binding_sha256":digest,"key":"ab".repeat(32)})).unwrap();
+    let listener = http::listener(&journal, &digest).unwrap();
+    let mut client = UnixStream::connect(journal.socket_path().unwrap()).unwrap();
+    client
+        .set_write_timeout(Some(Duration::from_millis(200)))
+        .unwrap();
+    let (mut server, _) = listener.accept().unwrap();
+    #[cfg(target_os = "macos")]
+    assert!(fcntl_getfl(&server).unwrap().contains(OFlags::NONBLOCK));
+    // Model Darwin's inherited flag on every platform. The withheld suffix
+    // prevents a fully buffered request from hiding a WouldBlock parse failure.
+    server.set_nonblocking(true).unwrap();
+    let control = server.try_clone().unwrap();
+    let body =
+        bytes(&json!({"fixture":"fragmented authenticated POST","qualification_eligible":false}))
+            .unwrap();
+    let nonce = "cd".repeat(32);
+    let binding = format!(
+        "request\nPOST\n/v1/chat/completions\n{digest}\n{nonce}\n{}\n1000",
+        sha(&body)
+    );
+    let signature = ring::hmac::sign(
+        &ring::hmac::Key::new(ring::hmac::HMAC_SHA256, &[0xab; 32]),
+        binding.as_bytes(),
+    )
+    .as_ref()
+    .iter()
+    .map(|b| format!("{b:02x}"))
+    .collect::<String>();
+    let head = format!("POST /v1/chat/completions HTTP/1.1\r\nHost: provider.invalid\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\nX-Hol-Provider-Binding: {digest}\r\nX-Hol-Provider-Nonce: {nonce}\r\nX-Hol-Provider-Mac: {signature}\r\nX-Hol-Provider-Remaining-Millis: 1000\r\n\r\n",body.len());
+    let split = 17;
+    client.write_all(&head.as_bytes()[..split]).unwrap();
+    let (blocking, premature, written, joined) = std::thread::scope(|scope| {
+        let parser = scope.spawn(move || http::request(&mut server));
+        let deadline = Instant::now() + Duration::from_secs(1);
+        let mut blocking = false;
+        while Instant::now() < deadline {
+            blocking =
+                matches!(fcntl_getfl(&control),Ok(flags) if !flags.contains(OFlags::NONBLOCK));
+            if blocking || parser.is_finished() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        let premature = parser.is_finished();
+        let written = (|| -> std::io::Result<()> {
+            if blocking {
+                client.write_all(&head.as_bytes()[split..])?;
+                let middle = body.len() / 2;
+                client.write_all(&body[..middle])?;
+                client.write_all(&body[middle..])?;
+            }
+            Ok(())
+        })();
+        // Close/reap before any assertion, including the expected old-code
+        // failure. An incomplete request cannot strand a scoped parser thread.
+        let _ = client.shutdown(Shutdown::Both);
+        (blocking, premature, written, parser.join())
+    });
+    drop(control);
+    drop(client);
+    drop(listener);
+    journal.remove_socket(&digest).unwrap();
+    let parsed = joined.expect("provider parser thread panicked");
+    assert!(
+        blocking,
+        "accepted stream retained NONBLOCK: {:?}",
+        parsed.as_ref().err()
+    );
+    assert!(
+        !premature,
+        "partial request completed before its suffix/body"
+    );
+    written.unwrap();
+    let request = parsed.unwrap();
+    assert_eq!(request.method, "POST");
+    assert_eq!(request.path, "/v1/chat/completions");
+    assert_eq!(request.body, body);
+    assert_eq!(
+        http::model_deadline(&request).unwrap(),
+        Duration::from_secs(1)
+    );
+    http::authenticate(&request, &journal, &intent).unwrap();
+}
+#[test]
 fn private_socket_replacement_and_ambiguous_http_are_refused() {
     let (_temp, journal) = journal();
     let intent = intent();

@@ -85,6 +85,9 @@ pub(super) fn listener(journal: &Journal, digest: &str) -> Result<UnixListener, 
 }
 pub(super) fn request(stream: &mut UnixStream) -> Result<Request, String> {
     stream
+        .set_nonblocking(false)
+        .map_err(|_| "provider HTTP blocking mode unavailable")?;
+    stream
         .set_read_timeout(Some(Duration::from_secs(10)))
         .map_err(|_| "provider HTTP deadline unavailable")?;
     stream
