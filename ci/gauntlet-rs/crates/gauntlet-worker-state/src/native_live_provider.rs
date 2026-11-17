@@ -24,6 +24,34 @@ use std::{
 
 pub(crate) const MODEL_CHANNEL_FD: i32 = 4;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LiveBindStep {
+    Arguments,
+    Accept,
+    SocketLimits,
+    Peer,
+    Hello,
+    Recheck,
+    Ready,
+    Journal,
+    Relay,
+}
+impl LiveBindStep {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Arguments => "arguments",
+            Self::Accept => "accept",
+            Self::SocketLimits => "socket-limits",
+            Self::Peer => "peer",
+            Self::Hello => "hello",
+            Self::Recheck => "recheck",
+            Self::Ready => "ready",
+            Self::Journal => "journal",
+            Self::Relay => "relay",
+        }
+    }
+}
+
 pub(crate) fn inherited_channel(generation: &str) -> Result<UnixStream, String> {
     let mut peer = std::mem::MaybeUninit::<libc::ucred>::uninit();
     let mut length = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
@@ -104,68 +132,77 @@ impl NativeLiveProvider {
         program: &File,
         mut parent: UnixStream,
         cancel: Arc<AtomicBool>,
-    ) -> Result<Self, String> {
-        let deadline = Instant::now() + Duration::from_secs(30);
-        let mut socket = loop {
-            if let Some(socket) = sockets.accept_model()? {
-                break socket;
-            }
-            if cancel.load(Ordering::Acquire) || Instant::now() >= deadline {
-                return Err("live model bridge did not bind before deadline".into());
-            }
-            std::thread::sleep(Duration::from_millis(10));
-        };
-        socket
-            .set_read_timeout(Some(Duration::from_secs(
-                crate::native_live_spec::ACTIVE_SECONDS,
-            )))
-            .and_then(|_| socket.set_write_timeout(Some(Duration::from_secs(30))))
-            .map_err(|_| "bounded SDK model channel required")?;
-        let peer = NativeSdkModelPeer::bind(
-            &socket,
-            boundary,
-            program,
-            &job.source_sha,
-            &job.job_id,
-            &job.worker_generation,
-            &live.model.budget_digest,
-        )?;
-        let hello = read_frame(&mut socket, 4096)?;
-        if hello
-            != json!({"schema":"hol-gauntlet-native-live-http-hello.v1","source_sha":job.source_sha,"job_id":job.job_id,
+    ) -> Result<Self, LiveBindStep> {
+        let mut step = LiveBindStep::Accept;
+        let result = (|| -> Result<Self, String> {
+            let deadline = Instant::now() + Duration::from_secs(30);
+            let mut socket = loop {
+                if let Some(socket) = sockets.accept_model()? {
+                    break socket;
+                }
+                if cancel.load(Ordering::Acquire) || Instant::now() >= deadline {
+                    return Err("live model bridge did not bind before deadline".into());
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            };
+            step = LiveBindStep::SocketLimits;
+            socket
+                .set_read_timeout(Some(Duration::from_secs(
+                    crate::native_live_spec::ACTIVE_SECONDS,
+                )))
+                .and_then(|_| socket.set_write_timeout(Some(Duration::from_secs(30))))
+                .map_err(|_| "bounded SDK model channel required")?;
+            step = LiveBindStep::Peer;
+            let peer = NativeSdkModelPeer::bind(
+                &socket,
+                boundary,
+                program,
+                &job.source_sha,
+                &job.job_id,
+                &job.worker_generation,
+                &live.model.budget_digest,
+            )?;
+            step = LiveBindStep::Hello;
+            let hello = read_frame(&mut socket, 4096)?;
+            if hello
+                != json!({"schema":"hol-gauntlet-native-live-http-hello.v1","source_sha":job.source_sha,"job_id":job.job_id,
             "worker_generation":job.worker_generation,"budget_digest":live.model.budget_digest})
-        {
-            return Err("live model bridge context differs".into());
-        }
-        peer.recheck(&socket)?;
-        write_frame(
-            &mut socket,
-            &json!({"schema":"hol-gauntlet-native-live-http-ready.v1","source_sha":job.source_sha,
+            {
+                return Err("live model bridge context differs".into());
+            }
+            step = LiveBindStep::Recheck;
+            peer.recheck(&socket)?;
+            step = LiveBindStep::Ready;
+            write_frame(
+                &mut socket,
+                &json!({"schema":"hol-gauntlet-native-live-http-ready.v1","source_sha":job.source_sha,
             "job_id":job.job_id,"budget_digest":live.model.budget_digest}),
-            4096,
-        )?;
-        let observation = peer.observation();
-        let root =
-            crate::open_root_owned_public_directory(&job.job_root()).map_err(|e| e.to_string())?;
-        let fd = openat(
-            &root,
-            "live-provider-events.v1.jsonl",
-            OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
-            Mode::from_bits_truncate(0o600),
-        )
-        .map_err(|e| e.to_string())?;
-        let mut journal = File::from(fd);
-        let ledger = Arc::new(Mutex::new(NativeLiveModelLedger::new(
-            &job.source_sha,
-            &job.job_id,
-            &live.model,
-        )?));
-        let turns = Arc::new(Mutex::new(Vec::new()));
-        let stop = Arc::new(AtomicBool::new(false));
-        let (l, t, s) = (ledger.clone(), turns.clone(), stop.clone());
-        let channel = socket.try_clone().map_err(|e| e.to_string())?;
-        let retained_parent = parent.try_clone().map_err(|e| e.to_string())?;
-        let thread=std::thread::Builder::new().name("root-live-model-channel".into()).spawn(move||{
+                4096,
+            )?;
+            let observation = peer.observation();
+            step = LiveBindStep::Journal;
+            let root = crate::open_root_owned_public_directory(&job.job_root())
+                .map_err(|e| e.to_string())?;
+            let fd = openat(
+                &root,
+                "live-provider-events.v1.jsonl",
+                OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+                Mode::from_bits_truncate(0o600),
+            )
+            .map_err(|e| e.to_string())?;
+            let mut journal = File::from(fd);
+            step = LiveBindStep::Relay;
+            let ledger = Arc::new(Mutex::new(NativeLiveModelLedger::new(
+                &job.source_sha,
+                &job.job_id,
+                &live.model,
+            )?));
+            let turns = Arc::new(Mutex::new(Vec::new()));
+            let stop = Arc::new(AtomicBool::new(false));
+            let (l, t, s) = (ledger.clone(), turns.clone(), stop.clone());
+            let channel = socket.try_clone().map_err(|e| e.to_string())?;
+            let retained_parent = parent.try_clone().map_err(|e| e.to_string())?;
+            let thread=std::thread::Builder::new().name("root-live-model-channel".into()).spawn(move||{
             let mut sequence=0;let mut total=0;
             let mut retain=|kind:&str,value:&Value|->Result<(),String>{
                 sequence+=1;let mut raw=gauntlet_contracts::canonicalize(json!({"sequence":sequence,"kind":kind,"data":value}).to_string().as_bytes()).map_err(|_|"live model journal encoding failed")?;
@@ -204,15 +241,17 @@ impl NativeLiveProvider {
                 l.lock().map_err(|_|"live model ledger poisoned")?.delivered()?;
             }
         }).map_err(|e|e.to_string())?;
-        Ok(Self {
-            channel,
-            parent: retained_parent,
-            stop,
-            thread: Some(thread),
-            ledger,
-            turns,
-            peer: observation,
-        })
+            Ok(Self {
+                channel,
+                parent: retained_parent,
+                stop,
+                thread: Some(thread),
+                ledger,
+                turns,
+                peer: observation,
+            })
+        })();
+        result.map_err(|_| step)
     }
     pub(crate) fn close(&mut self) -> Value {
         let grace = Instant::now() + Duration::from_secs(3);

@@ -120,6 +120,83 @@ impl NativeSdkModelPeer {
 mod tests {
     use super::*;
     #[test]
+    fn live_elf_copy_executes_only_after_its_writer_is_closed() {
+        use std::{
+            io::Read,
+            os::fd::AsRawFd,
+            process::{Command, Stdio},
+            time::{Duration, Instant},
+        };
+        let temp = tempfile::tempdir().unwrap();
+        let root = open(
+            temp.path(),
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .unwrap();
+        let path = temp.path().join("gauntlet-vm-worker");
+        let mut writer = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .unwrap();
+        std::io::copy(&mut File::open("/proc/self/exe").unwrap(), &mut writer).unwrap();
+        writer.sync_all().unwrap();
+        rustix::fs::fchmod(&writer, Mode::from_bits_truncate(0o555)).unwrap();
+        let original = fstat(&writer).unwrap();
+        let command = || {
+            let mut c = Command::new(&path);
+            c.arg("--list")
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null());
+            c
+        };
+        match command().spawn() {
+            Err(error) => assert_eq!(error.raw_os_error(), Some(libc::ETXTBSY)),
+            Ok(mut child) => {
+                let _ = child.kill();
+                child.wait().unwrap();
+                panic!("writable ELF unexpectedly executed");
+            }
+        }
+        let mut reader = crate::native_sdk_public::readonly_live_bridge(&root, writer).unwrap();
+        assert!(same_executable(&original, &fstat(&reader).unwrap()));
+        // SAFETY: F_GETFL only observes flags on this live owned descriptor.
+        let flags = unsafe { libc::fcntl(reader.as_raw_fd(), libc::F_GETFL) };
+        assert!(flags >= 0 && flags & libc::O_ACCMODE == libc::O_RDONLY);
+        let mut raw = Vec::new();
+        reader.read_to_end(&mut raw).unwrap();
+        assert_eq!(
+            format!("{:x}", sha2::Sha256::digest(&raw)),
+            executable(
+                &open(
+                    format!("/proc/{}", std::process::id()),
+                    OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+                    Mode::empty()
+                )
+                .unwrap()
+            )
+            .unwrap()
+            .2
+        );
+        let mut child = command().spawn().unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some(status) = child.try_wait().unwrap() {
+                assert!(status.success());
+                break;
+            }
+            if Instant::now() >= deadline {
+                child.kill().unwrap();
+                child.wait().unwrap();
+                panic!("sealed inert ELF listing timed out");
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+    #[test]
     fn rust_bridge_identity_is_not_restricted_to_bun_but_keeps_exact_bytes_inode_and_argv() {
         let process = open(
             format!("/proc/{}", std::process::id()),

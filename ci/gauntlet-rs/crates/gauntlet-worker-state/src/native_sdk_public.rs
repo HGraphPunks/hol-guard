@@ -100,6 +100,29 @@ pub(crate) fn write_file(
         .map_err(|e| e.to_string())?;
     Ok(file)
 }
+pub(crate) fn readonly_live_bridge(root: &OwnedFd, writer: File) -> Result<File, String> {
+    let expected = fstat(&writer).map_err(|e| e.to_string())?;
+    // An executable cannot start while this inode has any writable descriptor.
+    drop(writer);
+    let file = File::from(
+        openat(
+            root,
+            "gauntlet-vm-worker",
+            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| e.to_string())?,
+    );
+    for actual in [
+        fstat(&file),
+        statat(root, "gauntlet-vm-worker", AtFlags::SYMLINK_NOFOLLOW),
+    ] {
+        if !crate::dependency_prefix_meta::same(&expected, &actual.map_err(|e| e.to_string())?) {
+            return Err("SDK live bridge changed while sealing executable".into());
+        }
+    }
+    Ok(file)
+}
 impl NativeSdkPublic {
     pub(crate) fn prepare(job: &Path) -> Result<Self, String> {
         Self::prepare_profile(job, false, None)
@@ -147,6 +170,7 @@ impl NativeSdkPublic {
             .and_then(|_| fsync(&output))
             .and_then(|_| fsync(&self.directory))
             .map_err(|e| e.to_string())?;
+        let output = readonly_live_bridge(&self.directory, output)?;
         self.files.push(PublicFile {
             name: "gauntlet-vm-worker",
             stat: fstat(&output).map_err(|e| e.to_string())?,

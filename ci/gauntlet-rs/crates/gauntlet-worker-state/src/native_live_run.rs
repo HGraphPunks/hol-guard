@@ -1,7 +1,7 @@
 //! Genuine source-selected OMP episodes over the actual Root World and normal
 //! Native MCP transport. The deterministic synthetic-stream profiles stay separate.
 use crate::native_live_artifacts::{LiveContext, SdkObservation};
-use crate::native_live_provider::NativeLiveProvider;
+use crate::native_live_provider::{LiveBindStep, NativeLiveProvider};
 use crate::native_operation_budget::NativeOperationBudget;
 use crate::native_sdk_agent::NativeSdkAgent;
 use crate::native_sdk_mcp_binding::{bind, BindingArtifacts};
@@ -97,6 +97,12 @@ fn failure_stage(
             .iter()
             .find(|(_, passed)| !passed)
             .map_or(LiveStage::ProviderCompletion, |(stage, _)| *stage)
+    }
+}
+fn failure_label(stage: LiveStage, bind: Option<LiveBindStep>) -> String {
+    match (stage, bind) {
+        (LiveStage::ProviderBind, Some(step)) => format!("{}:{}", stage.label(), step.label()),
+        _ => stage.label().into(),
     }
 }
 
@@ -239,6 +245,7 @@ pub(crate) fn run(
     let mut sdk_observation = SdkObservation::default();
     let mut binding = Value::Null;
     let mut stage = LiveStage::PlaneStart;
+    let mut bind_step = None;
     let attempted = (|| -> Result<(), String> {
         plane.start()?;
         if live.protected() {
@@ -272,17 +279,24 @@ pub(crate) fn run(
             &cancel,
         )?);
         stage = LiveStage::ProviderBind;
-        provider = Some(NativeLiveProvider::bind(
-            job,
-            live,
-            &sockets,
-            boundary.retain()?,
-            public.live_bridge()?,
-            channel
-                .take()
-                .ok_or("live model channel already consumed")?,
-            cancel.clone(),
-        )?);
+        bind_step = Some(LiveBindStep::Arguments);
+        provider = Some(
+            NativeLiveProvider::bind(
+                job,
+                live,
+                &sockets,
+                boundary.retain()?,
+                public.live_bridge()?,
+                channel
+                    .take()
+                    .ok_or("live model channel already consumed")?,
+                cancel.clone(),
+            )
+            .map_err(|step| {
+                bind_step = Some(step);
+                "bounded live provider binding failed".to_owned()
+            })?,
+        );
         stage = LiveStage::ModelBridgeReady;
         let ready_deadline = Instant::now() + Duration::from_secs(10);
         loop {
@@ -415,7 +429,7 @@ pub(crate) fn run(
     // subprocess error, request body, private command or credential.
     let error = (!complete).then(|| format!(
         "live OMP execution or retained observation did not complete at stage={}; private artifacts preserve the attempt",
-        failure_stage(attempted.is_err(), stage, &checks).label()));
+        failure_label(failure_stage(attempted.is_err(), stage, &checks),bind_step)));
     let (artifact_hashes, context_sha256) = artifact_hashes
         .map(|a| (a.hashes, json!(a.context_sha256)))
         .unwrap_or_else(|_| (json!({}), Value::Null));
@@ -429,6 +443,29 @@ pub(crate) fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn provider_substage_is_closed_and_cannot_mask_another_failure_stage() {
+        for step in [
+            LiveBindStep::Accept,
+            LiveBindStep::Peer,
+            LiveBindStep::Hello,
+            LiveBindStep::Recheck,
+            LiveBindStep::Ready,
+        ] {
+            assert_eq!(
+                failure_label(LiveStage::ProviderBind, Some(step)),
+                format!("provider-bind:{}", step.label())
+            );
+            assert_eq!(
+                failure_label(LiveStage::SdkCleanup, Some(step)),
+                "sdk-cleanup"
+            );
+        }
+        assert_eq!(
+            failure_label(LiveStage::ProviderBind, None),
+            "provider-bind"
+        );
+    }
     #[test]
     fn failed_stage_preserves_primary_attempt_before_cleanup_and_retention() {
         let checks = [
