@@ -22,6 +22,84 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LiveStage {
+    PlaneStart,
+    Prompt,
+    McpStart,
+    SdkPrepare,
+    SdkLaunch,
+    SdkBoundary,
+    ModelBridgeLaunch,
+    ProviderBind,
+    ModelBridgeReady,
+    SdkExec,
+    PreImportBinding,
+    McpConnect,
+    Episode,
+    OperationBudget,
+    SdkCleanup,
+    ModelBridgeCleanup,
+    McpCleanup,
+    AgentCleanup,
+    SocketCleanup,
+    CellCleanup,
+    McpObservation,
+    PublicCustody,
+    SdkCustody,
+    HostNullCustody,
+    ArtifactRetention,
+    RuntimePrefix,
+    ProviderCompletion,
+}
+impl LiveStage {
+    fn label(self) -> &'static str {
+        match self {
+            Self::PlaneStart => "plane-start",
+            Self::Prompt => "prompt",
+            Self::McpStart => "mcp-start",
+            Self::SdkPrepare => "sdk-prepare",
+            Self::SdkLaunch => "sdk-launch",
+            Self::SdkBoundary => "sdk-boundary",
+            Self::ModelBridgeLaunch => "model-bridge-launch",
+            Self::ProviderBind => "provider-bind",
+            Self::ModelBridgeReady => "model-bridge-ready",
+            Self::SdkExec => "sdk-exec",
+            Self::PreImportBinding => "pre-import-binding",
+            Self::McpConnect => "mcp-connect",
+            Self::Episode => "episode",
+            Self::OperationBudget => "operation-budget",
+            Self::SdkCleanup => "sdk-cleanup",
+            Self::ModelBridgeCleanup => "model-bridge-cleanup",
+            Self::McpCleanup => "mcp-cleanup",
+            Self::AgentCleanup => "agent-cleanup",
+            Self::SocketCleanup => "socket-cleanup",
+            Self::CellCleanup => "cell-cleanup",
+            Self::McpObservation => "mcp-observation",
+            Self::PublicCustody => "public-custody",
+            Self::SdkCustody => "sdk-custody",
+            Self::HostNullCustody => "host-null-custody",
+            Self::ArtifactRetention => "artifact-retention",
+            Self::RuntimePrefix => "runtime-prefix",
+            Self::ProviderCompletion => "provider-completion",
+        }
+    }
+}
+fn failure_stage(
+    attempt_failed: bool,
+    stage: LiveStage,
+    checks: &[(LiveStage, bool)],
+) -> LiveStage {
+    if attempt_failed {
+        stage
+    } else {
+        checks
+            .iter()
+            .find(|(_, passed)| !passed)
+            .map_or(LiveStage::ProviderCompletion, |(stage, _)| *stage)
+    }
+}
+
 fn paused(cancel: &AtomicBool, deadline: Instant) -> Result<(), String> {
     if cancel.load(Ordering::Acquire) || Instant::now() >= deadline {
         return Err("live OMP controller cancelled or expired".into());
@@ -160,15 +238,19 @@ pub(crate) fn run(
     let mut channel = Some(channel);
     let mut sdk_observation = SdkObservation::default();
     let mut binding = Value::Null;
+    let mut stage = LiveStage::PlaneStart;
     let attempted = (|| -> Result<(), String> {
         plane.start()?;
         if live.protected() {
+            stage = LiveStage::Prompt;
             let reviewed = plane.submit_prompt(prompt)?;
             if reviewed["decision"] != "allow" {
                 return Err("actual Native prompt did not allow live setup".into());
             }
         }
+        stage = LiveStage::McpStart;
         mcp.start(job, &preparation, pins, &actor, &cancel)?;
+        stage = LiveStage::SdkPrepare;
         agent = Some(NativeSdkAgent::prepare_live(
             &job.job_id,
             &preparation,
@@ -178,14 +260,18 @@ pub(crate) fn run(
             &mut mcp.sockets,
         )?);
         let owner = agent.as_mut().unwrap();
+        stage = LiveStage::SdkLaunch;
         let boundary = owner.launch(&assets, &public, &actor, &cancel)?;
+        stage = LiveStage::SdkBoundary;
         mcp.check_sdk_boundary(&boundary.observation())?;
+        stage = LiveStage::ModelBridgeLaunch;
         bridge = Some(owner.launch_live_model_bridge(
             &job.source_sha,
             &job.worker_generation,
             &live.model.budget_digest,
             &cancel,
         )?);
+        stage = LiveStage::ProviderBind;
         provider = Some(NativeLiveProvider::bind(
             job,
             live,
@@ -197,6 +283,7 @@ pub(crate) fn run(
                 .ok_or("live model channel already consumed")?,
             cancel.clone(),
         )?);
+        stage = LiveStage::ModelBridgeReady;
         let ready_deadline = Instant::now() + Duration::from_secs(10);
         loop {
             let child = bridge.as_mut().unwrap();
@@ -216,8 +303,10 @@ pub(crate) fn run(
             }
             paused(&cancel, ready_deadline)?;
         }
+        stage = LiveStage::SdkExec;
         sdk = Some(owner.launch_live_sdk(&cancel)?);
         let process = sdk.as_mut().unwrap();
+        stage = LiveStage::PreImportBinding;
         let (peer, observed) = bind(
             owner,
             &sockets,
@@ -231,7 +320,9 @@ pub(crate) fn run(
             &cancel,
         )?;
         binding = observed;
+        stage = LiveStage::McpConnect;
         mcp.connect_sdk(&peer, &cancel)?;
+        stage = LiveStage::Episode;
         serve(
             &sockets,
             &peer,
@@ -241,6 +332,7 @@ pub(crate) fn run(
             &cancel,
             &mut sdk_observation,
         )?;
+        stage = LiveStage::OperationBudget;
         budget
             .lock()
             .map_err(|_| "live operation budget poisoned")?
@@ -294,31 +386,36 @@ pub(crate) fn run(
     let model_requests = provider_value["ledger"]["turns_consumed"]
         .as_u64()
         .unwrap_or(0);
-    let complete = attempted.is_ok()
-        && [
-            sdk_cleanup.is_ok(),
-            bridge_cleanup.is_ok(),
-            mcp_cleanup.is_ok(),
-            agent_cleanup.is_ok(),
-            socket_cleanup.is_ok(),
-            cell_cleanup.is_ok(),
-            mcp_value.is_ok(),
-            public_after.is_ok(),
-            assets_after.is_ok(),
-            null_after.is_ok(),
-            artifact_hashes.is_ok(),
-            prefix_unchanged,
-        ]
-        .into_iter()
-        .all(|v| v)
-        && provider_value["error"].is_null()
-        && provider_value["ledger"]["pending_turn"].is_null()
-        && provider_value["ledger"]["turns"]
-            .as_array()
-            .is_some_and(|a| a.iter().all(|t| t["delivered_to_sdk"] == true))
-        && provider_value["ledger"]["turns_completed"].as_u64() == Some(model_requests)
-        && model_requests > 0;
-    let error=(!complete).then(||"live OMP execution or retained observation did not complete; private artifacts preserve the attempt".to_owned());
+    let checks = [
+        (LiveStage::SdkCleanup, sdk_cleanup.is_ok()),
+        (LiveStage::ModelBridgeCleanup, bridge_cleanup.is_ok()),
+        (LiveStage::McpCleanup, mcp_cleanup.is_ok()),
+        (LiveStage::AgentCleanup, agent_cleanup.is_ok()),
+        (LiveStage::SocketCleanup, socket_cleanup.is_ok()),
+        (LiveStage::CellCleanup, cell_cleanup.is_ok()),
+        (LiveStage::McpObservation, mcp_value.is_ok()),
+        (LiveStage::PublicCustody, public_after.is_ok()),
+        (LiveStage::SdkCustody, assets_after.is_ok()),
+        (LiveStage::HostNullCustody, null_after.is_ok()),
+        (LiveStage::ArtifactRetention, artifact_hashes.is_ok()),
+        (LiveStage::RuntimePrefix, prefix_unchanged),
+        (
+            LiveStage::ProviderCompletion,
+            provider_value["error"].is_null()
+                && provider_value["ledger"]["pending_turn"].is_null()
+                && provider_value["ledger"]["turns"]
+                    .as_array()
+                    .is_some_and(|a| a.iter().all(|t| t["delivered_to_sdk"] == true))
+                && provider_value["ledger"]["turns_completed"].as_u64() == Some(model_requests)
+                && model_requests > 0,
+        ),
+    ];
+    let complete = attempted.is_ok() && checks.iter().all(|(_, passed)| *passed);
+    // A closed stage code preserves the refusal location, never an arbitrary
+    // subprocess error, request body, private command or credential.
+    let error = (!complete).then(|| format!(
+        "live OMP execution or retained observation did not complete at stage={}; private artifacts preserve the attempt",
+        failure_stage(attempted.is_err(), stage, &checks).label()));
     let (artifact_hashes, context_sha256) = artifact_hashes
         .map(|a| (a.hashes, json!(a.context_sha256)))
         .unwrap_or_else(|_| (json!({}), Value::Null));
@@ -327,4 +424,40 @@ pub(crate) fn run(
         "model_requests":model_requests,"artifact_sha256":artifact_hashes,"context_sha256":context_sha256,"pre_import_binding_sha256":crate::native_live_model::sha(&gauntlet_contracts::canonicalize(binding.to_string().as_bytes()).map_err(|e|e.to_string())?),
         "status":if complete{"passed"}else{"failed"},"error":error,"qualified_role_complete":false,"execution_eligible":false,"guard_causality_verified":false});
     Ok(NativeApparatusReport { report, error })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn failed_stage_preserves_primary_attempt_before_cleanup_and_retention() {
+        let checks = [
+            (LiveStage::SdkCleanup, false),
+            (LiveStage::ArtifactRetention, false),
+        ];
+        assert_eq!(
+            failure_stage(true, LiveStage::SdkLaunch, &checks),
+            LiveStage::SdkLaunch
+        );
+        assert_eq!(
+            failure_stage(false, LiveStage::Episode, &checks),
+            LiveStage::SdkCleanup
+        );
+        assert_eq!(
+            failure_stage(
+                false,
+                LiveStage::Episode,
+                &[
+                    (LiveStage::SdkCleanup, true),
+                    (LiveStage::ArtifactRetention, false)
+                ]
+            )
+            .label(),
+            "artifact-retention"
+        );
+        assert_eq!(
+            failure_stage(false, LiveStage::Episode, &[]).label(),
+            "provider-completion"
+        );
+    }
 }

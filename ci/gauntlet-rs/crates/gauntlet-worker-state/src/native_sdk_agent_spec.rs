@@ -149,7 +149,14 @@ fn check_profile(
     let actual = value["Mounts"]
         .as_array()
         .ok_or("SDK bind inventory missing")?;
-    let tmpfs = if actual.iter().any(|m| m["Type"] == "tmpfs") {
+    // Root-bounded temporary filesystems are exposed as bind mounts. A
+    // legacy Tmpfs display without actual temporary mounts keeps its reader.
+    let tmpfs = if actual.iter().any(|m| {
+        m["Type"] == "tmpfs"
+            || crate::native_job_storage::tmpfs_limits()
+                .iter()
+                .any(|(target, _, _)| m["Destination"] == *target)
+    }) {
         crate::native_job_storage::check_tmpfs(value)?
     } else {
         0
@@ -243,7 +250,7 @@ pub(crate) fn check_retained_cleanup_task(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::native_job_storage::{check_tmpfs, tmpfs_limits};
+    use crate::native_job_storage::check_tmpfs;
     #[test]
     fn cleanup_cannot_adopt_a_running_task_or_treat_a_live_pid_as_stopped() {
         let running = json!({"State":{"Running":true,"Pid":4312}});
@@ -278,95 +285,118 @@ mod tests {
     }
     #[test]
     fn bounded_tmpfs_binds_cannot_borrow_another_job_scope_or_lose_protections() {
+        let name = "hol-sdk-bounded";
         let job = "0123456789abcdef";
-        let mounts:Vec<_>=[("/tmp","tmp"),("/var/tmp","var-tmp"),("/run","run"),("/dev/shm","shm")]
+        let nonce = "b".repeat(32);
+        let declared: BTreeMap<_, _> = [
+            "/runtime/home",
+            "/runtime/home/project",
+            "/runtime/agent",
+            "/sdk/node_modules",
+            "/runtime/bun",
+            "/runtime/public",
+            "/runtime/sdk-gate",
+            "/runtime/guard-hook",
+            "/runtime/resources",
+            "/runtime/live-model",
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(i, target)| (target.to_owned(), (format!("/fixture/sdk/{i}"), i < 3)))
+        .collect();
+        let mut value = inspection(name, job, &nonce);
+        value["Config"]["Labels"]["hol.gauntlet.sdk.profile"] =
+            json!("native-sdk-mcp-transport-v1");
+        value["Args"] = json!([crate::native_live_spec::PREPARATION_SECONDS.to_string()]);
+        value["HostConfig"]["Tmpfs"] = json!({});
+        value["Mounts"] = json!(declared.iter().map(|(target, (source, rw))|
+            json!({"Destination":target,"Source":source,"Type":"bind","RW":rw,"Propagation":"rprivate"})).collect::<Vec<_>>());
+        let temporary:Vec<_>=[("/tmp","tmp"),("/var/tmp","var-tmp"),("/run","run"),("/dev/shm","shm")]
             .into_iter().map(|(target,name)|json!({"Destination":target,"Type":"bind","RW":true,
                 "Propagation":"rprivate","Source":format!("/var/lib/hol-gauntlet-rust/job-volumes/{job}/temporary/sdk/{name}")})).collect();
-        let value = json!({"Config":{"Labels":{"hol.gauntlet.sdk.job":job}},"HostConfig":{"Tmpfs":{}},"Mounts":mounts});
+        value["Mounts"]
+            .as_array_mut()
+            .unwrap()
+            .extend(temporary.clone());
+        let check =
+            |v: &Value, running| check_live_inspection(v, name, job, &nonce, &declared, running);
+        assert_eq!(value["Mounts"].as_array().unwrap().len(), 14);
+        assert_eq!(check(&value, true).unwrap(), ("c".repeat(64), 41));
+        let mut stopped = value.clone();
+        stopped["State"] = json!({"Running":false,"Pid":0});
+        assert_eq!(check(&stopped, false).unwrap(), ("c".repeat(64), 0));
         assert_eq!(check_tmpfs(&value).unwrap(), 4);
-        for (field, bad) in [
-            (
-                "Source",
-                json!("/var/lib/hol-gauntlet-rust/job-volumes/fedcba9876543210/temporary/sdk/tmp"),
-            ),
-            (
-                "Source",
-                json!(format!(
-                    "/var/lib/hol-gauntlet-rust/job-volumes/{job}/temporary/mcp/tmp"
-                )),
-            ),
-            ("RW", json!(false)),
-            ("Propagation", json!("shared")),
-            ("Type", json!("volume")),
-        ] {
-            let mut changed = value.clone();
-            changed["Mounts"][0][field] = bad;
-            assert!(check_tmpfs(&changed).is_err(), "{field}");
+        for index in declared.len()..declared.len() + 4 {
+            for (field, bad) in [
+                (
+                    "Source",
+                    json!(
+                        "/var/lib/hol-gauntlet-rust/job-volumes/fedcba9876543210/temporary/sdk/tmp"
+                    ),
+                ),
+                (
+                    "Source",
+                    json!(format!(
+                        "/var/lib/hol-gauntlet-rust/job-volumes/{job}/temporary/mcp/tmp"
+                    )),
+                ),
+                ("RW", json!(false)),
+                ("Propagation", json!("shared")),
+                ("Type", json!("volume")),
+                ("Destination", json!("/elsewhere")),
+            ] {
+                let mut changed = value.clone();
+                changed["Mounts"][index][field] = bad;
+                assert!(check(&changed, true).is_err(), "{index}/{field}");
+            }
+            let mut missing = value.clone();
+            missing["Mounts"].as_array_mut().unwrap().remove(index);
+            assert!(check(&missing, true).is_err());
         }
-        let mut missing = value.clone();
-        missing["Mounts"].as_array_mut().unwrap().pop();
-        assert!(check_tmpfs(&missing).is_err());
         let mut duplicate = value.clone();
         duplicate["Mounts"]
             .as_array_mut()
             .unwrap()
-            .push(mounts[0].clone());
-        assert!(check_tmpfs(&duplicate).is_err());
-    }
-    #[test]
-    fn explicit_tmpfs_cannot_lose_either_capacity_or_a_mount() {
-        let mut tmpfs = serde_json::Map::new();
-        for (target, bytes, inodes) in tmpfs_limits() {
-            tmpfs.insert(
-                target.into(),
-                json!(format!(
-                    "rw,nosuid,nodev,noexec,size={bytes},nr_inodes={inodes},mode=1777"
-                )),
-            );
-        }
-        let value = json!({"HostConfig":{"Tmpfs":tmpfs}});
-        assert_eq!(check_tmpfs(&value).unwrap(), 4);
-        for (target, _, _) in tmpfs_limits() {
-            for (from, to) in [
-                ("nr_inodes=4096", "nr_inodes=0"),
-                ("size=16777216", "size=0"),
-                ("noexec", "exec"),
-                ("nosuid", "suid"),
-            ] {
-                let mut altered = value.clone();
-                let text = altered["HostConfig"]["Tmpfs"][target]
-                    .as_str()
-                    .unwrap()
-                    .replace(from, to);
-                if text == altered["HostConfig"]["Tmpfs"][target].as_str().unwrap() {
-                    continue;
-                }
-                altered["HostConfig"]["Tmpfs"][target] = json!(text);
-                assert!(check_tmpfs(&altered).is_err());
-            }
-            let mut missing = value.clone();
-            missing["HostConfig"]["Tmpfs"]
-                .as_object_mut()
-                .unwrap()
-                .remove(target);
-            assert!(check_tmpfs(&missing).is_err());
-        }
+            .push(temporary[0].clone());
+        assert!(check(&duplicate, true).is_err());
+        let mut replaced = value.clone();
+        replaced["Mounts"][declared.len()] = temporary[1].clone();
+        assert!(check(&replaced, true).is_err());
+        let mut extra = value.clone();
+        extra["Mounts"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"Destination":"/extra",
+            "Source":"/fixture/extra","Type":"bind","RW":true,"Propagation":"rprivate"}));
+        assert!(check(&extra, true).is_err());
+        let mut writable_bun = value.clone();
+        let bun = writable_bun["Mounts"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|m| m["Destination"] == "/runtime/bun")
+            .unwrap();
+        bun["RW"] = json!(true);
+        assert!(check(&writable_bun, true).is_err());
     }
     use serde_json::json;
-    #[test]
-    fn sdk_inspection_refuses_changed_owner_boundary_and_extra_mounts() {
-        let name = "hol-sdk-example";
-        let job = "a".repeat(16);
-        let nonce = "b".repeat(32);
-        let mounts = BTreeMap::from([("/runtime/bun".into(), ("/opt/bun".into(), false))]);
-        let value = json!({"Id":"c".repeat(64),"Name":format!("/{name}"),"Image":NATIVE_SDK_AGENT_IMAGE,
+    fn inspection(name: &str, job: &str, nonce: &str) -> Value {
+        json!({"Id":"c".repeat(64),"Name":format!("/{name}"),"Image":NATIVE_SDK_AGENT_IMAGE,
             "Path":"/usr/bin/sleep","Args":["240"],"AppArmorProfile":name,"State":{"Running":true,"Pid":41},
             "Config":{"User":"10001:10001","WorkingDir":"/runtime/home/project","Labels":{"hol.gauntlet.sdk.job":job,
                 "hol.gauntlet.sdk.nonce":nonce,"hol.gauntlet.sdk.profile":"native-sdk-transport-v1"}},
             "BoundingCaps":null,"EffectiveCaps":[],"HostConfig":{"Privileged":false,"ReadonlyRootfs":true,"NetworkMode":"none","Memory":2147483648_u64,
                 "PidsLimit":256,"NanoCpus":2000000000_u64,"CpusetCpus":"0-1","CgroupParent":format!("holgauntletrust{job}.slice"),
                 "CapAdd":[],"CapDrop":["CAP_ALL"],"SecurityOpt":["no-new-privileges",format!("apparmor={name}")]},
-            "Mounts":[{"Destination":"/runtime/bun","Source":"/opt/bun","Type":"bind","RW":false,"Propagation":"rprivate"}]});
+            "Mounts":[{"Destination":"/runtime/bun","Source":"/opt/bun","Type":"bind","RW":false,"Propagation":"rprivate"}]})
+    }
+    #[test]
+    fn sdk_inspection_refuses_changed_owner_boundary_and_extra_mounts() {
+        let name = "hol-sdk-example";
+        let job = "a".repeat(16);
+        let nonce = "b".repeat(32);
+        let mounts = BTreeMap::from([("/runtime/bun".into(), ("/opt/bun".into(), false))]);
+        let value = inspection(name, &job, &nonce);
         assert!(check_inspection(&value, name, &job, &nonce, &mounts, true).is_ok());
         let mut legacy_tmpfs_display = value.clone();
         legacy_tmpfs_display["HostConfig"]["Tmpfs"] = json!({"/tmp":"rw,nosuid,nodev,size=65536k"});
