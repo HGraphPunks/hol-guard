@@ -112,6 +112,17 @@ pub(crate) fn sse_response(raw: &[u8]) -> Result<Vec<u8>, String> {
     Ok(result)
 }
 
+#[cfg(any(all(target_os = "linux", target_arch = "aarch64"), test))]
+fn outside_root_server(pid: i32, uid: u32, gid: u32) -> Result<(), String> {
+    // SO_PEERCRED translates the listener PID into the caller's PID namespace.
+    // This closed profile's Root listener is outside the private SDK namespace,
+    // so its PID is zero. Its credentials must still be initial-userns Root.
+    if pid != 0 || uid != 0 || gid != 0 {
+        return Err("model server is not outside-namespace Root".into());
+    }
+    Ok(())
+}
+
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod bridge {
     use super::*;
@@ -268,9 +279,10 @@ mod bridge {
             return Err("Root model server credentials unavailable".into());
         }
         let peer = unsafe { peer.assume_init() };
-        if peer.uid != 0 || peer.gid != 0 || peer.pid <= 0 {
-            return Err("model server is not the Root controller".into());
-        }
+        // The fixed socket's Root-owned0710 directory and0660 Root:10001 inode
+        // cannot be replaced by the SDK; Root separately holds/rechecks both
+        // original objects and authenticates this bridge's full kernel tuple.
+        outside_root_server(peer.pid, peer.uid, peer.gid)?;
         channel
             .set_read_timeout(Some(Duration::from_secs(
                 crate::native_live_spec::ACTIVE_SECONDS,
@@ -376,6 +388,13 @@ pub(crate) use bridge::{read_frame, write_frame};
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn root_listener_credentials_require_hidden_pid_and_exact_root_ids() {
+        outside_root_server(0, 0, 0).unwrap();
+        for (pid, uid, gid) in [(1, 0, 0), (-1, 0, 0), (0, 10001, 0), (0, 0, 10001)] {
+            assert!(outside_root_server(pid, uid, gid).is_err());
+        }
+    }
     #[test]
     fn streaming_transport_normalization_preserves_actual_messages_and_pins_model_budget() {
         let input = json!({"model":MODEL,"messages":[{"role":"user","content":"source-selected prompt"}],"tools":[{"type":"function","function":{"name":"docs_read"}}],"stream":true,"stream_options":{"include_usage":true},"max_tokens":8192});

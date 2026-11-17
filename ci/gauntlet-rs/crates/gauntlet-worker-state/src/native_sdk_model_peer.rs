@@ -1,7 +1,28 @@
 //! Authenticate the fixed Rust HTTP bridge in the held SDK namespace.
 use super::*;
-use crate::staging_machine_observer::observe_sdk_executable;
+use crate::staging_product_process::executable;
 use sha2::Digest;
+
+fn verify_bridge_executable(
+    process: &OwnedFd,
+    expected: &Stat,
+    generation: &str,
+    argv: &[u8],
+) -> Result<(), String> {
+    if read_at(process, "cmdline", 16384)? != argv {
+        return Err("SDK model bridge argv changed".into());
+    }
+    // The peer is the fixed Rust bridge, not a Bun SDK entrypoint. Hash its
+    // actual held executable without applying a different program's argv gate.
+    let (_held, observed, digest) = executable(process)?;
+    if digest != generation || !same_executable(expected, &observed) {
+        return Err("SDK model bridge differs from outside worker bytes or inode".into());
+    }
+    if read_at(process, "cmdline", 16384)? != argv {
+        return Err("SDK model bridge argv changed while hashing".into());
+    }
+    Ok(())
+}
 
 pub(crate) struct NativeSdkModelPeer {
     agent: NativeSdkBoundary,
@@ -37,16 +58,6 @@ impl NativeSdkModelPeer {
         {
             return Err("immutable SDK model bridge artifact required".into());
         }
-        let observed = observe_sdk_executable(&ContainerProcessIdentity {
-            container_id: agent.container_id.clone(),
-            pid: pin.pid,
-            start_ticks: pin.start_ticks,
-            cgroup: pin.cgroup.clone(),
-        })
-        .ok_or("model bridge executable observation missing")?;
-        if observed.executable_sha256 != generation {
-            return Err("SDK model bridge differs from outside worker bytes".into());
-        }
         let argv = [
             "/runtime/public/gauntlet-vm-worker",
             "--live-model-http-bridge-v1",
@@ -67,6 +78,13 @@ impl NativeSdkModelPeer {
             argv,
             generation: generation.into(),
         };
+        bound.recheck(socket)?;
+        verify_bridge_executable(
+            &bound.snapshot.process,
+            &bound.program_stat,
+            &bound.generation,
+            &bound.argv,
+        )?;
         bound.recheck(socket)?;
         Ok(bound)
     }
@@ -95,5 +113,30 @@ impl NativeSdkModelPeer {
         json!({"schema":"hol-gauntlet-native-sdk-model-peer.v1","identity":self.snapshot.value(),
             "worker_generation":self.generation,"argv_sha256":format!("{:x}",sha2::Sha256::digest(&self.argv)),
             "fixed_executable_inode_verified":true,"execution_eligible":false})
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn rust_bridge_identity_is_not_restricted_to_bun_but_keeps_exact_bytes_inode_and_argv() {
+        let process = open(
+            format!("/proc/{}", std::process::id()),
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .unwrap();
+        let argv = read_at(&process, "cmdline", 16384).unwrap();
+        assert!(!argv.starts_with(b"/runtime/bun\0"));
+        let (_held, stat, digest) = executable(&process).unwrap();
+        verify_bridge_executable(&process, &stat, &digest, &argv).unwrap();
+        assert!(verify_bridge_executable(&process, &stat, &"0".repeat(64), &argv).is_err());
+        let mut changed = stat;
+        changed.st_ino = changed.st_ino.wrapping_add(1);
+        assert!(verify_bridge_executable(&process, &changed, &digest, &argv).is_err());
+        let mut changed = argv;
+        changed.extend_from_slice(b"foreign\0");
+        assert!(verify_bridge_executable(&process, &stat, &digest, &changed).is_err());
     }
 }
