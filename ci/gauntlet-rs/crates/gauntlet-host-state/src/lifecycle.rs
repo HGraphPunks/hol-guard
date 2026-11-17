@@ -114,6 +114,13 @@ impl HostLifecycleStore {
         Ok((bytes, value))
     }
 
+    pub(crate) fn read_shared(&self) -> Result<(Vec<u8>, Value), HostLifecycleError> {
+        let lock = self.files.lock(false, false)?;
+        let snapshot = self.read()?;
+        self.files.check_lock(&lock)?;
+        Ok(snapshot)
+    }
+
     pub(crate) fn transact<T>(
         &self,
         now: u64,

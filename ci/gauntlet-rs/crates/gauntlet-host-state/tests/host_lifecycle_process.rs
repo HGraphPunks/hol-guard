@@ -330,6 +330,36 @@ fn observer_start_survives_a_brief_status_reader_without_weakening_lease_ownersh
 }
 
 #[test]
+fn preliminary_refresh_reads_wait_for_the_transaction_before_checking_identity() {
+    let parent = parent();
+    let store =
+        HostLifecycleStore::initialize(parent.path(), "hashgraph-online/hol-guard", 1000).unwrap();
+    let checkpoint = parent.path().join("rust-host-v1/state.json");
+    let mut changed: Value = serde_json::from_slice(&fs::read(&checkpoint).unwrap()).unwrap();
+    changed["instance_id"] = json!("0".repeat(32));
+    let writer = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(parent.path().join("rust-host-v1/transaction.lock"))
+        .unwrap();
+    flock(&writer, FlockOperation::NonBlockingLockExclusive).unwrap();
+    // A writer owns the transaction while this checkpoint is not readable.
+    fs::write(
+        &checkpoint,
+        canonicalize(changed.to_string().as_bytes()).unwrap(),
+    )
+    .unwrap();
+    let job = "1".repeat(16);
+    let pin = "2".repeat(64);
+    assert_eq!(store.status(now()), Err(Error::Busy));
+    assert_eq!(store.refresh_job(&job, &pin, now()), Err(Error::Busy));
+    drop(writer);
+    // A genuine identity replacement remains final once the writer releases.
+    assert_eq!(store.status(now()), Err(Error::Changed));
+    assert_eq!(store.refresh_job(&job, &pin, now()), Err(Error::Changed));
+}
+
+#[test]
 fn observer_start_has_a_finite_wait_and_preserves_the_checkpoint_when_blocked() {
     let parent = parent();
     let _store =

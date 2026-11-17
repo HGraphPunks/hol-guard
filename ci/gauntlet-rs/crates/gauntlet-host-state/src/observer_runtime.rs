@@ -129,7 +129,7 @@ impl HostLifecycleStore {
         if !crate::lifecycle_document::hex(expected, 64) {
             return Err(Error::InvalidState);
         }
-        let (_, document) = self.read()?;
+        let (_, document) = self.read_shared()?;
         let row = document["jobs"]
             .as_array()
             .ok_or(Error::InvalidState)?
@@ -200,7 +200,7 @@ impl HostLifecycleStore {
         })
     }
     pub(crate) fn refresh_attached_jobs(&self, now: u64) -> Result<(), Error> {
-        let (_, document) = self.read()?;
+        let (_, document) = self.read_shared()?;
         let jobs = document["jobs"].as_array().ok_or(Error::InvalidState)?;
         for row in jobs
             .iter()
