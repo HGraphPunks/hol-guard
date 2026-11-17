@@ -197,7 +197,7 @@ fn admission_inventory() -> (Value, Value) {
         "version":"18.4.12","agentUid":10001,"qualification":false,"guardExtensionAttached":true,
         "activeTools":names,"enabledTools":names,"mountedXdevTools":[],"resourceTools":mapping,"model":model});
     (
-        json!({"sdk_events":format!("{start}\n"),"provider_turns":[{"request":json!({"model":model,"tools":declarations}).to_string()}]}),
+        json!({"sdk_events":format!("{start}\n"),"provider_turns":[{"request":json!({"model":model,"tools":declarations}).to_string(),"response":"{}"}]}),
         json!({"mcp":{"protected":true,"frontends":fronts}}),
     )
 }
@@ -246,7 +246,7 @@ fn mcp_only_inventory_joins_actual_getters_to_all_outside_model_declarations() {
                 changed["provider_turns"]
                     .as_array_mut()
                     .unwrap()
-                    .push(json!({"request":next.to_string()}));
+                    .push(json!({"request":next.to_string(),"response":"{}"}));
             }
             _ => unreachable!(),
         }
@@ -257,6 +257,22 @@ fn mcp_only_inventory_joins_actual_getters_to_all_outside_model_declarations() {
             "{variant}"
         );
     }
+    let mut request: Value =
+        serde_json::from_str(artifacts["provider_turns"][0]["request"].as_str().unwrap()).unwrap();
+    let mut framed = artifacts.clone();
+    framed["provider_turns"][0] =
+        super::super::admission::framed_turn_fixture(&request, &json!({}));
+    assert_eq!(
+        super::super::admission::inventory(&framed, &context).unwrap(),
+        observed
+    );
+    let mut changed = framed.clone();
+    changed["provider_turns"][0]["before"]["quota"] = json!("substituted");
+    assert!(super::super::admission::inventory(&changed, &context).is_err());
+    request["tools"][0]["function"]["parameters"]["additionalProperties"] = json!(true);
+    framed["provider_turns"][0] =
+        super::super::admission::framed_turn_fixture(&request, &json!({}));
+    assert!(super::super::admission::inventory(&framed, &context).is_err());
 }
 
 #[test]

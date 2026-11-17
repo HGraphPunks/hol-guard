@@ -104,10 +104,9 @@ pub(crate) fn normalized_sdk_events(events: &[Value], artifacts: &Value) -> Resu
     }
     let mut emitted = Vec::new();
     for turn in array(&artifacts["provider_turns"], 64)? {
-        let raw = turn["response"]
-            .as_str()
-            .ok_or(invalid("actual provider response missing for SDK join"))?;
-        let response = crate::native_diagnostic_artifacts::parse(raw.as_bytes())?;
+        let (_, response) = crate::provider_rust_status::provider_turn_bodies(turn).ok_or(
+            invalid("actual provider response bodies invalid for SDK join"),
+        )?;
         let message = &response["choices"][0]["message"];
         if let Some(calls) = message.get("tool_calls") {
             for call in array(calls, 1000)? {

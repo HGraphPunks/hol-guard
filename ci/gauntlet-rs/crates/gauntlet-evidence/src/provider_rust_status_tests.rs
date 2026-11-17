@@ -251,3 +251,206 @@ fn quota_snapshot_history_is_bound_to_the_actual_outside_provider_observation() 
         .is_err());
     }
 }
+
+fn observation(turn: &Value) -> String {
+    sha256(
+        &canonical_value(
+            &json!({"usage":turn["usage"],"before":turn["before"],"after":turn["after"]}),
+        )
+        .unwrap(),
+    )
+}
+
+fn frame_text(frame: &Value) -> Value {
+    json!(format!(
+        "{}\n",
+        String::from_utf8(canonical_value(frame).unwrap()).unwrap()
+    ))
+}
+
+fn change_frame(turn: &mut Value, side: &str, change: impl FnOnce(&mut Value)) {
+    let mut frame: Value = serde_json::from_str(turn[side].as_str().unwrap()).unwrap();
+    change(&mut frame);
+    turn[side] = frame_text(&frame);
+}
+
+fn framed_turns() -> (Value, Value, Value) {
+    let (mut artifacts, mut report, mut pins) = retained_turns();
+    report["job_id"] = json!("0123456789abcdef");
+    pins["status_pins"]["provider_job_id"] = json!("fedcba9876543210");
+    for (index, turn) in artifacts["provider_turns"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .enumerate()
+    {
+        turn["usage"]["cell_job_id"] = report["job_id"].clone();
+        turn["usage"]["provider_job_id"] = pins["status_pins"]["provider_job_id"].clone();
+        for snapshot in ["before", "after"] {
+            turn[snapshot]["adapter"]["provider_job_id"] = turn["usage"]["provider_job_id"].clone();
+        }
+        pins["turn_pins"][index]["cell_job_id"] = report["job_id"].clone();
+        pins["turn_pins"][index]["observation_sha256"] = json!(observation(turn));
+        let usage = &turn["usage"];
+        let request = json!({"schema":"hol-gauntlet-native-live-model-request.v1",
+            "source_sha":usage["source_sha"],"provider_job_id":usage["provider_job_id"],
+            "job_id":usage["cell_job_id"],"budget_digest":usage["budget_digest"],"turn":usage["turn"],
+            "request_sha256":usage["request_sha256"],"body_b64":STANDARD.encode(turn["request"].as_str().unwrap())});
+        let mut response = request.clone();
+        response["schema"] = json!("hol-gauntlet-native-live-model-response.v1");
+        response["body_b64"] = json!(STANDARD.encode(turn["response"].as_str().unwrap()));
+        response["response_sha256"] = usage["response_sha256"].clone();
+        response["usage_receipt"] = usage.clone();
+        response["before"] = turn["before"].clone();
+        response["after"] = turn["after"].clone();
+        turn["request"] = frame_text(&request);
+        turn["response"] = frame_text(&response);
+    }
+    (artifacts, report, pins)
+}
+
+#[test]
+fn framed_provider_turns_join_decoded_body_pins_and_full_quota_history() {
+    let (artifacts, report, pins) = framed_turns();
+    let actual =
+        verify_rust_provider_turns(&artifacts, &report, &pins, "original source prompt").unwrap();
+    assert_eq!(actual["completed_requests"], 2);
+    assert_eq!(actual["model_tokens"], 74);
+    assert_eq!(actual["qualification_eligible"], false);
+    let (legacy, _, _) = retained_turns();
+    assert_eq!(
+        provider_turn_bodies(&artifacts["provider_turns"][0]),
+        provider_turn_bodies(&legacy["provider_turns"][0])
+    );
+    assert_ne!(
+        json!(sha256(
+            artifacts["provider_turns"][0]["response"]
+                .as_str()
+                .unwrap()
+                .as_bytes()
+        )),
+        pins["turn_pins"][0]["response_sha256"]
+    );
+    for field in ["request_sha256", "response_sha256", "observation_sha256"] {
+        let mut changed = pins.clone();
+        changed["turn_pins"][0][field] = json!("0".repeat(64));
+        assert!(
+            verify_rust_provider_turns(&artifacts, &report, &changed, "original source prompt")
+                .is_err(),
+            "{field}"
+        );
+    }
+    let mut old = pins.clone();
+    old["turn_pins"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("observation_sha256");
+    assert!(
+        verify_rust_provider_turns(&artifacts, &report, &old, "original source prompt").is_err()
+    );
+}
+
+#[test]
+fn malformed_mixed_or_foreign_frames_cannot_fall_back_to_legacy_bodies() {
+    let (artifacts, _, _) = framed_turns();
+    for side in ["request", "response"] {
+        for (field, value) in [
+            ("schema", json!("hol-gauntlet-native-live-model-request.v2")),
+            ("source_sha", json!("0".repeat(40))),
+            ("provider_job_id", json!("0".repeat(16))),
+            ("job_id", json!("0".repeat(16))),
+            ("budget_digest", json!("0".repeat(64))),
+            ("turn", json!(3)),
+            ("request_sha256", json!("0".repeat(64))),
+            ("body_b64", json!("not base64")),
+            ("body_b64", json!(STANDARD.encode(b"{}"))),
+            ("extra", json!(true)),
+        ] {
+            let mut turn = artifacts["provider_turns"][0].clone();
+            change_frame(&mut turn, side, |frame| frame[field] = value);
+            assert!(provider_turn_bodies(&turn).is_none(), "{side}/{field}");
+        }
+        let mut mixed = artifacts["provider_turns"][0].clone();
+        let (request, response) = provider_turn_bodies(&mixed).unwrap();
+        mixed[side] = json!(if side == "request" { request } else { response }.to_string());
+        assert!(provider_turn_bodies(&mixed).is_none());
+    }
+    for field in ["usage", "before", "after"] {
+        let mut turn = artifacts["provider_turns"][0].clone();
+        turn[field]["foreign"] = json!(true);
+        assert!(provider_turn_bodies(&turn).is_none(), "outer/{field}");
+    }
+    let mut duplicate = artifacts["provider_turns"][0].clone();
+    duplicate["request"] =
+        json!(duplicate["request"]
+            .as_str()
+            .unwrap()
+            .replacen('{', "{\"turn\":1,", 1));
+    assert!(provider_turn_bodies(&duplicate).is_none());
+    let mut noncanonical = artifacts["provider_turns"][0].clone();
+    let (body, _) = provider_turn_bodies(&noncanonical).unwrap();
+    let mut raw = canonical_value(&body).unwrap();
+    raw.push(b'\n');
+    noncanonical["usage"]["request_sha256"] = json!(sha256(&raw));
+    let usage = noncanonical["usage"].clone();
+    change_frame(&mut noncanonical, "request", |frame| {
+        frame["body_b64"] = json!(STANDARD.encode(&raw));
+        frame["request_sha256"] = json!(sha256(&raw));
+    });
+    change_frame(&mut noncanonical, "response", |frame| {
+        frame["request_sha256"] = usage["request_sha256"].clone();
+        frame["usage_receipt"] = usage;
+    });
+    assert!(provider_turn_bodies(&noncanonical).is_none());
+}
+
+#[test]
+fn self_consistent_framed_substitution_still_requires_original_outside_pins() {
+    let (mut artifacts, report, pins) = framed_turns();
+    let turn = &mut artifacts["provider_turns"][0];
+    let (_, mut body) = provider_turn_bodies(turn).unwrap();
+    body["choices"][0]["message"]["content"] = json!("substituted response");
+    let raw = canonical_value(&body).unwrap();
+    turn["usage"]["response_sha256"] = json!(sha256(&raw));
+    turn["usage"]["response_bytes"] = json!(raw.len());
+    let usage = turn["usage"].clone();
+    change_frame(turn, "response", |frame| {
+        frame["body_b64"] = json!(STANDARD.encode(&raw));
+        frame["response_sha256"] = usage["response_sha256"].clone();
+        frame["usage_receipt"] = usage;
+    });
+    assert!(provider_turn_bodies(turn).is_some());
+    assert!(
+        verify_rust_provider_turns(&artifacts, &report, &pins, "original source prompt").is_err()
+    );
+}
+
+#[test]
+fn legacy_body_whitespace_keeps_its_original_raw_byte_identity() {
+    let (mut artifacts, report, mut pins) = retained_turns();
+    for (index, turn) in artifacts["provider_turns"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .enumerate()
+    {
+        for side in ["request", "response"] {
+            let raw = format!(" {}\n", turn[side].as_str().unwrap());
+            turn["usage"][format!("{side}_sha256")] = json!(sha256(raw.as_bytes()));
+            pins["turn_pins"][index][format!("{side}_sha256")] =
+                turn["usage"][format!("{side}_sha256")].clone();
+            if side == "response" {
+                turn["usage"]["response_bytes"] = json!(raw.len());
+                pins["turn_pins"][index]["response_bytes"] = json!(raw.len());
+            }
+            turn[side] = json!(raw);
+        }
+        pins["turn_pins"][index]["observation_sha256"] = json!(observation(turn));
+        assert!(provider_turn_bodies(turn).is_some());
+    }
+    assert_eq!(
+        verify_rust_provider_turns(&artifacts, &report, &pins, "original source prompt").unwrap()
+            ["model_tokens"],
+        74
+    );
+}

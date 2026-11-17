@@ -4,8 +4,8 @@
 
 The [bounded v1 contract](gauntlet-rust-pr-readiness-plan.md) expires on
 **2026-11-17 17:07 UTC**. Supported scope (V1), build/publication (V2), operational
-Native utility (V3) and retained-generation compatibility (V6) have the scoped
-evidence below; V4, V5, V7 and V8 remain open. The
+Native utility (V3), bounded recovery truthfulness (V5) and retained-generation
+compatibility (V6) have the scoped evidence below; V4, V7 and V8 remain open. The
 historical full-migration ledger stays **24/62
 complete, 38 open**; extended features remain uncompleted on the roadmap.
 

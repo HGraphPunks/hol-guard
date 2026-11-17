@@ -5,7 +5,104 @@ use crate::crypto::{is_sha256, sha256};
 use crate::payload::{exact_keys, segment_ok};
 use crate::provider_status::verify_idle_quota;
 use crate::{canonical_value, EvidenceError, Result};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde_json::{json, Value};
+
+/// Interpret retained transport frames without changing their original bytes or
+/// treating their claims as outside observations. Legacy HTTP bodies stay raw.
+pub(crate) fn provider_turn_bodies(turn: &Value) -> Option<(Value, Value)> {
+    let request_raw = turn["request"]
+        .as_str()
+        .filter(|s| !s.is_empty() && s.len() <= 2 * 1024 * 1024)?;
+    let response_raw = turn["response"]
+        .as_str()
+        .filter(|s| !s.is_empty() && s.len() <= 6 * 1024 * 1024)?;
+    let request = crate::native_diagnostic_artifacts::parse(request_raw.as_bytes()).ok()?;
+    let response = crate::native_diagnostic_artifacts::parse(response_raw.as_bytes()).ok()?;
+    let reserved = |v: &Value| {
+        v.get("body_b64").is_some()
+            || v["schema"]
+                .as_str()
+                .is_some_and(|s| s.starts_with("hol-gauntlet-native-live-model"))
+    };
+    if !reserved(&request) && !reserved(&response) {
+        return (request_raw.len() <= 1024 * 1024 && response_raw.len() <= 4 * 1024 * 1024)
+            .then_some((request, response));
+    }
+    let keys = [
+        "schema",
+        "source_sha",
+        "provider_job_id",
+        "job_id",
+        "budget_digest",
+        "turn",
+        "request_sha256",
+        "body_b64",
+    ];
+    let mut response_keys = keys.to_vec();
+    response_keys.extend(["response_sha256", "usage_receipt", "before", "after"]);
+    if request["schema"] != "hol-gauntlet-native-live-model-request.v1"
+        || response["schema"] != "hol-gauntlet-native-live-model-response.v1"
+        || !exact_keys(&request, &keys)
+        || !exact_keys(&response, &response_keys)
+        || !exact_keys(turn, &["request", "response", "usage", "before", "after"])
+        || response["usage_receipt"] != turn["usage"]
+        || response["before"] != turn["before"]
+        || response["after"] != turn["after"]
+    {
+        return None;
+    }
+    let usage = &turn["usage"];
+    for (field, usage_field, width) in [
+        ("source_sha", "source_sha", 40),
+        ("provider_job_id", "provider_job_id", 16),
+        ("job_id", "cell_job_id", 16),
+        ("budget_digest", "budget_digest", 64),
+        ("request_sha256", "request_sha256", 64),
+    ] {
+        let text = request[field].as_str()?;
+        if text.len() != width
+            || !text
+                .bytes()
+                .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
+            || response[field] != request[field]
+            || usage[usage_field] != request[field]
+        {
+            return None;
+        }
+    }
+    if !request["turn"]
+        .as_u64()
+        .is_some_and(|n| (1..=64).contains(&n))
+        || response["turn"] != request["turn"]
+        || usage["turn"] != request["turn"]
+        || !response["response_sha256"].as_str().is_some_and(is_sha256)
+        || response["response_sha256"] != usage["response_sha256"]
+    {
+        return None;
+    }
+    for (value, raw) in [(&request, request_raw), (&response, response_raw)] {
+        if canonical_value(value).ok()? != raw.strip_suffix('\n').unwrap_or(raw).as_bytes() {
+            return None;
+        }
+    }
+    let decode = |frame: &Value, hash: &str, limit: usize| -> Option<(Value, usize)> {
+        let encoded = frame["body_b64"].as_str()?;
+        let raw = STANDARD.decode(encoded).ok()?;
+        if raw.is_empty()
+            || raw.len() > limit
+            || STANDARD.encode(&raw) != encoded
+            || frame[hash] != sha256(&raw)
+        {
+            return None;
+        }
+        let value = crate::native_diagnostic_artifacts::parse(&raw).ok()?;
+        (canonical_value(&value).ok()? == raw).then_some((value, raw.len()))
+    };
+    let (request, _) = decode(&request, "request_sha256", 1024 * 1024)?;
+    let (response, bytes) = decode(&response, "response_sha256", 4 * 1024 * 1024)?;
+    (usage["response_bytes"] == bytes).then_some((request, response))
+}
 
 fn turn_require(condition: bool) -> Result<()> {
     if condition {
@@ -49,14 +146,24 @@ pub(crate) fn verify_rust_provider_turns(
         ))?;
         let request_raw = turn["request"]
             .as_str()
-            .filter(|r| !r.is_empty() && r.len() <= 1024 * 1024)
             .ok_or(invalid("exact bounded original provider request required"))?;
         let response_raw = turn["response"]
             .as_str()
-            .filter(|r| !r.is_empty() && r.len() <= 4 * 1024 * 1024)
             .ok_or(invalid("exact bounded original provider response required"))?;
-        let request = crate::native_diagnostic_artifacts::parse(request_raw.as_bytes())?;
-        let response = crate::native_diagnostic_artifacts::parse(response_raw.as_bytes())?;
+        let (request, response) =
+            provider_turn_bodies(turn).ok_or(invalid("exact original provider bodies required"))?;
+        let framed = crate::native_diagnostic_artifacts::parse(request_raw.as_bytes())?["schema"]
+            == "hol-gauntlet-native-live-model-request.v1";
+        let request_bytes = if framed {
+            canonical_value(&request)?
+        } else {
+            request_raw.as_bytes().to_vec()
+        };
+        let response_bytes = if framed {
+            canonical_value(&response)?
+        } else {
+            response_raw.as_bytes().to_vec()
+        };
         let usage = &turn["usage"];
         let messages = turn_array(&request["messages"], 256)?;
         turn_require(
@@ -88,9 +195,9 @@ pub(crate) fn verify_rust_provider_turns(
                 && usage["source_sha"] == report["guard_pins"]["source_sha"]
                 && usage["cell_job_id"] == report["job_id"]
                 && usage["turn"].as_u64() == Some(index as u64 + 1)
-                && usage["request_sha256"] == sha256(request_raw.as_bytes())
-                && usage["response_sha256"] == sha256(response_raw.as_bytes())
-                && usage["response_bytes"] == response_raw.len(),
+                && usage["request_sha256"] == sha256(&request_bytes)
+                && usage["response_sha256"] == sha256(&response_bytes)
+                && usage["response_bytes"] == response_bytes.len(),
         )?;
         let matching: Vec<_> = cell_pins
             .iter()
@@ -128,7 +235,7 @@ pub(crate) fn verify_rust_provider_turns(
             .ok_or(invalid("live token sum overflow"))?;
         turn_require(tokens <= 100_000)?;
         rounds.push(json!({"status":"completed","request_sha256":usage["request_sha256"],
-            "response_sha256":usage["response_sha256"],"response_bytes":response_raw.len(),"response_models":[response["model"]]}));
+            "response_sha256":usage["response_sha256"],"response_bytes":response_bytes.len(),"response_models":[response["model"]]}));
         requests.push(json!({"turn":index+1,"request_sha256":usage["request_sha256"],"response_sha256":usage["response_sha256"]}));
     }
     turn_require(crate::reconcile_provider_rounds(&rounds).0)?;
