@@ -1,7 +1,7 @@
 //! Genuine source-selected OMP episodes over the actual Root World and normal
 //! Native MCP transport. The deterministic synthetic-stream profiles stay separate.
 use crate::native_live_artifacts::{LiveContext, SdkObservation};
-use crate::native_live_provider::{LiveBindStep, NativeLiveProvider};
+use crate::native_live_provider::{failure_label, LiveProviderStep, NativeLiveProvider};
 use crate::native_operation_budget::NativeOperationBudget;
 use crate::native_sdk_agent::NativeSdkAgent;
 use crate::native_sdk_mcp_binding::{bind, BindingArtifacts};
@@ -32,6 +32,7 @@ enum LiveStage {
     SdkBoundary,
     ModelBridgeLaunch,
     ProviderBind,
+    ProviderRelay,
     ModelBridgeReady,
     SdkExec,
     PreImportBinding,
@@ -63,6 +64,7 @@ impl LiveStage {
             Self::SdkBoundary => "sdk-boundary",
             Self::ModelBridgeLaunch => "model-bridge-launch",
             Self::ProviderBind => "provider-bind",
+            Self::ProviderRelay => "provider-relay",
             Self::ModelBridgeReady => "model-bridge-ready",
             Self::SdkExec => "sdk-exec",
             Self::PreImportBinding => "pre-import-binding",
@@ -99,13 +101,6 @@ fn failure_stage(
             .map_or(LiveStage::ProviderCompletion, |(stage, _)| *stage)
     }
 }
-fn failure_label(stage: LiveStage, bind: Option<LiveBindStep>) -> String {
-    match (stage, bind) {
-        (LiveStage::ProviderBind, Some(step)) => format!("{}:{}", stage.label(), step.label()),
-        _ => stage.label().into(),
-    }
-}
-
 fn paused(cancel: &AtomicBool, deadline: Instant) -> Result<(), String> {
     if cancel.load(Ordering::Acquire) || Instant::now() >= deadline {
         return Err("live OMP controller cancelled or expired".into());
@@ -113,6 +108,7 @@ fn paused(cancel: &AtomicBool, deadline: Instant) -> Result<(), String> {
     std::thread::sleep(Duration::from_millis(10));
     Ok(())
 }
+#[allow(clippy::too_many_arguments)]
 fn serve(
     sockets: &NativeSdkSockets,
     peer: &crate::NativeSdkPeer,
@@ -121,11 +117,24 @@ fn serve(
     plane: &mut NativeHookPlane,
     cancel: &AtomicBool,
     observed: &mut SdkObservation,
+    provider: &mut NativeLiveProvider,
+    relay_primary: &mut bool,
 ) -> Result<(), String> {
     let deadline =
         Instant::now() + Duration::from_secs(crate::native_live_spec::PREPARATION_SECONDS);
     let mut count = 0;
     loop {
+        if !cancel.load(Ordering::Acquire)
+            && Instant::now() < deadline
+            && provider.check_running().is_err()
+        {
+            let expired = Instant::now() >= deadline;
+            if expired {
+                observed.observe_deadline();
+            }
+            *relay_primary = !cancel.load(Ordering::Acquire) && !expired;
+            return Err("live model relay ended before retirement".into());
+        }
         if let Some(mut stream) = sockets.accept_hook()? {
             count += 1;
             if count > 256 {
@@ -245,7 +254,7 @@ pub(crate) fn run(
     let mut sdk_observation = SdkObservation::default();
     let mut binding = Value::Null;
     let mut stage = LiveStage::PlaneStart;
-    let mut bind_step = None;
+    let mut provider_step = None;
     let attempted = (|| -> Result<(), String> {
         plane.start()?;
         if live.protected() {
@@ -279,7 +288,7 @@ pub(crate) fn run(
             &cancel,
         )?);
         stage = LiveStage::ProviderBind;
-        bind_step = Some(LiveBindStep::Arguments);
+        provider_step = Some(LiveProviderStep::Arguments);
         provider = Some(
             NativeLiveProvider::bind(
                 job,
@@ -293,7 +302,7 @@ pub(crate) fn run(
                 cancel.clone(),
             )
             .map_err(|step| {
-                bind_step = Some(step);
+                provider_step = Some(step);
                 "bounded live provider binding failed".to_owned()
             })?,
         );
@@ -337,7 +346,9 @@ pub(crate) fn run(
         stage = LiveStage::McpConnect;
         mcp.connect_sdk(&peer, &cancel)?;
         stage = LiveStage::Episode;
-        serve(
+        let provider = provider.as_mut().ok_or("live model relay unavailable")?;
+        let mut relay_primary = false;
+        let result = serve(
             &sockets,
             &peer,
             process,
@@ -345,7 +356,16 @@ pub(crate) fn run(
             &mut plane,
             &cancel,
             &mut sdk_observation,
-        )?;
+            provider,
+            &mut relay_primary,
+        );
+        if relay_primary {
+            if let Some(step) = provider.failure_step() {
+                stage = LiveStage::ProviderRelay;
+                provider_step = Some(step);
+            }
+        }
+        result?;
         stage = LiveStage::OperationBudget;
         budget
             .lock()
@@ -429,7 +449,7 @@ pub(crate) fn run(
     // subprocess error, request body, private command or credential.
     let error = (!complete).then(|| format!(
         "live OMP execution or retained observation did not complete at stage={}; private artifacts preserve the attempt",
-        failure_label(failure_stage(attempted.is_err(), stage, &checks),bind_step)));
+        failure_label(failure_stage(attempted.is_err(), stage, &checks).label(),provider_step)));
     let (artifact_hashes, context_sha256) = artifact_hashes
         .map(|a| (a.hashes, json!(a.context_sha256)))
         .unwrap_or_else(|_| (json!({}), Value::Null));
@@ -443,29 +463,6 @@ pub(crate) fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn provider_substage_is_closed_and_cannot_mask_another_failure_stage() {
-        for step in [
-            LiveBindStep::Accept,
-            LiveBindStep::Peer,
-            LiveBindStep::Hello,
-            LiveBindStep::Recheck,
-            LiveBindStep::Ready,
-        ] {
-            assert_eq!(
-                failure_label(LiveStage::ProviderBind, Some(step)),
-                format!("provider-bind:{}", step.label())
-            );
-            assert_eq!(
-                failure_label(LiveStage::SdkCleanup, Some(step)),
-                "sdk-cleanup"
-            );
-        }
-        assert_eq!(
-            failure_label(LiveStage::ProviderBind, None),
-            "provider-bind"
-        );
-    }
     #[test]
     fn failed_stage_preserves_primary_attempt_before_cleanup_and_retention() {
         let checks = [

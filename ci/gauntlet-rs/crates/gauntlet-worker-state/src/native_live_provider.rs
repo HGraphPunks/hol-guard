@@ -25,7 +25,7 @@ use std::{
 pub(crate) const MODEL_CHANNEL_FD: i32 = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum LiveBindStep {
+pub(crate) enum LiveProviderStep {
     Arguments,
     Accept,
     SocketLimits,
@@ -35,8 +35,12 @@ pub(crate) enum LiveBindStep {
     Ready,
     Journal,
     Relay,
+    Request,
+    Normalize,
+    Stopped,
+    Panicked,
 }
-impl LiveBindStep {
+impl LiveProviderStep {
     pub(crate) fn label(self) -> &'static str {
         match self {
             Self::Arguments => "arguments",
@@ -48,7 +52,17 @@ impl LiveBindStep {
             Self::Ready => "ready",
             Self::Journal => "journal",
             Self::Relay => "relay",
+            Self::Request => "request",
+            Self::Normalize => "normalize",
+            Self::Stopped => "stopped",
+            Self::Panicked => "panicked",
         }
+    }
+}
+pub(crate) fn failure_label(stage: &str, step: Option<LiveProviderStep>) -> String {
+    match (stage, step) {
+        ("provider-bind" | "provider-relay", Some(step)) => format!("{stage}:{}", step.label()),
+        _ => stage.into(),
     }
 }
 
@@ -118,7 +132,8 @@ pub(crate) struct NativeLiveProvider {
     channel: UnixStream,
     parent: UnixStream,
     stop: Arc<AtomicBool>,
-    thread: Option<std::thread::JoinHandle<Result<(), String>>>,
+    thread: Option<std::thread::JoinHandle<Result<(), LiveProviderStep>>>,
+    failure: Option<LiveProviderStep>,
     ledger: Arc<Mutex<NativeLiveModelLedger>>,
     turns: Arc<Mutex<Vec<Value>>>,
     peer: Value,
@@ -132,8 +147,8 @@ impl NativeLiveProvider {
         program: &File,
         mut parent: UnixStream,
         cancel: Arc<AtomicBool>,
-    ) -> Result<Self, LiveBindStep> {
-        let mut step = LiveBindStep::Accept;
+    ) -> Result<Self, LiveProviderStep> {
+        let mut step = LiveProviderStep::Accept;
         let result = (|| -> Result<Self, String> {
             let deadline = Instant::now() + Duration::from_secs(30);
             let mut socket = loop {
@@ -145,14 +160,14 @@ impl NativeLiveProvider {
                 }
                 std::thread::sleep(Duration::from_millis(10));
             };
-            step = LiveBindStep::SocketLimits;
+            step = LiveProviderStep::SocketLimits;
             socket
                 .set_read_timeout(Some(Duration::from_secs(
                     crate::native_live_spec::ACTIVE_SECONDS,
                 )))
                 .and_then(|_| socket.set_write_timeout(Some(Duration::from_secs(30))))
                 .map_err(|_| "bounded SDK model channel required")?;
-            step = LiveBindStep::Peer;
+            step = LiveProviderStep::Peer;
             let peer = NativeSdkModelPeer::bind(
                 &socket,
                 boundary,
@@ -162,7 +177,7 @@ impl NativeLiveProvider {
                 &job.worker_generation,
                 &live.model.budget_digest,
             )?;
-            step = LiveBindStep::Hello;
+            step = LiveProviderStep::Hello;
             let hello = read_frame(&mut socket, 4096)?;
             if hello
                 != json!({"schema":"hol-gauntlet-native-live-http-hello.v1","source_sha":job.source_sha,"job_id":job.job_id,
@@ -170,9 +185,9 @@ impl NativeLiveProvider {
             {
                 return Err("live model bridge context differs".into());
             }
-            step = LiveBindStep::Recheck;
+            step = LiveProviderStep::Recheck;
             peer.recheck(&socket)?;
-            step = LiveBindStep::Ready;
+            step = LiveProviderStep::Ready;
             write_frame(
                 &mut socket,
                 &json!({"schema":"hol-gauntlet-native-live-http-ready.v1","source_sha":job.source_sha,
@@ -180,7 +195,7 @@ impl NativeLiveProvider {
                 4096,
             )?;
             let observation = peer.observation();
-            step = LiveBindStep::Journal;
+            step = LiveProviderStep::Journal;
             let root = crate::open_root_owned_public_directory(&job.job_root())
                 .map_err(|e| e.to_string())?;
             let fd = openat(
@@ -191,7 +206,7 @@ impl NativeLiveProvider {
             )
             .map_err(|e| e.to_string())?;
             let mut journal = File::from(fd);
-            step = LiveBindStep::Relay;
+            step = LiveProviderStep::Relay;
             let ledger = Arc::new(Mutex::new(NativeLiveModelLedger::new(
                 &job.source_sha,
                 &job.job_id,
@@ -203,6 +218,8 @@ impl NativeLiveProvider {
             let channel = socket.try_clone().map_err(|e| e.to_string())?;
             let retained_parent = parent.try_clone().map_err(|e| e.to_string())?;
             let thread=std::thread::Builder::new().name("root-live-model-channel".into()).spawn(move||{
+            let mut step = LiveProviderStep::Relay;
+            let result = (|| -> Result<(),String> {
             let mut sequence=0;let mut total=0;
             let mut retain=|kind:&str,value:&Value|->Result<(),String>{
                 sequence+=1;let mut raw=gauntlet_contracts::canonicalize(json!({"sequence":sequence,"kind":kind,"data":value}).to_string().as_bytes()).map_err(|_|"live model journal encoding failed")?;
@@ -211,13 +228,18 @@ impl NativeLiveProvider {
             };
             loop {
                 if s.load(Ordering::Acquire)||cancel.load(Ordering::Acquire){return Ok(());}
+                step=LiveProviderStep::Request;
                 let incoming=match read_frame(&mut socket,REQUEST_FRAME_LIMIT) {Ok(v)=>v,Err(_) if s.load(Ordering::Acquire)=>return Ok(()),Err(e)=>return Err(e)};
+                step=LiveProviderStep::Peer;
                 peer.recheck(&socket)?;
+                step=LiveProviderStep::Request;
                 if incoming.as_object().is_none_or(|o|o.len()!=4)||incoming["schema"]!="hol-gauntlet-native-live-sdk-model-request.v1" {return Err("closed actual SDK model request required".into());}
                 let encoded=incoming["body_b64"].as_str().ok_or("actual SDK model bytes missing")?;
                 let raw=STANDARD.decode(encoded).map_err(|_|"actual SDK model encoding invalid")?;
                 if raw.len()>crate::native_live_model::REQUEST_LIMIT||STANDARD.encode(&raw)!=encoded||incoming["sdk_request_sha256"]!=sha(&raw){return Err("actual SDK model byte pin differs".into());}
+                step=LiveProviderStep::Normalize;
                 let (normalized,streamed)=normalize_request(&raw)?;
+                step=LiveProviderStep::Relay;
                 let request=l.lock().map_err(|_|"live model ledger poisoned")?.begin(&normalized,&sha(&raw))?;
                 if incoming["turn"]!=request["turn"]{return Err("SDK model turn was changed or repeated".into());}
                 retain("model-request-consumed",&request)?;
@@ -240,18 +262,39 @@ impl NativeLiveProvider {
                 peer.recheck(&socket)?;retain("model-response-delivered",&delivered)?;
                 l.lock().map_err(|_|"live model ledger poisoned")?.delivered()?;
             }
+            })();
+            result.map_err(|_|step)
         }).map_err(|e|e.to_string())?;
             Ok(Self {
                 channel,
                 parent: retained_parent,
                 stop,
                 thread: Some(thread),
+                failure: None,
                 ledger,
                 turns,
                 peer: observation,
             })
         })();
         result.map_err(|_| step)
+    }
+    pub(crate) fn check_running(&mut self) -> Result<(), LiveProviderStep> {
+        if let Some(step) = self.failure {
+            return Err(step);
+        }
+        if self.thread.as_ref().is_some_and(|t| !t.is_finished()) {
+            return Ok(());
+        }
+        let step = match self.thread.take().map(|t| t.join()) {
+            Some(Ok(Err(step))) => step,
+            Some(Err(_)) => LiveProviderStep::Panicked,
+            _ => LiveProviderStep::Stopped,
+        };
+        self.failure = Some(step);
+        Err(step)
+    }
+    pub(crate) fn failure_step(&self) -> Option<LiveProviderStep> {
+        self.failure
     }
     pub(crate) fn close(&mut self) -> Value {
         let grace = Instant::now() + Duration::from_secs(3);
@@ -275,10 +318,15 @@ impl NativeLiveProvider {
         self.stop.store(true, Ordering::Release);
         let _ = self.channel.shutdown(Shutdown::Both);
         let _ = self.parent.shutdown(Shutdown::Both);
-        let error = self.thread.take().and_then(|t| match t.join() {
-            Ok(r) => r.err(),
-            Err(_) => Some("live model relay panicked".into()),
-        });
+        let error = self
+            .failure
+            .or_else(|| {
+                self.thread.take().and_then(|t| match t.join() {
+                    Ok(r) => r.err(),
+                    Err(_) => Some(LiveProviderStep::Panicked),
+                })
+            })
+            .map(LiveProviderStep::label);
         let ledger = self
             .ledger
             .lock()
@@ -294,5 +342,73 @@ impl Drop for NativeLiveProvider {
         if self.thread.is_some() {
             let _ = self.close();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn premature_relay_success_and_error_both_fail_before_sdk_deadline_and_survive_cleanup() {
+        for terminal in [Ok(()), Err(LiveProviderStep::Normalize)] {
+            let expected = terminal.err().unwrap_or(LiveProviderStep::Stopped);
+            let (channel, _sdk) = UnixStream::pair().unwrap();
+            let (parent, _host) = UnixStream::pair().unwrap();
+            let pins = crate::NativeLiveModelPins {
+                provider_job_id: "b".repeat(16),
+                budget_digest: "c".repeat(64),
+                model_id: crate::native_live_model::MODEL.into(),
+                max_turns: 64,
+                token_limit: 100_000,
+            };
+            let mut provider = NativeLiveProvider {
+                channel,
+                parent,
+                stop: Arc::new(AtomicBool::new(false)),
+                thread: Some(std::thread::spawn(move || terminal)),
+                failure: None,
+                ledger: Arc::new(Mutex::new(
+                    NativeLiveModelLedger::new(&"a".repeat(40), &"d".repeat(16), &pins).unwrap(),
+                )),
+                turns: Arc::new(Mutex::new(Vec::new())),
+                peer: Value::Null,
+            };
+            let deadline = Instant::now() + Duration::from_secs(2);
+            loop {
+                if let Err(step) = provider.check_running() {
+                    assert_eq!(step, expected);
+                    break;
+                }
+                assert!(Instant::now() < deadline, "finished relay was not observed");
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            assert!(provider.thread.is_none());
+            assert_eq!(provider.failure_step(), Some(expected));
+            let observed = provider.close();
+            assert_eq!(observed["error"], expected.label());
+            assert_eq!(observed["ledger"]["turns_completed"], 0);
+            assert!(observed["ledger"]["pending_turn"].is_null());
+            assert_eq!(provider.check_running(), Err(expected));
+        }
+    }
+    #[test]
+    fn provider_substage_is_closed_and_cannot_mask_another_failure_stage() {
+        for step in [
+            LiveProviderStep::Accept,
+            LiveProviderStep::Peer,
+            LiveProviderStep::Hello,
+            LiveProviderStep::Recheck,
+            LiveProviderStep::Ready,
+            LiveProviderStep::Normalize,
+        ] {
+            for stage in ["provider-bind", "provider-relay"] {
+                assert_eq!(
+                    failure_label(stage, Some(step)),
+                    format!("{stage}:{}", step.label())
+                );
+            }
+            assert_eq!(failure_label("sdk-cleanup", Some(step)), "sdk-cleanup");
+        }
+        assert_eq!(failure_label("provider-bind", None), "provider-bind");
     }
 }

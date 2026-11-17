@@ -1,4 +1,5 @@
 use super::*;
+use crate::native_live_http::{normalize_request, sse_response};
 
 fn pins() -> NativeLiveModelPins {
     NativeLiveModelPins::parse(&json!({"schema":"hol-gauntlet-native-live-model-pins.v1","provider_job_id":"a".repeat(16),"budget_digest":"b".repeat(64),"model_id":MODEL,"max_turns":2,"token_limit":100_000})).unwrap()
@@ -103,4 +104,116 @@ fn unknown_model_streaming_upstream_and_changed_budget_pins_refuse() {
     p = pins().to_json();
     p["max_turns"] = json!(65);
     assert!(NativeLiveModelPins::parse(&p).is_err());
+}
+
+#[test]
+fn streaming_transport_normalization_preserves_actual_messages_and_pins_model_budget() {
+    let input = json!({"model":MODEL,"messages":[{"role":"user","content":"source-selected prompt"}],"tools":[{"type":"function","function":{"name":"docs_read"}}],"stream":true,"stream_options":{"include_usage":true},"max_tokens":8192});
+    let (raw, streamed) = normalize_request(input.to_string().as_bytes()).unwrap();
+    let output: Value = serde_json::from_slice(&raw).unwrap();
+    assert!(streamed);
+    assert_eq!(output["messages"], input["messages"]);
+    assert_eq!(output["tools"], input["tools"]);
+    assert_eq!(output["max_tokens"], 4096);
+    assert_eq!(output["stream"], false);
+    assert!(output.get("stream_options").is_none());
+    let mut actual = input.clone();
+    actual.as_object_mut().unwrap().remove("max_tokens");
+    actual["max_completion_tokens"] = json!(8192);
+    actual["n"] = json!(1);
+    actual["preserve_thinking"] = json!(true);
+    actual["chat_template_kwargs"] = json!({"preserve_thinking":true});
+    assert_eq!(
+        normalize_request(actual.to_string().as_bytes()).unwrap(),
+        (raw.clone(), true)
+    );
+    let sdk_raw = actual.to_string().into_bytes();
+    let mut joined = ledger();
+    let request = joined.begin(&raw, &sha(&sdk_raw)).unwrap();
+    assert_eq!(request["request_sha256"], sha(&raw));
+    assert_eq!(request["body_b64"], STANDARD.encode(&raw));
+    joined
+        .finish(&canonicalize(response(&request).to_string().as_bytes()).unwrap())
+        .unwrap();
+    assert_eq!(
+        joined.observation()["turns"][0]["sdk_request_sha256"],
+        sha(&sdk_raw)
+    );
+    let mut controls = actual.clone();
+    controls["enable_thinking"] = json!(false);
+    controls["chat_template_kwargs"] = json!({"enable_thinking":false,"preserve_thinking":true});
+    controls["max_completion_tokens"] = json!(65536);
+    assert_eq!(
+        normalize_request(controls.to_string().as_bytes()).unwrap(),
+        (raw, true)
+    );
+    let duplicate = sdk_raw
+        .iter()
+        .copied()
+        .take(1)
+        .chain(b"\"max_completion_tokens\":8192,".iter().copied())
+        .chain(sdk_raw.iter().copied().skip(1))
+        .collect::<Vec<_>>();
+    assert!(normalize_request(&duplicate).is_err());
+    for (key, value) in [
+        ("n", json!(2)),
+        ("n", Value::Null),
+        ("enable_thinking", json!(true)),
+        ("preserve_thinking", json!(false)),
+        ("chat_template_kwargs", json!({"other":true})),
+        ("chat_template_kwargs", json!({"preserve_thinking":false})),
+        ("chat_template_kwargs", Value::Null),
+        ("chat_template_kwargs", json!({})),
+        ("stream_options", json!({"include_usage":true,"other":true})),
+        ("unknown", json!(true)),
+        ("max_tokens", json!(8192)),
+    ] {
+        let mut changed = actual.clone();
+        changed[key] = value;
+        assert!(
+            normalize_request(changed.to_string().as_bytes()).is_err(),
+            "{key}"
+        );
+    }
+    for key in ["max_tokens", "max_completion_tokens"] {
+        for value in [
+            json!(0),
+            json!(-1),
+            json!(1.5),
+            Value::Null,
+            json!(true),
+            json!("4096"),
+            json!(65537),
+        ] {
+            let mut changed = input.clone();
+            changed.as_object_mut().unwrap().remove("max_tokens");
+            changed[key] = value;
+            assert!(
+                normalize_request(changed.to_string().as_bytes()).is_err(),
+                "{key}"
+            );
+        }
+    }
+    let mut changed = input;
+    changed["model"] = json!("other");
+    assert!(normalize_request(changed.to_string().as_bytes()).is_err());
+}
+#[test]
+fn real_response_stream_preserves_tool_arguments_usage_and_stop_reason() {
+    let input = json!({"id":"chat-real","created":1,"model":MODEL,"choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call-a","type":"function","function":{"name":"docs_read","arguments":"{\"id\":\"ticket-a\"}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":21,"completion_tokens":7,"total_tokens":28}});
+    let raw = sse_response(input.to_string().as_bytes()).unwrap();
+    let text = std::str::from_utf8(&raw).unwrap();
+    let chunks = text
+        .split("\n\n")
+        .filter_map(|line| line.strip_prefix("data: "))
+        .filter(|s| *s != "[DONE]")
+        .map(|s| serde_json::from_str::<Value>(s).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(chunks.len(), 2);
+    assert_eq!(
+        chunks[0]["choices"][0]["delta"]["tool_calls"][0]["function"],
+        input["choices"][0]["message"]["tool_calls"][0]["function"]
+    );
+    assert_eq!(chunks[1]["choices"][0]["finish_reason"], "tool_calls");
+    assert_eq!(chunks[1]["usage"], input["usage"]);
 }

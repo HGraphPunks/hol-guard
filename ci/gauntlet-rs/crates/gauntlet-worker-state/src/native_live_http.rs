@@ -14,17 +14,53 @@ pub(crate) fn normalize_request(raw: &[u8]) -> Result<(Vec<u8>, bool), String> {
     let streamed = body["stream"]
         .as_bool()
         .ok_or("explicit SDK stream selection required")?;
-    if body["model"] != MODEL
+    let allowed = [
+        "model",
+        "messages",
+        "tools",
+        "tool_choice",
+        "stream",
+        "max_tokens",
+        "temperature",
+        "top_p",
+        "stop",
+        "parallel_tool_calls",
+        "seed",
+        "presence_penalty",
+        "frequency_penalty",
+        "stream_options",
+        "n",
+        "max_completion_tokens",
+        "enable_thinking",
+        "preserve_thinking",
+        "chat_template_kwargs",
+    ];
+    let defaults = json!({"enable_thinking":false,"preserve_thinking":true});
+    if body
+        .as_object()
+        .is_none_or(|o| o.keys().any(|k| !allowed.contains(&k.as_str())))
+        || body["model"] != MODEL
         || body["messages"]
             .as_array()
             .is_none_or(|a| a.is_empty() || a.len() > 256)
         || body.get("n").is_some_and(|n| n.as_u64() != Some(1))
-        || body.get("max_completion_tokens").is_some()
+        || (body.get("max_tokens").is_some() && body.get("max_completion_tokens").is_some())
+        || body
+            .get("stream_options")
+            .is_some_and(|v| *v != json!({"include_usage":true}))
+        || ["enable_thinking", "preserve_thinking"]
+            .iter()
+            .any(|k| body.get(*k).is_some_and(|v| Some(v) != defaults.get(*k)))
+        || body.get("chat_template_kwargs").is_some_and(|v| {
+            v.as_object()
+                .is_none_or(|o| o.is_empty() || o.iter().any(|(k, v)| defaults.get(k) != Some(v)))
+        })
     {
         return Err("fixed source-selected SDK model request required".into());
     }
     let maximum = body
         .get("max_tokens")
+        .or_else(|| body.get("max_completion_tokens"))
         .map(|v| {
             v.as_u64()
                 .filter(|n| *n > 0 && *n <= 65536)
@@ -34,9 +70,20 @@ pub(crate) fn normalize_request(raw: &[u8]) -> Result<(Vec<u8>, bool), String> {
         .unwrap_or(4096);
     body["max_tokens"] = json!(maximum.min(4096));
     body["stream"] = json!(false);
-    body.as_object_mut()
-        .ok_or("SDK model object required")?
-        .remove("stream_options");
+    // The fixed numerical adapter already forces these exact template defaults
+    // and one completion. Preserve the original SDK wire/hash separately.
+    for key in [
+        "stream_options",
+        "n",
+        "max_completion_tokens",
+        "enable_thinking",
+        "preserve_thinking",
+        "chat_template_kwargs",
+    ] {
+        body.as_object_mut()
+            .ok_or("SDK model object required")?
+            .remove(key);
+    }
     Ok((
         canonicalize(body.to_string().as_bytes()).map_err(|_| "SDK model normalization failed")?,
         streamed,
@@ -394,39 +441,5 @@ mod tests {
         for (pid, uid, gid) in [(1, 0, 0), (-1, 0, 0), (0, 10001, 0), (0, 0, 10001)] {
             assert!(outside_root_server(pid, uid, gid).is_err());
         }
-    }
-    #[test]
-    fn streaming_transport_normalization_preserves_actual_messages_and_pins_model_budget() {
-        let input = json!({"model":MODEL,"messages":[{"role":"user","content":"source-selected prompt"}],"tools":[{"type":"function","function":{"name":"docs_read"}}],"stream":true,"stream_options":{"include_usage":true},"max_tokens":8192});
-        let (raw, streamed) = normalize_request(input.to_string().as_bytes()).unwrap();
-        let output: Value = serde_json::from_slice(&raw).unwrap();
-        assert!(streamed);
-        assert_eq!(output["messages"], input["messages"]);
-        assert_eq!(output["tools"], input["tools"]);
-        assert_eq!(output["max_tokens"], 4096);
-        assert_eq!(output["stream"], false);
-        assert!(output.get("stream_options").is_none());
-        let mut changed = input;
-        changed["model"] = json!("other");
-        assert!(normalize_request(changed.to_string().as_bytes()).is_err());
-    }
-    #[test]
-    fn real_response_stream_preserves_tool_arguments_usage_and_stop_reason() {
-        let input = json!({"id":"chat-real","created":1,"model":MODEL,"choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call-a","type":"function","function":{"name":"docs_read","arguments":"{\"id\":\"ticket-a\"}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":21,"completion_tokens":7,"total_tokens":28}});
-        let raw = sse_response(input.to_string().as_bytes()).unwrap();
-        let text = std::str::from_utf8(&raw).unwrap();
-        let chunks = text
-            .split("\n\n")
-            .filter_map(|line| line.strip_prefix("data: "))
-            .filter(|s| *s != "[DONE]")
-            .map(|s| serde_json::from_str::<Value>(s).unwrap())
-            .collect::<Vec<_>>();
-        assert_eq!(chunks.len(), 2);
-        assert_eq!(
-            chunks[0]["choices"][0]["delta"]["tool_calls"][0]["function"],
-            input["choices"][0]["message"]["tool_calls"][0]["function"]
-        );
-        assert_eq!(chunks[1]["choices"][0]["finish_reason"], "tool_calls");
-        assert_eq!(chunks[1]["usage"], input["usage"]);
     }
 }
