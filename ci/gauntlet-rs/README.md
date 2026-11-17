@@ -57,8 +57,10 @@ core, 16-case approval-retry, 11-case connector-setup and 15-case full-task
 catalogs. Its normalized rows and listing match the actual Python reader,
 including every default. It accepts no caller path or source pin. Inventory
 always remains ineligible for execution and qualification. Separate source-derived
-current/frozen reducers preserve the original 128-row baseline and the four
-current catalogs; full-task and Connector wrappers keep their own claim limits.
+versioned reducers preserve the original 128-row baseline and four retained
+catalogs; full-task and Connector wrappers keep their own claim limits. The
+newer Approval19 catalog and stricter signed-link Connector judge have known,
+explicitly unsupported observations; they grant no current legacy parity.
 Fresh legacy execution, installed acceptance, candidate admission and complete
 historical-reader parity remain open. Python readers and execution paths remain.
 

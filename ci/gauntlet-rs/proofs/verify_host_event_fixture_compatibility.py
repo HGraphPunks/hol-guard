@@ -4,6 +4,8 @@ Reviewed Main generations changed other parts of evidence.py. The historical vec
 and generators remain immutable. This proof accepts only the exact reviewed
 source generation, checks normalized function ASTs against 7eba6064, and executes
 only the generators' isolated stdlib-only functions, never controller imports.
+The retained legacy scope stays immutable; newer known Source drift is a
+separate unsupported observation, never current assessment parity.
 """
 
 from __future__ import annotations
@@ -42,6 +44,24 @@ GENERATORS = {
         15,
     ),
 }
+KNOWN_CURRENT_UNSUPPORTED = {
+    "schema": "gauntlet-known-current-unsupported-observation.v1",
+    "upstream_commit": "fc0486a63e0664ab1002080a1d96fa84ca74c1bc",
+    "source_generation": "fc0486-core378-approval19",
+    "source_sha256": {
+        "ci/gauntlet/approval_retry.json": "342f15e622148a5405fdc6efc97b2c2f1ee1ab8efb28d61aa3e78235bfc09577",
+        "ci/gauntlet/connector_judge.py": "b481c3d794cdd7bd1ccb4b85f7486209925dd159891471ef26911e10c37eb9ad",
+    },
+    "approval_retry_scenarios": 19,
+    "retained_approval_retry_scenarios": 16,
+    "additional_changed_definition_asts": 1,
+    "current_legacy_generation_supported": False,
+    "full_current_assessment_parity": False,
+}
+CONNECTOR_SETUP_ASTS = (
+    "2d2bce4719d3c2e2dd55f0c40e131379083ba7d638cddc3129fdb0b8a33142d0",
+    "6fde59b4ffd72a84295e268222c551cd96b5cbe901d71b63b8fcc9d1c7e46657",
+)
 
 
 def normalized(node):
@@ -65,6 +85,58 @@ def normalized(node):
     return node
 
 
+def definition_asts(raw):
+    result = {}
+    for node in ast.parse(raw).body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if node.name in result:
+                raise ValueError("ambiguous Source definition")
+            canonical = json.dumps(normalized(node), sort_keys=True, separators=(",", ":"),
+                                   ensure_ascii=False).encode()
+            result[node.name] = hashlib.sha256(canonical).hexdigest()
+    return result
+
+
+def check_definition_asts(actual, row, path):
+    expected = dict(row["unchanged_definition_asts"])
+    expected.update({name: pair["current"] for name, pair in row["changed_definition_asts"].items()})
+    expected.update(row["added_definition_asts"])
+    if path == "ci/gauntlet/connector_judge.py":
+        if expected.get("connector_setup_outcome") != CONNECTOR_SETUP_ASTS[0]:
+            raise ValueError("immutable connector predecessor AST changed")
+        expected["connector_setup_outcome"] = CONNECTOR_SETUP_ASTS[1]
+    if actual != expected or set(actual) & set(row["removed_definition_asts"]):
+        raise ValueError("Source differs outside the known unsupported AST drift")
+
+
+def known_current_observation(scope):
+    for path, digest in KNOWN_CURRENT_UNSUPPORTED["source_sha256"].items():
+        if hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != digest:
+            raise ValueError("Source is outside the known unsupported generation")
+    approval = json.loads((ROOT / "ci/gauntlet/approval_retry.json").read_bytes())["scenarios"]
+    if (len(approval) != 19 or len({row["id"] for row in approval}) != 19
+            or not any(row["id"] == "approved-retry-waited-command" for row in approval)):
+        raise ValueError("known unsupported approval catalog changed")
+    path = "ci/gauntlet/connector_judge.py"
+    row = scope["source_lineage"][path]
+    actual = definition_asts((ROOT / path).read_bytes())
+    check_definition_asts(actual, row, path)
+    for name, digest in [("connector_setup_outcome", CONNECTOR_SETUP_ASTS[0]),
+                         ("connector_identity", "0" * 64),
+                         ("unreviewed_definition", "0" * 64), ("_group_error", None)]:
+        changed = dict(actual)
+        if digest is None:
+            del changed[name]
+        else:
+            changed[name] = digest
+        try:
+            check_definition_asts(changed, row, path)
+        except ValueError:
+            continue
+        raise ValueError("counterfactual connector AST drift was accepted")
+    return {**KNOWN_CURRENT_UNSUPPORTED, "counterfactual_ast_refusals": 4}
+
+
 def retained_legacy_scope() -> dict:
     """Verify historical identity and scoped ASTs, not current legacy grading."""
     directory = FIXTURES / "fixtures"
@@ -78,6 +150,7 @@ def retained_legacy_scope() -> dict:
             or scope["full_current_assessment_parity"] is not False
             or scope["current_legacy_generation_supported"] is not False):
         raise ValueError("historical and current legacy generations must remain distinct")
+    known_current = known_current_observation(scope)
     identities = {}
     for name, digest in scope["immutable_fixtures"].items():
         if Path(name).name != name or not name.endswith(".json"):
@@ -95,34 +168,26 @@ def retained_legacy_scope() -> dict:
                 or row["full_current_assessment_parity"] is not False):
             raise ValueError("legacy source identity or claim scope changed")
         current = (ROOT / path).read_bytes()
-        if hashlib.sha256(current).hexdigest() != row["current_sha256"]:
+        expected_sha = known_current["source_sha256"].get(path, row["current_sha256"])
+        if hashlib.sha256(current).hexdigest() != expected_sha:
             raise ValueError("Source is outside the reviewed historical/current pair")
         if not path.endswith(".py"):
             if row["current_data_generation_supported"] is not False:
                 raise ValueError("new catalog generation is not admitted")
             continue
-        actual = {}
-        for node in ast.parse(current).body:
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                if node.name in actual:
-                    raise ValueError("ambiguous Source definition")
-                canonical = json.dumps(normalized(node), sort_keys=True, separators=(",", ":"),
-                                       ensure_ascii=False).encode()
-                actual[node.name] = hashlib.sha256(canonical).hexdigest()
-        expected = dict(row["unchanged_definition_asts"])
-        unchanged += len(expected)
-        for name, pair in row["changed_definition_asts"].items():
+        actual = definition_asts(current)
+        unchanged += len(row["unchanged_definition_asts"])
+        for pair in row["changed_definition_asts"].values():
             if pair["historical"] == pair["current"]:
                 raise ValueError("changed oracle cannot claim AST identity")
-            expected[name] = pair["current"]
             changed += 1
-        expected.update(row["added_definition_asts"])
-        if actual != expected or set(actual) & set(row["removed_definition_asts"]):
-            raise ValueError("scoped Source AST changed")
+        check_definition_asts(actual, row, path)
     if len(scope["immutable_fixtures"]) != 9 or len(scope["source_lineage"]) != 17:
         raise ValueError("historical fixture/source scope changed")
     return {"schema":scope["schema"], "historical_fixtures":9, "source_files":17,
             "unchanged_definition_asts":unchanged, "changed_definition_asts":changed,
+            "definition_counts_generation":scope["current_generation"],
+            "known_current_observation":known_current,
             "current_legacy_generation_supported":False, "full_current_assessment_parity":False}
 
 

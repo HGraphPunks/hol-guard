@@ -294,8 +294,8 @@ mod tests {
             (
                 LegacyCatalogKind::ApprovalRetry,
                 include_bytes!("../../../../gauntlet/approval_retry.json"),
-                18,
-                "35993e792fd4dc3c5a3c9e654cecbb020098ed2a36a0bc7fea5aeb316e066f53",
+                19,
+                "342f15e622148a5405fdc6efc97b2c2f1ee1ab8efb28d61aa3e78235bfc09577",
             ),
         ];
         for &(kind, raw, count, digest) in current {

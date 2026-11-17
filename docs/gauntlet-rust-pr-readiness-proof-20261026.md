@@ -12,6 +12,11 @@ extended features remain uncompleted on the roadmap.
 
 Product candidate source is frozen at `4edfc22e3260cac6c2c0fa2316748a4c41b882f2`,
 including upstream `2a5488a4e119f051162d0c191c356c3562360b69`.
+The development branch subsequently merges upstream
+`fc0486a63e0664ab1002080a1d96fa84ca74c1bc` through `a0a4820b6`; this preserves
+the frozen candidate's runtime evidence and establishes no new upstream-product
+runtime qualification. The two new legacy-source changes have separate,
+explicitly unsupported observations below.
 Follow-ups through `8ffa848d5f36c96bf4192082671008b0d32be5ad` change only nine
 test inputs. Six are dedicated test modules; three change only their
 `cfg(test)` tails. Their production prefixes are byte-identical. The retained
@@ -76,17 +81,24 @@ never becomes a candidate ZIP or admitted artifact.
 | Strict retained-frame decoding: all 242 macOS Evidence library tests and 29 selected ARM tests pass, including ten provider, ten projection and nine pair cases. | `4afed1abd3d691c0c8835b959943eccb7117fd453f584b594c8b171dd155c709`, `5c7f643d0e9ffd37e2b64e3ed7758405129d400a2c040eec992333dee89bc4ec` |
 | Baseline retirement/readback and fresh four-lease outside checks verify backing, loop, owner/product cgroups, mounts and profiles absent. The original archive remains retained. | `fcf8405ab4677c9496943572c9b280816e16661260f6559da496e59a2db697c1`, `8229e7290fdcf7dc5f2d171f51ab2860aa248bf5f41075a83545e0abde185e94` |
 | Protected retirement/readback and fresh four-lease outside checks likewise verify the original resources absent. Its failed report and archive remain retained. | `8edd7bc213acbe87627fb30f25e1ea07eb5c85032f296802ff503b2c90921bcf`, `1aad3f8858436b1df589039400861e96510909f70c3b553ef2f4d17a9bbd6916` |
-| Final macOS workspace/all-target/all-feature run: 992 passed across 229 targets, zero failures/ignored/filtered; inputs unchanged. | `792ae79b84ad6ff1d282fc06d3ab1b231c7222b67fb4f84c5bdf48d54aaf4868` |
+| Recovery source `196d0f5be`: full macOS workspace/all-target/all-feature run, 992 passed across 229 targets, zero failures/ignored/filtered; inputs unchanged. | `792ae79b84ad6ff1d282fc06d3ab1b231c7222b67fb4f84c5bdf48d54aaf4868` |
 | The same source passes full warnings-denied macOS workspace Clippy. Three deterministic lifecycle-lock ownership regressions also pass. | `88cff292e9703227113840fd39e77447f0ff798de046ba4f0867e77d43687f38`, `7c3633cf176e8c603e0190d659b469c77bc77da8c7a2f9862e5862b2d5276df2` |
 | Dependency Source ZIP is privately downloaded, acknowledged, independently read back and retired. Fresh four-lease checks verify the original backing/loop/owner/socket/container/cgroup/mount/profile absence. | `bfa74ebac0ac06bd9c643873568de412be5333b28749f69bf63da838bd574d8d`, `01fc3f297d243fd167126b3242e2d4768de1d5b4190670435fa9d64e2b1f5ea1` |
+| Candidate Source ZIP resumes through the original intent, is acknowledged/read back and retired. Independent checks verify its original resources absent and the earlier two empty private files preserved beside the exact 33,061,817-byte third attempt. | `e4faa2eb420448bede1cd64d92172e5085d144e26f8647a167f643f12110bb01`, `d8028886841ac1f5a328421e287cdcc7bb37fdfed3cabf41be50b78888eca1f1`, `f7f1c8ca256d36745568288700cf4bdc4b383c4fdfdad2a4dce6050abbc25406` |
+| Recovery source passes full ARM workspace warnings-denied Clippy and formatting. | `c1c884e2e6b9e0d4bc81b9b982ffd57cb1577f277f8a080d2d6b5809b06d4caf`, `1e9fe96e90aa4c3a74ef9a147104d71b687aa9c01f1a5450eb8775e11ed18933` |
+| Reviewed upstream refresh changes exactly the Approval Retry and Connector hashes; the 449-file/99-changed/29-added source map and immutable 420-file baseline remain. Static versioned lineage proof preserves all nine goldens and rejects four counterfactual AST changes; new current semantics remain unsupported. | `88427c01b2d54858b9e58fed87fe25000e6cdbe0d598aade3870d2c1bc414b93`, `be7c591a52224df793694ffc4cd0d312d9217fe957e2e86ed93c9a278d647628` |
+| Merged upstream Native library/CLI compilation passes on macOS after fetching the existing locked dependency. This compiles the product without executing it. | `f07ac1392a32ce9a1b07571e7eb98fd888450b8ba61df5026c7dd8720cad0c7e` |
+| The same merged Native library/CLI compiles for ARM musl; no product execution. | `da32b91274ccd0d4193ed2294a5ca28345894b6e997b3ce17b5e1befeca01d27` |
+| Independent AST extraction of the actual Python bootstrap selector and fresh installer modes verifies all 449 source hashes and derives the new 418-file/11-directory controller plan. | `4fba86d4ff183f5d091c8d0943c9730e3d29fb021fc6cedd593bfc6278861453` |
+| Merged-source full macOS workspace/all-target/all-feature run: all 992 tests across 229 targets pass with zero failures/ignored/filtered. | `1d261dc403c61a01b07b11497b0fce8aafcc92112c402c96ad32fa9956911bb7` |
+| The merged source passes full macOS and ARM warnings-denied workspace Clippy and formatting; all checks retain the identical 1,152-input snapshot. | `24270a4e019672427cf4c233c3fe5249a065c82cb3246b62f6a87229e31bc339`, `71a2405306001e4deba1fe38e2070382827b3b091c624f0987bc0fa98f4f5d04`, `8bda8e0cddddaed71c6cfa61c746655e50907ec8236e86d08154343ada005bbb` |
 
 Formatting and warnings-denied macOS/ARM all-target/all-feature Clippy pass.
 The unchanged 420-file Python baseline remains intact. The frozen controller
 has 449 source inputs and 418 installed files, with independently matched tree
 `b486ec6936966b8643117dc6c1fc03486eff6c466738f6e5186847726018b6b8`.
-Current-source compatibility commit `d643d86e4` corrects two CI probe imports;
-its reviewed delta has 99 changed and 29 added files, and the current-source
-controller plan is
+Compatibility commit `d643d86e4` corrects two CI probe imports;
+its reviewed delta has 99 changed and 29 added files, and its controller plan was
 `4ef5ad14bc8b06ee3517827831e8a61f0a9f3f9ed4fa1320ebd41ff6569abd2e`.
 The frozen controller and historical oracle were not rewritten. Standalone
 bounded-read compatibility is committed in `0839ca25f`; its four focused tests,
@@ -229,8 +241,25 @@ failed acquisitions and child drops cannot unlock a live owner. Original file
 identity/custody checks, CLOEXEC and Busy refusal remain unchanged. Three
 duplicated-descriptor regressions cover those ownership boundaries. Initial
 fixture failures remain retained; only their canonical private-directory setup
-was corrected. The original attached-build test remains unchanged. Final CI
+was corrected. The original attached-build test remains unchanged. Recovery CI
 input snapshot is `9f37a93099b608322d6f75def7f815598ff25ae38c9fe2e19d57eda34e26f2e9`.
+
+After upstream synchronization, retained Core310/Approval16 catalogs and all
+historical full-result vectors remain unchanged. The observed current Approval19
+catalog is refused by the retained catalog contract. Connector Setup's stricter
+signed-link check has one additional, independently pinned AST change; its
+observation is explicitly unsupported. The old 113/22 definition counts retain
+their Main2a generation label. No current legacy parity or execution admission
+is obtained by changing a source hash. The independently derived current
+controller plan is `33f1195cb9f689f9ec816cb70f74677c48767b645141adf7e3b83f8cd500c9ba`;
+the stale current-plan assertion is updated only after that independent proof.
+No controller is installed by this calculation. The frozen optimized recovery Host has
+SHA-256 `42cef1aa34b2134654b9fba6447b7bebd57fc09d5a6c1f0aebaee5730a3fa565`;
+its build is pinned to `196d0f5be` and the preceding recovery snapshot.
+Merged Gauntlet checks use snapshot
+`33dcb878f317b219bcc469bf1c73bd7b7881b5232fb74dc53a166a2405339121`;
+the separately compiled Native inputs remain unchanged at
+`ee7693c3a4905d000068b6791952e9fe1c2388ef61cb6142acbc96fa56c2f28b`.
 
 Actual SDK remains 18.4.12/Bun 1.3.14;
 this does not establish newer-SDK or general SDK/Bash qualification. The old

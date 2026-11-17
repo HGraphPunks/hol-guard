@@ -7,7 +7,7 @@ fn reference() -> Value {
     .unwrap()
 }
 #[test]
-fn connector_wrapper_matches_full_actual_python_harness_results() {
+fn connector_wrapper_matches_retained_v1_python_harness_results() {
     let reference = reference();
     let mut differences = Vec::new();
     for row in reference["vectors"].as_array().unwrap() {
@@ -204,6 +204,26 @@ fn retained_v1_lineage_keeps_goldens_and_current_generation_separate() {
     assert_eq!(proof["source_files"], 17);
     assert_eq!(proof["unchanged_definition_asts"], 113);
     assert_eq!(proof["changed_definition_asts"], 22);
+    assert_eq!(
+        proof["definition_counts_generation"],
+        "main2a-core378-approval18"
+    );
+    let known = &proof["known_current_observation"];
+    assert_eq!(
+        known["schema"],
+        "gauntlet-known-current-unsupported-observation.v1"
+    );
+    assert_eq!(known["source_generation"], "fc0486-core378-approval19");
+    assert_eq!(known["approval_retry_scenarios"], 19);
+    assert_eq!(known["retained_approval_retry_scenarios"], 16);
+    assert_eq!(known["additional_changed_definition_asts"], 1);
+    assert_eq!(known["counterfactual_ast_refusals"], 4);
+    assert_eq!(known["full_current_assessment_parity"], false);
+    assert_eq!(known["current_legacy_generation_supported"], false);
+    assert_eq!(
+        known["source_sha256"]["ci/gauntlet/connector_judge.py"],
+        "b481c3d794cdd7bd1ccb4b85f7486209925dd159891471ef26911e10c37eb9ad"
+    );
     assert_eq!(proof["full_current_assessment_parity"], false);
     assert_eq!(proof["current_legacy_generation_supported"], false);
     let retained = fixed_legacy_catalog(LegacyCatalogKind::Core).unwrap();
@@ -214,6 +234,29 @@ fn retained_v1_lineage_keeps_goldens_and_current_generation_separate() {
             .scenarios()
             .len(),
         16
+    );
+    let approval: Value =
+        serde_json::from_slice(include_bytes!("../../../../gauntlet/approval_retry.json")).unwrap();
+    assert_eq!(approval["scenarios"].as_array().unwrap().len(), 19);
+    let added_id = "approved-retry-waited-command";
+    assert!(approval["scenarios"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|row| row["id"] == added_id));
+    assert!(matches!(
+        assess_audited_legacy_case(LegacyCatalogKind::ApprovalRetry, added_id, &json!({})),
+        Err(EvidenceError::Invalid("unknown fixed legacy scenario"))
+    ));
+    let mut changed = std::fs::read(root.join("ci/gauntlet/connector_judge.py")).unwrap();
+    changed.push(b'\n');
+    assert!(
+        std::panic::catch_unwind(|| super::super::tests::assert_source_pin(
+            "connector_judge.py",
+            &changed,
+            &json!("23d213be6e9c80cdce74facd8d29cc0c2bc0f28a8eaf0eb20af17118488f2697")
+        ))
+        .is_err()
     );
     let current: Value =
         serde_json::from_slice(include_bytes!("../../../../gauntlet/scenarios.json")).unwrap();
