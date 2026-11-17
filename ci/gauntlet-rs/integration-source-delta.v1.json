@@ -290,6 +290,13 @@
       "sha256": "4911836cbd3157c90c9ca7f16ae42eb45bea9384d1a73f164c3de83bab676797"
     },
     {
+      "base_sha256": "9bae998f1f450be6ef12c4b2a50e6fbfe7267a5d75695e184a3587e532541446",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/benchmark/native_sandbox_diagnostics.py",
+      "phase": 4,
+      "sha256": "00cbc8870ffc51d03b73c6db56244fee6507af0e19c96af69dc6d635c01e693c"
+    },
+    {
       "base_sha256": "cc1513d6b9318ee5884de399568f49de709e863350584a61a0d6439753d0dc9b",
       "disposition": "port_to_rust",
       "path": "ci/gauntlet/benchmark/private_cell_campaign_inputs.py",
@@ -309,6 +316,13 @@
       "path": "ci/gauntlet/benchmark/private_cell_factory.py",
       "phase": 4,
       "sha256": "83a18c88165678f39321e5f9cb1c11bb47f2cd41a81717b36e4ee231a5d21712"
+    },
+    {
+      "base_sha256": "b34c1d91999ac6fde64dd8d6f2e4d05e5163963d6b147668dfbe89be3849957d",
+      "disposition": "port_to_rust",
+      "path": "ci/gauntlet/benchmark/private_cell_readiness.py",
+      "phase": 4,
+      "sha256": "3124251dc01b0aa8844dc73efcf696c0dae4092098731ac32c5fd613035789dd"
     },
     {
       "base_sha256": "ffdcf1b5fb604e5b168a8b1f79e094f60e98e77d202664b61bb8964243d42d07",

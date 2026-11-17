@@ -23,7 +23,7 @@ print(json.dumps(native))
 
 HOOK = '''import http.client,json,os,sys,urllib.parse
 from pathlib import Path
-from codex_plugin_scanner.guard.daemon.manager import load_guard_daemon_auth_token
+from codex_plugin_scanner.guard.native_daemon_manage import load_guard_daemon_auth_token
 from codex_plugin_scanner.guard.hook_execution_environment import collect_hook_execution_environment
 from codex_plugin_scanner.guard.store import GuardStore
 os.environ['HOME']=sys.argv[1]
