@@ -1,7 +1,8 @@
 """One unprivileged normal-client readiness call; Rust checks the response.
 
 The disposable product credential stays inside its own product namespace.
-Body retained from private_cell_readiness.PROBE at product source 62aa7ba7.
+Request body derived from private_cell_readiness.PROBE at source 62aa7ba7;
+the credential loader import follows the current Native-backed product module.
 """
 
 import http.client
@@ -9,7 +10,7 @@ import json
 import sys
 from pathlib import Path
 
-from codex_plugin_scanner.guard.daemon.manager import load_guard_daemon_auth_token
+from codex_plugin_scanner.guard.native_daemon_manage import load_guard_daemon_auth_token
 
 token = load_guard_daemon_auth_token(Path("/product/guard"))
 if type(token) is not str or not token:
