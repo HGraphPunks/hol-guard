@@ -5,12 +5,78 @@ use gauntlet_contracts::PrelaunchPrepared;
 use serde_json::{json, Value};
 #[path = "native_failed_archive.rs"]
 mod archive;
+#[path = "native_failed_live.rs"]
+mod live;
+pub(super) use archive::recover;
 #[cfg(test)]
 pub(super) use archive::MEMBERS;
-pub(super) use archive::{archive, recover};
+pub(super) const LIVE_USAGE: &str = live::USAGE;
+pub(super) fn is_live(f: &Value) -> bool {
+    f["schema"] == "hol-gauntlet-host-native-live-failure-intent.v1"
+        || f["receipt"]["schema"] == "hol-gauntlet-native-live-failure-export.v1"
+}
+pub(super) fn schema(f: &Value, value: &str) -> String {
+    if is_live(f) {
+        value.replace("native-readonly-failure", "native-live-failure")
+    } else {
+        value.into()
+    }
+}
+pub(super) fn row(i: &Intent, value: &str) -> String {
+    if i.is_live() {
+        value.replacen("readonly-failure", "live-failure", 1)
+    } else {
+        value.into()
+    }
+}
+pub(super) fn archive_name_for(i: &Intent, n: usize) -> String {
+    if i.is_live() {
+        format!("{}.native-live-failure-{n:04}.tar", i.job())
+    } else {
+        archive_name(i.job(), n)
+    }
+}
+pub(super) fn has_intent(j: &Journal, i: &Intent) -> Result<bool, String> {
+    Ok(!j.absent(i.job(), &row(i, INTENT))?)
+}
+pub(super) fn fields(f: &Value) -> &'static [&'static str] {
+    if is_live(f) {
+        &live::BASE
+    } else {
+        &BASE
+    }
+}
+pub(super) fn record(j: &Journal, i: &Intent, reader: &str) -> Result<Value, String> {
+    if i.is_live() {
+        live::record(j, i, reader)
+    } else {
+        original(j, i, reader)
+    }
+}
+pub(super) fn archive(
+    j: &Journal,
+    i: &Intent,
+    f: &Value,
+    e: &Value,
+    raw: &[u8],
+) -> Result<(), String> {
+    if i.is_live() {
+        live::archive(j, i, f, e, raw)
+    } else {
+        archive::archive(j, i, f, e, raw)
+    }
+}
+pub(super) fn live_summary(
+    j: &Journal,
+    i: &Intent,
+    f: &Value,
+    action: &str,
+) -> Result<Value, String> {
+    live::summary(j, i, f, action)
+}
 pub(super) fn marker(f: &Value, operation: &str, binding: &Value) -> Result<Vec<u8>, String> {
     bytes(
-        &json!({"schema":"hol-gauntlet-host-native-readonly-failure-dispatch.v1","failure_intent_sha256":sha(&bytes(f)?),"operation":operation,"binding_sha256":sha(&bytes(binding)?),"retry_allowed":false}),
+        &json!({"schema":schema(f,"hol-gauntlet-host-native-readonly-failure-dispatch.v1"),"failure_intent_sha256":sha(&bytes(f)?),"operation":operation,"binding_sha256":sha(&bytes(binding)?),"retry_allowed":false}),
     )
 }
 pub(super) fn archive_name(job: &str, attempt: usize) -> String {
@@ -51,12 +117,15 @@ pub(super) fn parse(raw: &[u8]) -> Result<Value, String> {
 }
 pub(super) fn base(i: &Value, schema: &str) -> Value {
     let mut v = json!({"schema":schema});
-    for k in BASE {
+    for &k in fields(i) {
         v[k] = i[k].clone();
     }
     v
 }
 pub(super) fn original(j: &Journal, i: &Intent, reader: &str) -> Result<Value, String> {
+    if i.is_live() {
+        return live::original(j, i, reader);
+    }
     require(!i.is_live() && i.text("role") == "readonly-utility" && hex(reader, 64))?;
     j.require_dispatch(i)?;
     for s in [
@@ -128,10 +197,13 @@ pub(super) fn original(j: &Journal, i: &Intent, reader: &str) -> Result<Value, S
 }
 pub(super) fn stable(j: &Journal, i: &Intent, f: &Value) -> Result<(), String> {
     require(j.intent(i.job())? == *i && original(j, i, text(f, "reader_generation")?)? == *f)?;
-    require(j.read(i.job(), INTENT)? == bytes(f)?)
+    require(j.read(i.job(), &row(i, INTENT))? == bytes(f)?)
 }
 pub(super) fn export_intent(f: &Value) -> Value {
-    let mut v = base(f, "hol-gauntlet-native-readonly-failure-export-intent.v1");
+    let mut v = base(
+        f,
+        &schema(f, "hol-gauntlet-native-readonly-failure-export-intent.v1"),
+    );
     v["prelaunch"] = f["prelaunch"].clone();
     v
 }
@@ -146,13 +218,22 @@ fn wrapped(raw: &[u8], schema: &str) -> Result<Value, String> {
     Ok(v)
 }
 pub(super) fn export(f: &Value, raw: &[u8], exit: &Value) -> Result<Value, String> {
-    let v = wrapped(raw, "hol-gauntlet-native-readonly-failure-export-result.v1")?;
+    let v = wrapped(
+        raw,
+        &schema(f, "hol-gauntlet-native-readonly-failure-export-result.v1"),
+    )?;
     let r = &v["receipt"];
-    let mut expected = base(f, "hol-gauntlet-native-readonly-failure-export.v1");
+    let mut expected = base(
+        f,
+        &schema(f, "hol-gauntlet-native-readonly-failure-export.v1"),
+    );
     for k in ["archive_sha256", "archive_bytes", "manifest_sha256"] {
         expected[k] = r[k].clone();
     }
     expected["exit_code"] = exit.clone();
+    if is_live(f) {
+        expected["model_requests"] = Value::Null;
+    }
     expected["execution_eligible"] = json!(false);
     expected["qualification_eligible"] = json!(false);
     require(
@@ -180,7 +261,7 @@ pub(super) fn state(f: &Value, raw: &[u8], exit: &Value) -> Result<Option<Value>
                     "retry_allowed",
                 ],
             )
-            && v["schema"] == "hol-gauntlet-native-readonly-failure-export-state.v1"
+            && v["schema"] == schema(f, "hol-gauntlet-native-readonly-failure-export-state.v1")
             && v["intent_sha256"] == sha(&bytes(&export_intent(f))?)
             && v["retry_allowed"] == false,
     )?;
@@ -192,9 +273,12 @@ pub(super) fn state(f: &Value, raw: &[u8], exit: &Value) -> Result<Option<Value>
     export(f, &bytes(&v["export"])?, exit).map(Some)
 }
 pub(super) fn ack(e: &Value, receipt: &Value, raw: &[u8]) -> Result<Value, String> {
-    let v = wrapped(raw, "hol-gauntlet-native-readonly-failure-ack-result.v1")?;
+    let v = wrapped(
+        raw,
+        &schema(e, "hol-gauntlet-native-readonly-failure-ack-result.v1"),
+    )?;
     let mut expected = e["receipt"].clone();
-    expected["schema"] = json!("hol-gauntlet-native-readonly-failure-ack.v1");
+    expected["schema"] = json!(schema(e, "hol-gauntlet-native-readonly-failure-ack.v1"));
     expected["export_receipt_sha256"] = e["receipt_sha256"].clone();
     expected["host_receipt_sha256"] = json!(sha(&bytes(receipt)?));
     require(v["receipt"] == expected)?;
@@ -208,6 +292,9 @@ pub(super) fn retirement(
     generation: &str,
 ) -> Result<Value, String> {
     require(hex(generation, 64))?;
+    if is_live(f) {
+        return live::retirement(f, e, h, a, generation);
+    }
     let authority = json!({"schema":"hol-gauntlet-native-readonly-failure-storage-retirement-authority.v1",
         "export_receipt_sha256":e["receipt_sha256"],"host_ack_sha256":a["receipt_sha256"],"host_receipt_sha256":sha(&bytes(h)?),
         "terminal_sha256":f["terminal_sha256"],"report_sha256":f["report_sha256"],"prelaunch_sha256":sha(&bytes(&f["prelaunch"])?),"manifest_sha256":e["receipt"]["manifest_sha256"]});
@@ -225,4 +312,47 @@ pub(super) fn retired(r: &Value, raw: &[u8]) -> Result<Value, String> {
         "partial":false,"volume_unmounted":true,"loop_detached":true,"backing_absent":true,"retained_storage":false,"job_consumed":true,"execution_eligible":false,"qualification_eligible":false,"model_requests":null});
     require(v == expected)?;
     Ok(v)
+}
+
+pub(super) fn args(
+    f: &Value,
+    selector: &str,
+    input: &[u8],
+    tail: &[String],
+    generation: Option<&str>,
+) -> Result<Vec<String>, String> {
+    let g = generation.unwrap_or(text(f, "reader_generation")?);
+    let mut a = vec![
+        format!("/opt/hol-gauntlet/rust-native-host-pinned-worker-{g}"),
+        schema(f, selector),
+    ];
+    for &k in fields(f) {
+        a.push(text(f, k)?.into());
+    }
+    a.extend(tail.iter().cloned());
+    if !input.is_empty() {
+        if input.len() > 1024 {
+            return Err("bounded original prelaunch required".into());
+        }
+        a.push(input.len().to_string());
+    }
+    Ok(a)
+}
+
+pub(super) fn retired_context(
+    j: &Journal,
+    i: &Intent,
+    f: &Value,
+) -> Result<(Value, Value, Value, Value, artifact::HeldPrivateArchive), String> {
+    let (e, h, held) = custody(j, i, f)?;
+    let a = retained_ack(j, i, f, &e, &h)?;
+    let request = parse(&j.read(i.job(), &row(i, REQUEST))?)?;
+    let g = text(&request, "retirer_generation")?;
+    if request
+        != json!({"schema":schema(f,"hol-gauntlet-host-native-readonly-failure-retirement-request.v1"),"failure_intent_sha256":sha(&bytes(f)?),"retirer_generation":g})
+    {
+        return Err("original readonly failure retirement request differs".into());
+    }
+    let r = retirement(f, &e, &h, &a, g)?;
+    Ok((e, h, a, r, held))
 }

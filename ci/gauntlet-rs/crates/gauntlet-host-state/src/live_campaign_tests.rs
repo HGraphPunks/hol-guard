@@ -4,7 +4,8 @@ use gauntlet_evidence::{read_provider_quota_snapshot, ProviderQuotaWriter};
 use std::net::Shutdown;
 use std::os::unix::net::UnixStream;
 
-fn fixture() -> (tempfile::TempDir, Journal, Intent, ProviderQuotaWriter) {
+pub(in crate::native_operation) fn fixture(
+) -> (tempfile::TempDir, Journal, Intent, ProviderQuotaWriter) {
     let (temp, j) = super::super::super::tests::journal();
     let mut i = super::super::super::tests::intent(&"1".repeat(16), &j.path);
     let root = j.path.join("temporary-quota");
@@ -211,7 +212,15 @@ fn live_pipe_refuses_partial_or_late_frames_and_keeps_newline_boundaries() {
     assert!(frames.send(&json!({"late":true})).is_err());
 }
 
-fn created_fixture() -> (tempfile::TempDir, Journal, Intent, Value, Value) {
+pub(in crate::native_operation) fn created_fixture(
+) -> (tempfile::TempDir, Journal, Intent, Value, Value) {
+    created_fixture_mode(true)
+}
+pub(in crate::native_operation) fn prepared_fixture(
+) -> (tempfile::TempDir, Journal, Intent, Value, Value) {
+    created_fixture_mode(false)
+}
+fn created_fixture_mode(released: bool) -> (tempfile::TempDir, Journal, Intent, Value, Value) {
     let (temp, j, mut i, _writer) = fixture();
     let source = i.text("source_sha").to_owned();
     let job = i.job().to_owned();
@@ -221,7 +230,7 @@ fn created_fixture() -> (tempfile::TempDir, Journal, Intent, Value, Value) {
         super::super::super::job_storage_fixture(&source, &job, &worker, &formatter, "native-v1");
     let root = format!("/var/lib/hol-gauntlet-rust/native-jobs/{job}");
     let workspace = json!({"source":format!("{root}/workspace"),"destination":"/runtime/home/project","custody_root":root,"device":storage["receipt"]["root_directory"]["device"],"inode":52,"mode":448});
-    let prep = json!({"schema":"hol-gauntlet-cell-preparation.v2","runtime_prefix":format!("/opt/hol-gauntlet/candidates/{source}/prefix"),"runtime_tree_digest":"e".repeat(64),"task_mounts":{"workspace":workspace},"launch":{"image_interpreter_sha256":i.0["interpreter_sha256"],"outside_observer_sha256":i.0["observer_sha256"]}});
+    let prep = json!({"schema":"hol-gauntlet-cell-preparation.v2","runtime_prefix":format!("/opt/hol-gauntlet/candidates/{source}/prefix"),"runtime_tree_digest":"e".repeat(64),"podman_sha256":"a".repeat(64),"task_mounts":{"workspace":workspace},"launch":{"image_interpreter_sha256":i.0["interpreter_sha256"],"outside_observer_sha256":i.0["observer_sha256"]}});
     i.0["preparation_sha256"] = json!(sha(&bytes(&prep).unwrap()));
     let d = json!({"schema":"hol-gauntlet-native-worker-job.v9","profile":"native-host-pinned-live-omp-v1","source_sha":source,"job_id":job,"worker_generation":worker,"preparation_sha256":i.0["preparation_sha256"],"guard":{"source_sha":source},"sdk":{"publication_sha256":"b".repeat(64)},"live":{"schema":"hol-gauntlet-native-live-omp-job.v1","cell_id":context_value(&i)["cell_id"],"spec_sha256":context_value(&i)["spec_sha256"],"model":{"schema":"hol-gauntlet-native-live-model-pins.v1","provider_job_id":binding(&i)["provider_job_id"],"budget_digest":binding(&i)["budget_digest"],"model_id":binding(&i)["model_id"],"max_turns":64,"token_limit":100000}}});
     i.0["deployment_digest"] = json!(sha(&bytes(&d).unwrap()));
@@ -266,6 +275,9 @@ fn created_fixture() -> (tempfile::TempDir, Journal, Intent, Value, Value) {
         ("live-prepared", prepared.clone()),
     ] {
         j.write(&job, suffix, &bytes(&v).unwrap()).unwrap();
+    }
+    if !released {
+        return (temp, j, i, initialized, prepared);
     }
     j.write(&job, "dispatch", &Journal::dispatch_raw(&i).unwrap())
         .unwrap();

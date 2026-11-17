@@ -325,6 +325,8 @@ mod native_live_run;
 pub use native_job_spec::{NativeJobExecution, NativeJobSpec};
 mod native_job_storage;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub use native_job_storage::native::unstarted::abort_prepared_native_live_storage;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 pub use native_job_storage::{
     abort_initialized_native_job_storage, abort_native_job_storage, dispatch_native_job_storage,
     initialize_native_job_v2, retire_native_job_storage, run_storage_namespace_owner,
@@ -478,6 +480,8 @@ pub use native_controller_run::execute_native_controller;
 mod native_completion;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_controller_key;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod native_live_failure;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod native_prelaunch;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]

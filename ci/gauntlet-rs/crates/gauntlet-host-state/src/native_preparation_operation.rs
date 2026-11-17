@@ -46,7 +46,7 @@ fn frame(raw: &[u8], schema: &str, count: usize) -> Result<Value, String> {
     }
     Ok(v)
 }
-fn inert_transport(
+pub(super) fn inert_transport(
     lima: &mut Lima,
     vm: &str,
     argv: &[String],
@@ -246,6 +246,11 @@ pub(super) fn retained_storage(j: &Journal, intent: &Intent) -> Result<Option<Va
     }
     let initial = initialization_for(j, intent)?;
     Ok(initial["receipt"].get("storage").cloned())
+}
+pub(super) fn inert_abort_initialization(j: &Journal, intent: &Intent) -> Result<Value, String> {
+    let result = initialization_for(j, intent)?;
+    let (original, _) = retained_initialization(j, intent.job())?;
+    Ok(json!({"intent":original.0,"result":result}))
 }
 
 pub(super) fn require_new_work(j: &Journal, intent: &Intent) -> Result<(), String> {

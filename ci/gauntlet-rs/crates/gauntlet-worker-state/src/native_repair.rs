@@ -50,6 +50,11 @@ pub(crate) fn verified_receipt(
     else {
         return Ok(None);
     };
+    if let Some(retained) = crate::native_live_failure::retired_repair(
+        journal, source, job, deployment, generation, &raw,
+    )? {
+        return Ok(Some(retained));
+    }
     let started = journal
         .started(job, source, deployment, generation)
         .map_err(|e| e.to_string())?

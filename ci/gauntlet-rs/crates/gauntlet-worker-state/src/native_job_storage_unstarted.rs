@@ -7,6 +7,9 @@ use serde_json::{json, Value};
 use std::{fs::File, io::Read, os::fd::OwnedFd, path::Path};
 const SNAPSHOT: &str = "unstarted-snapshot.json";
 const PREPARATION: &str = "unstarted-preparation.raw";
+#[path = "native_prepared_live_abort.rs"]
+pub(crate) mod prepared;
+pub use prepared::abort_prepared_native_live_storage;
 fn read(slot: &OwnedFd, name: &str, bound: usize) -> Result<Option<Vec<u8>>, String> {
     crate::feature_files::read(slot, name, (0, 0), 0o600, bound)
 }
@@ -223,6 +226,9 @@ pub(crate) fn authority_mode(
     storage: Option<&str>,
     archive: Option<&str>,
 ) -> Result<bool, String> {
+    if prepared::authority_mode(a, p, profile, storage, archive)? {
+        return Ok(true);
+    }
     if !authority_fields(a, profile, storage, archive)? {
         return Ok(false);
     }

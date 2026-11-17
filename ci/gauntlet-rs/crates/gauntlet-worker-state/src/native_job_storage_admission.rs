@@ -41,6 +41,17 @@ pub(crate) fn require_complete() -> Result<(), String> {
         if crate::feature_files::read(&slot, "retirement.json", (0, 0), 0o600, 24576)?.is_some() {
             return Err("unfinished storage retirement blocks all fresh volumes".into());
         }
+        if crate::feature_files::read(
+            &slot,
+            super::native::unstarted::prepared::INTENT,
+            (0, 0),
+            0o600,
+            8192,
+        )?
+        .is_some()
+        {
+            return Err("unfinished prepared Live abort blocks fresh volume admission".into());
+        }
         if crate::feature_files::read(&slot, "artifact-export-intent.json", (0, 0), 0o600, 8192)?
             .is_some()
             && crate::feature_files::read(&slot, "artifact-export.json", (0, 0), 0o600, 8192)?

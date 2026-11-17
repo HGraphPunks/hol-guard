@@ -19,6 +19,9 @@ fn run() -> Result<(), String> {
                     | "--export-native-readonly-failure-v1"
                     | "--resume-native-readonly-failure-v1"
                     | "--read-native-readonly-failure-v1"
+                    | "--export-native-live-failure-v1"
+                    | "--resume-native-live-failure-v1"
+                    | "--read-native-live-failure-v1"
             )
         ) {
             std::io::stdout()
@@ -219,6 +222,16 @@ fn run() -> Result<(), String> {
         )
     {
         let raw = gauntlet_worker_state::repair_native_live_sdk_created(&args)?;
+        println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
+        return Ok(());
+    }
+    if args.len() == 14
+        && matches!(
+            args[1].as_str(),
+            "--abort-native-prepared-live-storage-v1" | "--read-native-prepared-live-abort-v1"
+        )
+    {
+        let raw = gauntlet_worker_state::abort_prepared_native_live_storage(&args)?;
         println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
         return Ok(());
     }

@@ -281,7 +281,7 @@ pub(in crate::native_operation::failure) fn recover(
     e: &Value,
 ) -> Result<bool, String> {
     for n in 1..=4 {
-        let suffix = format!("readonly-failure-download-attempt-{n:04}");
+        let suffix = super::row(i, &format!("readonly-failure-download-attempt-{n:04}"));
         if j.absent(i.job(), &suffix)? {
             continue;
         }
@@ -293,10 +293,10 @@ pub(in crate::native_operation::failure) fn recover(
                 operation,
                 "failure-download" | "failure-download-read" | "failure-download-resume"
             ) && a
-                == json!({"schema":"hol-gauntlet-host-native-readonly-failure-attempt.v1","failure_intent_sha256":sha(&bytes(f)?),"attempt":n,"operation":operation})
+                == json!({"schema":super::schema(f,"hol-gauntlet-host-native-readonly-failure-attempt.v1"),"failure_intent_sha256":sha(&bytes(f)?),"attempt":n,"operation":operation})
                 && bytes(&a)? == raw,
         )?;
-        let name = super::archive_name(i.job(), n);
+        let name = super::archive_name_for(i, n);
         match rustix::fs::statat(
             &j.root,
             name.as_str(),
@@ -322,11 +322,11 @@ pub(in crate::native_operation::failure) fn recover(
             &j.path.join(&h.name),
             text(&e["receipt"], "archive_sha256")?,
         )?;
-        archive(j, i, f, e, &raw)?;
+        super::archive(j, i, f, e, &raw)?;
         h.finish(j, text(&e["receipt"], "archive_sha256")?)?;
         let r = receipt(f, e, &h)?;
-        j.retain(i.job(), EXPORT, &bytes(e)?)?;
-        j.write(i.job(), RECEIPT, &bytes(&r)?)?;
+        j.retain(i.job(), &super::row(i, EXPORT), &bytes(e)?)?;
+        j.write(i.job(), &super::row(i, RECEIPT), &bytes(&r)?)?;
         return Ok(true);
     }
     Ok(false)

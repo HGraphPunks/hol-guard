@@ -289,6 +289,105 @@ pub(crate) fn failure_retained_export(
     Ok(v)
 }
 
+pub(crate) const LIVE_FAILURE_PREFIX: &str = "hol-gauntlet-native-live-failure";
+pub(crate) const LIVE_FAILURE_FIELDS: [&str; 11] = [
+    "source_sha",
+    "job_id",
+    "deployment_digest",
+    "original_worker_generation",
+    "preparation_sha256",
+    "storage_receipt_sha256",
+    "live_prepared_sha256",
+    "created_repair_sha256",
+    "repair_sha256",
+    "signed_envelope_sha256",
+    "reader_generation",
+];
+pub(crate) struct LiveFailurePins(pub(crate) Value);
+impl LiveFailurePins {
+    pub(crate) fn new(args: &[String], observe: bool) -> Result<Self, String> {
+        let mut p = serde_json::Map::new();
+        let fields = LIVE_FAILURE_FIELDS
+            .into_iter()
+            .filter(|k| !observe || *k != "signed_envelope_sha256");
+        for (k, v) in fields.zip(&args[2..]) {
+            if !crate::hex(
+                v,
+                if k == "source_sha" {
+                    40
+                } else if k == "job_id" {
+                    16
+                } else {
+                    64
+                },
+            ) {
+                return Err("original signed Live failure pins required".into());
+            }
+            p.insert(k.into(), json!(v));
+        }
+        Ok(Self(Value::Object(p)))
+    }
+    pub(crate) fn text(&self, k: &str) -> &str {
+        self.0[k].as_str().unwrap_or("")
+    }
+    pub(crate) fn body(&self, suffix: &str) -> Value {
+        let mut p = self.0.clone();
+        p["schema"] = json!(format!("{LIVE_FAILURE_PREFIX}-{suffix}.v1"));
+        p
+    }
+    pub(crate) fn slot(&self) -> Result<OwnedFd, String> {
+        let parent = crate::open_root_owned_public_directory(std::path::Path::new(
+            crate::native_job_storage::lifecycle::BASE,
+        ))
+        .map_err(|e| e.to_string())?;
+        crate::feature_files::open_directory(&parent, self.text("job_id"), (0, 0))
+    }
+    pub(crate) fn prepared(&self, raw: &[u8]) -> Result<PrelaunchPrepared, String> {
+        let pre = PrelaunchPrepared::parse(raw).map_err(|e| e.to_string())?;
+        if pre.source_sha != self.text("source_sha")
+            || pre.job_id != self.text("job_id")
+            || pre.deployment_digest != self.text("deployment_digest")
+            || pre.worker_generation != self.text("original_worker_generation")
+        {
+            return Err("original Live failure prelaunch differs".into());
+        }
+        Ok(pre)
+    }
+    pub(crate) fn intent(&self, pre: &PrelaunchPrepared) -> Result<Value, String> {
+        let mut v = self.body("export-intent");
+        v["prelaunch"] = serde_json::from_slice(&pre.to_bytes().map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+        Ok(v)
+    }
+}
+pub(crate) fn live_failure_wrap(suffix: &str, body: Value) -> Result<Value, String> {
+    crate::native_job_storage::artifact::failure_wrapper(
+        &format!("{LIVE_FAILURE_PREFIX}-{suffix}-result.v1"),
+        body,
+    )
+}
+pub(crate) fn live_failure_export(
+    p: &LiveFailurePins,
+    raw: &[u8],
+    m: &Value,
+) -> Result<Value, String> {
+    let mut v = p.body("export");
+    v["archive_sha256"] = json!(crate::native_job_storage::linux::sha(raw));
+    v["archive_bytes"] = json!(raw.len());
+    v["manifest_sha256"] = json!(crate::native_job_storage::linux::sha(
+        &crate::native_job_storage::linux::canonical(m)?
+    ));
+    for (k, vv) in [
+        ("exit_code", Value::Null),
+        ("model_requests", Value::Null),
+        ("execution_eligible", json!(false)),
+        ("qualification_eligible", json!(false)),
+    ] {
+        v[k] = vv;
+    }
+    live_failure_wrap("export", v)
+}
+
 #[cfg(test)]
 #[path = "native_prelaunch_tests.rs"]
 mod tests;

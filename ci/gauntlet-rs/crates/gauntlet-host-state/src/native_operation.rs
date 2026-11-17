@@ -336,7 +336,7 @@ impl Journal {
                 }
                 let intent = self.intent(job)?;
                 self.require_dispatch(&intent)?;
-                if !self.absent(job, failure::INTENT)? {
+                if failure::has_intent(self, &intent)? {
                     failure::verify_idle(self, &intent)?;
                 } else if !self.absent(job, "repair-intent")? {
                     if intent.is_live() {

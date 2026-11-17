@@ -301,7 +301,7 @@ impl<R: Read + AsRawFd, W: Write + AsRawFd> Frames<R, W> {
 }
 #[cfg(test)]
 #[path = "live_campaign_tests.rs"]
-mod tests;
+pub(in crate::native_operation) mod tests;
 pub(super) fn execute(
     j: &Journal,
     i: &Intent,

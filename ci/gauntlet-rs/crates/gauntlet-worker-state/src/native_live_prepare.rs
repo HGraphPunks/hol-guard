@@ -314,6 +314,13 @@ pub(crate) fn verify_unreleased(
     deployment: &str,
     expected: &str,
 ) -> Result<Value, String> {
+    verify_unreleased_snapshot(job, deployment, expected).map(|(facts, _)| facts)
+}
+pub(crate) fn verify_unreleased_snapshot(
+    job: &NativeJobSpec,
+    deployment: &str,
+    expected: &str,
+) -> Result<(Value, Value), String> {
     let prepared = retained(job, deployment)?;
     if !crate::hex(expected, 64) || sha(&prepared.raw) != expected {
         return Err("unreleased live World differs from original Host preparation".into());
@@ -359,8 +366,9 @@ pub(crate) fn verify_unreleased(
     }
     let database = world.database_identity();
     drop(world);
-    Ok(
+    Ok((
         json!({"live_prepared_sha256":expected,"world_snapshot_sha256":initial_sha256,"world_receipt_count":0,
         "database":database,"world_key_retained":true,"cleanup_key_retained":true,"live_private_inventory_exact":true}),
-    )
+        snapshot,
+    ))
 }
