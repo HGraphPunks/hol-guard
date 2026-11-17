@@ -92,6 +92,9 @@ never becomes a candidate ZIP or admitted artifact.
 | Independent AST extraction of the actual Python bootstrap selector and fresh installer modes verifies all 449 source hashes and derives the new 418-file/11-directory controller plan. | `4fba86d4ff183f5d091c8d0943c9730e3d29fb021fc6cedd593bfc6278861453` |
 | Merged-source full macOS workspace/all-target/all-feature run: all 992 tests across 229 targets pass with zero failures/ignored/filtered. | `1d261dc403c61a01b07b11497b0fce8aafcc92112c402c96ad32fa9956911bb7` |
 | The merged source passes full macOS and ARM warnings-denied workspace Clippy and formatting; all checks retain the identical 1,152-input snapshot. | `24270a4e019672427cf4c233c3fe5249a065c82cb3246b62f6a87229e31bc339`, `71a2405306001e4deba1fe38e2070382827b3b091c624f0987bc0fa98f4f5d04`, `8bda8e0cddddaed71c6cfa61c746655e50907ec8236e86d08154343ada005bbb` |
+| All 179 ARM Host library tests pass, zero failures/ignored/filtered, as UID501/GID1000 with NNP1 and zero inherited/permitted/effective/ambient capabilities. The bounding set is recorded separately; an earlier launcher assertion stopped before executing tests and remains retained. | `67d695268dd9b1fe89df128091842a839ae790c26979e7f077831c24d70ae01a` |
+| The final-source optimized CLI is byte-identical to the original immutable recovery CLI; both source/build associations are retained without replacing that binary. | `0e88b33a2ceeb73357462692e2c7f76a43950196af0b0e66ff8ea92d2816de01` |
+| Final CLI report/pair reads after both model volumes are retired reproduce the earlier complete JSON results exactly: valid baseline evidence with failed task, zero-inference protected failure and failed/incomplete pair. No workload is replayed. | `f6b4ec3fe82ad2d5fcccbd7950f35f91bcb33afd6b6d2c2fa6afeb3a5f53b20f` |
 
 Formatting and warnings-denied macOS/ARM all-target/all-feature Clippy pass.
 The unchanged 420-file Python baseline remains intact. The frozen controller
@@ -260,6 +263,10 @@ Merged Gauntlet checks use snapshot
 `33dcb878f317b219bcc469bf1c73bd7b7881b5232fb74dc53a166a2405339121`;
 the separately compiled Native inputs remain unchanged at
 `ee7693c3a4905d000068b6791952e9fe1c2388ef61cb6142acbc96fa56c2f28b`.
+Code commit `5fc56120c38da8d621ba76e124d7a2870d59218d` has these checks and
+the final readback; subsequent handoff documentation does not change its code.
+V7 and V8 remain open for actual final-head CI, independent repository approval
+and the permitted integration merge. Internal source reviews are not that approval.
 
 Actual SDK remains 18.4.12/Bun 1.3.14;
 this does not establish newer-SDK or general SDK/Bash qualification. The old
