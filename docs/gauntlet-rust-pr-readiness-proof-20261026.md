@@ -60,6 +60,11 @@ never becomes a candidate ZIP or admitted artifact.
 | Read-only bridge handoff at `a7c6089a5`: 261 unprivileged ARM tests pass. The direct ELF regression observes ETXTBSY with a held writer, then successful bounded execution after the same inode is retained read-only. | `805570bfa7ff8dc917cb97757731ab48c362d79b4dad04fc28d015d49477f3ee` |
 | The subsequent zero-turn failed baseline `01272ffba97f8889` is authenticated, reported, exported and retired. Independent backing/loop/owner/mount/profile absence checks pass; the failed result remains incomplete. | `551f889e0d3aaee97c1b10c557fbfedc95b80526c9f97beead3f3c02fa5dc597` |
 | CI checkout configuration preserves the exact PR head and disabled credential persistence; the two jobs running historical Evidence tests fetch the required baseline history. YAML and baseline-object checks pass; this is not a CI run. | `2a2e71fce4c17998e54174ed134828d3bbb1a8da916435981ae26966593c2658` |
+| Baseline `df7d2a22d72d0e5f` reaches SDK inference startup but records zero provider requests and fails at `episode`. Its authenticated report remains incomplete; provider terminal quota is unchanged. | `31182d74cb4ffcc1424bae899b35fedd88813b95e4100bba91e48d0a289f3581` |
+| That failure and its unused protected cell are retired through their original normal commands; fresh outside checks verify backing, loop, owner, mount and profile absence. | `5444d21659bf4e685d2ef63848a0f46ad8932157e6e88e4b95c1a38fba1cedd1`, `874eb5f43472a1d28843f1b8442fdf448ba073e011430d4c2f97a320b0872f3b` |
+| Exact retained SDK source and the frozen numerical adapter establish the token-field and fixed thinking-control mismatch. The original SDK archive and five relevant members are freshly rehashed; no inference is credited. | `f711cc08b73798f939a2c889cc095843d486addadd1d9ca010305ef74f9cd463` |
+| Request compatibility and relay liveness at `63b6fe3c6`: 102 macOS Worker tests and 262 unprivileged ARM tests pass; 37 explicit integration cases remain ignored and the previously verified Root identity case is filtered on the initialized VM. | `975b0d2e6c2670525113816bb0f4592f37023b26664f291b1268c79163638575`, `9a57407addaa9680eb7036dcf13e28c3c420b4ea9c7c793a52868a0605fea0df` |
+| The same compatibility source passes warnings-denied macOS workspace and ARM Worker Clippy plus formatting. The sole follow-up to the macOS test snapshot folds a Linux-only condition without changing its predicate order. | `766f01e01de3c37a30c58eddedefc821fb10fe6a22a139f3e3716eccdb90f97f`, `b0c16b346933f52952b76df21ef16c8c7917d9127f307cf03824daf8d0392d55`, `3d73172161e366edfd632f6e165c04233dd6a0780b4bea964cf2a1a06b149454` |
 
 Formatting and warnings-denied macOS/ARM all-target/all-feature Clippy pass.
 The unchanged 420-file Python baseline remains intact. The frozen controller
@@ -133,8 +138,22 @@ and all 261 unprivileged ARM tests pass, as do warnings-denied ARM Clippy and
 formatting, against input snapshot
 `1a22e2546d55fcdfe86669007ab68a20caf25c74392a4a6752a25c09576ddcad`.
 Closed handshake substages expose no raw errors, arguments or credentials.
-The next pair uses Worker `e136f027` and the original 200,000-token ceiling;
-genuine inference remains uncompleted at this checkpoint.
+Its baseline `df7d2a22d72d0e5f` reaches `episode_start` and `inference_start`,
+then fails without an outside provider request or paid usage. These SDK events
+do not prove inference. The authenticated failure and unused protected cell
+are retired, with fresh outside absence checks; provider cleanup completes
+and retained quota remains unchanged.
+
+Commit `63b6fe3c6` accepts the pinned SDK's token-limit alias and exact controls
+already forced by the frozen numerical adapter. Conflicting limits, changed
+thinking controls and unknown fields refuse. Original SDK and normalized
+provider request hashes remain separate. Premature relay termination now
+fails promptly, retains a closed substage and follows existing cleanup.
+The regression covers actual terminal threads and normalized request/usage
+joins. Four existing files change; none is added. Final affected checks use
+snapshot `1e7a8914390b5351ea5ac0bcbfca5cac5db9a12aa11c895c24f0b40ed20ace84`.
+The fresh pair retains the original 200,000-token ceiling; genuine inference
+remains uncompleted at this checkpoint.
 Actual SDK remains 18.4.12/Bun 1.3.14;
 this does not establish newer-SDK or general SDK/Bash qualification. The old
 unknown-owner VM and its evidence remain quarantined and unchanged.
