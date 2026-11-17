@@ -289,15 +289,29 @@ impl NativeCell {
         deadline: Instant,
     ) -> Result<Value> {
         self.recorder_health()?;
-        let left = deadline
-            .saturating_duration_since(Instant::now())
-            .min(Duration::from_secs(5));
+        let started = Instant::now();
+        let remaining = deadline.saturating_duration_since(started);
+        let left = remaining.min(Duration::from_secs(5));
         let response = self
             .client
             .as_ref()
             .ok_or("product client unavailable")?
             .call(operation, payload, left, &self.cancelled)
-            .map_err(|e| e.to_string());
+            .map_err(|error| {
+                let finished = Instant::now();
+                let operation = match operation {
+                    "hello" | "spawn" | "release" | "retire" | "end_input" | "write"
+                    | "read" => operation,
+                    _ => "other",
+                };
+                format!(
+                    "{error}; native management operation={operation} elapsed_ms={} rpc_budget_ms={} caller_remaining_before_ms={} caller_remaining_after_ms={}",
+                    finished.saturating_duration_since(started).as_millis(),
+                    left.as_millis(),
+                    remaining.as_millis(),
+                    deadline.saturating_duration_since(finished).as_millis(),
+                )
+            });
         match (response, self.recorder_health()) {
             (Ok(value), Ok(())) => Ok(value),
             (Err(error), Ok(())) => Err(error),

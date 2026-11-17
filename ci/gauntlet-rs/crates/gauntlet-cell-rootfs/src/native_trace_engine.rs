@@ -235,6 +235,19 @@ impl Engine {
         self.resume(tid, 0)
     }
 
+    fn unknown_wait(&self, reason: &'static str, tid: u32, event: Wait) -> String {
+        // Fixed enum/counter diagnostics identify the refusal without exposing
+        // process arguments, namespaces, private handles or candidate bytes.
+        let error = format!("unaccounted or duplicate kernel trace task: reason={reason}, tid={tid}, event={event:?}, registered={}, birth={}, pending={}, retired={}, active_tasks={}, pending_births={}, pending_stops={}, retired_tasks={}",
+            self.active.contains_key(&tid), self.births.contains_key(&tid), self.pending.contains_key(&tid), self.retired.contains_key(&tid),
+            self.active.len(), self.births.len(), self.pending.len(), self.retired.len());
+        if error.len() <= 512 {
+            error
+        } else {
+            "unaccounted kernel trace task; diagnostic bound exceeded".into()
+        }
+    }
+
     fn event(&mut self, tid: u32, event: Wait) -> Result<()> {
         if !self.active.contains_key(&tid) {
             if self.births.contains_key(&tid) {
@@ -255,10 +268,14 @@ impl Engine {
                     event: Event::SeizeStop,
                     signal: 5,
                 })
-                || self.pending.len() >= 128
-                || self.pending.insert(tid, event).is_some()
             {
-                return Err("unaccounted or duplicate kernel trace task".into());
+                return Err(self.unknown_wait("unexpected-event", tid, event));
+            }
+            if self.pending.len() >= 128 {
+                return Err(self.unknown_wait("pending-stop-bound", tid, event));
+            }
+            if self.pending.insert(tid, event).is_some() {
+                return Err(self.unknown_wait("duplicate-pending-stop", tid, event));
             }
             return Ok(());
         }
