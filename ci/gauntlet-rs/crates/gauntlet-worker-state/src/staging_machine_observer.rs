@@ -65,10 +65,22 @@ fn read_cmdline(path: &str) -> Option<Vec<u8>> {
 pub(crate) fn observe_sdk_executable(
     process: &ContainerProcessIdentity,
 ) -> Option<SdkExecutableIdentity> {
+    observe_sdk_executable_inner(process, None)
+}
+pub(crate) fn observe_sdk_executable_for(
+    process: &ContainerProcessIdentity,
+    entrypoint: crate::native_sdk_peer::SdkEntrypoint,
+) -> Option<SdkExecutableIdentity> {
+    observe_sdk_executable_inner(process, Some(entrypoint))
+}
+fn observe_sdk_executable_inner(
+    process: &ContainerProcessIdentity,
+    entrypoint: Option<crate::native_sdk_peer::SdkEntrypoint>,
+) -> Option<SdkExecutableIdentity> {
     observe_process(process.pid, process.start_ticks, &process.cgroup).ok()?;
     let cmdline_path = format!("/proc/{}/cmdline", process.pid);
     let first_argv = read_cmdline(&cmdline_path)?;
-    if !exact_sdk_argv(&first_argv) {
+    if !entrypoint.map_or_else(|| exact_sdk_argv(&first_argv), |e| e.matches(&first_argv)) {
         return None;
     }
     let executable_path = format!("/proc/{}/exe", process.pid);
@@ -113,7 +125,10 @@ pub(crate) fn observe_sdk_executable(
         pid: process.pid,
         start_ticks: process.start_ticks,
         cgroup: process.cgroup.clone(),
-        argv_sha256: format!("{:x}", Sha256::digest(SDK_ARGV)),
+        argv_sha256: format!(
+            "{:x}",
+            Sha256::digest(entrypoint.map_or(SDK_ARGV, |e| e.digest_input()))
+        ),
         executable_sha256: format!("{:x}", digest.finalize()),
     })
 }

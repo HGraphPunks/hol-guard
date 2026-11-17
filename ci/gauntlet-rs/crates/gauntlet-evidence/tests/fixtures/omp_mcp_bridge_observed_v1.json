@@ -1,0 +1,263 @@
+{
+  "schema": "hol-gauntlet-retained-sdk-bridge-reference.v1",
+  "capture_sha256": "4185bce32f05614e3984b1d4310ce2f245a8c98a47fa9b84768dac14d92a0b25",
+  "input_fixture_sha256": "5a238892fe4faa30b238a626d6b5a2ec5444728ab6766718664fbd49674bdb14",
+  "sdk_source_sha256": {
+    "tool_bridge": "6ee027b2542a7e98c28a1020835370745d989e7a4b490001b6d06cb8d4cca255",
+    "client": "d1c8a899a76d998c6d55a10ba99c2866fdeec984aa4308c9937a33fdbb88ea7e",
+    "schema_defines_property": "88f612ea459e73fc6c65db22a5ce38820dad5db06784024d6ab35f36d1a6a435",
+    "pi_wire": "4bae703ad97159c646985bd207c19a576b3f61ec312f3a73d79610d4d36f0ad1"
+  },
+  "observation": {
+    "schema": "hol-gauntlet-omp-mcp-bridge-conformance.v1",
+    "model_requests": 0,
+    "qualification_eligible": false,
+    "catalog_sha256": "22df4f3850d6d22ef30b6ec45108cde9b4306879c06c99ccce6f3bf53097cafe",
+    "observations": [
+      {
+        "name": "duplicate-structured",
+        "result": {
+          "content": [
+            {
+              "text": "{\"record\":{\"id\":\"ticket-a\"}}",
+              "type": "text"
+            }
+          ],
+          "isError": false,
+          "structuredContent": {
+            "record": {
+              "id": "ticket-a"
+            }
+          }
+        },
+        "wire": [
+          {
+            "method": "tools/call",
+            "params": {
+              "name": "docs.search",
+              "arguments": {
+                "collection": "docs.documents",
+                "intent": "retained data",
+                "fields": [],
+                "tenant_id": null
+              }
+            },
+            "options": {}
+          }
+        ],
+        "output": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"record\":{\"id\":\"ticket-a\"}}"
+            }
+          ],
+          "details": {
+            "serverName": "docs",
+            "mcpToolName": "docs.search",
+            "isError": false,
+            "rawContent": [
+              {
+                "text": "{\"record\":{\"id\":\"ticket-a\"}}",
+                "type": "text"
+              }
+            ],
+            "structuredContent": {
+              "record": {
+                "id": "ticket-a"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "merged-error",
+        "result": {
+          "content": [
+            {
+              "text": "blocked",
+              "type": "text"
+            },
+            {
+              "text": "details",
+              "type": "text"
+            }
+          ],
+          "isError": true
+        },
+        "wire": [
+          {
+            "method": "tools/call",
+            "params": {
+              "name": "docs.search",
+              "arguments": {
+                "collection": "docs.documents",
+                "intent": "retained data",
+                "fields": [],
+                "tenant_id": null
+              }
+            },
+            "options": {}
+          }
+        ],
+        "output": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Error: blocked\n\ndetails"
+            }
+          ],
+          "details": {
+            "serverName": "docs",
+            "mcpToolName": "docs.search",
+            "isError": true,
+            "rawContent": [
+              {
+                "text": "blocked",
+                "type": "text"
+              },
+              {
+                "text": "details",
+                "type": "text"
+              }
+            ]
+          },
+          "isError": true
+        }
+      },
+      {
+        "name": "structured-error",
+        "result": {
+          "content": [
+            {
+              "text": "blocked",
+              "type": "text"
+            }
+          ],
+          "isError": true,
+          "structuredContent": {
+            "error": {
+              "message": "denied",
+              "retry": false
+            }
+          }
+        },
+        "wire": [
+          {
+            "method": "tools/call",
+            "params": {
+              "name": "docs.search",
+              "arguments": {
+                "collection": "docs.documents",
+                "intent": "retained data",
+                "fields": [],
+                "tenant_id": null
+              }
+            },
+            "options": {}
+          }
+        ],
+        "output": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Error: blocked"
+            },
+            {
+              "type": "text",
+              "text": "```json\n{\n  \"error\": {\n    \"message\": \"denied\",\n    \"retry\": false\n  }\n}\n```"
+            }
+          ],
+          "details": {
+            "serverName": "docs",
+            "mcpToolName": "docs.search",
+            "isError": true,
+            "rawContent": [
+              {
+                "text": "blocked",
+                "type": "text"
+              }
+            ],
+            "structuredContent": {
+              "error": {
+                "message": "denied",
+                "retry": false
+              }
+            }
+          },
+          "isError": true
+        }
+      },
+      {
+        "name": "integer-object-order",
+        "result": {
+          "content": [
+            {
+              "text": "summary",
+              "type": "text"
+            }
+          ],
+          "isError": false,
+          "structuredContent": {
+            "2": "two",
+            "10": "ten",
+            "01": "one",
+            "a": [
+              1,
+              true,
+              null
+            ]
+          }
+        },
+        "wire": [
+          {
+            "method": "tools/call",
+            "params": {
+              "name": "docs.search",
+              "arguments": {
+                "collection": "docs.documents",
+                "intent": "retained data",
+                "fields": [],
+                "tenant_id": null
+              }
+            },
+            "options": {}
+          }
+        ],
+        "output": {
+          "content": [
+            {
+              "type": "text",
+              "text": "summary"
+            },
+            {
+              "type": "text",
+              "text": "```json\n{\n  \"2\": \"two\",\n  \"10\": \"ten\",\n  \"01\": \"one\",\n  \"a\": [\n    1,\n    true,\n    null\n  ]\n}\n```"
+            }
+          ],
+          "details": {
+            "serverName": "docs",
+            "mcpToolName": "docs.search",
+            "isError": false,
+            "rawContent": [
+              {
+                "text": "summary",
+                "type": "text"
+              }
+            ],
+            "structuredContent": {
+              "2": "two",
+              "10": "ten",
+              "01": "one",
+              "a": [
+                1,
+                true,
+                null
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

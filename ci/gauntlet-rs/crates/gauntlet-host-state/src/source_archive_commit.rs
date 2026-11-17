@@ -179,6 +179,20 @@ pub fn verify_retained_source_archive_commit(
     }
     let (bytes, archive_inventory) = verified_archive_bytes(state, job_id, archive_sha256)
         .map_err(SourceArchiveCommitError::Archive)?;
+    verify_archive_commit_bytes(job_id, &bytes, archive_inventory, source_sha, source_ref)
+}
+
+/// Reuse the exact descriptor-verified immutable bytes that will be transferred.
+pub(crate) fn verify_archive_commit_bytes(
+    job_id: &str,
+    bytes: &[u8],
+    archive_inventory: SourceArchiveInventory,
+    source_sha: &str,
+    source_ref: &str,
+) -> Result<SourceArchiveCommitProof, SourceArchiveCommitError> {
+    if !hex(source_sha, 40) || !expected_ref(source_sha, source_ref) {
+        return Err(SourceArchiveCommitError::InvalidInput);
+    }
     let scratch = tempfile::Builder::new()
         .prefix("gauntlet-archive-git-")
         .tempdir()
@@ -195,7 +209,7 @@ pub fn verify_retained_source_archive_commit(
     )
     .map_err(|_| SourceArchiveCommitError::Io)?;
 
-    let decoder = MultiGzDecoder::new(bytes.as_slice());
+    let decoder = MultiGzDecoder::new(bytes);
     let mut tar = Archive::new(decoder);
     let mut ref_oid = None;
     let mut object_files = 0usize;

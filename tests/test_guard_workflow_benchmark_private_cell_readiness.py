@@ -1,4 +1,5 @@
 """Setup contracts; mocked product responses establish no native conformance."""
+import ast
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -62,3 +63,39 @@ def test_expired_setup_budget_stops_before_product_execution(monkeypatch):
     with pytest.raises(TimeoutError):
         module.require_native_workspace(plane,deadline=101)
     assert calls==[]
+
+
+def assert_current_product_exports(tree, context):
+    # Parse source only: importing the product could launch Native helpers.
+    root = Path(__file__).resolve().parents[1]
+    imports = [node for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
+               and node.module and node.module.startswith('codex_plugin_scanner.')]
+    assert imports
+    for node in imports:
+        source = root / 'src' / Path(*node.module.split('.')).with_suffix('.py')
+        assert source.is_file(), f'{context}: missing current module {node.module}'
+        definitions = {item.name: item for item in ast.parse(source.read_text()).body
+                       if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))}
+        for alias in node.names:
+            assert alias.name in definitions, f'{context}: missing export {alias.name}'
+            if alias.name == 'load_guard_daemon_auth_token':
+                loader = definitions[alias.name]
+                assert isinstance(loader, ast.FunctionDef)
+                positional = loader.args.posonlyargs + loader.args.args
+                assert positional or loader.args.vararg is not None
+                assert len(positional) - len(loader.args.defaults) <= 1
+                assert all(default is not None for default in loader.args.kw_defaults)
+
+
+@pytest.mark.parametrize('adapter', [
+    'native_guard_identity_v1.py', 'native_workspace_readiness_v1.py',
+    'native_mcp_identity_v1.py.txt', 'native_mcp_proxy_v1.py.txt',
+])
+def test_rust_native_adapters_import_existing_current_product_exports(adapter):
+    root = Path(__file__).resolve().parents[1]
+    tree = ast.parse((root / 'ci/gauntlet-rs/adapters' / adapter).read_text())
+    assert_current_product_exports(tree, adapter)
+
+
+def test_current_python_readiness_probe_imports_existing_product_exports():
+    assert_current_product_exports(ast.parse(module.PROBE), 'current Python readiness')

@@ -135,7 +135,44 @@ pub(crate) fn profile_is_loaded(name: &str) -> Result<bool, BuilderPolicyError> 
     Ok(text.lines().any(|line| line == format!("{name} (enforce)")))
 }
 
+pub(crate) fn profile_absent(name: &str) -> Result<bool, BuilderPolicyError> {
+    let descriptor = open(
+        PROFILES,
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|_| BuilderPolicyError::CleanupUncertain)?;
+    let mut bytes = Vec::new();
+    File::from(descriptor)
+        .take(MAX_PROFILES_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| BuilderPolicyError::CleanupUncertain)?;
+    if bytes.len() as u64 > MAX_PROFILES_BYTES {
+        return Err(BuilderPolicyError::CleanupUncertain);
+    }
+    let text = std::str::from_utf8(&bytes).map_err(|_| BuilderPolicyError::CleanupUncertain)?;
+    Ok(!text.lines().any(|line| {
+        line.starts_with(&format!("{name} ")) || line.starts_with(&format!("{name}//"))
+    }))
+}
+
 pub(crate) fn run_parser(action: &str, policy_path: &str) -> Result<(), BuilderPolicyError> {
+    run_parser_placed(action, policy_path, None)
+}
+
+pub(crate) fn run_parser_owned(
+    action: &str,
+    policy_path: &str,
+    group: &crate::builder_cgroup::OwnedCandidateCgroup,
+) -> Result<(), BuilderPolicyError> {
+    run_parser_placed(action, policy_path, Some(group))
+}
+
+pub(crate) fn parser_command(
+    action: &str,
+    policy_path: &str,
+    group: Option<&crate::builder_cgroup::OwnedCandidateCgroup>,
+) -> Result<Command, BuilderPolicyError> {
     let mut command = Command::new(PARSER);
     command.args([action, policy_path]);
     command.env_clear();
@@ -145,6 +182,20 @@ pub(crate) fn run_parser(action: &str, policy_path: &str) -> Result<(), BuilderP
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    if let Some(group) = group {
+        group.attach_child(&mut command).map_err(|_| {
+            BuilderPolicyError::ParserFailed("owned parser cgroup unavailable".into())
+        })?;
+    }
+    Ok(command)
+}
+
+fn run_parser_placed(
+    action: &str,
+    policy_path: &str,
+    group: Option<&crate::builder_cgroup::OwnedCandidateCgroup>,
+) -> Result<(), BuilderPolicyError> {
+    let mut command = parser_command(action, policy_path, group)?;
     let mut child = command
         .spawn()
         .map_err(|_| BuilderPolicyError::ParserFailed("spawn failed".to_owned()))?;
@@ -194,7 +245,19 @@ fn write_policy(job_id: &str, bytes: &[u8], expected: &str) -> Result<String, Bu
         Mode::empty(),
     )
     .map_err(|_| BuilderPolicyError::ContextMismatch)?;
-    let stat = fstat(&job).map_err(|_| BuilderPolicyError::ContextMismatch)?;
+    write_policy_at(&job, bytes, expected)?;
+    Ok(format!("{BUILDS}/{job_id}/{POLICY}"))
+}
+
+pub(crate) fn write_policy_at(
+    job: &std::os::fd::OwnedFd,
+    bytes: &[u8],
+    expected: &str,
+) -> Result<(), BuilderPolicyError> {
+    if bytes.is_empty() || bytes.len() > MAX_POLICY_BYTES {
+        return Err(BuilderPolicyError::PolicyUncertain);
+    }
+    let stat = fstat(job).map_err(|_| BuilderPolicyError::ContextMismatch)?;
     if FileType::from_raw_mode(stat.st_mode) != FileType::Directory
         || stat.st_uid != 0
         || stat.st_mode & 0o077 != 0
@@ -202,7 +265,7 @@ fn write_policy(job_id: &str, bytes: &[u8], expected: &str) -> Result<String, Bu
         return Err(BuilderPolicyError::ContextMismatch);
     }
     let descriptor = match openat(
-        &job,
+        job,
         POLICY,
         OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
         Mode::from_bits_truncate(0o600),
@@ -216,12 +279,12 @@ fn write_policy(job_id: &str, bytes: &[u8], expected: &str) -> Result<String, Bu
         .map_err(|_| BuilderPolicyError::PolicyUncertain)?;
     file.sync_all()
         .map_err(|_| BuilderPolicyError::PolicyUncertain)?;
-    fsync(&job).map_err(|_| BuilderPolicyError::PolicyUncertain)?;
-    let digest = read_policy_at(&job, expected)?;
+    fsync(job).map_err(|_| BuilderPolicyError::PolicyUncertain)?;
+    let digest = read_policy_at(job, expected)?;
     if digest != expected {
         return Err(BuilderPolicyError::PolicyUncertain);
     }
-    Ok(format!("{BUILDS}/{job_id}/{POLICY}"))
+    Ok(())
 }
 
 fn read_policy_at(

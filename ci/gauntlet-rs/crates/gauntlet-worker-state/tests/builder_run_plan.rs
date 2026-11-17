@@ -15,7 +15,7 @@ fn request(case: &Value) -> Value {
 }
 
 #[test]
-fn fixed_podman_run_vector_matches_pinned_python_for_release_and_local_builds() {
+fn fixed_podman_run_vector_preserves_python_baseline_with_bounded_logging() {
     let fixture: Value = serde_json::from_str(include_str!("python_builder_run_v1.json")).unwrap();
     let manifest: Value =
         serde_json::from_str(include_str!("../../../parity-manifest.v1.json")).unwrap();
@@ -31,7 +31,11 @@ fn fixed_podman_run_vector_matches_pinned_python_for_release_and_local_builds() 
     assert_eq!(cases.len(), 8);
     for case in cases.iter().take(4) {
         let plan = fixed_builder_run_plan(&request(case)).unwrap();
-        assert_eq!(plan.to_json()["argv"], case["argv"], "{case}");
+        // Keep the historical Python fixture immutable. Current plans add this
+        // explicit guard so Podman's own journal cannot bypass pipe byte caps.
+        let mut expected = case["argv"].as_array().unwrap().clone();
+        expected.insert(3, json!("--log-driver=none"));
+        assert_eq!(plan.to_json()["argv"], json!(expected), "{case}");
         assert_eq!(plan.source_archive_sha256, "c".repeat(64));
         assert!(!plan.execution_eligible);
     }

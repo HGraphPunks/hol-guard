@@ -5,14 +5,13 @@ from __future__ import annotations
 import json
 import os
 import shlex
-import shutil
 import subprocess
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from functools import cached_property, wraps
 from pathlib import Path
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from ...path_support import resolves_within_root
 from ..models import GuardArtifact, HarnessDetection
@@ -41,39 +40,28 @@ class PreparedHarnessInstall:
     files: tuple[TransitionFile, ...]
     manifest: dict[str, object]
 
-    def publish(self, guard_home: Path) -> dict[str, object]:
-        """Publish an ordinary install under ownership; pending transitions use their signed plan."""
+    def publish(
+        self,
+        guard_home: Path,
+        *,
+        removals: bool = False,
+        rollback: bool = True,
+        on_write: Callable[[TransitionFile], None] | None = None,
+    ) -> dict[str, object]:
+        """Publish an ordinary install under ownership; pending transitions use their signed plan.
+
+        ``removals`` admits planned deletions, for a plan that retires files an
+        older install left behind. Rollback still restores them. A caller that
+        journals the plan itself passes ``rollback=False`` and recovers from its
+        own record; ``on_write`` sees each file just after it is written.
+        """
         from ..codex_install_transaction import require_codex_install_owner
-        from ..runtime_transition import RuntimeTransition, TransitionError, assert_transition_mutation_allowed
+        from ..native_transition_files import publish_files
+        from ..runtime_transition import assert_transition_mutation_allowed
 
         require_codex_install_owner(guard_home)
         assert_transition_mutation_allowed(guard_home)
-        if any(
-            change.kind != "binding" or (change.after is None and change.before != change.after)
-            for change in self.files
-        ):
-            raise TransitionError("adapter_install_plan_invalid")
-        changes: dict[str, object] = {"files": [change.payload() for change in self.files]}
-        RuntimeTransition._compare(changes, "before")
-        written: list[dict[str, object]] = []
-        try:
-            for change in self.files:
-                payload = change.payload()
-                RuntimeTransition._compare({"files": [payload]}, "before")
-                RuntimeTransition._write_file(payload, "after")
-                written.append(payload)
-            RuntimeTransition._compare(changes, "after")
-        except Exception as error:
-            restore_error: Exception | None = None
-            for payload in reversed(written):
-                try:
-                    RuntimeTransition._compare({"files": [payload]}, "after")
-                    RuntimeTransition._write_file(payload, "before")
-                except Exception as failure:
-                    restore_error = failure
-            if restore_error is not None:
-                raise restore_error from error
-            raise
+        publish_files(self.files, removals=removals, rollback=rollback, on_write=on_write)
         return self.manifest
 
 
@@ -107,10 +95,6 @@ def detection_request(harness: str, context: HarnessContext) -> dict[str, object
     return request
 
 
-def _command_available(command: str) -> bool:
-    return shutil.which(command) is not None
-
-
 def _shell_command(command: tuple[str, ...], *, windows: bool | None = None) -> str:
     """Return a shell-escaped command string appropriate for the target OS."""
 
@@ -120,14 +104,25 @@ def _shell_command(command: tuple[str, ...], *, windows: bool | None = None) -> 
     return shlex.join(command)
 
 
-def _resolve_command(command: str, candidates: tuple[Path, ...] = ()) -> str | None:
-    resolved = shutil.which(command)
-    if resolved is not None:
-        return resolved
-    for candidate in candidates:
-        if candidate.is_file() and os.access(candidate, os.X_OK):
-            return str(candidate)
-    return None
+#: The caller environment a harness CLI probe runs with.
+_PROBE_ENV_KEYS = (
+    "PATH",
+    "PATHEXT",
+    "HOME",
+    "USERPROFILE",
+    "SYSTEMROOT",
+    "WINDIR",
+    "COMSPEC",
+    "TEMP",
+    "TMP",
+    "TMPDIR",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "LANG",
+    "LC_ALL",
+)
 
 
 def _run_command_probe(
@@ -137,43 +132,24 @@ def _run_command_probe(
     cwd: Path | None = None,
     env: Mapping[str, str] | None = None,
 ) -> dict[str, object]:
+    """Run a harness CLI's ``--help`` or ``--version`` through the native ``command_probe`` kind."""
+
     skipped = skipped_command_probe(command)
     if skipped is not None:
         return skipped
-    try:
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            check=False,
-            cwd=cwd,
-            env=env,
-            text=True,
-            timeout=timeout_seconds,
-        )
-    except FileNotFoundError:
-        return {
-            "command": command,
-            "ok": False,
-            "return_code": None,
-            "stdout": "",
-            "stderr": "command not found",
-        }
-    except subprocess.TimeoutExpired as exc:
-        return {
-            "command": command,
-            "ok": False,
-            "return_code": None,
-            "stdout": (exc.stdout or "").strip(),
-            "stderr": (exc.stderr or "").strip(),
-            "timed_out": True,
-        }
-    return {
-        "command": command,
-        "ok": result.returncode == 0,
-        "return_code": result.returncode,
-        "stdout": result.stdout.strip(),
-        "stderr": result.stderr.strip(),
+    from ..native_runner_authority import NativeRunnerAuthorityError, native_runner_authority
+
+    request = {
+        "command": [str(part) for part in command],
+        "cwd": str((cwd or Path.cwd()).absolute()),
+        "env": {key: os.environ[key] for key in _PROBE_ENV_KEYS if key in os.environ} if env is None else dict(env),
+        "timeout_seconds": timeout_seconds,
     }
+    try:
+        return native_runner_authority("command_probe", request, timeout_seconds=timeout_seconds + 10.0)
+    except NativeRunnerAuthorityError:
+        # A diagnostic probe never fails the doctor; it reports that nothing ran.
+        return {"command": command, "ok": False, "return_code": None, "stdout": "", "stderr": "probe unavailable"}
 
 
 def _ensure_path_within_root(root: Path, path: Path, *, label: str) -> None:
@@ -182,6 +158,7 @@ def _ensure_path_within_root(root: Path, path: Path, *, label: str) -> None:
 
 
 _MutationResult = TypeVar("_MutationResult")
+_T = TypeVar("_T")
 
 
 def _owned_adapter_mutation(method: Callable[..., _MutationResult]) -> Callable[..., _MutationResult]:
@@ -223,6 +200,10 @@ class HarnessAdapter:
     fallback_hint = "Use the Guard approval center or native harness prompt to resolve pending requests."
     approval_prompt_channel = "browser"
     approval_auto_open_browser = True
+    #: Whether an unavailable command is enough to conclude the tool itself is gone.
+    #: A harness whose Guard hooks keep running without its CLI sets this False, so
+    #: leftover configuration is never mistaken for an absent tool.
+    command_absence_proves_uninstalled = True
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
@@ -271,22 +252,26 @@ class HarnessAdapter:
 
         from ..inventory_cisco import run_cisco_inventory_scans
         from ..inventory_contract import inventory_snapshot_from_detection
+        from ..native_context import bound_context_digest_home
 
         detection = self.detect(context)
-        return inventory_snapshot_from_detection(
-            detection,
-            generated_at=generated_at,
-            home_dir=context.home_dir,
-            workspace_dir=context.workspace_dir,
-            cisco_runs=run_cisco_inventory_scans(
-                harness=self.harness,
-                context=context,
-                detection=detection,
-                mcp_mode=cisco_mcp_scan,
-                skill_mode=cisco_skill_scan,
-                timeout_seconds=cisco_timeout_seconds,
-            ),
+        cisco_runs = run_cisco_inventory_scans(
+            harness=self.harness,
+            context=context,
+            detection=detection,
+            mcp_mode=cisco_mcp_scan,
+            skill_mode=cisco_skill_scan,
+            timeout_seconds=cisco_timeout_seconds,
         )
+        # Redaction asks the resident of this context's home.
+        with bound_context_digest_home(getattr(context, "guard_home", None)):
+            return inventory_snapshot_from_detection(
+                detection,
+                generated_at=generated_at,
+                home_dir=context.home_dir,
+                workspace_dir=context.workspace_dir,
+                cisco_runs=cisco_runs,
+            )
 
     @_owned_adapter_mutation
     def install(self, context: HarnessContext) -> dict[str, object]:
@@ -334,12 +319,9 @@ class HarnessAdapter:
     def coverage_summary(self) -> HarnessCoverageSummary:
         return self.setup_contract().coverage
 
-    def executable_candidates(self, context: HarnessContext) -> tuple[Path, ...]:
-        del context
-        return ()
-
     def resolved_executable(self, context: HarnessContext) -> str | None:
-        return _resolve_command(self.executable, self.executable_candidates(context))
+        del context
+        return None
 
     def guard_launcher_paths(self, context: HarnessContext) -> tuple[Path, ...]:
         shim_name = self.launcher_name or self.harness
@@ -348,10 +330,7 @@ class HarnessAdapter:
         return tuple(shim_dir / f"guard-{name}{suffix}" for name in names for suffix in ("", ".cmd"))
 
     def launch_command(self, context: HarnessContext, passthrough_args: list[str]) -> list[str]:
-        command = [self.resolved_executable(context) or self.executable]
-        if context.workspace_dir is not None and self.harness in {"opencode", "claude-code"}:
-            command.append(str(context.workspace_dir))
-        return [*command, *passthrough_args]
+        return [self.resolved_executable(context) or self.executable, *passthrough_args]
 
     def preview_launch_commands(
         self,
@@ -411,20 +390,6 @@ class HarnessAdapter:
     def runtime_probe(self, context: HarnessContext) -> dict[str, object] | None:
         return None
 
-    def attach_session(
-        self,
-        context: HarnessContext,
-        *,
-        session_id: str,
-        client_name: str,
-    ) -> dict[str, object]:
-        return {
-            "harness": self.harness,
-            "session_id": session_id,
-            "client_name": client_name,
-            "workspace": str(context.workspace_dir) if context.workspace_dir is not None else None,
-        }
-
     def start_operation(
         self,
         context: HarnessContext,
@@ -439,56 +404,29 @@ class HarnessAdapter:
             "workspace": str(context.workspace_dir) if context.workspace_dir is not None else None,
         }
 
-    def request_approval(
-        self,
-        context: HarnessContext,
-        *,
-        request_ids: list[str],
-    ) -> dict[str, object]:
-        return {
-            "harness": self.harness,
-            "request_ids": request_ids,
-            "workspace": str(context.workspace_dir) if context.workspace_dir is not None else None,
-        }
-
-    def continue_after_approval(
-        self,
-        context: HarnessContext,
-        *,
-        operation_id: str,
-        approved: bool,
-    ) -> dict[str, object]:
-        return {
-            "harness": self.harness,
-            "operation_id": operation_id,
-            "status": "completed" if approved else "blocked",
-            "workspace": str(context.workspace_dir) if context.workspace_dir is not None else None,
-        }
-
     def diagnostic_warnings(
         self,
         detection: HarnessDetection,
         runtime_probe: dict[str, object] | None,
     ) -> list[str]:
-        warnings = list(detection.warnings)
-        guard_managed = _detection_has_guard_management(detection)
-        if detection.config_paths and not guard_managed:
-            warnings.append(
-                f"{self.harness} config was found, but Guard is not installed for this harness. "
-                f"Run `hol-guard install {self.harness}` to enable protection."
-            )
-        if detection.config_paths and not detection.command_available:
-            warnings.append(
-                f"{self.harness} config was found, but the {self.executable} command is not available on PATH."
-            )
-        elif guard_managed and not detection.command_available:
-            warnings.append(
-                f"Guard launcher for {self.harness} is installed, but the {self.executable} command is not available "
-                "on PATH."
-            )
-        if runtime_probe is not None and runtime_probe.get("timed_out") is True:
-            warnings.append(f"{self.executable} diagnostics timed out before Guard could confirm runtime state.")
-        return warnings
+        added = _harness_diagnostics(
+            "warnings",
+            lambda value: isinstance(value, list) and all(isinstance(item, str) for item in value),
+            harness=self.harness,
+            executable=self.executable,
+            command_absence_proves_uninstalled=self.command_absence_proves_uninstalled,
+            runtime_probe=None
+            if runtime_probe is None
+            else {
+                "timed_out": runtime_probe.get("timed_out") is True,
+                "failed": runtime_probe.get("ok") is False,
+                "reported_no_artifacts": runtime_probe.get("reported_artifacts") == 0,
+                "managed_install_present": runtime_probe.get("managed_install_present") is True,
+                "runtime_hook_registered": runtime_probe.get("runtime_hook_registered") is True,
+            },
+            detection=_detection_request(detection),
+        )
+        return [*detection.warnings, *added]
 
     def approval_flow(self, *, managed_install: dict[str, object] | None = None) -> dict[str, object]:
         del managed_install
@@ -507,7 +445,11 @@ class HarnessAdapter:
         return {
             "harness": self.harness,
             "installed": detection.installed,
-            "setup_status": _diagnostic_setup_status(detection, warnings),
+            "setup_status": _diagnostic_setup_status(
+                detection,
+                warnings,
+                command_absence_proves_uninstalled=self.command_absence_proves_uninstalled,
+            ),
             "command_available": detection.command_available,
             "config_paths": list(detection.config_paths),
             "artifacts": [artifact.to_dict() for artifact in detection.artifacts],
@@ -520,9 +462,15 @@ class HarnessAdapter:
         context: HarnessContext,
         detection: HarnessDetection,
     ) -> HarnessDetection:
-        shim_path = next((path for path in self.guard_launcher_paths(context) if _is_guard_launcher_shim(path)), None)
-        if shim_path is None:
+        paths = self.guard_launcher_paths(context)
+        index = _harness_diagnostics(
+            "launcher_shim",
+            lambda value: value is None or (type(value) is int and 0 <= value < len(paths)),
+            paths=[str(path.absolute()) for path in paths],
+        )
+        if index is None:
             return detection
+        shim_path = paths[index]
         artifact = GuardArtifact(
             artifact_id=f"{self.harness}:guard-launcher-shim",
             name=shim_path.name,
@@ -543,75 +491,80 @@ class HarnessAdapter:
         )
 
 
-def _diagnostic_setup_status(detection: HarnessDetection, warnings: list[str]) -> str:
-    guard_managed = _detection_has_guard_management(detection)
-    if guard_managed and _warnings_include_setup_failure(warnings):
-        return "broken"
-    if guard_managed:
-        return "active"
-    if detection.config_paths or detection.command_available:
-        return "partial"
-    return "not_found"
+# The native request parser refuses any JSON array wider than 4096 entries, so
+# every list crosses in chunks that the runtime joins back in order.
+_NATIVE_JSON_WIDTH = 4096
+_SETUP_STATUSES = ("active", "broken", "partial", "not_found")
 
 
-def _detection_has_guard_management(detection: HarnessDetection) -> bool:
-    if any(_guard_managed_path(path) for path in detection.config_paths):
-        return True
-    return any(_artifact_uses_guard(artifact) for artifact in detection.artifacts)
+def _chunks(items: Sequence[_T]) -> list[list[_T]]:
+    return [list(items[start : start + _NATIVE_JSON_WIDTH]) for start in range(0, len(items), _NATIVE_JSON_WIDTH)]
 
 
-def _guard_managed_path(path: str) -> bool:
-    return Path(path).name.lower().startswith("hol-guard")
-
-
-def _artifact_uses_guard(artifact: GuardArtifact) -> bool:
-    if artifact.artifact_type == "guard_launcher_shim":
-        return True
-    if artifact.command is not None and _is_guard_command_name(artifact.command, artifact.harness):
-        return True
-    values = [artifact.command or "", *artifact.args]
-    return any(_value_mentions_guard(value) for value in values)
-
-
-def _is_guard_command_name(value: str, harness: str) -> bool:
-    normalized = Path(value.replace("\\", "/")).name.lower()
-    if normalized.endswith(".cmd"):
-        normalized = normalized[:-4]
-    return normalized == f"guard-{harness}"
-
-
-def _value_mentions_guard(value: str) -> bool:
-    normalized = value.lower()
-    return "codex_plugin_scanner.cli" in normalized or "hol-guard" in normalized
-
-
-def _is_guard_launcher_shim(path: Path) -> bool:
-    if not path.is_file():
-        return False
-    try:
-        contents = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return False
-    return "codex_plugin_scanner.cli" in contents and "guard" in contents and "run" in contents
-
-
-def _warnings_include_setup_failure(warnings: list[str]) -> bool:
-    setup_markers = (
-        "guard is not installed",
-        "command is not available",
-        "native hooks are disabled",
-        "managed codex hooks are missing",
+def _artifacts_request(artifacts: Sequence[GuardArtifact]) -> list[list[dict[str, object]]]:
+    return _chunks(
+        [
+            {
+                "artifact_type": artifact.artifact_type,
+                "command": artifact.command,
+                "args": _chunks(artifact.args),
+                "harness": artifact.harness,
+            }
+            for artifact in artifacts
+        ]
     )
-    return any(any(marker in warning.lower() for marker in setup_markers) for warning in warnings)
+
+
+def _detection_request(detection: HarnessDetection) -> dict[str, object]:
+    return {
+        "config_paths": _chunks(detection.config_paths),
+        "command_available": detection.command_available,
+        "artifacts": _artifacts_request(detection.artifacts),
+    }
+
+
+def _harness_diagnostics(op: str, valid: Callable[[object], bool], **fields: object) -> Any:
+    """The native ``harness_diagnostics`` answer to ``op``, which it returns under the op's own name."""
+
+    from ..native_runner_authority import NativeRunnerAuthorityError, native_runner_authority
+
+    value = native_runner_authority("harness_diagnostics", {"op": op, **fields}).get(op)
+    if not valid(value):
+        raise NativeRunnerAuthorityError("harness diagnostics answer is malformed")
+    return value
+
+
+def _diagnostic_setup_status(
+    detection: HarnessDetection,
+    warnings: list[str],
+    *,
+    command_absence_proves_uninstalled: bool = True,
+) -> str:
+    return _harness_diagnostics(
+        "setup_status",
+        lambda value: value in _SETUP_STATUSES,
+        command_absence_proves_uninstalled=command_absence_proves_uninstalled,
+        detection=_detection_request(detection),
+        warnings=_chunks(warnings),
+    )
+
+
+def artifacts_use_guard(artifacts: Sequence[GuardArtifact]) -> bool:
+    """Whether any artifact is Guard's launcher, Guard's command, or a command line naming Guard."""
+
+    if not artifacts:
+        return False
+    return _harness_diagnostics(
+        "uses_guard", lambda value: isinstance(value, bool), artifacts=_artifacts_request(artifacts)
+    )
 
 
 __all__ = [
     "GuardArtifact",
     "HarnessAdapter",
     "HarnessContext",
-    "_command_available",
     "_ensure_path_within_root",
     "_json_payload",
-    "_resolve_command",
     "_run_command_probe",
+    "artifacts_use_guard",
 ]

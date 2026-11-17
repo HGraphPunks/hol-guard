@@ -8,7 +8,6 @@ permissions grant connection access without directory mutation privileges.
 
 from __future__ import annotations
 
-import copy
 import ctypes
 import math
 import os
@@ -30,7 +29,7 @@ from .contracts import canonical_json
 from .example_proxy import PolicySessionBridge
 from .mcp_server import FAMILIES
 from .service_relay import MAX_FRAME_BYTES, validate_frame
-from .service_thread_backend import ServiceThreadBackend, finish_service_backend
+from .service_thread_backend import ServiceObservationLog, ServiceThreadBackend, finish_service_backend
 from .world import World
 
 REPO = Path(__file__).resolve().parents[3]
@@ -64,6 +63,9 @@ class ServiceSupervisor:
         max_sessions: int = 16,
         max_frame_bytes: int = MAX_FRAME_BYTES,
         max_messages: int = 1000,
+        max_observation_bytes: int = 16 * 1024 * 1024,
+        max_observation_events: int = 10000,
+        max_total_sessions: int = 64,
         idle_timeout: float = 60,
         session_timeout: float = 300,
         policy_factory: Callable[[str], object] | None = None,
@@ -116,7 +118,6 @@ class ServiceSupervisor:
         self.max_frame_bytes, self.max_messages = max_frame_bytes, max_messages
         self.idle_timeout, self.session_timeout = idle_timeout, session_timeout
         self.run_id = uuid4().hex
-        self.events: list[dict] = []
         self.sockets: dict[str, Path] = {}
         self._listeners: list[socket.socket] = []
         self._threads: list[threading.Thread] = []
@@ -124,29 +125,15 @@ class ServiceSupervisor:
         self._children: dict[str, subprocess.Popen] = {}
         self._socket_inodes: dict[Path, tuple[int, int]] = {}
         self._lock = threading.RLock()
-        self._emission_lock = threading.RLock()
         self._stop = threading.Event()
+        self._observations = ServiceObservationLog(self.run_id, self._stop, observer,
+            max_bytes=max_observation_bytes, max_events=max_observation_events, max_sessions=max_total_sessions)
+        self.events = self._observations.events
         self._slots = threading.BoundedSemaphore(max_sessions)
         self._started = False
 
     def _emit(self, kind: str, **fields) -> None:
-        # Serialize publication without holding the lifecycle/state lock across
-        # a collector callback. No internal caller acquires these in reverse.
-        with self._emission_lock:
-            with self._lock:
-                event = {"sequence": len(self.events) + 1, "run_id": self.run_id, "kind": kind, **fields}
-                if self.protocol_profile is not None:
-                    event['observed_monotonic_ns'] = time.monotonic_ns()
-                self.events.append(event)
-            if self.observer is not None:
-                try:
-                    self.observer(copy.deepcopy(event))
-                except Exception as error:
-                    with self._lock:
-                        self.events.append({"sequence": len(self.events) + 1,
-                            "run_id": self.run_id, "kind": "observer-error",
-                            "reason": type(error).__name__})
-                    self._stop.set()
+        self._observations.emit(kind, timestamp=self.protocol_profile is not None, **fields)
 
     @property
     def active_children(self) -> int:
@@ -229,6 +216,11 @@ class ServiceSupervisor:
                 connection.close()
                 self._emit("session-rejected", family=family, reason="concurrency-budget")
                 continue
+            if not self._observations.start_session():
+                self._slots.release()
+                connection.close()
+                self._emit('session-rejected', family=family, reason='lifetime-session-budget')
+                return
             with self._lock:
                 self._connections.add(connection)
                 thread = threading.Thread(target=self._session, args=(family, connection), daemon=True)

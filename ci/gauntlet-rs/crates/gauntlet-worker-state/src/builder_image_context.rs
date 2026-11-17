@@ -7,8 +7,8 @@ use crate::builder_image::{
 };
 use crate::{hex, open_root_owned_public_directory, RunReservationJournal};
 use rustix::fs::{
-    fchmod, flock, fstat, fsync, mkdirat, openat, statat, AtFlags, FileType, FlockOperation, Mode,
-    OFlags, Stat,
+    fchmod, flock, fstat, fsync, mkdirat, openat, statat, AtFlags, Dir, FileType, FlockOperation,
+    Mode, OFlags, Stat,
 };
 use rustix::io::Errno;
 use rustix::process::geteuid;
@@ -237,8 +237,15 @@ pub(crate) fn verify_existing_context(
     if !root_private_dir(&job) {
         return Err(BuilderImageContextError::ContextUnavailable);
     }
+    verify_context_at(&job, plan)
+}
+
+fn verify_context_at(
+    job: &OwnedFd,
+    plan: &BuilderImagePlan,
+) -> Result<(), BuilderImageContextError> {
     let directory = openat(
-        &job,
+        job,
         CONTEXT,
         OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
         Mode::empty(),
@@ -267,17 +274,24 @@ fn materialize_at(
         Mode::empty(),
     )
     .map_err(|_| BuilderImageContextError::ContextUnavailable)?;
-    if !root_private_dir(&job) {
+    materialize_in_slot(&job, plan)
+}
+
+fn materialize_in_slot(
+    job: &OwnedFd,
+    plan: BuilderImagePlan,
+) -> Result<BuilderImageContextProof, BuilderImageContextError> {
+    if !root_private_dir(job) {
         return Err(BuilderImageContextError::ContextUnavailable);
     }
-    match mkdirat(&job, CONTEXT, Mode::from_bits_truncate(0o700)) {
+    match mkdirat(job, CONTEXT, Mode::from_bits_truncate(0o700)) {
         Ok(()) => {}
         Err(Errno::EXIST) => return Err(BuilderImageContextError::ExistingContext),
         Err(_) => return Err(BuilderImageContextError::WriteUncertain),
     }
-    fsync(&job).map_err(|_| BuilderImageContextError::WriteUncertain)?;
+    fsync(job).map_err(|_| BuilderImageContextError::WriteUncertain)?;
     let directory = openat(
-        &job,
+        job,
         CONTEXT,
         OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
         Mode::empty(),
@@ -292,12 +306,110 @@ fn materialize_at(
         write_one(&directory, FILES[2], plan.artifact_bytes())?,
     ];
     fsync(&directory).map_err(|_| BuilderImageContextError::WriteUncertain)?;
-    fsync(&job).map_err(|_| BuilderImageContextError::WriteUncertain)?;
+    fsync(job).map_err(|_| BuilderImageContextError::WriteUncertain)?;
     Ok(BuilderImageContextProof {
         path: format!("{BUILDS}/{}/{CONTEXT}", plan.job_id),
         plan,
         file_sha256: digests,
     })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BuilderInputsState {
+    Preparable,
+    Complete,
+}
+impl BuilderInputsState {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Preparable => "preparable",
+            Self::Complete => "complete",
+        }
+    }
+}
+
+fn paired_inputs(context: bool, policy: bool) -> Result<BuilderInputsState, String> {
+    match (context, policy) {
+        (false, false) => Ok(BuilderInputsState::Preparable),
+        (true, true) => Ok(BuilderInputsState::Complete),
+        _ => Err("partial builder inputs consume preparation; retain unknown".into()),
+    }
+}
+
+/// The caller holds the original bounded Source and its owner namespace.
+pub(crate) fn bounded_inputs(
+    job: &OwnedFd,
+    plan: &BuilderImagePlan,
+    policy: &str,
+) -> Result<BuilderInputsState, String> {
+    let present = |name: &str| match statat(job, name, AtFlags::SYMLINK_NOFOLLOW) {
+        Ok(_) => Ok(true),
+        Err(Errno::NOENT) => Ok(false),
+        Err(error) => Err(error.to_string()),
+    };
+    let state = paired_inputs(present(CONTEXT)?, present("Builder.apparmor")?)?;
+    if state == BuilderInputsState::Complete {
+        let directory = crate::feature_files::open_directory(job, CONTEXT, (0, 0))?;
+        for (name, expected) in FILES.iter().zip([
+            plan.dockerfile_bytes(),
+            plan.entry_bytes(),
+            plan.artifact_bytes(),
+        ]) {
+            if crate::feature_files::required(&directory, name, (0, 0), 0o444, MAX_FILE_BYTES)?
+                != expected
+            {
+                return Err("bounded builder context bytes differ from source pins".into());
+            }
+        }
+        let mut names = std::collections::BTreeSet::new();
+        for row in Dir::read_from(&directory).map_err(|e| e.to_string())? {
+            let row = row.map_err(|e| e.to_string())?;
+            let name = row
+                .file_name()
+                .to_str()
+                .map_err(|_| "builder input filename UTF-8")?;
+            if !matches!(name, "." | "..")
+                && (names.len() >= FILES.len() || !names.insert(name.to_owned()))
+            {
+                return Err("closed bounded builder context required".into());
+            }
+        }
+        if names != FILES.iter().map(|n| (*n).to_owned()).collect() {
+            return Err("bounded builder context inventory differs".into());
+        }
+        let raw =
+            crate::feature_files::required(job, "Builder.apparmor", (0, 0), 0o600, MAX_FILE_BYTES)?;
+        if format!("{:x}", Sha256::digest(raw)) != policy {
+            return Err("bounded builder policy differs from source pin".into());
+        }
+    }
+    Ok(state)
+}
+
+/// Only after a consumed Root anchor/reservation, with the caller's leases.
+/// A failed exclusive write remains partial and is never retried in place.
+pub(crate) fn prepare_bounded_inputs(
+    job: &OwnedFd,
+    plan: &BuilderImagePlan,
+    context: &crate::builder_context::BuilderContextProof,
+    recheck: impl Fn() -> Result<(), String>,
+) -> Result<(), String> {
+    recheck()?;
+    if bounded_inputs(job, plan, context.policy_sha256())? == BuilderInputsState::Preparable {
+        materialize_in_slot(job, plan.clone()).map_err(|e| e.to_string())?;
+        recheck()?;
+        crate::builder_policy::write_policy_at(
+            job,
+            context.policy_bytes(),
+            context.policy_sha256(),
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    recheck()?;
+    if bounded_inputs(job, plan, context.policy_sha256())? != BuilderInputsState::Complete {
+        return Err("bounded builder preparation did not complete".into());
+    }
+    Ok(())
 }
 
 /// One-use diagnostic. A failure after `mkdirat` leaves the directory in
@@ -339,4 +451,22 @@ pub fn materialize_fixed_builder_image_context(
     inspect_fixed_builder_base_images(&proof.plan)
         .map_err(|_| BuilderImageContextError::PostWriteMismatch)?;
     Ok(proof)
+}
+
+#[cfg(test)]
+mod input_tests {
+    use super::*;
+    #[test]
+    fn only_a_wholly_missing_pair_is_preparable() {
+        assert_eq!(
+            paired_inputs(false, false).unwrap(),
+            BuilderInputsState::Preparable
+        );
+        assert_eq!(
+            paired_inputs(true, true).unwrap(),
+            BuilderInputsState::Complete
+        );
+        assert!(paired_inputs(true, false).is_err());
+        assert!(paired_inputs(false, true).is_err());
+    }
 }

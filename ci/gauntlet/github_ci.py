@@ -30,8 +30,10 @@ def requires_gauntlet(paths: list[str]) -> bool:
         "contributions/command-sources/",
         "ci/native_runtime/",
         "ci/gauntlet/",
+        "ci/gauntlet-rs/",
         "ci/pi-exact-continuation/",
         ".github/workflows/guard-gauntlet",
+        ".github/workflows/gauntlet-",
     )
     return any(
         path.startswith(prefixes) or path in {"pyproject.toml", "uv.lock", ".github/workflows/ci.yml"} for path in paths

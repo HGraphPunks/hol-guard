@@ -282,11 +282,16 @@ fn inspect_readiness(
         || config["runtime"]["guard_package_version"] != pins.version
         || config["assets"]["guard_prefix"]["path"] != format!("{base}/prefix")
         || config["assets"]["guard_prefix"]["sha256"] != pins.prefix_tree_sha256
-        || config["assets"]["private_cell"]["path"] != format!("{base}/cell-artifacts")
         || config["assets"]["private_cell"]["sha256"] != pins.private_manifest_sha256
     {
         return Err(CandidateConformanceReadinessError::ConfigMismatch);
     }
+    crate::private_cell_artifact_mode::verify_declared_artifacts(
+        pins.job_id,
+        config,
+        pins.private_manifest_sha256,
+    )
+    .map_err(|_| CandidateConformanceReadinessError::AssetMismatch)?;
     if require_executor_image {
         inspect_executor_image(
             config["runtime"]["guard_executor_image_id"]

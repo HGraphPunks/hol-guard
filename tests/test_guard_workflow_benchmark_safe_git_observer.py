@@ -1,5 +1,9 @@
 """Adversarial Git configuration is inert data; no hostile subprocess runs here."""
+import hashlib
+import os
 import subprocess
+import sys
+import zlib
 from pathlib import Path
 
 import pytest
@@ -43,7 +47,7 @@ def test_configuration_gate_never_launches_git_or_reads_include_target(tmp_path,
         return original(path, **kwargs)
 
     monkeypatch.setattr(safe, '_regular', read)
-    monkeypatch.setattr(safe.subprocess, 'run', lambda *_a, **_k: pytest.fail('adversarial Git launched on host'))
+    monkeypatch.setattr(safe.subprocess, 'Popen', lambda *_a, **_k: pytest.fail('adversarial Git launched on host'))
     with pytest.raises(ValueError, match='unsupported'), safe.SafeGitObserver(checkout, custody_root=tmp_path):
         pytest.fail('unsafe configuration accepted')
     assert reads == [repository / 'config']
@@ -59,7 +63,7 @@ def test_configuration_gate_never_launches_git_or_reads_include_target(tmp_path,
 def test_metadata_indirections_rejected_before_any_git_process(tmp_path, monkeypatch, name, content):
     checkout, repository = metadata(tmp_path)
     (repository / name).write_text(content)
-    monkeypatch.setattr(safe.subprocess, 'run', lambda *_a, **_k: pytest.fail('redirected Git launched on host'))
+    monkeypatch.setattr(safe.subprocess, 'Popen', lambda *_a, **_k: pytest.fail('redirected Git launched on host'))
     with pytest.raises(ValueError, match='unsupported'), safe.SafeGitObserver(checkout, custody_root=tmp_path):
         pytest.fail('metadata redirect accepted')
 
@@ -72,6 +76,7 @@ def test_only_private_raw_metadata_and_safe_command_argv_reach_subprocess(tmp_pa
     (repository / 'objects' / 'info' / 'attributes').write_text('*.txt filter=candidate\n')
     (checkout / '.gitattributes').write_text('*.txt filter=candidate\n')
     captures = []
+    real_popen = subprocess.Popen
 
     def capture(command, **kwargs):
         captures.append((command, kwargs))
@@ -86,9 +91,10 @@ def test_only_private_raw_metadata_and_safe_command_argv_reach_subprocess(tmp_pa
         assert kwargs['env']['GIT_CONFIG_GLOBAL'] == kwargs['env']['GIT_CONFIG_SYSTEM'] == '/dev/null'
         assert 'safe.directory=*' not in command
         assert not any(arg.startswith('--work-tree') or arg == '-C' for arg in command)
-        return subprocess.CompletedProcess(command, 0, stdout=b'a' * 40 + b'\n', stderr=b'')
+        assert kwargs['stdin'] == subprocess.DEVNULL
+        return real_popen(['/usr/bin/printf', '%s\n', 'a' * 40], **kwargs)
 
-    monkeypatch.setattr(safe.subprocess, 'run', capture)
+    monkeypatch.setattr(safe.subprocess, 'Popen', capture)
     with safe.SafeGitObserver(checkout, custody_root=tmp_path) as observer:
         private = observer.private
         assert observer.run('rev-parse', '--verify', 'HEAD') == b'a' * 40 + b'\n'
@@ -102,7 +108,7 @@ def test_literal_dirty_comparison_reads_bytes_not_filters_or_symlink_targets(tmp
     checkout, _repository = metadata(tmp_path)
     file = checkout / 'source.txt'
     file.write_bytes(b'inert expected source\n')
-    monkeypatch.setattr(safe.subprocess, 'run', lambda *_a, **_k: pytest.fail('dirty comparison launched Git'))
+    monkeypatch.setattr(safe.subprocess, 'Popen', lambda *_a, **_k: pytest.fail('dirty comparison launched Git'))
     assert safe.raw_tracked_files_match(checkout, {'source.txt': ('100644', file.read_bytes())})
     file.write_bytes(b'changed raw source\n')
     assert not safe.raw_tracked_files_match(checkout, {'source.txt': ('100644', b'inert expected source\n')})
@@ -123,7 +129,7 @@ def test_linked_worktree_observation_is_literal_owned_metadata_with_backlink(tmp
     (linked / '.git').write_text('gitdir: ' + str(entry) + '\n')
     (entry / 'gitdir').write_text(str(linked / '.git') + '\n')
     (entry / 'commondir').write_text('../..\n')
-    monkeypatch.setattr(safe.subprocess, 'run', lambda *_a, **_k: pytest.fail('worktree discovery launched Git'))
+    monkeypatch.setattr(safe.subprocess, 'Popen', lambda *_a, **_k: pytest.fail('worktree discovery launched Git'))
     with safe.SafeGitObserver(checkout, custody_root=tmp_path) as observer:
         assert observer.worktrees() == [str(linked)]
     (linked / '.git').write_text('gitdir: /undeclared/external-metadata\n')
@@ -181,3 +187,70 @@ def test_service_never_reads_dependency_through_symlinked_parent(tmp_path, monke
     with pytest.raises(ValueError, match='indirect custody'):
         controller.freeze('run-repository', branch='main')
     assert reads == [checkout]
+
+
+def test_compact_valid_git_dag_is_stopped_during_output_capture(tmp_path, monkeypatch):
+    checkout, repository = metadata(tmp_path)
+
+    def store(kind, content):
+        raw = kind.encode() + b' ' + str(len(content)).encode() + b'\0' + content
+        sha = hashlib.sha1(raw).hexdigest()
+        destination = repository / 'objects' / sha[:2] / sha[2:]
+        destination.parent.mkdir(exist_ok=True)
+        destination.write_bytes(zlib.compress(raw))
+        return sha
+
+    blob = store('blob', b'inert\n')
+    tree = store('tree', b'100644 leaf\0' + bytes.fromhex(blob))
+    for _ in range(4):
+        tree = store('tree', b''.join(b'40000 d' + str(i).encode() + b'\0' + bytes.fromhex(tree)
+                                     for i in range(8)))
+    commit = store('commit', ('tree ' + tree + '\nauthor Synthetic <synthetic@example.invalid> 1 +0000\n'
+        'committer Synthetic <synthetic@example.invalid> 1 +0000\n\ninert\n').encode())
+    (repository / 'refs/heads/main').write_text(commit + '\n')
+    assert sum(p.stat().st_size for p in repository.rglob('*') if p.is_file()) < 4096
+    with safe.SafeGitObserver(checkout, custody_root=tmp_path) as observer:
+        observer.run('fsck', '--full', '--strict', '--no-reflogs')
+        monkeypatch.setattr(safe, 'MAX_OUTPUT', 32768)
+        reads, children = [], []
+        real_read, real_popen = os.read, subprocess.Popen
+
+        def read(fd, maximum):
+            chunk = real_read(fd, maximum)
+            reads.append(len(chunk))
+            return chunk
+
+        def spawn(*args, **kwargs):
+            child = real_popen(*args, **kwargs)
+            children.append(child)
+            return child
+
+        with monkeypatch.context() as patcher:
+            patcher.setattr(safe.os, 'read', read)
+            patcher.setattr(safe.subprocess, 'Popen', spawn)
+            with pytest.raises(ValueError, match='output budget'):
+                observer.run('ls-tree', '-rz', '--full-tree', commit)
+        assert sum(reads) == safe.MAX_OUTPUT + 1
+        assert len(children) == 1 and children[0].poll() is not None
+        assert observer.run('rev-parse', 'HEAD') == (commit + '\n').encode()
+
+
+@pytest.mark.parametrize('program,error', [
+    ('import os; os.write(1,b"o"*24000); os.write(2,b"e"*24000)', ValueError),
+    ('import time; time.sleep(10)', subprocess.TimeoutExpired),
+])
+def test_git_combined_stream_budget_and_deadline_reap_child(tmp_path, monkeypatch, program, error):
+    checkout, _repository = metadata(tmp_path)
+    real_popen, children = subprocess.Popen, []
+
+    def spawn(_command, **kwargs):
+        child = real_popen([sys.executable, '-I', '-S', '-c', program], **kwargs)
+        children.append(child)
+        return child
+
+    monkeypatch.setattr(safe, 'MAX_OUTPUT', 32768)
+    monkeypatch.setattr(safe, 'COMMAND_TIMEOUT', 0.5)
+    monkeypatch.setattr(safe.subprocess, 'Popen', spawn)
+    with safe.SafeGitObserver(checkout, custody_root=tmp_path) as observer, pytest.raises(error):
+        observer.run('rev-parse', 'HEAD')
+    assert len(children) == 1 and children[0].poll() is not None

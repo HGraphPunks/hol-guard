@@ -59,6 +59,12 @@ class HarnessEventCapability:
     mandatory_compatibility: str
     known_blind_spots: tuple[str, ...]
     source_reference: str
+    # Tool names (a trailing ``*`` matches any suffix) when one hook event is
+    # split into rows by tool; empty when the row covers the whole event.
+    tools: tuple[str, ...] = ()
+    # The product surface (for example ``cli`` or ``cloud_agent``) when one
+    # event is published as several rows by surface; ``None`` otherwise.
+    surface: str | None = None
     deployment_health: CapabilityDeploymentHealth = "unverified"
     evidence_level: CapabilityEvidenceLevel = "not_run"
     observed_at: str | None = None
@@ -148,6 +154,7 @@ class HarnessEventCapability:
             "mandatory_compatibility": self.mandatory_compatibility,
             "known_blind_spots": list(self.known_blind_spots),
             "source_reference": self.source_reference,
+            **({"tools": list(self.tools)} if self.tools else {}),
             "deployment_health": self.deployment_health,
             "evidence_level": self.evidence_level,
             "observed_at": self.observed_at,
@@ -164,37 +171,6 @@ class HarnessEventCapability:
 
 # The shorter name is useful to callers that do not need the harness prefix.
 CapabilityEvent = HarnessEventCapability
-
-
-@dataclass(frozen=True, slots=True)
-class HarnessCapabilityReport:
-    """Machine-readable event capability report metadata and rows."""
-
-    schema_version: str = "harness-capability-report.v1"
-    build: str = "unknown"
-    commit: str = "unknown"
-    requested_host: str | None = None
-    capabilities: tuple[HarnessEventCapability, ...] = ()
-
-    @property
-    def build_id(self) -> str:
-        """Compatibility alias for callers that call the build input an ID."""
-
-        return self.build
-
-    def to_dict(self) -> dict[str, object]:
-        """Serialize the report without injecting wall-clock values."""
-
-        return {
-            "schema_version": self.schema_version,
-            "build": self.build,
-            "commit": self.commit,
-            "requested_host": self.requested_host,
-            "capabilities": [capability.to_dict() for capability in self.capabilities],
-        }
-
-
-CapabilityReport = HarnessCapabilityReport
 
 
 @dataclass(frozen=True, slots=True)
@@ -234,12 +210,6 @@ class HarnessProtectionContract:
     docs_path: str | None = None
     icon_label: str | None = None
     capability_events: tuple[HarnessEventCapability, ...] = ()
-
-    @property
-    def capability_report(self) -> tuple[HarnessEventCapability, ...]:
-        """Compatibility alias for the additive per-event report rows."""
-
-        return self.capability_events
 
 
 @dataclass(frozen=True, slots=True)

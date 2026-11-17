@@ -145,7 +145,7 @@ def test_acceptance_packaging_uses_its_own_compiler_without_exporting_to_parent(
     [
         ("mdm-local-lab.yml", "conformance", "scripts/mdm/run-local-lab.py"),
         ("guard-gauntlet-gate.yml", "contracts", "pytest"),
-        ("guard-gauntlet-evidence.yml", "contracts", "pytest"),
+        ("guard-gauntlet-evidence.yml", "contracts", "scripts/ci/run_projection_shard.py"),
     ],
 )
 def test_standalone_contract_jobs_stage_resources_before_test_imports(workflow_name, job_name, test_command):

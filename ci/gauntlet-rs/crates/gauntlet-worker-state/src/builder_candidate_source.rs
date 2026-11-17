@@ -56,6 +56,8 @@ pub(crate) fn open_fixed_build_slot(job_id: &str) -> Result<OwnedFd, CandidateSo
     if !hex(job_id, 16) {
         return Err(CandidateSourceError::InvalidPins);
     }
+    crate::native_job_storage::owner::enter(job_id)
+        .map_err(|_| CandidateSourceError::UnsafeSlot)?;
     let builds = open_root_owned_public_directory(Path::new(BUILDS))
         .map_err(|_| CandidateSourceError::UnsafeSlot)?;
     let parent = fstat(&builds).map_err(|_| CandidateSourceError::UnsafeSlot)?;
@@ -79,6 +81,8 @@ pub(crate) fn open_fixed_build_slot(job_id: &str) -> Result<OwnedFd, CandidateSo
     {
         return Err(CandidateSourceError::UnsafeSlot);
     }
+    crate::native_job_storage::source::verify(job_id, &job, None)
+        .map_err(|_| CandidateSourceError::UnsafeSlot)?;
     Ok(job)
 }
 
@@ -88,6 +92,12 @@ pub(crate) fn verify_captured_source(
 ) -> Result<u64, CandidateSourceError> {
     if !hex(expected_sha256, 64) {
         return Err(CandidateSourceError::InvalidPins);
+    }
+    if crate::native_job_storage::source::receipt(job)
+        .map_err(|_| CandidateSourceError::SourceMismatch)?
+        .is_some_and(|v| v["source_archive_sha256"] != expected_sha256)
+    {
+        return Err(CandidateSourceError::SourceMismatch);
     }
     let descriptor = openat(
         job,

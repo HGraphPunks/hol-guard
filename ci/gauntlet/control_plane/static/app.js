@@ -37,7 +37,7 @@ function jobs(s) {
   text('job-count', all.length); $('job-rows').replaceChildren();
   for (const j of filtered) {
     const row = node('tr'), name = node('td');
-    const a = node('a', j.kind === 'local-candidate' ? j.title : j.kind === 'release' ? j.tag : '#' + j.pr + ' · ' + j.title);
+    const a = node('a', ['local-candidate', 'normal-native', 'normal-build'].includes(j.kind) ? j.title : j.kind === 'release' ? j.tag : '#' + j.pr + ' · ' + j.title);
     if (typeof j.url === 'string' && /^https:\/\/github\.com\//.test(j.url)) { a.href = j.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
     name.append(a, node('small', j.sha?.slice(0, 10)));
     const state = node('td'), kind = j.state === 'passed' ? 'good' : ['failed','build-failed','conformance-failed','invalid-evidence','unknown'].includes(j.state) ? 'bad' : 'neutral';
@@ -79,7 +79,7 @@ function activity(s, fresh) {
   badge('activity-state', !fresh ? 'Stale' : held ? 'Admissions held' : job?.state || 'Idle', !fresh ? 'bad' : 'neutral');
   if (!job) { text('activity-subtitle', 'Watching ' + (s.release_tags || []).join(' + ') + '. No VM job is executing.'); return; }
   const p = job.vm_progress || {}, current = fresh && ['preparing','running','unknown'].includes(job.state) && Date.now()/1000 - (p.checked_at || 0) < 45;
-  text('activity-subtitle', (job.kind === 'local-candidate' ? job.title : job.tag || '#' + job.pr) + ' · ' + job.sha.slice(0,12) + ' · job ' + job.id);
+  text('activity-subtitle', (['local-candidate', 'normal-native', 'normal-build'].includes(job.kind) ? job.title : job.tag || '#' + job.pr) + ' · ' + job.sha.slice(0,12) + ' · job ' + job.id);
   const phase = held ? 'Admissions held for diagnosis' : current && p.phase !== 'not-started' ? p.phase : job.phase || job.state;
   const fields = [['Operation', phase.replaceAll('-', ' ')], ['Job age', duration((job.finished_at || Date.now()/1000) - job.created_at)],
     ['VM process', current ? p.process_alive ? 'PID ' + p.pid + ' · running' : 'No live process observed' : 'No current process observation'],

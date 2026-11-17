@@ -1,4 +1,4 @@
-//! Bounded, read-only projection of the Python observer's public files.
+//! Bounded, read-only projection of versioned observers' public files.
 
 use rustix::fs::{open, openat, Mode, OFlags};
 use serde_json::{json, Value};
@@ -63,13 +63,24 @@ impl PublicRoot {
         let Some(updated) = value.get("updated_at").and_then(Value::as_f64) else {
             return unavailable();
         };
-        if !updated.is_finite()
+        if !now.is_finite()
+            || !updated.is_finite()
+            || updated <= 0.0
+            || updated > now + 5.0
             || value.get("schema").and_then(Value::as_str) != Some("hol-gauntlet-dashboard.v1")
             || !value.get("jobs").is_some_and(Value::is_array)
         {
             return unavailable();
         }
+        // Legacy Python snapshots predate the embedded identity. New Rust
+        // snapshots must agree with the separately published instance file.
+        if let Some(instance) = value.get("instance_id") {
+            if instance.as_str() != self.identity().as_deref() || !instance.is_string() {
+                return unavailable();
+            }
+        }
         let age = (now - updated).max(0.0);
+        let stopped = value["observer"]["schema"] == "hol-gauntlet-observer.stopped";
         let Some(object) = value.as_object_mut() else {
             return unavailable();
         };
@@ -79,7 +90,13 @@ impl PublicRoot {
         );
         object.insert(
             "collector_status".into(),
-            json!(if age < 90.0 { "online" } else { "stale" }),
+            json!(if stopped {
+                "stopped"
+            } else if age < 90.0 {
+                "online"
+            } else {
+                "stale"
+            }),
         );
         for (name, field, max) in [
             ("live.json", "live_e2e", LIVE_MAX),
@@ -104,7 +121,7 @@ impl PublicRoot {
             return None;
         }
         let updated = row.get("updated_at")?.as_f64()?;
-        if !updated.is_finite() {
+        if !updated.is_finite() || updated <= 0.0 || updated > now + 5.0 {
             return None;
         }
         if name == "feature-ai.json" {

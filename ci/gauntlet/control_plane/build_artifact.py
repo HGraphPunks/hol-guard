@@ -20,7 +20,9 @@ def main():
     if output(['git', 'rev-parse', 'HEAD']).strip() != sha:
         raise ValueError('checkout differs from independently supplied PR SHA')
     version = output([sys.executable, 'scripts/sync_repo_version.py', '--check']).strip()
-    environment = dict(os.environ, HOL_GUARD_PACKAGE_VERSION=version)
+    environment = dict(os.environ, HOL_GUARD_PACKAGE_VERSION=version,
+                       CARGO_PROFILE_RELEASE_LTO='false',
+                       CARGO_PROFILE_RELEASE_CODEGEN_UNITS='16')
     subprocess.run(['cargo', 'build', '--manifest-path', 'rust/Cargo.toml', '--locked', '--release',
                     '-p', 'hol-guard-runtime', '-p', 'guard-command',
                     '--bin', 'hol-guard-runtime', '--bin', 'guard-command-source'], env=environment, check=True)

@@ -14,7 +14,7 @@ EXPECTED = {'ready': True, 'native_required': True, 'native_route': 'native_resi
 PROBE = r'''
 import http.client,json,sys
 from pathlib import Path
-from codex_plugin_scanner.guard.daemon.manager import load_guard_daemon_auth_token
+from codex_plugin_scanner.guard.native_daemon_manage import load_guard_daemon_auth_token
 token=load_guard_daemon_auth_token(Path('/product/guard'))
 if type(token) is not str or not token:
     raise SystemExit(69)

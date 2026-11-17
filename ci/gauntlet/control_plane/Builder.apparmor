@@ -9,6 +9,8 @@ profile HOL_GAUNTLET_BUILD_PROFILE flags=(attach_disconnected,mediate_deleted) {
   file,
   umount,
   signal (receive) peer=unconfined,
+  # The host OCI runtime has its own unconfined crun profile on Ubuntu.
+  signal (receive) peer=crun,
   signal (send,receive) peer=HOL_GAUNTLET_BUILD_PROFILE,
   signal (send,receive) peer="HOL_GAUNTLET_BUILD_PROFILE//&crun",
   signal (send,receive) peer="crun//&HOL_GAUNTLET_BUILD_PROFILE",

@@ -6,6 +6,7 @@ import {
   HiMiniInformationCircle,
   HiMiniShieldCheck,
 } from "react-icons/hi2";
+import { resolveAgentStatedIntent } from "./agent-stated-intent";
 import { ActionButton, GuardHero, ProofStrip, SectionLabel } from "./approval-center-primitives";
 import {
   buildCodexResumeUx,
@@ -23,6 +24,8 @@ import type {
 } from "./guard-types";
 import { normalizeGuardAction } from "./guard-action";
 import { LoggedActionPanel } from "./logged-action-panel";
+import { explainMcpCall } from "./mcp-call/explain-mcp-call";
+import { McpCallCard } from "./mcp-call/mcp-call-card";
 import { protectionHealthFor, unavailableProtectionHealth, useProtectionPresentationState } from "./protection-health";
 
 const PROTECTION_APPEARANCE = {
@@ -198,8 +201,17 @@ export function ReviewEmptyState({ runtime, resolutionMessage, codexResume, onRe
 }
 
 export function PrimaryActionCard({ item }: { item: GuardApprovalRequest }) {
+  const mcpCall = explainMcpCall(item);
+  if (mcpCall !== null) {
+    return <McpCallCard item={item} explanation={mcpCall} />;
+  }
+  return <LoggedActionCard item={item} />;
+}
+
+function LoggedActionCard({ item }: { item: GuardApprovalRequest }) {
   const action = buildPrimaryReviewAction(item);
   const workingDirectory = resolveRequestWorkingDirectory(item);
+  const agentIntent = resolveAgentStatedIntent(item);
   const watchOnlyObservation = isWatchOnlyObservation(item);
   const actionDescription = watchOnlyObservation ? "observed action" : "stopped action";
   const actionLabel = watchOnlyObservation ? "Would have stopped" : action.label;
@@ -237,6 +249,19 @@ export function PrimaryActionCard({ item }: { item: GuardApprovalRequest }) {
             </code>
           </div>
         )}
+        {agentIntent !== null && (
+          <figure className="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/70 px-3 py-2">
+            <figcaption className="text-xs font-medium text-brand-dark/70">
+              What the agent said it is doing
+            </figcaption>
+            <blockquote className="mt-1 break-words text-sm text-brand-dark">
+              “{agentIntent.text}”
+            </blockquote>
+            <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+              In the agent's own words. Guard has not checked this, so decide from the command above.
+            </p>
+          </figure>
+        )}
       </div>
     </div>
   );
@@ -245,6 +270,10 @@ export function PrimaryActionCard({ item }: { item: GuardApprovalRequest }) {
 export function buildWhatWouldHappen(item: GuardApprovalRequest): string | null {
   if (isWatchOnlyObservation(item)) {
     return `Watch allowed this action to continue. ${watchProtectedOutcome(item)}`;
+  }
+  const mcpCall = explainMcpCall(item);
+  if (mcpCall !== null) {
+    return `Without Guard, ${harnessDisplayName(item.harness)} would call ${mcpCall.connector} right away. Guard paused it so you can see what it asks for first.`;
   }
   const type = item.artifact_type;
   if (type?.includes("file_write") || type?.includes("file_read")) {

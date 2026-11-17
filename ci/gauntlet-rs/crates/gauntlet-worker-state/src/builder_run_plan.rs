@@ -134,6 +134,7 @@ pub fn fixed_builder_run_plan(request: &Value) -> Result<BuilderRunPlan, Builder
         "/usr/bin/podman".to_owned(),
         "run".to_owned(),
         "--rm".to_owned(),
+        "--log-driver=none".to_owned(),
         "--name".to_owned(),
         format!("hol-gauntlet-build-{job_id}"),
         "--user".to_owned(),

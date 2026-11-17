@@ -246,11 +246,15 @@ pub(crate) fn observe_staging_control_context(
         || config["runtime"]["guard_package_version"] != pins.version
         || config["assets"]["guard_prefix"]["path"] != format!("{base}/prefix")
         || config["assets"]["guard_prefix"]["sha256"] != pins.prefix_tree_sha256
-        || config["assets"]["private_cell"]["path"] != format!("{base}/cell-artifacts")
         || config["assets"]["private_cell"]["sha256"] != pins.private_manifest_sha256
     {
         return Err(INVALID);
     }
+    crate::verify_shadow_private_cell_artifacts(
+        pins.build_job_id,
+        config,
+        pins.private_manifest_sha256,
+    )?;
     verify_runner_assets_inert(&before, Path::new("/opt"))?;
     let raw = read_one(pins.run_id, pins.role)?;
     if sha256(&raw) != pins.record_sha256 {

@@ -1,0 +1,19 @@
+"""Unprivileged negative control: a same-UID peer outside bound Bun ancestry."""
+import json
+import os
+import socket
+
+if os.getuid() != 10001 or os.getgid() != 10001:
+    raise ValueError("fixed SDK probe identity required")
+with socket.socket(socket.AF_UNIX) as connection:
+    connection.settimeout(10)
+    connection.connect("/runtime/resources/docs.sock")
+    connection.sendall(b'{"jsonrpc":"2.0","id":"unrelated-mcp-peer","method":"tools/call","params":{"name":"docs.read","arguments":{"record_id":"developer-spec"}}}\n')
+    try:
+        denied = connection.recv(1) == b""
+    except ConnectionResetError:
+        denied = True
+if not denied:
+    raise ValueError("unrelated MCP peer received provider bytes")
+print(json.dumps({"schema": "sdk-mcp-same-uid-peer-control.v1", "uid": os.getuid(),
+                  "denied": denied, "model_requests": 0}))

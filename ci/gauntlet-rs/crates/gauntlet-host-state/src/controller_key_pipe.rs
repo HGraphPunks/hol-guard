@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 const MAX_FRAME_BYTES: usize = 1024;
 const MAX_HANDOFF_TIME: Duration = Duration::from_secs(60);
+pub(super) const NATIVE_HANDOFF_TIME: Duration = Duration::from_secs(210);
 
 fn ready(fd: libc::c_int, events: libc::c_short, deadline: Instant) -> Result<(), HostKeyPinError> {
     loop {
@@ -127,7 +128,29 @@ impl HostControllerKeyPinJournal {
         if timeout.is_zero() || timeout > MAX_HANDOFF_TIME {
             return Err(HostKeyPinError::TransportTimedOut);
         }
-        let deadline = Instant::now() + timeout;
+        self.accept_prepared_pipe_until(
+            prepared_reader,
+            ack_writer,
+            expected,
+            Instant::now() + timeout,
+            MAX_HANDOFF_TIME,
+        )
+    }
+    pub(super) fn accept_prepared_pipe_until(
+        &self,
+        prepared_reader: &impl AsRawFd,
+        ack_writer: &impl AsRawFd,
+        expected: &HostPrelaunchIdentity,
+        deadline: Instant,
+        maximum: Duration,
+    ) -> Result<HostKeyPinRecord, HostKeyPinError> {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero()
+            || remaining > maximum
+            || !matches!(maximum, MAX_HANDOFF_TIME | NATIVE_HANDOFF_TIME)
+        {
+            return Err(HostKeyPinError::TransportTimedOut);
+        }
         let frame = read_frame(prepared_reader.as_raw_fd(), deadline)?;
         let (record, ack) = self.accept_prepared(&frame, expected)?;
         write_frame(ack_writer.as_raw_fd(), &ack, deadline)?;

@@ -25,6 +25,15 @@ fn nonblocking(fd: i32) -> Result<(), StreamProcessError> {
 }
 
 fn read_bounded(fd: i32, kept: &mut Vec<u8>, limit: usize) -> Result<bool, StreamProcessError> {
+    let mut count = kept.len();
+    read_sink(fd, kept, &mut count, limit)
+}
+fn read_sink(
+    fd: i32,
+    kept: &mut dyn io::Write,
+    total: &mut usize,
+    limit: usize,
+) -> Result<bool, StreamProcessError> {
     let mut buffer = [0_u8; 4096];
     // SAFETY: `buffer` is writable and `fd` is a live child pipe.
     let count = unsafe { libc::read(fd, buffer.as_mut_ptr().cast(), buffer.len()) };
@@ -38,10 +47,12 @@ fn read_bounded(fd: i32, kept: &mut Vec<u8>, limit: usize) -> Result<bool, Strea
         };
     }
     let count = count as usize;
-    if kept.len().saturating_add(count) > limit {
+    if total.saturating_add(count) > limit {
         return Err(StreamProcessError::TooLarge);
     }
-    kept.extend_from_slice(&buffer[..count]);
+    kept.write_all(&buffer[..count])
+        .map_err(|_| StreamProcessError::Unavailable)?;
+    *total += count;
     Ok(true)
 }
 
@@ -50,7 +61,8 @@ fn wait_bounded(
     input: &[u8],
     timeout: Duration,
     stdout_limit: usize,
-) -> Result<Vec<u8>, StreamProcessError> {
+    output: &mut dyn io::Write,
+) -> Result<usize, StreamProcessError> {
     let stdin = child.stdin.take().ok_or(StreamProcessError::Unavailable)?;
     let mut stdout = child.stdout.take();
     let mut stderr = child.stderr.take();
@@ -67,7 +79,7 @@ fn wait_bounded(
     nonblocking(stderr_fd)?;
     let started = Instant::now();
     let mut offset = 0_usize;
-    let mut output = Vec::new();
+    let mut output_count = 0usize;
     let mut diagnostics = Vec::new();
     let mut status: Option<ExitStatus> = None;
     loop {
@@ -113,7 +125,7 @@ fn wait_bounded(
             return Err(StreamProcessError::Unavailable);
         }
         if fds[1].revents & (libc::POLLIN | libc::POLLHUP | libc::POLLERR) != 0
-            && !read_bounded(stdout_fd, &mut output, stdout_limit)?
+            && !read_sink(stdout_fd, output, &mut output_count, stdout_limit)?
         {
             stdout = None;
         }
@@ -155,7 +167,7 @@ fn wait_bounded(
         }
         if status.is_some() && stdout.is_none() && stderr.is_none() {
             return if status.is_some_and(|result| result.success()) {
-                Ok(output)
+                Ok(output_count)
             } else {
                 Err(StreamProcessError::Failed)
             };
@@ -185,7 +197,7 @@ fn wait_bounded(
         }
         if stdout.is_some()
             && fds[0].revents & (libc::POLLIN | libc::POLLHUP | libc::POLLERR) != 0
-            && !read_bounded(stdout_fd, &mut output, stdout_limit)?
+            && !read_sink(stdout_fd, output, &mut output_count, stdout_limit)?
         {
             stdout = None;
         }
@@ -211,14 +223,64 @@ pub(crate) fn run_streamed(
     if !Path::new(executable).is_absolute() {
         return Err(StreamProcessError::Unavailable);
     }
-    let mut child = Command::new(executable)
-        .args(&argv[1..])
+    let mut command = Command::new(executable);
+    command.args(&argv[1..]);
+    run_streamed_command(command, input, timeout, stdout_limit)
+}
+
+/// Reuse the bounded pipe owner with a caller's fixed, clean-environment Lima
+/// command. Inert initialization may intentionally send an empty input stream.
+pub(crate) fn run_streamed_command(
+    command: Command,
+    input: &[u8],
+    timeout: Duration,
+    stdout_limit: usize,
+) -> Result<Vec<u8>, StreamProcessError> {
+    let mut output = Vec::new();
+    capture_command(command, input, timeout, stdout_limit, &mut output)?;
+    Ok(output)
+}
+/// Stream directly to an already-owned private descriptor. A partial file is
+/// evidence of an uncertain attempt and is never truncated or replayed here.
+pub(crate) fn run_streamed_to_file(
+    command: Command,
+    file: &mut std::fs::File,
+    timeout: Duration,
+    limit: usize,
+) -> Result<usize, StreamProcessError> {
+    capture_command(command, b"", timeout, limit, file)
+}
+/// Preserve received evidence in the one-use file even when the fixed private
+/// request or its response fails. The original child owner still kills/reaps.
+pub(crate) fn run_streamed_input_to_file(
+    command: Command,
+    input: &[u8],
+    file: &mut std::fs::File,
+    timeout: Duration,
+    limit: usize,
+) -> Result<usize, StreamProcessError> {
+    if input.len() > 8192 {
+        return Err(StreamProcessError::TooLarge);
+    }
+    capture_command(command, input, timeout, limit, file)
+}
+fn capture_command(
+    mut command: Command,
+    input: &[u8],
+    timeout: Duration,
+    stdout_limit: usize,
+    output: &mut dyn io::Write,
+) -> Result<usize, StreamProcessError> {
+    if input.len() > 256 * 1024 * 1024 || !Path::new(command.get_program()).is_absolute() {
+        return Err(StreamProcessError::TooLarge);
+    }
+    let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|_| StreamProcessError::Unavailable)?;
-    let result = wait_bounded(&mut child, input, timeout, stdout_limit);
+    let result = wait_bounded(&mut child, input, timeout, stdout_limit, output);
     if result.is_err() {
         let _ = child.kill();
         let _ = child.wait();
@@ -274,5 +336,74 @@ mod tests {
             ),
             Err(StreamProcessError::TimedOut)
         );
+    }
+    #[test]
+    fn direct_file_stream_keeps_exact_bytes_and_preserves_a_bounded_partial_on_failure() {
+        use std::os::unix::fs::OpenOptionsExt;
+        let temp = tempfile::tempdir().unwrap();
+        for (name, limit, success) in [
+            ("complete.zip", 3 * 1024 * 1024, true),
+            ("partial.zip", 1024 * 1024, false),
+        ] {
+            let path = temp.path().join(name);
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(&path)
+                .unwrap();
+            let argv = python("import sys; sys.stdout.buffer.write(b'z'*(2*1024*1024))");
+            let mut command = Command::new(&argv[0]);
+            command.args(&argv[1..]);
+            let result = run_streamed_to_file(command, &mut file, Duration::from_secs(10), limit);
+            file.sync_all().unwrap();
+            let raw = std::fs::read(&path).unwrap();
+            if success {
+                assert_eq!(result, Ok(2 * 1024 * 1024));
+                assert_eq!(raw, vec![b'z'; 2 * 1024 * 1024]);
+            } else {
+                assert_eq!(result, Err(StreamProcessError::TooLarge));
+                assert!(!raw.is_empty());
+                assert!(raw.len() <= limit);
+                assert!(raw.iter().all(|b| *b == b'z'));
+            }
+        }
+    }
+    #[test]
+    fn private_input_file_stream_preserves_received_evidence_on_nonzero_and_size_failures() {
+        use std::os::unix::fs::OpenOptionsExt;
+        let temp = tempfile::tempdir().unwrap();
+        for (name, limit, exit) in [("failed.tar", 8192, 7), ("bounded.tar", 4096, 0)] {
+            let path = temp.path().join(name);
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(&path)
+                .unwrap();
+            let argv = python(&format!("import sys; b=sys.stdin.buffer.read(); sys.stdout.buffer.write(b*1024); sys.stdout.buffer.flush(); sys.exit({exit})"));
+            let mut command = Command::new(&argv[0]);
+            command.args(&argv[1..]);
+            let result = run_streamed_input_to_file(
+                command,
+                b"anchor",
+                &mut file,
+                Duration::from_secs(10),
+                limit,
+            );
+            assert_eq!(
+                result,
+                Err(if exit == 0 {
+                    StreamProcessError::TooLarge
+                } else {
+                    StreamProcessError::Failed
+                })
+            );
+            file.sync_all().unwrap();
+            let raw = std::fs::read(&path).unwrap();
+            assert!(!raw.is_empty());
+            assert!(raw.len() <= limit);
+            assert_eq!(raw, (b"anchor".repeat(1024))[..raw.len()]);
+        }
     }
 }

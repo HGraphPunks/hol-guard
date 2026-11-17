@@ -10,21 +10,18 @@ import subprocess
 import sys
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from codex_plugin_scanner.guard.adapters import codex_remote_control
-from codex_plugin_scanner.guard.adapters import grok as grok_adapter_module
-from codex_plugin_scanner.guard.adapters import grok_executable as grok_executable_module
 from codex_plugin_scanner.guard.adapters.base import HarnessAdapter, HarnessContext
 from codex_plugin_scanner.guard.adapters.codex import CodexHarnessAdapter
-from codex_plugin_scanner.guard.adapters.grok import GrokHarnessAdapter
-from codex_plugin_scanner.guard.adapters.opencode import OpenCodeHarnessAdapter
-from codex_plugin_scanner.guard.adapters.opencode_artifacts import runtime_config_path
+from codex_plugin_scanner.guard.adapters.native_harness import NATIVE_HARNESSES, NativeHarnessAdapter
+from codex_plugin_scanner.guard.adapters.opencode_runtime import OpenCodeHarnessAdapter
 from codex_plugin_scanner.guard.approvals import queue_blocked_approvals
 from codex_plugin_scanner.guard.config import GuardConfig, load_guard_config
 from codex_plugin_scanner.guard.consumer import evaluate_detection
-from codex_plugin_scanner.guard.consumer.service import _consumer_execution_identity
 from codex_plugin_scanner.guard.models import GuardAction, GuardArtifact, HarnessDetection, PolicyDecision
 from codex_plugin_scanner.guard.runtime import guard_run_evaluation as guard_run_evaluation
 from codex_plugin_scanner.guard.runtime import guard_run_launch as guard_run_launch
@@ -34,8 +31,10 @@ from codex_plugin_scanner.guard.runtime import wrapper_run_finish
 from codex_plugin_scanner.guard.runtime.approval_context import (
     approval_context_token_is_well_formed,
     build_approval_context_token,
+    build_runtime_launch_identity,
 )
 from codex_plugin_scanner.guard.store import GuardStore
+from tests import codex_hook_publication_helpers as publication_helpers
 
 pytestmark = pytest.mark.usefixtures("native_prompt_runtime")
 
@@ -58,23 +57,21 @@ def _stable_guard_run_launch_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(guard_run_launch, "get_adapter", lambda _harness: LaunchAdapter())
 
 
-def test_consumer_execution_identity_resolves_dot_slash_from_runtime_cwd(tmp_path: Path) -> None:
+def test_consumer_launch_identity_resolves_dot_slash_from_runtime_cwd(tmp_path: Path) -> None:
     runtime_cwd = tmp_path / "runtime"
     runtime_cwd.mkdir()
     executable = runtime_cwd / "server"
     executable.write_bytes(b"#!/bin/sh\necho runtime\n")
     executable.chmod(0o755)
 
-    identity = _consumer_execution_identity("./server --stdio", cwd=runtime_cwd)
-
-    resolved = identity["resolved"]
+    resolved = build_runtime_launch_identity("./server --stdio", cwd=runtime_cwd, launch_env=os.environ)["executable"]
     assert isinstance(resolved, dict)
     assert resolved["path"] == str(executable.resolve())
     assert resolved["launch_cwd"] == str(runtime_cwd.resolve())
     assert resolved["status"] == "verified"
 
 
-def test_consumer_execution_identity_resolves_relative_path_entries_from_runtime_cwd(
+def test_consumer_launch_identity_resolves_relative_path_entries_from_runtime_cwd(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -86,9 +83,7 @@ def test_consumer_execution_identity_resolves_relative_path_entries_from_runtime
     executable.chmod(0o755)
     monkeypatch.setenv("PATH", "bin")
 
-    identity = _consumer_execution_identity("server --stdio", cwd=runtime_cwd)
-
-    resolved = identity["resolved"]
+    resolved = build_runtime_launch_identity("server --stdio", cwd=runtime_cwd, launch_env=os.environ)["executable"]
     assert isinstance(resolved, dict)
     assert resolved["path"] == str(executable.resolve())
     assert resolved["launch_cwd"] == str(runtime_cwd.resolve())
@@ -188,9 +183,9 @@ def _write_test_executable(path: Path, body: str = "#!/bin/sh\nexit 0\n") -> Pat
 def _install_codex_native_hooks(context: HarnessContext) -> None:
     payload: dict[str, object] = {"features": {"hooks": True}}
     config_path = CodexHarnessAdapter._hook_config_path(context)
-    CodexHarnessAdapter._install_config_hooks(payload, context, config_path=config_path)
+    publication_helpers.install_config_hooks(payload, context, config_path=config_path)
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    CodexHarnessAdapter._write_authenticated_hook_config(
+    publication_helpers.write_authenticated_hook_config(
         context,
         config_path=config_path,
         payload=payload,
@@ -531,7 +526,7 @@ def test_guard_run_rejects_opencode_overlay_environment_changed_after_saved_clai
         workspace_dir=workspace,
         guard_home=config.guard_home,
     )
-    overlay_path = runtime_config_path(context)
+    overlay_path = context.guard_home / "opencode" / "runtime-config.json"
     overlay_path.parent.mkdir(parents=True, exist_ok=True)
     overlay_path.write_text(json.dumps({"permission": {"bash": "ask"}}), encoding="utf-8")
     executable_alias = tmp_path / "bin" / "opencode"
@@ -618,7 +613,7 @@ def test_codex_postclaim_setup_uses_authorized_canonical_prefix_after_symlink_sw
         "get_adapter",
         lambda _harness: SwapAtAuthorizedSetupAdapter(),
     )
-    monkeypatch.setattr(codex_remote_control, "_start_direct_app_server", lambda **_kwargs: False)
+    monkeypatch.setattr(codex_remote_control, "_prepare_remote", lambda *_args, **_kwargs: False)
 
     result = wrapper_run.guard_run(
         "codex",
@@ -673,7 +668,7 @@ def test_no_saved_codex_setup_uses_previewed_canonical_prefix_after_symlink_swap
         "get_adapter",
         lambda _harness: SwapAtAuthorizedSetupAdapter(),
     )
-    monkeypatch.setattr(codex_remote_control, "_start_direct_app_server", lambda **_kwargs: False)
+    monkeypatch.setattr(codex_remote_control, "_prepare_remote", lambda *_args, **_kwargs: False)
 
     result = wrapper_run.guard_run(
         "codex",
@@ -812,6 +807,40 @@ def test_no_saved_pure_default_finalizer_launches_once_in_canonical_workspace(
     assert result["launched"] is True
 
 
+class _RecordingGrokAdapter(NativeHarnessAdapter):
+    """Grok whose launcher answers stand in for the native trust checks.
+
+    The runtime refuses launchers under shared temporary roots, so these answers
+    model it: a preview resolves without registering, a launch registers the
+    explicit selection.
+    """
+
+    def __init__(self, events: list[str], registration: Path, executable: Path) -> None:
+        harness, aliases, launcher = next(entry for entry in NATIVE_HARNESSES if entry[0] == "grok")
+        super().__init__(harness, aliases, launcher)
+        self._events = events
+        self._registration = registration
+        self._executable = executable
+
+    def preview_launch_commands(self, context: HarnessContext, passthrough_args: list[str]) -> tuple[list[str], ...]:
+        self._events.append("preview")
+        assert self._registration.exists() is False
+        return super().preview_launch_commands(context, passthrough_args)
+
+    def launch_command(self, context: HarnessContext, passthrough_args: list[str]) -> list[str]:
+        self._events.append("launch-setup")
+        return super().launch_command(context, passthrough_args)
+
+    def _ask(self, op: str, context: HarnessContext, **fields: Any) -> dict[str, Any]:
+        if op not in {"preview_launch", "launch_command"}:
+            return super()._ask(op, context, **fields)
+        if op == "launch_command":
+            self._events.append("register")
+            self._registration.parent.mkdir(parents=True, exist_ok=True)
+            self._registration.write_text("{}\n", encoding="utf-8")
+        return {"argv": [str(self._executable.resolve()), *fields["args"]]}
+
+
 def test_grok_previews_do_not_register_and_final_setup_registers_once_after_claim(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -839,21 +868,7 @@ def test_grok_previews_do_not_register_and_final_setup_registers_once_after_clai
     _record_once(store, artifact=artifact, context_hash=context_hash, workspace=workspace)
     events: list[str] = []
 
-    class RecordingGrokAdapter(GrokHarnessAdapter):
-        def preview_launch_commands(self, *args, **kwargs) -> tuple[list[str], ...]:
-            events.append("preview")
-            assert registration.exists() is False
-            return super().preview_launch_commands(*args, **kwargs)
-
-        def launch_command(self, *args, **kwargs) -> list[str]:
-            events.append("launch-setup")
-            return super().launch_command(*args, **kwargs)
-
-    original_register = grok_adapter_module.register_trusted_grok_executable
-
-    def register_once(*args, **kwargs):
-        events.append("register")
-        return original_register(*args, **kwargs)
+    adapter = _RecordingGrokAdapter(events, registration, executable)
 
     original_claim = store.claim_approval_reuse_decisions
 
@@ -866,10 +881,8 @@ def test_grok_previews_do_not_register_and_final_setup_registers_once_after_clai
         events.append("execute")
         return subprocess.CompletedProcess(args=command, returncode=0)
 
-    monkeypatch.setattr(grok_executable_module, "_executable_security_error", lambda *_args: None)
-    monkeypatch.setattr(grok_adapter_module, "register_trusted_grok_executable", register_once)
     monkeypatch.setattr(wrapper_run, "detect_harness", lambda _harness, _context: detection)
-    monkeypatch.setattr(guard_run_launch, "get_adapter", lambda _harness: RecordingGrokAdapter())
+    monkeypatch.setattr(guard_run_launch, "get_adapter", lambda _harness: adapter)
     monkeypatch.setattr(store, "claim_approval_reuse_decisions", claim_and_record)
     monkeypatch.setattr(wrapper_run_finish.subprocess, "run", execute)
 
@@ -916,30 +929,14 @@ def test_no_saved_grok_preview_registers_once_only_in_authorized_finalizer(
     registration = config.guard_home / "managed" / "grok" / "trusted-executable.json"
     events: list[str] = []
 
-    class RecordingGrokAdapter(GrokHarnessAdapter):
-        def preview_launch_commands(self, *args, **kwargs) -> tuple[list[str], ...]:
-            events.append("preview")
-            assert registration.exists() is False
-            return super().preview_launch_commands(*args, **kwargs)
-
-        def launch_command(self, *args, **kwargs) -> list[str]:
-            events.append("launch-setup")
-            return super().launch_command(*args, **kwargs)
-
-    original_register = grok_adapter_module.register_trusted_grok_executable
-
-    def register_once(*args, **kwargs):
-        events.append("register")
-        return original_register(*args, **kwargs)
+    adapter = _RecordingGrokAdapter(events, registration, executable)
 
     def execute(command, **_kwargs) -> subprocess.CompletedProcess[str]:
         events.append("execute")
         return subprocess.CompletedProcess(args=command, returncode=0)
 
-    monkeypatch.setattr(grok_executable_module, "_executable_security_error", lambda *_args: None)
-    monkeypatch.setattr(grok_adapter_module, "register_trusted_grok_executable", register_once)
     monkeypatch.setattr(wrapper_run, "detect_harness", lambda _harness, _context: detection)
-    monkeypatch.setattr(guard_run_launch, "get_adapter", lambda _harness: RecordingGrokAdapter())
+    monkeypatch.setattr(guard_run_launch, "get_adapter", lambda _harness: adapter)
     monkeypatch.setattr(wrapper_run_finish.subprocess, "run", execute)
 
     result = wrapper_run.guard_run(
@@ -1987,7 +1984,8 @@ def test_matching_saved_allow_is_composed_non_consumingly_before_any_claim(
     store = GuardStore(tmp_path / "guard-home")
 
     def exact_saved_allow(*_args: object, **kwargs: object) -> dict[str, object]:
-        assert kwargs["consume_one_shot"] is False
+        # The memory-pattern lookup only peeks: it has no consuming mode.
+        assert "consume_one_shot" not in kwargs
         return {
             "decision": {
                 "action": "allow",
@@ -2379,7 +2377,24 @@ def test_runtime_detector_unchanged_status_ignores_elapsed_ms_and_launches_after
     assert len(launches) == 1
 
 
-def test_runtime_detector_signal_change_invalidates_exact_saved_approval(
+def test_turning_the_detector_registry_off_changes_the_approval_context(
+    tmp_path: Path,
+) -> None:
+    artifact = _artifact(tmp_path)
+    detection = _detection(artifact)
+    config = _config(tmp_path)
+    store = GuardStore(tmp_path / "guard-home")
+    detectors_ran = {"telemetry": [{"detector_id": "persistence", "status": "ok"}]}
+
+    ran = evaluate_detection(detection, store, config, persist=False, runtime_detector_context=detectors_ran)
+    registry_off = evaluate_detection(detection, store, config, persist=False, runtime_detector_context=None)
+
+    # A clean run and a run without the detector registry both have no
+    # failures; the approval still tells them apart.
+    assert ran["artifacts"][0]["approval_context_hash"] != registry_off["artifacts"][0]["approval_context_hash"]
+
+
+def test_runtime_detector_finding_change_keeps_exact_saved_approval(
     tmp_path: Path,
 ) -> None:
     artifact = _artifact(tmp_path)
@@ -2424,11 +2439,12 @@ def test_runtime_detector_signal_change_invalidates_exact_saved_approval(
         runtime_detector_context=second_detector_context,
     )
 
+    # A new detector finding is reported, not re-asked: the approval covers
+    # the unchanged artifact.
     assert unchanged["artifacts"][0]["approval_context_hash"] == first_context_hash
     assert unchanged["artifacts"][0]["policy_action"] == "allow"
-    assert changed["artifacts"][0]["approval_context_hash"] != first_context_hash
-    assert changed["artifacts"][0]["policy_action"] == "review"
-    assert changed["artifacts"][0]["approval_reuse_reason_code"] == ("approval_reuse_capability_changed")
+    assert changed["artifacts"][0]["approval_context_hash"] == first_context_hash
+    assert changed["artifacts"][0]["policy_action"] == "allow"
     assert (
         store.peek_local_once_approval(
             harness=artifact.harness,
@@ -2517,7 +2533,7 @@ def test_changed_effective_workspace_rejects_review_allow_as_identity_change(tmp
     )
 
 
-def test_changed_scanner_provenance_rejects_review_allow_as_capability_change(tmp_path: Path) -> None:
+def test_blocking_publisher_advisory_still_blocks_a_saved_review_allow(tmp_path: Path) -> None:
     artifact = _artifact(tmp_path)
     detection = _detection(artifact)
     config = _config(tmp_path)
@@ -2550,7 +2566,9 @@ def test_changed_scanner_provenance_rejects_review_allow_as_capability_change(tm
     assert item["policy_composition"]["current_action"] == "block"
     assert item["policy_composition"]["scanner_action"] == "block"
     assert item["approval_reuse_status"] == "rejected"
-    assert item["approval_reuse_reason_code"] == "approval_reuse_capability_changed"
+    # Provenance is not part of the approval context; the blocking advisory
+    # changes the current action, and a saved allow never lowers a block.
+    assert item["approval_reuse_reason_code"] == "approval_reuse_policy_changed"
     assert item["provenance"]["publisher_trust"] == "flagged"
     assert result["blocked"] is True
     assert (

@@ -1,7 +1,9 @@
 //! Read-only candidate readiness probe before the host spends its one-use
 //! build pin. The actual runner repeats every check under both worker locks.
 
-use crate::builder_candidate_preflight::{verify_candidate_runtime, CandidateRuntimePins};
+use crate::builder_candidate_preflight::{
+    verify_candidate_runtime, verify_candidate_runtime_files, CandidateRuntimePins,
+};
 use crate::builder_candidate_process::container_absent;
 use crate::builder_candidate_source::{open_fixed_build_slot, verify_captured_source};
 use crate::builder_context::inspect_fixed_builder_context;
@@ -20,11 +22,12 @@ use std::fmt;
 use std::path::Path;
 
 const MIN_START_FREE: u64 = 12 * 1024 * 1024 * 1024;
-const EMPTY_NAMES: [&str; 5] = [
+const EMPTY_NAMES: [&str; 6] = [
     "candidate-run.stdout.log",
     "candidate-run.stderr.log",
     "candidate-run.host-anchor.json",
     "candidate-run.result.json",
+    "candidate-container.v1.json",
     "export",
 ];
 
@@ -76,11 +79,12 @@ pub struct CandidateBuildReadyProof {
     image_id: String,
     policy_sha256: String,
     free_disk_bytes: u64,
+    bounded_inputs: Option<(String, crate::builder_image_context::BuilderInputsState)>,
 }
 
 impl CandidateBuildReadyProof {
     pub fn to_json(&self) -> Value {
-        json!({
+        let mut value = json!({
             "schema":"hol-gauntlet-candidate-build-ready-shadow.v2",
             "job_id":self.job_id,
             "source_sha":self.source_sha,
@@ -94,7 +98,13 @@ impl CandidateBuildReadyProof {
             "candidate_started":false,
             "artifact_admitted":false,
             "execution_eligible":false,
-        })
+        });
+        if let Some((storage, state)) = &self.bounded_inputs {
+            value["schema"] = json!("hol-gauntlet-candidate-build-ready-shadow.v3");
+            value["storage_receipt_sha256"] = json!(storage);
+            value["builder_inputs_state"] = json!(state.name());
+        }
+        value
     }
 }
 
@@ -149,6 +159,29 @@ pub fn probe_fixed_candidate_build_ready_ineligible(
         .map_err(|_| CandidateBuildReadyError::LeaseUnavailable)?;
     let python_lock =
         python_worker_lock().map_err(|_| CandidateBuildReadyError::LeaseUnavailable)?;
+    // Enter the original Source owner before opening any task-local paths.
+    let job =
+        open_fixed_build_slot(job_id).map_err(|_| CandidateBuildReadyError::SourceMismatch)?;
+    let bounded = crate::native_job_storage::source::verify(
+        job_id,
+        &job,
+        Some(crate::JobStorageProfile::Build),
+    )
+    .map_err(|_| CandidateBuildReadyError::SourceMismatch)?;
+    if bounded
+        .as_ref()
+        .is_some_and(|v| v["source_sha"] != source_sha)
+    {
+        return Err(CandidateBuildReadyError::SourceMismatch);
+    }
+    if bounded.is_some() {
+        crate::native_job_io::require_no_unknown_jobs(&journal)
+            .map_err(|_| CandidateBuildReadyError::LeaseUnavailable)?;
+    }
+    verify_captured_source(&job, archive_sha256)
+        .map_err(|_| CandidateBuildReadyError::SourceMismatch)?;
+    verify_candidate_runtime_files(runtime)
+        .map_err(|_| CandidateBuildReadyError::RuntimeMismatch)?;
     let context = inspect_fixed_builder_context(controller_root, tree_digest, job_id)
         .map_err(|_| CandidateBuildReadyError::ControllerMismatch)?;
     if context.policy_sha256() != policy_sha256 {
@@ -158,22 +191,31 @@ pub fn probe_fixed_candidate_build_ready_ineligible(
         .map_err(|_| CandidateBuildReadyError::ContextMismatch)?;
     inspect_fixed_builder_base_images(&image_plan)
         .map_err(|_| CandidateBuildReadyError::BaseMismatch)?;
-    verify_existing_context(&image_plan).map_err(|_| CandidateBuildReadyError::ContextMismatch)?;
+    let bounded_inputs = if let Some(source) = &bounded {
+        Some((
+            source["storage"]["receipt_sha256"]
+                .as_str()
+                .ok_or(CandidateBuildReadyError::SourceMismatch)?
+                .to_owned(),
+            crate::builder_image_context::bounded_inputs(&job, &image_plan, policy_sha256)
+                .map_err(|_| CandidateBuildReadyError::ContextMismatch)?,
+        ))
+    } else {
+        verify_existing_context(&image_plan)
+            .map_err(|_| CandidateBuildReadyError::ContextMismatch)?;
+        read_policy(job_id, policy_sha256).map_err(|_| CandidateBuildReadyError::PolicyMismatch)?;
+        None
+    };
     if inspect_result(&image_plan).map_err(|_| CandidateBuildReadyError::ImageMismatch)? != image_id
     {
         return Err(CandidateBuildReadyError::ImageMismatch);
     }
-    read_policy(job_id, policy_sha256).map_err(|_| CandidateBuildReadyError::PolicyMismatch)?;
     if profile_is_loaded(context.profile_name())
         .map_err(|_| CandidateBuildReadyError::PolicyMismatch)?
     {
         return Err(CandidateBuildReadyError::PolicyMismatch);
     }
     verify_candidate_runtime(runtime).map_err(|_| CandidateBuildReadyError::RuntimeMismatch)?;
-    let job =
-        open_fixed_build_slot(job_id).map_err(|_| CandidateBuildReadyError::SourceMismatch)?;
-    verify_captured_source(&job, archive_sha256)
-        .map_err(|_| CandidateBuildReadyError::SourceMismatch)?;
     for name in EMPTY_NAMES {
         match statat(&job, name, AtFlags::SYMLINK_NOFOLLOW) {
             Err(Errno::NOENT) => {}
@@ -191,6 +233,16 @@ pub fn probe_fixed_candidate_build_ready_ineligible(
         .verify(&journal.root)
         .map_err(|_| CandidateBuildReadyError::LeaseUnavailable)?;
     verify_python_lock(&python_lock).map_err(|_| CandidateBuildReadyError::LeaseUnavailable)?;
+    if crate::native_job_storage::source::verify(
+        job_id,
+        &job,
+        Some(crate::JobStorageProfile::Build),
+    )
+    .map_err(|_| CandidateBuildReadyError::SourceMismatch)?
+        != bounded
+    {
+        return Err(CandidateBuildReadyError::SourceMismatch);
+    }
     Ok(CandidateBuildReadyProof {
         job_id: job_id.to_owned(),
         source_sha: source_sha.to_owned(),
@@ -199,5 +251,6 @@ pub fn probe_fixed_candidate_build_ready_ineligible(
         image_id: image_id.to_owned(),
         policy_sha256: policy_sha256.to_owned(),
         free_disk_bytes,
+        bounded_inputs,
     })
 }
