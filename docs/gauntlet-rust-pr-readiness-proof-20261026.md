@@ -65,6 +65,11 @@ never becomes a candidate ZIP or admitted artifact.
 | Exact retained SDK source and the frozen numerical adapter establish the token-field and fixed thinking-control mismatch. The original SDK archive and five relevant members are freshly rehashed; no inference is credited. | `f711cc08b73798f939a2c889cc095843d486addadd1d9ca010305ef74f9cd463` |
 | Request compatibility and relay liveness at `63b6fe3c6`: 102 macOS Worker tests and 262 unprivileged ARM tests pass; 37 explicit integration cases remain ignored and the previously verified Root identity case is filtered on the initialized VM. | `975b0d2e6c2670525113816bb0f4592f37023b26664f291b1268c79163638575`, `9a57407addaa9680eb7036dcf13e28c3c420b4ea9c7c793a52868a0605fea0df` |
 | The same compatibility source passes warnings-denied macOS workspace and ARM Worker Clippy plus formatting. The sole follow-up to the macOS test snapshot folds a Linux-only condition without changing its predicate order. | `766f01e01de3c37a30c58eddedefc821fb10fe6a22a139f3e3716eccdb90f97f`, `b0c16b346933f52952b76df21ef16c8c7917d9127f307cf03824daf8d0392d55`, `3d73172161e366edfd632f6e165c04233dd6a0780b4bea964cf2a1a06b149454` |
+| Actual macOS staged-POST regression reproduces the inherited nonblocking socket failure before the production fix. No model or quota is used. | `8cb498f8c7b35acb540ec127d53d1ffa87e497ded0734ab370ee2a8fad6ddd90` |
+| Socket fix `a5ea44e32`: all 171 Host tests pass on macOS and on ARM. The first broad ARM attempt correctly refused group-writable fixtures under Lima's umask `0002`; unchanged tests pass with isolated-process umask `0077`. | `07ebd2dd49196b3cd01669af96f4df3702be2cb13b230a1f105a01a3d1a4422a`, `0988bdf877edc7240f63c8aa2629e35f5d3f0b5f4541b6ad79f4e3402a0e918d` |
+| The socket source passes macOS workspace and ARM Host warnings-denied Clippy, formatting and optimized Host compilation. | `6facefd58e03b5f7c49d1a6b3897dbba741429504f7bbe1741b14b2972095e83`, `5532551d22653f610141ac7fceb9cd7fc12f4327b4f6c3b8c858aa37a068857f`, `e09606617c84b54eba519593c2645dd90a51ca009381c2a421f81520dbe04e48`, `2eb86af8028c93ba7285df9d0fde422861c4e1809d4a6e90d6764dad4707900d` |
+| Original signed failure `1b8a46b5d840b1a1` is downloaded, independently read back, acknowledged and retired through the normal failure path. Its original archive and truthful unknown exit/usage remain retained; fresh outside checks confirm physical absence. | `96c1421eaee2a3c31f9fd0748b0cc664da8e246dcd24d1858c273ca657c8979a`, `f314d62c55949b93f1fb291da3be750674fd2e60de72ff531d31205147748e8c` |
+| Later post-start failure `94b57a857a0e966b` is repaired and freshly authenticated through its original released-Live authority. Exit and usage remain null; its bounded volume stays retained. Its unused protected cell is normally aborted with outside absence checks. | `708963855284d4238cb932fc9e71b8b04e4e9425e65b7149413e19f51263965a`, `0c97d7e383fd7ee88072d96da37b0f366a31834c6a302603c39652779cf9c1f6` |
 
 Formatting and warnings-denied macOS/ARM all-target/all-feature Clippy pass.
 The unchanged 420-file Python baseline remains intact. The frozen controller
@@ -154,6 +159,22 @@ joins. Four existing files change; none is added. Final affected checks use
 snapshot `1e7a8914390b5351ea5ac0bcbfca5cac5db9a12aa11c895c24f0b40ed20ace84`.
 The fresh pair retains the original 200,000-token ceiling; genuine inference
 remains uncompleted at this checkpoint.
+
+The next baseline, `94b57a857a0e966b`, loses its outside provider request before
+a verified result. Its consumed dispatch is repaired without inventing an
+outer completion, exit or usage. The post-start volume remains retained under
+its original authority; generic post-start archival/retirement is explicitly
+uncompleted on the roadmap. The stopped provider confirms unchanged retained
+quota. The unused protected cell is retired and independently checked.
+
+The actual macOS regression then reproduces the provider's inherited
+nonblocking-stream race. Commit `a5ea44e32` clears that flag before the existing
+ten-second framing timeouts. Listener mode, authentication, limits and one-use
+requests remain unchanged. Input snapshot
+`42a9742eaee27dfc68d65d45d8839d76b14bb5a8db77d29e9b1e506fae86f78e`
+passes the affected checks above. The separately frozen optimized Host is used
+for fresh preparation; Worker `e406a956` remains independently pinned. The
+unstarted setup preparations and every earlier failed attempt remain preserved.
 Actual SDK remains 18.4.12/Bun 1.3.14;
 this does not establish newer-SDK or general SDK/Bash qualification. The old
 unknown-owner VM and its evidence remain quarantined and unchanged.
