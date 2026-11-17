@@ -253,3 +253,237 @@ pub(super) fn repair(
     j.retain(i.job(), "repair", raw)?;
     Ok(result)
 }
+
+const CREATED: &str = "live-created-repair-intent";
+const CREATED_DISPATCH: &str = "live-created-repair-dispatch";
+const CREATED_RECEIPT: &str = "live-created-repair";
+const CREATED_FIELDS: [&str; 13] = [
+    "source_sha",
+    "job_id",
+    "deployment_digest",
+    "worker_generation",
+    "preparation_sha256",
+    "live_prepared_sha256",
+    "storage_receipt_sha256",
+    "host_pin_sha256",
+    "container_id",
+    "creation_sha256",
+    "inspection_sha256",
+    "policy_sha256",
+    "repair_generation",
+];
+pub(super) fn created_context(j: &Journal, i: &Intent, pins: &Value) -> Result<Value, String> {
+    if !i.is_live() || j.intent(i.job())? != *i || !j.absent(i.job(), "completion")? {
+        return Err("original consumed unknown Live job required".into());
+    }
+    j.require_dispatch(i)?;
+    preparation::require_prepared(j, i)?;
+    let live = provisioned(j, i)?;
+    let storage =
+        preparation::retained_storage(j, i)?.ok_or("original bounded Live storage required")?;
+    let (_, record, prelaunch) = results::host_pins(j, i)?;
+    if prelaunch.host_record_sha256().map_err(|e| e.to_string())? != record.raw_sha256 {
+        return Err("original Live Host pin digest differs".into());
+    }
+    let mut expected = json!({"source_sha":i.text("source_sha"),"job_id":i.job(),"deployment_digest":i.text("deployment_digest"),"worker_generation":i.text("worker_generation"),
+        "preparation_sha256":i.text("preparation_sha256"),"live_prepared_sha256":live["receipt_sha256"],"storage_receipt_sha256":storage["receipt_sha256"],"host_pin_sha256":record.raw_sha256});
+    for k in [
+        "container_id",
+        "creation_sha256",
+        "inspection_sha256",
+        "policy_sha256",
+        "repair_generation",
+    ] {
+        let v = text(pins, k)?;
+        if !hex(v, 64) {
+            return Err("outside original created-container pins required".into());
+        }
+        expected[k] = json!(v);
+    }
+    if *pins != expected {
+        return Err("original Live created-repair pins differ".into());
+    }
+    Ok(
+        json!({"schema":"hol-gauntlet-host-native-live-created-repair-intent.v1","native_intent_sha256":i.digest()?,"pins":pins,
+        "prelaunch":parse(&prelaunch.to_bytes().map_err(|e|e.to_string())?)?,"parent_custody":context::snapshot(&j.path)?}),
+    )
+}
+pub(super) fn created_result(f: &Value, raw: &[u8]) -> Result<Value, String> {
+    let v = parse(raw)?;
+    let intent = text(&v, "intent_sha256")?;
+    if !hex(intent, 64) {
+        return Err("Root created-repair intent SHA required".into());
+    }
+    let expected = json!({"schema":"hol-gauntlet-native-live-sdk-created-repair.v1","intent_sha256":intent,
+        "pins_sha256":sha(&bytes(&f["pins"])?),"container_id_sha256":sha(text(&f["pins"],"container_id")?.as_bytes()),
+        "sdk_agent_absent":true,"sdk_profile_absent":true,"process_signalled":false,"image_adopted":false,"job_terminal_written":false,
+        "model_requests":null,"exit_code":null,"execution_eligible":false,"qualification_eligible":false});
+    if v != expected {
+        return Err("Root Live created repair differs or invents usage/exit".into());
+    }
+    Ok(v)
+}
+pub(super) fn created_finish(
+    j: &Journal,
+    i: &Intent,
+    f: &Value,
+    action: &str,
+    mut call: impl FnMut(bool) -> Result<Vec<u8>, String>,
+) -> Result<Value, String> {
+    let raw = bytes(f)?;
+    if j.read(i.job(), CREATED)? != raw {
+        return Err("original Live created-repair intent changed".into());
+    }
+    let dispatch = bytes(
+        &json!({"schema":"hol-gauntlet-host-live-created-repair-dispatch.v1","intent_sha256":sha(&raw),"retry_allowed":false}),
+    )?;
+    if j.absent(i.job(), CREATED_DISPATCH)? {
+        if action == "failure-created-read" {
+            return Err("original Live created-repair dispatch absent".into());
+        }
+        j.write(i.job(), CREATED_DISPATCH, &dispatch)?;
+    }
+    if j.read(i.job(), CREATED_DISPATCH)? != dispatch {
+        return Err("original Live created-repair dispatch differs".into());
+    }
+    let receipt = if j.absent(i.job(), CREATED_RECEIPT)? {
+        let received = if action == "failure-created-repair" {
+            call(false)?
+        } else {
+            match call(true) {
+                Ok(v) => v,
+                Err(_) if action == "failure-created-resume" => call(false)?,
+                Err(e) => return Err(e),
+            }
+        };
+        j.retain(
+            i.job(),
+            &format!("live-created-repair-frame-{}", sha(&received)),
+            &received,
+        )?;
+        let v = created_result(f, &received)?;
+        if created_context(j, i, &f["pins"])? != *f
+            || j.read(i.job(), CREATED_DISPATCH)? != dispatch
+        {
+            return Err("Live created-repair custody changed".into());
+        }
+        j.write(i.job(), CREATED_RECEIPT, &bytes(&v)?)?;
+        v
+    } else {
+        created_result(f, &j.read(i.job(), CREATED_RECEIPT)?)?
+    };
+    Ok(
+        json!({"schema":"hol-gauntlet-host-native-live-created-repair.v1","job_id":i.job(),"source_sha":i.text("source_sha"),"native_intent_sha256":i.digest()?,
+        "created_repair_intent_sha256":sha(&raw),"created_repair_receipt_sha256":sha(&bytes(&receipt)?),"sdk_metadata_absence_reported":true,
+        "process_signalled":false,"job_terminal_written":false,"retry_allowed":false,"model_requests":null,"exit_code":null,"execution_eligible":false,"qualification_eligible":false}),
+    )
+}
+pub(super) fn created_command(args: &[String]) -> Result<Value, String> {
+    let action = args
+        .first()
+        .map(String::as_str)
+        .ok_or("Live created-repair action absent")?;
+    if !matches!(
+        (action, args.len()),
+        ("failure-created-repair", 9) | ("failure-created-read" | "failure-created-resume", 4)
+    ) || !hex(&args[2], 16)
+        || !hex(&args[3], 64)
+    {
+        return Err("failure-created-repair J JOB INTENT REPAIRER CID CREATION_SHA INSPECTION_SHA POLICY_SHA; failure-created-read|failure-created-resume J JOB INTENT".into());
+    }
+    let mut j = Journal::open(Path::new(&args[1]))?;
+    j.lock()?;
+    let i = j.intent(&args[2])?;
+    if !i.is_live() || i.digest()? != args[3] {
+        return Err("outside original Live intent SHA differs".into());
+    }
+    let f = if action == "failure-created-repair" {
+        for s in [
+            CREATED,
+            CREATED_DISPATCH,
+            CREATED_RECEIPT,
+            "repair-intent",
+            "repair-dispatch",
+            "repair",
+        ] {
+            if !j.absent(i.job(), s)? {
+                return Err("Live created repair consumed or normal repair already requested; use original read/resume".into());
+            }
+        }
+        let mut p = json!({"container_id":args[5],"creation_sha256":args[6],"inspection_sha256":args[7],"policy_sha256":args[8],"repair_generation":args[4]});
+        let live = provisioned(&j, &i)?;
+        let storage = preparation::retained_storage(&j, &i)?
+            .ok_or("original bounded Live storage required")?;
+        let (_, record, _) = results::host_pins(&j, &i)?;
+        for (k, v) in [
+            ("source_sha", json!(i.text("source_sha"))),
+            ("job_id", json!(i.job())),
+            ("deployment_digest", json!(i.text("deployment_digest"))),
+            ("worker_generation", json!(i.text("worker_generation"))),
+            ("preparation_sha256", json!(i.text("preparation_sha256"))),
+            ("live_prepared_sha256", live["receipt_sha256"].clone()),
+            ("storage_receipt_sha256", storage["receipt_sha256"].clone()),
+            ("host_pin_sha256", json!(record.raw_sha256)),
+        ] {
+            p[k] = v;
+        }
+        let f = created_context(&j, &i, &p)?;
+        j.write(i.job(), CREATED, &bytes(&f)?)?;
+        f
+    } else {
+        let f = parse(&j.read(i.job(), CREATED)?)?;
+        if created_context(&j, &i, &f["pins"])? != f {
+            return Err("original Live created-repair context changed".into());
+        }
+        f
+    };
+    let mut lima = super::super::transport::Lima::open(&i)?;
+    created_finish(&j, &i, &f, action, |read| {
+        let p = &f["pins"];
+        let generation = text(p, "repair_generation")?;
+        let mut command = lima.command(i.text("vm"))?;
+        command
+            .arg(format!(
+                "/opt/hol-gauntlet/rust-native-host-pinned-worker-{generation}"
+            ))
+            .arg(if read {
+                "--read-native-live-sdk-created-repair-v1"
+            } else {
+                "--repair-native-live-sdk-created-v1"
+            });
+        for k in CREATED_FIELDS {
+            command.arg(text(p, k)?);
+        }
+        let raw = crate::stream_process::run_streamed_command(
+            command,
+            b"",
+            Duration::from_secs(1020),
+            8193,
+        )
+        .map_err(|_| {
+            "Live created repair uncertain; retain original intent and use exact read/resume"
+        })?;
+        lima.recheck()?;
+        Ok(raw)
+    })
+}
+pub(super) fn verify_created_idle_record(j: &Journal, name: &str) -> Result<(), String> {
+    if let Some((job, _)) = name
+        .split_once(".native-live-created-repair")
+        .filter(|(job, _)| hex(job, 16))
+    {
+        let i = j.intent(job)?;
+        let f = parse(&j.read(job, CREATED)?)?;
+        if created_context(j, &i, &f["pins"])? != f {
+            return Err("orphan Live created-repair context blocks new work".into());
+        }
+        let dispatch = bytes(
+            &json!({"schema":"hol-gauntlet-host-live-created-repair-dispatch.v1","intent_sha256":sha(&bytes(&f)?),"retry_allowed":false}),
+        )?;
+        if j.read(job, CREATED_DISPATCH)? != dispatch {
+            return Err("unknown Live created-repair dispatch blocks new work".into());
+        }
+        created_result(&f, &j.read(job, CREATED_RECEIPT)?)?;
+    }
+    Ok(())
+}

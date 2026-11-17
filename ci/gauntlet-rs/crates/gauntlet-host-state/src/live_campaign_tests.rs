@@ -210,3 +210,170 @@ fn live_pipe_refuses_partial_or_late_frames_and_keeps_newline_boundaries() {
     .unwrap();
     assert!(frames.send(&json!({"late":true})).is_err());
 }
+
+fn created_fixture() -> (tempfile::TempDir, Journal, Intent, Value, Value) {
+    let (temp, j, mut i, _writer) = fixture();
+    let source = i.text("source_sha").to_owned();
+    let job = i.job().to_owned();
+    let worker = i.text("worker_generation").to_owned();
+    let formatter = "a".repeat(64);
+    let storage =
+        super::super::super::job_storage_fixture(&source, &job, &worker, &formatter, "native-v1");
+    let root = format!("/var/lib/hol-gauntlet-rust/native-jobs/{job}");
+    let workspace = json!({"source":format!("{root}/workspace"),"destination":"/runtime/home/project","custody_root":root,"device":storage["receipt"]["root_directory"]["device"],"inode":52,"mode":448});
+    let prep = json!({"schema":"hol-gauntlet-cell-preparation.v2","runtime_prefix":format!("/opt/hol-gauntlet/candidates/{source}/prefix"),"runtime_tree_digest":"e".repeat(64),"task_mounts":{"workspace":workspace},"launch":{"image_interpreter_sha256":i.0["interpreter_sha256"],"outside_observer_sha256":i.0["observer_sha256"]}});
+    i.0["preparation_sha256"] = json!(sha(&bytes(&prep).unwrap()));
+    let d = json!({"schema":"hol-gauntlet-native-worker-job.v9","profile":"native-host-pinned-live-omp-v1","source_sha":source,"job_id":job,"worker_generation":worker,"preparation_sha256":i.0["preparation_sha256"],"guard":{"source_sha":source},"sdk":{"publication_sha256":"b".repeat(64)},"live":{"schema":"hol-gauntlet-native-live-omp-job.v1","cell_id":context_value(&i)["cell_id"],"spec_sha256":context_value(&i)["spec_sha256"],"model":{"schema":"hol-gauntlet-native-live-model-pins.v1","provider_job_id":binding(&i)["provider_job_id"],"budget_digest":binding(&i)["budget_digest"],"model_id":binding(&i)["model_id"],"max_turns":64,"token_limit":100000}}});
+    i.0["deployment_digest"] = json!(sha(&bytes(&d).unwrap()));
+    let i = Intent::parse(&i.raw().unwrap()).unwrap();
+    let init = json!({"schema":"hol-gauntlet-host-native-initialization-intent.v2","source_sha":source,"job_id":job,"worker_generation":worker,"vm":i.0["vm"],"limactl":i.0["limactl"],"lima_sha256":i.0["lima_sha256"],"transport_context":i.0["transport_context"],"mke2fs_sha256":formatter});
+    let mut w = workspace;
+    w["uid"] = json!(10001);
+    w["gid"] = json!(10001);
+    let initialization = json!({"schema":"hol-gauntlet-native-job-initialization.v2","source_sha":source,"job_id":job,"worker_generation":worker,"job_directory":storage["receipt"]["root_directory"],"workspace":w,"storage":storage,"job_dispatched":false,"candidate_executed":false,"artifact_admitted":false,"execution_eligible":false,"qualification_eligible":false,"guard_causality_verified":false,"model_requests":0});
+    let wrap = |schema: &str, r: Value| json!({"schema":schema,"receipt_sha256":sha(&bytes(&r).unwrap()),"receipt":r});
+    let initialized = wrap(
+        "hol-gauntlet-native-job-initialization-result.v2",
+        initialization,
+    );
+    let bundle = json!({"schema":"hol-gauntlet-native-host-pinned-preparation-input.v1","declaration":d,"preparation":prep});
+    let normal = wrap(
+        "hol-gauntlet-native-host-pinned-preparation-result.v2",
+        json!({"schema":"hol-gauntlet-native-host-pinned-preparation.v2","source_sha":source,"job_id":job,"deployment_digest":i.0["deployment_digest"],"worker_generation":worker,"preparation_sha256":i.0["preparation_sha256"],"bundle_sha256":sha(&bytes(&bundle).unwrap()),"initialization_sha256":initialized["receipt_sha256"],"storage_receipt_sha256":storage["receipt_sha256"],"control_role":i.0["role"],"runtime_tree_sha256":"e".repeat(64),"sdk_publication_sha256":"b".repeat(64),"job_dispatched":false,"candidate_executed":false,"artifact_admitted":false,"execution_eligible":false,"qualification_eligible":false,"guard_causality_verified":false,"model_requests":0}),
+    );
+    let prepared = wrap(
+        "hol-gauntlet-native-live-preparation-result.v1",
+        json!({"schema":"hol-gauntlet-native-live-prepared.v2","source_sha":source,"job_id":job,"deployment_digest":i.0["deployment_digest"],"worker_generation":worker,"preparation_sha256":i.0["preparation_sha256"],"normal_preparation_receipt_sha256":normal["receipt_sha256"],"role":i.0["role"],"cell_id":context_value(&i)["cell_id"],"spec_sha256":context_value(&i)["spec_sha256"],"world_public_key_hex":"5".repeat(64),"world_initial_sha256":super::super::initial_hash().unwrap(),"cleanup_public_key_hex":"6".repeat(64)}),
+    );
+    for (suffix, v) in [
+        ("intent", i.0.clone()),
+        ("initialize-intent", init.clone()),
+        (
+            "initialize-dispatch",
+            json!({"schema":"hol-gauntlet-host-native-initialization-dispatch.v1","job_id":job,"initialization_intent_sha256":sha(&bytes(&init).unwrap()),"retry_allowed":false}),
+        ),
+        ("initialize-result", initialized.clone()),
+        ("prepare-bundle", bundle.clone()),
+        (
+            "prepare-dispatch",
+            json!({"schema":"hol-gauntlet-host-native-preparation-dispatch.v1","job_id":job,"intent_sha256":i.digest().unwrap(),"bundle_sha256":sha(&bytes(&bundle).unwrap()),"bundle_bytes":bytes(&bundle).unwrap().len(),"initialization_sha256":initialized["receipt_sha256"],"retry_allowed":false}),
+        ),
+        ("prepare-result", normal),
+        (
+            "live-provision-dispatch",
+            json!({"schema":"hol-gauntlet-host-live-provision-dispatch.v1","job_id":job,"intent_sha256":i.digest().unwrap(),"spec_sha256":context_value(&i)["spec_sha256"],"retry_allowed":false}),
+        ),
+        ("live-prepared", prepared.clone()),
+    ] {
+        j.write(&job, suffix, &bytes(&v).unwrap()).unwrap();
+    }
+    j.write(&job, "dispatch", &Journal::dispatch_raw(&i).unwrap())
+        .unwrap();
+    let pre = gauntlet_contracts::PrelaunchPrepared {
+        source_sha: source.clone(),
+        job_id: job.clone(),
+        deployment_digest: i.text("deployment_digest").into(),
+        worker_generation: worker.clone(),
+        started_marker_sha256: "7".repeat(64),
+        controller_key_pin_sha256: "8".repeat(64),
+        controller_public_key_hex: "1".repeat(64),
+    };
+    let keys = HostControllerKeyPinJournal::open(&j.path).unwrap();
+    let (record, _) = keys
+        .accept_prepared(&pre.to_bytes().unwrap(), &i.expected())
+        .unwrap();
+    let pins = json!({"source_sha":source,"job_id":job,"deployment_digest":i.0["deployment_digest"],"worker_generation":worker,"preparation_sha256":i.0["preparation_sha256"],"live_prepared_sha256":prepared["receipt_sha256"],"storage_receipt_sha256":storage["receipt_sha256"],"host_pin_sha256":record.raw_sha256,"container_id":"a".repeat(64),"creation_sha256":"b".repeat(64),"inspection_sha256":"c".repeat(64),"policy_sha256":"d".repeat(64),"repair_generation":"e".repeat(64)});
+    let f = super::super::recovery::created_context(&j, &i, &pins).unwrap();
+    j.write(&job, "live-created-repair-intent", &bytes(&f).unwrap())
+        .unwrap();
+    let receipt = json!({"schema":"hol-gauntlet-native-live-sdk-created-repair.v1","intent_sha256":"f".repeat(64),"pins_sha256":sha(&bytes(&pins).unwrap()),"container_id_sha256":sha("a".repeat(64).as_bytes()),"sdk_agent_absent":true,"sdk_profile_absent":true,"process_signalled":false,"image_adopted":false,"job_terminal_written":false,"model_requests":null,"exit_code":null,"execution_eligible":false,"qualification_eligible":false});
+    (temp, j, i, f, receipt)
+}
+#[test]
+fn live_created_repair_resumes_intent_only_loss_without_workload_or_key_replay() {
+    let (_temp, j, i, f, receipt) = created_fixture();
+    let mut calls = Vec::new();
+    assert!(
+        super::super::recovery::created_finish(&j, &i, &f, "failure-created-read", |read| {
+            calls.push(read);
+            Err("unexpected RPC".into())
+        })
+        .is_err()
+    );
+    assert!(calls.is_empty());
+    assert!(j.absent(i.job(), "live-created-repair-dispatch").unwrap());
+    let result =
+        super::super::recovery::created_finish(&j, &i, &f, "failure-created-resume", |read| {
+            assert!(!j.absent(i.job(), "live-created-repair-dispatch").unwrap());
+            calls.push(read);
+            if read {
+                Err("Root intent absent".into())
+            } else {
+                bytes(&receipt)
+            }
+        })
+        .unwrap();
+    assert_eq!(calls, vec![true, false]);
+    assert!(result["model_requests"].is_null());
+    assert!(result["exit_code"].is_null());
+    assert!(j.absent(i.job(), "completion").unwrap());
+    assert!(j.absent(i.job(), "repair").unwrap());
+    assert!(j.require_idle().is_err());
+    super::super::recovery::created_finish(&j, &i, &f, "failure-created-read", |_| {
+        panic!("retained receipt must not replay metadata mutation")
+    })
+    .unwrap();
+}
+#[test]
+fn live_created_repair_lost_reply_and_substituted_context_remain_bound() {
+    let (_temp, j, i, f, receipt) = created_fixture();
+    assert!(
+        super::super::recovery::created_finish(&j, &i, &f, "failure-created-repair", |_| Err(
+            "lost original reply".into()
+        ))
+        .is_err()
+    );
+    let mut calls = Vec::new();
+    super::super::recovery::created_finish(&j, &i, &f, "failure-created-resume", |read| {
+        calls.push(read);
+        assert!(read);
+        bytes(&receipt)
+    })
+    .unwrap();
+    assert_eq!(calls, vec![true]);
+    for field in [
+        "pins_sha256",
+        "container_id_sha256",
+        "model_requests",
+        "exit_code",
+        "job_terminal_written",
+    ] {
+        let mut changed = receipt.clone();
+        changed[field] = if field == "model_requests" || field == "exit_code" {
+            json!(0)
+        } else if field == "job_terminal_written" {
+            json!(true)
+        } else {
+            json!("0".repeat(64))
+        };
+        assert!(
+            super::super::recovery::created_result(&f, &bytes(&changed).unwrap()).is_err(),
+            "{field}"
+        );
+    }
+    let mut changed = f.clone();
+    changed["pins"]["host_pin_sha256"] = json!("0".repeat(64));
+    let mut calls = 0;
+    assert!(super::super::recovery::created_finish(
+        &j,
+        &i,
+        &changed,
+        "failure-created-resume",
+        |_| {
+            calls += 1;
+            bytes(&receipt)
+        }
+    )
+    .is_err());
+    assert_eq!(calls, 0);
+}

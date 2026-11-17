@@ -212,6 +212,16 @@ fn run() -> Result<(), String> {
         println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
         return Ok(());
     }
+    if args.len() == 15
+        && matches!(
+            args[1].as_str(),
+            "--repair-native-live-sdk-created-v1" | "--read-native-live-sdk-created-repair-v1"
+        )
+    {
+        let raw = gauntlet_worker_state::repair_native_live_sdk_created(&args)?;
+        println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);
+        return Ok(());
+    }
     if args.len() == 11 && args[1] == "--repair-sdk-created" {
         let raw = gauntlet_worker_state::repair_native_sdk_created(&args)?;
         println!("{}", String::from_utf8(raw).map_err(|e| e.to_string())?);

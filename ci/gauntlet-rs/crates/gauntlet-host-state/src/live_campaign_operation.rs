@@ -11,7 +11,7 @@ mod channel;
 mod recovery;
 #[path = "live_campaign_results.rs"]
 mod results;
-pub const LIVE_CAMPAIGN_USAGE:&str="live commands:\ninitialize|initialize-read|prepare|prepare-read: same private journal and exact pins as deterministic preparation\nrecord PRIVATE_JOURNAL VM LIMA_SHA SOURCE JOB DEPLOY WORKER PREPARATION ROLE INTERPRETER OBSERVER SSH_HOME LIMA_HOME PROVIDER_JOURNAL PROVIDER_INTENT_SHA\nprovision|provision-read|run|read|report PRIVATE_JOURNAL JOB INTENT_SHA\nrepair PRIVATE_JOURNAL JOB INTENT_SHA REPAIR_SHA [--never-released]\npair PRIVATE_JOURNAL BASE_JOB BASE_INTENT_SHA PROTECTED_JOB PROTECTED_INTENT_SHA\nRoles: feature-ai-unprotected|feature-ai-protected. Original VM, outside World/cleanup keys, actual provider turns and one-use dispatch are retained privately. Raw archives and model frames never appear in command summaries. Unknown work blocks new dispatch; no inference retry or quota reset.";
+pub const LIVE_CAMPAIGN_USAGE:&str="live commands:\ninitialize|initialize-read|prepare|prepare-read: same private journal and exact pins as deterministic preparation\nrecord PRIVATE_JOURNAL VM LIMA_SHA SOURCE JOB DEPLOY WORKER PREPARATION ROLE INTERPRETER OBSERVER SSH_HOME LIMA_HOME PROVIDER_JOURNAL PROVIDER_INTENT_SHA\nprovision|provision-read|run|read|report PRIVATE_JOURNAL JOB INTENT_SHA\nrepair PRIVATE_JOURNAL JOB INTENT_SHA REPAIR_SHA [--never-released]\nfailure-created-repair PRIVATE_JOURNAL JOB INTENT_SHA REPAIRER_SHA CID CREATION_SHA INSPECTION_SHA POLICY_SHA\nfailure-created-read|failure-created-resume PRIVATE_JOURNAL JOB INTENT_SHA\npair PRIVATE_JOURNAL BASE_JOB BASE_INTENT_SHA PROTECTED_JOB PROTECTED_INTENT_SHA\nRoles: feature-ai-unprotected|feature-ai-protected. Original VM, outside World/cleanup keys, actual provider turns and one-use dispatch are retained privately. Raw archives and model frames never appear in command summaries. Unknown work blocks new dispatch; no inference retry or quota reset.";
 fn exact(v: &Value, keys: &[&str]) -> bool {
     v.as_object()
         .is_some_and(|o| o.len() == keys.len() && keys.iter().all(|k| o.contains_key(*k)))
@@ -315,6 +315,7 @@ fn provisioned(j: &Journal, i: &Intent) -> Result<Value, String> {
     verify_prepared(j, i, &j.read(i.job(), "live-prepared")?)
 }
 pub(super) fn verify_idle_record(j: &Journal, name: &str) -> Result<(), String> {
+    recovery::verify_created_idle_record(j, name)?;
     if let Some(job) = name.strip_suffix(".native-live-provision-dispatch.json") {
         provisioned(j, &j.intent(job)?)?;
     }
@@ -393,6 +394,14 @@ fn record(args: &[String]) -> Result<Value, String> {
 }
 
 pub fn run_live_campaign_command(args: &[String]) -> Result<Value, String> {
+    if args.first().is_some_and(|s| {
+        matches!(
+            s.as_str(),
+            "failure-created-repair" | "failure-created-read" | "failure-created-resume"
+        )
+    }) {
+        return recovery::created_command(args);
+    }
     if args.first().is_some_and(|s| {
         matches!(
             s.as_str(),

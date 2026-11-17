@@ -9,6 +9,9 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::path::Path;
+#[path = "native_sdk_live_created_repair.rs"]
+mod live;
+pub use live::repair_native_live_sdk_created;
 
 fn sha(raw: &[u8]) -> String {
     format!("{:x}", Sha256::digest(raw))
