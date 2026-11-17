@@ -10,8 +10,8 @@ This table governs that release; the original full-migration ledger remains
 | Exit | Required evidence | Status |
 | --- | --- | --- |
 | V1. Supported scope | Exact supported finite command/profile routes; deferred unsafe or unqualified routes remain explicitly unavailable for new qualified work. | Open |
-| V2. Normal build path | Fresh final-source source/build/dependency/staging/runtime publication through supported CLI, with original private custody and independent artifact verification. | Open |
-| V3. Native utility | Actual read succeeds, protected write fails, outside fixture/effect checks and cleanup pass. Existing missing benchmark authorities remain incomplete. | Open |
+| V2. Normal build path | Fresh final-source source/build/dependency/staging/runtime publication through supported CLI, with original private custody and independent artifact verification. | Complete for frozen product `4edfc22e`; [actual build and publication](gauntlet-rust-pr-readiness-proof-20261026.md#rust-v1-checkpoint--november-1617-2026-in-progress). Later tools have separate generation pins. |
+| V3. Native utility | Actual read succeeds, protected write fails, outside fixture/effect checks and cleanup pass. Existing missing benchmark authorities remain incomplete. | Complete for job `962bed9b4de47c6d`; [operational evidence and limits](gauntlet-rust-pr-readiness-proof-20261026.md#rust-v1-checkpoint--november-1617-2026-in-progress). Full benchmark image-history admission still refuses. |
 | V4. MCP-only pair | Genuine baseline/protected inference; sealed startup, actual active/enabled/mounted inventory and outside Host schemas agree; Root frames/World effects, usage and cleanup reconcile. No generic error or self-restraint earns Guard block credit. | Open |
 | V5. Failure and recovery | Actual failure/cancel/timeout/lost-reply/restart checks preserve consumed dispatches, original authority and truthful unknowns; no replay, inferred exit or quota reset. | Open |
 | V6. Compatibility | Python entrypoints and historical readers retained; affected differential/contract regressions pass; no full legacy or cutover claim. | Open |

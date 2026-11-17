@@ -3,8 +3,9 @@
 ## Rust v1 checkpoint — November 16–17, 2026, in progress
 
 The [bounded v1 contract](gauntlet-rust-pr-readiness-plan.md) expires on
-**2026-11-17 17:07 UTC**. Its eight exits remain open until their required
-evidence is complete. The historical full-migration ledger stays **24/62
+**2026-11-17 17:07 UTC**. Build/publication (V2) and operational Native utility
+(V3) have the scoped evidence below; the other six exits remain open. The
+historical full-migration ledger stays **24/62
 complete, 38 open**; extended features remain uncompleted on the roadmap.
 
 Product candidate source is frozen at `4edfc22e3260cac6c2c0fa2316748a4c41b882f2`,
@@ -45,24 +46,54 @@ never becomes a candidate ZIP or admitted artifact.
 | Original unsigned Native startup failure is privately exported, acknowledged and retired; independent backing/loop/cgroup/unit/mount/profile checks pass. | `f608df06a4d8c83810587952b5e92c7382dd042bb0c759b880157249afffce45` |
 | The next Native run produces an authenticated failed report; its actual archive is retained and independent retirement checks pass. This is not a successful utility result. | `ebecd5c4c3f10894c0fd08b6b1d7200a7a70708fd3dda61fab4dc3819f1b5826` |
 | ARM recorder regression observes all 19 tasks/final waits. Security-field refusal and three existing fork/exec/socket-refusal cases also pass; the reference record links the two new test results. | `4b4c10acf4bb3897c3ebfb953334a168a5d006fa7bfe4826e1c70e8a6620e59b` |
+| Fresh readonly utility: three actual tests pass; the unprotected write succeeds and is retired; outside held-file checks confirm the original fixture and protected-probe absence; all 545 traced tasks have final waits; normal storage retirement and independent absence checks pass. | `6c5b774d9ecc5842c5f68b132eeb610e96d9c883d9b3d08bdc49a6469cda2e4c` |
+| Fresh standalone bounded authentication matches the original Host pin, signed completion and separately retained initialization storage. | `8e080e8b84c86bc2671b484428392cf3e5f388636502d20a7131eaf9726a44d7` |
+| Current Python/readiness adapters: six static export/call-arity checks pass and the removed module refuses; no product runtime is imported or executed by these checks. | `ac5ccd0fbdf511f366ad4defe38b6a8ce19077fbf93e7f6f87adf29c5c4d3d7b` |
+| Bounded SDK/MCP mount and failure-stage regressions: seven actual ARM tests pass; three affected SDK tests also pass on macOS. These are inert metadata/diagnostic tests, not a completed model pair. | `b8a4bb9b4d02e65edb71e7bfcc4efddc32dc049284b030281b9498c0e878a53b` |
 
 Formatting and warnings-denied macOS/ARM all-target/all-feature Clippy pass.
-The unchanged 420-file Python baseline remains intact; the current controller
-map contains 449 sources, with 418 installed files. Independent Python and
-Rust agree on tree
+The unchanged 420-file Python baseline remains intact. The frozen controller
+has 449 source inputs and 418 installed files, with independently matched tree
 `b486ec6936966b8643117dc6c1fc03486eff6c466738f6e5186847726018b6b8`.
+Current-source compatibility commit `d643d86e4` corrects two CI probe imports;
+its reviewed delta has 99 changed and 29 added files, and the current-source
+controller plan is
+`4ef5ad14bc8b06ee3517827831e8a61f0a9f3f9ed4fa1320ebd41ff6569abd2e`.
+The frozen controller and historical oracle were not rewritten. Standalone
+bounded-read compatibility is committed in `0839ca25f`; its four focused tests,
+the source inventory/controller-plan contracts, formatting and affected macOS
+warnings-denied Clippy pass.
 
 The first full macOS run exposed an unlocked preliminary observer read during
 an atomic checkpoint replacement. The fix preserves genuine identity-change
 refusal, passes its nine process regressions and the complete 965-test rerun.
-The fresh Native utility reached its signed controller but stopped when the
-process recorder detected changing task metadata. A narrow fix validates both
-dynamic thread-count samples, retains the first actual observation and keeps
-all identity/isolation comparisons exact. Its real concurrency regression
-passes in the ARM VM; the original failed field was not recorded, so a fresh
-successful utility run remains required. The genuine MCP-only
-pair has not run. Its 200,000-token provider binding is prepared but has started
-no inference. Actual SDK remains 18.4.12/Bun 1.3.14;
+After the thread-count and current auth-loader compatibility fixes, fresh
+readonly job `962bed9b4de47c6d` passes its read, hidden-state and denied-write
+tests. Original outside workspace identities, file bytes and probe absence
+match; its normal retirement is independently verified. This closes V3's
+operational scope, with zero model requests and no SDK execution.
+
+The existing readonly artifact reducer still refuses the measured setup
+helper's namespace-local ambient/inheritable capabilities. The next exec in
+that same task generation is Python with all five capability sets zero;
+the product clears them before executing the target. This observation does
+not grant image-history admission, writer attribution or benchmark causality.
+The original independent judgment remains incomplete/invalid-evidence.
+
+The genuine MCP pair remains open. The first baseline attempt stopped at SDK
+container inspection before any retained model turn: four actual bounded
+temporary bind mounts were omitted from the inspector's count. The original
+dispatch is consumed. Its never-started SDK metadata and failure evidence need
+explicit recovery before retirement. The provider was stopped with its owned
+child reaped, process group stopped and private socket removed. Retained quota
+is unchanged: 13,746,906 known tokens and 721,979 remaining. A fresh pair must
+use new job identities; no old dispatch or provider is restarted.
+Commit `4e1bb3069` fixes SDK/MCP temporary-mount counting while retaining exact
+job/scope/source/permission checks and historical readers. Its affected
+regressions and ARM warnings-denied Clippy pass; a fresh live run is still
+required. Live errors now retain a closed stage label without logging private
+arguments, bodies or credentials.
+Actual SDK remains 18.4.12/Bun 1.3.14;
 this does not establish newer-SDK or general SDK/Bash qualification. The old
 unknown-owner VM and its evidence remain quarantined and unchanged.
 
