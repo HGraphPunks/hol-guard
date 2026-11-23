@@ -438,12 +438,8 @@ fn parse_temporary_mount(raw: &str, target: &Path) -> Result<Option<Value>, Stri
 }
 pub(crate) fn temporary_identity(fd: &OwnedFd, bytes: u64, inodes: u64) -> Result<Value, String> {
     let s = fstat(fd).map_err(|e| e.to_string())?;
-    let mut fs = std::mem::MaybeUninit::<libc::statfs>::uninit();
-    // SAFETY: successful fstatfs fills the entire supplied structure.
-    if unsafe { libc::fstatfs(fd.as_raw_fd(), fs.as_mut_ptr()) } != 0 {
-        return Err("temporary statfs unavailable".into());
-    }
-    let fs = unsafe { fs.assume_init() };
+    // rustix exposes the Linux kernel layout, including flags on ARM64 glibc.
+    let fs = rustix::fs::fstatfs(fd).map_err(|_| "temporary statfs unavailable")?;
     let capacity = i128::from(fs.f_bsize)
         .checked_mul(i128::from(fs.f_blocks))
         .ok_or("temporary capacity overflow")?;

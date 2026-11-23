@@ -1,5 +1,7 @@
 //! A fresh Root-private SQLite world slot under one fixed native job. No model
 //! argument can select a database path, signing identity or executable.
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+use gauntlet_cell_rootfs::require_outside_root;
 use gauntlet_mcp_service::{OperationError, Operations};
 use gauntlet_world::World;
 use ring::signature::Ed25519KeyPair;
@@ -15,6 +17,14 @@ use std::{
 };
 
 const DATABASE: &str = "mcp-world.db";
+
+// Linux contract tests can inspect custody on other architectures, but native
+// ownership requires the complete outside-Root guard available on Linux ARM64.
+#[cfg(not(all(target_os = "linux", target_arch = "aarch64")))]
+fn require_outside_root() -> Result<(), String> {
+    Err("native Linux ARM64 outside Root MCP World required".into())
+}
+
 pub struct NativeMcpWorld {
     path: PathBuf,
     directory: OwnedFd,
@@ -55,7 +65,7 @@ impl NativeMcpWorld {
         key: Ed25519KeyPair,
         expected: &Value,
     ) -> Result<Self, String> {
-        gauntlet_cell_rootfs::require_outside_root()?;
+        require_outside_root()?;
         if !crate::hex(job_id, 16) {
             return Err("exact prepared live World job required".into());
         }
@@ -108,7 +118,7 @@ impl NativeMcpWorld {
         json!({"device":self.file_stat.st_dev,"inode":self.file_stat.st_ino,"uid":self.file_stat.st_uid,"gid":self.file_stat.st_gid,"mode":self.file_stat.st_mode&0o7777,"links":self.file_stat.st_nlink})
     }
     pub fn new(job_id: &str, snapshot: &str, key: Ed25519KeyPair) -> Result<Self, String> {
-        gauntlet_cell_rootfs::require_outside_root()?;
+        require_outside_root()?;
         if !crate::hex(job_id, 16) {
             return Err("fixed native MCP job required".into());
         }
@@ -299,3 +309,23 @@ impl Operations for NativeMcpWorld {
 #[cfg(test)]
 #[path = "native_mcp_store_tests.rs"]
 mod tests;
+
+#[cfg(all(test, not(target_arch = "aarch64")))]
+mod platform_tests {
+    use super::*;
+
+    #[test]
+    fn native_world_constructors_refuse_unsupported_platform_before_opening_job() {
+        let key = || Ed25519KeyPair::from_seed_unchecked(&[11; 32]).unwrap();
+        let job = "aabbccddeeff0011";
+        for result in [
+            NativeMcpWorld::new(job, "{}", key()),
+            NativeMcpWorld::open_prepared(job, key(), &Value::Null),
+        ] {
+            assert_eq!(
+                result.err().as_deref(),
+                Some("native Linux ARM64 outside Root MCP World required")
+            );
+        }
+    }
+}

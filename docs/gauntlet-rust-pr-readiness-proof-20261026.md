@@ -1,5 +1,24 @@
 # Rust migration restart: integration and regression proof
 
+## Rust v1 CI continuation — November 23, 2026
+
+The user reconfirmed the bounded v1 release scope; extended features remain
+uncompleted on the roadmap and the November 17 deadline is not reset.
+GitHub accepted a dispatch for `f959ec29b` in
+[run 45234769984](https://github.com/HGraphPunks/hol-guard/actions/runs/45234769984).
+Its ARM GNU build exposed a libc `statfs` field incompatibility; the x86 contracts
+build exposed an ARM-only outside-Root guard reference. The follow-up uses the
+existing safe rustix kernel wrapper and rejects unsupported MCP ownership
+before filesystem access. All original mount protections remain required.
+Worker all-target/all-feature ARM GNU Clippy passes with warnings denied.
+Retained runtime/model results keep their original generation pins; these
+build fixes do not upgrade their qualification. Five passing final-head CI
+jobs and independent repository approval still gate the integration merge.
+
+Upstream `main` was observed at `bd23425164010b9da0547cd9f59ddcc422207eef`,
+beyond the reviewed `fc0486a63` baseline. Compatibility with that newer product
+generation remains uncompleted; it is not included in the frozen v1 evidence.
+
 ## Rust v1 checkpoint — November 16–17, 2026, in progress
 
 The [bounded v1 contract](gauntlet-rust-pr-readiness-plan.md) expires on

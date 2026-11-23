@@ -1,5 +1,7 @@
 //! Fixed Root-owned MCP listeners. Connection authentication belongs to the
 //! controller; owning a pathname or connecting as an agent is not authority.
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+use gauntlet_cell_rootfs::require_outside_root;
 use gauntlet_mcp_service::Family;
 use rustix::fs::{
     fchmod, fchown, fstat, fsync, mkdirat, openat, statat, unlinkat, AtFlags, FileType, Mode,
@@ -25,6 +27,13 @@ const FAMILIES: [Family; 7] = [
     Family::Chat,
     Family::Tickets,
 ];
+
+// Linux contract tests can inspect custody on other architectures, but native
+// ownership requires the complete outside-Root guard available on Linux ARM64.
+#[cfg(not(all(target_os = "linux", target_arch = "aarch64")))]
+fn require_outside_root() -> Result<(), String> {
+    Err("native Linux ARM64 outside Root MCP listeners required".into())
+}
 
 fn same(a: &Stat, b: &Stat) -> bool {
     a.st_dev == b.st_dev
@@ -240,7 +249,7 @@ impl NativeMcpSockets {
     /// Establish the owner before creating any filesystem objects. Callers keep
     /// this owner even when initialize fails; Drop never discards job evidence.
     pub fn prepare(job_id: &str) -> Result<Self, String> {
-        gauntlet_cell_rootfs::require_outside_root()?;
+        require_outside_root()?;
         if !crate::hex(job_id, 16) {
             return Err("fixed native MCP job required".into());
         }
@@ -414,3 +423,18 @@ impl NativeMcpSockets {
 #[cfg(test)]
 #[path = "native_mcp_sockets_tests.rs"]
 mod tests;
+
+#[cfg(all(test, not(target_arch = "aarch64")))]
+mod platform_tests {
+    use super::*;
+
+    #[test]
+    fn native_listener_constructor_refuses_unsupported_platform_before_opening_job() {
+        assert_eq!(
+            NativeMcpSockets::prepare("aabbccddeeff0011")
+                .err()
+                .as_deref(),
+            Some("native Linux ARM64 outside Root MCP listeners required")
+        );
+    }
+}
