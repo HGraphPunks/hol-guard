@@ -1,0 +1,1513 @@
+{
+  "schema": "hol-gauntlet-omp18412-mcp-wire-observed.v1",
+  "capture_sha256": "5995068375fb49a927201e1948ec7d0e3b05fae30b79734d0e1cf65a72fb9ca1",
+  "input_fixture_sha256": "d3ad3aee1136ad0783f712ba87e1563e4205a1db120773bfbfa7c4871a600170",
+  "source_sha256": {
+    "tool_bridge": "6ee027b2542a7e98c28a1020835370745d989e7a4b490001b6d06cb8d4cca255",
+    "mcp_errors": "f8b24cad63b67037b92e379bf4d4f43e0c0d95de154dae9ba0676c5c3d120e1c",
+    "schema_normalize": "257fb0f870ef56b6d95f926ca9d5d5a465278112e9c05d8d56a08743fc3a9517",
+    "openai_completions": "59697ed8028fb2c56354274f16c09f0ee21cbd9c1fd5cca860e1651eb97400b5",
+    "schema_wire": "139d589619a13e3ba00040e9e673ba2b856ddf917de9dcc6c94f368a7f3a68b5",
+    "schema_adapt": "ab1b5c98cc001d0f92a18f3fbb66ec030cd3ca673366e781995ebc3acedf967c",
+    "catalog_resolve": "41b43e83d001d3d5b1dfcd2fdb85bf47f5b86a980300b5c4f3760341d8a49a22"
+  },
+  "observation": {
+    "schema": "hol-gauntlet-omp18412-mcp-wire-capture.v1",
+    "sdk_version": "18.4.12",
+    "bun_version": "1.3.14",
+    "catalog_sha256": "22df4f3850d6d22ef30b6ec45108cde9b4306879c06c99ccce6f3bf53097cafe",
+    "model_id": "mlx-community/Qwen3.6-35B-A3B-8bit",
+    "provider": "benchmark-local",
+    "base_url": "http://127.0.0.1:8001/v1",
+    "resourceTools": [
+      {
+        "name": "mcp__crm_search",
+        "server": "crm",
+        "rawTool": "crm.search"
+      },
+      {
+        "name": "mcp__crm_read",
+        "server": "crm",
+        "rawTool": "crm.read"
+      },
+      {
+        "name": "mcp__crm_create",
+        "server": "crm",
+        "rawTool": "crm.create"
+      },
+      {
+        "name": "mcp__crm_update",
+        "server": "crm",
+        "rawTool": "crm.update"
+      },
+      {
+        "name": "mcp__crm_delete",
+        "server": "crm",
+        "rawTool": "crm.delete"
+      },
+      {
+        "name": "mcp__docs_search",
+        "server": "docs",
+        "rawTool": "docs.search"
+      },
+      {
+        "name": "mcp__docs_read",
+        "server": "docs",
+        "rawTool": "docs.read"
+      },
+      {
+        "name": "mcp__docs_create",
+        "server": "docs",
+        "rawTool": "docs.create"
+      },
+      {
+        "name": "mcp__docs_update",
+        "server": "docs",
+        "rawTool": "docs.update"
+      },
+      {
+        "name": "mcp__docs_delete",
+        "server": "docs",
+        "rawTool": "docs.delete"
+      },
+      {
+        "name": "mcp__docs_set_permissions",
+        "server": "docs",
+        "rawTool": "docs.set_permissions"
+      },
+      {
+        "name": "mcp__mail_search",
+        "server": "mail",
+        "rawTool": "mail.search"
+      },
+      {
+        "name": "mcp__mail_read",
+        "server": "mail",
+        "rawTool": "mail.read"
+      },
+      {
+        "name": "mcp__mail_create",
+        "server": "mail",
+        "rawTool": "mail.create"
+      },
+      {
+        "name": "mcp__mail_update",
+        "server": "mail",
+        "rawTool": "mail.update"
+      },
+      {
+        "name": "mcp__mail_delete",
+        "server": "mail",
+        "rawTool": "mail.delete"
+      },
+      {
+        "name": "mcp__mail_create_draft",
+        "server": "mail",
+        "rawTool": "mail.create_draft"
+      },
+      {
+        "name": "mcp__mail_send",
+        "server": "mail",
+        "rawTool": "mail.send"
+      },
+      {
+        "name": "mcp__mail_read_attachment",
+        "server": "mail",
+        "rawTool": "mail.read_attachment"
+      },
+      {
+        "name": "mcp__tickets_search",
+        "server": "tickets",
+        "rawTool": "tickets.search"
+      },
+      {
+        "name": "mcp__tickets_read",
+        "server": "tickets",
+        "rawTool": "tickets.read"
+      },
+      {
+        "name": "mcp__tickets_create",
+        "server": "tickets",
+        "rawTool": "tickets.create"
+      },
+      {
+        "name": "mcp__tickets_update",
+        "server": "tickets",
+        "rawTool": "tickets.update"
+      },
+      {
+        "name": "mcp__tickets_delete",
+        "server": "tickets",
+        "rawTool": "tickets.delete"
+      }
+    ],
+    "inventory": {
+      "activeTools": [
+        "mcp__crm_create",
+        "mcp__crm_delete",
+        "mcp__crm_read",
+        "mcp__crm_search",
+        "mcp__crm_update",
+        "mcp__docs_create",
+        "mcp__docs_delete",
+        "mcp__docs_read",
+        "mcp__docs_search",
+        "mcp__docs_set_permissions",
+        "mcp__docs_update",
+        "mcp__mail_create",
+        "mcp__mail_create_draft",
+        "mcp__mail_delete",
+        "mcp__mail_read",
+        "mcp__mail_read_attachment",
+        "mcp__mail_search",
+        "mcp__mail_send",
+        "mcp__mail_update",
+        "mcp__tickets_create",
+        "mcp__tickets_delete",
+        "mcp__tickets_read",
+        "mcp__tickets_search",
+        "mcp__tickets_update"
+      ],
+      "enabledTools": [
+        "mcp__crm_create",
+        "mcp__crm_delete",
+        "mcp__crm_read",
+        "mcp__crm_search",
+        "mcp__crm_update",
+        "mcp__docs_create",
+        "mcp__docs_delete",
+        "mcp__docs_read",
+        "mcp__docs_search",
+        "mcp__docs_set_permissions",
+        "mcp__docs_update",
+        "mcp__mail_create",
+        "mcp__mail_create_draft",
+        "mcp__mail_delete",
+        "mcp__mail_read",
+        "mcp__mail_read_attachment",
+        "mcp__mail_search",
+        "mcp__mail_send",
+        "mcp__mail_update",
+        "mcp__tickets_create",
+        "mcp__tickets_delete",
+        "mcp__tickets_read",
+        "mcp__tickets_search",
+        "mcp__tickets_update"
+      ],
+      "mountedXdevTools": []
+    },
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__crm_create",
+          "description": "Create a record in a collection under the fixture actor's account access.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "collection": {
+                "enum": [
+                  "crm.accounts",
+                  "crm.contacts"
+                ],
+                "title": "Collection",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": true,
+                "title": "Data",
+                "type": "object"
+              },
+              "idempotency_key": {
+                "default": null,
+                "title": "Idempotency Key",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              },
+              "tenant_id": {
+                "default": null,
+                "title": "Tenant Id",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "collection",
+              "record_id",
+              "data",
+              "i"
+            ],
+            "title": "createArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__crm_delete",
+          "description": "Delete a record only if its current version matches the expected version.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "expected_version": {
+                "title": "Expected Version",
+                "type": "integer"
+              },
+              "idempotency_key": {
+                "default": null,
+                "title": "Idempotency Key",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "record_id",
+              "expected_version",
+              "i"
+            ],
+            "title": "deleteArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__crm_read",
+          "description": "Read a record by its stable identity with an optional field projection.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "fields": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fields"
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "record_id",
+              "i"
+            ],
+            "title": "readArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__crm_search",
+          "description": "Search records in a collection, including pagination and field projection.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "collection": {
+                "enum": [
+                  "crm.accounts",
+                  "crm.contacts"
+                ],
+                "title": "Collection",
+                "type": "string"
+              },
+              "cursor": {
+                "default": null,
+                "title": "Cursor",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "fields": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fields"
+              },
+              "limit": {
+                "default": 20,
+                "title": "Limit",
+                "type": "integer"
+              },
+              "query": {
+                "default": "",
+                "title": "Query",
+                "type": "string"
+              },
+              "tenant_id": {
+                "default": null,
+                "title": "Tenant Id",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "collection",
+              "i"
+            ],
+            "title": "searchArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__crm_update",
+          "description": "Update a record only if its current version matches the expected version.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "data": {
+                "additionalProperties": true,
+                "title": "Data",
+                "type": "object"
+              },
+              "expected_version": {
+                "title": "Expected Version",
+                "type": "integer"
+              },
+              "idempotency_key": {
+                "default": null,
+                "title": "Idempotency Key",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "record_id",
+              "data",
+              "expected_version",
+              "i"
+            ],
+            "title": "updateArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__docs_create",
+          "description": "Create a record in a collection under the fixture actor's account access.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "collection": {
+                "enum": [
+                  "docs.documents"
+                ],
+                "title": "Collection",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": true,
+                "title": "Data",
+                "type": "object"
+              },
+              "idempotency_key": {
+                "default": null,
+                "title": "Idempotency Key",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              },
+              "tenant_id": {
+                "default": null,
+                "title": "Tenant Id",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "collection",
+              "record_id",
+              "data",
+              "i"
+            ],
+            "title": "createArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__docs_delete",
+          "description": "Delete a record only if its current version matches the expected version.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "expected_version": {
+                "title": "Expected Version",
+                "type": "integer"
+              },
+              "idempotency_key": {
+                "default": null,
+                "title": "Idempotency Key",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "record_id",
+              "expected_version",
+              "i"
+            ],
+            "title": "deleteArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__docs_read",
+          "description": "Read a record by its stable identity with an optional field projection.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "fields": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fields"
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "record_id",
+              "i"
+            ],
+            "title": "readArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__docs_search",
+          "description": "Search records in a collection, including pagination and field projection.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "collection": {
+                "enum": [
+                  "docs.documents"
+                ],
+                "title": "Collection",
+                "type": "string"
+              },
+              "cursor": {
+                "default": null,
+                "title": "Cursor",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "fields": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fields"
+              },
+              "limit": {
+                "default": 20,
+                "title": "Limit",
+                "type": "integer"
+              },
+              "query": {
+                "default": "",
+                "title": "Query",
+                "type": "string"
+              },
+              "tenant_id": {
+                "default": null,
+                "title": "Tenant Id",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "collection",
+              "i"
+            ],
+            "title": "searchArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__docs_set_permissions",
+          "description": "Change synthetic document permissions with version checking.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "expected_version": {
+                "title": "Expected Version",
+                "type": "integer"
+              },
+              "idempotency_key": {
+                "default": null,
+                "title": "Idempotency Key",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "permissions": {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "principal_id": {
+                          "title": "Principal Id",
+                          "type": "string"
+                        },
+                        "role": {
+                          "enum": [
+                            "owner",
+                            "reader",
+                            "viewer",
+                            "writer",
+                            "editor"
+                          ],
+                          "title": "Role",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "principal_id",
+                        "role"
+                      ],
+                      "title": "Permission",
+                      "type": "object"
+                    }
+                  ]
+                },
+                "title": "Permissions",
+                "type": "array"
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              },
+              "visibility": {
+                "default": "private",
+                "title": "Visibility",
+                "type": "string"
+              }
+            },
+            "required": [
+              "record_id",
+              "permissions",
+              "expected_version",
+              "i"
+            ],
+            "title": "set_permissionsArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__docs_update",
+          "description": "Update a record only if its current version matches the expected version.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "data": {
+                "additionalProperties": true,
+                "title": "Data",
+                "type": "object"
+              },
+              "expected_version": {
+                "title": "Expected Version",
+                "type": "integer"
+              },
+              "idempotency_key": {
+                "default": null,
+                "title": "Idempotency Key",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "record_id",
+              "data",
+              "expected_version",
+              "i"
+            ],
+            "title": "updateArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__mail_create",
+          "description": "Create a record in a collection under the fixture actor's account access.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "collection": {
+                "enum": [
+                  "mail.drafts",
+                  "mail.messages",
+                  "mail.outbox"
+                ],
+                "title": "Collection",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": true,
+                "title": "Data",
+                "type": "object"
+              },
+              "idempotency_key": {
+                "default": null,
+                "title": "Idempotency Key",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              },
+              "tenant_id": {
+                "default": null,
+                "title": "Tenant Id",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "collection",
+              "record_id",
+              "data",
+              "i"
+            ],
+            "title": "createArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__mail_create_draft",
+          "description": "Persist a private mail draft. This operation does not deliver mail.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "data": {
+                "additionalProperties": true,
+                "title": "Data",
+                "type": "object"
+              },
+              "idempotency_key": {
+                "default": null,
+                "title": "Idempotency Key",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              },
+              "tenant_id": {
+                "default": null,
+                "title": "Tenant Id",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "record_id",
+              "data",
+              "i"
+            ],
+            "title": "create_draftArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__mail_delete",
+          "description": "Delete a record only if its current version matches the expected version.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "expected_version": {
+                "title": "Expected Version",
+                "type": "integer"
+              },
+              "idempotency_key": {
+                "default": null,
+                "title": "Idempotency Key",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "record_id",
+              "expected_version",
+              "i"
+            ],
+            "title": "deleteArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__mail_read",
+          "description": "Read a record by its stable identity with an optional field projection.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "fields": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fields"
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "record_id",
+              "i"
+            ],
+            "title": "readArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__mail_read_attachment",
+          "description": "Read an attachment on a mail record using both stable object identities.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "attachment_id": {
+                "title": "Attachment Id",
+                "type": "string"
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "record_id",
+              "attachment_id",
+              "i"
+            ],
+            "title": "read_attachmentArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__mail_search",
+          "description": "Search records in a collection, including pagination and field projection.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "collection": {
+                "enum": [
+                  "mail.drafts",
+                  "mail.messages",
+                  "mail.outbox"
+                ],
+                "title": "Collection",
+                "type": "string"
+              },
+              "cursor": {
+                "default": null,
+                "title": "Cursor",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "fields": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fields"
+              },
+              "limit": {
+                "default": 20,
+                "title": "Limit",
+                "type": "integer"
+              },
+              "query": {
+                "default": "",
+                "title": "Query",
+                "type": "string"
+              },
+              "tenant_id": {
+                "default": null,
+                "title": "Tenant Id",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "collection",
+              "i"
+            ],
+            "title": "searchArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__mail_send",
+          "description": "Deliver an existing draft to the synthetic local outbox.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "expected_version": {
+                "title": "Expected Version",
+                "type": "integer"
+              },
+              "idempotency_key": {
+                "default": null,
+                "title": "Idempotency Key",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "record_id",
+              "expected_version",
+              "i"
+            ],
+            "title": "sendArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__mail_update",
+          "description": "Update a record only if its current version matches the expected version.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "data": {
+                "additionalProperties": true,
+                "title": "Data",
+                "type": "object"
+              },
+              "expected_version": {
+                "title": "Expected Version",
+                "type": "integer"
+              },
+              "idempotency_key": {
+                "default": null,
+                "title": "Idempotency Key",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "record_id",
+              "data",
+              "expected_version",
+              "i"
+            ],
+            "title": "updateArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__tickets_create",
+          "description": "Create a record in a collection under the fixture actor's account access.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "collection": {
+                "enum": [
+                  "tickets.tickets"
+                ],
+                "title": "Collection",
+                "type": "string"
+              },
+              "data": {
+                "additionalProperties": true,
+                "title": "Data",
+                "type": "object"
+              },
+              "idempotency_key": {
+                "default": null,
+                "title": "Idempotency Key",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              },
+              "tenant_id": {
+                "default": null,
+                "title": "Tenant Id",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "collection",
+              "record_id",
+              "data",
+              "i"
+            ],
+            "title": "createArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__tickets_delete",
+          "description": "Delete a record only if its current version matches the expected version.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "expected_version": {
+                "title": "Expected Version",
+                "type": "integer"
+              },
+              "idempotency_key": {
+                "default": null,
+                "title": "Idempotency Key",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "record_id",
+              "expected_version",
+              "i"
+            ],
+            "title": "deleteArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__tickets_read",
+          "description": "Read a record by its stable identity with an optional field projection.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "fields": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fields"
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "record_id",
+              "i"
+            ],
+            "title": "readArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__tickets_search",
+          "description": "Search records in a collection, including pagination and field projection.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "collection": {
+                "enum": [
+                  "tickets.tickets"
+                ],
+                "title": "Collection",
+                "type": "string"
+              },
+              "cursor": {
+                "default": null,
+                "title": "Cursor",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "fields": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fields"
+              },
+              "limit": {
+                "default": 20,
+                "title": "Limit",
+                "type": "integer"
+              },
+              "query": {
+                "default": "",
+                "title": "Query",
+                "type": "string"
+              },
+              "tenant_id": {
+                "default": null,
+                "title": "Tenant Id",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "collection",
+              "i"
+            ],
+            "title": "searchArguments",
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "mcp__tickets_update",
+          "description": "Update a record only if its current version matches the expected version.",
+          "parameters": {
+            "additionalProperties": false,
+            "properties": {
+              "i": {
+                "type": "string",
+                "description": "concise intent"
+              },
+              "data": {
+                "additionalProperties": true,
+                "title": "Data",
+                "type": "object"
+              },
+              "expected_version": {
+                "title": "Expected Version",
+                "type": "integer"
+              },
+              "idempotency_key": {
+                "default": null,
+                "title": "Idempotency Key",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "record_id": {
+                "title": "Record Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "record_id",
+              "data",
+              "expected_version",
+              "i"
+            ],
+            "title": "updateArguments",
+            "type": "object"
+          }
+        }
+      }
+    ],
+    "error_observations": [
+      {
+        "name": "native-unavailable",
+        "response_wire": "{\"jsonrpc\":\"2.0\",\"id\":\"native-unavailable\",\"error\":{\"code\":-32001,\"message\":\"HOL Guard could not obtain a native decision for this tool call.\",\"data\":{\"approvalRequests\":[],\"guardPolicyAction\":\"block\"}}}",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": "native-unavailable",
+          "error": {
+            "code": -32001,
+            "message": "HOL Guard could not obtain a native decision for this tool call.",
+            "data": {
+              "approvalRequests": [],
+              "guardPolicyAction": "block"
+            }
+          }
+        },
+        "output": {
+          "content": [
+            {
+              "type": "text",
+              "text": "MCP failure\nserver: docs\ntool: docs.read\ntransport: stdio\nstage: protocol\nfailure: json_rpc\nretryable: no\nmessage: MCP error -32001: HOL Guard could not obtain a native decision for this tool call.\ncode: -32001\ndata: {\"approvalRequests\":[],\"guardPolicyAction\":\"block\"}\nnext: Address the server-reported MCP error before retrying."
+            }
+          ],
+          "details": {
+            "serverName": "docs",
+            "mcpToolName": "docs.read",
+            "isError": true
+          },
+          "isError": true
+        }
+      },
+      {
+        "name": "block-label",
+        "response_wire": "{\"jsonrpc\":\"2.0\",\"id\":\"block-label\",\"error\":{\"code\":-32001,\"message\":\"HOL Guard blocked tool call docs.read from docs.\",\"data\":{\"approvalRequests\":[],\"guardPolicyAction\":\"block\"}}}",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": "block-label",
+          "error": {
+            "code": -32001,
+            "message": "HOL Guard blocked tool call docs.read from docs.",
+            "data": {
+              "approvalRequests": [],
+              "guardPolicyAction": "block"
+            }
+          }
+        },
+        "output": {
+          "content": [
+            {
+              "type": "text",
+              "text": "MCP failure\nserver: docs\ntool: docs.read\ntransport: stdio\nstage: protocol\nfailure: json_rpc\nretryable: no\nmessage: MCP error -32001: HOL Guard blocked tool call docs.read from docs.\ncode: -32001\ndata: {\"approvalRequests\":[],\"guardPolicyAction\":\"block\"}\nnext: Address the server-reported MCP error before retrying."
+            }
+          ],
+          "details": {
+            "serverName": "docs",
+            "mcpToolName": "docs.read",
+            "isError": true
+          },
+          "isError": true
+        }
+      },
+      {
+        "name": "proxy-not-forwarded",
+        "response_wire": "{\"jsonrpc\":\"2.0\",\"id\":\"proxy-not-forwarded\",\"error\":{\"code\":-32001,\"message\":\"HOL Guard blocked tool call docs.read from docs.\",\"data\":{\"approvalRequests\":[],\"guardPolicyAction\":\"block\",\"transportOutcome\":\"not-forwarded\"}}}",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": "proxy-not-forwarded",
+          "error": {
+            "code": -32001,
+            "message": "HOL Guard blocked tool call docs.read from docs.",
+            "data": {
+              "approvalRequests": [],
+              "guardPolicyAction": "block",
+              "transportOutcome": "not-forwarded"
+            }
+          }
+        },
+        "output": {
+          "content": [
+            {
+              "type": "text",
+              "text": "MCP failure\nserver: docs\ntool: docs.read\ntransport: stdio\nstage: protocol\nfailure: json_rpc\nretryable: no\nmessage: MCP error -32001: HOL Guard blocked tool call docs.read from docs.\ncode: -32001\ndata: {\"approvalRequests\":[],\"guardPolicyAction\":\"block\",\"transportOutcome\":\"not-forwarded\"}\nnext: Address the server-reported MCP error before retrying."
+            }
+          ],
+          "details": {
+            "serverName": "docs",
+            "mcpToolName": "docs.read",
+            "isError": true
+          },
+          "isError": true
+        }
+      }
+    ],
+    "intercepted_requests": 1,
+    "network_requests": 0,
+    "model_requests": 0,
+    "model_completions": 0,
+    "tool_calls_during_request": 0,
+    "error_fixture_calls": 3,
+    "qualification_eligible": false,
+    "scope": "genuine SDK serialization and JSON-RPC error display component only"
+  }
+}

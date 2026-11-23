@@ -1,41 +1,26 @@
-"""Launch Codex through its local app-server for same-thread continuation."""
+"""Launch Codex through its local app-server for same-thread continuation.
+
+The native runtime (``codex_remote_launch``) decides which argv a launch may
+use and runs the launch sequence: it names each process to start, checks the
+control socket, keeps or stops the app-server Guard started before, and
+records the pid of a new one. Python only starts the processes it names. A
+resident that cannot answer leaves the ordinary launch.
+"""
 
 from __future__ import annotations
 
+import functools
 import os
-import signal
-import socket
 import subprocess
-import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any, TypeGuard
 
-_REMOTE_CONTROL_START_TIMEOUT_SECONDS = 10
 _REMOTE_CONTROL_READY_TIMEOUT_SECONDS = 3.0
-_REMOTE_CONTROL_STOP_TIMEOUT_SECONDS = 1.0
-_REMOTE_INCOMPATIBLE_SUBCOMMANDS = frozenset(
-    {
-        "app-server",
-        "apply",
-        "cloud",
-        "completion",
-        "debug",
-        "doctor",
-        "exec",
-        "exec-server",
-        "features",
-        "help",
-        "login",
-        "logout",
-        "mcp",
-        "mcp-server",
-        "plugin",
-        "remote-control",
-        "review",
-        "sandbox",
-        "update",
-    }
-)
+# One step may wait for the socket three times and spend a second reading the
+# tracked command line and a second stopping it.
+_PREPARE_BUDGET_SECONDS = 3 * _REMOTE_CONTROL_READY_TIMEOUT_SECONDS + 4.0
+_MAX_PREPARE_STEPS = 3
 
 
 def codex_home_for_user(home_dir: Path) -> Path:
@@ -81,36 +66,14 @@ def guarded_codex_launch_command_from_prefix(
     if not prefix or any(not isinstance(part, str) or not part for part in prefix):
         raise ValueError("Codex launch preparation requires a canonical executable prefix.")
     plain_command = [*prefix, *passthrough_args]
-    if not _supports_remote_tui(passthrough_args):
+    socket_path = default_codex_control_socket(home_dir)
+    tails = _launch_tails(passthrough_args, socket_path)
+    if len(tails) < 2:
         return plain_command
     environment = dict(os.environ if environ is None else environ)
-    codex_home = codex_home_for_user(home_dir)
-    try:
-        codex_home.mkdir(parents=True, exist_ok=True)
-    except OSError:
+    if not _prepare_remote(prefix, home_dir, socket_path, environment):
         return plain_command
-    environment["HOME"] = str(home_dir)
-    environment["CODEX_HOME"] = str(codex_home)
-    try:
-        result = subprocess.run(
-            [*prefix, "remote-control", "start", "--json"],
-            capture_output=True,
-            text=True,
-            timeout=_REMOTE_CONTROL_START_TIMEOUT_SECONDS,
-            check=False,
-            env=environment,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        result = None
-    socket_path = default_codex_control_socket(home_dir)
-    managed_daemon_ready = result is not None and result.returncode == 0 and _wait_for_socket(socket_path)
-    if not managed_daemon_ready and not _start_direct_app_server(
-        executable_prefix=prefix,
-        socket_path=socket_path,
-        environment=environment,
-    ):
-        return plain_command
-    return [*prefix, "--remote", f"unix://{socket_path}", *passthrough_args]
+    return [*prefix, *tails[0]]
 
 
 def guarded_codex_launch_command_candidates(
@@ -121,168 +84,92 @@ def guarded_codex_launch_command_candidates(
 ) -> tuple[list[str], ...]:
     """Preview every argv the remote-control launch preparation may select.
 
-    This function intentionally performs no filesystem, socket, or subprocess
-    setup. Compatible TUI launches may select the remote argv when setup
-    succeeds or the ordinary argv when it does not; incompatible subcommands
-    have only the ordinary form.
+    This function intentionally performs no remote-control or app-server
+    setup; it only asks the resident for the plan. Compatible TUI launches may
+    select the remote argv when setup succeeds or the ordinary argv when it
+    does not; incompatible subcommands have only the ordinary form.
     """
 
-    plain_command = [executable, *passthrough_args]
-    if not _supports_remote_tui(passthrough_args):
-        return (plain_command,)
-    remote_command = [
-        executable,
-        "--remote",
-        f"unix://{default_codex_control_socket(home_dir)}",
-        *passthrough_args,
-    ]
-    return (remote_command, plain_command)
+    tails = _launch_tails(passthrough_args, default_codex_control_socket(home_dir))
+    return tuple([executable, *tail] for tail in tails)
 
 
 def codex_remote_launch_environment(home_dir: Path) -> dict[str, str]:
     return {"CODEX_HOME": str(codex_home_for_user(home_dir))}
 
 
-def _supports_remote_tui(passthrough_args: list[str]) -> bool:
-    if any(argument == "--remote" or argument.startswith("--remote=") for argument in passthrough_args):
-        return False
-    if any(argument in {"--help", "-h", "--version", "-V"} for argument in passthrough_args):
-        return False
-    return not any(argument in _REMOTE_INCOMPATIBLE_SUBCOMMANDS for argument in passthrough_args)
+def _ask(op: str, fields: Mapping[str, object], budget: float | None = None) -> dict[str, Any]:
+    from ..native_runner_authority import NativeRunnerAuthorityError, native_runner_authority
 
-
-def _wait_for_socket(socket_path: Path) -> bool:
-    deadline = time.monotonic() + _REMOTE_CONTROL_READY_TIMEOUT_SECONDS
-    while time.monotonic() < deadline:
-        try:
-            if _socket_is_trusted(socket_path) and _socket_is_live(socket_path):
-                return True
-        except OSError:
-            pass
-        time.sleep(0.05)
-    return False
-
-
-def _socket_is_trusted(socket_path: Path) -> bool:
-    getuid = getattr(os, "getuid", None)
-    if not callable(getuid):
-        return False
     try:
-        stat_result = socket_path.stat()
-        parent_stat = socket_path.parent.stat()
-    except OSError:
-        return False
-    return (
-        socket_path.is_socket()
-        and stat_result.st_uid == getuid()
-        and parent_stat.st_uid == getuid()
-        and parent_stat.st_mode & 0o022 == 0
-    )
+        return native_runner_authority("codex_remote_launch", {**fields, "op": op}, timeout_seconds=budget)
+    except NativeRunnerAuthorityError:
+        return {}
 
 
-def _socket_is_live(socket_path: Path) -> bool:
-    try:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-            client.settimeout(0.2)
-            client.connect(str(socket_path))
-    except OSError:
-        return False
-    return True
+def _launch_tails(passthrough_args: list[str], socket_path: Path) -> list[list[str]]:
+    """The argv tails after the executable, remote TUI first; only the plain one on a bad answer."""
+
+    return [list(tail) for tail in _planned_tails(tuple(passthrough_args), str(socket_path))]
 
 
-def _start_direct_app_server(
-    *,
-    executable_prefix: Sequence[str],
-    socket_path: Path,
-    environment: Mapping[str, str],
-) -> bool:
-    if os.name == "nt":
-        return False
-    if _wait_for_socket(socket_path):
-        return True
-    try:
-        socket_path.parent.mkdir(parents=True, exist_ok=True)
-        socket_path.parent.chmod(0o700)
-        pid_path = socket_path.parent / "hol-guard-app-server.pid"
-        tracked_pid = _tracked_process_pid(pid_path)
-        if tracked_pid is not None:
-            tracked_command = _tracked_process_command(tracked_pid)
-            if tracked_command is None:
+@functools.lru_cache(maxsize=32)
+def _planned_tails(passthrough_args: tuple[str, ...], socket: str) -> tuple[tuple[str, ...], ...]:
+    """One answer per launch, so preparation selects only among the previewed argv."""
+
+    tails = _ask("plan", {"args": list(passthrough_args), "socket": socket}).get("tails")
+    if isinstance(tails, list) and tails and all(isinstance(tail, list) for tail in tails):
+        return tuple(tuple(str(arg) for arg in tail) for tail in tails)
+    return (passthrough_args,)
+
+
+def _prepare_remote(prefix: Sequence[str], home_dir: Path, socket_path: Path, environment: dict[str, str]) -> bool:
+    """Run each process the resident's launch sequence names; True when the remote TUI can connect."""
+
+    request: dict[str, object] = {
+        "home_dir": str(home_dir),
+        "socket": str(socket_path),
+        "seconds": _REMOTE_CONTROL_READY_TIMEOUT_SECONDS,
+        "stage": "start",
+    }
+    for _ in range(_MAX_PREPARE_STEPS):
+        answer = _ask("prepare", request, _PREPARE_BUDGET_SECONDS)
+        if "launch" in answer:
+            return answer["launch"] == "remote"
+        env = answer.get("env")
+        if isinstance(env, dict):
+            environment.update({str(key): str(value) for key, value in env.items()})
+        stage, run, spawn = answer.get("stage"), answer.get("run"), answer.get("spawn")
+        if _argv(run) and isinstance(answer.get("timeout"), int):
+            try:
+                exit_code = subprocess.run(
+                    [*prefix, *run],
+                    capture_output=True,
+                    text=True,
+                    timeout=answer["timeout"],
+                    check=False,
+                    env=environment,
+                ).returncode
+            except (OSError, subprocess.TimeoutExpired):
+                exit_code = None
+            request = {**request, "stage": stage, "exit": exit_code}
+        elif _argv(spawn):
+            try:
+                process = subprocess.Popen(
+                    [*prefix, *spawn],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    env=dict(environment),
+                    start_new_session=True,
+                )
+            except OSError:
                 return False
-            listener_uri = f"unix://{socket_path}"
-            if "app-server" in tracked_command and listener_uri in tracked_command:
-                if _wait_for_socket(socket_path):
-                    return True
-                if not _stop_tracked_process(tracked_pid):
-                    return False
-        process = subprocess.Popen(
-            [*executable_prefix, "app-server", "--listen", f"unix://{socket_path}"],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            env=dict(environment),
-            start_new_session=True,
-        )
-        pid_path.write_text(str(process.pid), encoding="utf-8")
-        pid_path.chmod(0o600)
-    except OSError:
-        return False
-    return _wait_for_socket(socket_path)
-
-
-def _tracked_process_pid(pid_path: Path) -> int | None:
-    try:
-        pid_text = pid_path.read_text(encoding="utf-8").strip()
-        if not pid_text.isascii() or not pid_text.isdecimal():
-            return None
-        pid = int(pid_text)
-    except (OSError, ValueError):
-        return None
-    try:
-        os.kill(pid, 0)
-    except PermissionError:
-        return pid
-    except OSError:
-        return None
-    return pid
-
-
-def _tracked_process_command(pid: int) -> str | None:
-    proc_cmdline = Path("/proc") / str(pid) / "cmdline"
-    try:
-        command = proc_cmdline.read_bytes().replace(b"\0", b"\n").decode("utf-8", errors="replace").strip()
-        if command:
-            return command
-    except OSError:
-        pass
-    try:
-        result = subprocess.run(
-            ["ps", "-p", str(pid), "-o", "command="],
-            capture_output=True,
-            text=True,
-            timeout=1,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    command = result.stdout.strip()
-    return command if result.returncode == 0 and command else None
-
-
-def _stop_tracked_process(pid: int) -> bool:
-    try:
-        os.kill(pid, signal.SIGTERM)
-    except ProcessLookupError:
-        return True
-    except OSError:
-        return False
-    deadline = time.monotonic() + _REMOTE_CONTROL_STOP_TIMEOUT_SECONDS
-    while time.monotonic() < deadline:
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            return True
-        except OSError:
+            request = {**request, "stage": stage, "pid": process.pid}
+        else:
             return False
-        time.sleep(0.05)
     return False
+
+
+def _argv(value: object) -> TypeGuard[list[str]]:
+    return isinstance(value, list) and bool(value) and all(isinstance(part, str) for part in value)

@@ -1,7 +1,9 @@
 //! The hooks each local Git write form runs, and which segments are those
 //! forms (`git_local_writes`).
 
-use super::forms::{add, branch_rename, commit, rm, stash_list, stash_restore, stash_show};
+use super::forms::{
+    add, branch_create, branch_rename, commit, rm, stash_list, stash_restore, stash_show,
+};
 use super::{merge, rebase, start};
 use crate::CommandSegmentV1;
 
@@ -31,7 +33,7 @@ pub(super) const CHECKOUT_HOOKS: &[&str] = &[
 /// the route proof dropped it.
 pub(super) fn write_hooks(
     original: &CommandSegmentV1,
-) -> Option<(&'static [&'static str], Option<String>)> {
+) -> Option<(&'static [&'static str], Option<start::Target>)> {
     let stripped = super::super::segment_proof::without_stderr_merge(original);
     let segment = stripped.as_ref().unwrap_or(original);
     if segment.executable.as_deref() != Some("git")
@@ -39,8 +41,10 @@ pub(super) fn write_hooks(
         || segment.path_overridden
         || !segment.wrapper_chain.is_empty()
         || !super::identity_only(segment)
-        || segment.text.contains(['$', '`', '\n', '\r'])
-        // A quoted `<` or `>` (`--author="A <a@example.test>"`) is data.
+        || segment.text.contains(['$', '`', '\r'])
+        // A quoted `<` or `>` (`--author="A <a@example.test>"`) is data, and
+        // so is a quoted line break in a multi-line `-m` message. Unquoted,
+        // either one ends the command, and this screen refuses it.
         || crate::codex_output_search::has_unquoted_shell_control(&segment.text)
     {
         return None;
@@ -50,7 +54,7 @@ pub(super) fn write_hooks(
         (&"add", rest) => add(rest).then_some(INDEX_HOOKS),
         (&"rm", rest) => rm(rest).then_some(INDEX_HOOKS),
         (&"commit", rest) => commit(rest).then_some(COMMIT_HOOKS),
-        (&"branch", rest) => branch_rename(rest).then_some(BRANCH_HOOKS),
+        (&"branch", rest) => (branch_rename(rest) || branch_create(rest)).then_some(BRANCH_HOOKS),
         (&"merge", rest) => merge::merge(rest).then_some(merge::HOOKS),
         (&"cherry-pick", rest) => merge::cherry_pick(rest).then_some(merge::HOOKS),
         (&"rebase", rest) => (rebase::resume(rest) || rebase::start(rest)).then_some(rebase::HOOKS),
@@ -70,5 +74,5 @@ pub(super) fn write_hooks(
         return Some((hooks, None));
     }
     let point = start::start_point(&segment.arguments)?;
-    Some((CHECKOUT_HOOKS, Some(point.to_owned())))
+    Some((CHECKOUT_HOOKS, Some(point)))
 }

@@ -1,7 +1,9 @@
 """Local Git capture, VM build isolation, durable execution and no Actions writes."""
 import json
+import ast
 from pathlib import Path
 import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -12,6 +14,7 @@ from ci.gauntlet.control_plane.artifacts import StagingUncertain
 from ci.gauntlet.control_plane.config import DEFAULTS
 from ci.gauntlet.control_plane import local_vm, releases, vm_build
 from ci.gauntlet.control_plane import bootstrap
+from ci.gauntlet.control_plane import build_probe
 import hashlib
 import io
 import zipfile
@@ -189,6 +192,8 @@ class LocalBuildTests(unittest.TestCase):
         self.assertIn('--memory=12g', argv)
         self.assertIn('--cpus=2', argv)
         self.assertIn('--network=slirp4netns', argv)
+        self.assertIn('--log-driver=none', argv)
+        self.assertIn('--timeout=2040', argv)
         self.assertFalse(any('sock' in a or 'TOKEN' in a or 'privileged' in a for a in argv))
 
     def test_controller_transfer_includes_the_local_builder_and_excludes_dashboard_ignore(self):
@@ -211,8 +216,8 @@ class LocalBuildTests(unittest.TestCase):
         self.assertNotIn('ci/gauntlet/control_plane/.dockerignore', captured)
 
     def test_vm_supervisor_captures_artifact_and_accepts_podman_digest_formats(self):
-        for prefix,cleanup_code in [('',1),('sha256:',1),('',125)]:
-            with self.subTest(prefix=prefix,cleanup_code=cleanup_code), tempfile.TemporaryDirectory() as temporary:
+        for prefix,cleanup_code,log_exhausted in [('',1,False),('sha256:',1,False),('',125,False),('',1,True)]:
+            with self.subTest(prefix=prefix,cleanup_code=cleanup_code,log_exhausted=log_exhausted), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 base, builds, output, inbox = (root/n for n in ('base', 'builds', 'output', 'inbox'))
                 for p in (base, output, inbox):
@@ -228,7 +233,7 @@ class LocalBuildTests(unittest.TestCase):
                 settings = {'controller': str(root/'controller'), 'guest_inbox': str(inbox)}
                 helpers = {'read_json':lambda p: settings, 'trusted':lambda p, **kw:Path(p),
                            'process_identity':lambda pid:{'start_ticks':'123'}}
-                def run(argv, **kwargs):
+                def run(argv, *_log, **kwargs):
                     if 'container' in argv and 'exists' in argv:
                         return Mock(returncode=cleanup_code)
                     if 'run' in argv:
@@ -239,6 +244,8 @@ class LocalBuildTests(unittest.TestCase):
                         with zipfile.ZipFile(builds/job/'export/candidate.zip','x') as archive:
                             archive.writestr('artifact.json',json.dumps(declaration))
                             archive.writestr(wheel,b'wheel')
+                        if log_exhausted:
+                            raise vm_build.BuildCleanupUncertain('build log byte budget exhausted')
                     return Mock(returncode=0)
                 with patch.object(vm_build,'BASE',base), patch.object(vm_build,'BUILDS',builds), \
                      patch.object(vm_build,'OUTPUT',output), patch.object(vm_build.runpy,'run_path',return_value=helpers), \
@@ -246,10 +253,11 @@ class LocalBuildTests(unittest.TestCase):
                      patch.object(vm_build.os,'geteuid',return_value=0), patch.object(vm_build.os,'chown'), \
                      patch.object(vm_build,'sys',SimpleNamespace(platform='linux',flags=SimpleNamespace(isolated=True),path=[])), \
                      patch.object(vm_build.subprocess,'run',side_effect=run), \
+                     patch.object(vm_build,'run_logged',side_effect=run), \
                      patch.object(vm_build.subprocess,'check_output',return_value=prefix+'d'*64):
                     result = vm_build.execute({'source_sha':SHA,'job_id':job,'tag':'v3.48.0',
                         'source_archive_sha256':hashlib.sha256(source.read_bytes()).hexdigest()})
-                if cleanup_code!=1:
+                if cleanup_code!=1 or log_exhausted:
                     self.assertEqual(result['status'],'unknown')
                     self.assertNotIn('archive_sha256',result)
                     continue
@@ -258,6 +266,44 @@ class LocalBuildTests(unittest.TestCase):
                 self.assertEqual(result['builder_image'],'sha256:'+'d'*64)
                 self.assertEqual(result['archive_sha256'],local_vm.digest(builds/job/'candidate.zip'))
                 self.assertEqual(json.loads((builds/job/'result.json').read_text()),result)
+
+    def test_bounded_root_log_stops_output_and_reaps_client(self):
+        path = self.root/'bounded.log'
+        children = []
+        real_popen = subprocess.Popen
+        def spawn(*args, **kwargs):
+            child = real_popen(*args, **kwargs)
+            children.append(child)
+            return child
+        command = [sys.executable, '-I', '-S', '-c',
+                   'import os; os.write(1,b"o"*24000); os.write(2,b"e"*24000)']
+        with path.open('x') as log, patch.object(vm_build.subprocess, 'Popen', side_effect=spawn):
+            with self.assertRaisesRegex(vm_build.BuildCleanupUncertain, 'log byte budget'):
+                vm_build.run_logged(command, log, timeout=5, maximum=32768)
+        self.assertLessEqual(path.stat().st_size, 32768)
+        self.assertEqual(len(children), 1)
+        self.assertIsNotNone(children[0].poll())
+
+    def test_root_log_timeout_reaps_client_and_existing_bytes_count(self):
+        path = self.root/'timeout.log'
+        with path.open('x') as log:
+            vm_build.run_logged([sys.executable,'-I','-S','-c','print("retained")'], log, timeout=5,
+                                maximum=16)
+            with self.assertRaisesRegex(vm_build.BuildCleanupUncertain, 'log byte budget'):
+                vm_build.run_logged([sys.executable,'-I','-S','-c','print("too many bytes")'], log,
+                                    timeout=5, maximum=16)
+            with self.assertRaises(subprocess.TimeoutExpired):
+                vm_build.run_logged([sys.executable,'-I','-S','-c','import time; time.sleep(10)'], log,
+                                    timeout=0.5, maximum=16)
+        self.assertLessEqual(path.stat().st_size, 16)
+
+    def test_retained_probe_contains_its_bounded_helper_without_new_vm_imports(self):
+        tree = ast.parse(build_probe.ROOT)
+        compile(tree, '<fixed-retained-probe>', 'exec')
+        self.assertIn('run_logged', {node.name for node in tree.body if isinstance(node, ast.FunctionDef)})
+        self.assertIn('BuildCleanupUncertain', {node.name for node in tree.body if isinstance(node, ast.ClassDef)})
+        self.assertFalse(any(isinstance(node, ast.ImportFrom) and (node.module or '').startswith('ci.')
+                             for node in ast.walk(tree)))
 
     def test_real_git_capture_preserves_tag_commit_without_credentials(self):
         origin = self.root/'origin'

@@ -3,30 +3,28 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::path::Path;
 
+#[path = "support/private_custody_source.rs"]
+mod private_custody_source;
+
 #[test]
 fn python_primary_and_nested_hook_samples_match() {
     let fixture: Value =
         serde_json::from_str(include_str!("fixtures/private_hook_samples_v1.json")).unwrap();
     assert_eq!(fixture["schema"], "gauntlet-python-private-hook-samples.v1");
+    private_custody_source::assert_private_custody_source(&fixture, &["_hook_samples"]);
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(4)
         .unwrap();
-    for (field, source) in [
-        (
-            "source_sha256",
-            "ci/gauntlet/benchmark/private_cell_custody.py",
-        ),
-        ("product_sha256", "ci/gauntlet/benchmark/product_custody.py"),
-    ] {
-        assert_eq!(
-            fixture[field],
-            format!(
-                "{:x}",
-                Sha256::digest(std::fs::read(root.join(source)).unwrap())
+    assert_eq!(
+        fixture["product_sha256"],
+        format!(
+            "{:x}",
+            Sha256::digest(
+                std::fs::read(root.join("ci/gauntlet/benchmark/product_custody.py")).unwrap()
             )
-        );
-    }
+        )
+    );
     let cases = fixture["cases"].as_array().unwrap();
     assert_eq!(cases.len(), 23);
     assert_eq!(

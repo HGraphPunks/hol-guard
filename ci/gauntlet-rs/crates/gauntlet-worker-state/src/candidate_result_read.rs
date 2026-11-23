@@ -101,7 +101,7 @@ pub struct HostBoundCandidateResultPins {
 }
 
 impl HostBoundCandidateResultPins {
-    fn valid(&self) -> bool {
+    pub(crate) fn valid(&self) -> bool {
         hex(&self.job_id, 16)
             && is_git_sha(&self.source_sha)
             && hex(&self.source_archive_sha256, 64)
@@ -166,7 +166,7 @@ impl CandidateResultReadProof {
     }
 }
 
-fn root_file_hash(
+pub(crate) fn root_file_hash(
     job: &OwnedFd,
     name: &str,
     maximum: u64,
@@ -211,12 +211,48 @@ fn root_file_hash(
     Ok((bytes, sha256))
 }
 
-fn parse_result(
+pub(crate) fn parse_result(
     raw: &[u8],
     job_id: &str,
     source_sha: &str,
     source_archive_sha256: &str,
     archive_sha256: &str,
+    version: &str,
+    host_bound: Option<&HostBoundCandidateResultPins>,
+) -> Result<Value, CandidateResultReadError> {
+    parse_result_mode(
+        raw,
+        job_id,
+        source_sha,
+        source_archive_sha256,
+        Some(archive_sha256),
+        version,
+        host_bound,
+    )
+}
+
+pub(crate) fn parse_failed_result(
+    raw: &[u8],
+    pins: &HostBoundCandidateResultPins,
+) -> Result<Value, CandidateResultReadError> {
+    parse_result_mode(
+        raw,
+        &pins.job_id,
+        &pins.source_sha,
+        &pins.source_archive_sha256,
+        None,
+        &pins.version,
+        Some(pins),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn parse_result_mode(
+    raw: &[u8],
+    job_id: &str,
+    source_sha: &str,
+    source_archive_sha256: &str,
+    archive_sha256: Option<&str>,
     version: &str,
     host_bound: Option<&HostBoundCandidateResultPins>,
 ) -> Result<Value, CandidateResultReadError> {
@@ -284,11 +320,28 @@ fn parse_result(
     } else {
         "hol-gauntlet-candidate-build-result.v1"
     };
+    let outcome = match archive_sha256 {
+        Some(archive) => {
+            value["unadmitted_export_sha256"] == archive
+                && value["status"] == "exited-zero"
+                && value["exit_code"] == 0
+                && value["unadmitted_export_bytes"]
+                    .as_u64()
+                    .is_some_and(|bytes| (1..=256 * 1024 * 1024).contains(&bytes))
+        }
+        None => {
+            host_bound.is_some()
+                && value["status"] == "build-failed"
+                && value["exit_code"].as_i64().is_some_and(|code| code != 0)
+                && value["unadmitted_export_sha256"].is_null()
+                && value["unadmitted_export_bytes"].is_null()
+        }
+    };
     if value["schema"] != schema
         || value["job_id"] != job_id
         || value["source_sha"] != source_sha
         || value["source_archive_sha256"] != source_archive_sha256
-        || value["unadmitted_export_sha256"] != archive_sha256
+        || !outcome
         || value["local_version"]
             != if tag.is_some_and(|tag| !tag.starts_with("local-")) {
                 Value::Null
@@ -296,8 +349,6 @@ fn parse_result(
                 json!(version)
             }
         || tag.is_some_and(|tag| value["tag"] != tag)
-        || value["status"] != "exited-zero"
-        || value["exit_code"] != 0
         || value["artifact_admitted"] != false
         || value["execution_eligible"] != false
         || value["container_absent"] != true
@@ -312,9 +363,6 @@ fn parse_result(
         || value["source_bytes"]
             .as_u64()
             .is_none_or(|bytes| bytes == 0)
-        || value["unadmitted_export_bytes"]
-            .as_u64()
-            .is_none_or(|bytes| bytes == 0 || bytes > 256 * 1024 * 1024)
         || image
             .strip_prefix("sha256:")
             .is_none_or(|digest| !hex(digest, 64))
@@ -498,7 +546,7 @@ fn read_candidate_result_inner(
             return Err(CandidateResultReadError::HostAnchorMismatch);
         }
     }
-    Ok(CandidateResultReadProof {
+    let proof = CandidateResultReadProof {
         job_id: job_id.to_owned(),
         source_sha: source_sha.to_owned(),
         result_sha256: result_sha256.to_owned(),
@@ -519,7 +567,19 @@ fn read_candidate_result_inner(
             image_id: pins.image_id.clone(),
             policy_sha256: pins.policy_sha256.clone(),
         }),
-    })
+    };
+    if let Some(bound) = host_bound {
+        crate::native_job_storage::source::record_read(
+            job_id,
+            crate::JobStorageProfile::Build,
+            archive_sha256,
+            result_sha256,
+            &bound.anchor.host_pin_sha256,
+            &proof.to_json(),
+        )
+        .map_err(|_| CandidateResultReadError::RetainedMismatch)?;
+    }
+    Ok(proof)
 }
 
 #[cfg(test)]
@@ -704,6 +764,32 @@ mod tests {
         let mut legacy = value.clone();
         legacy["schema"] = json!("hol-gauntlet-candidate-build-result.v1");
         assert_eq!(check(&legacy), Err(CandidateResultReadError::InvalidResult));
+
+        let mut failed = value.clone();
+        failed["status"] = json!("build-failed");
+        failed["exit_code"] = json!(1);
+        failed["unadmitted_export_sha256"] = Value::Null;
+        failed["unadmitted_export_bytes"] = Value::Null;
+        let failure = |v: &Value| {
+            parse_failed_result(&canonicalize(v.to_string().as_bytes()).unwrap(), &bound)
+        };
+        assert_eq!(failure(&failed), Ok(failed.clone()));
+        assert!(check(&failed).is_err());
+        assert!(failure(&value).is_err());
+        for (key, bad) in [
+            ("exit_code", Value::Null),
+            ("exit_code", json!(0)),
+            ("status", json!("aborted")),
+            ("container_absent", json!(false)),
+            ("host_nonce_hex", json!("0".repeat(64))),
+            ("result_reader_binary_sha256", json!("0".repeat(64))),
+            ("unadmitted_export_sha256", json!(ARCHIVE)),
+            ("unadmitted_export_bytes", json!(1)),
+        ] {
+            let mut wrong = failed.clone();
+            wrong[key] = bad;
+            assert!(failure(&wrong).is_err(), "{key}");
+        }
     }
 
     #[test]

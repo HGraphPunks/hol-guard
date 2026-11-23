@@ -14,6 +14,9 @@ pub(super) struct FloorInput<'a> {
     pub(super) benign_prompt: bool,
     /// The command is a proven install that runs no lifecycle scripts.
     pub(super) package_scripts_disabled: bool,
+    /// The operator allowed this exact MCP tool in a custom extension, so it
+    /// is no longer an unreviewed tool.
+    pub(super) operator_allowed_mcp_tool: bool,
 }
 
 /// The setting that set a policy floor, so a raised result can say why.
@@ -29,17 +32,6 @@ pub(super) enum FloorCause {
     Artifact,
     Publisher,
     Risk(&'static str),
-}
-
-/// The policy floor and the first setting that reached it.
-pub(super) fn policy_floor_with_cause(
-    policy: &EffectiveNativePolicyV3,
-    compiled: &CompiledEffectivePolicy,
-    harness: &str,
-    action_type: PreToolActionTypeV1,
-    input: &FloorInput<'_>,
-) -> Result<(String, FloorCause), String> {
-    policy_floor_with_cause_and_delivery(policy, compiled, harness, action_type, input, false)
 }
 
 /// An already admitted owner invocation satisfies only duplicate, overridable
@@ -139,12 +131,23 @@ pub(super) fn policy_floor_with_cause_and_delivery(
         if risk == "package_script" && input.package_scripts_disabled {
             continue;
         }
+        // The operator's own allow for the exact tool is the review that the
+        // unreviewed-tool setting asks for. A block setting still blocks.
+        let reviewed = |action: &str| {
+            !(input.operator_allowed_mcp_tool
+                && risk == "mcp_dangerous_tool"
+                && matches!(action, "review" | "require-reapproval"))
+        };
         if let Some(action) = policy_map_action(&policy.risk_actions, risk)? {
-            raise(&mut floor, &action, FloorCause::Risk(risk))?;
+            if reviewed(&action) {
+                raise(&mut floor, &action, FloorCause::Risk(risk))?;
+            }
         }
         if let Some(harness_map) = harness_risks {
             if let Some(action) = policy_map_action(harness_map, risk)? {
-                raise(&mut floor, &action, FloorCause::Risk(risk))?;
+                if reviewed(&action) {
+                    raise(&mut floor, &action, FloorCause::Risk(risk))?;
+                }
             }
         }
     }
@@ -169,6 +172,25 @@ fn delivery_floor(action: &str, cause: FloorCause, verified: bool) -> &str {
         "allow"
     } else {
         action
+    }
+}
+
+/// The configured action for one risk key, global and per-harness settings
+/// joined to the stronger. `None` when neither sets it.
+pub(crate) fn risk_action(
+    snapshot: &super::AdmittedPolicySnapshot,
+    harness: &str,
+    risk: &str,
+) -> Result<Option<String>, String> {
+    let harness = normalized_harness(harness);
+    let global = policy_map_action(&snapshot.effective_policy.risk_actions, risk)?;
+    let scoped = match snapshot.compiled.harness_risk_actions.get(&harness) {
+        Some(map) => policy_map_action(map, risk)?,
+        None => None,
+    };
+    match (global, scoped) {
+        (Some(left), Some(right)) => join_action(&left, &right).map(Some),
+        (left, right) => Ok(left.or(right)),
     }
 }
 

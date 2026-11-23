@@ -137,7 +137,7 @@ pub(crate) fn verify_tap_mounts(pid: u32) -> Result<(), String> {
             || stat.uid() != uid
             || stat.gid() != gid
             || stat.mode() & 0o7777 != mode
-            || filesystem.f_type != TMPFS_MAGIC
+            || i128::from(filesystem.f_type) != i128::from(TMPFS_MAGIC)
             || mount.f_flag & flags != flags
         {
             return Err("SDK tap private path mount differs from fixed profile".to_owned());

@@ -4,13 +4,81 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { createConnection } from 'node:net';
 
 type Config = {
-  schema: 'developer-omp-episode.v1' | 'developer-omp-episode.v2'; sdkRoot: string; workspace: string; agentDir: string;
+  schema: 'developer-omp-episode.v1' | 'developer-omp-episode.v2' | 'developer-omp-episode.v3';
+  sdkRoot: string; workspace: string; agentDir: string;
   mcpAgentSurfaces?: 'mcp-agent-surfaces.v1';
+  builtinToolProfile?: 'mcp-only.v1';
   modelId: string; prompt: string; deadlineSeconds: number; maxToolCalls: number;
   maxModelTokens: number; guardExtension?: string; sdkGate?: string;
   resourceEndpoints?: Record<string, any>;
+  startupProfile?: 'bun-1.3.14-sealed-v1';
 };
 const emit = (value: unknown) => process.stdout.write(JSON.stringify(value) + '\n');
+
+/** Keep one genuine global Settings object, including executeBash's later init(). */
+export async function initializeEpisodeSettings(sdk: any, workspace: string, agentDir: string,
+  startupProfile?: 'bun-1.3.14-sealed-v1') {
+  if (startupProfile !== undefined && startupProfile !== 'bun-1.3.14-sealed-v1') {
+    throw new Error('unsupported SDK startup profile');
+  }
+  if (startupProfile && process.cwd() !== '/runtime/public') throw new Error('sealed SDK startup cwd differs');
+  const settings = await sdk.Settings.init({ cwd: startupProfile ? '/runtime/public' : workspace,
+    agentDir, inMemory: true });
+  if (startupProfile) await assertEpisodeSettings(sdk, settings, agentDir);
+  return settings;
+}
+export async function assertEpisodeSettings(sdk: any, settings: any, agentDir: string) {
+  if (await sdk.Settings.init() !== settings || settings.getCwd() !== '/runtime/public'
+      || settings.getAgentDir() !== agentDir) throw new Error('sealed SDK Settings instance or scope changed');
+}
+export async function loadEpisodeSdk(sdkRoot: string, workspace: string, agentDir: string,
+  startupProfile?: 'bun-1.3.14-sealed-v1') {
+  // Seal the real singleton before broad SDK imports or AuthStorage can ask
+  // for a default Settings instance. The SDK reuses this exact module/class.
+  const settings = startupProfile ? await initializeEpisodeSettings(
+    await import(join(sdkRoot, 'src/config/settings.ts')), workspace, agentDir, startupProfile) : undefined;
+  const sdk = await import(join(sdkRoot, 'src/index.ts'));
+  if (startupProfile) await assertEpisodeSettings(sdk, settings, agentDir);
+  return { sdk, settings };
+}
+
+/** Keep the MCP-only live profile explicit; historical inventories stay fixed. */
+export function developerBuiltinToolNames(config: Pick<Config,
+  'schema' | 'mcpAgentSurfaces' | 'builtinToolProfile' | 'resourceEndpoints'>): string[] {
+  if (!['developer-omp-episode.v1', 'developer-omp-episode.v2', 'developer-omp-episode.v3'].includes(config.schema)
+      || (config.schema === 'developer-omp-episode.v2'
+        ? config.mcpAgentSurfaces !== 'mcp-agent-surfaces.v1' : config.mcpAgentSurfaces !== undefined)) {
+    throw new Error('invalid developer episode tool profile');
+  }
+  if (config.schema === 'developer-omp-episode.v3') {
+    if (config.builtinToolProfile !== 'mcp-only.v1' || !config.resourceEndpoints
+        || typeof config.resourceEndpoints !== 'object' || Array.isArray(config.resourceEndpoints)
+        || Object.keys(config.resourceEndpoints).length === 0) {
+      throw new Error('MCP-only developer episode requires declared resource endpoints');
+    }
+    return [];
+  }
+  if (config.builtinToolProfile !== undefined) throw new Error('versioned developer tool profile required');
+  return ['read', 'write', 'edit', 'bash'];
+}
+
+/** Bind both MCP-only cells before importing the SDK, including the baseline. */
+export async function bindEpisodeController(config: Pick<Config, 'schema' | 'mcpAgentSurfaces'
+  | 'builtinToolProfile' | 'resourceEndpoints' | 'guardExtension' | 'sdkGate'>,
+  bind: (path: string) => Promise<void> = awaitControllerBinding) {
+  developerBuiltinToolNames(config);
+  if (config.guardExtension !== undefined && (typeof config.guardExtension !== 'string'
+      || !isAbsolute(config.guardExtension))) throw new Error('invalid Guard extension path');
+  if (config.sdkGate === undefined) {
+    if (config.schema === 'developer-omp-episode.v3') throw new Error('MCP-only episode requires controller binding');
+    return;
+  }
+  if (config.sdkGate !== '/runtime/sdk-gate/ready.sock'
+      || (!config.guardExtension && config.schema !== 'developer-omp-episode.v3')) {
+    throw new Error('invalid protected SDK binding transport');
+  }
+  await bind(config.sdkGate);
+}
 
 /** SDK-local scheduling only; independent controller accounting remains authoritative. */
 export class DeveloperBudgetStop {
@@ -59,9 +127,12 @@ export async function pinDeclaredToolInventory(session: any, names: string[]) {
   // exact public top-level partition instead; every declared MCP tool remains
   // enabled through its genuine manager transport and normal extension hooks.
   await session.setActiveToolPresentation(names, []);
-  const actual = [...session.getActiveToolNames()].sort();
-  const enabled = [...session.getEnabledToolNames()].sort();
-  const mounted = [...session.getMountedXdevToolNames()].sort();
+  const inventory = { activeTools: [...session.getActiveToolNames()] as string[],
+    enabledTools: [...session.getEnabledToolNames()] as string[],
+    mountedXdevTools: [...session.getMountedXdevToolNames()] as string[] };
+  const actual = [...inventory.activeTools].sort();
+  const enabled = [...inventory.enabledTools].sort();
+  const mounted = [...inventory.mountedXdevTools].sort();
   if (JSON.stringify(actual) !== JSON.stringify(expected) || JSON.stringify(enabled) !== JSON.stringify(expected)
       || mounted.length !== 0) {
     throw new Error('actual developer tool inventory differs from declared transports: ' + JSON.stringify({
@@ -70,6 +141,21 @@ export async function pinDeclaredToolInventory(session: any, names: string[]) {
       unexpected: actual.filter(name => !expected.includes(name)),
     }));
   }
+  return inventory;
+}
+
+export function developerEpisodeStart(config: Pick<Config, 'schema' | 'builtinToolProfile' | 'modelId' | 'guardExtension'>,
+  version: string, inventory: Awaited<ReturnType<typeof pinDeclaredToolInventory>>, resourceTools: any[]) {
+  return { type: 'episode_start', harness: 'omp', version, model: config.modelId,
+    activeTools: inventory.activeTools, guardExtensionAttached: Boolean(config.guardExtension),
+    resourceTools: resourceTools.map((tool: any) => ({ name: tool.name,
+      server: tool.mcpServerName, rawTool: tool.mcpToolName })),
+    ...(config.schema === 'developer-omp-episode.v3' ? {
+      schema: 'hol-gauntlet-developer-episode-start.v2', episodeSchema: config.schema,
+      builtinToolProfile: config.builtinToolProfile, enabledTools: inventory.enabledTools,
+      mountedXdevTools: inventory.mountedXdevTools,
+    } : {}),
+    agentUid: process.getuid?.(), qualification: false };
 }
 
 async function awaitControllerBinding(path: string) {
@@ -98,22 +184,14 @@ async function main() {
     throw new Error('requires isolated Linux runtime and absolute public configuration');
   }
   const config: Config = JSON.parse(await readFile(process.argv[2], 'utf8'));
-  if (!['developer-omp-episode.v1', 'developer-omp-episode.v2'].includes(config.schema)
-      || (config.schema === 'developer-omp-episode.v2'
-        ? config.mcpAgentSurfaces !== 'mcp-agent-surfaces.v1' : config.mcpAgentSurfaces !== undefined)
-      || !config.prompt || !config.modelId) {
+  const toolNames = developerBuiltinToolNames(config);
+  if (!config.prompt || !config.modelId) {
     throw new Error('invalid developer episode');
   }
   for (const key of ['sdkRoot', 'workspace', 'agentDir'] as const) {
     if (!isAbsolute(config[key])) throw new Error('episode paths must be absolute');
   }
-  if (config.guardExtension && !isAbsolute(config.guardExtension)) throw new Error('invalid Guard extension path');
-  if (config.sdkGate) {
-    if (!config.guardExtension || config.sdkGate !== '/runtime/sdk-gate/ready.sock') {
-      throw new Error('invalid protected SDK binding transport');
-    }
-    await awaitControllerBinding(config.sdkGate);
-  }
+  await bindEpisodeController(config);
   if (!Number.isInteger(config.deadlineSeconds) || config.deadlineSeconds < 1 || config.deadlineSeconds > 900
       || !Number.isInteger(config.maxToolCalls) || config.maxToolCalls < 1 || config.maxToolCalls > 200
       || !Number.isInteger(config.maxModelTokens) || config.maxModelTokens < 1 || config.maxModelTokens > 100000) {
@@ -122,9 +200,10 @@ async function main() {
   const metadata = JSON.parse(await readFile(join(config.sdkRoot, 'package.json'), 'utf8'));
   if (metadata.version !== '18.4.12') throw new Error('actual OMP version mismatch');
   await mkdir(config.agentDir, { recursive: true, mode: 0o700 });
-  const sdk = await import(join(config.sdkRoot, 'src/index.ts'));
+  const loaded = await loadEpisodeSdk(config.sdkRoot, config.workspace, config.agentDir, config.startupProfile);
+  const sdk = loaded.sdk;
   const auth = await sdk.AuthStorage.create(join(config.agentDir, 'benchmark-auth.db'));
-  const settings = await sdk.Settings.init({ cwd: config.workspace, agentDir: config.agentDir, inMemory: true });
+  const settings = loaded.settings ?? await initializeEpisodeSettings(sdk, config.workspace, config.agentDir);
   // Native contained execution can run for 300s plus controller capture and
   // cleanup. OMP's default 30s tool_call cap otherwise aborts the Guard hook
   // while the verified product command is still running.
@@ -149,12 +228,13 @@ async function main() {
   registry.registerProvider('benchmark-local', {
     baseUrl: 'http://127.0.0.1:8001/v1', api: 'openai-completions', authHeader: false,
     apiKey: 'benchmark-no-auth', models: [{ id: config.modelId, name: config.modelId, reasoning: false,
-      supportsTools: true, input: ['text'], contextWindow: 32768, maxTokens: 8192,
+      supportsTools: true, input: ['text'], contextWindow: 32768,
+      maxTokens: config.schema === 'developer-omp-episode.v3' ? 4096 : 8192,
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }],
   });
   const model = registry.find('benchmark-local', config.modelId);
+  if (config.startupProfile) await assertEpisodeSettings(sdk, settings, config.agentDir);
   if (!model) throw new Error('declared local model unavailable');
-  const toolNames = ['read', 'write', 'edit', 'bash'];
   let manager: any;
   let resourceTools: any[] = [];
   let session: any; let timer: ReturnType<typeof setTimeout> | undefined;
@@ -194,18 +274,15 @@ async function main() {
       deadline: started + config.deadlineSeconds * 1000,
     }));
     const activeNames = [...toolNames, ...resourceTools.map((tool: any) => tool.name)];
-    await pinDeclaredToolInventory(session, activeNames);
+    const inventory = await pinDeclaredToolInventory(session, activeNames);
+    if (config.startupProfile) await assertEpisodeSettings(sdk, settings, config.agentDir);
     if (config.mcpAgentSurfaces && manager) {
       manager.setOnToolsChanged(async () => { await pinDeclaredToolInventory(session, activeNames); });
     }
     // Add, never replace, the SDK/host gates. A soft stop must not abort a
     // tool already admitted while its Native PostToolUse review is pending.
     detachBudgetGate = installDeveloperBudgetStop(session, budget);
-    emit({ type: 'episode_start', harness: 'omp', version: metadata.version, model: config.modelId,
-      activeTools: session.getActiveToolNames(), guardExtensionAttached: Boolean(config.guardExtension),
-      resourceTools: resourceTools.map((tool: any) => ({ name: tool.name,
-        server: tool.mcpServerName, rawTool: tool.mcpToolName })),
-      agentUid: process.getuid?.(), qualification: false });
+    emit(developerEpisodeStart(config, metadata.version, inventory, resourceTools));
     session.subscribe((event: any) => {
       if (event.type !== 'message_update') emit({ type: 'agent_event', event });
     });
@@ -219,6 +296,7 @@ async function main() {
       Math.max(1, started + config.deadlineSeconds * 1000 - Date.now()));
     emit({ type: 'inference_start' });
     await session.prompt(config.prompt);
+    if (config.startupProfile) await assertEpisodeSettings(sdk, settings, config.agentDir);
     emit({ type: 'episode_end', status: budget.stopped ? 'budget-exhausted' : 'finished',
       ...budget.snapshot(), durationMs: Date.now() - started, qualification: false });
   } catch (error) {

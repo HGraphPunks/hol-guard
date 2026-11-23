@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import json
 import socket
 import tempfile
 import time
@@ -155,3 +156,90 @@ def test_supervisor_never_overwrites_an_existing_directory(custody):
     with pytest.raises(FileExistsError):
         ServiceSupervisor(world, directory).start()
     assert unrelated.read_text() == "unrelated"
+
+
+def initialize_socket(connection, stream):
+    connection.sendall((canonical_json({"jsonrpc":"2.0", "id":0, "method":"initialize", "params":{
+        "protocolVersion":"2025-11-25", "capabilities":{},
+        "clientInfo":{"name":"budget-regression", "version":"1"}}}) + '\n').encode())
+    assert json.loads(stream.readline())["id"] == 0
+    connection.sendall(b'{"jsonrpc":"2.0","method":"notifications/initialized"}\n')
+
+
+@pytest.mark.parametrize('limits', [{'max_observation_bytes':8192}, {'max_observation_events':12}])
+def test_metadata_traffic_exhausts_lifetime_budget_and_drains_workers(custody, limits):
+    world, directory = custody
+    with ServiceSupervisor(world, directory, families=('mail',), service_factory=lambda _family: world,
+                           **limits) as supervisor:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+            connection.settimeout(3)
+            connection.connect(str(supervisor.sockets['mail']))
+            with connection.makefile('rb') as stream:
+                initialize_socket(connection, stream)
+                for request in range(20):
+                    message = {'jsonrpc':'2.0', 'id':request+1, 'method':'ping',
+                               'params':{'_meta':{'padding':'x' * 1024}}}
+                    try:
+                        connection.sendall((canonical_json(message) + '\n').encode())
+                        if not stream.readline():
+                            break
+                    except (BrokenPipeError, ConnectionResetError):
+                        break
+        wait_until(supervisor._stop.is_set)
+        wait_until(lambda: supervisor.active_sessions == 0)
+        assert supervisor._observations.bytes <= supervisor._observations.max_bytes
+        assert supervisor._observations.count <= supervisor._observations.max_events
+        assert len([e for e in supervisor.events if e['kind'] == 'observation-budget-exceeded']) == 1
+    assert supervisor.active_workers == 0 and world.receipts() == []
+    assert [e['sequence'] for e in supervisor.events] == list(range(1, len(supervisor.events)+1))
+
+
+def test_reconnect_does_not_reset_observation_budget(custody):
+    world, directory = custody
+    with ServiceSupervisor(world, directory, families=('mail',), service_factory=lambda _family: world,
+                           max_observation_bytes=16384) as supervisor:
+        retained = []
+        for session in range(2):
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                connection.settimeout(3)
+                connection.connect(str(supervisor.sockets['mail']))
+                with connection.makefile('rb') as stream:
+                    initialize_socket(connection, stream)
+                    for request in range(1 if session == 0 else 20):
+                        message = {'jsonrpc':'2.0', 'id':request+1, 'method':'ping',
+                                   'params':{'_meta':{'padding':'x' * 1024}}}
+                        try:
+                            connection.sendall((canonical_json(message) + '\n').encode())
+                            if not stream.readline():
+                                break
+                        except (BrokenPipeError, ConnectionResetError):
+                            break
+            wait_until(lambda: supervisor.active_sessions == 0)
+            retained.append(supervisor._observations.bytes)
+            if session == 0:
+                assert not supervisor._stop.is_set()
+        assert 0 < retained[0] < retained[1] <= 16384
+        assert supervisor._stop.is_set()
+    assert supervisor.active_workers == 0 and world.receipts() == []
+
+
+def test_lifetime_session_budget_bounds_retained_threads(custody):
+    world, directory = custody
+    with ServiceSupervisor(world, directory, families=('mail',), service_factory=lambda _family: world,
+                           max_total_sessions=2) as supervisor:
+        for count in range(2):
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                connection.settimeout(3)
+                connection.connect(str(supervisor.sockets['mail']))
+                with connection.makefile('rb') as stream:
+                    initialize_socket(connection, stream)
+            wait_until(lambda: supervisor._observations.sessions == count + 1 and supervisor.active_sessions == 0)
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+            connection.settimeout(3)
+            connection.connect(str(supervisor.sockets['mail']))
+            assert connection.recv(1) == b''
+        wait_until(supervisor._stop.is_set)
+        assert len(supervisor._threads) == 3  # One listener and two owned sessions.
+        failures = [e for e in supervisor.events if e['kind'] == 'observation-budget-exceeded']
+        assert len(failures) == 1 and failures[0]['reason'] == 'lifetime-session-budget'
+    assert supervisor.active_workers == 0 and world.receipts() == []

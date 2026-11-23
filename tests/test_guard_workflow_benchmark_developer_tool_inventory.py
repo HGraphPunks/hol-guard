@@ -32,3 +32,9 @@ def test_locked_sdk_retained_device_partition_is_pinned_to_exact_declared_top_le
     assert set(diagnostic['expected']) == set(after['active']) | {'mcp__missing_unregistered'}
     assert set(diagnostic['actual']) == set(diagnostic['enabled']) == set(after['active'])
     assert diagnostic['mounted'] == []
+    mcp_only = row['mcpOnly']
+    assert mcp_only['builtins'] == mcp_only['mounted'] == []
+    assert mcp_only['active'] == mcp_only['enabled']
+    assert len(mcp_only['active']) == 1 and mcp_only['active'][0].startswith('mcp__')
+    assert mcp_only['invalidProfilesRejected'] == 6
+    assert mcp_only['legacyV1'] == mcp_only['legacyV2'] == ['read', 'write', 'edit', 'bash']

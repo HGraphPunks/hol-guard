@@ -166,7 +166,8 @@ pub fn inspect_candidate_wheel(
         let file = archive
             .by_index(index)
             .map_err(|_| CandidateWheelError::InvalidZip)?;
-        let name = file.name();
+        let name = file.name().map_err(|_| CandidateWheelError::UnsafeEntry)?;
+        let name = name.as_ref();
         if !valid_entry_name(name, file.name_raw())
             || !names.insert(name.to_owned())
             || file
@@ -260,8 +261,9 @@ pub fn inspect_candidate_wheel(
         let mut entry = archive
             .by_index(index)
             .map_err(|_| CandidateWheelError::InvalidZip)?;
-        tree.update((entry.name().len() as u64).to_be_bytes());
-        tree.update(entry.name().as_bytes());
+        let name = entry.name().map_err(|_| CandidateWheelError::InvalidZip)?;
+        tree.update((name.len() as u64).to_be_bytes());
+        tree.update(name.as_bytes());
         tree.update(entry.size().to_be_bytes());
         let expected = entry.size();
         let mut read_bytes = 0_u64;

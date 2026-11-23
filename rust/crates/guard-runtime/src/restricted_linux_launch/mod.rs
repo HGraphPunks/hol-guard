@@ -135,8 +135,10 @@ pub(crate) fn launch(digest: &str) -> i32 {
         let _ = digest;
         Err("Unsupported Linux boundary.")
     };
-    if result.is_err() {
+    if let Err(reason) = result {
         eprintln!("HOL Guard could not enforce the validated Linux execution boundary. Execution was not started.");
+        // Every boundary error is a fixed string, without paths or plan bytes.
+        eprintln!("HOL Guard Linux boundary detail: {reason}");
     }
     126
 }

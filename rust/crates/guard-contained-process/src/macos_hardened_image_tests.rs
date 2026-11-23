@@ -51,7 +51,7 @@ int main(void) {
     };
     fs::write(&source, program).unwrap();
     run(Command::new("/usr/bin/clang")
-        .args(["-O0", "-Wl,-no_uuid"])
+        .arg("-O0")
         .arg(&source)
         .arg("-o")
         .arg(&image));

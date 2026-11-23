@@ -8,18 +8,22 @@ pub mod staged_scanner;
 
 mod code_cursor;
 mod code_expression;
+mod code_shapes;
 mod code_value;
 mod continuation;
 mod field_copy;
 mod guard_link;
 mod masked_value;
 mod match_spans;
+mod payment_key;
 mod prose_answer_value;
 mod reference_value;
 mod self_named_value;
 mod url_credential;
+mod wiped_read;
 
 pub use match_spans::scan_match_spans;
+pub use payment_key::holds_live_payment_key;
 
 use guard_rules::{CONTEXT_CHARS, MAX_MATCHES, MAX_SCAN_BYTES};
 use regex::{Regex, RegexBuilder};
@@ -101,6 +105,17 @@ const PATTERNS: &[PatternDef] = &[
         sensitivity: "high",
         reason: "Guard found an Anthropic API key pattern.",
         pattern: r"\bsk-ant-api03-[A-Za-z0-9_-]{20,}\b",
+        case_insensitive: false,
+        multi_line: false,
+    },
+    PatternDef {
+        classifier: "stripe-secret-key",
+        family: "Stripe secret key",
+        sensitivity: "high",
+        reason: "Guard found a Stripe live secret key pattern.",
+        // Live keys only: `sk_test_` and `rk_test_` keys fill Stripe's own
+        // documentation and move no money.
+        pattern: r"\b(?:sk|rk)_live_[A-Za-z0-9]{20,}\b",
         case_insensitive: false,
         multi_line: false,
     },
@@ -297,7 +312,6 @@ fn is_sample(
         && (field_copy::is_field_copy(matched, rest_of_line)
             || guard_link::is_guard_link(matched, preceding)
             || self_named_value::is_self_named(matched, rest_of_line)
-            || prose_answer_value::is_prose_answer(matched, rest_of_line, preceding)
             || assignment_value(matched).is_some_and(|value| {
                 inert_code_expression_regex().is_match(value) || masked_value::is_masked(value)
             })
@@ -341,11 +355,46 @@ fn counted_matches<'t>(
     documentation_sample_context: bool,
 ) -> impl Iterator<Item = regex::Match<'t>> {
     let classifier = PATTERNS[index].classifier;
+    // A prose answer is read here rather than inside `is_sample`, because it
+    // needs the line's last credential-shaped token, which this scan resolves
+    // once per line.
+    let answers = classifier == "credential-assignment";
     let mut line_end = 0;
+    let mut last_value = None;
     compiled()[index].find_iter(text).filter(move |matched| {
+        // A stand-in such as `sk_live_xxxxxxxx...` is a placeholder; a
+        // Stripe key body mixes digits with both letter cases.
+        if classifier == "stripe-secret-key" && !payment_key::mixed_key_body(matched.as_str()) {
+            return false;
+        }
         if matched.end() > line_end {
             let rest = &text[matched.end()..];
             line_end = matched.end() + rest.find(['\r', '\n']).unwrap_or(rest.len());
+            last_value = answers
+                .then(|| prose_answer_value::last_value_offset(&text[matched.end()..line_end]))
+                .flatten()
+                .map(|offset| matched.end() + offset);
+        }
+        if answers
+            && prose_answer_value::is_prose_answer(
+                matched.as_str(),
+                &text[matched.end()..line_end],
+                &text[..matched.start()],
+                last_value.is_some_and(|start| start >= matched.end()),
+            )
+        {
+            return false;
+        }
+        // The parameter list is read from the lines after this one, which
+        // `is_sample` does not see.
+        if answers
+            && code_shapes::opens_typed_parameter_list(
+                matched.as_str(),
+                &text[matched.end()..line_end],
+                &text[line_end..],
+            )
+        {
+            return false;
         }
         !is_sample(
             classifier,
@@ -506,6 +555,42 @@ mod tests {
     fn github_like_token() -> String {
         let prefix = ["gh", "p_"].concat();
         format!("{prefix}{}", "a".repeat(30))
+    }
+
+    #[test]
+    fn detects_a_stripe_live_key_but_not_a_test_key_or_stand_in() {
+        let live = ["sk_", "live_", "dx6YHRDb2BC8G4NQr2TyUskf"].concat();
+        let result = scan_text(
+            &format!("Leaked config dump:\n{live}"),
+            false,
+            false,
+            MAX_SCAN_BYTES,
+            None,
+        );
+        assert!(result
+            .matches
+            .iter()
+            .any(|matched| matched.classifier == "stripe-secret-key"));
+        for clean in [
+            ["sk_", "test_", "dx6YHRDb2BC8G4NQr2TyUskf"].concat(),
+            ["sk_", "live_", "xxxxxxxxxxxxxxxxxxxxxxxx"].concat(),
+            ["sk_", "live_", "..."].concat(),
+        ] {
+            let result = scan_text(
+                &format!("Set STRIPE_KEY to {clean}"),
+                false,
+                false,
+                MAX_SCAN_BYTES,
+                None,
+            );
+            assert!(
+                !result
+                    .matches
+                    .iter()
+                    .any(|matched| matched.classifier == "stripe-secret-key"),
+                "{clean}"
+            );
+        }
     }
 
     #[test]

@@ -16,7 +16,7 @@ from ..native_command_model import _canonical_command_from_native
 from ..native_pretool import review_pre_tool_native
 from .command_evaluation import CompositeCommandEvaluation, evaluate_command
 from .command_model import CanonicalCommand
-from .extension_control_runtime import ExtensionControlRuntimeSnapshot, current_extension_control_snapshot
+from .extension_control_runtime import ExtensionControlRuntimeSnapshot
 from .github_workflow_authorization import GitHubWorkflowAuthorization
 from .native_command_extension_evidence import NativeCommandExtensionEvidenceError
 
@@ -26,11 +26,6 @@ class NativeCommandEvaluation:
     evaluation: CompositeCommandEvaluation
     payload: dict[str, object]
     snapshot: ExtensionControlRuntimeSnapshot
-
-    @property
-    def native_minimum_action(self) -> str:
-        """Native classification before authenticated host policy proofs."""
-        return str(self.payload["minimum_action"])
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -57,6 +52,7 @@ def native_command_review(
     timeout_seconds: float = 0.5,
     record_health: bool = True,
     admit_unenrolled: bool = False,
+    timeout_ceiling_seconds: float = 1.0,
 ) -> NativeCommandReview | None:
     """The resident's review of ``command``, or None without a usable native result.
 
@@ -75,7 +71,7 @@ def native_command_review(
     The review carries the extension evidence the resident decided it on, so
     it can be resolved against ``extension_control_snapshot``.
     """
-    snapshot = extension_control_snapshot or current_extension_control_snapshot()
+    snapshot = extension_control_snapshot
     if snapshot is None or (
         snapshot.authority_failure is not None and not (admit_unenrolled and snapshot.awaiting_enrollment)
     ):
@@ -89,6 +85,7 @@ def native_command_review(
         timeout_seconds=timeout_seconds,
         record_health=record_health,
         extension_evidence=True,
+        timeout_ceiling_seconds=timeout_ceiling_seconds,
     )
     if native is None:
         return None
@@ -148,6 +145,7 @@ def review_command_native(
     timeout_seconds: float = 0.5,
     record_health: bool = True,
     admit_unenrolled: bool = False,
+    timeout_ceiling_seconds: float = 1.0,
 ) -> NativeCommandEvaluation | None:
     """Return a bound native projection, or None without a usable native result."""
     review = native_command_review(
@@ -160,6 +158,7 @@ def review_command_native(
         timeout_seconds=timeout_seconds,
         record_health=record_health,
         admit_unenrolled=admit_unenrolled,
+        timeout_ceiling_seconds=timeout_ceiling_seconds,
     )
     if review is None:
         return None

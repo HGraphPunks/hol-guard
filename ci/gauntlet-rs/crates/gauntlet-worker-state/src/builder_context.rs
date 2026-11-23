@@ -253,12 +253,54 @@ pub fn inspect_fixed_builder_context(
     Ok(proof)
 }
 
+/// The caller already consumed its Root reservation and holds both leases.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_bounded_from_controller(
+    job: &std::os::fd::OwnedFd,
+    source: &Value,
+    controller: &Path,
+    tree: &str,
+    uv: &str,
+    rust: &str,
+    leases: impl Fn() -> Result<(), String>,
+) -> Result<(), String> {
+    let id = source["job_id"]
+        .as_str()
+        .ok_or("bounded source job absent")?;
+    let profile = source["storage_profile"]
+        .as_str()
+        .ok_or("bounded source profile absent")?
+        .parse()?;
+    let check = || -> Result<(), String> {
+        leases()?;
+        if crate::native_worker::cancellation_requested()
+            || crate::native_job_storage::source::verify(id, job, Some(profile))?.as_ref()
+                != Some(source)
+        {
+            return Err("original bounded Source or owner changed before preparation".into());
+        }
+        Ok(())
+    };
+    check()?;
+    let context = inspect_fixed_builder_context(controller, tree, id).map_err(|e| e.to_string())?;
+    let plan = crate::builder_image::fixed_builder_image_plan(&context, id, uv, rust)
+        .map_err(|e| e.to_string())?;
+    crate::builder_image_context::prepare_bounded_inputs(job, &plan, &context, check)?;
+    if inspect_fixed_builder_context(controller, tree, id).map_err(|e| e.to_string())? != context {
+        return Err("bounded builder controller changed during preparation".into());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn python_context_identity_and_policy_bytes_match() {
+        // Current-source oracle, independently recomputed from vm_build.py's
+        // exact expression after the bounded Native compiler-profile change.
+        // Historical context receipts and baseline fixtures remain unchanged.
         let proof = derive_from_bytes(
             &"a".repeat(64),
             "0123456789abcdef",
@@ -270,15 +312,15 @@ mod tests {
         .unwrap();
         assert_eq!(
             proof.context_sha256,
-            "efe7c9623195a139721e607bdd03359b9a2a295acae87d099adff87119727659"
+            "269b49dacdcd731be26bf1bd3bc63acc921497e9f5f699d0d0df37e15cf5c9a5"
         );
         assert_eq!(
             proof.image_tag(),
-            "localhost/hol-gauntlet-builder:efe7c9623195a139721e"
+            "localhost/hol-gauntlet-builder:269b49dacdcd731be26b"
         );
         assert_eq!(
             proof.policy_sha256,
-            "17608141e218fdc371147199930ea01c6efc1cacdc72ff33252b126c6b0ec2ea"
+            "297dffadcc79dae8f2ff9f75802551323966d86cb37eb8eb5de7bab0b8303fa2"
         );
         assert!(!proof
             .policy_bytes()

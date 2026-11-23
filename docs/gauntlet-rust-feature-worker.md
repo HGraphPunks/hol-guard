@@ -1,0 +1,629 @@
+# Rust Root feature worker
+
+Updated 2026-11-06. The development worker and fixed host caller complete
+`run/read/repair` in the owned ARM VM. A fresh 28-group audit independently
+retains real product failures, and a separate supervisor-crash test completes
+through the pinned Rust repair command. The earlier XML and signal failures
+remain retained. Current-source qualification, the broader interruption matrix
+and observer integration remain open. Parent acceptance stays 24/62.
+
+## Ownership and fixed inputs
+
+The Root executable is `gauntlet-feature-worker`; the Mac caller is
+`gauntlet-host features`. The existing `gauntlet-host-feature-audit` command
+uses the same implementation. A closed host intent binds the existing
+11-field executor spec, exact completed build result, complete controller
+tree, builder/base images, rendered audit policy, four VM helper hashes and
+the actual Root worker executable. It admits no arbitrary command, selector,
+candidate path or resource override.
+
+Root independently opens the successful build result and source/archive,
+checks the nested wheel and actual Native bytes as data, verifies the full
+controller tree and immutable local image, and repeats those checks after
+execution. It never imports or executes a candidate package as Root. The
+executor and fixed Node are separately captured as inert, content-addressed
+ARM ELFs. Partial asset slots remain consumed.
+
+The explicit host commands are:
+
+```text
+gauntlet-host features record PRIVATE_JOURNAL PRIVATE_PINS VM
+gauntlet-host features run PRIVATE_JOURNAL AUDIT_ID INTENT_SHA256
+gauntlet-host features read PRIVATE_JOURNAL AUDIT_ID INTENT_SHA256
+gauntlet-host features repair PRIVATE_JOURNAL AUDIT_ID INTENT_SHA256 REPAIR_BINARY_SHA256
+```
+
+Use an existing private journal directory and a private pins file. `record`
+now returns `hol-gauntlet-host-feature-record.v1`: audit ID, source SHA,
+intent digest and false eligibility flags. Both entrypoints keep the complete
+nonce-bearing intent only in the private journal; scripts that previously
+read the diagnostic command's `intent` stdout field must use the durable
+journal when private access is necessary. Historical intent, dispatch and
+terminal formats are unchanged. These explicit diagnostics do not connect
+the passive observer's admission queue or confer qualification.
+
+The complete Mac workspace passes 658 tests with zero failures or ignores,
+including real processes for both entrypoints. The tests verify public-only
+record output, wrong-pin refusal before dispatch, unstarted read/repair refusal,
+immutable consumed intents and transport-failure replay refusal. The test log
+`host-feature-commands-20261106-mac-tests-001.log` hashes to
+`2550d4bb0b530ea9bac94962bfb8e1b12c583e46381b53580f804462f58d8960`.
+Mac/ARM warnings-denied Clippy and formatting pass. No crate, target, dependency or
+repository file is added. Fresh live execution through the primary command,
+observer integration and broader recovery remain separate open work.
+The source/patch pins, all three check receipts and frozen host executable
+are recorded in `host-feature-commands-20261106-validation-001.json`, SHA-256
+`ca46cd9fc225dfe5ec06c53ca4fef6c4e79d9cb2b00eae84b6fe493ce17d6789`.
+
+The feature profile remains two CPUs, 12 GiB, 2048 tasks and a four-hour
+deadline. The Root Podman client has its own fixed cgroup and bounded
+128-KiB stdout/stderr. Existing candidate/dependency limits remain unchanged.
+The unprivileged PID-1 executor still owns the complete fixed 28-group,
+52-selector schedule and the source/installed context boundary.
+
+## Durable lifecycle
+
+Initialization v4 creates the private `feature-state` and `feature-jobs`
+namespaces and `feature-assets` directory. Existing directories and locks
+must already have safe custody; initialization never repairs their modes or
+adopts existing job IDs. Historical initialization receipts remain intact.
+
+Under the shared Rust and Python worker leases, the Root owner commits the
+complete canonical intent as the one-use reservation before creating its
+audit directory, loading a policy or creating a container. An incomplete
+intent write consumes the ID and blocks admission. The separate feature
+lease covers all feature journal writes.
+
+Container ownership requires a full 64-character CID, exact intent label,
+fixed unprivileged user, immutable image and exact security/resource settings.
+The CID receipt precedes start. A separate fsynced client-cgroup receipt binds
+the intent, kernel boot ID, device and inode before spawning the client. The
+running marker binds its actual PID/start ticks and feature cgroup. Cleanup
+targets those identities and keeps confinement enforced when teardown cannot
+be proved. Shared cgroup custody now lives in `owned_cgroup.rs`; the existing
+probe API and fixed limits remain unchanged.
+
+After exact container/client/profile cleanup, Root compares its captured
+stdout with the exported report, independently recomputes every XML/log
+digest, count and status, and retains immutable Root copies. A closed result
+binds those artifacts to the original outside intent. A complete result
+always has terminal status `invalid-evidence`; `audit_status` separately
+preserves `passed`, `failed`, `incomplete` or `invalid-evidence`.
+Qualification, artifact admission and Guard causality remain false; model
+requests and tokens remain zero.
+
+New native, candidate and dependency dispatch checks reject unresolved feature
+state. Orphan files, unknown sidecars, partial JSON and conflicting completion
+records block further admission. Reading a completed result repeats custody,
+artifact verification and present cleanup checks.
+
+## Restart and recovery boundary
+
+The host durably records dispatch before opening the VM connection. An
+uncertain transport consumes the attempt. A second invocation refuses instead
+of replaying the work. Restart opens the retained guest result using the
+audit ID and original complete intent digest.
+
+The host's `read` action requires the exact durable intent and dispatch bytes
+before calling the pinned worker. It sends no run intent and commits or
+compares a canonical private terminal copy. Its `repair` action additionally
+requires an outside repair-binary SHA-256 and durably pins that authorization
+before contacting the guest. Later reads use that authorized executable and
+accept an aborted receipt only with matching original intent and repair pins.
+The authorization is immutable; repeated cleanup reconciles the same binary
+and never resubmits the workload. A completed host result cannot be repaired.
+
+Local process tests cover completed readback, aborted repair/readback across
+restart, transport failure, changed dispatch, partial or changed authorization,
+substituted receipts and consumed-run refusal. The host journal tests have one
+dedicated test module to keep the implementation below 500 lines. Historical
+host-read evidence remains in
+`gauntlet-rust-pr-ready-evidence-20261026/feature-host-read-proof-001.json`;
+that earlier proof does not establish a new guest execution.
+
+Under all three leases, recovery validates the original container receipt,
+full CID/intent label and fixed resource/security settings. An active client
+cgroup can be reopened only with its retained boot/device/inode identity.
+Cleanup uses its held descriptor, never a historical PID. A name replacement,
+missing ownership receipt, changed helper or policy pin, or uncertain custody
+refuses before destructive cleanup. The create/receipt gap can retain a CID
+only after an exact intent-bound inspect, before removing that container.
+
+The worker keeps AppArmor loaded until the exact container and client cgroups
+are absent and the original client has gone. It then removes the pinned policy,
+rechecks actual cleanup and appends an exclusive `aborted` receipt with unknown
+exit and zero model usage. Reading that receipt rechecks present cleanup.
+Existing results and partial records remain immutable; unresolved uncertainty
+continues to block dispatch. At `22d29e6e`, eleven feature cases and the explicit
+Root cgroup-recovery case pass in the owned VM. The latter observes child and
+descendant tasks, the parent's SIGKILL exit, complete drain/removal, forged/partial
+receipt refusals and refusal of a replacement group with the same name.
+Metadata for all 333 retained worker records is unchanged; no owned container
+or cgroup remains. See the execution checklist for exact binary and log pins.
+The fresh runs below subsequently exercise the complete live worker flow.
+
+## Live attempts and fixes
+
+All four attempts below used product `dc3b9336` (3.58.0) and build
+`e2c701baf1475501`. The first two used Root worker SHA-256
+`8baf4a30f4507f454639f07c312f2dbf5efc581a1266ff0164dff6dea02bc4ef`;
+the last two used worker
+`534c1ed1cada4f80de9147b2865a71f2084955793c6bfcf2b0cada32a75f6fee`
+and executor `750c1643f18a76ade2d405aaf84f707c05e381362428aedaef209ac164c6dffb`.
+They do not qualify the newer 3.59.0 candidate. The current-source build at
+`83f079b5c` reports identical hashes for all eight trusted ARM release tools.
+
+| Audit | Retained result |
+| --- | --- |
+| `98d0cdb912f50ef8` | Produced all 28 XML files, then Root returned `invalid-evidence`: pytest wrote mode 0644 while the strict export reader requires 0600. Real host readback preserves that result; consumed run and completed repair refuse. |
+| `47f1bc9d804a6e25` | Supervisor SIGKILL left the client and container active. Repair drained the owned client group, but kernel audit logs show AppArmor denying `crun`'s TERM/KILL. After an operator-assisted, fresh full-CID/intent/start-tick/cgroup/pidfd-bound stop under all three leases, the pinned worker recorded `aborted`, unknown exit and quiescence. This is not automatic-recovery acceptance. |
+| `6fb9d42a017c83e5` | Completes all 28 groups and 52 selectors in 2,019 seconds. Root verifies all XML/log digests, independently recomputes counts and retains 56 artifacts. There are 1,286 passing tests, two Cline assertion failures and one skip: 26 groups pass, one fails and one is incomplete. Audit status stays `failed`, outer status `invalid-evidence`, and eligibility false. Fresh read matches; replay and completed repair refuse. |
+| `c42a9e3b701fd865` | A fresh pidfd-bound supervisor SIGKILL leaves the client and container active, with unknown readback refused. The pinned Rust repair finishes in 13.64 seconds and retains `aborted` with unknown exit. Fresh read and repeat repair match; replay refuses and all four host records remain byte-identical. No workload signal or resource rescue is supplied outside Rust repair. |
+
+The complete audit uses controller `0a7c949b9` at digest `409fe095…`;
+the crash/recovery test uses the newly installed `83f079b5c` controller at
+`e81a214c…`. Outside observations bind the actual UID-65532 executor and
+resource/confinement tuple, then verify container/cgroup/profile and original
+process absence under all three leases. Metadata for all 333 older worker
+records remains unchanged; their private byte contents are not read by that
+metadata comparison.
+
+The two Cline failures compare different withholding messages; the captured
+output remains withheld. The skipped Pi test is explicitly marked as retired
+Python composition behavior: the live hook now reviews that external-source
+search shape. Its unchanged XML digest is
+`11de5984ab328db8fbad56a2e62e53f1fe9b4d7ae96154585a8701a5619a33d8`;
+the outside skip diagnostic receipt hashes to
+`87b406647d0ae422f8856ef111645574c37e754d285c50491b5cf8056b650f88`.
+That expected skip still leaves its group incomplete.
+Neither outcome is rewritten as a pass. The Root report is SHA-256
+`c9587c7ce2b5d909744565245c4f0b5b8b394122ff7a6f2a2848de47673a2dcf`;
+its independent readback is
+`65755213874d5e8491cc53741222951119da4436b3f2c106663f59488da652b1`.
+
+On November 6, fresh host processes read and repeat-repair the identical aborted
+receipt, and another `run` refuses. All four host intent/dispatch/authorization/
+result byte hashes stay unchanged across these checks.
+
+The executor now publishes pytest XML as 0600 through its held descriptor
+after draining the child tree. It checks owner, single link, size and exact
+0600/0644 source mode, preserves the bytes, fsyncs and rechecks identity/path.
+Root keeps its strict reader and independent artifact recomputation. Two
+actual ARM tests pass, including links, unsafe modes, wrong owner and bounds;
+the test executable is `a2d8316e9d5bdc5982e9a956514d3cefd2cd5158a75f7fec0403d883d1885108`.
+
+The shared builder policy adds receive-only access from the host's bare
+`crun` profile. Outbound signals and ptrace remain scoped to the job. Fresh
+probe `5e8b2a71c09f643d` runs a confined UID-65532 system sleep process and
+proves that Podman stops/removes it while enforcement remains loaded. No
+operator signal is used in that probe; its container/cgroup and profile are
+then absent. Its rendered policy is
+`f7313b4dc1e6172b50efec837fcce95636e96668bbc1db76d2c5eb7fc2efc66d`.
+
+At `0a7c949b9`, the source map has 437 files, 78 changed and 17 added against the unchanged
+420-file baseline. Actual Python bootstrap selection and Rust agree on 406
+files, 417 entries and controller digest
+`409fe095fe10627e4c2ab7a14fe73e9d1b6177bbc3471364ca430cf4ddfb35f0`.
+The upstream import at `83f079b5c` has 440 files, 78 changed and 20 added;
+actual Python, Rust Git-blob verification and the installed Root tree agree on
+409 files, 420 entries and digest
+`e81a214c9771095da22f2897aa5c25600d2016f416cd6562d4fd5511f6321e9a`.
+All 656 Mac workspace tests, 28 focused Python tests and seven subtests pass.
+Rustfmt, Mac workspace Clippy and ARM worker Clippy pass with warnings denied;
+the touched Python test passes Ruff.
+Supporting independent review found no blocking safety concern; the formal
+immutable security scan still has its tool inventory gap.
+
+Evidence remains outside Git in `gauntlet-rust-pr-ready-evidence-20261026`:
+`feature-publication-policy-20261105-mac-all-001.log`
+(`18bf84038f6db57d587a87a8366da381dfef23fc73a0c56f40f03168b758ea82`),
+`feature-xml-publication-20261105-arm-tests-001.log`
+(`907398dabac6f9355d41c2129d6fb865bce60cc87809dab50ba0b91a5aa55ed7`),
+`feature-policy-20261105-crun-stop-001.json`
+(`4a662b7e47829498e65e583fe42a6cfffd3fce6701ad366ad939ae0fb9c8245e`),
+and the private `feature-worker-live-host-20261105-001` intent/result/attempt
+journal. Metadata for all 333 older worker records remains identical;
+`feature-live-20261106-worker-metadata-after-001.json` has SHA-256
+`53760220746ed9bfa2a8256a954d5ff510fb49067935f4b53aae945c7c6edeae`.
+The external evidence directory now contains
+`feature-audit-6fb9d42a017c83e5-public-artifacts-20261106-001.tar`
+(296,960 bytes), SHA-256
+`a78fc9715147258ea019a94a416e49b8c0d3a4a9c9bbce012053c001543df672`.
+Host readback verifies all 59 members: the unchanged report, readback,
+56 XML/log artifacts and a source-pinned manifest. Private intents, nonces,
+keys and dispatch records are excluded. This local package is ready for review;
+remote delivery and a recovery-evidence handoff remain open. Current-source
+qualification, operator wiring, broader interruption coverage,
+cutover and required cloud CI remain open.
+
+Fresh completion and recovery evidence in the same private journal:
+`6fb9d42a017c83e5.outside-completion-001.json` has SHA-256
+`6a18284ed7fc6f6fa61e3ff4023c2563583b6e7773a6372ae19d579d540582f2`;
+`c42a9e3b701fd865.repair-command-001.json` has SHA-256
+`26cb52e174f4eac49bacbf60472e0bad2a46bbccc80e806f476b7cf1e011115d`;
+`c42a9e3b701fd865.outside-recovery-completion-001.json` has SHA-256
+`711c0d08f97bdcda02a5a9edd62ab8397bee5d3136428c61a722de5863f54fa5`.
+These establish the observed development flow and resource recovery, with
+zero model use and false qualification/causality throughout.
+
+## Current 3.59.0 audit
+
+Fresh audit `df0cc730b3b23ef5` uses exact product/test source
+`023e0b6418296cb50c5ca8c1505a1f508d7a58be`, successful build `97bef577d8beb254`,
+controller digest `e81a214c…`, Root worker `32135d91…` and executor `5c353aee…`.
+The [build and immutable runtime](gauntlet-rust-hostbound-candidate-build-proof.md#corrected-3590-build-and-immutable-runtime)
+have separate custody and independent replay. This audit does not borrow the
+earlier 3.58.0 results.
+
+The 2,510.775-second run completes all 28 groups and 52 selectors. Root verifies
+56 XML/log artifacts. Independent host Python counts actual test cases, checks
+the immutable Python JUnit oracle and invokes the frozen Rust reader: all agree
+on **1,304 tests: 1,300 passed, three failed and one skipped**. There are 25
+passing groups, two failed groups and one incomplete group. Wrong spec/report
+pins refuse; all public files remain unchanged.
+
+Two Cline cases return a generic withholding reason instead of the expected
+missing-excerpt or ambiguous-decision reason. Both outputs remain withheld;
+their assertions remain intact. The Kimi install test reaches `tomllib.loads`
+without importing `tomllib`. The Pi skip is the explicitly retired Python
+external-source search composition case. None is relabeled as a pass.
+
+Outside observation binds actual executor/argv, all four read-only input mounts,
+Root/init pidfds, UID/GID 65532 and enforced resource/confinement limits. After
+termination, independent checks under all four leases establish exact CID/name,
+client/container/conmon cgroup and profile absence; original supervisor/init/
+client death; and unchanged metadata for all 333 historical worker records and
+their lock. No historical private bytes are read for that metadata check. Fresh
+host readback matches and consumed-run refusal preserves every host record.
+
+Evidence is in external `feature-worker-current359-host-20261106-001`:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `public-artifacts-001.tar` (327,680 bytes, 62 members) | `8f85076c35cf14b061be680aad17327951e709043c6680e024b2dfa18a8a0dfd` |
+| `independent-public-readback-001.json` | `e074c58288e09e82dbc0522a7d4b7a23cefbb007b38294d44dbbe1606746cc83` |
+| `outside-kernel-001.json` | `f55fa8de3841c066a44b2d153bdf595bd014a5d8c3924e37c101c474b947b906` |
+| `outside-completion-001.json` | `75c5e75fc4010a6c452c98f64a12b67aedc7e06b682d2fb2166699605fbc977e` |
+| `terminal-readback-001.json` | `eedde16e740d6fa506d9a1d6313299bfe15b84365b530fac828b0209f812b6db` |
+| `consumed-run-refusal-001.json` | `f83777fbd743774cececa8c1751b4f42b240871fec414cab1006861ea0139fc2` |
+
+The retained report is `6ba31749…`; its independently recomputed Root readback
+is `2dd62869…`. The public archive includes the spec, catalog, report, readback,
+56 artifacts, a projected terminal and manifest. It excludes private intents,
+nonces and keys. Status remains `failed`/`invalid-evidence`, with every admission,
+qualification and causality flag false and zero model requests/tokens. Broader
+recovery, independent authority, current-source qualification and merge gates
+remain open; no parent exit closes.
+
+### Fixture failure diagnosis and correction
+
+An isolated pinned-Node diagnostic passes all 120 missing-excerpt/null-decision
+trials. Repeating the actual source checkout, virtual environment and 74 Cline
+tests with subprocess logging then reproduces three failures on different cases:
+each child prints the expected JSON and exits zero, while Node reports `EPIPE`.
+The mock guard exits without consuming its hook request. The transport correctly
+treats that pipe error as unavailable and withholds the result.
+
+The tests now reuse the existing `_scripted_guard` input-consuming helper;
+explicit exit-one/exit-seven fixtures also consume stdin before replying.
+The Kimi test imports `tomllib` with the existing Python-3.10 `tomli` fallback.
+AST comparison preserves all **123 Cline and 63 Kimi assertions**. Product
+runtime, Rust code, dependencies and Gauntlet source-map bytes are unchanged.
+Ruff, formatting and diff checks pass. No codebase file, crate or target is added.
+
+Fresh unprivileged ARM execution of the exact corrected test bytes passes
+**74 Cline tests twice and all 25 Kimi tests**, with no failure or skip.
+The same pinned image, Node, candidate Native bytes and source environment are
+used. Outside observation verifies UID/GID 65532, empty capabilities,
+no-new-privileges, seccomp, enforced profile and 12-GiB/zero-swap/2,048-PID/two-CPU
+limits. Exact container/cgroup/profile cleanup and all 333 older records'
+metadata remain verified. These are separate diagnostic Python fixture runs;
+they claim no Rust worker ownership or new full feature-audit result. The
+earlier failed 28-group audit remains unchanged and ineligible.
+
+External `cline-feature-source-context-20261106-001/diagnostic-command-001.json`
+hashes to `8bda76581c1193c1b24740ca92058fc61c69a30cbae1c4d2e786c611ed3280c4`.
+Corrected `cline-feature-corrected-context-20261106-001/corrected-suites-readback-001.json`
+hashes to `f1742c144aa0c8ff38bc8318626c89720e67d43371548c68a55257e9f9b2f19a`.
+
+The public `feature-public-replay-001.py` in the audit journal accepts a full
+repository, public audit directory, pinned Rust reader and fresh output directory.
+It reproduces the retained failed result without executing candidate code;
+its SHA-256 is `2e907a96cced32a4f57f0938fe06187b56387349e5b0093ffe6f92d03f316f07`.
+The combined external review bundle,
+`gauntlet-rust-review-evidence-20261106-002.tar`, is 68,218,880 bytes with 28
+members, SHA-256
+`53a8a28d7175d61d244e69baaf9ca3fba0caf0aa30c6f7792f9251f07cabdbbc`.
+It preserves the frozen earlier bundle, current runtime/audit exports, replay
+programs and separate diagnosis/correction evidence. Its explicit public-file
+allowlist and comparison with three current private nonce sources pass; private
+intent/key files are excluded. That bundle predates the corrected-source audit
+below. Remote delivery and independent review remain open. Every
+eligibility/causality flag stays false, with zero
+model requests/tokens and no parent-exit credit.
+
+### Fresh audit through the primary host command
+
+Audit `462a926cee8fcfff` completes the 28-group/52-selector schedule
+from fixture-corrected source `8920be8bd`, after successful build
+`9ca1b850e63fd247` and fresh dependency/prefix publication. The frozen primary
+host executable is `6a2d8b61…`, built from `79e061662`; Root worker `32135d91…`
+and executor `5c353aee…` remain unchanged. See the
+[build and runtime pins](gauntlet-rust-hostbound-candidate-build-proof.md#fixture-corrected-3590-and-primary-host-dispatch).
+
+Actual `gauntlet-host features record` output uses the public v1 schema and
+excludes the private nonce. Its record receipt hashes to
+`fc6eba1c5aae92d5825c8348a5e5079b50819ddff973305177c0832b3c9f1efc`.
+Outside kernel observation verifies the real executor/argv, four input hashes
+and read-only mounts, Root/init pidfds, UID/GID 65532, empty capability sets,
+no-new-privileges, seccomp, enforced policy and separate namespaces. Limits are
+12 GiB, zero swap, 2,048 PIDs and two CPUs. The observation receipt is
+`fd3dc46b0b7b4fb3c7bfcf12c72985f750d507429afd4e28d4ad12cc29a2c9ee`.
+
+Primary-command active readback and intentional consumed-run checks both refuse
+with exit two and leave all three existing host records unchanged. Their
+receipts are `9cd6b3ac82e2e42cf0331e3a2870d9464f70fa13dfa92c2baf295b7dfd0b909b`
+and `1268ce2d2e98f543ae248d6c00c988cd6278df20668358a3c1b60cec1ca7b28b`.
+Subsequent pidfd/ELF observation confirms the original Root supervisor and
+executor remain live under the same container; receipt SHA-256 is
+`185c1f263c882dab18346c46c97290d0e87ae6825892439b7573d70ee1b664db`.
+
+The 3,322.508-second run retains **1,303 passing tests, zero failures/errors and
+one deliberate Pi skip** for the retired Python composition path. All 27 other
+groups pass. Independent Python baseline/JUnit testcase counts and the pinned
+Rust host reader agree on all 28 groups, 52 selectors and 56 XML/log artifacts.
+The audit remains `incomplete`/`invalid-evidence`, with workload exit one;
+successful host transport does not convert it to a passing audit.
+
+Primary retained-result readback matches. Intentional consumed dispatch refuses
+with all four host records unchanged. Independent checks under all four leases
+verify actual container/client/conmon/profile absence, original process death
+and unchanged metadata for all 333 older records, without reading their private
+bytes. The fresh 62-member, 307,200-byte public export excludes the actual
+private nonce and hashes to
+`0ccc6f2432ac06d8e16dd6b0c032f0b43519b34ad21a224d9c61564fb81f3669`.
+
+These records live in external `feature-worker-current359-host-20261106-002`:
+
+| Record | SHA-256 |
+| --- | --- |
+| Root canonical result | `e094a20365d22d72f1acdae6e4bd3615771ae4db21dbf3ae94f5eca39395b90a` |
+| `outside-completion-001.json` | `4cdc49ad3fa9df8b78df60b4484a66e81701f37d07ee296e1360d0cba93c71e3` |
+| `terminal-read-001.json` | `e657a85f68bf74546bcb397f08367002ade920eabb77023ef8dc5d0805f0b6b8` |
+| `terminal-replay-refusal-001.json` | `854df24de6d0c533d0fb9347f49776c1f3a06692c961f1faaf91b2125ea4595d` |
+| `independent-public-readback-001.json` | `c8a2725b58a518a89efde7b76ccd68f5f33bfc3f2b44682c4d9444478b87f36c` |
+
+The report is `e8cfb8f9…`; its independently recomputed readback is `7b551bbe…`.
+The earlier failed audits stay intact. This product source predates the latest
+upstream merge; merged-source qualification, independent authority, observer
+integration and broader recovery remain open. Every eligibility/causality flag
+stays false, with zero model requests/tokens and no parent-exit credit.
+
+### Merged-source audit checkpoint
+
+Fresh audit `a38df7e1b26c4905` completes from source
+`53c64ae960b1c373b18816fdc6ba1491bbbd06c6`, after completed build
+`b7f0b85b31df49cc` and independently reconstructed runtime publication. It
+uses separate installed controller `123024f4…`, frozen primary host
+`9e856cfb…` from `4245fcd136335617da84de8a9ce1f27cc7540079`, and the unchanged
+Root worker `32135d91…` and executor `5c353aee…`. The retained builder image
+and its three context files match the completed build; controller installation
+does not replace the older generation. The exact catalog digest is
+`1955516522cccd5235c565498a7e28c8871e31361609d52f0bdebb6e0b91677f`.
+
+Outside observation verifies actual supervisor/executor ELF and argv, pidfds,
+all four input hashes and read-only mounts, UID/GID 65532, empty capabilities,
+no-new-privileges, seccomp, enforced AppArmor, separate namespaces and limits of
+12 GiB, zero swap, 2,048 PIDs and two CPUs. Primary active readback and an
+intentional consumed-run attempt both refuse with exit two, leaving the three
+host records unchanged and emitting no nonce. The second attempt refuses
+locally before any workload dispatch.
+
+Records are in external `feature-worker-merged359-host-20261107-001`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `record-command-001.json` | `63dac3885b3676e67120f0b896114cee2ddcc6c7051775837710ce219d91abec` |
+| `outside-kernel-001.json` | `1aaa66dc71be5dc72c30990dbefad0dcd65368ffd6168ba45a37b2101c0f27f8` |
+| `active-read-refusal-001.json` | `db6419e30a5c23afbcf81925e0bfab26a7fc614b025217b7e8b4e6d38aa95072` |
+| `active-consumed-run-refusal-001.json` | `8a360dbfe61f3b1d1db1bc88bf959291ac3cf49456ba36fee7a798db8a30990c` |
+| Root canonical result | `2a1988ff3d7d444a438f3c8dbd8124d5a2ff7a25012ffef0fdc52e24f2f4cf31` |
+| `outside-completion-001.json` | `3c9a4669df8bae3655e92b7a9be4b74f0654d64c73d0727ef0a43f9b3afe1997` |
+| `terminal-read-001.json` | `52daf0a83fd8fb5043c409a8d4edc28385cde00f47af64c4bce197f618128600` |
+| `terminal-replay-refusal-001.json` | `0a1eb7b39be8200e77c8fc072fb282093904e4b884ec8162802751b4485f4c2c` |
+| `independent-public-readback-001.json` | `4be533de9fb12f8ed1a1b449a146a3582afcbc01bb42bb7822fc82db03af8473` |
+
+The 1,484.827-second run retains **1,303 passes, zero failures/errors and one
+deliberate retired-Pi skip** across all 28 groups and 52 selectors. Independent
+Python source/JUnit testcase counts and the pinned Rust reader agree on all
+56 artifacts: 27 groups pass and one remains incomplete. The exact report is
+`8c978719f47433878736216f001ba762cb2e88459ca8b02d33b96be4fa90b168`;
+readback is `3f6d8d5f7674f22b5801d9dc0e7731156682e5d9ee105e53105ae4a16eb6e61a`.
+Successful host transport preserves workload exit one and incomplete status.
+
+Primary retained readback matches; consumed dispatch refuses with all four
+host records unchanged. Outside checks under all four leases verify actual
+process/container/cgroup/conmon/profile absence and unchanged metadata for all
+333 historical records and their lock. The 62-member, 307,200-byte public
+export excludes the actual private nonce and hashes to
+`d54853221ec2341c47cd32721fb4e90e89a3d21328cd4d56f839e12f5c77f37f`.
+The audit has no owned resources remaining. Broader recovery, independent
+authority, conformance and admission remain open. Every
+admission/qualification/causality flag remains false, with zero model
+requests/tokens and no parent-exit credit.
+
+### Feature supervisor interruption and Rust recovery
+
+Fresh audit `ed40a9c721e3685b` uses the retained exact-source build
+`b7f0b85b31df49cc` at `53c64ae96`, controller `123024f4…`, worker `32135d91…`
+and executor `5c353aee…`. Frozen primary host `2d985d12…` comes from
+`cfdbf6a9f`. This exercises recovery against that explicit retained product,
+without claiming execution of the newer upstream merge.
+
+An outside observer checks the actual executor/argv, four read-only input
+hashes, capabilities, UID/GID 65532, namespaces, policy and resource limits.
+It also binds the Root supervisor and Podman client to the fresh intent/CID.
+Holding pidfds, it sends SIGKILL only to the original supervisor, observes its
+death and verifies the executor remains alive afterward. The host returns
+transport exit two after 16.965 seconds, with no terminal stdout; the attempt
+remains unknown. Kernel/fault receipt is `4c008cdc…`.
+
+A wrong intent refuses before creating repair authorization; read refuses to
+invent a terminal, and a consumed launch refuses. Primary `features repair`
+durably pins its executable and completes in **10.288 seconds**. It drains
+the owned container and client group and retains `aborted`, explicit null exit,
+and no eligibility. Root/host repair bytes match digest
+`3bb5030e01b7a00c29a0fddd5cb587f44e0479f302fa46622f196cfca162d899`.
+The original unknown attempt remains retained; no workload is relaunched and
+the harness performs no manual container cleanup.
+
+Independent four-lease cleanup verifies full CID/name, client/libpod/conmon
+cgroups, profile and original supervisor/init/client absent, with all 333
+historical records and their lock metadata unchanged. Restart readback and
+repeat repair match; wrong repair generation and consumed launch refuse with
+all four original host records' metadata/bytes unchanged. Cleanup receipt is
+`6951e931…`; restart proof is `0e0cc443…`.
+
+External `feature-supervisor-recovery-20261107-validation-001.json` binds 15
+records, SHA-256
+`70e0c017835b52cc4a46fa51e58bb2a02e4d525ae76b4cdabcb35c22baea028f`.
+Public addendum `gauntlet-rust-review-recovery-20261107-001.tar` contains 19
+members and 61,440 bytes, SHA-256
+`49aa292a83c65ebb8abe870b5bdaf779471000bf51f29f2720d151d990342f06`;
+manifest `4e569111bc6dcf326ff59119c44e6cf72e064a4bdd7c2c992192c48edaa330f2`.
+All members reverify and exclude seven actual private nonces. Existing code
+handles the recovery; no repository source, file or dependency is added by
+this proof. The VM is idle, model use is zero, and broader failure, authority,
+conformance and admission exits remain open. No parent exit closes.
+
+### Review bundle for the merged source
+
+External `gauntlet-rust-review-evidence-20261107-005.tar` contains 90 public
+files and is 84,275,200 bytes. SHA-256 is
+`9e18b11da1ea9e04b5879036c99576cbe0eb2c769f8d6e9f389051a83cae7a55`;
+manifest SHA-256 is
+`8b1837e86a1b89b9bc74dc761984378807bdbab074e99d25436a625ab0c0ba94`.
+It binds implementation `cfdbf6a9f`, product source `53c64ae96`, the new runtime
+and audit, current controller installation, host dispatch validation and fresh
+dependency job `ce76a18b95d042ef`, retained dependency reads and actual host-loss
+recovery of `f02a618c39de745b`. Earlier bundle 004 (`238dba5f…`) and failed attempts remain
+immutable. Explicit selection, actual nonce scans over nested decoded archives
+and complete post-write member verification pass; all six current private
+nonces are excluded.
+
+Runtime replay `d48782f9…`, Python requirement replay `71cf9979…` and audit
+replay `6451de39…` accept repository/public-input/fresh-output paths, plus the
+pinned Rust reader for the audit. All three reproduce the retained result JSON
+byte for byte without importing candidate code or exported dependencies.
+Comparison record `merged359-public-replay-comparison-001.json` hashes to
+`f2e2e1bb9008d9bad0bf0a89f13cd1d25746fbd95fa69287e9b5913bd3347234`.
+The first runtime pin minimization and audit output-variable mistakes remain
+retained; corrected version 002 replayers pass. The earlier complete 3.59.0
+bundle below retains its own source generation. Remote delivery and independent
+review remain open; the new bundle supplies no admission or parent-exit credit.
+
+The subsequent upstream followup is retained separately in
+`gauntlet-rust-review-upstream-20261107-001.tar`, 23 members and 317,440 bytes,
+SHA-256 `3ec2903aa3337420832d5d51939eecd657c0952f58fc719539fc8389ba14e266`;
+manifest `8e0ae7621fcd738b4f6ab6e4eeb1758c92bd82984cdc0dcfe1b1e5726f372444`.
+It includes all eleven validation records, eight logs and the two updated
+map/test source files, with all members reverified and six actual private
+nonces excluded. It references bundle 005 without copying it and keeps the
+new, uninstalled controller plan separate from older live product evidence.
+
+### Reviewer replay of the corrected-source evidence
+
+The fresh external bundle `gauntlet-rust-review-evidence-20261107-003.tar`
+contains 40 allowlisted public files and is 50,493,440 bytes. SHA-256 is
+`ecab45773704989587c11abb9e779950c1d7a6ef19397c00134ccff23f812b2b`;
+its manifest hashes to
+`4f49af128efc431fbaf0410e557c6444f1454dfc8022950b06e4fcec60db9b6e`.
+It includes the new runtime/audit exports, independently recomputed results,
+recovery/cleanup records, retained regression failure and pinned Mac Rust
+reader. The older bundle stays immutable and is referenced without recursively
+copying it. Explicit file selection and scans against all four current private
+nonces, in hex and raw encodings, pass; private intent/key files are excluded.
+
+Three public replayers accept a full repository and public evidence directory.
+Their hashes are `b42c4799…` (runtime), `fe52f7f2…` (Python requirements), and
+`96f19bd9…` (audit; additionally takes the pinned Rust reader and a fresh output
+directory). All reproduce the retained public results without importing a
+candidate or exported dependency. The audit summary intentionally omits
+per-invocation reader diagnostics; the first overbroad comparison is retained,
+and exact comparison of every public summary field passes in
+`feature-public-replay-comparison-003.json`, SHA-256
+`0eee6d2dcb55e23b554a421694b9f8a1694bad26fe6b911e5fdf6b05d7285fbf`.
+This bundle records implementation `f2d70d192` and product source `8920be8bd`.
+Remote delivery and independent review remain open; it supplies no new
+admission, qualification, causality or model-use credit.
+
+### Fresh primary audit at the current build generation
+
+Audit `52b9d314e8a670cf` runs product/test source
+`74d8d00814bfb281e4cf8a8823b083b3656db9bb`, including main `84ba6e4da`,
+after build `c2e80b4915f76a3d` and independently reconstructed runtime
+publication. The primary host is `5c8b6801…` from `76a5604fe`; Root worker
+`f46a1782…`, executor `14939d26…` and controller `52da7281…` bind the same
+product source. Earlier installed generations and their evidence remain intact.
+The catalog remains 28 groups/52 selectors, digest `19555165…`.
+
+The primary run finishes in **1,767.917 seconds**. Independent Rust and
+immutable Python JUnit grading agree on **1,304 passing tests, zero failures
+or errors and one deliberate retired-Pi skip**. The skip says that the live
+hook path reviews a shape allowed only by the retired Python composition.
+Twenty-seven groups pass; one remains incomplete. Successful host transport
+preserves workload exit one, audit `incomplete` and outer `invalid-evidence`.
+No expected skip is converted into a pass.
+
+Outside kernel observation verifies the actual supervisor/executor ELF and
+argv, pidfds, all four read-only inputs, UID/GID 65532, empty capabilities,
+no-new-privileges, seccomp, enforced AppArmor, separate namespaces and the
+existing two-CPU/12-GiB/2,048-task limits. No OOM or task-limit event occurs.
+Four-lease completion checks independently verify the original processes,
+full CID/name, client/libpod/conmon cgroups and profile are absent. Metadata
+for all 333 historical records and their lock is unchanged; their bytes and
+keys are not read.
+
+Two fresh primary reads return identical bytes. Wrong-intent read and consumed
+run refuse with exit two; the latter refuses locally before transport. The
+four original host records retain identical bytes and metadata. The 62-member,
+307,200-byte public export excludes all 33 actual private nonces. The current
+Rust reader independently matches all 56 XML/log artifacts; wrong spec and
+report pins refuse. Replay imports or executes no product or dependency.
+
+Records are external in `current-source359-feature-host-state-20261108-001`:
+
+| Record | SHA-256 |
+| --- | --- |
+| Root canonical result | `ae093ad31fc9e43a3a2d93767d6bbe38f01915e2be0a6dc380feacde17ae0dbb` |
+| `outside-kernel-001.json` | `27ac86778ade6df9e796febffee226c41f33af41173d406f15cadfcb03d07e76` |
+| `outside-completion-001.json` | `ce8c1505ef9a8ab242a9b45efcbb688ed82f6a92229811a722d9a0f1a283d883` |
+| `primary-terminal-restart-001.json` | `ae4dd0597037318cfcfb4fba172dfe321860e5e183950779a0f64623de14783e` |
+| Feature report | `03c90dd794156de5568b7500efaefbeb81eb88d902eb62a433f996ec875b248e` |
+| Rust readback | `db0fdee120b5532a31c073bb534ee3e92769ed64a9baefda82242413cefe9ca8` |
+| `public-artifacts-001.tar` | `e3816cc91249f28e9c2742f9f0c0af084cd8089516cd775d394e025312d57ca3` |
+| `independent-replay-001/independent-public-readback-001.json` | `5407c1f14ee811e4e670ad1b967965abeff9bf08bc192deeb5ce25a37a5e5853` |
+
+The initial preflight wrapper syntax failure occurred on the Host before any
+VM mutation or reservation and remains retained. The corrected preparation
+uses the audit ID once; no workload is replayed to repair proof tooling. This
+covers only the named product generation. Broader recovery, independent
+authority, signed conformance, remote evidence/review and admission remain
+open. Every admission/qualification/causality flag stays false, model use is
+zero, and the parent ledger stays **24/62**.
+
+Review addendum `gauntlet-rust-review-primary-transfer-20261108-002.tar`
+contains 118 members/53,258,240 bytes, SHA-256
+`587ccd27226c630d2b0834387c5c117b2861cae15586d68b7c2afd2dc3d2c7c8`;
+manifest is `973962840a86368a9187b1db8f77d080aaa7d5d926735a912d9f76fa9233f1c8`.
+Validation `source-transfer-current359-20261108-validation-002.json` binds
+116 public evidence files, SHA-256
+`dddb9d0404c543c7366af6cce46bd6d479b6502e7d0639ac70fec03233f2310f`.
+All members reopen and verify; raw and recursively decoded archive scans
+exclude all 33 actual private nonces. Private intents, Root dependency report
+bodies and product/controller/worker/executor binaries are excluded; the
+pinned public Rust reader is included for replay. The first packaging attempt
+stopped at the additional outer-TAR nesting level before writing an archive.
+Its validation and failure record remain intact. The corrected bounded scan
+accounts for that one layer with the same byte/member limits and no workload
+replay. Remote delivery and independent review remain open.

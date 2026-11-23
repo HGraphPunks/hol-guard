@@ -6,16 +6,17 @@ use crate::builder_image_context::{python_worker_lock, verify_python_lock, RUST_
 use crate::candidate_capture::{inactive, verify_captured};
 use crate::candidate_config_projection::{
     project_shadow_candidate_config_ineligible,
+    project_shadow_candidate_config_with_native_cell_ineligible,
     project_shadow_candidate_config_with_private_cell_ineligible, CandidateConfigProjectionPins,
 };
 use crate::candidate_config_projection_live::{
     project_cloned_candidate_config_ineligible, project_installed_candidate_config_ineligible,
     CandidateConfigArtifactPins,
 };
+use crate::private_cell_artifact_mode::ArtifactRuntime;
 use crate::{open_root_owned_public_directory, RunReservationJournal};
 use gauntlet_evidence::{
-    inventory_tree, load_runner_config_from_paths, verify_private_cell_artifacts,
-    verify_runner_assets_inert, TreeKind,
+    inventory_tree, load_runner_config_from_paths, verify_runner_assets_inert, TreeKind,
 };
 use rustix::fs::{fchmod, fstat, fsync, openat, statat, AtFlags, FileType, Mode, OFlags};
 use rustix::process::geteuid;
@@ -220,12 +221,19 @@ pub fn write_shadow_candidate_config_with_private_cell_ineligible(
     pins: &CandidateConfigArtifactPins<'_>,
     manifest_sha256: &str,
 ) -> Result<CandidateConfigShadowWriteProof, CandidateConfigShadowWriteError> {
-    write_shadow_candidate_config_inner(pins, Some(manifest_sha256))
+    write_shadow_candidate_config_inner(pins, Some((manifest_sha256, ArtifactRuntime::PythonV1)))
+}
+
+pub fn write_shadow_candidate_config_with_native_cell_ineligible(
+    pins: &CandidateConfigArtifactPins<'_>,
+    manifest_sha256: &str,
+) -> Result<CandidateConfigShadowWriteProof, CandidateConfigShadowWriteError> {
+    write_shadow_candidate_config_inner(pins, Some((manifest_sha256, ArtifactRuntime::RustV1)))
 }
 
 fn write_shadow_candidate_config_inner(
     pins: &CandidateConfigArtifactPins<'_>,
-    private_cell_manifest: Option<&str>,
+    private_cell_manifest: Option<(&str, ArtifactRuntime)>,
 ) -> Result<CandidateConfigShadowWriteProof, CandidateConfigShadowWriteError> {
     if geteuid().as_raw() != 0 {
         return Err(CandidateConfigShadowWriteError::RootRequired);
@@ -290,7 +298,12 @@ fn write_shadow_candidate_config_inner(
     )
     .map_err(|_| CandidateConfigShadowWriteError::TemplateMismatch)?;
     let projection = match private_cell_manifest {
-        Some(manifest) => project_shadow_candidate_config_with_private_cell_ineligible(
+        Some((manifest, runtime)) => (match runtime {
+            ArtifactRuntime::PythonV1 => {
+                project_shadow_candidate_config_with_private_cell_ineligible
+            }
+            ArtifactRuntime::RustV1 => project_shadow_candidate_config_with_native_cell_ineligible,
+        })(
             template.template_raw(),
             pins.template_canonical_sha256,
             &projection_pins,
@@ -305,13 +318,14 @@ fn write_shadow_candidate_config_inner(
         ),
     }
     .map_err(|_| CandidateConfigShadowWriteError::TemplateMismatch)?;
-    let config_name = if let Some(manifest) = private_cell_manifest {
+    let config_name = if let Some((manifest, runtime)) = private_cell_manifest {
         let value: Value = serde_json::from_slice(&projection.canonical_bytes)
             .map_err(|_| CandidateConfigShadowWriteError::TemplateMismatch)?;
         let initializer = value["runtime"]["private_cell"]["initializer_sha256"]
             .as_str()
             .ok_or(CandidateConfigShadowWriteError::TemplateMismatch)?;
-        verify_private_cell_artifacts(&shadow_path.join("cell-artifacts"), manifest, initializer)
+        runtime
+            .verify(&shadow_path, manifest, initializer)
             .map_err(|_| CandidateConfigShadowWriteError::PrivateCellMismatch)?;
         format!("provisional-{}.json", &manifest[..16])
     } else {
@@ -351,12 +365,13 @@ fn write_shadow_candidate_config_inner(
             })?;
     let assets = verify_runner_assets_inert(&loaded, Path::new(ASSET_ROOT))
         .map_err(|error| CandidateConfigShadowWriteError::AssetMismatch(error.to_string()))?;
-    if let Some(manifest) = private_cell_manifest {
+    if let Some((manifest, runtime)) = private_cell_manifest {
         let initializer = loaded.verified.config.value()["runtime"]["private_cell"]
             ["initializer_sha256"]
             .as_str()
             .ok_or(CandidateConfigShadowWriteError::PrivateCellMismatch)?;
-        verify_private_cell_artifacts(&shadow_path.join("cell-artifacts"), manifest, initializer)
+        runtime
+            .verify(&shadow_path, manifest, initializer)
             .map_err(|_| CandidateConfigShadowWriteError::PrivateCellMismatch)?;
     }
     verify_shadow_assets(&shadow, &shadow_path, pins)?;
@@ -384,7 +399,7 @@ fn write_shadow_candidate_config_inner(
         config_file_sha256: file_digest,
         config_bytes: projection.file_bytes.len(),
         asset_roles: assets.observed.len(),
-        private_cell_manifest_sha256: private_cell_manifest.map(str::to_owned),
+        private_cell_manifest_sha256: private_cell_manifest.map(|(pin, _)| pin.to_owned()),
         contained_completion_present: artifact_proof.contained_completion_present(),
     })
 }

@@ -14,6 +14,10 @@ mod rpc;
 pub use rpc::{serve_one, BridgeClient, BridgeOperation, OperationResult};
 mod bootstrap;
 pub use bootstrap::{read_private_bootstrap, Bootstrap, BootstrapKind, OutboundBootstrap};
+mod descriptor_frame;
+pub use descriptor_frame::{
+    receive_control_bytes, receive_fd_frame, send_control_bytes, send_fd_frame,
+};
 
 const MAX_POLL: Duration = Duration::from_millis(100);
 const IO_CHUNK: usize = 64 * 1024;

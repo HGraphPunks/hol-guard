@@ -9,14 +9,17 @@ from __future__ import annotations
 import configparser
 import os
 import re
+import selectors
 import stat
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 MAX_ENTRIES = 10000
 MAX_TOTAL = 128 * 1024 * 1024
 MAX_OUTPUT = 8 * 1024 * 1024
+COMMAND_TIMEOUT = 30
 SHA = re.compile(r'[a-f0-9]{40}')
 REF = re.compile(r'refs/(?:heads|tags|remotes)/[A-Za-z0-9][A-Za-z0-9_./-]{0,100}')
 
@@ -237,13 +240,39 @@ class SafeGitObserver:
                        'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_SYSTEM': '/dev/null',
                        'GIT_CONFIG_GLOBAL': '/dev/null', 'GIT_TERMINAL_PROMPT': '0',
                        'GIT_NO_LAZY_FETCH': '1', 'GIT_NO_REPLACE_OBJECTS': '1', 'GIT_ATTR_NOSYSTEM': '1'}
-        result = subprocess.run(['/usr/bin/git', '--git-dir=' + str(self.private), *args],
-                                cwd=self.private, env=environment, capture_output=True, timeout=30, check=False)
-        if len(result.stdout) + len(result.stderr) > MAX_OUTPUT:
-            raise ValueError('raw Git observation exceeds output budget')
-        if result.returncode:
-            raise ValueError('safe raw Git operation failed: ' + result.stderr.decode(errors='replace')[:2048])
-        return result.stdout
+        command = ['/usr/bin/git', '--git-dir=' + str(self.private), *args]
+        deadline = time.monotonic() + COMMAND_TIMEOUT
+        output, errors = bytearray(), bytearray()
+        with subprocess.Popen(command, cwd=self.private, env=environment, stdin=subprocess.DEVNULL,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
+            try:
+                with selectors.DefaultSelector() as streams:
+                    streams.register(process.stdout, selectors.EVENT_READ, output)
+                    streams.register(process.stderr, selectors.EVENT_READ, errors)
+                    while streams.get_map():
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            raise subprocess.TimeoutExpired(command, COMMAND_TIMEOUT)
+                        for key, _ in streams.select(remaining):
+                            available = MAX_OUTPUT - len(output) - len(errors)
+                            chunk = os.read(key.fd, min(65536, available + 1))
+                            if not chunk:
+                                streams.unregister(key.fileobj)
+                            elif len(chunk) > available:
+                                raise ValueError('raw Git observation exceeds output budget')
+                            else:
+                                key.data.extend(chunk)
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(command, COMMAND_TIMEOUT)
+                returncode = process.wait(timeout=remaining)
+            except BaseException:
+                process.kill()
+                process.wait(timeout=5)
+                raise
+        if returncode:
+            raise ValueError('safe raw Git operation failed: ' + errors.decode(errors='replace')[:2048])
+        return bytes(output)
 
     def worktrees(self):
         """Read only literal owned linked-worktree pointers, never Git discovery."""

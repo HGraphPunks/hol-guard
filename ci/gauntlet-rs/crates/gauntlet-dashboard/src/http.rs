@@ -2,19 +2,56 @@
 
 use crate::snapshot::PublicRoot;
 use serde_json::json;
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::net::TcpStream;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const MAX_HEADER: usize = 8192;
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 const CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'";
 const HTML: &[u8] = include_bytes!("../../../../gauntlet/control_plane/static/index.html");
 const JS: &[u8] = include_bytes!("../../../../gauntlet/control_plane/static/app.js");
 const CSS: &[u8] = include_bytes!("../../../../gauntlet/control_plane/static/style.css");
 
-pub fn handle(mut stream: TcpStream, root: &PublicRoot) -> std::io::Result<()> {
-    stream.set_read_timeout(Some(Duration::from_secs(3)))?;
-    stream.set_write_timeout(Some(Duration::from_secs(3)))?;
+struct RequestStream {
+    stream: TcpStream,
+    deadline: Instant,
+}
+impl RequestStream {
+    fn new(stream: TcpStream) -> io::Result<Self> {
+        let deadline = Instant::now() + REQUEST_TIMEOUT;
+        // Accepted macOS sockets can inherit the listener's nonblocking mode.
+        stream.set_nonblocking(false)?;
+        Ok(Self { stream, deadline })
+    }
+    fn remaining(&self) -> io::Result<Duration> {
+        self.deadline
+            .checked_duration_since(Instant::now())
+            .filter(|remaining| !remaining.is_zero())
+            .ok_or_else(|| io::Error::new(io::ErrorKind::TimedOut, "dashboard request deadline"))
+    }
+}
+impl Read for RequestStream {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        self.stream.set_read_timeout(Some(self.remaining()?))?;
+        self.stream.read(buffer)
+    }
+}
+impl Write for RequestStream {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        self.stream.set_write_timeout(Some(self.remaining()?))?;
+        self.stream.write(buffer)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.stream.set_write_timeout(Some(self.remaining()?))?;
+        self.stream.flush()
+    }
+}
+
+pub fn handle(stream: TcpStream, root: &PublicRoot) -> io::Result<()> {
+    // Header reads and every response write share one monotone budget. A peer
+    // cannot renew it with partial input or by slowly draining the response.
+    let mut stream = RequestStream::new(stream)?;
     let mut request = Vec::new();
     let mut chunk = [0u8; 1024];
     while request.len() < MAX_HEADER && !request.windows(4).any(|part| part == b"\r\n\r\n") {
@@ -113,7 +150,7 @@ fn allowed_host(value: &str) -> bool {
 }
 
 fn reply(
-    stream: &mut TcpStream,
+    stream: &mut impl Write,
     code: u16,
     reason: &str,
     content_type: &str,
@@ -125,4 +162,33 @@ fn reply(
         body.len()
     )?;
     stream.write_all(body)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::{Ipv4Addr, TcpListener};
+
+    #[test]
+    fn header_and_stalled_response_share_one_deadline() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let mut reader = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (stream, _) = listener.accept().unwrap();
+        let mut stream = RequestStream::new(stream).unwrap();
+        stream.deadline = Instant::now() + Duration::from_secs(1);
+        let peer = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(600));
+            reader.write_all(b"x").unwrap();
+            reader
+        });
+        let started = Instant::now();
+        stream.read_exact(&mut [0]).unwrap();
+        let _reader = peer.join().unwrap();
+        let error = stream.write_all(&vec![0; 32 * 1024 * 1024]).unwrap_err();
+        assert!(matches!(
+            error.kind(),
+            io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+        ));
+        assert!(started.elapsed() < Duration::from_millis(1400));
+    }
 }

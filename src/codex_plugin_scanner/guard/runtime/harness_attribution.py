@@ -26,6 +26,7 @@ _CODEX_ENV_MARKERS = frozenset({"CODEX_SANDBOX", "CODEX_THREAD_ID"})
 _GROK_ENV_MARKERS = frozenset({"GROK_AGENT", "GROK_SESSION_ID"})
 _OPENCODE_ENV_MARKERS = frozenset({"OPENCODE_CONFIG_CONTENT"})
 _DEVIN_ENV_MARKERS = frozenset({"DEVIN_PROJECT_DIR"})
+_MUSE_ENV_MARKERS = frozenset({"MUSE_SESSION_ID", "MUSE_THREAD_ID"})
 ORIGIN_HARNESS_ENV = "HOL_GUARD_ORIGIN_HARNESS"
 _ORIGIN_HARNESS_VALUES = frozenset(
     {
@@ -40,6 +41,7 @@ _ORIGIN_HARNESS_VALUES = frozenset(
         "pi",
         "zcode",
         "devin",
+        "muse",
     }
 )
 
@@ -55,6 +57,8 @@ _PROCESS_HARNESSES = {
     "omp": "omp",
     "opencode": "opencode",
     "devin": "devin",
+    "muse": "muse",
+    "muse-bin": "muse",
 }
 _APP_PATH_MARKERS = (
     ("/codex.app/", "codex"),
@@ -131,16 +135,27 @@ def origin_harness_env(harness: str) -> dict[str, str]:
     return {ORIGIN_HARNESS_ENV: slug}
 
 
-def _zcode_env_markers() -> frozenset[str]:
-    from ..adapters.zcode_config import ZCODE_ENV_HINTS
+_ZCODE_BUNDLE_IDENTIFIER = "dev.zcode.app"
+_ZCODE_ENV_HINTS = frozenset(
+    {
+        "ZCODE_BASE_URL",
+        "ZCODE_APP_VERSION",
+        "ZCODE_ENV",
+        "ZCODE_RUNTIME_ENV",
+        "ZCODE_PROCESS_LABEL",
+        "ZCODE_RG_BINARY",
+        "ZAI_OAUTH_ORIGIN",
+        "ZAI_OAUTH_CLIENT_ID",
+    }
+)
 
-    return frozenset(ZCODE_ENV_HINTS)
+
+def _zcode_env_markers() -> frozenset[str]:
+    return _ZCODE_ENV_HINTS
 
 
 def _zcode_bundle_identifier() -> str:
-    from ..adapters.zcode_config import ZCODE_BUNDLE_IDENTIFIER
-
-    return ZCODE_BUNDLE_IDENTIFIER
+    return _ZCODE_BUNDLE_IDENTIFIER
 
 
 def _env_marker_present(env: Mapping[str, str], markers: frozenset[str]) -> bool:
@@ -182,6 +197,8 @@ def resolve_environment_harness(env: Mapping[str, str] | None = None) -> str | N
         return "opencode"
     if _env_marker_present(source, _DEVIN_ENV_MARKERS):
         return "devin"
+    if _env_marker_present(source, _MUSE_ENV_MARKERS):
+        return "muse"
     return None
 
 

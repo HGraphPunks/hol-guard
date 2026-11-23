@@ -1,5 +1,9 @@
 # Gauntlet → Rust: technical analysis and implementation handoff
 
+Execution resumed on 2026-10-26 under the active
+[PR-readiness plan](gauntlet-rust-pr-readiness-plan.md). That plan preserves
+this design's scope and the existing evidence-based acceptance checklist.
+
 **Prepared for:** GPT-6 Sol Max or another implementation owner
 **Analysis date:** 2026-10-19
 **Gauntlet source baseline:** [PR #5263](https://github.com/hashgraph-online/hol-guard/pull/5263) at `b4efd8171b06d0e13cbe12a077c376ecdc891fd1`
@@ -248,7 +252,34 @@ Implement fixed Root RPC actions, exact one-time job/deployment bindings, stable
 
 **Exit:** on a fresh exact-commit candidate in the 16-GiB ARM VM, six staging and six installed roles pass with zero model requests; every negative (identity mismatch, symlink, replay, timeout, cancellation, descendant survivor, cleanup uncertainty) fails closed and retains evidence. v3.48/v3.49 continue to report their missing completion capability rather than passing strict admission.
 
+The [native product-cell apparatus](gauntlet-rust-product-cell-native-proof.md)
+at `cc6948cd` ports the unprivileged actor, measured child gate and pinned
+syscall/network floor. An actual ARM64 executable passed all eight private RPC
+operations through the existing Python client under both network profiles,
+including gating, binary I/O, replay/refusal and cleanup checks. This replaces
+no installed VM artifact yet: a versioned manifest and AppArmor/rootfs/
+supervisor/trusted-reader integration are the next deployment work.
+
 ### Phase 3 — host observer, dashboard and release operations
+
+The [passive host lifecycle](gauntlet-rust-host-lifecycle-proof.md) now has a
+separate versioned namespace, durable operator controls, cooperative observer
+lease, exact two-release metadata queue and unknown restart recovery. Its real
+CLI/process tests and retained operator demonstration do not dispatch a VM job.
+It is local preparation while the current incremental PR's GitHub Actions are
+unavailable; Python ownership, history import and production cutover remain open.
+
+The [native observer extension](gauntlet-rust-observer-native-proof.md) at
+`6271f09b` now composes exact-tag discovery, independent host/VM sampling,
+bounded cancellation and public snapshot publication with a loopback dashboard
+in the same Rust process. The live isolated port-8794 instance resolved both
+release commits and sampled the running 16-GiB VM through a separately installed,
+SHA-verified Rust probe. Clean stop/restart retained both queued jobs and held
+admissions while the original port-8791 observer/dashboard stayed online.
+The host/dashboard suite has 141 passing macOS tests; the new ARM64 lifecycle,
+observer and telemetry suite has 28 passing tests plus two cleanup tests.
+It remains passive and does not supply worker execution, model inference,
+historical import, repair, receipt reconciliation or production qualification.
 
 Implement local `up/status/doctor/hold/resume/down/reconcile/repair` semantics, exact-tag Git fetch/archive, optional PR-artifact handoff, telemetry and loopback dashboard. First run a **read-only shadow** observer over copied status/receipts; it must not pollute the authoritative queue, start a VM job, publish a status or own the same lock. Then perform an explicit cutover with the Python observer stopped and no active/unknown work. Use a new Rust state namespace or versioned migration with an auditable one-time import; never overwrite Python ledgers. Retain the known dashboard API fields (or ship a versioned adapter so the existing JS works).
 

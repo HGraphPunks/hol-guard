@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import json
 import os
-import shlex
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from codex_plugin_scanner.guard import native_runner_authority as authority
 from codex_plugin_scanner.guard.adapters import copilot as copilot_module
 from codex_plugin_scanner.guard.adapters.base import HarnessContext
-from codex_plugin_scanner.guard.adapters.copilot import CopilotHarnessAdapter, _refresh_guard_proxy_entry
+from codex_plugin_scanner.guard.adapters.copilot import CopilotHarnessAdapter
+from codex_plugin_scanner.guard.native_runner_authority import NativeRunnerAuthorityError
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:
@@ -30,73 +32,6 @@ def _build_context(tmp_path: Path) -> HarnessContext:
         workspace_dir=workspace_dir,
         guard_home=guard_home,
     )
-
-
-def test_copilot_recognizes_bounded_hook_with_python_isolation_flag() -> None:
-    config = json.dumps(
-        {
-            "harness": "copilot",
-            "cli_args": ["guard", "hook", "--harness", "copilot"],
-        },
-        separators=(",", ":"),
-    )
-    command = shlex.join(
-        [
-            "python",
-            "-I",
-            "-c",
-            "from codex_plugin_scanner.guard.adapters.bounded_cli_hook_bridge import main_from_argv",
-            config,
-        ]
-    )
-
-    assert copilot_module._is_managed_hook_command(command) is True
-
-
-def test_copilot_recognizes_frozen_bounded_hook() -> None:
-    config = json.dumps(
-        {
-            "harness": "copilot",
-            "cli_args": ["guard", "hook", "--harness", "copilot"],
-        },
-        separators=(",", ":"),
-    )
-    command = shlex.join(["/Applications/HOL Guard.app/Contents/MacOS/hol-guard", "__guard-bounded-hook", config])
-
-    assert copilot_module._is_managed_hook_command(command) is True
-
-
-def test_copilot_isolated_hook_requires_current_guard_paths(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    context = _build_context(tmp_path)
-    interpreter = tmp_path / "python3"
-    interpreter.write_text("#!/bin/sh\n", encoding="utf-8")
-    interpreter.chmod(0o755)
-    monkeypatch.setattr(
-        "codex_plugin_scanner.guard.adapters.cursor_hook_config.isolated_cursor_hook_python",
-        lambda: str(interpreter),
-    )
-    from codex_plugin_scanner.guard.adapters.bounded_cli_hook_bridge import bounded_hook_script_path
-
-    script = bounded_hook_script_path(context.guard_home, "copilot")
-    assert script is not None
-    script.parent.mkdir(parents=True, exist_ok=True)
-    script.write_text("# hook\n", encoding="utf-8")
-    managed = shlex.join([str(interpreter), "-I", str(script)])
-    unrelated = shlex.join(
-        [str(interpreter), "-I", str(tmp_path / "other" / "managed" / "bounded-hooks" / "copilot.py")]
-    )
-
-    assert copilot_module._is_managed_hook_command(managed, guard_home=context.guard_home) is True
-    assert copilot_module._is_managed_hook_command(unrelated, guard_home=context.guard_home) is False
-    preserved = copilot_module._merge_hook_entries(
-        [{"command": unrelated}],
-        {"bash": managed, "powershell": managed},
-        guard_home=context.guard_home,
-    )
-    assert any(entry.get("command") == unrelated for entry in preserved if isinstance(entry, dict))
 
 
 def test_copilot_detects_documented_local_surfaces_and_redacts_secrets(tmp_path):
@@ -295,13 +230,13 @@ def test_copilot_install_and_uninstall_manage_inline_config_hooks_idempotently(t
         assert managed_hooks["preToolUse"][0]["cwd"] == str(context.guard_home)
         assert managed_hooks["preToolUse"][0]["timeoutSec"] == 30
         assert managed_hooks["preToolUse"][0]["env"]["PYTHONPATH"] == original_pythonpath
-        assert "bounded_cli_hook_bridge" in managed_hooks["preToolUse"][0]["bash"]
+        assert " bounded-hook-bridge " in managed_hooks["preToolUse"][0]["bash"]
         assert "copilot" in managed_hooks["preToolUse"][0]["bash"]
         assert "--workspace" not in managed_hooks["preToolUse"][0]["bash"]
-        assert "bounded_cli_hook_bridge" in managed_hooks["preToolUse"][0]["powershell"]
-        assert "bounded_cli_hook_bridge" in managed_hooks["userPromptSubmitted"][0]["bash"]
+        assert " bounded-hook-bridge " in managed_hooks["preToolUse"][0]["powershell"]
+        assert " bounded-hook-bridge " in managed_hooks["userPromptSubmitted"][0]["bash"]
         assert managed_hooks["postToolUse"][0]["type"] == "command"
-        assert "bounded_cli_hook_bridge" in managed_hooks["postToolUse"][0]["bash"]
+        assert " bounded-hook-bridge " in managed_hooks["postToolUse"][0]["bash"]
         assert len(managed_workspace_hooks["userPromptSubmitted"]) == 1
         assert len(managed_workspace_hooks["preToolUse"]) == 1
         assert len(managed_workspace_hooks["postToolUse"]) == 1
@@ -328,34 +263,6 @@ def test_copilot_install_and_uninstall_manage_inline_config_hooks_idempotently(t
             os.environ.pop("PYTHONPATH", None)
         else:
             os.environ["PYTHONPATH"] = previous_pythonpath
-
-
-def test_refresh_guard_proxy_entry_preserves_list_form_proxy_args():
-    refreshed = _refresh_guard_proxy_entry(
-        {
-            "command": [
-                "/old/python",
-                "-m",
-                "codex_plugin_scanner.cli",
-                "guard",
-                "copilot-mcp-proxy",
-                "--server-name",
-                "danger_lab",
-            ]
-        },
-        launcher_env={"PYTHONPATH": "/tmp/src"},
-    )
-
-    assert refreshed["command"] == sys.executable
-    assert refreshed["args"] == [
-        "-m",
-        "codex_plugin_scanner.cli",
-        "guard",
-        "copilot-mcp-proxy",
-        "--server-name",
-        "danger_lab",
-    ]
-    assert refreshed["env"] == {"PYTHONPATH": "/tmp/src"}
 
 
 def test_copilot_install_migrates_legacy_workspace_hook_file_out_of_band(tmp_path):
@@ -420,6 +327,47 @@ def test_copilot_install_and_uninstall_preserve_existing_inline_hook_content(tmp
             "preToolUse": [{"command": "python existing-pre.py"}],
         },
     }
+
+
+def _tree(root: Path) -> dict[str, bytes]:
+    """Every file a refused change could touch, without Guard's own audit logs."""
+
+    def logged(relative: Path) -> bool:
+        return relative.parts[:2] == ("guard-home", "native-runtime") or relative.name == "authority-mutations.jsonl"
+
+    return {
+        str(path.relative_to(root)): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file() and not logged(path.relative_to(root))
+    }
+
+
+def test_copilot_without_a_hook_ownership_answer_changes_no_file(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    context = _build_context(tmp_path)
+    adapter = CopilotHarnessAdapter()
+    _write_json(
+        context.home_dir / ".copilot" / "config.json",
+        {"hooks": {"preToolUse": [{"command": "python existing-pre.py"}]}},
+    )
+    adapter.install(context)
+    before = _tree(tmp_path)
+
+    real = authority.native_runner_authority
+
+    def refused(kind: str, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        if kind == "harness_adapter":
+            raise NativeRunnerAuthorityError("native_runner_authority_unavailable")
+        return real(kind, *args, **kwargs)
+
+    monkeypatch.setattr(authority, "native_runner_authority", refused)
+
+    with pytest.raises(copilot_module.CopilotHookOwnershipError, match="hol-guard doctor copilot"):
+        adapter.uninstall(context)
+    assert _tree(tmp_path) == before
+
+    with pytest.raises(copilot_module.CopilotHookOwnershipError):
+        adapter.install(context)
+    assert _tree(tmp_path) == before
 
 
 def test_copilot_install_and_uninstall_parse_jsonc_config_comments(tmp_path):
@@ -859,7 +807,7 @@ def test_copilot_detect_marks_local_cli_install_as_available_when_not_on_path(tm
     local_binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     local_binary.chmod(0o755)
 
-    monkeypatch.setattr("codex_plugin_scanner.guard.adapters.base.shutil.which", lambda command: None)
+    monkeypatch.setenv("PATH", str(tmp_path / "empty-bin"))
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "actual-home")
 
     detection = adapter.detect(context)
@@ -876,7 +824,7 @@ def test_copilot_detect_ignores_non_executable_local_cli_candidate_when_not_on_p
     local_binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     local_binary.chmod(0o644)
 
-    monkeypatch.setattr("codex_plugin_scanner.guard.adapters.base.shutil.which", lambda command: None)
+    monkeypatch.setenv("PATH", str(tmp_path / "empty-bin"))
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "actual-home")
 
     detection = adapter.detect(context)
@@ -893,7 +841,7 @@ def test_copilot_launch_command_uses_local_cli_install_when_not_on_path(tmp_path
     local_binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     local_binary.chmod(0o755)
 
-    monkeypatch.setattr("codex_plugin_scanner.guard.adapters.base.shutil.which", lambda command: None)
+    monkeypatch.setenv("PATH", str(tmp_path / "empty-bin"))
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "actual-home")
 
     command = adapter.launch_command(context, ["--help"])
@@ -1003,3 +951,25 @@ def test_copilot_launch_command_skips_workspace_override_when_cli_mcp_config_is_
 
     assert command[0].endswith("copilot")
     assert command[1:] == ["--help"]
+
+
+def test_corrupt_authenticated_backup_fails_before_target_mutation(tmp_path: Path) -> None:
+    context = HarnessContext(home_dir=tmp_path / "home", workspace_dir=None, guard_home=tmp_path / "guard-home")
+    adapter = CopilotHarnessAdapter()
+    target = context.home_dir / ".copilot" / "mcp-config.json"
+    original = {"mcpServers": {"user": {"command": "user-command"}}}
+    _write_json(target, original)
+
+    install_payload = adapter.install(context)
+    backup_path = Path(str(install_payload["backup_path"]))
+    state_path = Path(str(install_payload["state_path"]))
+    target_before = target.read_bytes()
+    state_before = state_path.read_bytes()
+    backup_path.write_text("{corrupt\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="backup"):
+        adapter.install(context)
+
+    assert target.read_bytes() == target_before
+    assert backup_path.read_text(encoding="utf-8") == "{corrupt\n"
+    assert state_path.read_bytes() == state_before

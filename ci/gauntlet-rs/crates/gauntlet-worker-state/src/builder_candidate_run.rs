@@ -18,11 +18,12 @@ use crate::builder_image_context::{
 };
 use crate::builder_policy::{profile_is_loaded, read_policy, run_parser};
 use crate::candidate_host_anchor::{
-    verify_running_binary, write_host_anchor, HostCandidateRunAnchor,
+    verify_running_binary, write_host_anchor, CandidateContainer, HostCandidateRunAnchor,
 };
 use crate::{fixed_builder_run_plan, hex, RunReservationJournal};
 use rustix::process::geteuid;
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::fmt;
 use std::path::Path;
 
@@ -117,19 +118,14 @@ impl CandidateRunProof {
             "image_id":self.image_id,
             "policy_sha256":self.policy_sha256,
             "runtime_pins":self.runtime.to_json(),
-            "client_pid":self.client_pid,
-            "client_start_ticks":self.client_start_ticks,
+            "client_pid":self.client_pid,"client_start_ticks":self.client_start_ticks,
             "status":if self.exit_code == 0 {"exited-zero"} else {"build-failed"},
             "exit_code":self.exit_code,
-            "stdout_sha256":self.stdout_sha256,
-            "stderr_sha256":self.stderr_sha256,
+            "stdout_sha256":self.stdout_sha256,"stderr_sha256":self.stderr_sha256,
             "unadmitted_export_bytes":self.unadmitted_export_bytes,
             "unadmitted_export_sha256":self.unadmitted_export_sha256,
-            "container_absent":true,
-            "candidate_cgroup_drained":true,
-            "build_profile_removed":true,
-            "artifact_admitted":false,
-            "execution_eligible":false,
+            "container_absent":true,"candidate_cgroup_drained":true,"build_profile_removed":true,
+            "artifact_admitted":false,"execution_eligible":false,
         });
         if let Some((anchor, anchor_file_sha256)) = &self.host_anchor {
             body["schema"] = json!(if anchor.tag.is_some() {
@@ -263,16 +259,10 @@ fn run_fixed_local_candidate_inner(
     {
         return Err(CandidateRunError::InvalidPins);
     }
-    let request = json!({
-        "image_id":image_id,
-        "job_id":job_id,
-        "source_sha":source_sha,
-        "source_archive_sha256":archive_sha256,
-        "tag":tag,
-        "memory_gib":12,
+    let request = json!({"image_id":image_id,"job_id":job_id,"source_sha":source_sha,
+        "source_archive_sha256":archive_sha256,"tag":tag,"memory_gib":12,
         "local_version":if tag.starts_with("local-") { Some(version) } else { None },
-        "retest_build_job_id":null,
-    });
+        "retest_build_job_id":null});
     let plan = fixed_builder_run_plan(&request).map_err(|_| CandidateRunError::InvalidPins)?;
     let journal = RunReservationJournal::open_root_owned(Path::new(RUST_STATE))
         .map_err(|_| CandidateRunError::LeaseUnavailable)?;
@@ -280,10 +270,51 @@ fn run_fixed_local_candidate_inner(
         .acquire_active_lease()
         .map_err(|_| CandidateRunError::LeaseUnavailable)?;
     let python_lock = python_worker_lock().map_err(|_| CandidateRunError::LeaseUnavailable)?;
+    crate::dependency_state::require_idle().map_err(|_| CandidateRunError::LeaseUnavailable)?;
+    let job = open_fixed_build_slot(job_id).map_err(|_| CandidateRunError::SourceMismatch)?;
+    let bounded = crate::native_job_storage::source::verify(
+        job_id,
+        &job,
+        Some(crate::JobStorageProfile::Build),
+    )
+    .map_err(|_| CandidateRunError::SourceMismatch)?;
+    if bounded
+        .as_ref()
+        .is_some_and(|v| v["source_sha"] != source_sha)
+    {
+        return Err(CandidateRunError::SourceMismatch);
+    }
+    let source_bytes = verify_captured_source(&job, archive_sha256)
+        .map_err(|_| CandidateRunError::SourceMismatch)?;
     let context = inspect_fixed_builder_context(controller_root, tree_digest, job_id)
         .map_err(|_| CandidateRunError::ContextMismatch)?;
     let image_plan = fixed_builder_image_plan(&context, job_id, uv_id, rust_id)
         .map_err(|_| CandidateRunError::ContextMismatch)?;
+    let prepared_anchor = bounded
+        .as_ref()
+        .zip(host_anchor.as_ref())
+        .map(|(source, anchor)| {
+            crate::builder_candidate_preflight::BoundedCandidatePreparation {
+                journal: &journal,
+                job: &job,
+                source,
+                context: &context,
+                plan: &image_plan,
+                runtime: &runtime,
+                anchor,
+                controller_root,
+                tree_digest,
+                image_id,
+                version,
+                tag,
+            }
+            .consume_and_prepare(|| {
+                lease.verify(&journal.root).map_err(|e| e.to_string())?;
+                verify_python_lock(&python_lock).map_err(|e| e.to_string())
+            })
+        })
+        .transpose()
+        .map_err(|_| CandidateRunError::HostAnchorUncertain)?;
     inspect_fixed_builder_base_images(&image_plan).map_err(|_| CandidateRunError::BaseMismatch)?;
     verify_existing_context(&image_plan).map_err(|_| CandidateRunError::ContextMismatch)?;
     if inspect_result(&image_plan).map_err(|_| CandidateRunError::ImageMismatch)? != image_id {
@@ -300,9 +331,19 @@ fn run_fixed_local_candidate_inner(
         return Err(CandidateRunError::ProfileAlreadyLoaded);
     }
     verify_candidate_runtime(&runtime).map_err(|_| CandidateRunError::RuntimeMismatch)?;
-    let job = open_fixed_build_slot(job_id).map_err(|_| CandidateRunError::SourceMismatch)?;
-    let source_bytes = verify_captured_source(&job, archive_sha256)
-        .map_err(|_| CandidateRunError::SourceMismatch)?;
+    if crate::native_job_storage::source::verify(
+        job_id,
+        &job,
+        Some(crate::JobStorageProfile::Build),
+    )
+    .map_err(|_| CandidateRunError::SourceMismatch)?
+        != bounded
+        || verify_captured_source(&job, archive_sha256)
+            .map_err(|_| CandidateRunError::SourceMismatch)?
+            != source_bytes
+    {
+        return Err(CandidateRunError::SourceMismatch);
+    }
     if !container_absent(job_id).map_err(CandidateRunError::Process)? {
         return Err(CandidateRunError::Process(
             CandidateProcessError::ExistingContainer,
@@ -311,23 +352,39 @@ fn run_fixed_local_candidate_inner(
     if free_bytes().map_err(|_| CandidateRunError::LowDisk)? < MIN_START_FREE {
         return Err(CandidateRunError::LowDisk);
     }
-    let host_anchor = if let Some(anchor) = host_anchor {
-        let body = anchor.body(
-            job_id,
-            source_sha,
-            archive_sha256,
-            version,
-            tree_digest,
-            image_id,
-            &runtime,
-        );
-        let digest =
-            write_host_anchor(&job, &body).map_err(|_| CandidateRunError::HostAnchorUncertain)?;
-        Some((anchor, digest))
-    } else {
-        None
-    };
+    let host_anchor = host_anchor
+        .map(|anchor| -> Result<_, CandidateRunError> {
+            let digest = match prepared_anchor {
+                Some(digest) => digest,
+                None => write_host_anchor(
+                    &job,
+                    &anchor.body(
+                        job_id,
+                        source_sha,
+                        archive_sha256,
+                        version,
+                        tree_digest,
+                        image_id,
+                        &runtime,
+                    ),
+                )
+                .map_err(|_| CandidateRunError::HostAnchorUncertain)?,
+            };
+            Ok((anchor, digest))
+        })
+        .transpose()?;
     prepare_export(&job).map_err(|_| CandidateRunError::ExportUnavailable)?;
+    let binding = host_anchor
+        .as_ref()
+        .map(|(_, hash)| hash.clone())
+        .unwrap_or_else(|| {
+            format!(
+                "{:x}",
+                Sha256::digest(plan.to_json().to_string().as_bytes())
+            )
+        });
+    let mut container = CandidateContainer::new(&plan, image_id, &runtime.podman_sha256, &binding)
+        .map_err(|_| CandidateRunError::InvalidPins)?;
     let policy_path = format!("{BUILDS}/{job_id}/Builder.apparmor");
     let load = run_parser("--replace", &policy_path);
     if load.is_err() {
@@ -344,12 +401,53 @@ fn run_fixed_local_candidate_inner(
         return Err(CandidateRunError::CleanupUncertain);
     }
     let still_owned = || {
+        crate::native_job_storage::owner::health()
+            .map_err(|_| CandidateProcessError::LeaseUnavailable)?;
         lease
             .verify(&journal.root)
             .map_err(|_| CandidateProcessError::LeaseUnavailable)?;
-        verify_python_lock(&python_lock).map_err(|_| CandidateProcessError::LeaseUnavailable)
+        verify_python_lock(&python_lock).map_err(|_| CandidateProcessError::LeaseUnavailable)?;
+        crate::native_job_storage::source::verify(
+            job_id,
+            &job,
+            Some(crate::JobStorageProfile::Build),
+        )
+        .map_err(|_| CandidateProcessError::LeaseUnavailable)?;
+        Ok(())
     };
-    let process = run_candidate_process(&plan, &job, &still_owned);
+    let process = (|| {
+        let attached = container
+            .create(&job)
+            .map_err(|_| CandidateProcessError::ContainerUnknown)?;
+        let measured = std::cell::Cell::new(false);
+        let during = || {
+            still_owned()?;
+            if !measured.get() {
+                measured.set(
+                    crate::native_job_storage::source::observe_running(
+                        job_id,
+                        crate::JobStorageProfile::Build,
+                        &runtime.podman_sha256,
+                        &attached.argv[3],
+                        image_id,
+                        "hol-gauntlet.candidate-intent",
+                        &binding,
+                    )
+                    .map_err(|_| CandidateProcessError::ContainerUnknown)?,
+                );
+            }
+            Ok(())
+        };
+        run_candidate_process(&attached, &job, &binding, &during, &|| {
+            container
+                .drain()
+                .map_err(|_| CandidateProcessError::CleanupUncertain)
+        })
+    })();
+    // Also drain after create/receipt failures, before removing the enforced profile.
+    container
+        .drain()
+        .map_err(|_| CandidateRunError::CleanupUncertain)?;
     let absent = container_absent(job_id);
     if absent != Ok(true) {
         // Keep the exact profile for inspection if the container may survive.

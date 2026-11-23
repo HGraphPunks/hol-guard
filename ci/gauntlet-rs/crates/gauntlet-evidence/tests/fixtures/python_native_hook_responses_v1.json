@@ -1,0 +1,780 @@
+{
+  "cases": [
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "allow"
+        }
+      },
+      "name": "allow-exit-0",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93In0=",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "decision",
+        "reason": "actual installed OMP hook returned an invalid decision/protocol"
+      },
+      "name": "allow-exit-2",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93In0=",
+      "returncode": 2
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "decision",
+        "reason": "actual installed OMP hook returned an invalid decision/protocol"
+      },
+      "name": "allow-exit--9",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93In0=",
+      "returncode": -9
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "deny"
+        }
+      },
+      "name": "deny-exit-0",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImRlbnkifQ==",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "deny"
+        }
+      },
+      "name": "deny-exit-2",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImRlbnkifQ==",
+      "returncode": 2
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "deny"
+        }
+      },
+      "name": "deny-exit--9",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImRlbnkifQ==",
+      "returncode": -9
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "block"
+        }
+      },
+      "name": "block-exit-0",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImJsb2NrIn0=",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "block"
+        }
+      },
+      "name": "block-exit-2",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImJsb2NrIn0=",
+      "returncode": 2
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "block"
+        }
+      },
+      "name": "block-exit--9",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImJsb2NrIn0=",
+      "returncode": -9
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "decision",
+        "reason": "actual installed OMP hook returned an invalid decision/protocol"
+      },
+      "name": "null",
+      "raw_base64": "bnVsbA==",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "decision",
+        "reason": "actual installed OMP hook returned an invalid decision/protocol"
+      },
+      "name": "array",
+      "raw_base64": "W10=",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "decision",
+        "reason": "actual installed OMP hook returned an invalid decision/protocol"
+      },
+      "name": "boolean",
+      "raw_base64": "dHJ1ZQ==",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "decision",
+        "reason": "actual installed OMP hook returned an invalid decision/protocol"
+      },
+      "name": "missing-decision",
+      "raw_base64": "e30=",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "decision",
+        "reason": "actual installed OMP hook returned an invalid decision/protocol"
+      },
+      "name": "wrong-decision",
+      "raw_base64": "eyJkZWNpc2lvbiI6Indhcm4ifQ==",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "decision",
+        "reason": "actual installed OMP hook returned an invalid decision/protocol"
+      },
+      "name": "null-decision",
+      "raw_base64": "eyJkZWNpc2lvbiI6bnVsbH0=",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "deny",
+          "reason": null
+        }
+      },
+      "name": "null-reason",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImRlbnkiLCJyZWFzb24iOm51bGx9",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "decision",
+        "reason": "actual installed OMP hook returned an invalid decision/protocol"
+      },
+      "name": "number-reason",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImRlbnkiLCJyZWFzb24iOjF9",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "deny",
+          "reason": "retained"
+        }
+      },
+      "name": "string-reason",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImRlbnkiLCJyZWFzb24iOiJyZXRhaW5lZCJ9",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "deny",
+          "reason_code": "sandbox",
+          "required_execution_profile": "workspace-contained-v1"
+        }
+      },
+      "name": "extra-product-fields",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImRlbnkiLCJyZWFzb25fY29kZSI6InNhbmRib3giLCJyZXF1aXJlZF9leGVjdXRpb25fcHJvZmlsZSI6IndvcmtzcGFjZS1jb250YWluZWQtdjEifQ==",
+      "returncode": 0
+    },
+    {
+      "event": "UserPromptSubmit",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "allow",
+          "hookSpecificOutput": {
+            "hookEventName": "UserPromptSubmit"
+          },
+          "policy_action": "allow",
+          "reason_code": "prompt_context"
+        }
+      },
+      "name": "prompt-v2",
+      "raw_base64": "eyJob29rU3BlY2lmaWNPdXRwdXQiOnsiaG9va0V2ZW50TmFtZSI6IlVzZXJQcm9tcHRTdWJtaXQifSwicG9saWN5X2FjdGlvbiI6ImFsbG93IiwicmVhc29uX2NvZGUiOiJwcm9tcHRfY29udGV4dCJ9",
+      "returncode": 0
+    },
+    {
+      "event": "UserPromptSubmit",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "allow",
+          "hookSpecificOutput": {
+            "hookEventName": "UserPromptSubmit"
+          },
+          "policy_action": "warn",
+          "reason_code": "prompt_context"
+        }
+      },
+      "name": "prompt-v2-warn",
+      "raw_base64": "eyJob29rU3BlY2lmaWNPdXRwdXQiOnsiaG9va0V2ZW50TmFtZSI6IlVzZXJQcm9tcHRTdWJtaXQifSwicG9saWN5X2FjdGlvbiI6Indhcm4iLCJyZWFzb25fY29kZSI6InByb21wdF9jb250ZXh0In0=",
+      "returncode": 0
+    },
+    {
+      "event": "UserPromptSubmit",
+      "expected": {
+        "accepted": false,
+        "kind": "prompt",
+        "reason": "normal OMP prompt protocol-2 response malformed"
+      },
+      "name": "prompt-v2-nonzero",
+      "raw_base64": "eyJob29rU3BlY2lmaWNPdXRwdXQiOnsiaG9va0V2ZW50TmFtZSI6IlVzZXJQcm9tcHRTdWJtaXQifSwicG9saWN5X2FjdGlvbiI6ImFsbG93IiwicmVhc29uX2NvZGUiOiJwcm9tcHRfY29udGV4dCJ9",
+      "returncode": 2
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "decision",
+        "reason": "actual installed OMP hook returned an invalid decision/protocol"
+      },
+      "name": "prompt-v2-wrong-event",
+      "raw_base64": "eyJob29rU3BlY2lmaWNPdXRwdXQiOnsiaG9va0V2ZW50TmFtZSI6IlVzZXJQcm9tcHRTdWJtaXQifSwicG9saWN5X2FjdGlvbiI6ImFsbG93IiwicmVhc29uX2NvZGUiOiJwcm9tcHRfY29udGV4dCJ9",
+      "returncode": 0
+    },
+    {
+      "event": "UserPromptSubmit",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "deny",
+          "reason": "retained"
+        }
+      },
+      "name": "prompt-v1-denial",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImRlbnkiLCJyZWFzb24iOiJyZXRhaW5lZCJ9",
+      "returncode": 2
+    },
+    {
+      "event": "UserPromptSubmit",
+      "expected": {
+        "accepted": false,
+        "kind": "prompt",
+        "reason": "normal OMP prompt protocol-2 response malformed"
+      },
+      "name": "prompt-policy_action-24",
+      "raw_base64": "eyJob29rU3BlY2lmaWNPdXRwdXQiOnsiaG9va0V2ZW50TmFtZSI6IlVzZXJQcm9tcHRTdWJtaXQifSwicG9saWN5X2FjdGlvbiI6ImRlbnkiLCJyZWFzb25fY29kZSI6InByb21wdF9jb250ZXh0In0=",
+      "returncode": 0
+    },
+    {
+      "event": "UserPromptSubmit",
+      "expected": {
+        "accepted": false,
+        "kind": "prompt",
+        "reason": "normal OMP prompt protocol-2 response malformed"
+      },
+      "name": "prompt-reason_code-25",
+      "raw_base64": "eyJob29rU3BlY2lmaWNPdXRwdXQiOnsiaG9va0V2ZW50TmFtZSI6IlVzZXJQcm9tcHRTdWJtaXQifSwicG9saWN5X2FjdGlvbiI6ImFsbG93IiwicmVhc29uX2NvZGUiOiIifQ==",
+      "returncode": 0
+    },
+    {
+      "event": "UserPromptSubmit",
+      "expected": {
+        "accepted": false,
+        "kind": "prompt",
+        "reason": "normal OMP prompt protocol-2 response malformed"
+      },
+      "name": "prompt-reason_code-26",
+      "raw_base64": "eyJob29rU3BlY2lmaWNPdXRwdXQiOnsiaG9va0V2ZW50TmFtZSI6IlVzZXJQcm9tcHRTdWJtaXQifSwicG9saWN5X2FjdGlvbiI6ImFsbG93IiwicmVhc29uX2NvZGUiOm51bGx9",
+      "returncode": 0
+    },
+    {
+      "event": "UserPromptSubmit",
+      "expected": {
+        "accepted": false,
+        "kind": "prompt",
+        "reason": "normal OMP prompt protocol-2 response malformed"
+      },
+      "name": "prompt-hookSpecificOutput-27",
+      "raw_base64": "eyJob29rU3BlY2lmaWNPdXRwdXQiOnt9LCJwb2xpY3lfYWN0aW9uIjoiYWxsb3ciLCJyZWFzb25fY29kZSI6InByb21wdF9jb250ZXh0In0=",
+      "returncode": 0
+    },
+    {
+      "event": "UserPromptSubmit",
+      "expected": {
+        "accepted": false,
+        "kind": "prompt",
+        "reason": "normal OMP prompt protocol-2 response malformed"
+      },
+      "name": "prompt-hookSpecificOutput-28",
+      "raw_base64": "eyJob29rU3BlY2lmaWNPdXRwdXQiOnsiZXh0cmEiOnRydWUsImhvb2tFdmVudE5hbWUiOiJVc2VyUHJvbXB0U3VibWl0In0sInBvbGljeV9hY3Rpb24iOiJhbGxvdyIsInJlYXNvbl9jb2RlIjoicHJvbXB0X2NvbnRleHQifQ==",
+      "returncode": 0
+    },
+    {
+      "event": "UserPromptSubmit",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "allow",
+          "hookSpecificOutput": {
+            "hookEventName": "UserPromptSubmit"
+          },
+          "policy_action": "allow",
+          "reason_code": "prompt_context",
+          "risk_signals": []
+        }
+      },
+      "name": "prompt-risk_signals-29",
+      "raw_base64": "eyJob29rU3BlY2lmaWNPdXRwdXQiOnsiaG9va0V2ZW50TmFtZSI6IlVzZXJQcm9tcHRTdWJtaXQifSwicG9saWN5X2FjdGlvbiI6ImFsbG93IiwicmVhc29uX2NvZGUiOiJwcm9tcHRfY29udGV4dCIsInJpc2tfc2lnbmFscyI6W119",
+      "returncode": 0
+    },
+    {
+      "event": "UserPromptSubmit",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "allow",
+          "hookSpecificOutput": {
+            "hookEventName": "UserPromptSubmit"
+          },
+          "policy_action": "allow",
+          "reason_code": "prompt_context",
+          "risk_signals": [
+            "observed"
+          ]
+        }
+      },
+      "name": "prompt-risk_signals-30",
+      "raw_base64": "eyJob29rU3BlY2lmaWNPdXRwdXQiOnsiaG9va0V2ZW50TmFtZSI6IlVzZXJQcm9tcHRTdWJtaXQifSwicG9saWN5X2FjdGlvbiI6ImFsbG93IiwicmVhc29uX2NvZGUiOiJwcm9tcHRfY29udGV4dCIsInJpc2tfc2lnbmFscyI6WyJvYnNlcnZlZCJdfQ==",
+      "returncode": 0
+    },
+    {
+      "event": "UserPromptSubmit",
+      "expected": {
+        "accepted": false,
+        "kind": "prompt",
+        "reason": "normal OMP prompt protocol-2 response malformed"
+      },
+      "name": "prompt-risk_signals-31",
+      "raw_base64": "eyJob29rU3BlY2lmaWNPdXRwdXQiOnsiaG9va0V2ZW50TmFtZSI6IlVzZXJQcm9tcHRTdWJtaXQifSwicG9saWN5X2FjdGlvbiI6ImFsbG93IiwicmVhc29uX2NvZGUiOiJwcm9tcHRfY29udGV4dCIsInJpc2tfc2lnbmFscyI6W3RydWVdfQ==",
+      "returncode": 0
+    },
+    {
+      "event": "UserPromptSubmit",
+      "expected": {
+        "accepted": false,
+        "kind": "prompt",
+        "reason": "normal OMP prompt protocol-2 response malformed"
+      },
+      "name": "prompt-risk_signals-32",
+      "raw_base64": "eyJob29rU3BlY2lmaWNPdXRwdXQiOnsiaG9va0V2ZW50TmFtZSI6IlVzZXJQcm9tcHRTdWJtaXQifSwicG9saWN5X2FjdGlvbiI6ImFsbG93IiwicmVhc29uX2NvZGUiOiJwcm9tcHRfY29udGV4dCIsInJpc2tfc2lnbmFscyI6bnVsbH0=",
+      "returncode": 0
+    },
+    {
+      "event": "UserPromptSubmit",
+      "expected": {
+        "accepted": false,
+        "kind": "prompt",
+        "reason": "normal OMP prompt protocol-2 response malformed"
+      },
+      "name": "prompt-extra-33",
+      "raw_base64": "eyJleHRyYSI6dHJ1ZSwiaG9va1NwZWNpZmljT3V0cHV0Ijp7Imhvb2tFdmVudE5hbWUiOiJVc2VyUHJvbXB0U3VibWl0In0sInBvbGljeV9hY3Rpb24iOiJhbGxvdyIsInJlYXNvbl9jb2RlIjoicHJvbXB0X2NvbnRleHQifQ==",
+      "returncode": 0
+    },
+    {
+      "event": "UserPromptSubmit",
+      "expected": {
+        "accepted": false,
+        "kind": "prompt",
+        "reason": "normal OMP prompt protocol-2 response malformed"
+      },
+      "name": "prompt-missing-policy_action",
+      "raw_base64": "eyJob29rU3BlY2lmaWNPdXRwdXQiOnsiaG9va0V2ZW50TmFtZSI6IlVzZXJQcm9tcHRTdWJtaXQifSwicmVhc29uX2NvZGUiOiJwcm9tcHRfY29udGV4dCJ9",
+      "returncode": 0
+    },
+    {
+      "event": "UserPromptSubmit",
+      "expected": {
+        "accepted": false,
+        "kind": "prompt",
+        "reason": "normal OMP prompt protocol-2 response malformed"
+      },
+      "name": "prompt-missing-reason_code",
+      "raw_base64": "eyJob29rU3BlY2lmaWNPdXRwdXQiOnsiaG9va0V2ZW50TmFtZSI6IlVzZXJQcm9tcHRTdWJtaXQifSwicG9saWN5X2FjdGlvbiI6ImFsbG93In0=",
+      "returncode": 0
+    },
+    {
+      "event": "UserPromptSubmit",
+      "expected": {
+        "accepted": false,
+        "kind": "prompt",
+        "reason": "normal OMP prompt protocol-2 response malformed"
+      },
+      "name": "prompt-missing-hookSpecificOutput",
+      "raw_base64": "eyJwb2xpY3lfYWN0aW9uIjoiYWxsb3ciLCJyZWFzb25fY29kZSI6InByb21wdF9jb250ZXh0In0=",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "allow",
+          "structured_content_mediation": {
+            "action": "forward",
+            "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "native_decision_id": "native.1:decision-x",
+            "reason_code": "structured_clean",
+            "schema": "guard-structured-content-mediation.v1"
+          }
+        }
+      },
+      "name": "forward",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93Iiwic3RydWN0dXJlZF9jb250ZW50X21lZGlhdGlvbiI6eyJhY3Rpb24iOiJmb3J3YXJkIiwiY29udGVudF9zaGEyNTYiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwibmF0aXZlX2RlY2lzaW9uX2lkIjoibmF0aXZlLjE6ZGVjaXNpb24teCIsInJlYXNvbl9jb2RlIjoic3RydWN0dXJlZF9jbGVhbiIsInNjaGVtYSI6Imd1YXJkLXN0cnVjdHVyZWQtY29udGVudC1tZWRpYXRpb24udjEifX0=",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "forward-schema-38",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93Iiwic3RydWN0dXJlZF9jb250ZW50X21lZGlhdGlvbiI6eyJhY3Rpb24iOiJmb3J3YXJkIiwiY29udGVudF9zaGEyNTYiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwibmF0aXZlX2RlY2lzaW9uX2lkIjoibmF0aXZlLjE6ZGVjaXNpb24teCIsInJlYXNvbl9jb2RlIjoic3RydWN0dXJlZF9jbGVhbiIsInNjaGVtYSI6Im90aGVyIn19",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "forward-action-39",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93Iiwic3RydWN0dXJlZF9jb250ZW50X21lZGlhdGlvbiI6eyJhY3Rpb24iOiJ1bmtub3duIiwiY29udGVudF9zaGEyNTYiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwibmF0aXZlX2RlY2lzaW9uX2lkIjoibmF0aXZlLjE6ZGVjaXNpb24teCIsInJlYXNvbl9jb2RlIjoic3RydWN0dXJlZF9jbGVhbiIsInNjaGVtYSI6Imd1YXJkLXN0cnVjdHVyZWQtY29udGVudC1tZWRpYXRpb24udjEifX0=",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "forward-reason_code-40",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93Iiwic3RydWN0dXJlZF9jb250ZW50X21lZGlhdGlvbiI6eyJhY3Rpb24iOiJmb3J3YXJkIiwiY29udGVudF9zaGEyNTYiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwibmF0aXZlX2RlY2lzaW9uX2lkIjoibmF0aXZlLjE6ZGVjaXNpb24teCIsInJlYXNvbl9jb2RlIjoic3RydWN0dXJlZF8iLCJzY2hlbWEiOiJndWFyZC1zdHJ1Y3R1cmVkLWNvbnRlbnQtbWVkaWF0aW9uLnYxIn19",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "forward-reason_code-41",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93Iiwic3RydWN0dXJlZF9jb250ZW50X21lZGlhdGlvbiI6eyJhY3Rpb24iOiJmb3J3YXJkIiwiY29udGVudF9zaGEyNTYiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwibmF0aXZlX2RlY2lzaW9uX2lkIjoibmF0aXZlLjE6ZGVjaXNpb24teCIsInJlYXNvbl9jb2RlIjoic3RydWN0dXJlZF9DbGVhbiIsInNjaGVtYSI6Imd1YXJkLXN0cnVjdHVyZWQtY29udGVudC1tZWRpYXRpb24udjEifX0=",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "forward-native_decision_id-42",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93Iiwic3RydWN0dXJlZF9jb250ZW50X21lZGlhdGlvbiI6eyJhY3Rpb24iOiJmb3J3YXJkIiwiY29udGVudF9zaGEyNTYiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwibmF0aXZlX2RlY2lzaW9uX2lkIjoiIiwicmVhc29uX2NvZGUiOiJzdHJ1Y3R1cmVkX2NsZWFuIiwic2NoZW1hIjoiZ3VhcmQtc3RydWN0dXJlZC1jb250ZW50LW1lZGlhdGlvbi52MSJ9fQ==",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "forward-native_decision_id-43",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93Iiwic3RydWN0dXJlZF9jb250ZW50X21lZGlhdGlvbiI6eyJhY3Rpb24iOiJmb3J3YXJkIiwiY29udGVudF9zaGEyNTYiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwibmF0aXZlX2RlY2lzaW9uX2lkIjoieHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHgiLCJyZWFzb25fY29kZSI6InN0cnVjdHVyZWRfY2xlYW4iLCJzY2hlbWEiOiJndWFyZC1zdHJ1Y3R1cmVkLWNvbnRlbnQtbWVkaWF0aW9uLnYxIn19",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "forward-native_decision_id-44",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93Iiwic3RydWN0dXJlZF9jb250ZW50X21lZGlhdGlvbiI6eyJhY3Rpb24iOiJmb3J3YXJkIiwiY29udGVudF9zaGEyNTYiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwibmF0aXZlX2RlY2lzaW9uX2lkIjoiw7xtbGF1dCIsInJlYXNvbl9jb2RlIjoic3RydWN0dXJlZF9jbGVhbiIsInNjaGVtYSI6Imd1YXJkLXN0cnVjdHVyZWQtY29udGVudC1tZWRpYXRpb24udjEifX0=",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "forward-native_decision_id-45",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93Iiwic3RydWN0dXJlZF9jb250ZW50X21lZGlhdGlvbiI6eyJhY3Rpb24iOiJmb3J3YXJkIiwiY29udGVudF9zaGEyNTYiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwibmF0aXZlX2RlY2lzaW9uX2lkIjp0cnVlLCJyZWFzb25fY29kZSI6InN0cnVjdHVyZWRfY2xlYW4iLCJzY2hlbWEiOiJndWFyZC1zdHJ1Y3R1cmVkLWNvbnRlbnQtbWVkaWF0aW9uLnYxIn19",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "forward-content_sha256-46",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93Iiwic3RydWN0dXJlZF9jb250ZW50X21lZGlhdGlvbiI6eyJhY3Rpb24iOiJmb3J3YXJkIiwiY29udGVudF9zaGEyNTYiOiJBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBIiwibmF0aXZlX2RlY2lzaW9uX2lkIjoibmF0aXZlLjE6ZGVjaXNpb24teCIsInJlYXNvbl9jb2RlIjoic3RydWN0dXJlZF9jbGVhbiIsInNjaGVtYSI6Imd1YXJkLXN0cnVjdHVyZWQtY29udGVudC1tZWRpYXRpb24udjEifX0=",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "forward-content_sha256-47",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93Iiwic3RydWN0dXJlZF9jb250ZW50X21lZGlhdGlvbiI6eyJhY3Rpb24iOiJmb3J3YXJkIiwiY29udGVudF9zaGEyNTYiOm51bGwsIm5hdGl2ZV9kZWNpc2lvbl9pZCI6Im5hdGl2ZS4xOmRlY2lzaW9uLXgiLCJyZWFzb25fY29kZSI6InN0cnVjdHVyZWRfY2xlYW4iLCJzY2hlbWEiOiJndWFyZC1zdHJ1Y3R1cmVkLWNvbnRlbnQtbWVkaWF0aW9uLnYxIn19",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "forward-extra-48",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93Iiwic3RydWN0dXJlZF9jb250ZW50X21lZGlhdGlvbiI6eyJhY3Rpb24iOiJmb3J3YXJkIiwiY29udGVudF9zaGEyNTYiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwiZXh0cmEiOnRydWUsIm5hdGl2ZV9kZWNpc2lvbl9pZCI6Im5hdGl2ZS4xOmRlY2lzaW9uLXgiLCJyZWFzb25fY29kZSI6InN0cnVjdHVyZWRfY2xlYW4iLCJzY2hlbWEiOiJndWFyZC1zdHJ1Y3R1cmVkLWNvbnRlbnQtbWVkaWF0aW9uLnYxIn19",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "forward-missing-schema",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93Iiwic3RydWN0dXJlZF9jb250ZW50X21lZGlhdGlvbiI6eyJhY3Rpb24iOiJmb3J3YXJkIiwiY29udGVudF9zaGEyNTYiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwibmF0aXZlX2RlY2lzaW9uX2lkIjoibmF0aXZlLjE6ZGVjaXNpb24teCIsInJlYXNvbl9jb2RlIjoic3RydWN0dXJlZF9jbGVhbiJ9fQ==",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "forward-missing-action",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93Iiwic3RydWN0dXJlZF9jb250ZW50X21lZGlhdGlvbiI6eyJjb250ZW50X3NoYTI1NiI6ImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJuYXRpdmVfZGVjaXNpb25faWQiOiJuYXRpdmUuMTpkZWNpc2lvbi14IiwicmVhc29uX2NvZGUiOiJzdHJ1Y3R1cmVkX2NsZWFuIiwic2NoZW1hIjoiZ3VhcmQtc3RydWN0dXJlZC1jb250ZW50LW1lZGlhdGlvbi52MSJ9fQ==",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "forward-missing-reason_code",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93Iiwic3RydWN0dXJlZF9jb250ZW50X21lZGlhdGlvbiI6eyJhY3Rpb24iOiJmb3J3YXJkIiwiY29udGVudF9zaGEyNTYiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwibmF0aXZlX2RlY2lzaW9uX2lkIjoibmF0aXZlLjE6ZGVjaXNpb24teCIsInNjaGVtYSI6Imd1YXJkLXN0cnVjdHVyZWQtY29udGVudC1tZWRpYXRpb24udjEifX0=",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "forward-missing-native_decision_id",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93Iiwic3RydWN0dXJlZF9jb250ZW50X21lZGlhdGlvbiI6eyJhY3Rpb24iOiJmb3J3YXJkIiwiY29udGVudF9zaGEyNTYiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwicmVhc29uX2NvZGUiOiJzdHJ1Y3R1cmVkX2NsZWFuIiwic2NoZW1hIjoiZ3VhcmQtc3RydWN0dXJlZC1jb250ZW50LW1lZGlhdGlvbi52MSJ9fQ==",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "forward-missing-content_sha256",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93Iiwic3RydWN0dXJlZF9jb250ZW50X21lZGlhdGlvbiI6eyJhY3Rpb24iOiJmb3J3YXJkIiwibmF0aXZlX2RlY2lzaW9uX2lkIjoibmF0aXZlLjE6ZGVjaXNpb24teCIsInJlYXNvbl9jb2RlIjoic3RydWN0dXJlZF9jbGVhbiIsInNjaGVtYSI6Imd1YXJkLXN0cnVjdHVyZWQtY29udGVudC1tZWRpYXRpb24udjEifX0=",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "deny",
+          "structured_content_mediation": {
+            "action": "withhold",
+            "reason_code": "structured_sensitive",
+            "schema": "guard-structured-content-mediation.v1"
+          }
+        }
+      },
+      "name": "withhold-no-id",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImRlbnkiLCJzdHJ1Y3R1cmVkX2NvbnRlbnRfbWVkaWF0aW9uIjp7ImFjdGlvbiI6IndpdGhob2xkIiwicmVhc29uX2NvZGUiOiJzdHJ1Y3R1cmVkX3NlbnNpdGl2ZSIsInNjaGVtYSI6Imd1YXJkLXN0cnVjdHVyZWQtY29udGVudC1tZWRpYXRpb24udjEifX0=",
+      "returncode": 2
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "block",
+          "structured_content_mediation": {
+            "action": "withhold",
+            "native_decision_id": "held",
+            "reason_code": "structured_sensitive",
+            "schema": "guard-structured-content-mediation.v1"
+          }
+        }
+      },
+      "name": "withhold-id",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImJsb2NrIiwic3RydWN0dXJlZF9jb250ZW50X21lZGlhdGlvbiI6eyJhY3Rpb24iOiJ3aXRoaG9sZCIsIm5hdGl2ZV9kZWNpc2lvbl9pZCI6ImhlbGQiLCJyZWFzb25fY29kZSI6InN0cnVjdHVyZWRfc2Vuc2l0aXZlIiwic2NoZW1hIjoiZ3VhcmQtc3RydWN0dXJlZC1jb250ZW50LW1lZGlhdGlvbi52MSJ9fQ==",
+      "returncode": 2
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "withhold-wrong-id",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImRlbnkiLCJzdHJ1Y3R1cmVkX2NvbnRlbnRfbWVkaWF0aW9uIjp7ImFjdGlvbiI6IndpdGhob2xkIiwibmF0aXZlX2RlY2lzaW9uX2lkIjpudWxsLCJyZWFzb25fY29kZSI6InN0cnVjdHVyZWRfc2Vuc2l0aXZlIiwic2NoZW1hIjoiZ3VhcmQtc3RydWN0dXJlZC1jb250ZW50LW1lZGlhdGlvbi52MSJ9fQ==",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "withhold-content",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImRlbnkiLCJzdHJ1Y3R1cmVkX2NvbnRlbnRfbWVkaWF0aW9uIjp7ImFjdGlvbiI6IndpdGhob2xkIiwiY29udGVudF9zaGEyNTYiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwicmVhc29uX2NvZGUiOiJzdHJ1Y3R1cmVkX3NlbnNpdGl2ZSIsInNjaGVtYSI6Imd1YXJkLXN0cnVjdHVyZWQtY29udGVudC1tZWRpYXRpb24udjEifX0=",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "mediation",
+        "reason": "normal OMP structured mediation response malformed"
+      },
+      "name": "mediation-array",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImRlbnkiLCJzdHJ1Y3R1cmVkX2NvbnRlbnRfbWVkaWF0aW9uIjpbXX0=",
+      "returncode": 0
+    },
+    {
+      "event": null,
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "allow"
+        }
+      },
+      "name": "decision-without-event",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93In0=",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "json",
+        "reason": "invalid JSON: duplicate object key: decision"
+      },
+      "name": "duplicate-decision",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93IiwiZGVjaXNpb24iOiJkZW55In0=",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "json",
+        "reason": "invalid JSON: non-finite number: NaN"
+      },
+      "name": "nonfinite",
+      "raw_base64": "eyJkZWNpc2lvbiI6ImFsbG93IiwicmlzayI6TmFOfQ==",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": false,
+        "kind": "json",
+        "reason": "invalid JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+      },
+      "name": "invalid-json",
+      "raw_base64": "ew==",
+      "returncode": 0
+    },
+    {
+      "event": "PreToolUse",
+      "expected": {
+        "accepted": true,
+        "value": {
+          "decision": "allow",
+          "reason": "retained"
+        }
+      },
+      "name": "utf16",
+      "raw_base64": "//57ACIAZABlAGMAaQBzAGkAbwBuACIAOgAgACIAYQBsAGwAbwB3ACIALAAgACIAcgBlAGEAcwBvAG4AIgA6ACAAIgByAGUAdABhAGkAbgBlAGQAIgB9AA==",
+      "returncode": 0
+    }
+  ],
+  "json_source_sha256": "5d7a9b3b350ac5a7c318f02af8916101551371459f487cc0e5abd037792f817e",
+  "schema": "hol-gauntlet-python-native-hook-response.v1",
+  "source_commit": "62aa7ba777a5a4cc0806c34ee94e9822eaa58d32",
+  "source_sha256": "96fc83e9aca16a8638d82f19a72a365b4eea219d00e512b861dc7afc74c2f1db"
+}

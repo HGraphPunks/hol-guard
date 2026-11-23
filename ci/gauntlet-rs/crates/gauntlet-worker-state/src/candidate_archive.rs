@@ -111,7 +111,12 @@ pub fn inspect_candidate_archive<R: Read + Seek>(
         if total > MAX_TOTAL {
             return Err(CandidateArchiveError::Oversized);
         }
-        names.push((file.name().to_owned(), size));
+        names.push((
+            file.name()
+                .map_err(|_| CandidateArchiveError::InvalidZip)?
+                .into_owned(),
+            size,
+        ));
     }
     if names[0].0 == names[1].0
         || names
