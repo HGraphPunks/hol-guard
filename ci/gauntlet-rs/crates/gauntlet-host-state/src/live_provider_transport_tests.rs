@@ -262,8 +262,8 @@ class ResponseGenerator:
         output.put(None)
 "#;
     std::fs::write(site.join("mlx_lm/server.py"), server).unwrap();
-    // Darwin's /usr/bin/python3 is a Root-owned launcher. Resolve only its
-    // standard interpreter path before the mock; no model library is imported.
+    // Discover only the standard interpreter before staging the mock runtime;
+    // isolated startup excludes installed model packages.
     let discovered = std::process::Command::new("/usr/bin/python3")
         .args([
             "-I",
@@ -276,26 +276,76 @@ class ResponseGenerator:
         .unwrap();
     assert!(discovered.status.success());
     assert!(discovered.stdout.len() < 4096);
-    let capsule=std::path::Path::new("/Users/construct/Documents/projects/hol-guard-refinement/local-model-capsule-20261013/.venv/bin/python");
-    let python = std::fs::canonicalize(if capsule.is_file() {
-        capsule
-    } else {
-        std::path::Path::new(std::str::from_utf8(&discovered.stdout).unwrap().trim())
-    })
+    let source = std::fs::canonicalize(Path::new(
+        std::str::from_utf8(&discovered.stdout).unwrap().trim(),
+    ))
     .unwrap();
+    // Hosted macOS resolves Python into group-writable /Applications. Keep the
+    // fixture executable and Apple's framework launcher in private custody.
+    let runtime = journal.path.join("mock-python-runtime");
+    let bin = runtime.join("bin");
+    std::fs::create_dir_all(&bin).unwrap();
+    for directory in [&runtime, &bin] {
+        std::fs::set_permissions(directory, std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
+    let python = bin.join(source.file_name().unwrap());
+    std::fs::copy(&source, &python).unwrap();
+    std::fs::set_permissions(&python, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let mut runtime_files = vec![python.clone()];
+    #[cfg(target_os = "macos")]
+    {
+        for relative in ["Python3", "Resources/Python.app/Contents/MacOS/Python"] {
+            let original = source.parent().unwrap().parent().unwrap().join(relative);
+            if original.is_file() {
+                let copied = runtime.join(relative);
+                std::fs::create_dir_all(copied.parent().unwrap()).unwrap();
+                std::fs::copy(original, &copied).unwrap();
+                std::fs::set_permissions(&copied, std::fs::Permissions::from_mode(0o700)).unwrap();
+                runtime_files.push(copied);
+            }
+        }
+    }
+    // Bind the process to Apple's final application interpreter, rather than
+    // the bin launcher which replaces itself during framework startup.
+    let application = runtime.join("Resources/Python.app/Contents/MacOS/Python");
+    let python = if application.is_file() {
+        application
+    } else {
+        python
+    };
+    let configuration = python
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("pyvenv.cfg");
+    std::fs::write(
+        &configuration,
+        format!(
+            "home = {}\ninclude-system-site-packages = false\n",
+            source.parent().unwrap().display()
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(&configuration, std::fs::Permissions::from_mode(0o600)).unwrap();
+    runtime_files.push(configuration);
     let mut pins = serde_json::Map::new();
-    for path in [
-        python.clone(),
-        site.join("mlx/core.py"),
-        site.join("mlx_lm/server.py"),
-    ] {
+    runtime_files.extend([site.join("mlx/core.py"), site.join("mlx_lm/server.py")]);
+    for path in runtime_files {
         let raw = std::fs::read(&path).unwrap();
         pins.insert(
             path.to_str().unwrap().into(),
             json!({"sha256":sha(&raw),"bytes":raw.len()}),
         );
     }
-    let assets = Assets::capture(&Value::Object(pins)).unwrap();
+    let pins = Value::Object(pins);
+    std::fs::set_permissions(&runtime, std::fs::Permissions::from_mode(0o770)).unwrap();
+    assert_eq!(
+        Assets::capture(&pins).err().as_deref(),
+        Some("provider asset ancestry writable outside owner")
+    );
+    std::fs::set_permissions(&runtime, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let assets = Assets::capture(&pins).unwrap();
     let intent = Intent(
         json!({"spec":{"python":python,"site_packages":site,"model_directory":journal.path,"producer_sha256":"a".repeat(64)}}),
     );

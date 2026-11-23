@@ -30,8 +30,20 @@ remain required. Fourteen historical Gitleaks matches are reference digests,
 public frame tags and synthetic redaction inputs; exceptions bind each exact
 commit/path/rule/line, without changing fixtures or broadening path exclusions.
 The separate product OAuth dependency still brings unmaintained `chrono`
-(RUSTSEC-2026-0543) into the product workspace, and its security check remains
-open. No advisory waiver or security-policy relaxation is made by this v1 batch.
+(RUSTSEC-2026-0543) into the product workspace. The user explicitly approved
+carrying the existing maintenance-only exception from upstream PR #7924 on
+November 23. No known-vulnerability advisory is waived; replacing the parent
+dependency remains uncompleted on the roadmap.
+
+The macOS Native job now pins supported Python 3.14.10 for its test harness:
+the official Actions manifest publishes no macOS build for Python 3.12.14.
+The frozen ARM product interpreter is unchanged. CI dev/test builds omit debug
+symbols, matching the bounded local profile and preserving the existing ELF
+byte ceiling rather than increasing it for oversized test images.
+The mocked numerical-process fixture stages and pins its standard interpreter,
+framework files and configuration privately, selects the actual macOS process
+image and verifies writable ancestry still refuses. Its exact mock/token/reap
+test and Host warnings-denied Clippy pass; production custody checks are unchanged.
 
 Upstream `main` was observed at `bd23425164010b9da0547cd9f59ddcc422207eef`,
 beyond the reviewed `fc0486a63` baseline. Compatibility with that newer product
