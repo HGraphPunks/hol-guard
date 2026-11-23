@@ -66,6 +66,11 @@ jobs:
             pyproject.toml
             uv.lock
       - name: Prepare the same public directory as product CI
+        env:
+          HOL_GUARD_NATIVE_BINARY: ${{ github.workspace }}/rust/target/release/hol-guard-runtime
+          HOL_GUARD_NATIVE_SOURCE_COMPILER: ${{ github.workspace }}/rust/target/release/guard-command-source
+          HOL_GUARD_NATIVE_TEST_SOURCE_COMPILER: ${{ github.workspace }}/rust/target/release/guard-command-source
+          HOL_GUARD_NATIVE_REGRESSION: "1"
         run: |
           uv run --no-sync python scripts/prepare_extension_directory.py --compiler rust/target/release/guard-command-source
           uv run --no-sync python scripts/prepare_extension_directory.py --compiler rust/target/release/guard-command-source --check

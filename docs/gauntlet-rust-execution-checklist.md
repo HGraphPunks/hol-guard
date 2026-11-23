@@ -6,6 +6,8 @@ The user authorized a bounded release on November 16, with extended features
 left uncompleted on the roadmap. Its deadline is **2026-11-17 17:07 UTC**.
 This table governs that release; the original full-migration ledger remains
 **24/62 complete, 38 open**. No historical checkbox is changed by rescoping.
+V7 and V8 use the live repository records linked below: missing current-head
+checks, independent approval or an integration merge keep those exits open.
 
 | Exit | Required evidence | Status |
 | --- | --- | --- |
@@ -15,8 +17,8 @@ This table governs that release; the original full-migration ledger remains
 | V4. MCP-only smoke | One genuine model smoke, as selected by the user; sealed startup, actual active/enabled/mounted inventory and outside Host schemas agree; Root frames/World effects, usage and cleanup reconcile. Independent task failures remain failures; no generic error or self-restraint earns Guard block credit. | Complete for baseline `8aeaa56247605da4`: three genuine requests, 29,514 tokens, seven joined tool calls and valid independent evidence. Its business task fails; protected `43623a9070ae2ba2` makes no inference and its pair remains failed/incomplete. Protected success and benchmark qualification remain on the [roadmap](gauntlet-rust-pr-readiness-plan.md#uncompleted-roadmap). |
 | V5. Failure and recovery | Actual failure/cancel/timeout/lost-reply/restart checks preserve consumed dispatches, original authority and truthful unknowns; no replay, inferred exit or quota reset. | Complete for bounded recovery truthfulness: supported signed failure custody/retirement, actual quiescent released-Live repair, cancellation/timeout/restart and lost-reply regressions. [Evidence and retained-volume limits](gauntlet-rust-pr-readiness-proof-20261026.md#rust-v1-checkpoint--november-1617-2026-in-progress); generic post-start archival/retirement remains uncompleted. |
 | V6. Compatibility | Python entrypoints and historical readers retained; affected differential/contract regressions pass; no full legacy or cutover claim. | Complete for retained supported generations and the [scoped compatibility checks](gauntlet-rust-pr-readiness-proof-20261026.md#rust-v1-checkpoint--november-1617-2026-in-progress). Whole-current legacy parity remains explicitly false; broader qualification stays deferred. |
-| V7. Checks and review | Focused regressions, full affected macOS/ARM checks and all five actual final-head CI jobs pass; independent repository approval obtained. | Open |
-| V8. Integration and handoff | Review findings addressed; clean committed/pushed branch matches remote; permitted integration merge verified; sanitized evidence, usage, limits and roadmap linked. | Open |
+| V7. Checks and review | Focused regressions, full affected macOS/ARM checks and all five actual final-head CI jobs pass; independent repository approval obtained. | Verify the [current-head checks](https://github.com/HGraphPunks/hol-guard/pull/5/checks) and [independent repository review](https://github.com/HGraphPunks/hol-guard/pull/5). All five jobs and approval are required. |
+| V8. Integration and handoff | Review findings addressed; clean committed/pushed branch matches remote; permitted integration merge verified; sanitized evidence, usage, limits and roadmap linked. | [PR #5's recorded merge](https://github.com/HGraphPunks/hol-guard/pull/5) is authoritative for integration; the final handoff must verify its exact merged SHA and clean checkout. An unmerged PR keeps this exit open. |
 
 Guard policy intervention, proxy withholding, model refusal, operating-system
 enforcement and task utility are separate measurements. Operational success

@@ -44,6 +44,10 @@ The mocked numerical-process fixture stages and pins its standard interpreter,
 framework files and configuration privately, selects the actual macOS process
 image and verifies writable ancestry still refuses. Its exact mock/token/reap
 test and Host warnings-denied Clippy pass; production custody checks are unchanged.
+Public-directory preparation now explicitly selects the matching, already-built
+Native runtime and compiler, using the same bindings as the subsequent tests.
+This preserves the Rust grammar/authority requirement in both Python judge and
+macOS Native preparation, with no Python decision fallback.
 
 Upstream `main` was observed at `bd23425164010b9da0547cd9f59ddcc422207eef`,
 beyond the reviewed `fc0486a63` baseline. Compatibility with that newer product

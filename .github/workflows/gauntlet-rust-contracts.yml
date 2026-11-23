@@ -118,6 +118,11 @@ jobs:
           cargo +1.89.0 test --manifest-path rust/Cargo.toml
           -p guard-contained-process --lib macos_hardened_image_tests --locked
       - name: Verify the full Native program and public directory
+        env:
+          HOL_GUARD_NATIVE_BINARY: ${{ github.workspace }}/rust/target/release/hol-guard-runtime
+          HOL_GUARD_NATIVE_SOURCE_COMPILER: ${{ github.workspace }}/rust/target/release/guard-command-source
+          HOL_GUARD_NATIVE_TEST_SOURCE_COMPILER: ${{ github.workspace }}/rust/target/release/guard-command-source
+          HOL_GUARD_NATIVE_REGRESSION: "1"
         run: >-
           uv run --no-sync python scripts/ci/verify_native_command_program.py
           --compiler rust/target/release/guard-command-source --prepare-directory
