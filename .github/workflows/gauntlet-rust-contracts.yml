@@ -78,7 +78,8 @@ jobs:
       startsWith(github.ref, 'refs/heads/codex/gauntlet-rust-integration-')
     # Standard Intel runners preserve these macOS fixtures during ARM capacity shortages.
     runs-on: macos-15-intel
-    timeout-minutes: 25
+    # A cold fork build exceeds 25 minutes; retain time for the actual Native fixtures.
+    timeout-minutes: 45
     env:
       CARGO_PROFILE_RELEASE_LTO: "false"
       CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"

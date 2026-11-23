@@ -141,7 +141,8 @@ jobs:
     if: github.event_name == 'pull_request'
     needs: judge-native
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # The 40k-test corpus needs more than 15 minutes per shard on cold runners.
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:

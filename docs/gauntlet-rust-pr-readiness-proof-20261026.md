@@ -52,6 +52,11 @@ Standalone preparation also selects the explicit Native mode used by the main
 CI preparation step. Pytest supplies that mode through regression fixtures;
 standalone scripts do not. Protocol, manifest, identity and capability checks
 remain enforced for the pinned source-built runtime.
+The next run passes four required jobs, but its Mac cold build exceeds the
+25-minute job budget. The separate 40,931-test judge corpus also exceeds its
+15-minute shard budget (one shard reaches 68% with no reported test failure).
+Those CI budgets are now 45 and 35 minutes respectively; execution limits and
+all test assertions are unchanged. The incomplete runs grant no final-check credit.
 
 Upstream `main` was observed at `bd23425164010b9da0547cd9f59ddcc422207eef`,
 beyond the reviewed `fc0486a63` baseline. Compatibility with that newer product
