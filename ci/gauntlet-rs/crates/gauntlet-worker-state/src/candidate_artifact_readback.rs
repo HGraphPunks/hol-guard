@@ -256,7 +256,7 @@ pub(crate) fn verify_stage(
     let mut directories = BTreeSet::new();
     for index in 0..zip.len() {
         let mut entry = zip.by_index(index).map_err(|e| e.to_string())?;
-        let name = entry.name().to_owned();
+        let name = entry.name().map_err(|e| e.to_string())?.into_owned();
         for (offset, _) in name.match_indices('/') {
             directories.insert(name[..offset].to_owned());
         }

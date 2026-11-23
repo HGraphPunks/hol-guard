@@ -83,7 +83,10 @@ pub fn inspect_dependency_archive(
         let mut entry = zip
             .by_index(index)
             .map_err(|_| "dependency ZIP entry unavailable or encrypted")?;
-        let name = entry.name().to_owned();
+        let name = entry
+            .name()
+            .map_err(|_| "ordinary unencrypted UTF-8 dependency files required")?
+            .into_owned();
         if std::str::from_utf8(entry.name_raw()).ok() != Some(name.as_str())
             || entry.encrypted()
             || !entry.is_file()
@@ -270,7 +273,7 @@ mod tests {
         let pos = {
             let mut z = zip::ZipArchive::new(Cursor::new(&raw)).unwrap();
             let e = z.by_index(0).unwrap();
-            e.data_start() as usize
+            e.data_start().expect("opened fixture entry data offset") as usize
         };
         raw[pos] ^= 1;
         assert!(read(&raw).unwrap_err().contains("CRC"));

@@ -171,10 +171,10 @@ fn directory_for_entry(
     Err(CandidateWheelStageError::WheelInvalid)
 }
 
-fn write_entry(
+fn write_entry<R: Read + ?Sized>(
     stage: &OwnedFd,
     name: &str,
-    entry: &mut zip::read::ZipFile<'_>,
+    entry: &mut zip::read::ZipFile<'_, R>,
 ) -> Result<(), CandidateWheelStageError> {
     let (directory, basename) = directory_for_entry(stage, name)?;
     let descriptor = openat(
@@ -288,7 +288,10 @@ fn materialize_wheel(
         let mut entry = archive
             .by_index(index)
             .map_err(|_| CandidateWheelStageError::WheelInvalid)?;
-        let name = entry.name().to_owned();
+        let name = entry
+            .name()
+            .map_err(|_| CandidateWheelStageError::WheelInvalid)?
+            .into_owned();
         for (offset, _) in name.match_indices('/') {
             directories.insert(name[..offset].to_owned());
         }

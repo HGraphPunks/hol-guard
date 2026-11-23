@@ -60,6 +60,7 @@ fn private_file(s: &Stat) -> bool {
         && s.st_nlink == 1
 }
 impl NativeMcpWorld {
+    #[cfg(any(target_arch = "aarch64", test))]
     pub(crate) fn open_prepared(
         job_id: &str,
         key: Ed25519KeyPair,
@@ -114,6 +115,7 @@ impl NativeMcpWorld {
         owned.verify()?;
         Ok(owned)
     }
+    #[cfg(target_arch = "aarch64")]
     pub(crate) fn database_identity(&self) -> Value {
         json!({"device":self.file_stat.st_dev,"inode":self.file_stat.st_ino,"uid":self.file_stat.st_uid,"gid":self.file_stat.st_gid,"mode":self.file_stat.st_mode&0o7777,"links":self.file_stat.st_nlink})
     }
@@ -256,6 +258,7 @@ impl NativeMcpWorld {
         self.check()?;
         result
     }
+    #[cfg(target_arch = "aarch64")]
     pub(crate) fn calls(&self) -> &[Value] {
         &self.calls
     }

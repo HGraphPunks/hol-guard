@@ -67,8 +67,12 @@ pub(crate) fn decode_inputs(
         let entry = zip
             .by_index(index)
             .map_err(|_| "dependency capsule entry unavailable")?;
-        if !INPUT_NAMES.contains(&entry.name())
-            || !seen.insert(entry.name().to_owned())
+        let name = entry
+            .name()
+            .map_err(|_| "dependency capsule contains unsupported objects")?
+            .into_owned();
+        if !INPUT_NAMES.contains(&name.as_str())
+            || !seen.insert(name)
             || entry.is_dir()
             || !entry
                 .unix_mode()

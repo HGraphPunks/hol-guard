@@ -86,6 +86,7 @@ become ready. Do not repeat passing unchanged checks or expand feature scope.
 | General post-start failed-Live archive and volume retirement | **Uncompleted.** The released-Live repair preserves quiescence and unknown exit/usage, but its original bounded volume remains retained until a supported archival authority exists. The separately supported signed failure from a never-started SDK has its own authenticated custody and retirement path. |
 | SDK source-input retirement | **Uncompleted.** The installed SDK reader still requires the original source/publication metadata. Keep its original input state retained until a supported retirement authority exists. |
 | Automatic release observer, active PR gate, cutover/rollback and Python retirement | **Uncompleted.** Full required parity/rollout evidence and separate operator authorization required. |
+| Product OAuth dependency maintenance | **Uncompleted.** Repository security CI rejects unmaintained `chrono` through `oauth2` 5.0.0 (RUSTSEC-2026-0543). No fixed published parent release is available. A maintained replacement or an explicit maintainer security decision is required; this Gauntlet v1 batch grants no waiver. |
 
 ## Non-negotiable release gates
 

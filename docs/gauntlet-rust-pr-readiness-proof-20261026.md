@@ -15,6 +15,24 @@ Retained runtime/model results keep their original generation pins; these
 build fixes do not upgrade their qualification. Five passing final-head CI
 jobs and independent repository approval still gate the integration merge.
 
+The next CI run reached and passed the x86 tests, then exposed ARM-only private
+methods to x86 Clippy and ran three Root-only inode/journal fixtures as UID 1001.
+The follow-up gates those private methods and executes the same three exact
+fixtures separately as Root in the ephemeral ARM runner, with binary/path/test
+identity checks; all other fixtures remain unprivileged. No fixture assertion
+is removed or ignored. GitHub's macOS ARM capacity failures are addressed with
+standard `macos-15-intel` runners, which execute the same Native fixtures.
+
+Security scans identify old ZIP and URL dependencies. Gauntlet now shares the
+product's `zip` 9.1.2 generation with the existing pure-Rust deflate backend;
+both lockfiles use `url` 2.5.9. Archive path, size, raw-name and custody checks
+remain required. Fourteen historical Gitleaks matches are reference digests,
+public frame tags and synthetic redaction inputs; exceptions bind each exact
+commit/path/rule/line, without changing fixtures or broadening path exclusions.
+The separate product OAuth dependency still brings unmaintained `chrono`
+(RUSTSEC-2026-0543) into the product workspace, and its security check remains
+open. No advisory waiver or security-policy relaxation is made by this v1 batch.
+
 Upstream `main` was observed at `bd23425164010b9da0547cd9f59ddcc422207eef`,
 beyond the reviewed `fc0486a63` baseline. Compatibility with that newer product
 generation remains uncompleted; it is not included in the frozen v1 evidence.
