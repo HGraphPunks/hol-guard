@@ -57,6 +57,14 @@ The next run passes four required jobs, but its Mac cold build exceeds the
 15-minute shard budget (one shard reaches 68% with no reported test failure).
 Those CI budgets are now 45 and 35 minutes respectively; execution limits and
 all test assertions are unchanged. The incomplete runs grant no final-check credit.
+After compilation, the Intel hardening tests expose missing required child
+flags. That judge now explicitly requests ad-hoc signing for its Rust launcher
+and harness, as the kernel requires a valid caller signature for the flag
+request. Runtime-only image fixtures and every dynamic flag/hash check remain
+unchanged. All seven tests pass locally on ARM both before this setting and
+with it; the actual Intel result remains required.
+The small image-hardening tests now precede the large product build so a
+platform-specific admission failure is reported before that compile.
 
 Upstream `main` was observed at `bd23425164010b9da0547cd9f59ddcc422207eef`,
 beyond the reviewed `fc0486a63` baseline. Compatibility with that newer product

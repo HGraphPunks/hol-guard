@@ -81,6 +81,8 @@ jobs:
     # A cold fork build exceeds 25 minutes; retain time for the actual Native fixtures.
     timeout-minutes: 45
     env:
+      # Intel launchers need a valid signature to request inherited kernel hardening.
+      RUSTFLAGS: "-C link-arg=-Wl,-adhoc_codesign"
       CARGO_PROFILE_RELEASE_LTO: "false"
       CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
     steps:
@@ -109,15 +111,15 @@ jobs:
           cache-key: gauntlet-macos-native-judge
           cache-fallback-key: native-wheel
           save-push-ref: refs/heads/codex/gauntlet-rust-integration-20261020
+      - name: Test macOS pinned-image hardening
+        run: >-
+          cargo +1.89.0 test --manifest-path rust/Cargo.toml
+          -p guard-contained-process --lib macos_hardened_image_tests --locked
       - name: Build matching macOS Native runtime and compiler
         run: >-
           cargo +1.89.0 build --manifest-path rust/Cargo.toml --locked --release
           -p guard-command -p hol-guard-runtime
           --bin guard-command-source --bin hol-guard-runtime
-      - name: Test macOS pinned-image hardening
-        run: >-
-          cargo +1.89.0 test --manifest-path rust/Cargo.toml
-          -p guard-contained-process --lib macos_hardened_image_tests --locked
       - name: Verify the full Native program and public directory
         env:
           HOL_GUARD_NATIVE: force
