@@ -48,6 +48,10 @@ Public-directory preparation now explicitly selects the matching, already-built
 Native runtime and compiler, using the same bindings as the subsequent tests.
 This preserves the Rust grammar/authority requirement in both Python judge and
 macOS Native preparation, with no Python decision fallback.
+Standalone preparation also selects the explicit Native mode used by the main
+CI preparation step. Pytest supplies that mode through regression fixtures;
+standalone scripts do not. Protocol, manifest, identity and capability checks
+remain enforced for the pinned source-built runtime.
 
 Upstream `main` was observed at `bd23425164010b9da0547cd9f59ddcc422207eef`,
 beyond the reviewed `fc0486a63` baseline. Compatibility with that newer product
